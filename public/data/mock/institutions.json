@@ -1,0 +1,17 @@
+[
+  { "ticker": "RELIANCE", "company": "Reliance Industries Ltd", "quarter": "Q1FY27", "fiiPct": 22.4, "fiiChangeQoqPct": 0.3, "diiPct": 18.9, "diiChangeQoqPct": 0.6, "mfPct": 9.1 },
+  { "ticker": "TCS", "company": "Tata Consultancy Services Ltd", "quarter": "Q1FY27", "fiiPct": 15.8, "fiiChangeQoqPct": -0.4, "diiPct": 21.3, "diiChangeQoqPct": 0.9, "mfPct": 11.4 },
+  { "ticker": "HDFCBANK", "company": "HDFC Bank Ltd", "quarter": "Q1FY27", "fiiPct": 47.6, "fiiChangeQoqPct": 0.8, "diiPct": 28.1, "diiChangeQoqPct": 0.5, "mfPct": 15.2 },
+  { "ticker": "ICICIBANK", "company": "ICICI Bank Ltd", "quarter": "Q1FY27", "fiiPct": 44.2, "fiiChangeQoqPct": 1.1, "diiPct": 26.7, "diiChangeQoqPct": 0.4, "mfPct": 14.6 },
+  { "ticker": "INFY", "company": "Infosys Ltd", "quarter": "Q1FY27", "fiiPct": 33.5, "fiiChangeQoqPct": -0.9, "diiPct": 24.8, "diiChangeQoqPct": 1.2, "mfPct": 13.9 },
+  { "ticker": "BHARTIARTL", "company": "Bharti Airtel Ltd", "quarter": "Q1FY27", "fiiPct": 26.1, "fiiChangeQoqPct": 1.4, "diiPct": 19.4, "diiChangeQoqPct": 0.7, "mfPct": 10.8 },
+  { "ticker": "LT", "company": "Larsen & Toubro Ltd", "quarter": "Q1FY27", "fiiPct": 19.7, "fiiChangeQoqPct": 0.6, "diiPct": 22.5, "diiChangeQoqPct": 0.3, "mfPct": 12.1 },
+  { "ticker": "BAJFINANCE", "company": "Bajaj Finance Ltd", "quarter": "Q1FY27", "fiiPct": 20.3, "fiiChangeQoqPct": -1.2, "diiPct": 15.9, "diiChangeQoqPct": 0.5, "mfPct": 9.4 },
+  { "ticker": "TITAN", "company": "Titan Company Ltd", "quarter": "Q1FY27", "fiiPct": 17.4, "fiiChangeQoqPct": -0.6, "diiPct": 12.8, "diiChangeQoqPct": -0.3, "mfPct": 7.6 },
+  { "ticker": "ULTRACEMCO", "company": "UltraTech Cement Ltd", "quarter": "Q1FY27", "fiiPct": 21.9, "fiiChangeQoqPct": 0.9, "diiPct": 17.2, "diiChangeQoqPct": 0.4, "mfPct": 9.8 },
+  { "ticker": "TATAMOTORS", "company": "Tata Motors Ltd", "quarter": "Q1FY27", "fiiPct": 18.6, "fiiChangeQoqPct": -1.8, "diiPct": 14.3, "diiChangeQoqPct": -0.6, "mfPct": 8.2 },
+  { "ticker": "DIVISLAB", "company": "Divi's Laboratories Ltd", "quarter": "Q1FY27", "fiiPct": 23.8, "fiiChangeQoqPct": 0.5, "diiPct": 11.6, "diiChangeQoqPct": 0.2, "mfPct": 6.9 },
+  { "ticker": "PERSISTENT", "company": "Persistent Systems Ltd", "quarter": "Q1FY27", "fiiPct": 28.9, "fiiChangeQoqPct": 1.7, "diiPct": 13.4, "diiChangeQoqPct": 0.8, "mfPct": 8.1 },
+  { "ticker": "POLYCAB", "company": "Polycab India Ltd", "quarter": "Q1FY27", "fiiPct": 16.2, "fiiChangeQoqPct": 1.0, "diiPct": 10.7, "diiChangeQoqPct": 0.5, "mfPct": 6.4 },
+  { "ticker": "CDSL", "company": "Central Depository Services Ltd", "quarter": "Q1FY27", "fiiPct": 14.5, "fiiChangeQoqPct": 0.4, "diiPct": 8.9, "diiChangeQoqPct": 0.6, "mfPct": 5.3 }
+]

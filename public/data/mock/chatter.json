@@ -1,0 +1,34 @@
+{
+  "valuepickr": [
+    { "id": "vp-1", "ticker": "PERSISTENT", "company": "Persistent Systems Ltd", "thread": "Persistent Systems - digital engineering compounder", "excerpt": "Deal TCV momentum plus margin recovery makes the FY28 setup look better than the stock's recent price action suggests.", "author": "quality_investor", "postedAt": "2026-08-09T21:14:00+05:30", "replies": 38, "sentiment": "positive" },
+    { "id": "vp-2", "ticker": "TITAN", "company": "Titan Company Ltd", "thread": "Titan Company - jewellery + watches + eyewear", "excerpt": "Studded ratio decline this quarter is the number to watch, not just the headline growth print.", "author": "valuehunter88", "postedAt": "2026-08-09T18:02:00+05:30", "replies": 52, "sentiment": "neutral" },
+    { "id": "vp-3", "ticker": "CDSL", "company": "Central Depository Services Ltd", "thread": "CDSL - depository duopoly play", "excerpt": "Demat account addition run-rate has cooled from FY25 peaks but is still tracking well above pre-2023 levels.", "author": "capital_compounder", "postedAt": "2026-08-09T12:47:00+05:30", "replies": 21, "sentiment": "positive" },
+    { "id": "vp-4", "ticker": "TATAMOTORS", "company": "Tata Motors Ltd", "thread": "Tata Motors - JLR + CV + PV demerger tracker", "excerpt": "JLR order book normalisation was flagged again this call - want to see how China demand trends into H2.", "author": "auto_ancillary", "postedAt": "2026-08-08T22:30:00+05:30", "replies": 64, "sentiment": "negative" },
+    { "id": "vp-5", "ticker": "DIVISLAB", "company": "Divi's Laboratories Ltd", "thread": "Divi's Labs - CDMO capacity build-out", "excerpt": "Kakinada Phase-2 ramp plus a healthier custom synthesis mix should support margin expansion into FY28.", "author": "pharma_longterm", "postedAt": "2026-08-08T16:11:00+05:30", "replies": 29, "sentiment": "positive" },
+    { "id": "vp-6", "ticker": "BAJFINANCE", "company": "Bajaj Finance Ltd", "thread": "Bajaj Finance - NBFC bellwether thread", "excerpt": "Credit cost normalisation is taking longer than management indicated two quarters back - watching the MFI book closely.", "author": "nbfc_watcher", "postedAt": "2026-08-08T10:05:00+05:30", "replies": 71, "sentiment": "negative" },
+    { "id": "vp-7", "ticker": "ULTRACEMCO", "company": "UltraTech Cement Ltd", "thread": "UltraTech Cement - capacity leadership thread", "excerpt": "Fresh East India capacity announcement extends the volume growth runway well past FY28.", "author": "cement_cycle", "postedAt": "2026-08-07T19:40:00+05:30", "replies": 18, "sentiment": "positive" },
+    { "id": "vp-8", "ticker": "LT", "company": "Larsen & Toubro Ltd", "thread": "L&T - order book and execution tracker", "excerpt": "Order book at an all-time high, but working capital days need to be watched given the international mix.", "author": "infra_investor", "postedAt": "2026-08-07T09:55:00+05:30", "replies": 45, "sentiment": "neutral" }
+  ],
+  "telegram": [
+    { "id": "tg-1", "channel": "Sattva Research Wire", "ticker": "BHARTIARTL", "company": "Bharti Airtel Ltd", "message": "Airtel ARPU trajectory continues to surprise positively - tariff hike pass-through better than Street modelled.", "postedAt": "2026-08-10T07:55:00+05:30", "forwards": 214 },
+    { "id": "tg-2", "channel": "Midcap Radar IN", "ticker": "POLYCAB", "company": "Polycab India Ltd", "message": "Polycab distributor checks suggest wires & cables demand holding up well into the festive-season build-up.", "postedAt": "2026-08-09T20:18:00+05:30", "forwards": 132 },
+    { "id": "tg-3", "channel": "Sattva Research Wire", "ticker": "INFY", "company": "Infosys Ltd", "message": "Infosys management commentary on BFSI pricing pressure worth watching - flagged on today's call.", "postedAt": "2026-08-09T16:40:00+05:30", "forwards": 187 },
+    { "id": "tg-4", "channel": "NSE500 Chatter", "ticker": "SUNPHARMA", "company": "Sun Pharmaceutical Industries Ltd", "message": "Sun Pharma specialty portfolio momentum plus easing attrition - constructive setup into FY28.", "postedAt": "2026-08-09T11:22:00+05:30", "forwards": 98 },
+    { "id": "tg-5", "channel": "Midcap Radar IN", "ticker": "CDSL", "company": "Central Depository Services Ltd", "message": "CDSL volumes tracking flat MoM - keep an eye on NSE/BSE active client additions for the next leg.", "postedAt": "2026-08-08T21:05:00+05:30", "forwards": 76 },
+    { "id": "tg-6", "channel": "Sattva Research Wire", "ticker": "TATAMOTORS", "company": "Tata Motors Ltd", "message": "Tata Motors miss largely JLR-led - domestic CV/PV commentary was actually reassuring on the call.", "postedAt": "2026-08-08T14:12:00+05:30", "forwards": 165 },
+    { "id": "tg-7", "channel": "NSE500 Chatter", "ticker": "TITAN", "company": "Titan Company Ltd", "message": "Titan jewellery margin miss triggering some profit booking chatter in mid-cap groups today.", "postedAt": "2026-08-08T09:48:00+05:30", "forwards": 143 },
+    { "id": "tg-8", "channel": "Sattva Research Wire", "ticker": "LT", "company": "Larsen & Toubro Ltd", "message": "L&T record order book print - international order share now above 40% of the quarter's inflow.", "postedAt": "2026-08-07T18:20:00+05:30", "forwards": 201 }
+  ],
+  "trending": [
+    { "ticker": "BHARTIARTL", "company": "Bharti Airtel Ltd", "mentions24h": 412, "mentionsChangePct": 38.2, "sentimentScore": 0.62 },
+    { "ticker": "TATAMOTORS", "company": "Tata Motors Ltd", "mentions24h": 356, "mentionsChangePct": 21.4, "sentimentScore": -0.18 },
+    { "ticker": "TITAN", "company": "Titan Company Ltd", "mentions24h": 298, "mentionsChangePct": -9.6, "sentimentScore": -0.24 },
+    { "ticker": "INFY", "company": "Infosys Ltd", "mentions24h": 271, "mentionsChangePct": 12.8, "sentimentScore": -0.05 },
+    { "ticker": "LT", "company": "Larsen & Toubro Ltd", "mentions24h": 233, "mentionsChangePct": 16.1, "sentimentScore": 0.44 },
+    { "ticker": "PERSISTENT", "company": "Persistent Systems Ltd", "mentions24h": 189, "mentionsChangePct": 44.7, "sentimentScore": 0.58 },
+    { "ticker": "BAJFINANCE", "company": "Bajaj Finance Ltd", "mentions24h": 176, "mentionsChangePct": -6.3, "sentimentScore": -0.31 },
+    { "ticker": "DIVISLAB", "company": "Divi's Laboratories Ltd", "mentions24h": 154, "mentionsChangePct": 9.5, "sentimentScore": 0.51 },
+    { "ticker": "ULTRACEMCO", "company": "UltraTech Cement Ltd", "mentions24h": 121, "mentionsChangePct": 5.2, "sentimentScore": 0.39 },
+    { "ticker": "CDSL", "company": "Central Depository Services Ltd", "mentions24h": 97, "mentionsChangePct": -3.1, "sentimentScore": 0.12 }
+  ]
+}

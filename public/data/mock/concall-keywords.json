@@ -1,0 +1,11 @@
+[
+  { "id": "guidance", "label": "Guidance", "hits": 21, "trend": "up" },
+  { "id": "margin", "label": "Margin", "hits": 17, "trend": "up" },
+  { "id": "capex", "label": "Capex", "hits": 14, "trend": "flat" },
+  { "id": "order-book", "label": "Order Book", "hits": 12, "trend": "up" },
+  { "id": "attrition", "label": "Attrition", "hits": 6, "trend": "down" },
+  { "id": "debt-reduction", "label": "Debt Reduction", "hits": 9, "trend": "up" },
+  { "id": "capacity-expansion", "label": "Capacity Expansion", "hits": 11, "trend": "flat" },
+  { "id": "management-change", "label": "Management Change", "hits": 3, "trend": "down" },
+  { "id": "pricing-pressure", "label": "Pricing Pressure", "hits": 8, "trend": "up" }
+]
