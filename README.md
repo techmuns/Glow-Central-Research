@@ -100,6 +100,32 @@ TECH_LIMIT=15 node scripts/scrape-technicals.mjs   # smoke run -> technicals.smo
 A capped run writes to a sibling file and skips the ATR accumulator, so it can never truncate
 the committed feed or poison the volatility-trend history.
 
+## Regenerate the mock earnings set
+
+```bash
+node scripts/gen-mock-earnings.mjs
+```
+
+Seeded, so the output is byte-stable — a diff means a real change. Writes
+`public/data/mock/earnings.json` and `public/data/mock/earnings-calendar.json`. Company names,
+tickers, sectors and market caps come from `universe.json` and are real; **every financial figure
+is synthetic**, and the dashboard says so on every surface that shows one. Swapping in the real
+filings feed is a three-file change — see *Wiring the real feed* in
+[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md).
+
+## Verify before pushing
+
+```bash
+python3 -m http.server 8080 -d public &
+node scripts/verify-ui.mjs
+```
+
+Drives the site with Playwright and walks CLAUDE.md's checklist — every route in both scopes,
+routing and history, table search/sort/filters, the drill panel, the provenance markers, the
+Excel export and the responsive breakpoints. Exits non-zero if anything fails, so it can gate a
+push. It uses a system Playwright install (`PLAYWRIGHT_ROOT` / `CHROME_PATH` to point it
+elsewhere) rather than adding an npm dependency.
+
 ## Screenshots
 
 | Technical Scanner | Rule breakdown |

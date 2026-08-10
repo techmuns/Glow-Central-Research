@@ -88,6 +88,72 @@ function triggerDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * Multi-sheet variant. Same column contract, plus an optional `banner` string written as a
+ * merged first row on every sheet — used to carry a provenance statement ("illustrative
+ * data", or the real source and timestamp) into the file itself, so an exported workbook
+ * can never be mistaken for something it isn't once it leaves the dashboard.
+ *
+ *   exportSheets({ filename, banner, sheets: [{ name, columns, rows }] })
+ */
+export async function exportSheets({ filename = 'export', banner = '', sheets = [] }) {
+  let ExcelJS;
+  try {
+    ExcelJS = await loadExcelJs();
+  } catch (err) {
+    console.error('[export] exceljs unavailable', err);
+    return false;
+  }
+
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Sattva Central Research';
+    wb.created = new Date();
+
+    for (const sheet of sheets) {
+      const ws = wb.addWorksheet(sheet.name, { views: [{ state: 'frozen', ySplit: banner ? 2 : 1 }] });
+      const columns = sheet.columns || [];
+
+      if (banner) {
+        // Row 1 is the provenance statement, merged across the full width.
+        ws.mergeCells(1, 1, 1, Math.max(1, columns.length));
+        const cell = ws.getCell(1, 1);
+        cell.value = banner;
+        cell.font = { bold: true, size: 10, color: { argb: 'FF92400E' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        ws.getRow(1).height = 28;
+      }
+
+      const headerRowIdx = banner ? 2 : 1;
+      ws.getRow(headerRowIdx).values = columns.map((c) => c.header);
+      columns.forEach((c, i) => {
+        ws.getColumn(i + 1).width = c.width || 16;
+      });
+
+      for (const row of sheet.rows || []) {
+        ws.addRow(columns.map((c) => c.get(row)));
+      }
+
+      const header = ws.getRow(headerRowIdx);
+      header.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      header.alignment = { vertical: 'middle', horizontal: 'left' };
+      header.height = 22;
+      if (columns.length) {
+        ws.autoFilter = { from: { row: headerRowIdx, column: 1 }, to: { row: headerRowIdx, column: columns.length } };
+      }
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${filename}.xlsx`);
+    return true;
+  } catch (err) {
+    console.error('[export] failed to build workbook', err);
+    return false;
+  }
+}
+
 // Today's date as YYYY-MM-DD, for stamping export filenames.
 export function todayStamp() {
   return new Date().toISOString().slice(0, 10);

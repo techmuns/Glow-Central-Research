@@ -561,8 +561,9 @@ let drillKeyHandler = null;
  *  groups       [{ category, items: [{ label, criteria?, status, value, note?, points?, max?, extraHtml? }] }]
  *               `extraHtml` is trusted markup appended inside the card (e.g. provenance chips).
  *  banner       optional { tone: 'rose'|'amber'|'slate', title, body } strip under the header
+ *  beforeGroupsHtml  trusted markup rendered above the rule groups (series tables, charts)
  */
-export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open source ↗', headerStats = [], groups = [], banner = null }) {
+export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open source ↗', headerStats = [], groups = [], banner = null, beforeGroupsHtml = '' }) {
   const panel = document.getElementById('drill-panel');
   const overlay = document.getElementById('drill-overlay');
   const content = document.getElementById('drill-content');
@@ -613,6 +614,7 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
       }
     </div>
     <div class="p-5">
+      ${beforeGroupsHtml || ''}
       ${groups
         .map(
           (g) => `

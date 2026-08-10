@@ -6,6 +6,7 @@ import { $ } from './core/dom.js';
 import { setData, setDataError } from './core/state.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
+import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -15,6 +16,7 @@ const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
+  earningsCalendar: 'data/mock/earnings-calendar.json',
   concallFeed: 'data/mock/concall-feed.json',
   concallKeywords: 'data/mock/concall-keywords.json',
   chatter: 'data/mock/chatter.json',
@@ -39,6 +41,13 @@ async function loadAll() {
   // against — see js/data/universe.js.
   data.universeRaw = data.universe;
   data.universe = adaptUniverse(data.universeRaw);
+
+  // Same pattern for earnings. The rich payload primes js/data/earnings.js (so it never
+  // refetches), and `ctx.data.earnings` keeps the flat one-row-per-company summary that
+  // Breakouts → Earnings Surprise was written against.
+  data.earningsRaw = data.earnings;
+  primeEarnings(data.earningsRaw, data.earningsCalendar);
+  data.earnings = adaptLegacySummary(data.earningsRaw);
   return data;
 }
 

@@ -24,6 +24,7 @@ prompts — treat it as the interface, and change the doc and the producer toget
 | `portfolio` | `public/data/portfolio.json` |
 | `universe` | `public/data/universe.json` |
 | `earnings` | `public/data/mock/earnings.json` |
+| `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `concallFeed` | `public/data/mock/concall-feed.json` |
 | `concallKeywords` | `public/data/mock/concall-keywords.json` |
 | `chatter` | `public/data/mock/chatter.json` |
@@ -34,6 +35,10 @@ prompts — treat it as the interface, and change the doc and the producer toget
 `universe.json` is loaded twice over: the raw screener rows stay on `ctx.data.universeRaw`, and
 `ctx.data.universe` carries the adapted `{ ticker, name, marketCap, sector, industry }` shape the
 older tabs were built against (see `js/data/universe.js`).
+
+`earnings.json` follows the same pattern: the full payload stays on `ctx.data.earningsRaw` and
+primes `js/data/earnings.js` (so the module never refetches it), while `ctx.data.earnings` carries
+the flat one-row-per-company summary that Breakouts → Earnings Surprise was written against.
 
 **Not in that map:** `technicals.json`, `atr-history.json` and `technicals-source.json` are fetched
 lazily by `js/data/technicals.js` the first time the Breakouts tab (or a global search) needs them,
@@ -362,42 +367,181 @@ scope.
 
 ---
 
-## `public/data/mock/earnings.json`
+## `public/data/mock/earnings.json` — MOCK, real-shaped
 
-Latest reported quarterly results. Root is an **array**, one row per company per quarter.
+Eight quarters of results per company: everything the 15-rule Result Quality & Growth model in
+`js/scoring/earnings-scoring.js` scores. Root is an **object** with a metadata envelope and a
+`companies[]` array.
+
+> **Illustrative data.** The 120 company names, tickers, sectors, industries and market caps are
+> real — stride-sampled from `universe.json`. **Every financial figure is synthetic**, produced by
+> `scripts/gen-mock-earnings.mjs` from a seeded PRNG (`SEED = 20260810`, so the file regenerates
+> byte-identically). No number in this file is a reported figure. The UI is required to say so —
+> see *Provenance surface* below.
 
 ```jsonc
-[
-  {
-    "ticker": "RELIANCE", "name": "Reliance Industries Ltd", "sector": "Energy",
-    "quarter": "Q1FY27", "reportDate": "2026-07-18",
-    "revenueCr": 255000, "revenueYoyPct": 6.2, "revenueQoqPct": 2.1,
-    "netProfitCr": 19800, "netProfitYoyPct": 8.4,
-    "epsActual": 29.4, "epsEstimate": 28.6, "surprisePct": 2.8,
-    "resultTag": "Beat"
-  }
-]
+{
+  "_provenance": "ILLUSTRATIVE DATA. Company names, tickers, sectors and market caps are real …",
+  "generated_at": "2026-08-10T10:41:45.675Z",
+  "generator": "scripts/gen-mock-earnings.mjs",
+  "seed": 20260810,
+  "source": "Mock data",              // the flag the UI keys every honesty marker off
+  "quarter": "Q1FY27",
+  "season_start": "2026-07-10",
+  "season_end": "2026-08-08",
+  "company_count": 120,
+  "companies": [
+    {
+      "ticker": "PGHH", "name": "P & G Hygiene",
+      "sector": "Fast Moving Consumer Goods", "industry": "Personal Products",
+      "marketCap": 27582, "screenerUrl": "https://www.screener.in/company/PGHH/",
+      "quarter": "Q1FY27", "reportedOn": "2026-07-31",
+      "archetype": "decelerating",
+      "quarters": [                    // exactly 8, OLDEST FIRST; index -1 is the latest
+        {
+          "quarter": "Q2FY25",
+          "revenue": 718.7, "operatingProfit": 120.9, "opm": 16.82,
+          "netProfit": 76.3, "npm": 10.61, "eps": 2.3,
+          "otherIncome": 10.8, "pbt": 103.2, "taxExpense": 26.9, "exceptionalItems": 0
+        }
+        // … 7 more
+      ],
+      "consensus": { "eps": 2.36, "revenue": 786.5 },
+      "segments": [{ "name": "Home care", "revenue": 279.6, "share": 37.3 }]
+    }
+  ]
+}
+```
+
+### Envelope
+
+| Field | Type | Unit / values | Notes |
+| --- | --- | --- | --- |
+| `_provenance` | string | — | Plain-English statement of what is real and what is not. Shown verbatim nowhere; it exists so the file is self-describing on disk. |
+| `generated_at` | string | ISO 8601 UTC | Generation time. **Not a filing time** — the freshness card must say so while `source` is mock. |
+| `generator` | string | repo path | Named in the Sources modal. Omit on a real feed. |
+| `seed` | number | — | PRNG seed. Omit on a real feed. |
+| `source` | string | free text | **The honesty switch.** `js/data/earnings.js` sets `meta().isMock = source.toLowerCase().includes('mock')`. Every ribbon, badge and export banner keys off it. A real feed sets e.g. `"BSE/NSE corporate filings"` and all mock markers disappear on their own. |
+| `quarter` | string | `Q<n>FY<yy>` | The season being reported, e.g. `Q1FY27` = Apr–Jun 2026. |
+| `season_start` / `season_end` | string | `YYYY-MM-DD` | Range the `reportedOn` dates fall in. |
+| `company_count` | number | — | Must equal `companies.length`. |
+
+### `companies[]`
+
+| Field | Type | Unit / values | Notes |
+| --- | --- | --- | --- |
+| `ticker` | string | NSE symbol | Join key against `universe.json` and `technicals.json`. Uppercased for lookup. |
+| `name` / `sector` / `industry` | string | — | Real, from `universe.json`. |
+| `marketCap` | number | ₹ crore | Real. Drives the Quality & Growth scatter's x-axis. |
+| `screenerUrl` | string | URL | Deep link in the drill panel header. |
+| `quarter` | string | `Q<n>FY<yy>` | The quarter this company just reported. |
+| `reportedOn` | string | `YYYY-MM-DD` | Declaration date. Orders the Latest Results table. |
+| `archetype` | string | see below | **Generator artefact.** Records which behaviour profile produced the numbers. A real feed omits it; nothing in the UI scores off it. |
+| `quarters[]` | array | exactly 8 | **Oldest first.** The model reads `at(-1)` = latest, `at(-2)` = previous, `at(-5)` = year-ago. Fewer than 5 entries makes every YoY rule return `na`. |
+| `consensus` | object | — | `{ eps, revenue }`. Street estimates for the latest quarter. Absent ⇒ both Surprise rules return `na`. |
+| `segments[]` | array | — | `{ name, revenue, share }`. Revenue split for the latest quarter, rendered as the drill panel's share bar. Optional; the bar is skipped when absent. |
+
+### `companies[].quarters[]`
+
+| Field | Type | Unit | Notes |
+| --- | --- | --- | --- |
+| `quarter` | string | `Q<n>FY<yy>` | Label for the mini-table column. |
+| `revenue` | number | ₹ crore | Consolidated. |
+| `operatingProfit` | number | ₹ crore | EBITDA less depreciation — the operating line. May be negative. |
+| `opm` | number | percent | `operatingProfit ÷ revenue × 100`, pre-rounded to 2dp. The margin rules read this field rather than recomputing, so a real feed must supply it (or the loader must derive it). |
+| `netProfit` | number | ₹ crore | PAT. Negative ⇒ `pat_yoy` hard-fails and the row carries a red flag. |
+| `npm` | number | percent | `netProfit ÷ revenue × 100`, 2dp. |
+| `eps` | number | ₹ per share | Reported EPS. |
+| `otherIncome` | number | ₹ crore | Non-operating income. |
+| `pbt` | number | ₹ crore | Profit before tax. `other_inc` and `tax_rate` return `na` when this is ≤ 0. |
+| `taxExpense` | number | ₹ crore | Current + deferred. |
+| `exceptionalItems` | number | ₹ crore | `0` means a clean quarter. Any non-zero value fails `exceptional`, gain or charge. |
+
+`archetype` is one of `compounder`, `steady`, `accelerating`, `decelerating`, `cyclical`,
+`pressured`, `lossmaker`, `turnaround`.
+
+### Provenance surface
+
+While `source` contains "mock", four things are contractually required to say so — §6 of the
+brief. All four read `meta().isMock`; none needs touching when the real feed lands:
+
+1. a persistent amber ribbon at the top of every Earnings Hub sub-view;
+2. the gradient freshness card reading **"Mock data · Generated `<date>` · not a filing time"**;
+3. the Sources modal listing all three earnings rows as `mock` and naming the generator script;
+4. an amber banner as row 1 of **every sheet** in the Excel export.
+
+The drill panel adds a fifth: an amber "Illustrative figures" note above the quarterly series.
+
+### Wiring the real feed
+
+Swapping in real filings is a **one-file change plus one path**:
+
+1. Write the real payload to `public/data/earnings.json` in exactly the shape above, with
+   `source` set to something that does not contain "mock" (e.g. `"BSE/NSE corporate filings"`),
+   and drop `generator`, `seed` and `archetype`.
+2. Point `EARNINGS_PATH` in `js/data/earnings.js` and the `earnings` entry in `DATA_SOURCES`
+   (`js/app.js`) at the new path.
+3. Flip the three `status: 'mock'` entries in `js/ui/sources.js` to `live`.
+
+Nothing else changes: the scoring model, all three sub-views, the drill, the scans, the export
+and the poller already read this shape. To poll a live endpoint instead of a file, swap
+`live.mockFetcher(EARNINGS_PATH, …)` for `live.realFetcher('/api/earnings')` in `registerPoller`.
+
+**Refresh cadence** — event-driven during results season (Jan/Apr/Jul/Oct), then idle. The
+in-page poller re-reads and **re-scores** every 45s while the tab is open and visible.
+**Real source** — BSE/NSE corporate filings for the reported figures; Screener.in or Trendlyne
+for consensus estimates.
+**Consumed by** — Earnings Hub (all three sub-views), Breakouts → Earnings Surprise.
+
+> **Legacy adapter.** Breakouts → Earnings Surprise predates this shape and reads a flat
+> one-row-per-company summary (`ticker`, `revenueCr`, `revenueYoyPct`, `netProfitCr`,
+> `epsActual`, `epsEstimate`, `surprisePct`, `resultTag`, …). `adaptLegacySummary()` in
+> `js/data/earnings.js` derives it, and `app.js` hands the result to `ctx.data.earnings` — so
+> that view needed no changes and needs none when the real feed lands. `ctx.data.earningsRaw`
+> carries the full payload. Same pattern as `js/data/universe.js`.
+
+---
+
+## `public/data/mock/earnings-calendar.json` — MOCK
+
+Companies **yet to report** this season. Drives the Earnings Hub's upcoming-results strip only;
+nothing is scored off it.
+
+```jsonc
+{
+  "_provenance": "ILLUSTRATIVE DATA. Company names and tickers are real; the scheduled dates are synthetic …",
+  "generated_at": "2026-08-10T10:41:45.693Z",
+  "generator": "scripts/gen-mock-earnings.mjs",
+  "seed": 20260810,
+  "source": "Mock data",
+  "from": "2026-08-11",
+  "to": "2026-09-09",
+  "quarter": "Q1FY27",
+  "event_count": 52,
+  "events": [
+    {
+      "ticker": "IRCTC", "name": "I R C T C", "sector": "Consumer Services",
+      "marketCap": 41596, "date": "2026-08-11", "quarter": "Q1FY27", "confirmed": true
+    }
+  ]
+}
 ```
 
 | Field | Type | Unit / values | Notes |
 | --- | --- | --- | --- |
-| `ticker` / `name` / `sector` | string | — | |
-| `quarter` | string | `Q<n>FY<yy>` | Indian fiscal quarter, e.g. `Q1FY27` = Apr–Jun 2026. |
-| `reportDate` | string | `YYYY-MM-DD` | Date results were declared. |
-| `revenueCr` | number | ₹ crore | Consolidated revenue. |
-| `revenueYoyPct` | number | percent | vs same quarter last year. Signed. |
-| `revenueQoqPct` | number | percent | vs previous quarter. Signed. |
-| `netProfitCr` | number | ₹ crore | Consolidated PAT. |
-| `netProfitYoyPct` | number | percent | Signed. |
-| `epsActual` | number | ₹ per share | Reported EPS for the quarter. |
-| `epsEstimate` | number | ₹ per share | Consensus estimate. |
-| `surprisePct` | number | percent | `(epsActual - epsEstimate) / epsEstimate * 100`. Signed. |
-| `resultTag` | string | `Beat` \| `Miss` \| `In-line` | Derived from `surprisePct`; thresholds finalised in prompt 4. |
+| `from` / `to` | string | `YYYY-MM-DD` | Window the events span. |
+| `event_count` | number | — | Must equal `events.length`. |
+| `events[].ticker` / `name` / `sector` | string | — | Real, from `universe.json`. |
+| `events[].marketCap` | number | ₹ crore | Real. Orders the strip — biggest first within a day. |
+| `events[].date` | string | `YYYY-MM-DD` | **Synthetic.** Board-meeting date. |
+| `events[].confirmed` | boolean | — | `true` = exchange-confirmed, `false` = expected. Rendered as a dashed vs solid chip. |
 
-**Refresh cadence** — event-driven during results season (Jan/Apr/Jul/Oct), then idle.
-**Real source** — BSE/NSE corporate filings for the reported figures; Screener.in or Trendlyne
-for consensus estimates.
-**Consumed by** — Earnings Hub (all three sub-views), Breakouts → Earnings Surprise.
+The file is **optional**: `js/data/earnings.js` catches a failed fetch and falls back to
+`{ events: [] }`, which hides the strip rather than breaking the tab.
+
+**Refresh cadence** — daily during results season.
+**Real source** — NSE/BSE board-meeting filings.
+**Consumed by** — Earnings Hub → Latest Results (the upcoming strip).
 
 ---
 

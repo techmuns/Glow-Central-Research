@@ -55,17 +55,20 @@ public/
       shell.js                header + rail + tabs + content host + tab registry
     data/
       technicals.js           loads + scores the live feed once, caches it
+      earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       universe.js             screener-export -> legacy universe shape adapter
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
-      rule-meta.js            per-rule provenance for the drill panel's chips
-    tabs/                     earnings-hub, concall, public-chatter, breakouts,
-                              breakouts-drill, super-investors
+      earnings-scoring.js     15-rule / 21-point result quality + growth model
+      rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
+    tabs/                     earnings-hub, earnings-scans, earnings-drill, concall,
+                              public-chatter, breakouts, breakouts-drill, super-investors
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, universe.json,
                               portfolio.json, mock/*.json
 scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
+  gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices
@@ -192,14 +195,20 @@ than rendering empty score furniture.
 These are not style preferences — they are why the dashboard can be trusted:
 
 1. **Never fabricate a number to fill a component.** If a feed hasn't landed, render
-   `pendingPanel()` and drop the ranking grid. Breakouts → Technical Scanner does exactly this
-   and must keep doing so until `technicals.json` exists.
+   `pendingPanel()` and drop the ranking grid.
 2. **Signals must be direct readings**, e.g. "revenue YoY > 0", not a modelled judgement. A
    real points-based score only appears once its model is built and documented.
 3. **Label derived figures as derived.** Super Investors' holding value is
    `holding % × market cap` and says so in the drill panel — filings disclose a percentage,
    never a rupee amount.
 4. **Every `?` help modal states what is mock and what is live**, and which prompt wires it.
+5. **Synthetic numbers must be unmistakable wherever they surface.** Earnings Hub is the
+   reference: an amber ribbon on every sub-view, a freshness card reading "Mock data · generated
+   `<date>` · not a filing time" rather than a fake filing time, an amber note in the drill, an
+   amber banner as row 1 of every exported sheet, and a `mock` row in the Sources modal naming
+   the generator script. All five read one flag derived from the payload — see *Mock data that
+   has to behave like real data* below. **A number that leaves the dashboard must carry its
+   provenance with it**: an exported workbook is the one artefact nobody can see a ribbon on.
 
 `wire()` returns a disposer when it registers anything global. Call it in `destroy()`.
 **Always escape data-sourced strings** with `escapeHtml` from `core/dom.js`.
@@ -211,33 +220,69 @@ Navigation furniture only: `tabBar`, `railNav`, `segmentedToggle`, `searchInput`
 `skeleton`, `spark`, `tooltip`, plus the legacy `statCard` / `sectionHeader` / `dataTable`.
 Prefer the screener kit for anything inside a tab panel.
 
-### Adding a scoring model — the pattern prompts 4–7 should follow
+### Adding a scoring model — the pattern prompts 5–7 should follow
 
-The technicals tab is the reference implementation. Copy its shape rather than inventing a new one.
+**Two models now sit on this contract:** `tech-scoring.js` (16 rules / 24 points, ported verbatim
+from LKP) and `earnings-scoring.js` (15 rules / 21 points, built here). They share every shape, so
+the screener kit consumes both with zero special-casing. Copy their shape rather than inventing a
+new one — earnings is the cleaner reference for a model written from scratch.
 
 1. **The model lives in `js/scoring/<pillar>-scoring.js`** and exports:
    - `ACTIVE_RULES` — `[{ key, label, category, criteria, fn }]`
    - `scoreCompany(c)` → `{ company, breakdown, totalPoints, totalMax, scorePct, hardFails, naCount, tickerError? }`
+   - `TOTAL_MAX` — the model's declared maximum, computed as `ACTIVE_RULES.reduce(… r.fn({}).max)`
+     so it can never drift from the rules themselves.
 
    Each rule `fn(c)` returns `{ points, max, status, value, note }` where `status` is one of
    `pass | partial | fail | hard_fail | na`. **Missing input must return `na` with the rule's
    `max`** — never a zero that reads like a real measurement. A rule with no data costs the
    company those points and says so in the drill.
 
-2. **Provenance lives in `js/scoring/<pillar>-rule-meta.js`**, keyed by the same rule keys:
-   `{ source(company), calculation, clientLogic, ourLogic }`. A non-null `ourLogic` is what turns
-   the drill panel's Implementation chip amber — set it whenever the implementation deviates from
-   the stated logic, and explain how.
+   `na` is also the right answer for input that is *present but meaningless*: earnings returns it
+   for the other-income and tax-rate ratios when PBT ≤ 0, and for operating-profit-vs-PAT growth
+   when either side is an operating loss. Taken literally that last rule rewards a collapse —
+   operating profit falling from +466 Cr to −268 Cr scores −157%, which "beats" a PAT down −208%
+   and would hand an operating-loss quarter full marks for earnings quality. **Check every
+   ratio-of-growth-rates rule for that failure mode**, and give the `na` branch a `value` string
+   showing the raw numbers so the drill still explains itself.
+
+2. **Provenance lives in `rule-meta.js` under `META[tabId][ruleKey]`**:
+   `{ source(company), calculation, clientLogic, ourLogic }`. One file, one entry per model —
+   `META.technicals`, `META.earnings`. (`RULE_META` remains exported as an alias of
+   `META.technicals` so the technicals drill needed no change.) A non-null `ourLogic` is what
+   turns the drill panel's Implementation chip amber — set it whenever the implementation
+   deviates from the stated logic, and explain how. Four earnings rules carry one.
 
 3. **The data layer lives in `js/data/<feed>.js`**: fetch once, score once, cache, and expose
    `load() / all() / byTicker() / meta() / forScope()`. Tabs must never rescore on a sub-view or
-   scope change — filter the cached list.
+   scope change — filter the cached list. If `app.js` already loads the payload at bootstrap,
+   export a `prime(payload)` so the module seeds its cache instead of refetching.
 
 4. **The tab turns scoring on** by passing `showScore` + `score(row)` and `showSignals` +
    `signals(row)` to `scoreTable`, and adds `legendStrip()`. Until a real model exists, leave both
    off — see the honesty rules above.
 
-Score points may be fractional (ADX 20–25 scores 0.5). Format with a helper, don't assume integers.
+Score points may be fractional (ADX 20–25 scores 0.5; the earnings tax-rate rule scores 0.5).
+Format with a helper, don't assume integers.
+
+A gap between two percentages is measured in **percentage points**. Use a `pp` formatter —
+`fmtSigned(gap) + ' pp'` renders the doubled unit "+2.0% pp".
+
+### Mock data that has to behave like real data
+
+`earnings.json` is synthetic but built to the exact contract of the real feed, and the tab is
+wired as if it were live. The pattern for any feed in that state:
+
+- Put the honesty switch **in the data**, not in the code. `meta().isMock` is derived from the
+  payload's `source` field containing "mock". Every marker — the amber ribbon, the freshness card,
+  the drill note, the export banner — reads that one flag, so swapping the file in flips all of
+  them at once and no marker can be left behind.
+- Generate it from a **seeded** script committed to `scripts/`, so the file regenerates
+  byte-identically and a diff means a real change.
+- Keep real what can be real. Names, tickers, sectors and market caps come from `universe.json`;
+  only the financials are invented, and the ribbon says exactly that.
+- Document the swap in `docs/DATA-CONTRACTS.md` under a "Wiring the real feed" heading — the list
+  of files to touch, in order.
 
 ### Performance on large tables
 
@@ -280,6 +325,9 @@ live.stop('concall-feed');    // in destroy(), and call off()
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
+| Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
+| Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
+| Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
 | Add a server route | the API block in `worker/index.js` |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
