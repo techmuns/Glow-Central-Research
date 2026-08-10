@@ -147,6 +147,25 @@
         background: linear-gradient(180deg, transparent 60%, rgba(99, 102, 241, 0.05) 100%);
       }
 
+      /* scoreTable row numbers come from a CSS counter, not from the markup — that keeps each
+         row's HTML position-independent so sorting can reorder cached strings instead of
+         regenerating 500+ rows. */
+      tbody {
+        counter-reset: sattva-row;
+      }
+      tbody tr.row-line {
+        counter-increment: sattva-row;
+      }
+      .row-rank::before {
+        content: counter(sattva-row);
+      }
+
+      /* Drill-panel provenance chips use <details>; hide the default disclosure triangle
+         so the summary renders as a clean chip. */
+      .meta-details > summary::-webkit-details-marker { display: none; }
+      .meta-details > summary { list-style: none; }
+      .meta-details > summary::marker { content: ''; }
+
       /* Right-slide drill panel + centred modal transitions (ui/screener.js). */
       .drill-panel {
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);

@@ -50,12 +50,25 @@ public/
       screener.js             THE SCREENER KIT — build tabs from this
       visual.js               avatars, tiers, status pills, signal dots, legend
       sources.js              data-source registry behind the header "Sources" modal
+      export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
-    tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors
+    data/
+      technicals.js           loads + scores the live feed once, caches it
+      universe.js             screener-export -> legacy universe shape adapter
+    scoring/
+      tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
+      rule-meta.js            per-rule provenance for the drill panel's chips
+    tabs/                     earnings-hub, concall, public-chatter, breakouts,
+                              breakouts-drill, super-investors
     portfolio/                overview, position-by, transactions, drawdown
-  data/                       portfolio.json, universe.json, mock/*.json
-worker/index.js               asset serving + a marked slot for /api/* routes
+  data/                       technicals.json, atr-history.json, universe.json,
+                              portfolio.json, mock/*.json
+scripts/
+  scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
+  lib/                        indicators.mjs, liquidity-estimators.mjs
+.github/workflows/technicals-refresh.yml   weekdays 07:00 IST
+worker/index.js               asset serving + POST /api/live-prices
 wrangler.jsonc
 docs/SPEC.md                  product spec + 7-prompt roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -198,6 +211,43 @@ Navigation furniture only: `tabBar`, `railNav`, `segmentedToggle`, `searchInput`
 `skeleton`, `spark`, `tooltip`, plus the legacy `statCard` / `sectionHeader` / `dataTable`.
 Prefer the screener kit for anything inside a tab panel.
 
+### Adding a scoring model — the pattern prompts 4–7 should follow
+
+The technicals tab is the reference implementation. Copy its shape rather than inventing a new one.
+
+1. **The model lives in `js/scoring/<pillar>-scoring.js`** and exports:
+   - `ACTIVE_RULES` — `[{ key, label, category, criteria, fn }]`
+   - `scoreCompany(c)` → `{ company, breakdown, totalPoints, totalMax, scorePct, hardFails, naCount, tickerError? }`
+
+   Each rule `fn(c)` returns `{ points, max, status, value, note }` where `status` is one of
+   `pass | partial | fail | hard_fail | na`. **Missing input must return `na` with the rule's
+   `max`** — never a zero that reads like a real measurement. A rule with no data costs the
+   company those points and says so in the drill.
+
+2. **Provenance lives in `js/scoring/<pillar>-rule-meta.js`**, keyed by the same rule keys:
+   `{ source(company), calculation, clientLogic, ourLogic }`. A non-null `ourLogic` is what turns
+   the drill panel's Implementation chip amber — set it whenever the implementation deviates from
+   the stated logic, and explain how.
+
+3. **The data layer lives in `js/data/<feed>.js`**: fetch once, score once, cache, and expose
+   `load() / all() / byTicker() / meta() / forScope()`. Tabs must never rescore on a sub-view or
+   scope change — filter the cached list.
+
+4. **The tab turns scoring on** by passing `showScore` + `score(row)` and `showSignals` +
+   `signals(row)` to `scoreTable`, and adds `legendStrip()`. Until a real model exists, leave both
+   off — see the honesty rules above.
+
+Score points may be fractional (ADX 20–25 scores 0.5). Format with a helper, don't assume integers.
+
+### Performance on large tables
+
+`scoreTable` handles 500+ rows because of three things — keep them if you touch it:
+- listeners are **delegated** on `<thead>` / `<tbody>`, never per row;
+- row markup is **position-independent** (rank comes from a CSS counter, the click target carries
+  the row key) and cached by key, so it is built once;
+- a repaint whose row set the DOM already contains **moves existing `<tr>` nodes** instead of
+  re-parsing HTML. That is what keeps a 535-row sort at ~30ms instead of ~150ms.
+
 ### Data sources
 
 The header "Sources" modal is generated from `js/ui/sources.js`. **Adding a data source means
@@ -228,6 +278,9 @@ live.stop('concall-feed');    // in destroy(), and call off()
 | I need to… | Go to |
 | --- | --- |
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
+| Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
+| Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
+| Add a server route | the API block in `worker/index.js` |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, rail or tab bar | `js/ui/shell.js` |

@@ -23,8 +23,8 @@ showing the current workspace and a chevron.
 
 ### (b) Section — top tabs
 
-Underline indicator that animates between tabs; active tab in the brand teal, inactive slate
-with hover. Order is fixed:
+A springy indigo→purple underline scales in under the active tab; active tab in indigo,
+inactive slate with hover. Order is fixed:
 
 **Research Central**
 1. Earnings Hub
@@ -89,6 +89,9 @@ Hash-based and shareable:
 - With no hash present, the last route is restored from `localStorage`.
 - Browser back/forward work; scope changes and route normalisation use `replaceState` so they
   don't pollute history.
+- A tab may add its own query params for filter state (`?bo=strong&vol=1.5`), which makes a
+  filtered view shareable. The shell preserves them across a scope change and clears them when
+  the tab or sub-view changes; `ctx.setParams()` writes them without a history entry.
 
 ---
 
@@ -96,14 +99,14 @@ Hash-based and shareable:
 
 Sticky, full-width, on a glass/blur background.
 
-- **Left** — 44px rounded-xl teal→emerald gradient mark reading "SC", then
+- **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
   "Sattva Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
 - **Centre** — global search, placeholder "Search any company, theme or investor…", with a
   ⌘K / Ctrl-K badge and shortcut. Typeahead over the merged universe + portfolio company list.
-  Selecting a result calls the `openCompany(ticker)` stub in `ui/components.js` — later
-  prompts turn that into a real company view.
-- **Right** — the Portfolio/Universe segmented toggle, a "Live" pill with a pulsing dot and
-  last-tick time, and an "Updated <relative time>" chip.
+  Selecting a result opens that company's **technicals drill panel from any tab**.
+- **Right** — a "Sources" button (the data-source modal), the Portfolio/Universe segmented
+  toggle, a "Live" pill with a pulsing dot and last-tick time, and an "Updated <relative
+  time>" chip.
 
 ---
 
@@ -175,7 +178,7 @@ Presentation must never imply data the dashboard does not have:
 
 The header's "Sources" button opens a modal generated from `public/js/ui/sources.js`, listing
 every source grouped by the tabs it serves, with what it feeds, its refresh cadence, a link,
-and an honest status (`live` / `mock` / `pending`). Adding a data source means updating
+and an honest status (`live` / `static` / `mock` / `pending`). Adding a data source means updating
 `docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
 ---
@@ -233,13 +236,30 @@ Community sentiment.
 - Cross-source mention aggregation
 
 ### Breakouts / Technical — `breakouts`
-Technical scans across coverage. **This is the one genuinely live feed.**
-- Live EOD price/volume feed (Yahoo Finance, NSE 500)
-- 50/100/200-DMA breakout detection
-- Volume surge & momentum scoring
-- 52-week-high proximity scanner
+Technical scans across coverage. **This is the one genuinely live feed — shipped in prompt 3.**
+
+Sixteen rules, 24 points, five categories, scored by `js/scoring/tech-scoring.js` from a daily
+Yahoo Finance EOD scrape of the NSE 500 plus NSE bhavcopy delivery data. A close below the
+200 DMA is the model's only hard fail.
+
+| Category | Rules (points) |
+| --- | --- |
+| Trend Strength | Price Above 50 EMA (2) · Price Above 200 DMA (2, **hard fail** below) · Golden Cross (1) · Higher Highs–Higher Lows (1) |
+| Momentum | RSI 14 (2) · MACD (2) · ADX 14 (1) · Relative Strength vs Nifty 500 (2) |
+| Volume | Volume Breakout (2) · Delivery Percentage (1) · Institutional Activity (1) |
+| Breakout | 52-Week High Proximity (2) · Breakout from Consolidation (2) · Base Formation (1) |
+| Risk | Beta (1) · ATR Stability (1) |
+
+Sub-views: **Technical Scanner** (the full scored universe), **Strong Breakouts** (6-week base
+breakouts, URL-reflected filter chips), **FII Accumulation** (shareholding changes joined to the
+score), **Earnings Surprise** (mock earnings beside the live score, deliberately not blended).
+
+Still to come:
+- Intraday refresh via the live-quote endpoint
 - Sector-relative strength ranking
-- FII/DII flow overlays on price action
+- Saved scans and threshold alerts
+- Historical score trend per company
+- TradingView indicator overlay (`technicals-source.json`)
 
 ### Super Investors — `super-investors`
 Superstar holdings, institutional ownership, fund flows.
@@ -288,9 +308,9 @@ Superstar holdings, institutional ownership, fund flows.
 
 | # | Prompt | Scope |
 | --- | --- | --- |
-| 1 | **Foundation + shell** | File layout, nav model, scope toggle, routing, design system, UI primitives, live engine, mock data, placeholder panels, docs. ✅ *this prompt* |
-| 2 | Technicals/breakouts data pipeline | Live Yahoo Finance EOD across NSE 500, Node 22 scripts in `scripts/`, GitHub Actions refresh, produces `public/data/technicals.json`. |
-| 3 | Breakouts / Technical tab UI | Real scanner, breakout detection, momentum heatmap, wired to the prompt-2 feed. |
+| 1 | Foundation + shell | File layout, nav model, scope toggle, routing, design system, UI primitives, live engine, mock data, placeholder panels, docs. ✅ *this prompt* |
+| 2 | Technicals/breakouts data pipeline | Live Yahoo Finance EOD across NSE 500, Node 22 scripts in `scripts/`, GitHub Actions refresh, produces `public/data/technicals.json`. ✅ |
+| 3 | Breakouts / Technical tab UI | 16-rule scoring model, four live sub-views, drill panel with per-rule provenance, Excel export. ✅ |
 | 4 | Earnings Hub | Result parsing, beat/miss scoring, quality & growth composite. |
 | 5 | Con-call + Deep Dive | Transcript ingestion, editable keyword sets, catalysts, full Deep Dive panel. |
 | 6 | Public Chatter + Super Investors / Institutions | ValuePickr + Telegram crawlers, Ticker Finology / AMFI / Trendlyne scrapes. |

@@ -10,6 +10,8 @@ import * as live from '../core/live.js';
 import { tabBar, railNav, segmentedToggle, searchInput, liveBadge, emptyState } from './components.js';
 import { openModal, closeDrill, closeModal } from './screener.js';
 import { sourcesModalHtml } from './sources.js';
+import * as technicals from '../data/technicals.js';
+import { openTechnicalsDrill } from '../tabs/breakouts-drill.js';
 
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -96,6 +98,7 @@ function wireStaticHeader(root) {
     placeholder: 'Search any company, theme or investor…',
     shortcutLabel: isMac ? '⌘K' : 'Ctrl K',
     options: buildSearchOptions(),
+    onSelect: openCompanyTechnicals,
   });
   $('#search-mount', root).innerHTML = search.html;
   search.wire(root);
@@ -108,6 +111,30 @@ function wireStaticHeader(root) {
   wireUpdatedChip(root, () => state.dataLoadedAt);
 
   $('#sources-btn', root).addEventListener('click', () => openModal(sourcesModalHtml(), { size: 'magazine' }));
+}
+
+// Selecting a search result opens that company's technicals drill from ANY tab. The feed is
+// loaded lazily, so the first search before visiting Breakouts triggers the fetch; afterwards
+// it resolves from cache. A ticker with no technicals row (scrape failure, or a portfolio name
+// outside the NSE 500) still opens the panel, which states that plainly.
+function openCompanyTechnicals(ticker) {
+  technicals
+    .load()
+    .then(() => {
+      const scored = technicals.byTicker(ticker);
+      if (scored) return openTechnicalsDrill(scored);
+      const known = (state.data?.universe || []).find((c) => c.ticker === ticker);
+      openTechnicalsDrill({
+        company: { ticker, name: known?.name || ticker, sector: known?.sector, screenerUrl: known?.screenerUrl },
+        tickerError: 'No technicals row for this ticker in the latest scrape',
+        breakdown: [],
+        hardFails: [],
+        totalPoints: 0,
+        totalMax: 0,
+        scorePct: 0,
+      });
+    })
+    .catch((err) => console.error('[shell] could not open technicals for', ticker, err));
 }
 
 function buildSearchOptions() {
@@ -145,7 +172,9 @@ function handleRoute(root, rawRoute) {
   const subview = subviewValid ? rawRoute.subview : subviews[0]?.id || null;
   const scope = rawRoute.scope || state.scope;
 
-  const resolved = { workspace: ws.id, tab: tabModule.meta.id, subview, scope };
+  // Tab-owned filter params ride along in the query string so a filtered view is shareable.
+  // The shell doesn't interpret them — it just preserves them across route changes.
+  const resolved = { workspace: ws.id, tab: tabModule.meta.id, subview, scope, params: rawRoute.params || {} };
 
   if (state.scope !== scope) setScope(scope);
   setRoute(resolved);
@@ -245,7 +274,24 @@ function mountTab(tabModule, resolved) {
   }
   currentTabModule = tabModule;
 
-  const ctx = { scope: resolved.scope, subview: resolved.subview, root: contentHost, live, data: state.data };
+  const ctx = {
+    scope: resolved.scope,
+    subview: resolved.subview,
+    root: contentHost,
+    live,
+    data: state.data,
+    params: resolved.params || {},
+    // Tabs call this to push their own filter state into the URL without touching routing.
+    // history.replaceState does NOT fire hashchange, so the router would never see the new
+    // params — we re-mount the tab body explicitly. Chrome doesn't depend on params, so only
+    // the panel is rebuilt, and a chip click leaves no history entry to back out of.
+    setParams(next) {
+      const route = { workspace: state.workspace, tab: state.tab, subview: state.subview, scope: state.scope, params: next };
+      router.replaceRoute(route);
+      saveLastRoute(router.buildHash(route));
+      mountTab(tabModule, route);
+    },
+  };
   try {
     tabModule.render(ctx);
   } catch (err) {
@@ -269,12 +315,14 @@ function goTab(tabId) {
   router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews[0].id, scope: state.scope });
 }
 
+// Filter params belong to a specific sub-view, so switching sub-view (or tab, or workspace)
+// clears them. Only a scope change keeps them — the same filters still make sense.
 function goSubview(subviewId) {
   router.navigate({ workspace: state.workspace, tab: state.tab, subview: subviewId, scope: state.scope });
 }
 
 function goScope(scope) {
-  router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope });
+  router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
 }
 
 // ---- Small local dropdown used by the workspace switcher + the mobile sub-view picker -------

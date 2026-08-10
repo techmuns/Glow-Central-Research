@@ -6,23 +6,34 @@ import { getLastRoute } from './state.js';
 
 export const DEFAULT_ROUTE = { workspace: 'research', tab: 'earnings-hub', subview: 'latest-results' };
 
-// "#/research/breakouts/strong-breakouts?scope=portfolio" -> { workspace, tab, subview, scope }
+// "#/research/breakouts/strong-breakouts?scope=portfolio&vol=1.5"
+//   -> { workspace, tab, subview, scope, params }
 // Any missing/malformed piece comes back as null so the caller can decide how to fall back.
+// `params` carries every query key EXCEPT scope, so a tab can put its filter state in the URL
+// (making a filtered view shareable) without the router knowing what those filters mean.
 export function parseHash(raw = location.hash) {
   let hash = raw || '';
   if (hash.startsWith('#')) hash = hash.slice(1);
   const [pathPart, queryPart] = hash.split('?');
   const segments = (pathPart || '').split('/').filter(Boolean);
   const [workspace = null, tab = null, subview = null] = segments;
-  const params = new URLSearchParams(queryPart || '');
-  const rawScope = params.get('scope');
+  const search = new URLSearchParams(queryPart || '');
+  const rawScope = search.get('scope');
   const scope = rawScope === 'portfolio' || rawScope === 'universe' ? rawScope : null;
-  return { workspace, tab, subview, scope };
+  const params = {};
+  for (const [k, v] of search.entries()) if (k !== 'scope') params[k] = v;
+  return { workspace, tab, subview, scope, params };
 }
 
-export function buildHash({ workspace, tab, subview, scope }) {
-  const query = scope ? `?scope=${scope}` : '';
-  return `#/${workspace}/${tab}/${subview}${query}`;
+export function buildHash({ workspace, tab, subview, scope, params = {} }) {
+  const search = new URLSearchParams();
+  if (scope) search.set('scope', scope);
+  for (const [k, v] of Object.entries(params || {})) {
+    if (v === null || v === undefined || v === '') continue;
+    search.set(k, v);
+  }
+  const query = search.toString();
+  return `#/${workspace}/${tab}/${subview}${query ? `?${query}` : ''}`;
 }
 
 // Push a new history entry (normal in-app navigation — clicking a tab, rail item, search result…).

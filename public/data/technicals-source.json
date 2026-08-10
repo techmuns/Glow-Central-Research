@@ -1,0 +1,7 @@
+{
+  "_note": "Optional indicator overlay. When a TradingView scrape is wired up (a later prompt), it writes per-ticker values here and js/data/technicals.js overwrites rsi14 / adx14 / ema50 / sma50 / sma200 from them, marking those fields as externally sourced so the drill panel's Source chip points at TradingView instead of the Yahoo-computed path. Empty today: every indicator on the dashboard is currently computed from Yahoo OHLCV.",
+  "generated_at": null,
+  "source": "TradingView · Technical Analysis",
+  "total_companies_covered": 0,
+  "companies": {}
+}

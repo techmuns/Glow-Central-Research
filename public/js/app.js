@@ -5,8 +5,12 @@
 import { $ } from './core/dom.js';
 import { setData, setDataError } from './core/state.js';
 import { mount } from './ui/shell.js';
+import { adaptUniverse } from './data/universe.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
+//
+// The heavy technicals feed is NOT loaded here: js/data/technicals.js fetches and caches it
+// lazily the first time the Breakouts tab mounts, so the other eight tabs don't pay for it.
 const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
@@ -28,7 +32,14 @@ async function loadAll() {
       return [key, await res.json()];
     })
   );
-  return Object.fromEntries(results);
+  const data = Object.fromEntries(results);
+
+  // universe.json is now the raw NSE-500 screener export. Keep the raw rows for the
+  // technicals join, and hand every existing tab the adapted legacy shape it was built
+  // against — see js/data/universe.js.
+  data.universeRaw = data.universe;
+  data.universe = adaptUniverse(data.universeRaw);
+  return data;
 }
 
 async function boot() {

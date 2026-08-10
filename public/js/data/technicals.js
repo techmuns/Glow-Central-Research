@@ -1,0 +1,151 @@
+// data/technicals.js — the live technicals feed, loaded once and cached.
+//
+// This is the only genuinely live data in the dashboard. It is fetched lazily the first
+// time the Breakouts tab mounts (the other eight tabs shouldn't pay for a ~800KB file),
+// scored once through the ported LKP model, and cached for the life of the page. Sub-view
+// switches, scope changes and sorts all operate on the cached scored list — nothing here
+// refetches or rescores.
+//
+//   await load();                 // idempotent; safe to await from every render()
+//   all()                         // scored rows, best score first
+//   forScope('portfolio')         // narrowed to portfolio.json holdings
+//   byTicker('RELIANCE')          // one scored row
+//   meta()                        // generated_at, source, counts, index, breadth
+//
+// A scored row is `{ ...scoreCompany(c), company: c }` — see scoring/tech-scoring.js.
+
+import { scoreCompany } from '../scoring/tech-scoring.js';
+
+const TECHNICALS_PATH = 'data/technicals.json';
+const ATR_HISTORY_PATH = 'data/atr-history.json';
+const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
+
+let loadPromise = null;
+let cache = null; // { meta, scored, byTicker }
+
+/**
+ * Fetch + score once. Concurrent callers share the same in-flight promise, and every later
+ * call returns the cached result immediately.
+ */
+export function load() {
+  if (cache) return Promise.resolve(cache);
+  if (loadPromise) return loadPromise;
+  loadPromise = buildCache().catch((err) => {
+    loadPromise = null; // let a later mount retry rather than wedging the tab forever
+    throw err;
+  });
+  return loadPromise;
+}
+
+async function buildCache() {
+  const payload = await fetchJson(TECHNICALS_PATH);
+  const rows = Array.isArray(payload?.companies) ? payload.companies : [];
+
+  // ATR trend accumulator — the ATR Stability rule reads `c.atr_history`. Optional: without
+  // it the rule still scores on the absolute level and says the trend is pending.
+  const atrHistory = await fetchJson(ATR_HISTORY_PATH).catch(() => ({}));
+  for (const row of rows) {
+    const hist = row.ticker && atrHistory[row.ticker];
+    if (Array.isArray(hist)) row.atr_history = hist;
+  }
+
+  // Optional TradingView overlay. When technicals-source.json is present, its scraped
+  // indicator values replace the OHLCV-derived ones so the dashboard shows what an analyst
+  // would see on TradingView — and `_source_tech_fields` records which fields were
+  // overwritten so rule-meta.js can label the Source chip accurately per rule.
+  // We do not build that scraper here; this just honours the file if it appears.
+  await applySourceOverlay(rows);
+
+  const scored = rows.map((c) => scoreCompany(c)).sort(bestFirst);
+  const byTicker = new Map();
+  for (const s of scored) if (s.company?.ticker) byTicker.set(s.company.ticker.toUpperCase(), s);
+
+  cache = {
+    meta: {
+      generated_at: payload?.generated_at ?? null,
+      source: payload?.source ?? null,
+      index_symbol: payload?.index_symbol ?? null,
+      index_close: payload?.index_close ?? null,
+      index_6m_return: payload?.index_6m_return ?? null,
+      market_breadth: payload?.market_breadth ?? null,
+      company_count: payload?.company_count ?? rows.length,
+      failures: payload?.failures ?? scored.filter((s) => s.tickerError).length,
+      scored_count: scored.filter((s) => !s.tickerError).length,
+    },
+    scored,
+    byTicker,
+  };
+  return cache;
+}
+
+// Rank: rows with data first, then by points desc, then by score % desc as a tiebreak.
+function bestFirst(a, b) {
+  if (!!a.tickerError !== !!b.tickerError) return a.tickerError ? 1 : -1;
+  if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+  return b.scorePct - a.scorePct;
+}
+
+async function fetchJson(path) {
+  const res = await fetch(path, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
+  return res.json();
+}
+
+async function applySourceOverlay(rows) {
+  let src;
+  try {
+    src = await fetchJson(SOURCE_OVERLAY_PATH);
+  } catch {
+    return; // absent by design today — nothing to overlay
+  }
+  const bySlug = src?.companies || {};
+  for (const row of rows) {
+    const s = row.ticker && bySlug[row.ticker.toUpperCase()];
+    if (!s) continue;
+    const o = s.oscillators || {};
+    const ma = s.moving_averages || {};
+    const sourced = new Set();
+    if (o.rsi_14 != null) { row.rsi14 = o.rsi_14; sourced.add('rsi14'); }
+    if (o.adx_14 != null) { row.adx14 = o.adx_14; sourced.add('adx14'); }
+    if (ma.ema_50 != null) { row.ema50 = ma.ema_50; sourced.add('ema50'); }
+    if (ma.sma_50 != null) { row.sma50 = ma.sma_50; sourced.add('sma50'); }
+    if (ma.sma_200 != null) { row.sma200 = ma.sma_200; sourced.add('sma200'); }
+    if (sourced.size) row._source_tech_fields = sourced;
+  }
+}
+
+// ---- accessors (all synchronous; call load() first) --------------------------------------
+
+export function all() {
+  return cache ? cache.scored : [];
+}
+
+export function meta() {
+  return cache ? cache.meta : null;
+}
+
+export function byTicker(ticker) {
+  if (!cache || !ticker) return null;
+  return cache.byTicker.get(String(ticker).toUpperCase()) || null;
+}
+
+export function isLoaded() {
+  return !!cache;
+}
+
+/**
+ * forScope('universe') → every scored company.
+ * forScope('portfolio', holdings) → only the tickers held in portfolio.json.
+ * Filtering the cached list, never refetching.
+ */
+export function forScope(scope, holdings = []) {
+  const rows = all();
+  if (scope !== 'portfolio') return rows;
+  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
+  return rows.filter((s) => s.company?.ticker && held.has(s.company.ticker.toUpperCase()));
+}
+
+/** Rows that actually scored — the error rows are useful to count but not to rank. */
+export function scoredOnly(rows = all()) {
+  return rows.filter((s) => !s.tickerError);
+}

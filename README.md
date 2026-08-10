@@ -14,14 +14,16 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**Prompt 1 of 7 — foundation and UI shell.** The navigation model, routing, design system,
-UI primitives, live-update engine and mock data are in place; every tab renders a real,
-presentable placeholder panel. The internals of each tab land one prompt at a time — see the
-roadmap in [`docs/SPEC.md`](docs/SPEC.md#8-roadmap).
+**Prompts 1–3 of 7 complete.** The shell, the screener kit and the live technicals pipeline are
+in. The remaining tabs land one prompt at a time — see the roadmap in
+[`docs/SPEC.md`](docs/SPEC.md#8-roadmap).
 
-All data under `public/data/mock/` is placeholder. The one genuinely live feed,
-`public/data/technicals.json`, arrives in prompt 2 — the Technical Scanner and Strong Breakouts
-sub-views show an honest "Pending" state until then rather than invented indicator values.
+**Breakouts / Technical is live.** 535 NSE-500 companies scored against a 16-rule, 24-point
+model, from a daily Yahoo Finance EOD scrape plus NSE bhavcopy delivery data, refreshed weekdays
+at 07:00 IST by [a GitHub Action](.github/workflows/technicals-refresh.yml). Everything else
+still runs on the placeholder data in `public/data/mock/`, and the UI labels which is which —
+the Sources modal in the header lists every feed with an honest live / real / mock / pending
+status.
 
 ---
 
@@ -88,8 +90,22 @@ CLAUDE.md             working rules, module contract, design tokens, where-to-lo
 - **[`CLAUDE.md`](CLAUDE.md)** — stack rules, file layout, the module interface contract, design
   tokens, and the verification checklist.
 
+## Refresh the technicals feed by hand
+
+```bash
+node scripts/scrape-technicals.mjs            # full run, ~10 min for 535 companies
+TECH_LIMIT=15 node scripts/scrape-technicals.mjs   # smoke run -> technicals.smoke.json
+```
+
+A capped run writes to a sibling file and skips the ATR accumulator, so it can never truncate
+the committed feed or poison the volatility-trend history.
+
 ## Screenshots
 
-| Breakouts / Technical | Portfolio Overview |
+| Technical Scanner | Rule breakdown |
 | --- | --- |
-| ![Breakouts](docs/screenshots/breakouts.png) | ![Portfolio Overview](docs/screenshots/portfolio-overview.png) |
+| ![Technical Scanner](docs/screenshots/tech-scanner.png) | ![Drill panel](docs/screenshots/tech-drill.png) |
+
+| Strong Breakouts | FII Accumulation |
+| --- | --- |
+| ![Strong Breakouts](docs/screenshots/strong-breakouts.png) | ![FII Accumulation](docs/screenshots/fii-accumulation.png) |

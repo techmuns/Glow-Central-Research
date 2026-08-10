@@ -375,7 +375,6 @@ export function searchInput({ placeholder = 'Search…', shortcutLabel = '⌘K',
       const btn = e.target.closest('[data-result-ticker]');
       if (!btn) return;
       // Stub hook — later prompts will make this open the company detail view.
-      openCompany(btn.dataset.resultTicker);
       if (onSelect) onSelect(btn.dataset.resultTicker);
       input.value = '';
       close();
@@ -402,11 +401,6 @@ export function searchInput({ placeholder = 'Search…', shortcutLabel = '⌘K',
   }
 
   return { html, wire };
-}
-
-// TODO(later prompt): wire this up to actually open a company detail drill-down/route.
-function openCompany(ticker) {
-  console.info(`[stub] openCompany("${ticker}") — company detail view lands in a later prompt.`);
 }
 
 // Layout row: left-aligned control group + right-aligned control group (chips, search, buttons…).

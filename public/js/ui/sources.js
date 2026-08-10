@@ -6,7 +6,8 @@
 // KEEPING THIS ACCURATE IS PART OF ADDING A DATA SOURCE. When a later prompt wires a real
 // feed, update three things together: the JSON contract in docs/DATA-CONTRACTS.md, the loader
 // in js/app.js, and the entry here. `status` is the honest current state:
-//   'live'    — a real feed is wired and refreshing
+//   'live'    — a real feed is wired and refreshing on a schedule
+//   'static'  — real data, committed to the repo, refreshed by hand rather than on a cron
 //   'mock'    — placeholder data ships in the repo; the real source is named but not connected
 //   'pending' — nothing exists yet; named so the gap is visible rather than hidden
 
@@ -19,18 +20,50 @@ export const SOURCE_GROUPS = [
       {
         name: 'Yahoo Finance — EOD OHLCV',
         url: 'https://finance.yahoo.com',
-        feeds: 'Daily close, volume, 50/100/200-DMA and 52-week range for the NSE 500. Also becomes the mark-to-market price behind portfolio P&L and drawdown.',
-        cadence: 'Daily after close · GitHub Actions',
-        status: 'pending',
+        feeds: 'Daily close and volume for the NSE 500 plus the Nifty 500 index (^CRSLDX). Every technical indicator on the Breakouts tab — EMA/SMA, RSI, MACD, ADX, ATR, beta, relative strength, breakout and base patterns — is computed from this.',
+        cadence: 'Weekdays 07:00 IST · GitHub Actions',
+        status: 'live',
         file: 'public/data/technicals.json',
       },
       {
-        name: 'NSE 500 constituent list',
-        url: 'https://www.nseindia.com/products-services/indices-nifty500-index',
-        feeds: 'The coverage universe — ticker, name, sector, industry and market cap.',
-        cadence: 'Quarterly for constituents, daily for market cap',
-        status: 'mock',
+        name: 'NSE bhavcopy — delivery %',
+        url: 'https://www.nseindia.com/all-reports',
+        feeds: 'Daily DELIV_PER from sec_bhavdata_full over the last ~30 trading days, folded into the Delivery Percentage rule as a recent-half vs older-half trend.',
+        cadence: 'Weekdays 07:00 IST, alongside the technicals scrape',
+        status: 'live',
+        file: 'public/data/technicals.json',
+      },
+      {
+        name: 'ATR trend accumulator',
+        url: null,
+        feeds: 'A rolling 30-day history of each ticker\'s ATR%, appended one snapshot per scrape. The ATR Stability rule needs ≥10 days before it can call the trend declining, stable or rising.',
+        cadence: 'One snapshot per technicals run',
+        status: 'live',
+        file: 'public/data/atr-history.json',
+      },
+      {
+        name: 'Munshot quote API — live prices',
+        url: 'https://muns.io',
+        feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo.',
+        cadence: 'On demand · needs the Cloudflare Worker',
+        status: 'live',
+        file: 'worker/index.js · POST /api/live-prices',
+      },
+      {
+        name: 'NSE 500 constituent list (Screener export)',
+        url: 'https://www.screener.in/',
+        feeds: 'The coverage universe — 535 companies with name, Screener URL, market cap, sector/industry and the FII/DII holding changes the Institutional Activity rule scores.',
+        cadence: 'Manual re-export; constituents change quarterly',
+        status: 'static',
         file: 'public/data/universe.json',
+      },
+      {
+        name: 'TradingView — indicator overlay',
+        url: 'https://in.tradingview.com/',
+        feeds: 'Optional. When a scrape is wired up it overwrites RSI, ADX, EMA-50, SMA-50 and SMA-200 with the values an analyst sees on TradingView, and the drill panel re-points those rules\' Source chip accordingly. The file ships empty today.',
+        cadence: 'Not yet scheduled',
+        status: 'pending',
+        file: 'public/data/technicals-source.json',
       },
     ],
   },
@@ -161,15 +194,18 @@ export const SOURCE_GROUPS = [
 
 const STATUS_CHIP = {
   live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  static: 'bg-blue-50 text-blue-700 ring-blue-200',
   mock: 'bg-amber-50 text-amber-700 ring-amber-200',
   pending: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
-const STATUS_LABEL = { live: 'Live', mock: 'Mock data', pending: 'Not yet built' };
+const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data', pending: 'Not yet built' };
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
 export function sourcesModalHtml() {
-  const total = SOURCE_GROUPS.reduce((n, g) => n + g.items.length, 0);
-  const live = SOURCE_GROUPS.flatMap((g) => g.items).filter((i) => i.status === 'live').length;
+  const items = SOURCE_GROUPS.flatMap((g) => g.items);
+  const total = items.length;
+  const live = items.filter((i) => i.status === 'live').length;
+  const realStatic = items.filter((i) => i.status === 'static').length;
 
   return `
     <div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
@@ -178,8 +214,8 @@ export function sourcesModalHtml() {
           <h2 class="font-display text-2xl font-bold text-slate-900">All Data Sources</h2>
           <p class="mt-1 text-sm text-slate-500">
             Every source that feeds this dashboard, grouped by the tabs it serves.
-            <span class="font-semibold text-slate-700">${live} of ${total}</span> are wired to a live feed today —
-            the rest ship with mock data and are labelled as such.
+            <span class="font-semibold text-slate-700">${live} of ${total}</span> are wired to a live feed today,
+            ${realStatic} more carry real data refreshed by hand — the rest ship with mock data and are labelled as such.
           </p>
         </div>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
