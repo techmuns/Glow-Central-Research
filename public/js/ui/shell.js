@@ -8,6 +8,8 @@ import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import { tabBar, railNav, segmentedToggle, searchInput, liveBadge, emptyState } from './components.js';
+import { openModal, closeDrill, closeModal } from './screener.js';
+import { sourcesModalHtml } from './sources.js';
 
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -47,35 +49,43 @@ export function mount(root) {
 
 function shellTemplate() {
   return `
-    <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/75 backdrop-blur-md">
-      <div class="mx-auto grid max-w-[1600px] grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:gap-6 lg:px-8">
-        <div class="flex min-w-0 items-center gap-3">
-          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-emerald-600 font-display text-sm font-extrabold text-white shadow-sm">SC</span>
-          <div class="hidden min-w-0 sm:block">
-            <div class="font-display truncate text-base font-extrabold leading-tight text-slate-900">Sattva Central Research</div>
-            <div id="brand-subtitle" class="truncate text-xs leading-tight text-slate-500">Research Central · Indian equities</div>
+    <header class="mx-auto max-w-[1400px] px-6 pb-4 pt-8">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-shrink-0 items-center gap-3">
+          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-lg font-extrabold text-white shadow-lg">SC</div>
+          <div class="min-w-0">
+            <h1 class="font-display truncate text-2xl font-extrabold leading-tight text-slate-900">Sattva Central Research</h1>
+            <p id="brand-subtitle" class="truncate text-sm text-slate-500">Research Central · Indian equities</p>
           </div>
         </div>
-        <div class="flex min-w-0 justify-center">
-          <div id="search-mount" class="w-full max-w-md"></div>
-        </div>
-        <div class="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
+
+        <div id="search-mount" class="relative mx-auto w-full max-w-xl flex-1 sm:px-4"></div>
+
+        <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
+          <button id="sources-btn" type="button" title="See every data source this dashboard uses"
+            class="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <span class="font-medium">Sources</span>
+          </button>
           <div id="scope-toggle-mount"></div>
           <div id="live-badge-mount"></div>
           <div id="updated-chip-mount"></div>
         </div>
       </div>
     </header>
-    <div class="mx-auto flex max-w-[1600px] flex-col gap-6 px-3 py-5 sm:px-4 sm:py-6 lg:flex-row lg:px-8">
-      <aside class="lg:w-64 lg:shrink-0">
-        <div id="aside-content" class="lg:sticky lg:top-20"></div>
+
+    <nav class="mx-auto max-w-[1400px] px-6">
+      <div id="tabbar-mount"></div>
+    </nav>
+
+    <div class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-6 lg:flex-row">
+      <aside class="lg:w-60 lg:flex-shrink-0">
+        <div id="aside-content" class="lg:sticky lg:top-6"></div>
       </aside>
-      <main class="min-w-0 flex-1">
-        <div id="tabbar-mount" class="mb-5"></div>
-        <div id="content-host" class="flex flex-col gap-5"></div>
+      <main class="fade-in min-w-0 flex-1">
+        <div id="content-host"></div>
       </main>
-    </div>
-    <div id="overlay-root"></div>`;
+    </div>`;
 }
 
 // ---- Header: parts that never change across route changes ----------------------------------
@@ -96,6 +106,8 @@ function wireStaticHeader(root) {
 
   $('#updated-chip-mount', root).innerHTML = updatedChipHtml();
   wireUpdatedChip(root, () => state.dataLoadedAt);
+
+  $('#sources-btn', root).addEventListener('click', () => openModal(sourcesModalHtml(), { size: 'magazine' }));
 }
 
 function buildSearchOptions() {
@@ -108,8 +120,8 @@ function buildSearchOptions() {
 
 function updatedChipHtml() {
   return `
-    <span class="hidden items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 lg:inline-flex" data-updated-chip>
-      <span>Updated</span><span data-updated-time class="tabular-nums text-slate-600">—</span>
+    <span class="hidden items-center gap-1 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-slate-200 lg:inline-flex" data-updated-chip>
+      <span>Updated</span><span data-updated-time class="font-semibold tabular-nums text-slate-700">—</span>
     </span>`;
 }
 
@@ -183,11 +195,17 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     onSelect: goSubview,
   });
 
+  // Rail is a single white card: workspace dropdown on top, sub-view list beneath a hairline.
   const asideEl = $('#aside-content', root);
   asideEl.innerHTML = `
-    <div>${wsDropdown.html}</div>
-    <div class="mt-4 hidden lg:block">${rail.html}</div>
-    <div class="mt-3 lg:hidden">${mobileSubDropdown.html}</div>`;
+    <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+      <div class="p-2">${wsDropdown.html}</div>
+      <div class="hidden border-t border-slate-100 p-2 lg:block">
+        <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
+        ${rail.html}
+      </div>
+      <div class="border-t border-slate-100 p-2 lg:hidden">${mobileSubDropdown.html}</div>
+    </div>`;
   chromeDisposers.push(wsDropdown.wire(asideEl));
   chromeDisposers.push(rail.wire(asideEl));
   chromeDisposers.push(mobileSubDropdown.wire(asideEl));
@@ -213,6 +231,11 @@ function disposeChrome() {
 }
 
 function mountTab(tabModule, resolved) {
+  // A drill panel or modal opened on the previous view must never survive a route change —
+  // it would be showing a row that is no longer on screen.
+  closeDrill();
+  closeModal();
+
   if (currentTabModule && currentTabModule !== tabModule) {
     try {
       currentTabModule.destroy?.();
@@ -261,24 +284,24 @@ function goScope(scope) {
 function dropdownMenu({ key, kicker, valueLabel, items, activeId, onSelect }) {
   const html = `
     <div class="relative" data-dd="${escapeHtml(key)}">
-      <button type="button" data-dd-trigger class="flex w-full items-center justify-between gap-2 rounded-2xl bg-white px-3.5 py-3 text-left shadow-sm ring-1 ring-slate-100 transition-colors hover:ring-slate-200">
+      <button type="button" data-dd-trigger class="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50">
         <span class="min-w-0">
-          <span class="block truncate text-[11px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(kicker)}</span>
+          <span class="block truncate text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(kicker)}</span>
           <span class="block truncate text-sm font-bold text-slate-900">${escapeHtml(valueLabel)}</span>
         </span>
         <svg data-dd-chevron class="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
           <path d="m5 8 5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
-      <div data-dd-menu class="absolute left-0 right-0 z-30 mt-2 hidden max-h-80 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-100">
+      <div data-dd-menu class="scrollbar-thin absolute left-0 right-0 z-30 mt-1 hidden max-h-80 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
         ${items
           .map(
             (item) => `
-          <button type="button" data-dd-id="${escapeHtml(item.id)}" class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
-              item.id === activeId ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-50'
+          <button type="button" data-dd-id="${escapeHtml(item.id)}" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors ${
+              item.id === activeId ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
             }">
             <span class="truncate">${escapeHtml(item.label)}</span>
-            ${item.id === activeId ? '<span class="ml-auto shrink-0 text-teal-600">✓</span>' : ''}
+            ${item.id === activeId ? '<span class="ml-auto shrink-0 text-indigo-600">✓</span>' : ''}
           </button>`
           )
           .join('')}

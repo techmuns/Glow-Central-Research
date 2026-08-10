@@ -37,7 +37,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 
 ```
 public/
-  index.html                  design tokens, fonts, Tailwind CDN, #app mount
+  index.html                  design tokens, fonts, Tailwind CDN, #app mount, overlay roots
   js/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
@@ -47,7 +47,10 @@ public/
       format.js               number/date/currency/relative-time helpers
       dom.js                  $, $$, escapeHtml, el, empty
     ui/
-      components.js           shared UI primitives
+      screener.js             THE SCREENER KIT — build tabs from this
+      visual.js               avatars, tiers, status pills, signal dots, legend
+      sources.js              data-source registry behind the header "Sources" modal
+      components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
     tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors
     portfolio/                overview, position-by, transactions, drawdown
@@ -95,47 +98,112 @@ export function destroy() {}     // detach listeners/pollers; called on nav away
 
 Defined in `:root` in `public/index.html`. Use them; don't invent new colours.
 
+**The brand ramp is indigo → purple → pink.** Emerald / amber / rose are *semantic only* —
+they mean pass / partial / fail. Never use a semantic colour to mean "branded", and never use
+indigo to mean "good".
+
 | Token | Value | Meaning |
 | --- | --- | --- |
-| `--brand-600` | `#0d9488` | teal, primary |
-| `--brand-700` | `#059669` | emerald, gradient end |
-| `--accent-600` | `#7c3aed` | violet, secondary |
-| `--positive` | `#059669` | gains / beats / inflows |
-| `--caution` | `#d97706` | pending / moderate |
-| `--negative` | `#e11d48` | losses / misses / outflows |
-| `--neutral` | `#64748b` | slate |
+| `--brand-500` | `#6366f1` | indigo — brand ramp start |
+| `--brand-600` | `#4f46e5` | indigo-600 — links, actions, active nav |
+| `--brand-mid` | `#a855f7` | purple — brand ramp middle |
+| `--brand-end` | `#ec4899` | pink — brand ramp end |
+| `--accent-600` | `#4f46e5` | indigo-600 — accent for links/actions |
+| `--positive` | `#059669` | emerald — pass |
+| `--caution` | `#d97706` | amber — partial |
+| `--negative` | `#e11d48` | rose — fail |
+| `--hard-fail` | `#be123c` | rose-700 — hard fail |
+| `--neutral` | `#64748b` | slate — n/a |
 | `--page-bg` | `#f8fafc` | page background |
+
+The brand gradient, used on the logo mark, the scope toggle thumb and the freshness hero card:
+`bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500`.
 
 Conventions:
 - Surfaces are white, `rounded-2xl`, `shadow-sm`, `ring-1 ring-slate-100`.
-- Page background carries three sub-12%-opacity radial gradients (teal TL, violet TR, sky BR).
+- Page background carries three radial gradients (violet TL, pink TR, sky BR), all ≤ 12%.
+- Content column is `max-w-[1400px] mx-auto px-6`.
 - `font-variant-numeric: tabular-nums` on every number-bearing cell.
 - Tables scroll horizontally **inside their own container**; the page body must never scroll
-  sideways. `body { overflow-x: hidden }` is a backstop, not the mechanism.
+  sideways. `overflow-x: hidden` on `html` *and* `body` is a backstop, not the mechanism —
+  it's on `html` because the parked drill panel is `position: fixed` and `body` can't clip it.
 - The left rail collapses to a dropdown under 1024px (Tailwind `lg:`).
+- Long-running lists get `.scrollbar-thin`; panels that mount fresh get `.fade-in`.
 
 ---
 
-## UI primitives — `js/ui/components.js`
+## The screener kit — `js/ui/screener.js` + `js/ui/visual.js`
 
-`statCard`, `sectionHeader`, `scopeSummary`, `tabBar`, `railNav`, `segmentedToggle`,
-`dataTable`, `pill`, `badge`, `scorePill`, `filterChips`, `searchInput`, `toolbar`,
-`drillPanel`, `modal`, `emptyState`, `skeleton`, `liveBadge`, `spark`, `tooltip`,
-`comingSoonStrip`.
+**Build every tab out of these. Do not hand-roll a table, a stat row or a detail panel.**
 
-Each returns either an HTML string or `{ html, wire(root) }`. Pattern:
+`visual.js` is the shared vocabulary: `avatarFor(name)` (deterministic gradient + initials),
+`scoreTier(pct)`, `scoreBadgeClass(pct)`, `tierLabel`, `tierColor`, `statusPill(status)`,
+`signalDots(signals)`, `legendStrip()`, `STATUS_DOT`.
+
+`screener.js` is the furniture:
+
+| Component | Use |
+| --- | --- |
+| `statStrip(cards)` | the 4-up KPI row. Card 4 **must** be `{ hero: true, … }` — the gradient freshness card. Any card may carry `help: { title, body }` for a `?` explainer modal. |
+| `topCards({ title, items, valueFormat, onSelect })` | the Top-10 hero grid. `valueFormat: 'score'` renders `value/max` coloured by tier; `'metric'` renders one formatted number coloured by `tone`. |
+| `scoreTable(config)` | the workhorse: search, filter select, watchlist, sort, export, sticky head, row click. |
+| `openDrill(config)` | right-slide detail panel (singleton). |
+| `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
+| `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. |
+
+The standard tab body, in order:
 
 ```js
-const table = dataTable({ columns, rows, initialSort: { key: 'marketValue', dir: 'desc' } });
-mount.innerHTML = table.html;
-table.wire(mount);
+ctx.root.innerHTML = `
+  ${sectionHead({ title, description, meta: scopeSummary({ scope: ctx.scope, count, noun }) })}
+  ${stats.html}          // statStrip — 4 cards, 4th is the gradient hero
+  ${cards.html}          // topCards — omit where no ranking is meaningful
+  ${table.html}          // scoreTable
+  ${legendStrip()}       // only on tabs that render signal dots
+  ${roadmapStrip(FEATURES)}
+`;
+stats.wire(ctx.root); cards.wire(ctx.root); table.wire(ctx.root);
 ```
 
-`wire()` returns a disposer when it registers anything global (document listeners, intervals,
-resize handlers). Call it in `destroy()`.
+`scoreTable` essentials — `rows`, `key(row)` (watchlist id), `name(row)`, `sub(row)`, and
+`columns: [{ label, get(row), html?, align?, sortable?, sortValue? }]`. `html: true` means
+`get()` returns trusted markup, so **escape inside it yourself**. Optional: `showScore` +
+`score(row) => { points, max, pct, redFlag? }`, `showSignals` + `signals(row) => [{ label, status }]`,
+`filters`, `searchable`, `initialSort`, `onRowClick`, `link`, `exportName`.
 
-**Always escape data-sourced strings** with `escapeHtml` from `core/dom.js` before putting them
-in an innerHTML template. The `dataTable` `render` callbacks are raw HTML — escape inside them.
+Score and Signals are **opt-in**. A tab with no scoring model leaves `showScore` off rather
+than rendering empty score furniture.
+
+### Honesty rules for the kit
+
+These are not style preferences — they are why the dashboard can be trusted:
+
+1. **Never fabricate a number to fill a component.** If a feed hasn't landed, render
+   `pendingPanel()` and drop the ranking grid. Breakouts → Technical Scanner does exactly this
+   and must keep doing so until `technicals.json` exists.
+2. **Signals must be direct readings**, e.g. "revenue YoY > 0", not a modelled judgement. A
+   real points-based score only appears once its model is built and documented.
+3. **Label derived figures as derived.** Super Investors' holding value is
+   `holding % × market cap` and says so in the drill panel — filings disclose a percentage,
+   never a rupee amount.
+4. **Every `?` help modal states what is mock and what is live**, and which prompt wires it.
+
+`wire()` returns a disposer when it registers anything global. Call it in `destroy()`.
+**Always escape data-sourced strings** with `escapeHtml` from `core/dom.js`.
+
+### Chrome primitives — `js/ui/components.js`
+
+Navigation furniture only: `tabBar`, `railNav`, `segmentedToggle`, `searchInput`, `liveBadge`,
+`scopeSummary`, `pill`, `badge`, `scorePill`, `filterChips`, `toolbar`, `emptyState`,
+`skeleton`, `spark`, `tooltip`, plus the legacy `statCard` / `sectionHeader` / `dataTable`.
+Prefer the screener kit for anything inside a tab panel.
+
+### Data sources
+
+The header "Sources" modal is generated from `js/ui/sources.js`. **Adding a data source means
+updating three things together**: the contract in `docs/DATA-CONTRACTS.md`, the loader in
+`js/app.js`, and the entry in `sources.js` (including its honest `status`: `live` / `mock` /
+`pending`).
 
 ---
 
@@ -159,9 +227,12 @@ live.stop('concall-feed');    // in destroy(), and call off()
 
 | I need to… | Go to |
 | --- | --- |
+| Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
+| Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, rail or tab bar | `js/ui/shell.js` |
-| Add a reusable widget | `js/ui/components.js` |
+| Add a row to the Sources modal | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) |
+| Add a reusable chrome widget | `js/ui/components.js` |
 | Change routing or URL shape | `js/core/router.js` |
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
@@ -182,10 +253,16 @@ Then confirm with Playwright (Chromium is preinstalled — never run `playwright
 
 - shell renders with **zero console errors**
 - all 9 tabs across both workspaces render their panel
+- every tab shows a 4-card statStrip whose 4th card is the gradient freshness hero
 - rail sub-views switch content
 - the Portfolio/Universe toggle changes what every tab reports
 - the URL hash updates; browser back/forward work
 - a reload restores the same route and scope
+- the top-tab underline scales in on the active tab only
+- top cards and table rows both open the drill panel; ESC and the backdrop close it
+- scoreTable search, header sort, filter select and watchlist toggle all work, and the
+  watchlist survives a reload
+- the Sources modal opens and lists every documented source
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
 
 > Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach

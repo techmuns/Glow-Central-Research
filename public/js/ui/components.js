@@ -6,13 +6,15 @@
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.js';
 
+// Semantic tones (positive/negative/caution) describe a data outcome; brand/accent are the
+// indigo→purple chrome colours. Never use a semantic tone to mean "branded".
 const TONE_CLASSES = {
   positive: { text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-100', dot: 'bg-emerald-500' },
   negative: { text: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-100', dot: 'bg-rose-500' },
   caution: { text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-100', dot: 'bg-amber-500' },
   neutral: { text: 'text-slate-600', bg: 'bg-slate-100', ring: 'ring-slate-200', dot: 'bg-slate-400' },
-  brand: { text: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-100', dot: 'bg-teal-500' },
-  accent: { text: 'text-violet-700', bg: 'bg-violet-50', ring: 'ring-violet-100', dot: 'bg-violet-500' },
+  brand: { text: 'text-indigo-700', bg: 'bg-indigo-50', ring: 'ring-indigo-200', dot: 'bg-indigo-500' },
+  accent: { text: 'text-purple-700', bg: 'bg-purple-50', ring: 'ring-purple-200', dot: 'bg-purple-500' },
 };
 function toneClasses(tone) {
   return TONE_CLASSES[tone] || TONE_CLASSES.neutral;
@@ -51,48 +53,42 @@ export function scopeSummary({ scope, count, noun = 'companies' }) {
 
 // Horizontal top-level tabs with an animated underline indicator (scaleX-style slide via translateX + width).
 export function tabBar({ tabs, activeId, onSelect }) {
-  // The underline lives INSIDE the scrolling list (not the outer wrapper) so it tracks the
-  // active tab when the bar scrolls horizontally, and never juts past the viewport on mobile.
+  // The active indicator is pure CSS (`.tab-btn::after`, defined in index.html): a springy
+  // indigo→purple bar that scales in from the centre. No JS measurement, so nothing can
+  // overflow the viewport when the bar scrolls horizontally on narrow screens.
   const html = `
-    <div class="border-b border-slate-200" data-tab-bar>
-      <div class="relative flex gap-6 overflow-x-auto" role="tablist" data-tab-list>
-        ${tabs
-          .map(
-            (t) => `
-          <button type="button" role="tab" data-tab-id="${escapeHtml(t.id)}" aria-selected="${t.id === activeId}"
-            class="relative shrink-0 whitespace-nowrap py-3 text-sm font-semibold transition-colors ${t.id === activeId ? 'text-teal-700' : 'text-slate-500 hover:text-slate-700'}">
-            ${escapeHtml(t.label)}
-          </button>`
-          )
-          .join('')}
-        <span data-tab-underline class="pointer-events-none absolute bottom-0 left-0 h-0.5 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 transition-transform duration-300 ease-out" style="width:0px;transform:translateX(0px);"></span>
-      </div>
+    <div class="scrollbar-thin flex items-center gap-1 overflow-x-auto border-b border-slate-200" role="tablist" data-tab-list>
+      ${tabs
+        .map(
+          (t) => `
+        <button type="button" role="tab" data-tab-id="${escapeHtml(t.id)}" aria-selected="${t.id === activeId}"
+          class="tab-btn -mb-px flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold transition-colors ${
+            t.id === activeId ? 'is-active text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+          }">
+          ${escapeHtml(t.label)}
+        </button>`
+        )
+        .join('')}
     </div>`;
 
   function wire(root) {
-    const bar = root.querySelector('[data-tab-bar]');
-    const list = bar.querySelector('[data-tab-list]');
-    const underline = bar.querySelector('[data-tab-underline]');
-
-    function position() {
-      const active = list.querySelector(`[data-tab-id="${cssEscape(activeId)}"]`);
-      if (!active) return;
-      underline.style.width = `${active.offsetWidth}px`;
-      underline.style.transform = `translateX(${active.offsetLeft}px)`;
-      // On narrow screens the active tab may sit outside the scrolled view — pull it in.
-      if (active.offsetLeft < list.scrollLeft || active.offsetLeft + active.offsetWidth > list.scrollLeft + list.clientWidth) {
-        list.scrollTo({ left: Math.max(0, active.offsetLeft - 16), behavior: 'smooth' });
-      }
-    }
+    const list = root.querySelector('[data-tab-list]');
 
     list.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-tab-id]');
       if (btn) onSelect(btn.dataset.tabId);
     });
 
-    requestAnimationFrame(position);
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
+    // On narrow screens the active tab may start outside the scrolled view — pull it in.
+    requestAnimationFrame(() => {
+      const active = list.querySelector(`[data-tab-id="${cssEscape(activeId)}"]`);
+      if (!active) return;
+      if (active.offsetLeft < list.scrollLeft || active.offsetLeft + active.offsetWidth > list.scrollLeft + list.clientWidth) {
+        list.scrollTo({ left: Math.max(0, active.offsetLeft - 16), behavior: 'smooth' });
+      }
+    });
+
+    return () => {};
   }
 
   return { html, wire };
@@ -106,13 +102,15 @@ export function railNav({ items, activeId, onSelect }) {
         .map(
           (item) => `
         <button type="button" data-rail-id="${escapeHtml(item.id)}"
-          class="flex items-center justify-between rounded-xl border-l-2 px-3 py-2 text-left text-sm font-medium transition-colors ${
-            item.id === activeId ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          class="flex items-center justify-between rounded-lg border-l-2 px-3 py-2 text-left text-sm transition-colors ${
+            item.id === activeId
+              ? 'border-indigo-500 bg-indigo-50/60 font-semibold text-indigo-700'
+              : 'border-transparent font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }">
           <span>${escapeHtml(item.label)}</span>
           ${
             item.badge !== undefined && item.badge !== null
-              ? `<span class="ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${item.id === activeId ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}">${escapeHtml(item.badge)}</span>`
+              ? `<span class="ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${item.id === activeId ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}">${escapeHtml(item.badge)}</span>`
               : ''
           }
         </button>`
@@ -136,13 +134,13 @@ export function railNav({ items, activeId, onSelect }) {
 // Two-option segmented control (Portfolio ⇄ Universe) with a sliding white "thumb".
 export function segmentedToggle({ options, activeValue, onChange }) {
   const html = `
-    <div class="relative inline-flex items-center rounded-full bg-slate-100 p-1" data-segmented>
-      <span data-segmented-thumb class="absolute inset-y-1 rounded-full bg-white shadow-sm transition-all duration-200 ease-out" style="width:0px;transform:translateX(0px);"></span>
+    <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
+      <span data-segmented-thumb class="absolute inset-y-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-all duration-200 ease-out" style="width:0px;transform:translateX(0px);"></span>
       ${options
         .map(
           (o) => `
         <button type="button" data-value="${escapeHtml(o.value)}"
-          class="relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-teal-700' : 'text-slate-500 hover:text-slate-700'}">
+          class="relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
           ${escapeHtml(o.label)}
         </button>`
         )
@@ -157,7 +155,7 @@ export function segmentedToggle({ options, activeValue, onChange }) {
       const active = wrap.querySelector(`[data-value="${cssEscape(activeValue)}"]`);
       if (!active) return;
       thumb.style.width = `${active.offsetWidth}px`;
-      thumb.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+      thumb.style.transform = `translateX(${active.offsetLeft - 2}px)`;
     }
 
     wrap.addEventListener('click', (e) => {
@@ -326,16 +324,16 @@ export function filterChips({ options, activeIds = [], onToggle }) {
 // Global search box with a ⌘K / Ctrl-K shortcut badge and a typeahead results dropdown.
 export function searchInput({ placeholder = 'Search…', shortcutLabel = '⌘K', options = [], onSelect }) {
   const html = `
-    <div class="relative w-full max-w-md" data-search-root>
+    <div class="relative w-full" data-search-root>
       <div class="relative">
-        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="9" cy="9" r="6" /><path d="m17 17-4-4" stroke-linecap="round" />
+        <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
         </svg>
         <input type="text" data-search-input autocomplete="off" placeholder="${escapeHtml(placeholder)}"
-          class="w-full rounded-xl border border-slate-200 bg-white/70 py-2 pl-9 pr-14 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20" />
-        <kbd data-search-kbd class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">${escapeHtml(shortcutLabel)}</kbd>
+          class="w-full rounded-xl bg-white py-2.5 pl-10 pr-14 text-sm text-slate-800 shadow-sm ring-1 ring-slate-200 transition-shadow placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <kbd data-search-kbd class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-slate-200 sm:inline-block">${escapeHtml(shortcutLabel)}</kbd>
       </div>
-      <div data-search-results class="absolute z-40 mt-2 hidden w-full overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-100"></div>
+      <div data-search-results class="scrollbar-thin absolute left-0 right-0 top-full z-50 mt-2 hidden max-h-[420px] overflow-y-auto rounded-xl bg-white shadow-2xl ring-1 ring-slate-200"></div>
     </div>`;
 
   function wire(root) {
@@ -353,8 +351,8 @@ export function searchInput({ placeholder = 'Search…', shortcutLabel = '⌘K',
         .slice(0, 8)
         .map(
           (m) => `
-        <button type="button" data-result-ticker="${escapeHtml(m.ticker)}" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50">
-          <span class="font-semibold text-slate-700">${escapeHtml(m.ticker)}</span>
+        <button type="button" data-result-ticker="${escapeHtml(m.ticker)}" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-indigo-50/60">
+          <span class="font-semibold text-slate-800">${escapeHtml(m.ticker)}</span>
           <span class="truncate text-slate-400">${escapeHtml(m.name)}</span>
         </button>`
         )
@@ -419,104 +417,9 @@ export function toolbar({ left = [], right = [] }) {
       <div class="flex flex-wrap items-center gap-2">${right.join('')}</div>
     </div>`;
 }
-
-// Right-slide drill-in panel: backdrop + sliding surface, closes on ESC or backdrop click.
-// Mount once (its html should live in a dedicated overlay root), then use the returned
-// `{ open({title, content}), close() }` API from anywhere.
-export function drillPanel() {
-  const html = `
-    <div data-drill-panel class="pointer-events-none fixed inset-0 z-[60]">
-      <div data-drill-backdrop class="absolute inset-0 bg-slate-900/30 opacity-0 transition-opacity duration-200"></div>
-      <aside data-drill-surface class="absolute right-0 top-0 h-full w-full max-w-md translate-x-full transform bg-white shadow-2xl ring-1 ring-slate-100 transition-transform duration-300 ease-out">
-        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h3 data-drill-title class="font-display text-base font-bold text-slate-900"></h3>
-          <button type="button" data-drill-close class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">✕</button>
-        </div>
-        <div data-drill-body class="h-[calc(100%-57px)] overflow-y-auto px-5 py-4"></div>
-      </aside>
-    </div>`;
-
-  function wire(root) {
-    const panel = root.querySelector('[data-drill-panel]');
-    const backdrop = panel.querySelector('[data-drill-backdrop]');
-    const surface = panel.querySelector('[data-drill-surface]');
-    const titleEl = panel.querySelector('[data-drill-title]');
-    const bodyEl = panel.querySelector('[data-drill-body]');
-
-    function open({ title = '', content = '' } = {}) {
-      titleEl.textContent = title;
-      bodyEl.innerHTML = content;
-      panel.classList.remove('pointer-events-none');
-      backdrop.classList.remove('opacity-0');
-      surface.classList.remove('translate-x-full');
-      document.addEventListener('keydown', onKeydown);
-    }
-    function close() {
-      backdrop.classList.add('opacity-0');
-      surface.classList.add('translate-x-full');
-      panel.classList.add('pointer-events-none');
-      document.removeEventListener('keydown', onKeydown);
-    }
-    function onKeydown(e) {
-      if (e.key === 'Escape') close();
-    }
-
-    backdrop.addEventListener('click', close);
-    panel.querySelector('[data-drill-close]').addEventListener('click', close);
-
-    return { open, close };
-  }
-
-  return { html, wire };
-}
-
-// Centred modal dialog: backdrop + scale-in surface, closes on ESC, backdrop click, or the ✕.
-export function modal() {
-  const html = `
-    <div data-modal class="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div data-modal-backdrop class="absolute inset-0 bg-slate-900/40 opacity-0 transition-opacity duration-200"></div>
-      <div data-modal-surface class="relative w-full max-w-lg scale-95 rounded-2xl bg-white p-5 opacity-0 shadow-2xl ring-1 ring-slate-100 transition-all duration-200">
-        <div class="flex items-center justify-between">
-          <h3 data-modal-title class="font-display text-base font-bold text-slate-900"></h3>
-          <button type="button" data-modal-close class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">✕</button>
-        </div>
-        <div data-modal-body class="mt-3"></div>
-      </div>
-    </div>`;
-
-  function wire(root) {
-    const modalEl = root.querySelector('[data-modal]');
-    const backdrop = modalEl.querySelector('[data-modal-backdrop]');
-    const surface = modalEl.querySelector('[data-modal-surface]');
-    const titleEl = modalEl.querySelector('[data-modal-title]');
-    const bodyEl = modalEl.querySelector('[data-modal-body]');
-
-    function open({ title = '', content = '' } = {}) {
-      titleEl.textContent = title;
-      bodyEl.innerHTML = content;
-      modalEl.classList.remove('pointer-events-none');
-      backdrop.classList.remove('opacity-0');
-      surface.classList.remove('scale-95', 'opacity-0');
-      document.addEventListener('keydown', onKeydown);
-    }
-    function close() {
-      backdrop.classList.add('opacity-0');
-      surface.classList.add('scale-95', 'opacity-0');
-      modalEl.classList.add('pointer-events-none');
-      document.removeEventListener('keydown', onKeydown);
-    }
-    function onKeydown(e) {
-      if (e.key === 'Escape') close();
-    }
-
-    backdrop.addEventListener('click', close);
-    modalEl.querySelector('[data-modal-close]').addEventListener('click', close);
-
-    return { open, close };
-  }
-
-  return { html, wire };
-}
+// NOTE: the right-slide drill panel and the centred modal moved to ui/screener.js, where they
+// are singleton overlays declared once in index.html. Import { openDrill, openModal } from
+// './screener.js' rather than mounting per-tab copies.
 
 // Centred placeholder for a panel/table with no data yet.
 export function emptyState({ title = 'Nothing here yet', message = '', icon = '🗂️' }) {

@@ -109,37 +109,74 @@ Sticky, full-width, on a glass/blur background.
 
 ## 5. Design system
 
-Calmer and more premium than the reference dashboard being replaced. Tokens live in
-`:root` in `public/index.html`.
+Aligned to the LKP Stock Screener's visual language. Tokens live in `:root` in
+`public/index.html`.
+
+**Brand ramp: indigo → purple → pink.** Emerald / amber / rose are reserved strictly for
+semantic rule states (pass / partial / fail) and are never used as brand colours.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--brand-600` | `#0d9488` | teal, primary |
-| `--brand-700` | `#059669` | emerald, gradient end |
-| `--accent-600` | `#7c3aed` | violet, secondary accent |
-| `--positive` | `#059669` | gains, beats, inflows |
-| `--caution` | `#d97706` | pending, moderate |
-| `--negative` | `#e11d48` | losses, misses, outflows |
-| `--neutral` | `#64748b` | slate |
+| `--brand-500` | `#6366f1` | indigo, brand ramp start |
+| `--brand-600` | `#4f46e5` | indigo-600, links and actions |
+| `--brand-mid` | `#a855f7` | purple, brand ramp middle |
+| `--brand-end` | `#ec4899` | pink, brand ramp end |
+| `--accent-600` | `#4f46e5` | accent for links/actions |
+| `--positive` | `#059669` | emerald — pass |
+| `--caution` | `#d97706` | amber — partial |
+| `--negative` | `#e11d48` | rose — fail |
+| `--hard-fail` | `#be123c` | rose-700 — hard fail |
+| `--neutral` | `#64748b` | slate — n/a |
 | `--page-bg` | `#f8fafc` | page background |
 
-- Page background carries three soft radial gradients, all under 12% opacity: teal top-left,
-  violet top-right, sky bottom-right.
+- Page background carries three radial gradients, all ≤ 12% opacity: violet top-left, pink
+  top-right, sky bottom-right.
 - Surfaces: white, `rounded-2xl`, `shadow-sm`, `ring-1 ring-slate-100`.
+- Content column is `max-w-[1400px] mx-auto px-6`.
+- Top-tab indicator: a 3px indigo→purple bar that scales in with a springy
+  `cubic-bezier(0.34, 1.56, 0.64, 1)` transition.
 - `font-variant-numeric: tabular-nums` on every number-bearing cell.
 - Light theme only. Fully responsive; tables scroll horizontally inside their own container so
   the page body never scrolls sideways.
 - Fonts: Inter (400–800) for body, Plus Jakarta Sans (600–800) for headings via `.font-display`.
 
-### UI primitives (`public/js/ui/components.js`)
+### The screener kit (`public/js/ui/screener.js`, `visual.js`)
 
-`statCard`, `sectionHeader`, `scopeSummary`, `tabBar`, `railNav`, `segmentedToggle`,
-`dataTable`, `pill`, `badge`, `scorePill`, `filterChips`, `searchInput`, `toolbar`,
-`drillPanel`, `modal`, `emptyState`, `skeleton`, `liveBadge`, `spark`, `tooltip`,
-`comingSoonStrip`.
+Every tab is assembled from five components rather than hand-rolled:
 
-Each is a pure function returning an HTML string, or `{ html, wire(root) }` when it needs
-listeners. `wire()` returns a disposer where it registers anything global.
+- `statStrip(cards)` — 4-up KPI row; card 4 is always the gradient freshness hero. Cards may
+  carry a `?` help modal explaining the metric.
+- `topCards({ title, items, valueFormat, onSelect })` — the Top-10 hero grid, click-through to
+  the drill panel. `valueFormat` is `'score'` (value/max, tier-coloured) or `'metric'`.
+- `scoreTable(config)` — search, filter select, watchlist, sortable sticky head, export,
+  optional Score and Signals columns, row click-through.
+- `openDrill(config)` — right-slide detail panel with grouped rule/detail cards.
+- `openModal(html, { size })` — centred modal.
+
+Plus `sectionHead`, `roadmapStrip`, `pendingPanel`, and the shared visual vocabulary in
+`visual.js`: `avatarFor`, `scoreTier`, `scoreBadgeClass`, `tierLabel`, `tierColor`,
+`statusPill`, `signalDots`, `legendStrip`.
+
+Chrome primitives (tab bar, rail, scope toggle, search, live badge) remain in
+`public/js/ui/components.js`.
+
+### Honesty rules
+
+Presentation must never imply data the dashboard does not have:
+
+1. No fabricated numbers to fill a component — an un-landed feed gets `pendingPanel()` and no
+   ranking grid.
+2. Signal dots are direct readings of reported figures, not modelled judgements. A
+   points-based score only appears once its model exists and is documented.
+3. Derived figures say they are derived, and say how.
+4. Help modals state what is mock, what is live, and which prompt wires it.
+
+### The Sources modal
+
+The header's "Sources" button opens a modal generated from `public/js/ui/sources.js`, listing
+every source grouped by the tabs it serves, with what it feeds, its refresh cadence, a link,
+and an honest status (`live` / `mock` / `pending`). Adding a data source means updating
+`docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
 ---
 
