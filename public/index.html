@@ -178,6 +178,20 @@
         transform: scale(1);
       }
 
+      /* Full-screen workspace overlay (ui/screener.js openWorkspace) — the Con-call Deep Dive
+         lives here. Bigger than the drill panel because it carries its own tab strip. */
+      #workspace-overlay.is-open {
+        display: flex;
+      }
+      #workspace-overlay.is-open #workspace-container {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      /* Set on <body> while a workspace is open so the page behind cannot scroll. */
+      body.workspace-open {
+        overflow: hidden;
+      }
+
       /* Shimmer used by the skeleton primitive. */
       .skeleton-shimmer {
         position: relative;
@@ -246,6 +260,22 @@
     >
       <div id="modal-container" class="relative my-8 w-full max-w-4xl scale-95 overflow-hidden rounded-3xl bg-white opacity-0 shadow-2xl transition-all duration-200">
         <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <!-- Full-screen workspace overlay, owned by ui/screener.js.
+         Stacking order is deliberate: drill (z-50) < workspace (z-55) < modal (z-60), so the
+         keyword editor — a modal opened from inside the Deep Dive — lands on top of it rather
+         than behind it. -->
+    <div
+      id="workspace-overlay"
+      class="fixed inset-0 z-[55] hidden items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-6"
+    >
+      <div
+        id="workspace-container"
+        class="relative w-full max-w-[1200px] translate-y-4 scale-[0.98] overflow-hidden rounded-none bg-white opacity-0 shadow-2xl transition-all duration-200 sm:my-4 sm:rounded-3xl"
+      >
+        <div id="workspace-content"></div>
       </div>
     </div>
 

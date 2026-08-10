@@ -1,11 +1,119 @@
-[
-  { "id": "guidance", "label": "Guidance", "hits": 21, "trend": "up" },
-  { "id": "margin", "label": "Margin", "hits": 17, "trend": "up" },
-  { "id": "capex", "label": "Capex", "hits": 14, "trend": "flat" },
-  { "id": "order-book", "label": "Order Book", "hits": 12, "trend": "up" },
-  { "id": "attrition", "label": "Attrition", "hits": 6, "trend": "down" },
-  { "id": "debt-reduction", "label": "Debt Reduction", "hits": 9, "trend": "up" },
-  { "id": "capacity-expansion", "label": "Capacity Expansion", "hits": 11, "trend": "flat" },
-  { "id": "management-change", "label": "Management Change", "hits": 3, "trend": "down" },
-  { "id": "pricing-pressure", "label": "Pricing Pressure", "hits": 8, "trend": "up" }
-]
+{
+ "_provenance": "The default keyword set. Terms are matched against transcript text at runtime by js/concall/keyword-engine.js — no count is stored here. Users may edit this set in the UI; edits live in localStorage.",
+ "generated_at": "2026-08-10T09:30:00.000Z",
+ "generator": "scripts/gen-mock-concalls.mjs",
+ "seed": 20260811,
+ "source": "Default configuration",
+ "keyword_count": 9,
+ "keywords": [
+  {
+   "id": "capex",
+   "label": "Capex",
+   "category": "Investment",
+   "color": "indigo",
+   "terms": [
+    "capex",
+    "capital expenditure",
+    "capital outlay",
+    "capital spend"
+   ]
+  },
+  {
+   "id": "order-book",
+   "label": "Order book",
+   "category": "Demand",
+   "color": "violet",
+   "terms": [
+    "order book",
+    "order inflow",
+    "order backlog",
+    "order intake"
+   ]
+  },
+  {
+   "id": "capacity-expansion",
+   "label": "Capacity expansion",
+   "category": "Investment",
+   "color": "purple",
+   "terms": [
+    "capacity expansion",
+    "brownfield",
+    "greenfield",
+    "debottlenecking",
+    "new line"
+   ]
+  },
+  {
+   "id": "margin-guidance",
+   "label": "Margin guidance",
+   "category": "Guidance",
+   "color": "fuchsia",
+   "terms": [
+    "margin guidance",
+    "margin outlook",
+    "margin trajectory",
+    "EBITDA margin"
+   ]
+  },
+  {
+   "id": "demand-outlook",
+   "label": "Demand outlook",
+   "category": "Demand",
+   "color": "pink",
+   "terms": [
+    "demand outlook",
+    "demand environment",
+    "demand momentum",
+    "offtake"
+   ]
+  },
+  {
+   "id": "pricing-power",
+   "label": "Pricing power",
+   "category": "Margins",
+   "color": "sky",
+   "terms": [
+    "pricing power",
+    "price hike",
+    "price increase",
+    "realisation"
+   ]
+  },
+  {
+   "id": "debt-reduction",
+   "label": "Debt reduction",
+   "category": "Balance sheet",
+   "color": "cyan",
+   "terms": [
+    "debt reduction",
+    "deleveraging",
+    "net debt",
+    "debt repayment"
+   ]
+  },
+  {
+   "id": "exports",
+   "label": "Exports",
+   "category": "Demand",
+   "color": "blue",
+   "terms": [
+    "exports",
+    "export markets",
+    "overseas markets",
+    "international business"
+   ]
+  },
+  {
+   "id": "new-product",
+   "label": "New product",
+   "category": "Growth",
+   "color": "teal",
+   "terms": [
+    "new product",
+    "product launch",
+    "new SKU",
+    "product pipeline"
+   ]
+  }
+ ]
+}

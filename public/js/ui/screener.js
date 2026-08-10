@@ -703,6 +703,175 @@ function onBackdrop(e) {
   if (e.target === e.currentTarget) closeModal();
 }
 
+// ---------------------------------------------------------------------------------------
+// (f) workspace — the full-screen overlay.
+// ---------------------------------------------------------------------------------------
+
+let workspaceState = null; // { tabs, activeId, onTabChange, onClose, keyHandler }
+
+/**
+ * openWorkspace({ title, subtitle, avatarName, badges, actionsHtml, tabs, activeTab,
+ *                 onTabChange, onClose })
+ *
+ * A full-screen overlay with its own internal tab strip — for analysis that needs more room
+ * than the 480px drill panel. The Con-call Deep Dive is the reference consumer.
+ *
+ *  tabs        [{ id, label, badge?, render() -> html string, wire?(root) }]
+ *              `render` is called lazily, only when its tab is first shown, and again on every
+ *              return to it. `wire` receives the freshly-rendered panel element.
+ *  activeTab   id to open on
+ *  onTabChange (id) => {} — the caller writes this into the URL so a view is shareable
+ *  onClose     () => {} — the caller clears its URL params
+ *
+ * ESC and the × close it; a backdrop click does NOT, because a workspace holds enough state
+ * (a scrolled transcript, a search term) that a stray click outside should not discard it.
+ * Scroll is locked on <body> while it is open.
+ */
+export function openWorkspace({
+  title = '',
+  subtitle = '',
+  avatarName = null,
+  badges = [],
+  actionsHtml = '',
+  tabs = [],
+  activeTab = null,
+  onTabChange = null,
+  onClose = null,
+} = {}) {
+  const overlay = document.getElementById('workspace-overlay');
+  const container = document.getElementById('workspace-container');
+  const content = document.getElementById('workspace-content');
+  if (!overlay || !container || !content || !tabs.length) return;
+
+  const { color, initials } = avatarFor(avatarName || title);
+  const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
+
+  content.innerHTML = `
+    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/97 backdrop-blur">
+      <div class="flex items-start gap-4 px-6 pt-5">
+        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-base font-bold text-white shadow-md">${escapeHtml(initials)}</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-display truncate text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
+            ${badges.join('')}
+          </div>
+          ${subtitle ? `<div class="mt-0.5 truncate text-xs text-slate-500">${escapeHtml(subtitle)}</div>` : ''}
+        </div>
+        <div class="flex flex-shrink-0 items-center gap-2">
+          ${actionsHtml}
+          <button data-ws-close class="rounded-lg px-2 text-2xl leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="scrollbar-thin mt-3 flex gap-1 overflow-x-auto px-6" role="tablist">
+        ${tabs
+          .map(
+            (t) => `
+          <button data-ws-tab="${escapeHtml(t.id)}" role="tab" aria-selected="${t.id === activeId}"
+            class="ws-tab relative flex-shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-semibold transition-colors ${
+              t.id === activeId ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800'
+            }">
+            ${escapeHtml(t.label)}
+            ${t.badge != null ? `<span class="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-600">${escapeHtml(t.badge)}</span>` : ''}
+            <span class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-transform duration-200 ${
+              t.id === activeId ? 'scale-x-100' : 'scale-x-0'
+            }"></span>
+          </button>`
+          )
+          .join('')}
+      </div>
+    </div>
+    <div id="workspace-panel" class="scrollbar-thin max-h-[calc(100vh-11rem)] overflow-y-auto px-6 py-5"></div>`;
+
+  workspaceState = { tabs, activeId, onTabChange, onClose };
+
+  content.querySelector('[data-ws-close]')?.addEventListener('click', () => closeWorkspace());
+  content.querySelectorAll('[data-ws-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => selectWorkspaceTab(btn.dataset.wsTab));
+  });
+
+  overlay.classList.remove('hidden');
+  overlay.classList.add('is-open');
+  document.body.classList.add('workspace-open');
+  requestAnimationFrame(() => {
+    container.classList.remove('translate-y-4', 'scale-[0.98]');
+    container.classList.add('translate-y-0', 'scale-100');
+  });
+
+  workspaceState.keyHandler = (e) => {
+    // Let a modal stacked on top own ESC — closing the workspace out from under the keyword
+    // editor would be the wrong thing to dismiss.
+    if (e.key !== 'Escape') return;
+    if (!document.getElementById('modal-overlay')?.classList.contains('hidden')) return;
+    closeWorkspace();
+  };
+  document.addEventListener('keydown', workspaceState.keyHandler);
+
+  renderWorkspacePanel(activeId);
+}
+
+function renderWorkspacePanel(id) {
+  const panel = document.getElementById('workspace-panel');
+  if (!panel || !workspaceState) return;
+  const tab = workspaceState.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  try {
+    panel.innerHTML = tab.render() || '';
+    panel.scrollTop = 0;
+    tab.wire?.(panel);
+  } catch (err) {
+    console.error(`[workspace] tab "${id}" failed to render`, err);
+    panel.innerHTML = `<div class="rounded-2xl bg-rose-50 p-6 text-center ring-1 ring-rose-100">
+      <div class="text-sm font-semibold text-rose-800">This view hit a snag</div>
+      <div class="mt-1 text-xs text-rose-600">${escapeHtml(String(err?.message || err))}</div>
+    </div>`;
+  }
+}
+
+/** Switch the workspace's internal tab. Exported so a deep link can drive it. */
+export function selectWorkspaceTab(id) {
+  if (!workspaceState || !workspaceState.tabs.some((t) => t.id === id)) return;
+  workspaceState.activeId = id;
+  document.querySelectorAll('[data-ws-tab]').forEach((btn) => {
+    const on = btn.dataset.wsTab === id;
+    btn.setAttribute('aria-selected', String(on));
+    btn.classList.toggle('text-indigo-700', on);
+    btn.classList.toggle('text-slate-500', !on);
+    const bar = btn.querySelector('span:last-child');
+    bar?.classList.toggle('scale-x-100', on);
+    bar?.classList.toggle('scale-x-0', !on);
+  });
+  renderWorkspacePanel(id);
+  workspaceState.onTabChange?.(id);
+}
+
+/** Re-render the current panel in place — used when data behind it changes (a keyword edit). */
+export function refreshWorkspace() {
+  if (workspaceState) renderWorkspacePanel(workspaceState.activeId);
+}
+
+export function isWorkspaceOpen() {
+  return !!workspaceState;
+}
+
+export function closeWorkspace({ silent = false } = {}) {
+  const overlay = document.getElementById('workspace-overlay');
+  const container = document.getElementById('workspace-container');
+  const content = document.getElementById('workspace-content');
+  const state = workspaceState;
+  workspaceState = null;
+
+  if (state?.keyHandler) document.removeEventListener('keydown', state.keyHandler);
+  overlay?.classList.remove('is-open');
+  overlay?.classList.add('hidden');
+  container?.classList.add('translate-y-4', 'scale-[0.98]');
+  container?.classList.remove('translate-y-0', 'scale-100');
+  document.body.classList.remove('workspace-open');
+  if (content) content.innerHTML = '';
+  // `silent` is for teardown that is already rewriting the URL (a route change) — calling back
+  // would have the workspace fight the navigation it is being closed by.
+  if (!silent) state?.onClose?.();
+}
+
 export function closeModal() {
   const overlay = document.getElementById('modal-overlay');
   const content = document.getElementById('modal-content');

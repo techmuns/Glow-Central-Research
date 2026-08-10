@@ -8,7 +8,7 @@ import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import { tabBar, railNav, segmentedToggle, searchInput, liveBadge, emptyState } from './components.js';
-import { openModal, closeDrill, closeModal } from './screener.js';
+import { openModal, closeDrill, closeModal, closeWorkspace } from './screener.js';
 import { sourcesModalHtml } from './sources.js';
 import * as technicals from '../data/technicals.js';
 import { openTechnicalsDrill } from '../tabs/breakouts-drill.js';
@@ -260,10 +260,13 @@ function disposeChrome() {
 }
 
 function mountTab(tabModule, resolved) {
-  // A drill panel or modal opened on the previous view must never survive a route change —
-  // it would be showing a row that is no longer on screen.
+  // A drill panel, modal or workspace opened on the previous view must never survive a route
+  // change — it would be showing a row that is no longer on screen. `silent` because the URL
+  // is already being rewritten by the navigation that triggered this; letting the overlay run
+  // its own onClose would have it fight that write.
   closeDrill();
   closeModal();
+  closeWorkspace({ silent: true });
 
   if (currentTabModule && currentTabModule !== tabModule) {
     try {
@@ -290,6 +293,16 @@ function mountTab(tabModule, resolved) {
       router.replaceRoute(route);
       saveLastRoute(router.buildHash(route));
       mountTab(tabModule, route);
+    },
+    // Same URL write, but WITHOUT re-mounting the panel. For state that lives in an overlay
+    // rather than in the page body: the Deep Dive mirrors its open company and internal tab
+    // into the URL so the view is shareable and survives a reload, and re-mounting on every
+    // internal tab click would tear down the very overlay doing the writing.
+    setParamsQuiet(next) {
+      const route = { workspace: state.workspace, tab: state.tab, subview: state.subview, scope: state.scope, params: next };
+      router.replaceRoute(route);
+      saveLastRoute(router.buildHash(route));
+      ctx.params = next;
     },
   };
   try {

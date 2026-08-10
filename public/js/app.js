@@ -7,18 +7,21 @@ import { setData, setDataError } from './core/state.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
+import { primeCatalysts } from './data/concalls.js';
+import { primeDefaults as primeKeywords } from './concall/keyword-engine.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
-// The heavy technicals feed is NOT loaded here: js/data/technicals.js fetches and caches it
-// lazily the first time the Breakouts tab mounts, so the other eight tabs don't pay for it.
+// Two heavy feeds are NOT loaded here. js/data/technicals.js (~800KB) and js/data/concalls.js
+// (~2MB of transcripts) fetch and cache lazily the first time their tab mounts, so the other
+// tabs don't pay for a corpus they never read.
 const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
-  concallFeed: 'data/mock/concall-feed.json',
   concallKeywords: 'data/mock/concall-keywords.json',
+  catalysts: 'data/mock/catalysts.json',
   chatter: 'data/mock/chatter.json',
   superinvestors: 'data/mock/superinvestors.json',
   institutions: 'data/mock/institutions.json',
@@ -48,6 +51,12 @@ async function loadAll() {
   data.earningsRaw = data.earnings;
   primeEarnings(data.earningsRaw, data.earningsCalendar);
   data.earnings = adaptLegacySummary(data.earningsRaw);
+
+  // Con-call: the keyword defaults and the catalyst list are small and needed before the
+  // transcript corpus arrives, so they load here and seed their modules. The corpus itself is
+  // fetched by js/data/concalls.js when the tab mounts.
+  primeKeywords(data.concallKeywords);
+  primeCatalysts(data.catalysts);
   return data;
 }
 

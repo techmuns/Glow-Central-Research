@@ -38,6 +38,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 ```
 public/
   index.html                  design tokens, fonts, Tailwind CDN, #app mount, overlay roots
+                              (drill z-50 < workspace z-55 < modal z-60)
   js/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
@@ -53,9 +54,14 @@ public/
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
+    concall/
+      keyword-engine.js       runtime transcript scanner + the keyword store
+      keyword-editor.js       the keyword set editor (modal)
+      deep-dive.js            the six-tab Con-call Deep Dive workspace
     data/
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
+      concalls.js             same, for the transcript corpus (lazy — it is ~2MB)
       universe.js             screener-export -> legacy universe shape adapter
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
@@ -69,6 +75,8 @@ public/
 scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
+  gen-mock-concalls.mjs       seeded generator for the synthetic transcript corpus
+  verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices
@@ -163,7 +171,8 @@ Conventions:
 | `statStrip(cards)` | the 4-up KPI row. Card 4 **must** be `{ hero: true, … }` — the gradient freshness card. Any card may carry `help: { title, body }` for a `?` explainer modal. |
 | `topCards({ title, items, valueFormat, onSelect })` | the Top-10 hero grid. `valueFormat: 'score'` renders `value/max` coloured by tier; `'metric'` renders one formatted number coloured by `tone`. |
 | `scoreTable(config)` | the workhorse: search, filter select, watchlist, sort, export, sticky head, row click. |
-| `openDrill(config)` | right-slide detail panel (singleton). |
+| `openDrill(config)` | right-slide detail panel (singleton), 480px. For one row's detail. |
+| `openWorkspace(config)` | full-screen overlay (singleton), `max-w-[1200px]`, with its own tab strip. For analysis that needs room — see below. |
 | `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
 | `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. |
 
@@ -212,6 +221,90 @@ These are not style preferences — they are why the dashboard can be trusted:
 
 `wire()` returns a disposer when it registers anything global. Call it in `destroy()`.
 **Always escape data-sourced strings** with `escapeHtml` from `core/dom.js`.
+
+### The workspace overlay — `openWorkspace`
+
+When one row's detail needs more than the 480px drill panel — several views over the same
+entity, a transcript, charts side by side — use the workspace. The Con-call Deep Dive is the
+reference consumer.
+
+```js
+openWorkspace({
+  title: company.name,
+  subtitle: `${ticker} · ${sector} · ${quarter}`,
+  avatarName: company.name,          // drives the gradient avatar
+  badges: [statusBadge, mockBadge],  // trusted markup, rendered beside the title
+  actionsHtml: '',                   // trusted markup, top-right
+  tabs: [{ id, label, badge?, render: () => html, wire?: (panel) => {} }],
+  activeTab: 'summary',
+  onTabChange: (id) => ctx.setParamsQuiet({ ...ctx.params, view: id }),
+  onClose: () => ctx.setParamsQuiet(withoutDeepDiveParams),
+});
+```
+
+Rules that make it behave:
+
+- **`render()` is lazy and repeated.** A tab's `render()` runs when it is first shown and again
+  on every return to it, so it must be cheap and side-effect-free. `wire()` gets the freshly
+  rendered panel.
+- **ESC and × close it; a backdrop click does not.** A workspace holds real state — a scrolled
+  transcript, a search term — and a stray click outside should not discard it.
+- **Scroll is locked** on `<body>` (`.workspace-open`) while it is open.
+- **Stacking is drill (z-50) < workspace (z-55) < modal (z-60)**, so a modal opened from inside
+  a workspace lands on top. The ESC handler checks for an open modal and defers to it.
+- **`closeWorkspace({ silent: true })`** skips the `onClose` callback. The shell uses it on route
+  change, where the URL is already being rewritten by the navigation.
+- **Mirror its state into the URL with `ctx.setParamsQuiet()`, never `ctx.setParams()`.**
+  `setParams` re-mounts the tab body, which would tear down the very overlay doing the writing.
+  `setParamsQuiet` writes the URL and saves the route without re-mounting. Because the shell
+  closes every overlay on mount, the owning tab is responsible for **reopening from the URL**
+  after each paint — that is what makes `?deepdive=TICKER&view=comparison` survive a reload and
+  work as a shared link.
+- `refreshWorkspace()` re-renders the current panel in place, for when the data behind it
+  changes (a keyword edit).
+
+### The keyword engine — `js/concall/keyword-engine.js`
+
+A general text scanner, not a Con-call-only helper. Anything with a text corpus and a
+user-editable term list should use it rather than growing a second one.
+
+```js
+const scan = engine.scanCall(call, engine.getKeywords());
+scan.byKeyword['capex'].hits        // 7
+scan.byKeyword['capex'].prepared    // 4 — management volunteered it
+scan.byKeyword['capex'].qna         // 3 — analysts asked
+scan.byKeyword['capex'].contexts    // [{ speaker, section, sentence, matchedTerm }]
+engine.compareScans(latest, previous)  // deltas, plus introduced[] / dropped[]
+engine.highlight(text, keywords, escapeHtml)   // trusted markup
+```
+
+The non-negotiables:
+
+1. **Never store a count in a file.** Counts are computed at render time. That is the whole
+   reason editing a keyword updates the screen instantly, and it is why `concall-keywords.json`
+   ships terms and no `hits` field. A precomputed count would go stale the moment a user edits
+   an alias, and nothing would tell them.
+2. **Matching is word-boundary anchored and case-insensitive**, multi-word terms tolerate any
+   whitespace run, and **overlapping aliases count once** — longest alias wins. Without that
+   last rule, adding a broad alias silently inflates every count the narrow one already caught.
+3. **Keep `prepared` and `qna` separate all the way to the UI.** They mean opposite things:
+   management volunteering a topic versus an analyst having to extract it. Summing them away
+   throws out the most interesting thing in the data.
+4. **Missing input is not zero.** A call with no transcript returns `hasTranscript: false`, and
+   the UI must render "not held yet" rather than a row of zeroes — "management mentioned this
+   0 times" and "nobody has spoken yet" are different claims. Same for `compareScans` with no
+   previous call: every delta is `null`, never the latest count.
+5. **Scans are memoised on `(callId, keywordsHash)`**, where the hash covers only `id` +
+   `terms`. A colour or label edit must not bust a cache it cannot affect. The cache clears on
+   every keyword change.
+6. **Keyword colours are categorical only** — `indigo`, `violet`, `purple`, `fuchsia`, `pink`,
+   `sky`, `cyan`, `blue`, `teal`, `slate`. Emerald, amber and rose are semantic here, so a
+   keyword may never take one: a keyword tinted emerald reads as a verdict.
+
+Edits persist to `localStorage` under `sattva:concall-keywords` and broadcast through
+`onKeywordsChange()`. Subscribe once in the tab's `render()` and repaint from there — that one
+wire is what makes the editor feel instant instead of "save and reload". The write-back path for
+moving the set to a server store is in `docs/DATA-CONTRACTS.md`.
 
 ### Chrome primitives — `js/ui/components.js`
 
@@ -305,16 +398,21 @@ updating three things together**: the contract in `docs/DATA-CONTRACTS.md`, the 
 ## Live engine — `js/core/live.js`
 
 ```js
-live.register('concall-feed', { intervalMs: 12000, fetcher: live.mockFetcher('data/mock/concall-feed.json') });
-const off = live.subscribe('concall-feed', (rows) => paint(rows));
-live.start('concall-feed');   // in render()
-live.stop('concall-feed');    // in destroy(), and call off()
+live.register('concall-live', { intervalMs: 5000, fetcher: myDeltaFetcher });
+const off = live.subscribe('concall-live', (payload) => paint(payload));
+live.start('concall-live');   // in render()
+live.stop('concall-live');    // in destroy(), and call off()
 ```
 
 - Pollers run only while started **and** the document is visible; they pause on hidden and
   refetch immediately on return.
 - Exponential backoff on error, capped at 60s. Errors never reach the UI.
 - Swap mock → real by changing one argument: `live.realFetcher('/api/technicals')`.
+- **`live.mockFetcher(path)` re-downloads `path` on every tick and jitters its numbers.** That is
+  fine for a small file whose numbers are meant to breathe. It is wrong for a large one, and
+  wrong for anything containing quoted speech — jittering a transcript invents words nobody
+  said. The Con-call poller passes a plain function that computes a small delta from the
+  already-loaded corpus instead; see `liveTickFetcher` in `js/data/concalls.js`.
 
 ---
 
@@ -328,6 +426,11 @@ live.stop('concall-feed');    // in destroy(), and call off()
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
+| Regenerate the mock con-calls | `node scripts/gen-mock-concalls.mjs` — seeded, so output is stable |
+| Change keyword matching | `js/concall/keyword-engine.js` — see the rules above before touching it |
+| Add a view to the Deep Dive | `js/concall/deep-dive.js`: add to `TABS`, `TAB_LABEL`, `RENDERERS`, and `WIRERS` if it needs listeners |
+| Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
+| Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |
 | Add a server route | the API block in `worker/index.js` |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
