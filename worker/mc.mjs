@@ -171,7 +171,16 @@ export async function fetchLatestResults(opts = {}, fetchImpl = fetch) {
     if (headerIndex[required] == null) throw new Error(`Moneycontrol payload is missing the "${required}" column`);
   }
 
-  const rows = (data.list || []).map((r) => normaliseRow(r, headerIndex)).filter((r) => r.scId);
+  // `seq` is the position Moneycontrol returned this row in, and it is DATA, not decoration.
+  // The upstream is sorted latest-first at finer granularity than the date we get back: nine
+  // companies filed on 11 Aug 2026 and their order on Moneycontrol's page is the order they
+  // reported in. Sorting our copy by `resultDate` alone throws that away and reshuffles the top
+  // of a table whose whole job is "what just happened" — which is exactly what it did until this
+  // was added. Stamped here so the Worker, the committed snapshot and the browser all agree.
+  const rows = (data.list || [])
+    .map((r) => normaliseRow(r, headerIndex))
+    .filter((r) => r.scId)
+    .map((r, i) => ({ ...r, seq: i }));
 
   // tableHeader is ["Q1 FY26-27", "Jun 26", "Jun 25", "Growth"] — the quarter this pull covers and
   // the two periods being compared. Carrying it through means the UI can state which quarter it is

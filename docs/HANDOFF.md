@@ -250,6 +250,23 @@ clicked. Rows are not clickable. The provenance it carried moved behind the Live
 click from anywhere on the page rather than one click per row. If a number wants to be in a drill,
 make it a column instead.
 
+**"Latest" means the upstream's order, not ours.** `resultDate` is a date; filings arrive through
+the day. Rows carry `seq` (the upstream index) and sort `(date desc, seq asc)`, which is the only
+way our top-of-table matches Moneycontrol's. A tie-break on the size of the profit move looked
+reasonable and put a different set of companies at the top of a page whose entire job is "what just
+happened".
+
+**The column headings stay put because the table body is its own scroller.** `sticky` positions
+against the nearest *scrolling* ancestor, and `overflow-x: auto` makes the wrapper that ancestor in
+both axes — so the `sticky top-0` that had always been on the `<thead>` was sticking to a box that
+never scrolled. `stickyHead` gives the wrapper a height; see CLAUDE.md.
+
+**The Workspace dropdown and the Universe/Portfolio toggle are different controls**, despite both
+saying "Portfolio". Workspace picks *which tabs exist* (Research Central's five, Portfolio
+Analytics' four); scope picks *whose data* the open tab shows. Removing either strands the other.
+Both carry a tooltip saying so, and the scope toggle now has a "Scope" kicker to match the
+dropdown's "Workspace" one.
+
 **YoY / QoQ is one toggle over two payloads that look identical.** Both carry the same
 current-period figures; only the comparison moves. That makes a mis-served payload the one error
 nothing downstream could catch, so `setSubType()` refuses any response whose `meta.subType` is not

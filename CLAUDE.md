@@ -231,6 +231,7 @@ the only consumer that changes all four, because it carries ten numeric columns:
 | `dense` | `false` | `px-2` instead of `px-4`, and `tracking-normal` instead of `tracking-wider` on the headers. Worth ~110px across ten columns. |
 | `filters` | `null` | One config, or an **array** of them. An array renders several `<select>`s that AND together — "PAT grew" and "Consolidated only" are different questions and folding both into one dropdown would make them mutually exclusive for no reason. |
 | `initialView` | `null` | Seed search / filters / watchlist-only / sort from a previous instance's `view` (which the table now returns). A tab that rebuilds on live data must pass this, or the reader's state is discarded every time a row arrives. |
+| `stickyHead` | `null` | A CSS length that makes the table body its own vertical scroller, e.g. `'max(320px, calc(100vh - 300px))'`. **This is what makes the sticky `<thead>` work.** `sticky` positions against the nearest *scrolling* ancestor, and `overflow-x: auto` on the wrapper makes that wrapper the scroll container in both axes — so without a height the head sticks to a box that never scrolls while the page scrolls underneath it. |
 
 Reach for these only when the alternative is a horizontal scrollbar at 1440px. Measure before and
 after — `[data-table-scroll]`'s `scrollWidth` vs `clientWidth` is the number that matters, and
@@ -666,6 +667,8 @@ It covers, beyond the checklist below:
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
 - the Earnings Hub's ten columns fit inside 1440px with no scrollbar of their own, and its
   reported-figure columns recompute to the growth percentage shown beside them
+- its column headings stay put while the body scrolls, and its rows are in the upstream's own
+  order within the newest date — not merely date-sorted
 - the Earnings Hub's YoY/QoQ toggle repoints the comparison columns and the URL, survives a
   reload, and leaves the current-period figure for a given company **identical** under both
 - its two filter dropdowns partition the set exactly (STD + CON = all) and combine rather than

@@ -513,6 +513,17 @@ snapshot with `degraded` set to a human-readable reason, and the tab swaps its g
 for an amber "Showing the last snapshot" one. An empty feed is never served as success, because
 "no results" and "we could not reach the source" are different claims.
 
+### `seq` — the upstream's own order, and why it is data
+
+Every row carries `seq`, the index Moneycontrol returned it at. `resultDate` is a **date**, but
+filings arrive through the day and the upstream is sorted latest-first at that finer granularity.
+Sorting our copy by `resultDate` alone therefore needs a tie-break, and any tie-break we invent is
+a different list from the one Moneycontrol shows — an early version broke ties on the size of the
+profit move, so "Latest Results" opened on neither the latest filings nor the same order as the
+source. `seq` is stamped in `worker/mc.mjs` so the live route, the committed snapshot and the
+browser all agree, and `dateSortValue()` in `js/data/earnings-live.js` encodes
+`(resultDate desc, seq asc)` into the Date column's single sort key.
+
 ### `subType` — one filing, two questions
 
 `subType=yoy` compares the quarter against the same quarter a year earlier; `subType=qoq` compares

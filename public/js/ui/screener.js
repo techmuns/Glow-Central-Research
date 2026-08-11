@@ -343,6 +343,15 @@ export function scoreTable(config) {
     // A tab that rebuilds its table when live data lands would otherwise throw away whatever the
     // reader had typed, filtered and sorted — every time a company reports.
     initialView = null,
+    // A CSS length that makes the table body its own vertical scroller, e.g. 'calc(100vh - 300px)'.
+    //
+    // The <thead> has always carried `sticky top-0`, and on a long table it scrolled away anyway.
+    // Sticky positions against the nearest SCROLLING ancestor, and `overflow-x: auto` on the
+    // wrapper makes that wrapper the scroll container in both axes (CSS forces `overflow-y` off
+    // `visible` when the other axis is not) — so the head was sticking to a box that never
+    // scrolled, while the page scrolled underneath it. Giving the wrapper a height makes it
+    // actually scroll, which is what makes the head stay put. The toolbar above stays visible too.
+    stickyHead = null,
   } = config;
 
   // `filters` takes one config or several. Several render as several <select>s and AND together,
@@ -553,9 +562,9 @@ export function scoreTable(config) {
         </div>
       </div>
 
-      <div class="scrollbar-thin overflow-x-auto" data-table-scroll>
+      <div class="scrollbar-thin overflow-x-auto" data-table-scroll ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto"` : ''}>
         <table class="w-full text-sm">
-          <thead data-table-head class="sticky top-0 z-10 bg-slate-50/70">${headHtml()}</thead>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]' : 'bg-slate-50/70'}">${headHtml()}</thead>
           <tbody data-table-body>${bodyHtml(initialList)}</tbody>
         </table>
       </div>

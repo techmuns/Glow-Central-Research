@@ -69,7 +69,11 @@ function shellTemplate() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
             <span class="font-medium">Sources</span>
           </button>
-          <div id="scope-toggle-mount"></div>
+          <div class="flex items-center gap-1.5"
+               title="Data scope: whether the tab you are on covers every listed company or only your holdings. This is not the Workspace switcher on the left — that picks which tabs exist.">
+            <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
+            <div id="scope-toggle-mount"></div>
+          </div>
           <div id="live-badge-mount"></div>
           <div id="updated-chip-mount"></div>
         </div>
@@ -206,10 +210,18 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
 
+  // NOT the same control as the scope toggle, though the word "Portfolio" appears in both and
+  // that has caused a genuine double-take. The workspace switcher picks WHICH TABS exist —
+  // Research Central's five, or Portfolio Analytics' four. The scope toggle picks WHOSE DATA the
+  // open tab shows. Removing either strands the other: with no workspace switcher the four
+  // Portfolio Analytics tabs are unreachable, and with no scope toggle no research tab can be
+  // narrowed to holdings. Both now say what they do on hover, and the toggle carries a kicker so
+  // it reads as a labelled control rather than two bare words.
   const wsDropdown = dropdownMenu({
     key: 'workspace',
     kicker: 'Workspace',
     valueLabel: ws.label,
+    title: 'Which set of tabs to show. Research Central is the five research tabs; Portfolio Analytics is four tabs about your own holdings. Separate from the Universe / Portfolio scope toggle in the header.',
     items: WORKSPACES.map((w) => ({ id: w.id, label: w.label })),
     activeId: ws.id,
     onSelect: goWorkspace,
@@ -359,10 +371,10 @@ function goScope(scope) {
 // (Not in ui/components.js because it's specifically about app navigation chrome, not a
 // general-purpose primitive other tabs would reuse.)
 
-function dropdownMenu({ key, kicker, valueLabel, items, activeId, onSelect }) {
+function dropdownMenu({ key, kicker, valueLabel, items, activeId, onSelect, title = '' }) {
   const html = `
     <div class="relative" data-dd="${escapeHtml(key)}">
-      <button type="button" data-dd-trigger class="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50">
+      <button type="button" data-dd-trigger ${title ? `title="${escapeHtml(title)}"` : ''} class="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50">
         <span class="min-w-0">
           <span class="block truncate text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(kicker)}</span>
           <span class="block truncate text-sm font-bold text-slate-900">${escapeHtml(valueLabel)}</span>

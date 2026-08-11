@@ -225,7 +225,10 @@ function shortDate(iso) {
 
 function basisPill(basis) {
   const con = basis === 'Consolidated';
-  return `<span class="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-semibold ${con ? 'bg-slate-100 text-slate-500' : 'bg-violet-50 text-violet-600'}" title="${escapeHtml(basis || 'unknown')} results">${con ? 'CON' : 'STD'}</span>`;
+  // Spelled out, like the header. "CON" and "STD" saved 45px and cost every reader who has not
+  // met the abbreviations a guess about whether they are looking at the group or the parent.
+  return `<span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${con ? 'bg-slate-100 text-slate-500' : 'bg-violet-50 text-violet-600'}"
+     title="${escapeHtml(basis || 'unknown')} results — ${con ? 'the whole group' : 'the parent company alone'}">${con ? 'Consolidated' : 'Standalone'}</span>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -393,23 +396,31 @@ function renderLatest(ctx) {
     showRank: false,
     nameAfter: 1,
     dense: true,
-    nameMaxPx: 210,
+    // Ten columns leave room the thirteen did not, so the identity column gets it back: fewer
+    // industries truncate and the ticker never does.
+    nameMaxPx: 260,
+    // The head has to stay put on a 1,300-row table. This turns the table body into its own
+    // scroller, which is what makes `sticky` engage — see `stickyHead` in screener.js. The
+    // subtraction is the header, tab bar, section head and toolbar above it.
+    stickyHead: 'max(320px, calc(100vh - 300px))',
     columns: [
-      { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
+      // Newest first, and within a day Moneycontrol's own order — see `dateSortValue`.
+      { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: feed.dateSortValue },
 
       // Revenue then net profit, each as reported for both periods followed by the change, so a
-      // row reads across the way the filing does.
-      { label: `Rev ${cur}`, get: (r) => figureCell(r.revenue?.current), html: true, align: 'right', sortValue: (r) => r.revenue?.current ?? -Infinity },
-      { label: `Rev ${pri}`, get: (r) => figureCell(r.revenue?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.revenue?.prior ?? -Infinity },
-      { label: 'Rev %', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
+      // row reads across the way the filing does. Headers spell the metric out: "PAT" and "REV"
+      // are trade shorthand, and this table is read by people who did not write it.
+      { label: `Revenue ${cur}`, get: (r) => figureCell(r.revenue?.current), html: true, align: 'right', sortValue: (r) => r.revenue?.current ?? -Infinity },
+      { label: `Revenue ${pri}`, get: (r) => figureCell(r.revenue?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.revenue?.prior ?? -Infinity },
+      { label: 'Revenue Growth', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
 
       // Gross profit is not shown. The feed still carries it and the export still includes it —
       // it is only the on-screen columns that were cut, to keep the table readable.
-      { label: `PAT ${cur}`, get: (r) => figureCell(r.netProfit?.current), html: true, align: 'right', sortValue: (r) => r.netProfit?.current ?? -Infinity },
-      { label: `PAT ${pri}`, get: (r) => figureCell(r.netProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.netProfit?.prior ?? -Infinity },
-      { label: 'PAT %', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
+      { label: `Net Profit ${cur}`, get: (r) => figureCell(r.netProfit?.current), html: true, align: 'right', sortValue: (r) => r.netProfit?.current ?? -Infinity },
+      { label: `Net Profit ${pri}`, get: (r) => figureCell(r.netProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.netProfit?.prior ?? -Infinity },
+      { label: 'Net Profit Growth', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
 
-      { label: 'MCap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
+      { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
     ],
     // Two dropdowns, not one: "PAT grew" and "Consolidated only" are different questions and a

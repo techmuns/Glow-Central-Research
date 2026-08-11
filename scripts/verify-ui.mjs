@@ -144,16 +144,38 @@ ok('...and the content spans the full width', (await page.locator('#content-host
 const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
 ok('DATE is the first column', /^DATE/.test(ehHeads[0] || ''), ehHeads[0]);
 ok('COMPANY is the second', /^COMPANY/.test(ehHeads[1] || ''), ehHeads[1]);
-for (const c of ['REV %', 'PAT %', 'MCAP', 'BASIS']) {
+for (const c of ['REVENUE GROWTH', 'NET PROFIT GROWTH', 'MARKET CAP', 'BASIS']) {
   ok(`column present: ${c}`, ehHeads.some((h) => h === c));
 }
+// Headers are spelled out. "PAT", "REV" and "MCAP" are trade shorthand and this table is read by
+// people who did not write it.
+ok('headers are full words, not trade shorthand', !ehHeads.some((h) => /\b(REV|PAT|MCAP)\b/.test(h)), ehHeads.join(' | '));
 // Two reported-figure columns per metric, each header naming the period it is — a bare "REVENUE"
 // would leave the reader guessing which quarter the number belongs to.
-for (const [m, label] of [['REV', 'revenue'], ['PAT', 'net profit']]) {
-  const cols = ehHeads.filter((h) => h.startsWith(`${m} `) && h !== `${m} %`);
-  ok(`${label}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{2}$/.test(h)), cols.join(' + '));
+for (const m of ['REVENUE', 'NET PROFIT']) {
+  const cols = ehHeads.filter((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
+  ok(`${m.toLowerCase()}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{2}$/.test(h)), cols.join(' + '));
 }
-ok('gross profit is not a column', !ehHeads.some((h) => h.startsWith('GP')));
+ok('gross profit is not a column', !ehHeads.some((h) => h.includes('GROSS')));
+
+// The head has to stay put on a 1,300-row table. `sticky` only engages against a scrolling
+// ancestor, so the wrapper must actually scroll — assert the behaviour, not the CSS. Needs real
+// stylesheets: `position: sticky` comes from a Tailwind class, so on an unstyled page the head
+// would scroll away for a reason that has nothing to do with this code.
+const ehSticky = await page.evaluate(async () => {
+  const box = document.querySelector('[data-table-scroll]');
+  const head = document.querySelector('#content-host thead');
+  const styled = getComputedStyle(head).position === 'sticky';
+  const before = head.getBoundingClientRect().top;
+  box.scrollTop = 800;
+  await new Promise((r) => setTimeout(r, 250));
+  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr').getBoundingClientRect().top < before };
+});
+ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
+if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
+else skip('...and the column headings stay put while it does', 'Tailwind CDN unreachable — position:sticky never applied');
+await page.evaluate(() => (document.querySelector('[data-table-scroll]').scrollTop = 0));
+await page.waitForTimeout(200);
 ok('the serial-number column is gone', !ehHeads.some((h) => h === '#'));
 ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
 ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
@@ -163,6 +185,36 @@ const ehIdent = await page.locator('#content-host tbody tr').first().innerText()
 const ehSub = ehIdent.split('\n').find((l) => /[A-Z0-9&-]{2,}\s·\s\S/.test(l)) || '';
 ok('ticker and industry survive under the company name', !!ehSub, ehSub || ehIdent.replace(/\s+/g, ' ').slice(0, 60));
 ok('default sort is newest-first', /^DATE/.test(ehHeads[0]) && /▾/.test(ehHeads[0]));
+
+// AND IN MONEYCONTROL'S OWN ORDER WITHIN A DATE. `resultDate` is a date; filings arrive through
+// the day, and the upstream returns them newest-first at that finer granularity. An earlier
+// version tie-broke on the size of the profit move, which reshuffled the top of the table so
+// "latest results" showed neither the latest nor the same list Moneycontrol shows. Compare our
+// rendered order against the payload's own order, which is the only thing that can catch it.
+const ehOrder = await page.evaluate(async () => {
+  let payload = null;
+  try {
+    const r = await fetch('api/earnings?subType=yoy', { cache: 'no-store' });
+    if (r.ok) payload = await r.json();
+  } catch {
+    /* no Worker on this origin */
+  }
+  if (!payload?.rows?.length) {
+    const r = await fetch('data/earnings-live.json', { cache: 'no-store' });
+    payload = await r.json();
+  }
+  // Upstream order, restricted to the newest date — that is where the tie-break used to bite.
+  const newest = payload.rows.reduce((a, r) => (r.resultDate > a ? r.resultDate : a), '');
+  const upstream = payload.rows.filter((r) => r.resultDate === newest).map((r) => r.scId);
+  const rendered = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.dataset.rowKey);
+  return { upstream: upstream.slice(0, 8), rendered: rendered.slice(0, 8), newest, seq: payload.rows[0]?.seq };
+});
+ok('rows carry the upstream sequence', ehOrder.seq === 0, `first row seq=${ehOrder.seq}`);
+ok(
+  "...and the table is in Moneycontrol's own order within the newest date",
+  ehOrder.upstream.length > 3 && ehOrder.upstream.join(',') === ehOrder.rendered.join(','),
+  `${ehOrder.newest}: ${ehOrder.rendered.slice(0, 4).join(' ')} vs upstream ${ehOrder.upstream.slice(0, 4).join(' ')}`
+);
 
 // The whole point of the wider column set was to keep it on screen. At the design width the
 // table must not need its own horizontal scrollbar; the page must never scroll sideways at all.
@@ -184,9 +236,9 @@ const ehRecon = await page.evaluate(() => {
   const out = { checked: 0, bad: [] };
   for (const tr of [...document.querySelectorAll('#content-host tbody tr')].slice(0, 60)) {
     const td = [...tr.children].map((c) => c.innerText.trim());
-    for (const m of ['REV', 'GP', 'PAT']) {
-      const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} %`);
-      const iPct = heads.indexOf(`${m} %`);
+    for (const m of ['REVENUE', 'NET PROFIT']) {
+      const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
+      const iPct = heads.indexOf(`${m} GROWTH`);
       if (iCur < 0 || iPct < 0) continue;
       const cur = num(td[iCur]);
       const pri = num(td[iCur + 1]);
@@ -238,12 +290,12 @@ await page.waitForTimeout(400);
 // ---------------------------------------------------------------------------------------
 console.log('\n— yoy / qoq —');
 const headsNow = () => page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
-const revCols = (hs) => hs.filter((h) => h.startsWith('REV ') && h !== 'REV %');
+const revCols = (hs) => hs.filter((h) => h.startsWith('REVENUE ') && h !== 'REVENUE GROWTH');
 // Read one named company's revenue pair, whichever row it is on.
 const figuresFor = (needle) =>
   page.evaluate((n) => {
     const hs = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
-    const i = hs.findIndex((h) => h.startsWith('REV ') && h !== 'REV %');
+    const i = hs.findIndex((h) => h.startsWith('REVENUE ') && h !== 'REVENUE GROWTH');
     for (const tr of document.querySelectorAll('#content-host tbody tr')) {
       const tds = [...tr.children].map((c) => c.innerText.trim());
       if (tds[1] && tds[1].toUpperCase().includes(n)) return { cur: tds[i], prior: tds[i + 1] };
@@ -368,7 +420,7 @@ await page.locator('#content-host select').nth(1).selectOption('con');
 await page.waitForTimeout(500);
 const conOnly = await rowCount();
 ok('standalone + consolidated partition the set exactly', stdOnly > 0 && conOnly > 0 && stdOnly + conOnly === preBasis, `${stdOnly} STD + ${conOnly} CON = ${preBasis}`);
-ok('...and the rows actually carry that basis', (await page.locator('#content-host tbody tr').first().innerText()).includes('CON'));
+ok('...and the rows actually carry that basis, spelled out', /Consolidated/.test(await page.locator('#content-host tbody tr').first().innerText()));
 // AND, not OR: narrowing the other dropdown on top of this one must narrow further.
 await page.locator('#content-host select').first().selectOption('pat-up');
 await page.waitForTimeout(500);

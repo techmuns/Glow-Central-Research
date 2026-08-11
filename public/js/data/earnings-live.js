@@ -262,11 +262,27 @@ function joinRow(raw) {
   };
 }
 
-// Newest result first, then by the size of the move, so the top of the table is "what just
-// happened and mattered" rather than alphabetical noise.
+/**
+ * Newest result first — and within a date, MONEYCONTROL'S OWN ORDER.
+ *
+ * `resultDate` is a date; filings arrive through the day. Nine companies reported on 11 Aug and
+ * the upstream returns them in the order they reported. An earlier version tie-broke on the size
+ * of the profit move instead, which looked reasonable and was wrong: it reshuffled the top of the
+ * table so "latest results" showed neither the latest nor Moneycontrol's list, and the two sources
+ * disagreed on screen about the same quarter. `seq` is the upstream index — see worker/mc.mjs.
+ */
 function byNewestResult(a, b) {
   if (a.resultDate !== b.resultDate) return String(b.resultDate || '').localeCompare(String(a.resultDate || ''));
-  return Math.abs(b.netProfit?.pct ?? 0) - Math.abs(a.netProfit?.pct ?? 0);
+  return (a.seq ?? 0) - (b.seq ?? 0);
+}
+
+/**
+ * Sort key for the Date column, descending: newest date first, and within a date the upstream
+ * order. Encoded as one string because `scoreTable` sorts on a single value — the inverted `seq`
+ * makes a smaller upstream index sort higher under a descending sort.
+ */
+export function dateSortValue(r) {
+  return `${r.resultDate || ''}|${String(999999 - (r.seq ?? 0)).padStart(6, '0')}`;
 }
 
 // ---------------------------------------------------------------------------------------
