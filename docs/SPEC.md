@@ -208,7 +208,7 @@ live.onGlobalTick(cb);    // header Live pill
 
 ## 7. Tabs and planned features
 
-### Earnings Hub — `earnings-hub`
+### Earnings Hub — `earnings-hub` (LIVE, single view)
 Quarterly results, scans and quality/growth signals.
 - Auto-parsed result PDFs (revenue, PAT, margin extraction)
 - Beat/miss scoring vs Street estimates

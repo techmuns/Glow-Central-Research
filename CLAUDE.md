@@ -179,13 +179,20 @@ Conventions:
 
 | Component | Use |
 | --- | --- |
-| `statStrip(cards)` | the 4-up KPI row. Card 4 **must** be `{ hero: true, … }` — the gradient freshness card. Any card may carry `help: { title, body }` for a `?` explainer modal. |
+| `statStrip(cards)` | the 4-up KPI row. Card 4 **must** be `{ hero: true, … }` — the gradient freshness card. Any card may carry `help: { title, body }` for a `?` explainer modal. **Not mandatory**: the Earnings Hub deliberately has none — see below. |
 | `topCards({ title, items, valueFormat, onSelect })` | the Top-10 hero grid. `valueFormat: 'score'` renders `value/max` coloured by tier; `'metric'` renders one formatted number coloured by `tone`. |
 | `scoreTable(config)` | the workhorse: search, filter select, watchlist, sort, export, sticky head, row click. |
 | `openDrill(config)` | right-slide detail panel (singleton), 480px. For one row's detail. |
 | `openWorkspace(config)` | full-screen overlay (singleton), `max-w-[1200px]`, with its own tab strip. For analysis that needs room — see below. |
 | `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
 | `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. |
+
+**A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
+and nothing else: no stat cards, no ribbon, no rail. The rule that survives is not "every tab has a
+stat strip" — it is **the provenance must always be reachable**. There it lives behind a small Live
+pill in the section head, which opens a modal with what is live, what each column is joined from,
+what is missing and what a dash means. Decluttering a page is fine; deleting its accountability is
+not. A tab with `subviews: []` gets no rail — the shell hides that block and skips wiring it.
 
 The standard tab body, in order:
 
@@ -625,7 +632,8 @@ It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
 - all 9 tabs across both workspaces render their panel
-- every tab shows a 4-card statStrip whose 4th card is the gradient freshness hero
+- every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
+  (the Earnings Hub has none by design; its Live pill carries the provenance instead)
 - rail sub-views switch content
 - the Portfolio/Universe toggle changes what every tab reports
 - the URL hash updates; browser back/forward work

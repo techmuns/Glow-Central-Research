@@ -225,19 +225,30 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   });
 
   // Rail is a single white card: workspace dropdown on top, sub-view list beneath a hairline.
+  // A tab with no sub-views renders just the workspace dropdown — an empty sub-view box with a
+  // heading and nothing under it reads as a loading failure rather than as "there is one view".
+  const hasSubviews = subviewItems.length > 0;
   const asideEl = $('#aside-content', root);
   asideEl.innerHTML = `
     <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
       <div class="p-2">${wsDropdown.html}</div>
-      <div class="hidden border-t border-slate-100 p-2 lg:block">
-        <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
-        ${rail.html}
-      </div>
-      <div class="border-t border-slate-100 p-2 lg:hidden">${mobileSubDropdown.html}</div>
+      ${
+        hasSubviews
+          ? `<div class="hidden border-t border-slate-100 p-2 lg:block">
+               <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
+               ${rail.html}
+             </div>
+             <div class="border-t border-slate-100 p-2 lg:hidden">${mobileSubDropdown.html}</div>`
+          : ''
+      }
     </div>`;
   chromeDisposers.push(wsDropdown.wire(asideEl));
-  chromeDisposers.push(rail.wire(asideEl));
-  chromeDisposers.push(mobileSubDropdown.wire(asideEl));
+  // Only wire what was actually rendered: a tab with no sub-views has no rail and no mobile
+  // dropdown in the DOM, and wiring them anyway throws on a null element and kills the mount.
+  if (hasSubviews) {
+    chromeDisposers.push(rail.wire(asideEl));
+    chromeDisposers.push(mobileSubDropdown.wire(asideEl));
+  }
 
   const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
   const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab });
@@ -319,13 +330,13 @@ function goWorkspace(id) {
   const ws = WORKSPACES.find((w) => w.id === id);
   if (!ws) return;
   const firstTab = ws.tabs[0];
-  router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews[0].id, scope: state.scope });
+  router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
   const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];
-  router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews[0].id, scope: state.scope });
+  router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 
 // Filter params belong to a specific sub-view, so switching sub-view (or tab, or workspace)

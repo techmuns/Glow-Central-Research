@@ -90,30 +90,45 @@ for (const [ws, tab, sub] of routes) {
 ok(`all ${routes.length} routes render in both scopes`, broken.length === 0, broken.slice(0, 4).join(', '));
 
 // URL + history
-await go('/#/research/earnings-hub/movers');
-ok('hash reflects the route', page.url().includes('earnings-hub/movers'));
+await go('/#/research/breakouts/strong-breakouts');
+ok('hash reflects the route', page.url().includes('breakouts/strong-breakouts'));
 await page.goBack();
 await page.waitForTimeout(600);
-ok('browser back navigates', !page.url().includes('movers'));
+ok('browser back navigates', !page.url().includes('strong-breakouts'));
 
 // ---------------------------------------------------------------------------------------
 // 2. Earnings Hub — the LIVE results feed
 // ---------------------------------------------------------------------------------------
 console.log('\n— earnings hub (live) —');
-await go('/#/research/earnings-hub/latest-results?scope=universe', 2200);
+await go('/#/research/earnings-hub?scope=universe', 2200);
 const latestRows = await rowCount();
 ok('Latest Results renders the full listed universe', latestRows > 1000, `${latestRows} companies`);
 
 const ehText = await hostText();
 ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\bvs\b/i.test(ehText));
 ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
-ok('4-card stat strip with a gradient hero', (await page.locator('#content-host .stat-card').count()) === 4);
+// This tab deliberately has no stat strip and no rail: one table, one small Live button.
+ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
+ok('a single small Live button instead', (await page.locator('[data-live-info]').count()) === 1);
+ok('the sub-view rail is hidden for this single-view tab', !/Latest Results|Movers|By Industry/.test(await page.locator('#aside-content').innerText()));
+ok('...but the workspace switcher survives', /Research Central/.test(await page.locator('#aside-content').innerText()));
 
 // The screenshot's column set.
 const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
-for (const c of ['UPDATED', 'TICKER', 'COMPANY', 'MCAP', 'INDUSTRY', 'PAT YOY', 'REVENUE YOY', 'RETURN SINCE RESULT']) {
+for (const c of ['UPDATED', 'TICKER', 'COMPANY', 'MCAP', 'INDUSTRY', 'PAT YOY', 'REVENUE YOY']) {
   ok(`column present: ${c}`, ehHeads.some((h) => h.includes(c)));
 }
+ok('Return Since Result column is NOT present', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
+ok('default sort is newest-first', ehHeads.some((h) => h.includes('UPDATED') && /▾/.test(h)));
+
+// The provenance did not vanish with the ribbon — it moved behind the button.
+await page.locator('[data-live-info]').click();
+await page.waitForTimeout(500);
+const liveModal = await page.locator('#modal-content').innerText();
+ok('the Live button opens the provenance', /moneycontrol/i.test(liveModal) && /polled every/i.test(liveModal));
+ok('...and still states the dash rule', /not joined/i.test(liveModal));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
 
 // THE HONESTY CHECK. A percentage across a sign change is not a growth rate, and about 13% of
 // companies have one. These must render as labelled pills, never as a coloured number.
@@ -162,14 +177,8 @@ ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #
 // 5. Provenance and the other two sub-views
 // ---------------------------------------------------------------------------------------
 console.log('\n— provenance —');
-await go('/#/research/earnings-hub/movers?scope=universe', 1800);
-ok('Movers renders its panels', /biggest pat gains/i.test(await hostText()));
-await go('/#/research/earnings-hub/by-industry?scope=universe', 1800);
-const indRows = await rowCount();
-ok('By Industry aggregates', indRows > 10, `${indRows} industries`);
-ok('...and says it uses medians, not averages', /median/i.test(await hostText()));
-
-await go('/#/research/earnings-hub/latest-results?scope=universe', 1800);
+await go('/#/research/earnings-hub?scope=universe', 1800);
+ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
 ok('the coverage note states what did not join', /a dash means/i.test(await hostText()));
 
 await page.locator('button:has-text("Sources")').first().click();
@@ -183,7 +192,7 @@ await page.keyboard.press('Escape');
 // 6. Export — the workbook must carry its own provenance
 // ---------------------------------------------------------------------------------------
 console.log('\n— export —');
-await go('/#/research/earnings-hub/latest-results?scope=universe');
+await go('/#/research/earnings-hub?scope=universe');
 const download = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
 await page.locator('#content-host button:has-text("Export")').first().click();
 const file = await download;
@@ -231,7 +240,7 @@ await setHidden(false);
 await page.waitForTimeout(3000);
 ok('poller resumes when the document is visible again', (await tickerNodes()) > nHidden);
 
-await go('/#/research/earnings-hub/latest-results?scope=universe');
+await go('/#/research/earnings-hub?scope=universe');
 const stopped = await page.evaluate(async () => {
   const live = await import('/js/core/live.js');
   const before = live.getLastTick('concall-live');
@@ -476,7 +485,7 @@ await page.waitForTimeout(18000);
 ok('chatter poller pauses while hidden', (await arrivals()) === cHidden, `${cHidden} unchanged`);
 await setHidden(false);
 await page.waitForTimeout(3000);
-await go('/#/research/earnings-hub/latest-results?scope=universe');
+await go('/#/research/earnings-hub?scope=universe');
 ok('chatter poller stops on unmount', await page.evaluate(async () => {
   const live = await import('/js/core/live.js');
   const before = live.getLastTick('chatter-live');
@@ -839,7 +848,7 @@ for (const [hash, label] of [
 console.log('\n— accessibility —');
 {
   let totalTh = 0, missing = 0;
-  for (const hash of ['/#/research/earnings-hub/latest-results?scope=universe', '/#/research/breakouts/technical-scanner?scope=universe',
+  for (const hash of ['/#/research/earnings-hub?scope=universe', '/#/research/breakouts/technical-scanner?scope=universe',
                       '/#/portfolio/overview/positions?scope=universe', '/#/portfolio/transactions/trades?scope=universe',
                       '/#/portfolio/position-by/holding-period?scope=universe']) {
     await go(hash, 1300);
@@ -862,7 +871,7 @@ console.log('\n— accessibility —');
 }
 {
   let kOk = 0;
-  const kRoutes = ['/#/research/earnings-hub/latest-results', '/#/research/concall/live-feed', '/#/portfolio/drawdown/curve', '/#/portfolio/transactions/import'];
+  const kRoutes = ['/#/research/earnings-hub', '/#/research/concall/live-feed', '/#/portfolio/drawdown/curve', '/#/portfolio/transactions/import'];
   for (const r of kRoutes) {
     await go(r, 1300);
     await page.keyboard.press('Meta+k'); await page.waitForTimeout(250);
@@ -887,7 +896,7 @@ for (const width of [1440, 1024, 390]) {
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     ok(`${label}: no sideways page scroll at ${width}px`, over <= 0, `${over}px`);
   }
-  await go('/#/research/earnings-hub/by-industry?scope=universe', 1600);
+  await go('/#/research/earnings-hub?scope=universe', 1600);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`no sideways page scroll at ${width}px`, overflow <= 0, `${overflow}px`);
 }

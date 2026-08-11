@@ -24,7 +24,7 @@
 //   profit growth when it means the loss narrowed. Every such cell is a labelled pill instead of
 //   a number — see `changeCell`.
 
-import { statStrip, scoreTable, openDrill, sectionHead, roadmapStrip } from '../ui/screener.js';
+import { scoreTable, openDrill, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
@@ -35,11 +35,8 @@ export const meta = {
   id: 'earnings-hub',
   title: 'Earnings Hub',
   subtitle: 'Live quarterly results across the listed universe, updated as companies report.',
-  subviews: [
-    { id: 'latest-results', label: 'Latest Results' },
-    { id: 'movers', label: 'Movers' },
-    { id: 'by-industry', label: 'By Industry' },
-  ],
+  // No sub-views: this tab is one table. The shell hides the rail entirely when this is empty.
+  subviews: [],
 };
 
 const FEATURES = [
@@ -99,11 +96,7 @@ function loadingHtml() {
 }
 
 function paint(ctx) {
-  // Only the subscription disposers survive a repaint; table listeners are re-registered below.
-  const view = ctx.subview || 'latest-results';
-  if (view === 'movers') return renderMovers(ctx);
-  if (view === 'by-industry') return renderByIndustry(ctx);
-  return renderLatest(ctx);
+  renderLatest(ctx);
 }
 
 const rowsFor = (ctx) => feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
@@ -161,15 +154,6 @@ function changeSortValue(m) {
   return -Infinity;
 }
 
-function returnCell(r) {
-  if (r.returnSinceResult == null) {
-    return `<span class="text-slate-300" title="${r.ticker ? 'No closing price cached for the result date yet.' : 'No NSE ticker resolved for this company.'}">—</span>`;
-  }
-  const v = r.returnSinceResult;
-  const cls = v > 0 ? 'text-emerald-600' : v < 0 ? 'text-rose-600' : 'text-slate-500';
-  return `<span class="font-semibold ${cls}" title="From ${escapeHtml(formatRupee(r.basePrice))} on ${escapeHtml(r.basePricedOn || r.resultDate)} to ${escapeHtml(formatRupee(r.ltp))} now">${escapeHtml(formatPct(v, { decimals: 2 }))}</span>`;
-}
-
 // "2026-08-10" -> "10 Aug". The screenshot's compact form; the full date is in the drill.
 function shortDate(iso) {
   if (!iso) return '—';
@@ -184,112 +168,88 @@ function basisPill(basis) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Chrome
+// Chrome — one small live button, and the provenance behind it on click.
+//
+// This page used to open with a green ribbon, a "just reported" strip and a 4-card stat row
+// before you reached a single result. That is a lot of furniture in front of the thing people
+// came for. It is now a pill in the section head.
+//
+// The provenance did NOT go away — it moved behind the pill. What is live, what is joined, what
+// is missing and how the return is measured are all one click away. Deleting them outright would
+// have made the page cleaner and the numbers less accountable.
 // ---------------------------------------------------------------------------------------
-function liveRibbon(m) {
+function liveButton(m, rows) {
   if (!m) return '';
-  if (m.degraded) {
-    return `<div class="mb-5 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300">
-            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Showing the last snapshot
-          </span>
-        </div>
-        <p class="mt-2 text-xs leading-relaxed text-amber-900/90">${escapeHtml(m.degraded)}
-          The figures below are real and were correct when captured, but they are not live right now.</p>
-      </div>`;
-  }
-  return `<div class="mb-5 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300">
-          <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>
-          ${m.isLive ? 'Live' : 'Snapshot'}
-        </span>
-        <span class="text-xs font-semibold text-emerald-900">${escapeHtml(m.quarter || 'Latest quarter')}</span>
-        <span class="text-xs text-emerald-900/70">${escapeHtml(m.currentPeriod || '')} vs ${escapeHtml(m.priorPeriod || '')}</span>
-      </div>
-      <p class="mt-2 text-xs leading-relaxed text-emerald-900/90">
-        <strong>Real reported figures</strong> from Moneycontrol Rapid Results, in ₹ crore, polled every 30 seconds — a company
-        that files now appears here within about a minute. Tickers, market caps and industries are joined from the NSE-500
-        export; <strong>Return since result</strong> is computed here from the close on the result date against the live price.
-      </p>
-    </div>`;
-}
+  const degraded = !!m.degraded;
+  const cls = degraded
+    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
+    : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+  const dot = degraded
+    ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
+    : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
 
-function arrivalsStrip() {
-  const a = feed.newArrivals();
-  if (!a.length) return '';
+  const arrivals = feed.newArrivals().length;
   return `
-    <div class="mb-5 rounded-2xl bg-indigo-50 p-4 ring-1 ring-indigo-200 fade-in">
-      <div class="text-xs font-bold uppercase tracking-wider text-indigo-700">Just reported — arrived while this tab was open</div>
-      <div class="mt-2 flex flex-wrap gap-2">
-        ${a
-          .slice(0, 12)
-          .map(
-            (r) => `<span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-indigo-200">
-              <strong class="text-slate-800">${escapeHtml(r.ticker || r.shortName)}</strong>
-              <span class="text-slate-500">PAT</span> ${changeCell(r.netProfit)}
-            </span>`
-          )
-          .join('')}
-      </div>
-    </div>`;
+    <button type="button" data-live-info
+      title="What this feed is, and how fresh"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+      ${dot}
+      <span>${degraded ? 'Snapshot' : 'Live'}</span>
+      <span class="font-normal opacity-70">${escapeHtml(m.quarter || '')} · ${escapeHtml(formatNumber(rows.length))} reported</span>
+      ${arrivals ? `<span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">+${arrivals} new</span>` : ''}
+    </button>`;
 }
 
-function statsFor(rows, m) {
-  const reported = rows.length;
-  const growers = rows.filter((r) => r.netProfit?.kind === 'normal' && r.netProfit.pct > 0).length;
-  const turnarounds = rows.filter((r) => r.netProfit?.kind === 'turnaround').length;
-  const withReturn = rows.filter((r) => r.returnSinceResult != null);
-  const medianReturn = withReturn.length
-    ? [...withReturn].sort((a, b) => a.returnSinceResult - b.returnSinceResult)[Math.floor(withReturn.length / 2)].returnSinceResult
-    : null;
+function wireLiveButton(root, m, rows) {
+  const btn = root.querySelector('[data-live-info]');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const arrivals = feed.newArrivals();
+    const noTicker = rows.filter((r) => !r.ticker).length;
+    const noCap = rows.filter((r) => r.marketCap == null).length;
+    openModal(
+      `<div class="px-7 py-6">
+        <div class="mb-3 flex items-start justify-between gap-4">
+          <h2 class="font-display text-xl font-bold text-slate-900">${m.degraded ? 'Showing the last snapshot' : 'Live results feed'}</h2>
+          <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+        <div class="text-sm leading-relaxed text-slate-600">
+          ${
+            m.degraded
+              ? `<p class="rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">${escapeHtml(m.degraded)}
+                   The figures below are real and were correct when captured, but they are not live right now.</p>`
+              : `<p><strong>Real reported figures</strong> from Moneycontrol Rapid Results, in ₹ crore, polled every
+                   ${feed.POLL_MS / 1000} seconds. A company that files now appears here within about a minute — no reload.</p>`
+          }
+          <p class="mt-2"><strong>${escapeHtml(m.quarter || '')}</strong> · comparing ${escapeHtml(m.currentPeriod || '')} against ${escapeHtml(m.priorPeriod || '')} ·
+             <strong>${escapeHtml(formatNumber(rows.length))}</strong> companies reported ·
+             last update ${escapeHtml(m.receivedAt ? formatRelativeTime(m.receivedAt) : '—')}.</p>
 
-  return statStrip([
-    { label: 'Companies reported', value: formatNumber(reported), note: `${m?.quarter || ''} · ${m?.currentPeriod || ''} vs ${m?.priorPeriod || ''}` },
-    {
-      label: 'PAT grew YoY',
-      value: reported ? `${Math.round((growers / reported) * 100)}%` : '—',
-      note: `${formatNumber(growers)} of ${formatNumber(reported)} · plus ${turnarounds} loss-to-profit`,
-      help: {
-        title: 'Why some cells are pills instead of percentages',
-        body: `<p>Moneycontrol reports profit growth as a plain percentage even when the sign flips between the two periods.
-                 Across a full quarter that is about <strong>13% of companies</strong>, and in those cases the number does not mean
-                 what it looks like:</p>
-               <ul class="mt-2 list-disc space-y-1 pl-5">
-                 <li><strong>Loss in both periods.</strong> Vodafone Idea shows "+43%" — the loss narrowed from ₹6,608 Cr to
-                     ₹3,754 Cr. Painted green as +43% it reads as profit growth.</li>
-                 <li><strong>Loss to profit.</strong> Shown as <em>To profit</em>. A percentage change across zero is not a growth rate.</li>
-                 <li><strong>Profit to loss.</strong> Shown as <em>To loss</em>, for the same reason.</li>
-               </ul>
-               <p class="mt-2">Only genuine profit-to-profit moves get a signed percentage. Hover any pill for the two raw figures.</p>
-               <p class="mt-3 text-slate-500">The "PAT grew" headline counts profit-to-profit growth only, and reports turnarounds
-                 separately rather than folding them in.</p>`,
-      },
-    },
-    {
-      label: 'Median return since result',
-      value: medianReturn == null ? '—' : formatPct(medianReturn, { decimals: 2 }),
-      note: `${formatNumber(withReturn.length)} of ${formatNumber(reported)} priced`,
-      help: {
-        title: 'How "Return since result" is measured',
-        body: `<p><code class="rounded bg-slate-100 px-1">(price now − close on the result date) / close on the result date</code>.</p>
-               <p class="mt-2">Indian results are usually announced after the close, so the base is the <strong>closing price on the
-                 result date</strong> — the last price at which the market could trade without knowing the numbers. If that day was
-                 not a trading day, the previous close is used and the drill records which date was actually priced.</p>
-               <p class="mt-2">The base close is a fact about a past date and never changes, so it is cached
-                 (<code class="rounded bg-slate-100 px-1">data/result-returns.json</code>). The current price arrives live with every
-                 poll, which is what makes this column move without refetching any history.</p>
-               <p class="mt-3 text-slate-500">A company with no cached base price shows "—", never 0%.</p>`,
-      },
-    },
-    {
-      hero: true,
-      label: m?.isLive ? 'Live · updating' : 'Last snapshot',
-      value: m?.receivedAt ? formatRelativeTime(m.receivedAt) : '—',
-      note: m?.isLive ? `Polling every ${feed.POLL_MS / 1000}s · Moneycontrol` : 'Committed file · live feed unavailable',
-    },
-  ]);
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where each column comes from</h3>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
+            <li><strong>PAT / Revenue YoY</strong> — as published. Where the sign flips between periods you get a labelled
+                pill instead of a percentage, because a change across zero is not a growth rate.</li>
+            <li><strong>Ticker and industry</strong> — resolved from Moneycontrol's own company code; names are truncated to
+                15 characters upstream, so the code is the join key, never the name.
+                ${noTicker ? `<strong>${formatNumber(noTicker)}</strong> unresolved.` : 'All resolved.'}</li>
+            <li><strong>MCap</strong> — computed live as shares outstanding × the current price, so it is correct now rather
+                than as of the last data refresh. ${noCap ? `<strong>${formatNumber(noCap)}</strong> without a share count.` : ''}</li>
+          </ul>
+
+          ${
+            arrivals.length
+              ? `<h3 class="font-display mt-4 text-sm font-bold text-slate-900">Arrived while this tab was open</h3>
+                 <div class="mt-1 flex flex-wrap gap-1.5">
+                   ${arrivals.slice(0, 20).map((r) => `<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">${escapeHtml(r.ticker || r.shortName)}</span>`).join('')}
+                 </div>`
+              : ''
+          }
+          <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not joined</em> — never zero.</p>
+        </div>
+      </div>`,
+      { size: 'default' }
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -298,7 +258,6 @@ function statsFor(rows, m) {
 function renderLatest(ctx) {
   const rows = rowsFor(ctx);
   const m = feed.meta();
-  const stats = statsFor(rows, m);
 
   const table = scoreTable({
     rows,
@@ -313,7 +272,6 @@ function renderLatest(ctx) {
       { label: 'Industry', get: (r) => escapeHtml(r.industry || '—'), html: true, sortValue: (r) => r.industry || 'zzz' },
       { label: 'PAT YoY', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
       { label: 'Revenue YoY', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
-      { label: 'Return Since Result', get: returnCell, html: true, align: 'right', sortValue: (r) => r.returnSinceResult ?? -Infinity },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, sortValue: (r) => r.basis || '' },
     ],
     filters: {
@@ -355,162 +313,25 @@ function renderLatest(ctx) {
     ${sectionHead({
       title: 'Latest Results',
       description: 'Every company that has reported this quarter, newest first. Click a row for the full figures.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies reported' }),
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
     })}
-    ${liveRibbon(m)}
-    ${arrivalsStrip()}
-    ${stats.html}
     ${table.html}
     ${coverageNote(rows, m)}
     ${roadmapStrip(FEATURES)}
   `;
-  stats.wire(ctx.root);
-  const off = table.wire(ctx.root);
-  disposers.push(off);
+  wireLiveButton(ctx.root, m, rows);
+  disposers.push(table.wire(ctx.root));
 }
 
 function coverageNote(rows, m) {
   const noTicker = rows.filter((r) => !r.ticker).length;
   const noCap = rows.filter((r) => r.marketCap == null).length;
-  const noReturn = rows.filter((r) => r.returnSinceResult == null).length;
   return `
     <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
-      Of ${formatNumber(rows.length)} companies: ${formatNumber(rows.length - noTicker)} resolved to an NSE ticker,
-      ${formatNumber(rows.length - noCap)} matched the NSE-500 export for market cap and industry, and
-      ${formatNumber(rows.length - noReturn)} have a cached result-day close for the return column.
-      The rest show "—" in those columns — a dash means <em>not joined</em>, never zero.
+      ${formatNumber(rows.length)} companies · ${formatNumber(rows.length - noTicker)} resolved to an NSE ticker ·
+      ${formatNumber(rows.length - noCap)} with a market cap. A dash means <em>not joined</em>, never zero.
       ${m?.priorPeriod ? `Growth is against ${escapeHtml(m.priorPeriod)}.` : ''}
     </p>`;
-}
-
-// ---------------------------------------------------------------------------------------
-// Movers
-// ---------------------------------------------------------------------------------------
-function renderMovers(ctx) {
-  const rows = rowsFor(ctx);
-  const m = feed.meta();
-  const stats = statsFor(rows, m);
-
-  const normal = rows.filter((r) => r.netProfit?.kind === 'normal');
-  const panels = [
-    { title: 'Biggest PAT gains', tone: 'emerald', items: [...normal].sort((a, b) => b.netProfit.pct - a.netProfit.pct).slice(0, 10), metric: (r) => formatPct(r.netProfit.pct) },
-    { title: 'Biggest PAT falls', tone: 'rose', items: [...normal].sort((a, b) => a.netProfit.pct - b.netProfit.pct).slice(0, 10), metric: (r) => formatPct(r.netProfit.pct) },
-    { title: 'Loss → profit', tone: 'indigo', items: rows.filter((r) => r.netProfit?.kind === 'turnaround').slice(0, 10), metric: (r) => `${formatNumber(r.netProfit.prior)} → ${formatNumber(r.netProfit.current)} Cr` },
-    { title: 'Profit → loss', tone: 'amber', items: rows.filter((r) => r.netProfit?.kind === 'slipped-to-loss').slice(0, 10), metric: (r) => `${formatNumber(r.netProfit.prior)} → ${formatNumber(r.netProfit.current)} Cr` },
-    { title: 'Best reaction since result', tone: 'emerald', items: rows.filter((r) => r.returnSinceResult != null).sort((a, b) => b.returnSinceResult - a.returnSinceResult).slice(0, 10), metric: (r) => formatPct(r.returnSinceResult, { decimals: 1 }) },
-    { title: 'Worst reaction since result', tone: 'rose', items: rows.filter((r) => r.returnSinceResult != null).sort((a, b) => a.returnSinceResult - b.returnSinceResult).slice(0, 10), metric: (r) => formatPct(r.returnSinceResult, { decimals: 1 }) },
-  ];
-
-  const TONE = {
-    emerald: 'text-emerald-600',
-    rose: 'text-rose-600',
-    indigo: 'text-indigo-600',
-    amber: 'text-amber-600',
-  };
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: 'Movers',
-      description: 'The tails of this quarter — where profit swung hardest, where the sign flipped, and how the market took it.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies reported' }),
-    })}
-    ${liveRibbon(m)}
-    ${arrivalsStrip()}
-    ${stats.html}
-    <div class="mb-6 grid gap-4 lg:grid-cols-2">
-      ${panels
-        .map(
-          (p) => `
-        <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <h3 class="font-display text-sm font-bold text-slate-900">${escapeHtml(p.title)}</h3>
-          ${
-            p.items.length
-              ? `<ol class="mt-3 space-y-1.5">
-                  ${p.items
-                    .map(
-                      (r, i) => `<li class="flex items-baseline justify-between gap-3 text-xs">
-                        <span class="min-w-0 truncate"><span class="mr-1.5 tabular-nums text-slate-300">${i + 1}</span>
-                          <strong class="text-slate-800">${escapeHtml(r.ticker || r.shortName)}</strong>
-                          <span class="ml-1 text-slate-400">${escapeHtml(r.company.slice(0, 30))}</span></span>
-                        <span class="flex-shrink-0 font-semibold tabular-nums ${TONE[p.tone]}">${escapeHtml(p.metric(r))}</span>
-                      </li>`
-                    )
-                    .join('')}
-                 </ol>`
-              : '<p class="mt-3 text-xs text-slate-400">Nothing in this bucket for the current scope.</p>'
-          }
-        </section>`
-        )
-        .join('')}
-    </div>
-    ${roadmapStrip(FEATURES)}
-  `;
-  stats.wire(ctx.root);
-}
-
-// ---------------------------------------------------------------------------------------
-// By Industry
-// ---------------------------------------------------------------------------------------
-function renderByIndustry(ctx) {
-  const rows = rowsFor(ctx);
-  const m = feed.meta();
-  const stats = statsFor(rows, m);
-
-  const groups = new Map();
-  for (const r of rows) {
-    const k = r.industry || r.sectorSlug?.replace(/-/g, ' ') || 'Unclassified';
-    const g = groups.get(k) || { key: k, rows: [], patUp: 0, patDown: 0, turn: 0, toLoss: 0 };
-    g.rows.push(r);
-    if (r.netProfit?.kind === 'normal') (r.netProfit.pct > 0 ? g.patUp++ : g.patDown++);
-    else if (r.netProfit?.kind === 'turnaround') g.turn++;
-    else if (r.netProfit?.kind === 'slipped-to-loss') g.toLoss++;
-    groups.set(k, g);
-  }
-  const list = [...groups.values()]
-    .map((g) => {
-      const pats = g.rows.filter((r) => r.netProfit?.kind === 'normal').map((r) => r.netProfit.pct).sort((a, b) => a - b);
-      const revs = g.rows.filter((r) => r.revenue?.kind === 'normal').map((r) => r.revenue.pct).sort((a, b) => a - b);
-      const rets = g.rows.filter((r) => r.returnSinceResult != null).map((r) => r.returnSinceResult).sort((a, b) => a - b);
-      const med = (a) => (a.length ? a[Math.floor(a.length / 2)] : null);
-      return { ...g, count: g.rows.length, medPat: med(pats), medRev: med(revs), medRet: med(rets) };
-    })
-    .filter((g) => g.count >= 2)
-    .sort((a, b) => b.count - a.count);
-
-  const table = scoreTable({
-    rows: list,
-    key: (g) => g.key,
-    name: (g) => g.key,
-    nameLabel: 'Industry',
-    sub: (g) => `${g.count} reported · ${g.patUp} up, ${g.patDown} down${g.turn ? `, ${g.turn} to profit` : ''}${g.toLoss ? `, ${g.toLoss} to loss` : ''}`,
-    columns: [
-      { label: 'Reported', get: (g) => formatNumber(g.count), align: 'right', sortValue: (g) => g.count },
-      { label: 'Median PAT YoY', get: (g) => (g.medPat == null ? '<span class="text-slate-300">—</span>' : changeCell({ kind: 'normal', pct: g.medPat })), html: true, align: 'right', sortValue: (g) => g.medPat ?? -Infinity },
-      { label: 'Median Revenue YoY', get: (g) => (g.medRev == null ? '<span class="text-slate-300">—</span>' : changeCell({ kind: 'normal', pct: g.medRev })), html: true, align: 'right', sortValue: (g) => g.medRev ?? -Infinity },
-      { label: 'Median Return', get: (g) => (g.medRet == null ? '<span class="text-slate-300">—</span>' : changeCell({ kind: 'normal', pct: g.medRet })), html: true, align: 'right', sortValue: (g) => g.medRet ?? -Infinity },
-      { label: 'To profit', get: (g) => (g.turn ? String(g.turn) : '—'), align: 'right', sortValue: (g) => g.turn },
-      { label: 'To loss', get: (g) => (g.toLoss ? String(g.toLoss) : '—'), align: 'right', sortValue: (g) => g.toLoss },
-    ],
-    searchable: (g) => g.key,
-    initialSort: { key: 'Reported', dir: 'desc' },
-    exportName: 'sattva-earnings-by-industry',
-    emptyMessage: 'No industry has two or more companies reported in this scope.',
-  });
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: 'By Industry',
-      description: 'Medians, not averages — one turnaround at +4,000% would drag a mean somewhere useless. Industries with a single reporter are omitted.',
-      meta: scopeSummary({ scope: ctx.scope, count: list.length, noun: 'industries' }),
-    })}
-    ${liveRibbon(m)}
-    ${stats.html}
-    ${table.html}
-    <p class="mb-6 text-[11px] text-slate-500">Industry comes from the NSE-500 export, so companies outside it fall back to Moneycontrol's sector slug.</p>
-    ${roadmapStrip(FEATURES)}
-  `;
-  stats.wire(ctx.root);
-  disposers.push(table.wire(ctx.root));
 }
 
 // ---------------------------------------------------------------------------------------
