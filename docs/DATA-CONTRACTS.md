@@ -551,6 +551,68 @@ two questions having different answers.
 
 ---
 
+## `GET /api/concalls` — LIVE, the con-call scan (StockScans)
+
+```jsonc
+{
+  "ok": true, "degraded": null,
+  "rows": [{ "companyKey": "164", "companyId": "NSE:EPL", "ticker": "EPL", "name": "EPL Ltd",
+             "industry": "Packaging - FMCG/Consumers", "when": "2026-08-11T18:00:00+05:30",
+             "date": "2026-08-11", "resultScore": 61.7, "sentimentTier": 3, "notesReady": true,
+             "tags": ["▲ Revenue guidance raised to high teens", "…"],
+             "ssUrl": "as-…pdf", "pptSsUrl": "…pdf" }],
+  "upcoming": [{ "ticker": "LANDMARK", "name": "Landmark Cars Ltd", "when": "2026-08-12T09:00:00+05:30" }],
+  "today":    { "day": "2026-08-12", "rows": [ … ] },
+  "meta": { "quarter": 202606, "total": 877, "headRows": 50, "tailRows": 827, "truncated": false }
+}
+```
+
+**The scores are StockScans', not ours.** `resultScore` (0–100), `sentimentTier` (0–4) and the
+`tags` bullets are their analysis of each call, reproduced unchanged. The tier bands in
+`public/js/data/stockscans-shared.js` — 80 Excellent / 60 Strong / 40 Average / 20 Weak / Poor,
+and 4 Bullish → 0 Bearish — are lifted from their own client so a label we print is a label they
+print. See *Reproducing someone else's analysis* in CLAUDE.md before touching any of it.
+
+### Two caches on one route, because the feed is newest-first
+
+A quarter is ~880 calls over 18 pages of 50. Re-pulling all eighteen every 30 seconds to catch one
+new row would be slow and rude. But `when` descends monotonically from offset 0 — verified across
+a full quarter — so **a call that has just been analysed can only appear on page one**:
+
+| Part | Offsets | TTL | Why |
+| --- | --- | --- | --- |
+| head | 0–49 | 30s | the freshness path; everything new lands here |
+| tail | 50+ | 10 min | it cannot change |
+| schedule | — | 2 min | today + upcoming, two small calls |
+
+The head is merged **over** the tail (`mergeScans`), keyed on `companyKey|when`, so a row whose
+analysis landed between the two fetches is taken from the head with its score rather than from the
+tail without one. Steady state is one upstream request per 30 seconds instead of eighteen.
+
+### The change worth repainting for is not a new row
+
+A call joins the feed when it is **held** and gains its score some minutes later. So the client's
+fingerprint covers `resultScore`, `sentimentTier`, `notesReady` and the tag count as well as
+identity, and `newArrivals()` counts *newly analysed* as an arrival alongside *newly listed*.
+`resultScore: null` renders **pending**, never zero — a zero would claim StockScans had assessed
+the call and found it worthless.
+
+**Upstream**: `POST /api/company/concall-scan` (body `{offset}`), `POST …/upcoming`, `GET …/today`
+on `www.stockscans.in`. No auth, no bot wall, `robots.txt: Allow: /` — it answers a Cloudflare
+Worker the same way it answers a laptop, unlike the Moneycontrol calendar page.
+
+**Consumed by** — `js/data/concall-scans.js` → Con-call → Concall Scans · Today & Upcoming.
+
+---
+
+## `public/data/concall-scans.json` — the con-call snapshot
+
+Same payload shape as the route above, committed by `scripts/scrape-concalls.mjs` (~460 KB). First
+paint and the Worker's fallback, exactly like the earnings snapshot — not what makes the tab
+fresh. The script refuses to write an empty file.
+
+---
+
 ## `GET /api/earnings-calendar` — LIVE, who is *scheduled* to report
 
 ```

@@ -1,5 +1,8 @@
 // tabs/concall.js — the Con-call tab.
 //
+//   Concall Scans      LIVE, from StockScans: every call held this quarter with their result
+//                      score, sentiment tier and highlight bullets — see js/concall/scans.js
+//   Today & Upcoming   LIVE, from StockScans: the schedule
 //   Live Feed     calls in progress, with a transcript ticker that appends on every poll
 //   Keyword Scan  companies × tracked keywords, recomputed at runtime by the keyword engine
 //   Catalysts     what to watch for, from calls and annual reports
@@ -9,9 +12,20 @@
 // field in the JSON. Edit the keyword set and this module re-scans and repaints, because it
 // subscribes to engine.onKeywordsChange — that responsiveness is the feature.
 //
-// PROVENANCE: transcripts are synthetic and every person and firm named in them is fictional.
-// The amber ribbon, the freshness card, the Sources modal rows and the export banner all read
-// one flag, `concalls.meta().isMock`, derived from the payload's own `source` field.
+// TWO PROVENANCES IN ONE TAB, AND THE LINE BETWEEN THEM MUST STAY VISIBLE.
+//   The first two sub-views are LIVE off StockScans: real calls, and scores that are StockScans'
+//   own analysis reproduced unchanged. They carry a green Live pill.
+//   The last four run on the SYNTHETIC transcript corpus, because no open source gives us full
+//   transcripts — StockScans publishes summaries, not text, and the one provider that does
+//   publish structured transcripts truncates them at ninety seconds for anonymous callers. Those
+//   four keep their amber ribbon and their fictional speakers.
+//
+//   Do not let a live number and a synthetic one share a panel. They share a tab; that is already
+//   the most they should share, and the pill/ribbon pair is what makes it legible.
+//
+// PROVENANCE (the synthetic half): transcripts are synthetic and every person and firm named in
+// them is fictional. The amber ribbon, the freshness card, the Sources modal rows and the export
+// banner all read one flag, `concalls.meta().isMock`, derived from the payload's own `source`.
 
 import { statStrip, topCards, scoreTable, sectionHead, roadmapStrip } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
@@ -21,12 +35,16 @@ import { exportSheets, todayStamp } from '../ui/export.js';
 import * as concalls from '../data/concalls.js';
 import * as engine from '../concall/keyword-engine.js';
 import * as deepDive from '../concall/deep-dive.js';
+import * as scans from '../concall/scans.js';
+import * as scanFeed from '../data/concall-scans.js';
 
 export const meta = {
   id: 'concall',
   title: 'Con-call',
   subtitle: 'Live transcript feed, runtime keyword scanning and catalyst tracking — Deep Dive lives here too.',
   subviews: [
+    { id: 'concall-scans', label: 'Concall Scans' },
+    { id: 'schedule', label: 'Today & Upcoming' },
     { id: 'live-feed', label: 'Live Feed' },
     { id: 'keyword-scan', label: 'Keyword Scan' },
     { id: 'catalysts', label: 'Catalysts' },
@@ -43,6 +61,11 @@ const FEATURES = [
 ];
 
 let renderToken = 0;
+// The live half's own disposers and carried table view — kept apart from the synthetic half's
+// state so neither can tear down the other.
+let scanDisposers = [];
+let scanTableView = null;
+let unsubscribeScanFeed = null;
 let unsubscribeLive = null;
 let unsubscribeKeywords = null;
 let liveRef = null;
@@ -60,6 +83,35 @@ export function render(ctx) {
   ctxRef = ctx;
   ctx.root.innerHTML = loadingHtml();
 
+  // The live feed loads in parallel and independently: a StockScans outage must not blank the
+  // synthetic sub-views, and a missing mock file must not blank the live ones.
+  scanFeed
+    .load()
+    .then(() => {
+      if (token !== renderToken) return;
+      if (LIVE_SUBVIEWS.has(ctx.subview)) paint(ctx);
+      unsubscribeScanFeed = scanFeed.onChange(() => {
+        if (token !== renderToken) return;
+        // Only repaint the half that changed. A new call landing must not throw away a scrolled
+        // transcript on the synthetic side.
+        if (LIVE_SUBVIEWS.has(ctx.subview)) paint(ctx);
+      });
+      scanDisposers.push(scanFeed.startLive(ctx.live));
+    })
+    .catch((err) => {
+      if (token !== renderToken) return;
+      console.error('[concall] live scan feed failed', err);
+      if (LIVE_SUBVIEWS.has(ctx.subview)) {
+        ctx.root.innerHTML = `
+          ${sectionHead({ title: 'Concall Scans', description: 'The live con-call feed could not be loaded.' })}
+          <div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
+            <div class="text-3xl">⚠️</div>
+            <div class="mt-2 text-sm font-semibold text-slate-700">Could not reach the con-call scan feed</div>
+            <div class="mt-1 text-xs text-slate-500">${escapeHtml(String(err.message || err))}</div>
+          </div>`;
+      }
+    });
+
   concalls
     .load()
     .then(() => {
@@ -67,12 +119,13 @@ export function render(ctx) {
       // Register only. The Live Feed sub-view subscribes and start()s it in wireTickers();
       // the other three sub-views have nothing to tick, so they leave it stopped.
       concalls.registerPoller(ctx.live, { intervalMs: 5000 });
-      paint(ctx);
+      if (!LIVE_SUBVIEWS.has(ctx.subview)) paint(ctx);
       // A keyword edit anywhere — the header button, the Keyword Scan toolbar, the Deep Dive —
       // repaints the whole tab and the open Deep Dive. This is the single wire that makes the
       // editor feel instant rather than "save and reload".
       unsubscribeKeywords = engine.onKeywordsChange(() => {
         if (token !== renderToken) return;
+        if (LIVE_SUBVIEWS.has(ctx.subview)) return; // keywords do not touch the live half
         paint(ctx);
         deepDive.refresh();
       });
@@ -80,6 +133,7 @@ export function render(ctx) {
     .catch((err) => {
       if (token !== renderToken) return;
       console.error('[concall] load failed', err);
+      if (LIVE_SUBVIEWS.has(ctx.subview)) return; // the live half does not need the mock corpus
       ctx.root.innerHTML = `
         ${sectionHead({ title: meta.title, description: 'The con-call data set could not be loaded.' })}
         <div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
@@ -108,6 +162,10 @@ function cleanup() {
   tickerTimers = [];
   liveRef?.stop(concalls.LIVE_ID);
   ctxRef = null;
+  disposeScans();
+  if (unsubscribeScanFeed) unsubscribeScanFeed();
+  unsubscribeScanFeed = null;
+  scanTableView = null;
 }
 
 function loadingHtml() {
@@ -119,11 +177,28 @@ function loadingHtml() {
     <div class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"></div>`;
 }
 
+const LIVE_SUBVIEWS = new Set(['concall-scans', 'schedule']);
+
 function paint(ctx) {
+  // The live half and the synthetic half do not share a code path. Mixing them behind one
+  // dispatcher is how a mock number ends up on a live panel.
+  if (LIVE_SUBVIEWS.has(ctx.subview)) return paintLiveHalf(ctx);
+
   const rows = concalls.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
   const view = { 'live-feed': renderLive, 'keyword-scan': renderKeywordScan, catalysts: renderCatalysts, 'deep-dive': renderDeepDiveHome }[ctx.subview] || renderLive;
   view(ctx, rows);
   restoreDeepDiveFromUrl(ctx, rows);
+}
+
+function paintLiveHalf(ctx) {
+  disposeScans();
+  if (ctx.subview === 'schedule') scans.renderSchedule(ctx, { disposers: scanDisposers });
+  else scans.renderScans(ctx, { disposers: scanDisposers, tableView: scanTableView, onView: (v) => (scanTableView = v) });
+}
+
+function disposeScans() {
+  scanDisposers.forEach((d) => d && d());
+  scanDisposers = [];
 }
 
 // ---------------------------------------------------------------------------------------

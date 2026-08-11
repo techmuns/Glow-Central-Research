@@ -55,6 +55,7 @@ public/
       components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
     concall/
+      scans.js                the two LIVE sub-views off StockScans (scores are THEIRS)
       keyword-engine.js       runtime transcript scanner + the keyword store
       keyword-editor.js       the keyword set editor (modal)
       deep-dive.js            the six-tab Con-call Deep Dive workspace
@@ -91,6 +92,7 @@ scripts/
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               + GET /api/earnings-calendar
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
+worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -410,6 +412,40 @@ Format with a helper, don't assume integers.
 A gap between two percentages is measured in **percentage points**. Use a `pp` formatter —
 `fmtSigned(gap) + ' pp'` renders the doubled unit "+2.0% pp".
 
+### Reproducing someone else's analysis — the StockScans rule
+
+The Con-call tab's live half shows a **result score**, a **sentiment tier** and **highlight
+bullets** that StockScans computed, not us. That is allowed, and it is the user's explicit choice.
+What makes it honest is that the boundary never blurs:
+
+1. **Do not re-band, re-scale or recompute.** `resultTierOf()` in `js/data/stockscans-shared.js`
+   uses StockScans' own cut-points (80 / 60 / 40 / 20), lifted from their client. A band of our
+   invention under their score would read as their judgement and be ours.
+2. **Say whose it is on every surface.** The sub-view description, the Live pill's modal, the
+   drill's Provenance group and row 1 of the exported sheet all say the scores are StockScans'.
+   The export banner matters most — a workbook leaves the page without its chrome.
+3. **`pending` is not zero.** A call joins the feed when it is *held* and gains its analysis some
+   minutes later. Until then the score is null and renders `pending`, exactly as it does upstream.
+   A zero would claim they assessed it and found it worthless.
+4. **Link, do not reproduce.** Full summaries and transcripts stay on StockScans; rows deep-link
+   to their reader. We surface their index, not their content.
+5. **One definition of the vocabulary.** `public/js/data/stockscans-shared.js` is pure and is
+   imported by `worker/stockscans.mjs`, so the browser and the Worker cannot drift about what
+   "Strong" means.
+
+The same rules would apply to any future feed where the *analysis* is someone else's rather than
+the *measurement*.
+
+### Two provenances in one tab
+
+The Con-call tab is the only place where a live feed and the synthetic corpus sit under one tab
+header: the first two sub-views are live off StockScans, the last four run on generated
+transcripts with fictional speakers, because no open source gives us full transcript text. The
+line is held by three things — `LIVE_SUBVIEWS` in `js/tabs/concall.js` routes the two halves
+through separate code paths, the live half carries a green Live pill and the synthetic half its
+amber ribbon, and neither half's loader or poller may repaint the other. **Never put a live number
+and a synthetic one in the same panel.**
+
 ### Mock data that has to behave like real data
 
 `earnings.json` is synthetic but built to the exact contract of the real feed, and the tab is
@@ -602,6 +638,8 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
+| Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
+| Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |

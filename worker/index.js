@@ -6,10 +6,12 @@
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
 //   GET  /api/earnings-calendar                ->  who is SCHEDULED to report, and when
+//   GET  /api/concalls                         ->  the live StockScans con-call scan
 //
 // Neither writes anything back to the repo; both are read-through overlays on committed data.
 
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
+import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const REQ_TIMEOUT_MS = 8000;
@@ -38,6 +40,9 @@ export default {
     }
     if (url.pathname === '/api/earnings-calendar') {
       return handleCalendar(request, env, ctx);
+    }
+    if (url.pathname === '/api/concalls') {
+      return handleConcalls(request, env, ctx);
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -244,6 +249,106 @@ async function handleCalendar(request, env, ctx) {
   res.headers.set('x-sattva-list-source', listSource || 'none');
   ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
   return res;
+}
+
+// ---------------------------------------------------------------------------------------
+// GET /api/concalls — the live con-call scan, from StockScans.
+//
+// TWO CACHES, ONE ROUTE, BECAUSE THE FEED IS SORTED NEWEST-FIRST.
+// A quarter is ~880 calls across 18 pages. Re-pulling all eighteen every 30 seconds to catch one
+// new row would be both slow and rude to someone else's server. But the feed descends by call
+// time from offset 0, verified across a full quarter, so a call that has just been analysed can
+// only appear on page ONE. That makes the split safe:
+//
+//   HEAD  offset 0, 50 rows   — cached CONCALL_HEAD_TTL_S (30s). The freshness path.
+//   TAIL  offset 50 onwards   — cached CONCALL_TAIL_TTL_S (10 min). It cannot change.
+//
+// The head is merged OVER the tail, so a row whose analysis landed between the two fetches is
+// taken from the head with its score rather than from the tail without one.
+//
+// In steady state that is one upstream request per 30 seconds instead of eighteen.
+// ---------------------------------------------------------------------------------------
+const CONCALL_HEAD_TTL_S = 30;
+const CONCALL_TAIL_TTL_S = 600;
+const CONCALL_SCHEDULE_TTL_S = 120;
+const CONCALL_SNAPSHOT = '/data/concall-scans.json';
+
+async function handleConcalls(request, env, ctx) {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+  const cache = caches.default;
+
+  // A tiny helper so the three sub-fetches share one caching shape. Each caches its own JSON
+  // under its own key and TTL; the route itself is never cached as a whole, because its parts
+  // expire at very different rates.
+  const cached = async (key, ttl, load) => {
+    const cacheKey = new Request(`https://cache.invalid/concalls/${key}`, { method: 'GET' });
+    const hit = await cache.match(cacheKey);
+    if (hit) return { value: await hit.json(), fresh: false };
+    const value = await load();
+    const res = json(value, 200);
+    res.headers.set('cache-control', `public, max-age=${ttl}`);
+    ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+    return { value, fresh: true };
+  };
+
+  try {
+    const [head, tail, sched] = await Promise.all([
+      cached('head', CONCALL_HEAD_TTL_S, () => fetchConcallScans({ pages: 1 })),
+      cached('tail', CONCALL_TAIL_TTL_S, () => fetchConcallScans({ pages: 'all', startOffset: PAGE_SIZE })),
+      cached('schedule', CONCALL_SCHEDULE_TTL_S, async () => {
+        const [upcoming, today] = await Promise.all([fetchUpcoming(), fetchToday()]);
+        return { upcoming, today };
+      }),
+    ]);
+
+    const rows = mergeScans(head.value.rows, tail.value.rows);
+    if (!rows.length) throw new Error('upstream returned no rows');
+
+    const payload = {
+      ok: true,
+      degraded: null,
+      rows,
+      upcoming: sched.value.upcoming || [],
+      today: sched.value.today || { day: null, rows: [] },
+      meta: {
+        ...head.value.meta,
+        headRows: head.value.rows.length,
+        tailRows: tail.value.rows.length,
+        // True if OUR page bound stopped the walk, not the feed's own end. A truncated quarter
+        // must not be presented as the whole quarter.
+        truncated: !!tail.value.meta.truncated,
+        headFresh: head.fresh,
+        servedAt: new Date().toISOString(),
+      },
+    };
+    const res = json(payload, 200);
+    res.headers.set('cache-control', `public, max-age=${CONCALL_HEAD_TTL_S}`);
+    res.headers.set('x-sattva-cache', head.fresh ? 'miss' : 'hit');
+    return res;
+  } catch (err) {
+    const fallback = await loadConcallSnapshot(env, request);
+    if (!fallback) {
+      return json({ ok: false, degraded: `StockScans is unreachable and no snapshot is available: ${String(err.message || err)}`, rows: [] }, 502);
+    }
+    const res = json(
+      { ...fallback, ok: true, degraded: `StockScans is unavailable (${String(err.message || err)}) — showing the last committed snapshot.` },
+      200
+    );
+    res.headers.set('cache-control', 'public, max-age=15'); // retry sooner than a normal window
+    res.headers.set('x-sattva-cache', 'fallback');
+    return res;
+  }
+}
+
+/** The committed con-call snapshot, read through the ASSETS binding. */
+async function loadConcallSnapshot(env, request) {
+  try {
+    const res = await env.ASSETS.fetch(new Request(new URL(CONCALL_SNAPSHOT, request.url)));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 /** The committed calendar capture, read through the ASSETS binding. Null if it isn't there. */

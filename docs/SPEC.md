@@ -47,7 +47,7 @@ optional right-aligned count badge.
 | Tab | Sub-views |
 | --- | --- |
 | Earnings Hub | *(none — one table, so the rail is hidden)* |
-| Con-call | Live Feed · Keyword Scan · Catalysts · Deep Dive |
+| Con-call | Concall Scans *(live)* · Today & Upcoming *(live)* · Live Feed · Keyword Scan · Catalysts · Deep Dive |
 | Public Chatter | ValuePickr · Telegram · Trending |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions · Fund Flows |
@@ -229,7 +229,11 @@ the selected date, because that is all Moneycontrol publishes — and says so un
 - Historical per-company result trend charts
 
 ### Con-call — `concall`
-Live transcript feed, keyword scanning, catalyst tracking, Deep Dive.
+**Concall Scans** and **Today & Upcoming** are live off StockScans: every call held this quarter
+with their result score, sentiment tier and highlight bullets, reproduced unchanged and
+attributed, plus the schedule. The remaining four sub-views still run on the synthetic transcript
+corpus, because no open source gives us full transcript text — see `docs/HANDOFF.md` §5c.
+- Live transcript feed, keyword scanning, catalyst tracking, Deep Dive.
 - Live transcript ingestion from exchange filings
 - Custom keyword sets with instant alerts (default 9 keywords ship today)
 - Sentiment scoring per management commentary line

@@ -138,6 +138,22 @@ export const SOURCE_GROUPS = [
     ],
   },
   {
+    title: 'Con-call scans',
+    icon: '🎙️',
+    tabs: 'Con-call → Concall Scans · Today & Upcoming',
+    items: [
+      {
+        name: 'StockScans — Concall Scans',
+        url: 'https://www.stockscans.in/concall-scans',
+        feeds:
+          'The Con-call tab\'s two live sub-views: every earnings call held this quarter (877 in the current pull) with StockScans\' own <strong>result score</strong> (0–100), <strong>management sentiment tier</strong> (Bullish → Bearish) and three highlight bullets per call, plus the schedule of calls today and upcoming. <strong>These are StockScans\' numbers, not ours</strong> — reproduced unchanged, with their published tier bands, and this dashboard adds no scoring of its own on top. Full summaries and transcripts stay on StockScans; every row links to theirs.',
+        cadence: 'Live — 30s edge cache on the newest page, 30s client poll. A call analysed at 14:32 is on screen by ~14:33.',
+        status: 'live',
+        file: 'worker/index.js → /api/concalls · worker/stockscans.mjs · public/data/concall-scans.json · scripts/scrape-concalls.mjs',
+      },
+    ],
+  },
+  {
     title: 'Con-call transcripts',
     icon: '🎙️',
     tabs: 'Con-call',

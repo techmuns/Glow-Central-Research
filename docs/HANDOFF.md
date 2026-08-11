@@ -36,6 +36,7 @@ This is the first thing to check before quoting any number off a screen.
 | ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 IST |
 | **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 IST |
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
+| **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
 | scID → NSE ticker, industry, share count | `public/data/mc-ticker-map.json` (190 KB) | Moneycontrol price feed | Incremental, daily |
 | Close on each result date | `public/data/result-returns.json` (80 KB) | Yahoo Finance | Incremental, daily |
 
@@ -303,6 +304,33 @@ per company — revenue, gross profit, net profit. That is why the Earnings Hub 
 would have been worse than not scoring at all. `js/scoring/earnings-scoring.js` and the mock set
 remain for Breakouts → Earnings Surprise, which still labels itself mock. **Moving that join onto
 this live feed is the obvious next piece of work.**
+
+---
+
+## 5c. The Con-call tab has two provenances, and one of them is someone else's analysis
+
+Its first two sub-views are live off StockScans; the last four still run on the synthetic
+transcript corpus. That split is not laziness — no open source gives us full transcript text.
+StockScans publishes summaries, not text; the one provider that does publish structured
+transcripts truncates them at ~90 seconds for anonymous callers and paywalls the rest. Wiring the
+keyword engine to real text means BSE's filed transcript PDFs, which is a separate piece of work.
+
+Three things hold the line, and all three matter:
+
+- `LIVE_SUBVIEWS` in `js/tabs/concall.js` routes the two halves through **separate code paths**.
+  Neither half's loader, poller or error path may repaint the other. A StockScans outage must not
+  blank the synthetic views, and a missing mock file must not blank the live ones.
+- The live half carries a green **Live** pill; the synthetic half keeps its amber ribbon and its
+  fictional speakers.
+- **Never put a live number and a synthetic one in the same panel.** Sharing a tab is already the
+  most they should share.
+
+**And the live numbers are StockScans', not ours.** The result score, the sentiment tier and the
+bullets are their analysis, reproduced unchanged, down to their tier cut-points. This was the
+user's explicit call — "use the data from StockScans as it is, no scoring from our end" — and the
+rules that keep it honest are in CLAUDE.md under *Reproducing someone else's analysis*. The short
+version: do not re-band, say whose it is on every surface including the export banner, render
+`pending` rather than zero, and link to their reader rather than reproducing their content.
 
 ---
 

@@ -596,6 +596,79 @@ if (file) {
 }
 
 // ---------------------------------------------------------------------------------------
+// 6b. Con-call — the LIVE half, off StockScans.
+//
+// The honesty check that matters here is attribution: the result score, the sentiment tier and
+// the highlight bullets are StockScans' analysis, not ours, and every surface that shows them has
+// to say so — including the one that leaves the page. And `pending` must never render as a zero.
+// ---------------------------------------------------------------------------------------
+console.log('\n— con-call: live scan —');
+await go('/#/research/concall/concall-scans?scope=universe', 1200);
+await waitForPanel();
+const csReady = await (async () => {
+  const started = Date.now();
+  while (Date.now() - started < 25000) {
+    const n = await rowCount();
+    if (n > 0) return n;
+    if (/could not reach/i.test(await hostText())) return 0;
+    await page.waitForTimeout(300);
+  }
+  return 0;
+})();
+ok('the live con-call scan renders the quarter', csReady > 200, `${csReady} calls`);
+
+const csHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
+for (const c of ['CALL', 'COMPANY', 'RESULT SCORE', 'RESULT', 'SENTIMENT', 'HIGHLIGHTS']) {
+  ok(`con-call column: ${c}`, csHeads.some((h) => h.startsWith(c)), csHeads.join(' | '));
+}
+const csText = await hostText();
+ok('the panel says whose analysis this is', /StockScans/.test(csText) && /own analysis/i.test(csText));
+ok('...and the rail offers both live sub-views', /Concall Scans/.test(await page.locator('#aside-content').innerText()) && /Today & Upcoming/.test(await page.locator('#aside-content').innerText()));
+
+// Times are IST, not the viewer's zone. An 18:00 IST call is an 18:00 IST event; rendering it in
+// the browser's local zone turned it into 12:30 on a UTC machine.
+const csTimes = await page.$$eval('#content-host tbody tr td:first-child', (ts) => ts.slice(0, 40).map((t) => t.innerText.trim()));
+ok('call times render in IST regardless of the viewer’s zone', csTimes.some((t) => /\d{2}:\d{2}/.test(t)) && !csTimes.every((t) => /00:00/.test(t)), csTimes[0]);
+
+// pending is not zero.
+const csPending = await page.evaluate(async () => {
+  const mod = await import('/js/data/concall-scans.js');
+  const rows = mod.all();
+  const nulls = rows.filter((r) => r.resultScore == null);
+  const zeros = rows.filter((r) => r.resultScore === 0);
+  return { total: rows.length, nulls: nulls.length, zeros: zeros.length, analysed: rows.filter((r) => r.resultScore != null).length };
+});
+ok('unanalysed calls carry a null score, never a zero', csPending.nulls >= 0 && csPending.zeros === 0, `${csPending.nulls} pending of ${csPending.total}`);
+await page.locator('#content-host select').first().selectOption('pending');
+await page.waitForTimeout(600);
+ok('...and the pending filter shows them as “pending”', (await rowCount()) === csPending.nulls && (csPending.nulls === 0 || /pending/i.test(await hostText())), `${await rowCount()} rows`);
+await page.locator('#content-host select').first().selectOption('all');
+await page.waitForTimeout(400);
+
+// The tier labels must be StockScans' own, not a re-banding of ours.
+const csBands = await page.evaluate(async () => {
+  const m = await import('/js/data/stockscans-shared.js');
+  return [85, 61, 45, 21, 3].map((v) => m.resultTierOf(v).label).join(',') + '|' + (m.resultTierOf(null) === null);
+});
+ok('result tiers use StockScans’ published bands', csBands === 'Excellent,Strong,Average,Weak,Poor|true', csBands);
+
+// The drill has to carry the attribution too — and so does the export banner, which is the one
+// artefact that leaves the page without any chrome around it.
+await page.locator('tr[data-row-key]').first().click();
+await page.waitForTimeout(700);
+const csDrill = await page.locator('#drill-content').innerText();
+ok('the drill attributes the score to StockScans', /StockScans/.test(csDrill) && /not this dashboard/i.test(csDrill));
+ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csDrill));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+await go('/#/research/concall/schedule?scope=universe', 1200);
+await waitForPanel();
+const csSched = await hostText();
+ok('the schedule sub-view renders today and upcoming', /Today/.test(csSched) && /Upcoming/.test(csSched));
+ok('...and says a scheduled call carries no score yet', /has not been held yet/i.test(csSched));
+
+// ---------------------------------------------------------------------------------------
 // 7. Con-call — the live ticker, the keyword engine and the Deep Dive
 // ---------------------------------------------------------------------------------------
 console.log('\n— con-call: live feed —');

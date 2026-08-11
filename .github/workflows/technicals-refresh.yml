@@ -9,6 +9,7 @@ name: Data refresh
 #   scrape-earnings.mjs          the Moneycontrol results snapshot + the scID -> NSE ticker map.
 #   scrape-result-returns.mjs    the close on each result date, the base of "Return since result".
 #   scrape-calendar.mjs          the results calendar — who is SCHEDULED to report, and when.
+#   scrape-concalls.mjs          the StockScans con-call scan — first paint + the Worker's fallback.
 #
 # NOTE ON THE EARNINGS FEED: the Earnings Hub does not wait for this. It reads /api/earnings,
 # which proxies Moneycontrol live behind a 30s edge cache, so a company that files at 14:32 is on
@@ -89,6 +90,13 @@ jobs:
         continue-on-error: true
         run: node scripts/scrape-calendar.mjs
 
+      # The con-call scan snapshot. Like the earnings one, this is NOT what makes the tab fresh —
+      # the tab is live off /api/concalls, which re-reads StockScans' newest page every 30s. This
+      # only bounds how stale the first paint and the fallback can be. ~18 requests.
+      - name: Run con-call scan snapshot
+        continue-on-error: true
+        run: node scripts/scrape-concalls.mjs
+
       - name: Upload technicals data (artifact)
         if: always()
         uses: actions/upload-artifact@v5
@@ -102,6 +110,7 @@ jobs:
             public/data/mc-ticker-map.json
             public/data/result-returns.json
             public/data/earnings-calendar.json
+            public/data/concall-scans.json
           if-no-files-found: warn
 
       - name: Commit refreshed technicals to main
@@ -112,7 +121,7 @@ jobs:
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
           [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
-          for f in earnings-live mc-ticker-map result-returns earnings-calendar; do
+          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done
           if git diff --cached --quiet; then
