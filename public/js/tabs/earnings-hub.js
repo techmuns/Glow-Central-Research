@@ -697,34 +697,55 @@ function renderCalendar(ctx) {
 
 const holdings = (ctx) => new Set((ctx.data?.portfolio?.holdings || []).map((h) => String(h.ticker).toUpperCase()));
 
+/**
+ * Three states, not two. The counts are always live; the LIST is live when the Worker can reach
+ * Moneycontrol's calendar page and comes from the committed capture when it cannot. "Live" and
+ * "Captured" are both fine — what would not be fine is showing captured rows under a Live badge.
+ */
 function calendarPill(payload, err) {
+  const src = payload?.listSource || null;
   const bad = !!err || !!payload?.degraded;
-  const cls = bad ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+  const captured = src === 'snapshot';
+  const cls = bad
+    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
+    : captured
+      ? 'bg-sky-50 text-sky-800 ring-sky-300 hover:bg-sky-100'
+      : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
   const dot = bad
     ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
-    : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
+    : captured
+      ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
+      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
   const count = payload?.scheduledCount;
   return `
     <button type="button" data-cal-info title="Where this calendar comes from, and what it does not show"
       class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
-      ${dot}<span>${bad ? 'Partial' : 'Live'}</span>
+      ${dot}<span>${bad ? 'Partial' : captured ? 'Captured' : 'Live'}</span>
       <span class="font-normal opacity-70">${count != null ? `${escapeHtml(formatNumber(count))} scheduled` : 'schedule'}</span>
     </button>`;
 }
 
-// The one sentence that keeps this table honest: how many report, versus how many are named.
+// The two sentences that keep this table honest: how many report versus how many are named, and
+// how old the naming is. The count is always live, so if the schedule has moved since a capture,
+// the count and the list disagree on screen — which is the point of not freezing both together.
 function calendarNote(payload, shown, ctx) {
   const total = payload?.scheduledCount;
   const partial = total != null && payload.capped && shown < total;
+  const captured = payload?.listSource === 'snapshot';
   return `
-    <p class="mb-6 text-[11px] leading-relaxed ${partial ? 'text-amber-700' : 'text-slate-500'}">
-      ${total != null ? `<strong>${formatNumber(total)}</strong> companies report on this date.` : ''}
+    <p class="mb-6 text-[11px] leading-relaxed ${partial || captured ? 'text-amber-700' : 'text-slate-500'}">
+      ${total != null ? `<strong>${formatNumber(total)}</strong> companies report on this date — that count is live.` : ''}
       ${
         partial
-          ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}. The count above is the complete one.`
+          ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}.`
           : `All ${formatNumber(shown)} are listed.`
       }
-      Prices are live; a dash means not known, never zero.
+      ${
+        captured
+          ? `<strong>The names below are a capture</strong>, not a live read — Moneycontrol's calendar page refuses the server this runs on. Captured ${payload.listCapturedAt ? escapeHtml(formatRelativeTime(Date.parse(payload.listCapturedAt))) : 'at an unknown time'}; prices are as of then, not now.`
+          : 'Prices are live;'
+      }
+      a dash means not known, never zero.
     </p>`;
 }
 
@@ -745,7 +766,8 @@ function wireCalendarPill(root, payload, date) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Two numbers, two sources</h3>
           <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete, unpaginated.</li>
+            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete, unpaginated, and
+                always fetched live.</li>
             <li><strong>The company list</strong> — from the calendar page itself, which publishes the
                 <strong>${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap</strong> for a date and
                 offers no way to page past that. So on a busy day this table names a fraction of the count beside it,
@@ -754,10 +776,19 @@ function wireCalendarPill(root, payload, date) {
                 company that has not reported yet is not in a map built from companies that have.</li>
           </ul>
 
-          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why there is no offline copy</h3>
-          <p class="mt-1 text-xs">A schedule is a claim about the future. A committed file would go on saying a company
-             reports next Thursday long after that Thursday, and nothing on screen could tell you it was stale. If the
-             live route is unreachable this view says so instead of showing you a plausible old calendar.</p>
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Live list, or captured list</h3>
+          <p class="mt-1 text-xs">The company list is read live where possible. Where it is not — Moneycontrol's
+             calendar page is behind a bot wall that answers this server with a page carrying no data, while answering
+             an ordinary client normally — it comes from a capture taken by the scheduled job, which runs somewhere the
+             page does answer. ${
+               payload?.listSource === 'snapshot'
+                 ? `<strong>This date is a capture</strong>, taken ${payload.listCapturedAt ? escapeHtml(formatRelativeTime(Date.parse(payload.listCapturedAt))) : 'at an unknown time'}.`
+                 : '<strong>This date was read live.</strong>'
+             }</p>
+          <p class="mt-2 text-xs">A schedule is a claim about the future, so a capture that did not say how old it was
+             would be worse than none — it would look exactly like a live read. That is why the pill says
+             <em>Captured</em> rather than <em>Live</em>, the age is printed under the table, and the count beside it
+             stays live: if the schedule has moved since the capture, the two disagree in front of you.</p>
           <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not known</em> — never zero.</p>
         </div>
       </div>`,

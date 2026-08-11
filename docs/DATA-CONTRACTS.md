@@ -591,10 +591,56 @@ would assert that twenty companies report when two hundred do.
 from a map built from companies that have, so almost every calendar row would arrive with no ticker.
 The Worker resolves them per cache window, bounded by the page's own 20-row cap.
 
-**No snapshot, deliberately.** A schedule is a claim about the future: a committed file would go on
-saying a company reports next Thursday long after that Thursday, and nothing on screen could tell
-you it was stale. If the route is unreachable the tab says so instead. Cached 5 minutes at the edge —
-a schedule moves in hours, not ticks.
+### The Akamai wall — why the list is usually a capture
+
+`api.moneycontrol.com` is open. `www.moneycontrol.com` is behind Akamai Bot Manager, and it does
+not answer everyone the same way: an ordinary client (a laptop, a GitHub runner) gets the real
+server-rendered page, while a **Cloudflare Worker gets HTTP 200 with a body that carries no
+`__NEXT_DATA__` at all**. Since the company list exists only inside that page, the deployed Worker
+cannot read it — which is exactly what shipped broken the first time, showing counts and an amber
+"the page shape has changed".
+
+So the list has two possible origins, and the payload names which one it used:
+
+| `listSource` | Where from | UI |
+| --- | --- | --- |
+| `live` | the calendar page, read at request time | green **Live** pill |
+| `snapshot` | `public/data/earnings-calendar.json`, captured by the scheduled job | sky **Captured** pill + the capture's age under the table |
+
+`fetchCalendarDay()` throws a typed `CalendarPageBlocked` for "200 but no app payload" and a plain
+`Error` for "Next.js payload present but `resultCalendarData` missing" — the first falls back, the
+second is a genuine shape change and should be fixed rather than papered over.
+
+**The counts stay live in both cases.** That is the safeguard: if the schedule has moved since the
+capture, the live count and the captured list disagree in front of the reader instead of agreeing
+with each other and being wrong together. Cached 5 minutes at the edge — a schedule moves in hours,
+not ticks.
+
+> An earlier version of this file said there was deliberately no snapshot, on the grounds that a
+> stale schedule looks exactly like a fresh one. That was right about the danger and wrong about the
+> remedy: the fix for "you cannot tell how old this is" is to stamp it, not to have no fallback.
+
+---
+
+## `public/data/earnings-calendar.json` — the calendar capture
+
+Written by `scripts/scrape-calendar.mjs`, which runs on the GitHub runner where the calendar page
+answers normally. Default window is today−3 to today+21; only dates with a non-zero count are
+fetched, so a three-week window costs ~15 page requests, not 25.
+
+```jsonc
+{
+  "capturedAt": "2026-08-11T17:33:56.533Z",   // the UI prints this as a relative age
+  "from": "2026-08-08", "to": "2026-09-01",
+  "listCap": 20,
+  "days":   [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 206 }],
+  "byDate": { "2026-08-13": { "rows": [...], "scheduledCount": 206, "capped": true, "asOnDate": "11/08/2026" } }
+}
+```
+
+**A run that captured nothing leaves the previous file alone** and exits non-zero. Overwriting a
+good capture with an empty one would make the tab say "nobody reports" rather than "we did not
+manage" — the same class of error as serving an empty live feed as success.
 
 **`time` is null, not "Time Not Available".** That is the upstream's string for "unknown"; carrying
 it into a Time column would render a sentence where a clock belongs. Null renders as a dash, which

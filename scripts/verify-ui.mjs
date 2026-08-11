@@ -444,6 +444,26 @@ if (calReady.failed) {
     return { total: m ? Number(m[1].replace(/,/g, '')) : null, rows: document.querySelectorAll('tr[data-row-key]').length, saysCap: /largest by market cap/i.test(txt) };
   });
   ok('the calendar states the complete count for the date', calHonesty.total > 0, `${calHonesty.total} scheduled`);
+
+  // The list is read live where the calendar page answers this server and comes from the committed
+  // capture where it does not (Akamai). Either is fine; showing captured rows under a "Live" pill
+  // would not be. Whichever state we are in, the pill and the note must agree with the payload.
+  // Read the payload the page already holds rather than refetching — no second request, and no
+  // chance of asking about a different date than the one on screen.
+  const calSource = await page.evaluate(async () => {
+    const mod = await import('/js/data/earnings-calendar.js');
+    const shown = mod.strip().map((d) => d.date).find((d) => mod.forDate(d));
+    const payload = shown ? mod.forDate(shown) : null;
+    const txt = document.querySelector('#content-host').innerText;
+    return { src: payload?.listSource ?? null, pill: /\b(Live|Captured|Partial)\b/.exec(txt)?.[1] || null, saysCapture: /names below are a capture/i.test(txt) };
+  });
+  if (calSource.src === 'snapshot') {
+    ok('a captured list is labelled Captured, not Live', calSource.pill === 'Captured' && calSource.saysCapture);
+  } else if (calSource.src === 'live') {
+    ok('a live list is labelled Live and claims no capture', calSource.pill === 'Live' && !calSource.saysCapture);
+  } else {
+    ok('the payload names where the list came from', false, `listSource=${calSource.src}`);
+  }
   ok(
     '...and says the list is a top-N when it is one',
     calHonesty.rows >= calHonesty.total || calHonesty.saysCap,

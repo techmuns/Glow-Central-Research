@@ -171,12 +171,32 @@ async function handleCalendar(request, env, ctx) {
     fetchCalendarDay({ date }),
   ]);
 
-  if (stripOut.status === 'rejected' && dayOut.status === 'rejected') {
-    return json({ ok: false, degraded: `calendar upstream unavailable: ${String(stripOut.reason?.message || stripOut.reason)}`, days: [], rows: [] }, 502);
-  }
 
   const days = stripOut.status === 'fulfilled' ? stripOut.value : [];
-  const day = dayOut.status === 'fulfilled' ? dayOut.value : { rows: [], asOnDate: null, capped: false };
+
+  // The list has two possible origins and the payload must say which. Live is preferred; the
+  // committed capture is the fallback, because Akamai answers a Cloudflare Worker's request for
+  // the calendar page with a 200 carrying no app payload. Counts stay live either way, so a
+  // schedule that has moved since the capture shows up as the count and the list disagreeing.
+  let day = dayOut.status === 'fulfilled' ? dayOut.value : null;
+  let listSource = day ? 'live' : null;
+  let listCapturedAt = null;
+  let listNote = null;
+
+  if (!day) {
+    const snap = await loadCalendarSnapshot(env, request);
+    const hit = snap?.byDate?.[date];
+    if (hit) {
+      day = { rows: hit.rows || [], asOnDate: hit.asOnDate || null, capped: !!hit.capped };
+      listSource = 'snapshot';
+      listCapturedAt = snap.capturedAt || null;
+    } else {
+      day = { rows: [], asOnDate: null, capped: false };
+      listNote = snap
+        ? `The committed capture covers ${snap.from} to ${snap.to} and does not include this date.`
+        : 'No committed capture is available.';
+    }
+  }
   // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
   // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
   // industry. Resolving them here is bounded by the page's own 20-row cap.
@@ -188,11 +208,19 @@ async function handleCalendar(request, env, ctx) {
     ok: true,
     resolvedOnTheFly: attempted,
     unresolved: failed,
-    degraded: dayOut.status === 'rejected' ? `Moneycontrol's calendar page is unavailable (${String(dayOut.reason?.message || dayOut.reason)}), so the company list for this date could not be loaded. The per-date counts below are live.` : null,
+    degraded:
+      listSource === 'live'
+        ? null
+        : listSource === 'snapshot'
+          ? null // not degraded — a labelled capture, and the UI prints how old it is
+          : `The company list for this date is unavailable (${String(dayOut.reason?.message || dayOut.reason)}). ${listNote || ''} The per-date counts are live.`,
     date,
     from,
     to,
     asOnDate: day.asOnDate,
+    listSource,
+    listCapturedAt,
+    listNote,
     // The two numbers that must never be conflated: how many report, and how many we can name.
     scheduledCount: days.find((d) => d.date === date)?.count ?? null,
     listCap: CALENDAR_LIST_CAP,
@@ -205,11 +233,28 @@ async function handleCalendar(request, env, ctx) {
     },
   };
 
+  // Nothing at all: no counts and no list. That is a real outage, not a partial view.
+  if (!days.length && !payload.rows.length) {
+    return json({ ok: false, degraded: `calendar upstream unavailable: ${String(stripOut.reason?.message || stripOut.reason || 'no data')}`, days: [], rows: [] }, 502);
+  }
+
   const res = json(payload, 200);
   res.headers.set('cache-control', `public, max-age=${CALENDAR_TTL_S}`);
   res.headers.set('x-sattva-cache', 'miss');
+  res.headers.set('x-sattva-list-source', listSource || 'none');
   ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
   return res;
+}
+
+/** The committed calendar capture, read through the ASSETS binding. Null if it isn't there. */
+async function loadCalendarSnapshot(env, request) {
+  try {
+    const res = await env.ASSETS.fetch(new Request(new URL('/data/earnings-calendar.json', request.url)));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 /** "2026-08-11", -7 -> "2026-08-04". UTC arithmetic so a timezone can never move a date. */

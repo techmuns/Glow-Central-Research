@@ -267,6 +267,14 @@ Analytics' four); scope picks *whose data* the open tab shows. Removing either s
 Both carry a tooltip saying so, and the scope toggle now has a "Scope" kicker to match the
 dropdown's "Workspace" one.
 
+**The calendar's company list is usually a CAPTURE, and the pill says so.** `api.moneycontrol.com`
+is open; `www.moneycontrol.com` is behind Akamai and answers a Cloudflare Worker with a 200 whose
+body has no app payload, while answering a laptop or a GitHub runner normally. The list only exists
+inside that page. So `scripts/scrape-calendar.mjs` captures it where it works, the Worker prefers a
+live read and falls back to the capture, and the tab shows a sky **Captured** pill with the age
+instead of a green Live one. The per-date counts stay live in both cases — that is the safeguard:
+a schedule that has moved since the capture makes the count and the list disagree on screen.
+
 **The Calendar view is deliberately allowed to be incomplete, and to say so.** Moneycontrol
 publishes the per-date COUNT through a clean JSON API (complete) and the company LIST through the
 calendar page (the 20 largest by market cap, un-pageable — the route its own "load more" uses is

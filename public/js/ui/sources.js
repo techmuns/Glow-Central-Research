@@ -130,10 +130,10 @@ export const SOURCE_GROUPS = [
         name: 'Moneycontrol — Results Calendar (company list)',
         url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
         feeds:
-          'The named companies for the selected date, with quarter, scheduled time, live price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. There is deliberately no committed copy: a stale schedule is indistinguishable from a live one.',
-        cadence: 'Live — 5-minute edge cache. No offline fallback, by design.',
+          'The named companies for the selected date, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one.',
+        cadence: 'Live when the page answers; otherwise the daily capture, labelled with its age',
         status: 'live',
-        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay()',
+        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay() · public/data/earnings-calendar.json · scripts/scrape-calendar.mjs',
       },
     ],
   },

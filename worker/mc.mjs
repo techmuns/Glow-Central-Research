@@ -314,8 +314,30 @@ export const CALENDAR_PAGE_URL = 'https://www.moneycontrol.com/markets/earnings/
 // The upstream page's own cap. Not ours, and not configurable — see the header.
 export const CALENDAR_LIST_CAP = 20;
 
-// A real browser UA. The API host does not care; www.moneycontrol.com is behind Akamai and does.
-const PAGE_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+// www.moneycontrol.com sits behind Akamai Bot Manager. From an ordinary client (a laptop, a
+// GitHub runner) these headers get the real server-rendered page. From a Cloudflare Worker they
+// often do not: Akamai answers 200 with an interstitial that carries no `__NEXT_DATA__` at all.
+// That is why `fetchCalendarDay` throws a *typed* error for it and the Worker falls back to the
+// committed capture rather than treating it as an outage — see scripts/scrape-calendar.mjs.
+const PAGE_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'accept-language': 'en-US,en;q=0.9',
+  'upgrade-insecure-requests': '1',
+  'sec-fetch-dest': 'document',
+  'sec-fetch-mode': 'navigate',
+  'sec-fetch-site': 'none',
+  'sec-fetch-user': '?1',
+};
+
+/** Thrown when the page came back but without its app payload — a bot wall, not an outage. */
+export class CalendarPageBlocked extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'CalendarPageBlocked';
+    this.blocked = true;
+  }
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const assertIsoDate = (d, name) => {
@@ -395,13 +417,18 @@ export function normaliseCalendarRow(r, date) {
 export async function fetchCalendarDay({ date, indexId = 'All' } = {}, fetchImpl = fetch) {
   assertIsoDate(date, 'date');
   const url = `${CALENDAR_PAGE_URL}?id=${encodeURIComponent(indexId)}&name=All&activeDate=${date}`;
-  const res = await fetchImpl(url, {
-    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': PAGE_UA, 'accept-language': 'en-US,en;q=0.9' },
-  });
-  if (!res.ok) throw new Error(`Moneycontrol calendar page HTTP ${res.status}`);
-  const data = extractNextData(await res.text());
+  const res = await fetchImpl(url, { headers: PAGE_HEADERS });
+  if (!res.ok) throw new CalendarPageBlocked(`Moneycontrol calendar page HTTP ${res.status}`);
+  const html = await res.text();
+  const data = extractNextData(html);
   const cal = data?.props?.pageProps?.resultCalendarData;
-  if (!cal) throw new Error('Moneycontrol calendar page did not carry its server props — the page shape has changed');
+  if (!cal) {
+    // Distinguish the two ways this can happen, because they need different responses. A body with
+    // no Next.js payload at all is the bot wall; a Next.js payload without our key is a genuine
+    // shape change and should be fixed here rather than papered over with a fallback.
+    if (!data) throw new CalendarPageBlocked(`the calendar page returned ${html.length} bytes with no app payload — Akamai bot wall`);
+    throw new Error('Moneycontrol calendar page no longer carries `resultCalendarData` — the page shape has changed');
+  }
 
   const list = cal.tableData?.list || [];
   const rows = list.map((r) => normaliseCalendarRow(r, date)).filter((r) => r.scId);
