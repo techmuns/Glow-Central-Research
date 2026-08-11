@@ -128,7 +128,9 @@ public/js/
 ```
 
 **To add a tab:** write a module exporting `meta` / `render(ctx)` / `destroy()`, then add it to
-`WORKSPACES` in `js/ui/shell.js`. That is the only registration point.
+`WORKSPACES` in `js/ui/shell.js`. That is the only registration point. Give it `subviews: []` and
+it renders full-width with no rail — the workspace switcher lives in the tab-bar row, so nothing
+is lost by dropping the rail.
 
 **To add a data source:** three files, together — `docs/DATA-CONTRACTS.md`, the loader in
 `js/app.js` (or a lazy `js/data/*.js`), and the entry in `js/ui/sources.js` with an honest `status`.

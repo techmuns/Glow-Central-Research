@@ -162,7 +162,10 @@ Conventions:
 - Tables scroll horizontally **inside their own container**; the page body must never scroll
   sideways. `overflow-x: hidden` on `html` *and* `body` is a backstop, not the mechanism —
   it's on `html` because the parked drill panel is `position: fixed` and `body` can't clip it.
-- The left rail collapses to a dropdown under 1024px (Tailwind `lg:`).
+- The left rail collapses to a dropdown under 1024px (Tailwind `lg:`), and **disappears entirely
+  on a tab with `subviews: []`** — the content then spans the full width. The workspace switcher
+  sits in the tab-bar row, not the rail, which is what makes that safe: dropping the rail never
+  strands a workspace.
 - Long-running lists get `.scrollbar-thin`; panels that mount fresh get `.fade-in`.
 
 ---

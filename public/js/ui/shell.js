@@ -77,11 +77,14 @@ function shellTemplate() {
     </header>
 
     <nav class="mx-auto max-w-[1400px] px-6">
-      <div id="tabbar-mount"></div>
+      <div class="flex items-end gap-3">
+        <div id="workspace-mount" class="mb-1 w-48 flex-shrink-0 rounded-xl bg-white shadow-sm ring-1 ring-slate-100"></div>
+        <div id="tabbar-mount" class="min-w-0 flex-1"></div>
+      </div>
     </nav>
 
     <div class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-6 lg:flex-row">
-      <aside class="lg:w-60 lg:flex-shrink-0">
+      <aside id="rail-aside" class="lg:w-60 lg:flex-shrink-0">
         <div id="aside-content" class="lg:sticky lg:top-6"></div>
       </aside>
       <main class="fade-in min-w-0 flex-1">
@@ -224,31 +227,34 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     onSelect: goSubview,
   });
 
-  // Rail is a single white card: workspace dropdown on top, sub-view list beneath a hairline.
-  // A tab with no sub-views renders just the workspace dropdown — an empty sub-view box with a
-  // heading and nothing under it reads as a loading failure rather than as "there is one view".
+  // The workspace switcher lives in the tab-bar row, not in the rail. That is what lets the rail
+  // disappear completely on a single-view tab: the content then spans the full width, and no
+  // navigation is lost — Portfolio Analytics is still one click away from every page.
+  const wsEl = $('#workspace-mount', root);
+  wsEl.innerHTML = wsDropdown.html;
+  chromeDisposers.push(wsDropdown.wire(wsEl));
+
   const hasSubviews = subviewItems.length > 0;
   const asideEl = $('#aside-content', root);
-  asideEl.innerHTML = `
-    <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-      <div class="p-2">${wsDropdown.html}</div>
-      ${
-        hasSubviews
-          ? `<div class="hidden border-t border-slate-100 p-2 lg:block">
-               <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
-               ${rail.html}
-             </div>
-             <div class="border-t border-slate-100 p-2 lg:hidden">${mobileSubDropdown.html}</div>`
-          : ''
-      }
-    </div>`;
-  chromeDisposers.push(wsDropdown.wire(asideEl));
-  // Only wire what was actually rendered: a tab with no sub-views has no rail and no mobile
-  // dropdown in the DOM, and wiring them anyway throws on a null element and kills the mount.
-  if (hasSubviews) {
+  const asideWrap = $('#rail-aside', root);
+  asideWrap.classList.toggle('hidden', !hasSubviews);
+
+  if (!hasSubviews) {
+    asideEl.innerHTML = '';
+  } else {
+    asideEl.innerHTML = `
+      <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+        <div class="p-2">
+          <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
+          ${rail.html}
+        </div>
+      </div>
+      <div class="mt-3 lg:hidden">${mobileSubDropdown.html}</div>`;
     chromeDisposers.push(rail.wire(asideEl));
     chromeDisposers.push(mobileSubDropdown.wire(asideEl));
   }
+
+
 
   const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
   const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab });

@@ -111,7 +111,10 @@ ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapsho
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
 ok('a single small Live button instead', (await page.locator('[data-live-info]').count()) === 1);
 ok('the sub-view rail is hidden for this single-view tab', !/Latest Results|Movers|By Industry/.test(await page.locator('#aside-content').innerText()));
-ok('...but the workspace switcher survives', /Research Central/.test(await page.locator('#aside-content').innerText()));
+// The switcher moved out of the rail and into the tab-bar row, which is what lets the rail
+// disappear entirely without stranding the Portfolio Analytics workspace.
+ok('...but the workspace switcher survives, in the header', /Research Central/.test(await page.locator('#workspace-mount').innerText()));
+ok('...and the content spans the full width', (await page.locator('#content-host').boundingBox()).width > 1200);
 
 // The screenshot's column set.
 const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
