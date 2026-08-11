@@ -441,8 +441,8 @@ function mandateStrip(funds) {
         <table class="w-full min-w-[720px] text-sm">
           <thead class="border-b border-slate-100 bg-slate-50/70">
             <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              <th class="px-3 py-2">Fund</th><th class="px-3 py-2">House</th><th class="px-3 py-2">Category</th>
-              <th class="px-3 py-2 text-right">AUM</th><th class="px-3 py-2 text-right">Schemes</th><th class="px-3 py-2">Top sectors</th>
+              <th scope="col" class="px-3 py-2">Fund</th><th scope="col" class="px-3 py-2">House</th><th scope="col" class="px-3 py-2">Category</th>
+              <th scope="col" class="px-3 py-2 text-right">AUM</th><th scope="col" class="px-3 py-2 text-right">Schemes</th><th scope="col" class="px-3 py-2">Top sectors</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
@@ -646,15 +646,15 @@ function institutionalTable(rows) {
         <table class="w-full min-w-[800px] text-sm">
           <thead class="border-b border-slate-100 bg-slate-50/70">
             <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              <th class="px-3 py-2">Company</th>
-              <th class="px-3 py-2 text-right">Tracked holders</th>
-              <th class="px-3 py-2 text-right">Combined stake</th>
-              <th class="px-3 py-2 text-right">Net action</th>
-              <th class="px-3 py-2 text-right">Δ FII (real)</th>
-              <th class="px-3 py-2 text-right">Δ DII (real)</th>
-              <th class="px-3 py-2 text-right">Combined (real)</th>
-              <th class="px-3 py-2 text-right">Delivery trend</th>
-              <th class="px-3 py-2 text-right">Tech score</th>
+              <th scope="col" class="px-3 py-2">Company</th>
+              <th scope="col" class="px-3 py-2 text-right">Tracked holders</th>
+              <th scope="col" class="px-3 py-2 text-right">Combined stake</th>
+              <th scope="col" class="px-3 py-2 text-right">Net action</th>
+              <th scope="col" class="px-3 py-2 text-right">Δ FII (real)</th>
+              <th scope="col" class="px-3 py-2 text-right">Δ DII (real)</th>
+              <th scope="col" class="px-3 py-2 text-right">Combined (real)</th>
+              <th scope="col" class="px-3 py-2 text-right">Delivery trend</th>
+              <th scope="col" class="px-3 py-2 text-right">Tech score</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
@@ -713,8 +713,8 @@ function overlapHeatmap() {
         <table class="w-full min-w-[860px] border-separate" style="border-spacing:2px" data-heatmap>
           <thead>
             <tr>
-              <th class="sticky left-0 z-10 bg-white px-2 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">Holder</th>
-              ${companies.map((c) => `<th class="px-1 py-1 text-center align-bottom"><span class="block max-w-[64px] truncate text-[9px] leading-tight text-slate-500" title="${escapeHtml(c.name)}">${escapeHtml(c.ticker)}</span><span class="block text-[9px] text-slate-300">${c.holders}</span></th>`).join('')}
+              <th scope="col" class="sticky left-0 z-10 bg-white px-2 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">Holder</th>
+              ${companies.map((c) => `<th scope="col" class="px-1 py-1 text-center align-bottom"><span class="block max-w-[64px] truncate text-[9px] leading-tight text-slate-500" title="${escapeHtml(c.name)}">${escapeHtml(c.ticker)}</span><span class="block text-[9px] text-slate-300">${c.holders}</span></th>`).join('')}
             </tr>
           </thead>
           <tbody>

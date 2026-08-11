@@ -300,9 +300,9 @@ function guidanceTable(guidance, title) {
         <table class="w-full min-w-[640px] text-sm">
           <thead class="border-b border-slate-100 bg-slate-50/70">
             <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              <th class="px-4 py-2.5">Metric</th><th class="px-4 py-2.5">Guided</th>
-              <th class="px-4 py-2.5">Prior</th><th class="px-4 py-2.5">Direction</th>
-              <th class="px-4 py-2.5">Supporting quote</th>
+              <th scope="col" class="px-4 py-2.5">Metric</th><th scope="col" class="px-4 py-2.5">Guided</th>
+              <th scope="col" class="px-4 py-2.5">Prior</th><th scope="col" class="px-4 py-2.5">Direction</th>
+              <th scope="col" class="px-4 py-2.5">Supporting quote</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">

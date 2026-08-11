@@ -1,17 +1,103 @@
 {
-  "asOf": "2026-08-07",
+  "_provenance": "Holdings list (tickers, names, sectors, conviction tiers) is user config. `qty` and `avgPrice` are DERIVED from the FIFO replay of mock/transactions.json — never edit them by hand, run scripts/gen-mock-transactions.mjs. There is deliberately no lastPrice or high52w here: those are marked to market from the live technicals feed.",
+  "asOf": "2026-08-06",
+  "basis": "FIFO, charges folded into cost",
   "holdings": [
-    { "ticker": "HDFCBANK", "name": "HDFC Bank Ltd", "qty": 300, "avgPrice": 1652.40, "lastPrice": 1874.55, "high52w": 1962.30, "sector": "Financials", "convictionTier": "Core" },
-    { "ticker": "ICICIBANK", "name": "ICICI Bank Ltd", "qty": 250, "avgPrice": 1181.75, "lastPrice": 1348.20, "high52w": 1401.60, "sector": "Financials", "convictionTier": "Core" },
-    { "ticker": "INFY", "name": "Infosys Ltd", "qty": 180, "avgPrice": 1847.10, "lastPrice": 1792.65, "high52w": 2068.40, "sector": "IT", "convictionTier": "Core" },
-    { "ticker": "BHARTIARTL", "name": "Bharti Airtel Ltd", "qty": 200, "avgPrice": 1698.60, "lastPrice": 2064.90, "high52w": 2118.75, "sector": "Telecom", "convictionTier": "High Conviction" },
-    { "ticker": "LT", "name": "Larsen & Toubro Ltd", "qty": 60, "avgPrice": 3712.25, "lastPrice": 4128.40, "high52w": 4265.10, "sector": "Industrials", "convictionTier": "Core" },
-    { "ticker": "BAJFINANCE", "name": "Bajaj Finance Ltd", "qty": 40, "avgPrice": 7189.50, "lastPrice": 7614.30, "high52w": 8402.55, "sector": "Financials", "convictionTier": "High Conviction" },
-    { "ticker": "TITAN", "name": "Titan Company Ltd", "qty": 70, "avgPrice": 3486.30, "lastPrice": 3742.85, "high52w": 4188.20, "sector": "Consumer Discretionary", "convictionTier": "High Conviction" },
-    { "ticker": "ULTRACEMCO", "name": "UltraTech Cement Ltd", "qty": 25, "avgPrice": 11482.00, "lastPrice": 12384.70, "high52w": 12760.00, "sector": "Materials", "convictionTier": "Core" },
-    { "ticker": "TATAMOTORS", "name": "Tata Motors Ltd", "qty": 400, "avgPrice": 947.85, "lastPrice": 902.15, "high52w": 1156.80, "sector": "Auto", "convictionTier": "Tracking" },
-    { "ticker": "DIVISLAB", "name": "Divi's Laboratories Ltd", "qty": 45, "avgPrice": 6104.90, "lastPrice": 6893.25, "high52w": 7042.90, "sector": "Healthcare", "convictionTier": "High Conviction" },
-    { "ticker": "PERSISTENT", "name": "Persistent Systems Ltd", "qty": 55, "avgPrice": 5378.40, "lastPrice": 6248.70, "high52w": 6510.35, "sector": "IT", "convictionTier": "Tracking" },
-    { "ticker": "CDSL", "name": "Central Depository Services Ltd", "qty": 150, "avgPrice": 1642.15, "lastPrice": 1758.40, "high52w": 2044.65, "sector": "Financials", "convictionTier": "Tracking" }
+    {
+      "ticker": "HDFCBANK",
+      "name": "HDFC Bank Ltd",
+      "qty": 300,
+      "avgPrice": 892.77,
+      "sector": "Financials",
+      "convictionTier": "Core"
+    },
+    {
+      "ticker": "ICICIBANK",
+      "name": "ICICI Bank Ltd",
+      "qty": 250,
+      "avgPrice": 1236,
+      "sector": "Financials",
+      "convictionTier": "Core"
+    },
+    {
+      "ticker": "INFY",
+      "name": "Infosys Ltd",
+      "qty": 180,
+      "avgPrice": 1580.51,
+      "sector": "IT",
+      "convictionTier": "Core"
+    },
+    {
+      "ticker": "BHARTIARTL",
+      "name": "Bharti Airtel Ltd",
+      "qty": 200,
+      "avgPrice": 1460.12,
+      "sector": "Telecom",
+      "convictionTier": "High Conviction"
+    },
+    {
+      "ticker": "LT",
+      "name": "Larsen & Toubro Ltd",
+      "qty": 60,
+      "avgPrice": 3588.98,
+      "sector": "Industrials",
+      "convictionTier": "Core"
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "name": "Bajaj Finance Ltd",
+      "qty": 40,
+      "avgPrice": 757.28,
+      "sector": "Financials",
+      "convictionTier": "High Conviction"
+    },
+    {
+      "ticker": "TITAN",
+      "name": "Titan Company Ltd",
+      "qty": 70,
+      "avgPrice": 3573.48,
+      "sector": "Consumer Discretionary",
+      "convictionTier": "High Conviction"
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "name": "UltraTech Cement Ltd",
+      "qty": 25,
+      "avgPrice": 10996.62,
+      "sector": "Materials",
+      "convictionTier": "Core"
+    },
+    {
+      "ticker": "TATAMOTORS",
+      "name": "Tata Motors Ltd",
+      "qty": 400,
+      "avgPrice": 185.78,
+      "sector": "Auto",
+      "convictionTier": "Tracking"
+    },
+    {
+      "ticker": "DIVISLAB",
+      "name": "Divi's Laboratories Ltd",
+      "qty": 45,
+      "avgPrice": 4900.43,
+      "sector": "Healthcare",
+      "convictionTier": "High Conviction"
+    },
+    {
+      "ticker": "PERSISTENT",
+      "name": "Persistent Systems Ltd",
+      "qty": 55,
+      "avgPrice": 5882.18,
+      "sector": "IT",
+      "convictionTier": "Tracking"
+    },
+    {
+      "ticker": "CDSL",
+      "name": "Central Depository Services Ltd",
+      "qty": 150,
+      "avgPrice": 1441.23,
+      "sector": "Financials",
+      "convictionTier": "Tracking"
+    }
   ]
 }

@@ -374,7 +374,7 @@ export function searchInput({ placeholder = 'Search…', shortcutLabel = '⌘K',
     results.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-result-ticker]');
       if (!btn) return;
-      // Stub hook — later prompts will make this open the company detail view.
+      // Fallback when the caller supplies no onSelect. The shell's global search passes one.
       if (onSelect) onSelect(btn.dataset.resultTicker);
       input.value = '';
       close();
@@ -496,8 +496,9 @@ export function tooltip({ trigger, content, position = 'top' }) {
     </span>`;
 }
 
-// Dashed-outline strip listing features planned for a later prompt — used at the bottom of every placeholder panel.
-export function comingSoonStrip(features = [], { note = 'Coming in a later prompt' } = {}) {
+// Legacy dashed strip. Superseded by roadmapStrip() in ui/screener.js, which every tab now uses;
+// kept only so nothing that still imports it breaks.
+export function comingSoonStrip(features = [], { note = 'Wiring roadmap' } = {}) {
   return `
     <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
       <div class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">

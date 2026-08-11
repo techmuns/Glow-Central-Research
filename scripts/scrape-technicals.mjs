@@ -13,6 +13,7 @@
 //         TECH_LIMIT=15 node scripts/scrape-technicals.mjs
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { fetchBars } from './lib/yahoo.mjs';
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { abdiRanaldoSpreadPct, amihudImpactPct, liquidityTier } from "./lib/liquidity-estimators.mjs";
@@ -252,53 +253,6 @@ function spreadFromMeta(meta) {
   const mid = (bid + ask) / 2;
   const pct = ((ask - bid) / mid) * 100;
   return Math.round(pct * 1000) / 1000; // 3 decimal places
-}
-
-async function fetchBars(symbol, start, end) {
-  // Yahoo Chart v8 API — public, no auth. Returns parallel arrays of
-  // timestamps + OHLCV; we zip them into bar objects and drop any nulls
-  // (Yahoo occasionally inserts null at non-trading days). Also exposes
-  // a `.meta` property on the returned array carrying snapshot fields
-  // like bid/ask/regularMarketPrice when Yahoo populates them — used
-  // by the Bid-Ask Spread sentiment rule.
-  const p1 = Math.floor(start.getTime() / 1000);
-  const p2 = Math.floor(end.getTime() / 1000);
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${p1}&period2=${p2}&interval=1d&events=history`;
-  const headers = { "User-Agent": "Mozilla/5.0 (compatible; KLPDashboardBot/1.0)" };
-  let attempt = 0, lastErr;
-  while (attempt < 3) {
-    try {
-      const r = await fetch(url, { headers });
-      if (r.status === 404) throw new Error("ticker not found");
-      if (r.status === 429) { lastErr = new Error("rate limited"); attempt++; await sleep(1500 * attempt); continue; }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      const result = j?.chart?.result?.[0];
-      if (!result || !result.timestamp) throw new Error("no chart data");
-      const ts = result.timestamp;
-      const q  = result.indicators?.quote?.[0] || {};
-      const out = [];
-      for (let i = 0; i < ts.length; i++) {
-        const close = q.close?.[i], volume = q.volume?.[i];
-        if (close == null || volume == null) continue;
-        out.push({
-          date: new Date(ts[i] * 1000).toISOString().slice(0, 10),
-          open:  q.open?.[i]  ?? close,
-          high:  q.high?.[i]  ?? close,
-          low:   q.low?.[i]   ?? close,
-          close, volume,
-        });
-      }
-      // Surface Yahoo's snapshot meta for use by downstream sentiment rules.
-      out.meta = result.meta || {};
-      return out;
-    } catch (err) {
-      lastErr = err;
-      attempt++;
-      if (attempt < 3) await sleep(800 * attempt);
-    }
-  }
-  throw lastErr;
 }
 
 // ---------- indicators ----------

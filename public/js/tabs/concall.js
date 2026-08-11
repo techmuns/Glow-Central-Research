@@ -770,21 +770,21 @@ function matrixTable(matrix, kws) {
         <table class="w-full text-sm" data-matrix>
           <thead class="bg-slate-50/80">
             <tr>
-              <th class="sticky left-0 z-20 bg-slate-50 ${th} min-w-[210px] text-left">Company</th>
-              <th class="${th} text-left">Quarter</th>
-              <th class="${th} text-right">Total</th>
-              <th class="${th} text-right">Momentum</th>
-              <th class="${th} text-left">Tone</th>
-              <th class="${th} text-right">Catalysts</th>
+              <th scope="col" class="sticky left-0 z-20 bg-slate-50 ${th} min-w-[210px] text-left">Company</th>
+              <th scope="col" class="${th} text-left">Quarter</th>
+              <th scope="col" class="${th} text-right">Total</th>
+              <th scope="col" class="${th} text-right">Momentum</th>
+              <th scope="col" class="${th} text-left">Tone</th>
+              <th scope="col" class="${th} text-right">Catalysts</th>
               ${kws
                 .map((k) => {
                   const c = engine.colorFor(k.color);
-                  return `<th class="${th} min-w-[74px] text-center" title="${escapeHtml(k.terms.join(', '))}">
+                  return `<th scope="col" class="${th} min-w-[74px] text-center" title="${escapeHtml(k.terms.join(', '))}">
                     <span class="mx-auto mb-1 block h-1.5 w-1.5 rounded-full ${c.dot}"></span>
                     <span class="block leading-tight">${escapeHtml(k.label)}</span></th>`;
                 })
                 .join('')}
-              <th class="${th}"></th>
+              <th scope="col" class="${th}"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">

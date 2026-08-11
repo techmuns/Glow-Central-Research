@@ -3,8 +3,8 @@
 // This is presentation metadata, not a data source: it mirrors docs/DATA-CONTRACTS.md so a
 // user can see, in one place, everything that feeds the dashboard and how fresh it is.
 //
-// KEEPING THIS ACCURATE IS PART OF ADDING A DATA SOURCE. When a later prompt wires a real
-// feed, update three things together: the JSON contract in docs/DATA-CONTRACTS.md, the loader
+// KEEPING THIS ACCURATE IS PART OF ADDING A DATA SOURCE. When a real feed is wired,
+// update three things together: the JSON contract in docs/DATA-CONTRACTS.md, the loader
 // in js/app.js, and the entry here. `status` is the honest current state:
 //   'live'    — a real feed is wired and refreshing on a schedule
 //   'static'  — real data, committed to the repo, refreshed by hand rather than on a cron
@@ -220,18 +220,32 @@ export const SOURCE_GROUPS = [
       {
         name: 'Holdings (user-maintained)',
         url: null,
-        feeds: 'Tracked positions: quantity, average cost, sector and conviction tier.',
-        cadence: 'User-edited; no automated refresh',
+        feeds:
+          'The holdings list — tickers, names, sectors, conviction tiers. Quantity and average cost are NOT edited here: ' +
+          'they are derived from a FIFO replay of the ledger below, so the position table and the ledger cannot disagree.',
+        cadence: 'User-edited; qty/avgPrice regenerated with the ledger',
         status: 'mock',
         file: 'public/data/portfolio.json',
       },
       {
         name: 'Broker contract notes',
         url: null,
-        feeds: 'The buy/sell ledger behind the book — Zerodha / Groww / ICICI Direct import.',
-        cadence: 'Event-driven, per trade',
+        feeds:
+          'The buy/sell/dividend/corporate-action ledger behind the book. Which trades were made and when is synthetic; ' +
+          'every execution price in it is a real Yahoo close on a real trading day. CSV import parses in-browser and lasts until reload.',
+        cadence: 'Event-driven, per trade · regenerate with scripts/gen-mock-transactions.mjs',
         status: 'mock',
         file: 'public/data/mock/transactions.json',
+      },
+      {
+        name: 'Yahoo Finance — daily closes, 3 years',
+        url: 'https://query1.finance.yahoo.com/v8/finance/chart/',
+        feeds:
+          'The equity curve and every drawdown figure. Daily closes for each ticker the ledger touches plus the Nifty 500 ' +
+          '(^CRSLDX) benchmark. Tickers Yahoo will not serve are recorded in failures[] and named in the UI, never dropped.',
+        cadence: 'Weekdays 07:00 IST via GitHub Actions, alongside the technicals refresh',
+        status: 'live',
+        file: 'public/data/portfolio-history.json',
       },
     ],
   },

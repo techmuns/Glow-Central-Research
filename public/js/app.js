@@ -10,6 +10,7 @@ import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { primeCatalysts } from './data/concalls.js';
 import { primeDefaults as primeKeywords } from './concall/keyword-engine.js';
 import { prime as primeInvestors } from './data/investors.js';
+import { prime as primePortfolio } from './data/portfolio.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -63,6 +64,12 @@ async function loadAll() {
   // load at bootstrap and seed the module. The chatter feeds are fetched lazily by
   // js/data/chatter.js when that tab mounts.
   primeInvestors(data.superinvestors, data.institutions, data.fundFlows);
+
+  // Portfolio Analytics: the holdings config and the ledger are both small and already fetched
+  // here, so the module is seeded rather than refetching. It pulls the two heavy inputs itself
+  // when the workspace mounts — the live technicals feed (the mark) and portfolio-history.json
+  // (the equity curve) — because eight of the nine tabs never need them.
+  primePortfolio(data.portfolio, data.transactions);
   return data;
 }
 

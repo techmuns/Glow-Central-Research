@@ -109,9 +109,9 @@ function quarterTableHtml(quarters) {
         <table class="w-full text-[11px]">
           <thead class="bg-slate-50/70">
             <tr>
-              <th class="whitespace-nowrap px-2 py-1.5 text-left font-bold uppercase tracking-wide text-slate-500">Metric</th>
-              <th class="px-2 py-1.5 text-left font-bold uppercase tracking-wide text-slate-500">Trend</th>
-              ${quarters.map((q) => `<th class="whitespace-nowrap px-2 py-1.5 text-right font-bold text-slate-500">${escapeHtml(q.quarter)}</th>`).join('')}
+              <th scope="col" class="whitespace-nowrap px-2 py-1.5 text-left font-bold uppercase tracking-wide text-slate-500">Metric</th>
+              <th scope="col" class="px-2 py-1.5 text-left font-bold uppercase tracking-wide text-slate-500">Trend</th>
+              ${quarters.map((q) => `<th scope="col" class="whitespace-nowrap px-2 py-1.5 text-right font-bold text-slate-500">${escapeHtml(q.quarter)}</th>`).join('')}
             </tr>
           </thead>
           <tbody>

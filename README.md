@@ -14,20 +14,29 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**Prompts 1–6 of 7 complete.** All five Research Central tabs are built. Portfolio Analytics is
-the last prompt — see the roadmap in [`docs/SPEC.md`](docs/SPEC.md#8-roadmap).
+**All nine tabs across both workspaces are built.** See
+[`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
+deploy notes and the known gaps.
 
-**Breakouts / Technical is live.** 535 NSE-500 companies scored against a 16-rule, 24-point
-model, from a daily Yahoo Finance EOD scrape plus NSE bhavcopy delivery data, refreshed weekdays
-at 07:00 IST by [a GitHub Action](.github/workflows/technicals-refresh.yml). Everything else
-still runs on the placeholder data in `public/data/mock/`, and the UI labels which is which —
-the Sources modal in the header lists every feed with an honest live / real / mock / pending
-status.
+**Two surfaces are genuinely live.**
+
+*Breakouts / Technical* scores 535 NSE-500 companies against a 16-rule, 24-point model from a
+daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
+[a GitHub Action](.github/workflows/technicals-refresh.yml).
+
+*Portfolio Analytics* marks every position to market from that same feed, and builds its equity
+curve and drawdown from **735 trading days of real closing prices** — because a max drawdown from
+an invented price series looks exactly like a measured one and nobody could check it. The trade
+ledger behind it is synthetic, but every execution price in it is a real close on a real trading
+day, so the curve never steps at a trade. The split ribbon on that workspace states both halves.
 
 **Two full scoring/analysis systems sit on mock-but-real-shaped data.** The Earnings Hub scores
 every result against a 15-rule, 21-point quality-and-growth model; the Con-call tab scans real
 transcript text for user-editable keywords, at runtime, in the browser. Both are wired exactly as
 they will be when the feeds land — swapping the JSON is the only change needed.
+
+The Sources modal in the header lists every feed with an honest live / real / mock / pending
+status, and every tab closes with a **Wiring roadmap** card naming what it does not do.
 
 ---
 
@@ -81,7 +90,8 @@ public/
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio.json, universe.json, technicals.json, mock/*.json
 worker/index.js       asset serving + /api/* slot
-docs/SPEC.md          product spec, nav model, per-tab features, 7-prompt roadmap
+docs/SPEC.md          product spec, nav model, per-tab features, roadmap
+docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source
 CLAUDE.md             working rules, module contract, design tokens, where-to-look index
 ```
@@ -91,7 +101,7 @@ CLAUDE.md             working rules, module contract, design tokens, where-to-lo
 ## Docs
 
 - **[`docs/SPEC.md`](docs/SPEC.md)** — the product spec: navigation model, scope toggle, every
-  tab and sub-view with its planned features, and the 7-prompt roadmap.
+  tab and sub-view with its features, and the build roadmap.
 - **[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md)** — every data file's exact JSON shape,
   field types, units, refresh cadence and intended real source. Read this before wiring live data.
 - **[`CLAUDE.md`](CLAUDE.md)** — stack rules, file layout, the module interface contract, design
@@ -180,3 +190,11 @@ elsewhere) rather than adding an npm dependency.
 | Strong Breakouts | FII Accumulation |
 | --- | --- |
 | ![Strong Breakouts](docs/screenshots/strong-breakouts.png) | ![FII Accumulation](docs/screenshots/fii-accumulation.png) |
+
+| Portfolio Overview — live marks, FIFO basis, reconciliation strip | Drawdown — 735 real trading days |
+| --- | --- |
+| ![Portfolio Overview](docs/screenshots/portfolio-overview.png) | ![Drawdown](docs/screenshots/portfolio-drawdown.png) |
+
+| The FIFO working behind a sell | Grouped by lot, not by position |
+| --- | --- |
+| ![FIFO drill](docs/screenshots/portfolio-fifo-drill.png) | ![Position By](docs/screenshots/portfolio-position-by.png) |

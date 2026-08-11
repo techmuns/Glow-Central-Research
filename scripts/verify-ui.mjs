@@ -610,7 +610,285 @@ for (const [hash, label] of [
 }
 
 // ---------------------------------------------------------------------------------------
-// 11. Layout holds and nothing scrolls sideways
+// 11. Portfolio Analytics — the two reconciliation identities, asserted NUMERICALLY
+//
+// These are the checks the whole workspace rests on. They run against the live module in the
+// page, not against a fixture, so they fail if the shipped data and the shipped code disagree.
+// ---------------------------------------------------------------------------------------
+console.log('\n— portfolio: reconciliation —');
+await go('/#/portfolio/overview/positions?scope=universe', 1800);
+
+const recon = await page.evaluate(async () => {
+  const pf = await import('/js/data/portfolio.js');
+  const lots = await import('/js/portfolio/lots.js');
+  await pf.load();
+  const positions = pf.positions();
+  const s = pf.summary();
+  const book = pf.book();
+
+  // IDENTITY 1 — sum of open lot quantities === position quantity, per ticker.
+  const lotMismatches = positions
+    .map((p) => ({ t: p.ticker, lots: p.lots.reduce((a, l) => a + l.openQty, 0), qty: p.qty }))
+    .filter((r) => r.lots !== r.qty);
+
+  // ...and the same again against the holdings config, so the file and the replay agree too.
+  const configMismatches = pf
+    .holdingsConfig()
+    .map((h) => ({ t: h.ticker, cfg: h.qty, replay: pf.byTicker(h.ticker)?.qty ?? null }))
+    .filter((r) => r.cfg !== r.replay);
+
+  // IDENTITY 2 — realised + unrealised + dividends === total P&L, to the paisa.
+  const rebuilt = positions.reduce((a, p) => a + p.realised + p.unrealised + p.dividends, 0);
+  const residual = Math.abs(rebuilt - s.totalPnl);
+
+  // Per-position too: a portfolio total can net two opposite errors to zero.
+  const perPosition = positions
+    .map((p) => ({ t: p.ticker, d: Math.abs(p.totalPnl - (p.realised + p.unrealised + p.dividends)) }))
+    .filter((r) => r.d > 0.011);
+
+  // Every realised row's own arithmetic: pnl === proceeds - cost.
+  const badRows = book.realised.filter((r) => Math.abs(r.pnl - (r.proceeds - r.cost)) > 0.011);
+
+  // Every sold quantity is accounted for by lot matches.
+  const sells = pf.transactions().filter((t) => String(t.type).toLowerCase() === 'sell');
+  const unmatchedSells = sells.filter((t) => {
+    const matched = book.realised.filter((r) => r.sellId === t.id).reduce((a, r) => a + r.qty, 0);
+    return matched !== t.qty;
+  });
+
+  // Corporate actions preserve total cost: quantity × cost-per-share is invariant.
+  const caTickers = [...new Set(book.events.filter((e) => e.kind === 'bonus' || e.kind === 'split').map((e) => e.ticker))];
+
+  // A purpose-built fixture for the paths the shipped ledger cannot exercise on its own.
+  const fixture = lots.replay([
+    { id: 'f1', date: '2024-01-10', ticker: 'ZZZ', type: 'Buy', qty: 100, price: 200, value: 20000, charges: 0 },
+    { id: 'f2', date: '2024-06-10', ticker: 'ZZZ', type: 'Bonus', qty: 100, price: 0, value: 0, ratio: 2 },
+    { id: 'f3', date: '2025-06-10', ticker: 'ZZZ', type: 'Sell', qty: 50, price: 150, value: 7500, charges: 0 },
+    { id: 'f4', date: '2024-02-01', ticker: 'YYY', type: 'Sell', qty: 10, price: 100, value: 1000, charges: 0 },
+    { id: 'f5', date: '2024-02-02', ticker: 'XXX', type: 'Teleport', qty: 1, price: 1, value: 1 },
+  ]);
+  const zzz = fixture.byTicker.get('ZZZ');
+  const zzzRow = fixture.realised[0];
+
+  return {
+    tickerCount: positions.length,
+    lotMismatches, configMismatches, residual, perPosition,
+    badRowCount: badRows.length, unmatchedSellCount: unmatchedSells.length, sellCount: sells.length,
+    lotMatchCount: book.realised.length, replayErrors: book.errors.length,
+    caTickers,
+    caCostPreserved: caTickers.every((t) => {
+      const ev = book.events.find((e) => e.ticker === t && (e.kind === 'bonus' || e.kind === 'split'));
+      return ev && ev.qtyAfter === Math.round(ev.qtyBefore * ev.ratio);
+    }),
+    // fixture expectations
+    fxQty: zzz.qty,                       // 100 → bonus ×2 = 200 → sell 50 = 150
+    fxCost: zzz.invested,                 // total cost unchanged at 20,000 − the 50 sold
+    fxBuyDate: zzzRow?.buyDate,           // bonus shares keep the ORIGINAL acquisition date
+    fxTerm: zzzRow?.term,                 // 2024-01-10 → 2025-06-10 is long term
+    fxErrors: fixture.errors.map((e) => e.reason),
+    // summary sanity
+    xirr: s.xirr, twr: s.twr?.total, maxDD: s.maxDrawdown, coverage: pf.equityCurve()?.coverage,
+    unpriced: s.reconciliation.unpricedTickers,
+  };
+});
+
+ok('IDENTITY 1: open lots sum to position qty on every ticker', recon.lotMismatches.length === 0,
+   recon.lotMismatches.map((r) => `${r.t} ${r.lots}!=${r.qty}`).join(', ') || `${recon.tickerCount} tickers`);
+ok('...and portfolio.json agrees with the replay', recon.configMismatches.length === 0,
+   recon.configMismatches.map((r) => `${r.t} ${r.cfg}!=${r.replay}`).join(', '));
+ok('IDENTITY 2: realised + unrealised + dividends === total P&L', recon.residual < 0.011, `residual ${recon.residual}`);
+ok('...per position, not just in aggregate', recon.perPosition.length === 0,
+   recon.perPosition.map((r) => `${r.t} ${r.d}`).join(', '));
+ok('every realised row: pnl === proceeds − cost', recon.badRowCount === 0, `${recon.lotMatchCount} lot matches checked`);
+ok('every sold share is matched to a lot', recon.unmatchedSellCount === 0, `${recon.sellCount} sells`);
+ok('the ledger replays with no rejected rows', recon.replayErrors === 0, `${recon.replayErrors} errors`);
+ok('corporate actions multiply quantity exactly', recon.caCostPreserved && recon.caTickers.length > 0, recon.caTickers.join(', '));
+
+console.log('\n— portfolio: FIFO fixture —');
+ok('bonus doubles quantity (100 → 200, less 50 sold = 150)', recon.fxQty === 150, `got ${recon.fxQty}`);
+ok('bonus preserves total cost, so 150 shares cost 15,000', Math.abs(recon.fxCost - 15000) < 0.011, `got ${recon.fxCost}`);
+ok('bonus shares inherit the ORIGINAL acquisition date', recon.fxBuyDate === '2024-01-10', `got ${recon.fxBuyDate}`);
+ok('...so the gain is classified long term', recon.fxTerm === 'long', `got ${recon.fxTerm}`);
+ok('a sell with no holding is reported, not dropped', recon.fxErrors.some((r) => /exceeds/.test(r)), recon.fxErrors.join(' | '));
+ok('an unknown transaction type is reported, not dropped', recon.fxErrors.some((r) => /unknown type/.test(r)), recon.fxErrors.join(' | '));
+
+// ---------------------------------------------------------------------------------------
+// 12. Equity curve — bounds, and an INDEPENDENT recompute of max drawdown
+// ---------------------------------------------------------------------------------------
+console.log('\n— portfolio: equity curve —');
+const curveChecks = await page.evaluate(async () => {
+  const pf = await import('/js/data/portfolio.js');
+  await pf.load();
+  const c = pf.equityCurve();
+  const pts = c.points;
+
+  // Recomputed from scratch here, deliberately not sharing a line of code with the module.
+  let peak = -Infinity, worst = 0, worstAt = null;
+  for (const p of pts) { if (p.value > peak) peak = p.value; const d = ((p.value - peak) / peak) * 100; if (d < worst) { worst = d; worstAt = p.d; } }
+
+  return {
+    days: pts.length,
+    nonFinite: pts.filter((p) => !Number.isFinite(p.value)).length,
+    negative: pts.filter((p) => p.value < 0).length,
+    monotonicDates: pts.every((p, i) => i === 0 || p.d > pts[i - 1].d),
+    valueEqualsParts: pts.filter((p) => Math.abs(p.value - (p.holdings + p.excludedCost + p.cash)) > 0.011).length,
+    cashNeverFalls: pts.every((p, i) => i === 0 || p.cash >= pts[i - 1].cash - 0.011),
+    moduleMaxDD: c.maxDrawdown, independentMaxDD: worst,
+    moduleTrough: c.maxDrawdownTrough, independentTrough: worstAt,
+    ddInRange: c.drawdown.every((d) => d.dd <= 0.0001 && d.dd >= -100),
+    holdingsDD: c.maxHoldingsDrawdown,
+    excluded: c.excluded, coverage: c.coverage,
+    benchDays: c.benchmark?.points.length ?? 0,
+    from: c.from, to: c.to,
+  };
+});
+
+ok('curve has one point per trading day, dates strictly increasing', curveChecks.monotonicDates && curveChecks.days > 700, `${curveChecks.days} days, ${curveChecks.from} → ${curveChecks.to}`);
+ok('no non-finite or negative portfolio values', curveChecks.nonFinite === 0 && curveChecks.negative === 0);
+ok('value === holdings + excluded-at-cost + cash, every day', curveChecks.valueEqualsParts === 0, `${curveChecks.valueEqualsParts} days off`);
+ok('cash never decreases (proceeds are retained, never reinvested)', curveChecks.cashNeverFalls);
+ok('drawdown is always in (−100%, 0]', curveChecks.ddInRange);
+ok('INDEPENDENT recompute agrees on max drawdown', Math.abs(curveChecks.moduleMaxDD - curveChecks.independentMaxDD) < 0.0001,
+   `module ${curveChecks.moduleMaxDD.toFixed(4)}% vs recomputed ${curveChecks.independentMaxDD.toFixed(4)}%`);
+ok('...and on the trough date', curveChecks.moduleTrough === curveChecks.independentTrough, `${curveChecks.moduleTrough} vs ${curveChecks.independentTrough}`);
+ok('holdings-only drawdown is deeper than the total (cash dampens it)', curveChecks.holdingsDD < curveChecks.moduleMaxDD,
+   `holdings ${curveChecks.holdingsDD.toFixed(2)}% vs total ${curveChecks.moduleMaxDD.toFixed(2)}%`);
+ok('benchmark covers the same window', curveChecks.benchDays === curveChecks.days, `${curveChecks.benchDays} benchmark points`);
+ok('excluded tickers are named, and coverage is reported', curveChecks.coverage > 0 && curveChecks.coverage <= 100,
+   `${curveChecks.coverage.toFixed(1)}% priced, excludes ${curveChecks.excluded.join(', ') || 'nothing'}`);
+
+// ---------------------------------------------------------------------------------------
+// 13. The no-live-price fallback must be loud, not silent
+// ---------------------------------------------------------------------------------------
+console.log('\n— portfolio: no-live-price fallback —');
+{
+  const fb = await context.newPage();
+  const fbErrors = [];
+  fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
+  await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
+  await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'networkidle' });
+  await fb.waitForTimeout(1600);
+  const t = await fb.locator('#content-host').innerText();
+  ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
+  ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
+  ok('...without throwing', fbErrors.length === 0, fbErrors.join(' | '));
+  await fb.close();
+
+  const nh = await context.newPage();
+  await nh.route('**/data/portfolio-history.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
+  await nh.goto(`${BASE}/#/portfolio/drawdown/curve?scope=universe`, { waitUntil: 'networkidle' });
+  await nh.waitForTimeout(1600);
+  const dt = await nh.locator('#content-host').innerText();
+  ok('a missing price history refuses to show a drawdown', /No price history, so no drawdown/.test(dt));
+  ok('...and names how to produce it', /scrape-portfolio-history/.test(dt));
+  await nh.close();
+}
+
+// ---------------------------------------------------------------------------------------
+// 14. Group-by, the CSV round trip, and the portfolio exports
+// ---------------------------------------------------------------------------------------
+console.log('\n— portfolio: group-by and CSV —');
+for (const [sub, label, unit] of [['sector', 'sector', 'positions'], ['conviction', 'conviction', 'positions'], ['holding-period', 'holding period', 'lots'], ['pnl-band', 'P&L band', 'positions']]) {
+  await go(`/#/portfolio/position-by/${sub}?scope=universe`, 1500);
+  const rows = await page.locator('#content-host table').first().locator('tbody tr').count();
+  const txt = await hostText();
+  ok(`group by ${label} produces groups`, rows >= 2, `${rows} groups`);
+  ok(`...counted in ${unit}`, new RegExp(unit === 'lots' ? 'lots' : 'positions', 'i').test(txt));
+}
+{
+  await go('/#/portfolio/position-by/sector?scope=universe', 1500);
+  const weights = await page.evaluate(() => [...document.querySelectorAll('#content-host table')][0].querySelectorAll('tbody tr'))
+    .then(() => page.evaluate(() => {
+      const cells = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.innerText.match(/(\d+\.\d)%/g)).filter(Boolean);
+      return cells.length;
+    }));
+  ok('every group carries a weight', weights > 0, `${weights} rows with a % figure`);
+}
+
+await go('/#/portfolio/transactions/import?scope=universe', 1600);
+{
+  const dl = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
+  await page.locator('#csv-download').click();
+  const file = await dl;
+  ok('the ledger downloads as CSV', !!file, file?.suggestedFilename() || 'no download');
+  if (file) {
+    const path = await file.path();
+    const { readFileSync } = await import('node:fs');
+    const csv = readFileSync(path, 'utf8');
+    const lines = csv.trim().split('\n');
+    ok('CSV header matches the documented columns', lines[0] === 'id,date,ticker,name,type,qty,price,value,charges,ratio', lines[0]);
+    await page.locator('#csv-file').setInputFiles(path);
+    await page.waitForTimeout(900);
+    const preview = await page.locator('#import-result').innerText();
+    ok('round-tripping the CSV parses every row back', new RegExp(`${lines.length - 1} rows parsed`).test(preview), preview.split('\n').find((l) => /parsed/.test(l)) || '');
+    ok('...with nothing rejected', !/rejected/.test(preview));
+  }
+}
+{
+  const { writeFileSync } = await import('node:fs');
+  const bad = `${process.env.TMPDIR || '/tmp'}/sattva-bad-import.csv`;
+  writeFileSync(bad, ['id,date,ticker,name,type,qty,price', 'b1,2024-13-45,INFY,Infosys,Buy,10,1500', 'b2,2024-05-06,,Infosys,Buy,10,1500', 'b3,2024-05-06,INFY,Infosys,Teleport,10,1500', 'b4,2024-05-06,INFY,Infosys,Buy,10,1500'].join('\n'));
+  await page.locator('#csv-file').setInputFiles(bad);
+  await page.waitForTimeout(900);
+  const preview = await page.locator('#import-result').innerText();
+  ok('a malformed CSV names every rejected row', /3 rejected/.test(preview), preview.split('\n').find((l) => /rejected/.test(l)) || '');
+  ok('...including an impossible calendar date', /not a valid YYYY-MM-DD/.test(preview));
+  ok('...and still applies the good row', /1 row parsed/.test(preview));
+}
+
+for (const [hash, label] of [
+  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
+  ['/#/portfolio/overview/realised?scope=universe', 'realised'],
+  ['/#/portfolio/drawdown/episodes?scope=universe', 'drawdown episodes'],
+]) {
+  await go(hash, 1600);
+  const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
+  await page.locator('#content-host button:has-text("Export")').first().click();
+  const file = await dl;
+  ok(`${label} export downloads`, !!file, file?.suggestedFilename() || 'no download (CDN blocked?)');
+}
+
+// ---------------------------------------------------------------------------------------
+// 15. Accessibility — table semantics and overlay focus management
+// ---------------------------------------------------------------------------------------
+console.log('\n— accessibility —');
+{
+  let totalTh = 0, missing = 0;
+  for (const hash of ['/#/research/earnings-hub/latest-results?scope=universe', '/#/research/breakouts/technical-scanner?scope=universe',
+                      '/#/portfolio/overview/positions?scope=universe', '/#/portfolio/transactions/trades?scope=universe',
+                      '/#/portfolio/position-by/holding-period?scope=universe']) {
+    await go(hash, 1300);
+    const r = await page.evaluate(() => { const th = [...document.querySelectorAll('#content-host th')]; return [th.length, th.filter((t) => !t.hasAttribute('scope')).length]; });
+    totalTh += r[0]; missing += r[1];
+  }
+  ok('every table header carries scope="col"', missing === 0, `${totalTh} headers checked, ${missing} missing`);
+}
+{
+  await go('/#/portfolio/overview/positions?scope=universe', 1600);
+  await page.locator('#content-host tbody tr').first().click();
+  await page.waitForTimeout(500);
+  const st = await page.evaluate(() => { const d = document.getElementById('drill-panel'); return { role: d.getAttribute('role'), modal: d.getAttribute('aria-modal'), inside: d.contains(document.activeElement) }; });
+  ok('the drill is role=dialog aria-modal=true', st.role === 'dialog' && st.modal === 'true');
+  ok('...and takes focus on open', st.inside);
+  await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
+  ok('...and Tab cannot escape it', await page.evaluate(() => document.getElementById('drill-panel').contains(document.activeElement)));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  ok('...and focus leaves it on close', await page.evaluate(() => !document.getElementById('drill-panel').contains(document.activeElement)));
+}
+{
+  let kOk = 0;
+  const kRoutes = ['/#/research/earnings-hub/latest-results', '/#/research/concall/live-feed', '/#/portfolio/drawdown/curve', '/#/portfolio/transactions/import'];
+  for (const r of kRoutes) {
+    await go(r, 1300);
+    await page.keyboard.press('Meta+k'); await page.waitForTimeout(250);
+    if (await page.evaluate(() => document.activeElement?.tagName === 'INPUT')) kOk++;
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  }
+  ok('⌘K focuses global search from every route', kOk === kRoutes.length, `${kOk}/${kRoutes.length}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// 16. Layout holds and nothing scrolls sideways
 // ---------------------------------------------------------------------------------------
 console.log('\n— layout —');
 for (const width of [1440, 1024, 390]) {

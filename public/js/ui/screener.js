@@ -18,6 +18,68 @@ import { escapeHtml } from '../core/dom.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 
 // ---------------------------------------------------------------------------------------
+// Overlay focus management — shared by the drill, the modal and the workspace.
+//
+// Without this a keyboard user opening a drill panel is left with focus still on the table row
+// behind it: Tab walks the page underneath, screen readers announce the page they cannot see,
+// and closing the panel drops focus to <body> so the next Tab starts from the top of the
+// document. All three overlays are visually modal, so they have to be modal to the keyboard too.
+//
+//   trapFocus(el)    -> disposer. Marks the element as a dialog, moves focus into it, keeps Tab
+//                       inside it, and returns focus where it came from on dispose.
+// ---------------------------------------------------------------------------------------
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function trapFocus(el, { label } = {}) {
+  if (!el) return () => {};
+  const previous = document.activeElement;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  if (label) el.setAttribute('aria-label', label);
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+
+  // Focus the first real control if there is one, else the container. Focusing the container
+  // rather than nothing is what makes the screen reader announce the dialog at all.
+  const first = el.querySelector(FOCUSABLE);
+  (first || el).focus({ preventScroll: true });
+
+  const onKey = (e) => {
+    if (e.key !== 'Tab') return;
+    const items = [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null || n === document.activeElement);
+    if (!items.length) {
+      e.preventDefault();
+      el.focus({ preventScroll: true });
+      return;
+    }
+    const firstItem = items[0];
+    const lastItem = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === firstItem || document.activeElement === el)) {
+      e.preventDefault();
+      lastItem.focus();
+    } else if (!e.shiftKey && document.activeElement === lastItem) {
+      e.preventDefault();
+      firstItem.focus();
+    }
+  };
+  el.addEventListener('keydown', onKey);
+
+  return () => {
+    el.removeEventListener('keydown', onKey);
+    el.removeAttribute('aria-modal');
+    // Restore focus only if it is still inside the overlay — if the user has already clicked
+    // elsewhere, yanking it back would be the more surprising behaviour.
+    const wasInside = el.contains(document.activeElement);
+    if (!wasInside && document.activeElement !== document.body) return;
+    if (previous?.isConnected && typeof previous.focus === 'function') previous.focus({ preventScroll: true });
+    // The opener is often a table row, which is not focusable, so the focus() above is a no-op
+    // and focus would stay parked inside a panel the user can no longer see. Blur out of it so
+    // the next Tab restarts from the document rather than from an invisible dialog.
+    if (el.contains(document.activeElement)) document.activeElement.blur();
+  };
+}
+
+// ---------------------------------------------------------------------------------------
 // Watchlist — one shared, localStorage-backed set of company keys across every tab.
 // ---------------------------------------------------------------------------------------
 
@@ -312,17 +374,17 @@ export function scoreTable(config) {
     const th = (label, sortKey, align = 'left') => {
       const sortable = sortKey !== null;
       const active = view.sort && view.sort.key === sortKey;
-      return `<th class="whitespace-nowrap px-4 py-3 text-${align} text-xs font-bold uppercase tracking-wider text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
+      return `<th scope="col" class="whitespace-nowrap px-4 py-3 text-${align} text-xs font-bold uppercase tracking-wider text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
         ${sortable ? `data-sort="${escapeHtml(sortKey)}"` : ''}>${escapeHtml(label)}${active ? (view.sort.dir === 'asc' ? ' ▴' : ' ▾') : ''}</th>`;
     };
     return `
       <tr>
-        <th class="w-12 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">#</th>
+        <th scope="col" class="w-12 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">#</th>
         ${th(nameLabel, 'name')}
         ${showScore ? th('Score', 'score') : ''}
-        ${showSignals ? `<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Signals</th>` : ''}
+        ${showSignals ? `<th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Signals</th>` : ''}
         ${columns.map((c) => th(c.label, c.sortable === false ? null : c.label, c.align === 'right' ? 'right' : 'left')).join('')}
-        ${link ? `<th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Link</th>` : ''}
+        ${link ? `<th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Link</th>` : ''}
       </tr>`;
   }
 
@@ -557,6 +619,7 @@ export function scoreTable(config) {
 // ---------------------------------------------------------------------------------------
 
 let drillKeyHandler = null;
+let releaseDrillFocus = null;
 
 /**
  * openDrill({ name, sub, link, linkLabel, headerStats, groups, banner })
@@ -664,6 +727,8 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
     if (e.key === 'Escape') closeDrill();
   };
   document.addEventListener('keydown', drillKeyHandler);
+  releaseDrillFocus?.();
+  releaseDrillFocus = trapFocus(panel, { label: `${name} detail` });
 }
 
 export function closeDrill() {
@@ -675,9 +740,12 @@ export function closeDrill() {
     document.removeEventListener('keydown', drillKeyHandler);
     drillKeyHandler = null;
   }
+  releaseDrillFocus?.();
+  releaseDrillFocus = null;
 }
 
 let modalKeyHandler = null;
+let releaseModalFocus = null;
 
 /**
  * openModal(innerHtml, { size }) — centred modal. `size` is 'default' | 'wide' | 'magazine'.
@@ -698,6 +766,8 @@ export function openModal(innerHtml, { size = 'default' } = {}) {
   requestAnimationFrame(() => container.classList.replace('scale-95', 'scale-100'));
 
   content.querySelectorAll('[data-modal-close]').forEach((btn) => btn.addEventListener('click', closeModal));
+  releaseModalFocus?.();
+  releaseModalFocus = trapFocus(container, { label: 'Dialog' });
   overlay.addEventListener('click', onBackdrop);
 
   modalKeyHandler = (e) => {
@@ -715,6 +785,7 @@ function onBackdrop(e) {
 // ---------------------------------------------------------------------------------------
 
 let workspaceState = null; // { tabs, activeId, onTabChange, onClose, keyHandler }
+let releaseWorkspaceFocus = null;
 
 /**
  * openWorkspace({ title, subtitle, avatarName, badges, actionsHtml, tabs, activeTab,
@@ -798,6 +869,8 @@ export function openWorkspace({
 
   overlay.classList.remove('hidden');
   overlay.classList.add('is-open');
+  releaseWorkspaceFocus?.();
+  releaseWorkspaceFocus = trapFocus(container, { label: `${title} workspace` });
   document.body.classList.add('workspace-open');
   requestAnimationFrame(() => {
     container.classList.remove('translate-y-4', 'scale-[0.98]');
@@ -874,6 +947,8 @@ export function closeWorkspace({ silent = false } = {}) {
   container?.classList.remove('translate-y-0', 'scale-100');
   document.body.classList.remove('workspace-open');
   if (content) content.innerHTML = '';
+  releaseWorkspaceFocus?.();
+  releaseWorkspaceFocus = null;
   // `silent` is for teardown that is already rewriting the URL (a route change) — calling back
   // would have the workspace fight the navigation it is being closed by.
   if (!silent) state?.onClose?.();
@@ -891,6 +966,8 @@ export function closeModal() {
     document.removeEventListener('keydown', modalKeyHandler);
     modalKeyHandler = null;
   }
+  releaseModalFocus?.();
+  releaseModalFocus = null;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -913,15 +990,21 @@ export function sectionHead({ title, description = '', meta = '' }) {
 }
 
 /**
- * roadmapStrip(features, opts) — the dashed "coming in a later prompt" card that closes
- * every tab, restyled to slate-200 dashed with indigo bullet arrows.
+ * roadmapStrip(features, opts) — the dashed card that closes every tab, listing what this tab
+ * does NOT do.
+ *
+ * It used to read "Coming in a later prompt", which was true while the build had later prompts
+ * and became a false promise the moment it did not. It now says what it actually is: a wiring
+ * roadmap, listing the gaps so they are visible rather than merely absent. A missing feature
+ * nobody has written down reads to a user as a feature that was never needed.
  */
-export function roadmapStrip(features = [], { note = 'Coming in a later prompt' } = {}) {
+export function roadmapStrip(features = [], { note = 'Wiring roadmap', caption = 'Not built. Listed so the gap is visible rather than implied.' } = {}) {
   return `
     <div class="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4">
-      <div class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+      <div class="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
         <span>🚧</span><span>${escapeHtml(note)}</span>
       </div>
+      ${caption ? `<p class="mb-2 text-[11px] text-slate-400">${escapeHtml(caption)}</p>` : ''}
       <ul class="grid gap-1.5 sm:grid-cols-2">
         ${features
           .map(
@@ -937,7 +1020,7 @@ export function roadmapStrip(features = [], { note = 'Coming in a later prompt' 
  * pendingPanel({ title, body, arriving }) — the honest placeholder used where a genuine data
  * feed has not landed yet. Never fabricate numbers into a chart; render this instead.
  */
-export function pendingPanel({ title, body, arriving = 'a later prompt' }) {
+export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
   return `
     <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">

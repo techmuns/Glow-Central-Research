@@ -76,8 +76,8 @@ public/
     tabs/                     earnings-hub, earnings-scans, earnings-drill, concall,
                               public-chatter, breakouts, breakouts-drill, super-investors
     portfolio/                overview, position-by, transactions, drawdown
-  data/                       technicals.json, atr-history.json, universe.json,
-                              portfolio.json, mock/*.json
+  data/                       technicals.json, atr-history.json, portfolio-history.json,
+                              universe.json, portfolio.json, mock/*.json
 scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
@@ -89,8 +89,9 @@ scripts/
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices
 wrangler.jsonc
-docs/SPEC.md                  product spec + 7-prompt roadmap
+docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
+docs/HANDOFF.md               live-vs-mock inventory, architecture map, deploy, known gaps
 ```
 
 ---
@@ -413,6 +414,82 @@ updating three things together**: the contract in `docs/DATA-CONTRACTS.md`, the 
 
 ---
 
+## Portfolio Analytics — the FIFO engine and the two identities
+
+`js/portfolio/lots.js` replays the ledger once per page load; `js/data/portfolio.js` joins the
+result to the live technicals feed and to `portfolio-history.json`. The four sub-views read that
+cached result — **never rescore or replay on a sub-view or scope change.**
+
+**Two identities must hold exactly**, and `scripts/verify-ui.mjs` asserts both numerically against
+the shipped data, not against a fixture:
+
+1. `sum(open lot quantities) === position quantity`, per ticker — and `portfolio.json` agrees.
+2. `realised + unrealised + dividends === total P&L`, **per position**, not merely in aggregate.
+
+If either drifts, the position table and the ledger are telling different stories about the same
+money. The Overview shows the measured residual rather than claiming correctness in prose.
+
+Four rules that are easy to break:
+
+- **Charges belong in the basis.** Buy-side charges are folded into cost per share; sell-side
+  charges reduce proceeds, apportioned across the lots consumed.
+- **Dividends are income, never a discount on the purchase.** Folding them into the basis would
+  disguise income as a cheaper entry.
+- **Corporate actions adjust lots in place** — quantity multiplied, cost per share divided, total
+  cost unchanged, **acquisition date preserved**. A zero-price "buy" for bonus shares would reset
+  the holding-period clock and misclassify a later sale as short term.
+- **Missing input is not zero.** A sell larger than the holding, or an unknown type, goes to
+  `book.errors[]`. A position with no live price is marked *at cost*, tagged "at cost", and excluded
+  from the equity curve — marking it at zero would invent a −100% position.
+
+### The back-adjustment trap — read before touching prices or corporate actions
+
+**Yahoo's `close` is back-adjusted for splits and bonuses**: a 2024 price is restated in today's
+share terms. Two consequences, and getting either wrong bends the equity curve on a day nothing
+happened, in the one chart where an artefact reads as risk.
+
+1. A ledger may carry a corporate-action row **only for an action the price series was adjusted
+   for**. An invented split on a real ticker doubles the quantity while the series stays put, and
+   the curve jumps 100%. This is why both synthetic actions in the mock ledger sit on the one
+   holding with no price series at all.
+2. Where an action row does exist, `dailyPositions()` returns `valuationQtyByDate` — the holding in
+   **current share terms** — and the curve values against that. The two corrections cancel exactly.
+
+Check the series before trusting a recollection about a corporate action. A draft of the generator
+mirrored a "real" CDSL bonus that is not in this window; the data said so and the double-count was
+caught before it shipped.
+
+### Two return figures and two drawdowns, deliberately
+
+The raw curve rises from ~₹92k to ~₹42.6L, and most of that is money paid in. So **XIRR** is
+money-weighted (what the investor earned) and **TWR** is time-weighted (what the strategy returned,
+contributions stripped out) — TWR is the only one comparable to an index, and the only one shown
+against the Nifty 500. Never label the curve's start-to-end move a return.
+
+Likewise: the headline drawdown is the total portfolio (retained cash dampens it, correctly), and a
+second holdings-only figure answers "how far did the stocks fall". Both are labelled; neither is
+presented as *the* drawdown.
+
+### The split provenance ribbon
+
+Portfolio Analytics is the one workspace where mock and real meet inside a single number, so it
+does not use the plain amber ribbon. `provenanceRibbon()` in `js/portfolio/chrome.js` renders both
+halves — amber for the ledger, emerald for the mark — and adapts when a feed is missing. All four
+sub-views call that one function; change it there, not four times.
+
+---
+
+## Overlays are modal to the keyboard too
+
+`openDrill`, `openModal` and `openWorkspace` all call `trapFocus()` (in `js/ui/screener.js`), which
+sets `role="dialog" aria-modal="true"`, moves focus in, keeps Tab inside, and restores focus on
+close. If you add a fourth overlay, use it — without it a keyboard user is left tabbing through the
+page behind a panel they cannot see, and closing it drops focus to `<body>`.
+
+Every `<th>` carries `scope="col"`. The verification suite fails if one does not.
+
+---
+
 ## Live engine — `js/core/live.js`
 
 ```js
@@ -441,6 +518,13 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
+| Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
+| Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
+| Change how positions are marked or the curve is built | `js/data/portfolio.js` |
+| Change the portfolio provenance ribbon | `provenanceRibbon()` in `js/portfolio/chrome.js` — one function, four sub-views |
+| Regenerate the mock ledger | `node scripts/gen-mock-transactions.mjs` — seeded; also rewrites `portfolio.json`'s derived fields |
+| Wire the real ledger | `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" (6 steps) |
+| Hand the project over | `docs/HANDOFF.md` |
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
@@ -473,7 +557,14 @@ live.stop('concall-live');    // in destroy(), and call off()
 python3 -m http.server 8080 -d public
 ```
 
-Then confirm with Playwright (Chromium is preinstalled — never run `playwright install`):
+Then run the suite — ~190 Playwright assertions, exits non-zero on the first failure
+(Chromium is preinstalled — never run `playwright install`):
+
+```bash
+node scripts/verify-ui.mjs
+```
+
+It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
 - all 9 tabs across both workspaces render their panel
@@ -488,6 +579,13 @@ Then confirm with Playwright (Chromium is preinstalled — never run `playwright
   watchlist survives a reload
 - the Sources modal opens and lists every documented source
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
+- **the two portfolio identities**, computed against the shipped data: open lots sum to position
+  quantity on every ticker, and realised + unrealised + dividends equals total P&L per position
+- **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both
+  the depth and the trough date
+- the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
+- the CSV round trip parses every row back, and a malformed file names each rejection with its line
+- every `<th>` carries `scope="col"`; the three overlays trap focus and restore it on close
 
 > Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach
 > `cdn.tailwindcss.com` or Google Fonts. To screenshot with real styling, copy `public/` to a

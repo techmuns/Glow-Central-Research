@@ -1,9 +1,9 @@
 // core/live.js — small pub/sub polling engine so tabs can "just subscribe" to live data.
 //
-//   live.register('concall-feed', { intervalMs: 15000, fetcher: live.mockFetcher('data/mock/concall-feed.json') });
-//   const unsubscribe = live.subscribe('concall-feed', (rows) => { ...render... });
-//   live.start('concall-feed');   // call from a tab's render()
-//   live.stop('concall-feed');    // call from that tab's destroy()
+//   live.register('earnings-feed', { intervalMs: 15000, fetcher: live.mockFetcher('data/mock/earnings.json') });
+//   const unsubscribe = live.subscribe('earnings-feed', (rows) => { ...render... });
+//   live.start('earnings-feed');   // call from a tab's render()
+//   live.stop('earnings-feed');    // call from that tab's destroy()
 //
 // Pollers only tick while both `start()` has been called (their tab is mounted) AND the
 // document is visible — they pause on hidden and refetch immediately when it becomes visible
@@ -171,7 +171,7 @@ export function mockFetcher(path, { jitter = 0.02 } = {}) {
   };
 }
 
-// Real fetcher path (wired in a later prompt): same signature as mockFetcher, so swapping a
+// Real fetcher path: same signature as mockFetcher, so swapping a
 // tab from mock to live data is a one-line change at the call site —
 //   live.register('technicals', { intervalMs: 30000, fetcher: live.realFetcher('/api/technicals') })
 export function realFetcher(url, options = {}) {

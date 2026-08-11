@@ -176,13 +176,13 @@ function renderPortfolio(holder) {
       <table class="w-full min-w-[720px] text-sm">
         <thead class="border-b border-slate-100 bg-slate-50/70">
           <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            <th class="px-4 py-2.5">Company</th>
-            <th class="px-4 py-2.5 text-right">Holding %</th>
-            <th class="px-4 py-2.5 text-right">Δ QoQ</th>
-            <th class="px-4 py-2.5 text-right">Quantity</th>
-            <th class="px-4 py-2.5 text-right">Value (derived)</th>
-            <th class="px-4 py-2.5 text-right">% of book</th>
-            <th class="px-4 py-2.5">Action</th>
+            <th scope="col" class="px-4 py-2.5">Company</th>
+            <th scope="col" class="px-4 py-2.5 text-right">Holding %</th>
+            <th scope="col" class="px-4 py-2.5 text-right">Δ QoQ</th>
+            <th scope="col" class="px-4 py-2.5 text-right">Quantity</th>
+            <th scope="col" class="px-4 py-2.5 text-right">Value (derived)</th>
+            <th scope="col" class="px-4 py-2.5 text-right">% of book</th>
+            <th scope="col" class="px-4 py-2.5">Action</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-50">
@@ -348,11 +348,11 @@ function renderActivity(holder) {
           <table class="w-full min-w-[600px] text-sm">
             <thead class="border-b border-slate-100 bg-slate-50/70">
               <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <th class="px-4 py-2">Company</th>
-                <th class="px-4 py-2 text-right">Quantity Δ</th>
-                <th class="px-4 py-2 text-right">Holding %</th>
-                <th class="px-4 py-2 text-right">Δ QoQ</th>
-                <th class="px-4 py-2 text-right">Value (derived)</th>
+                <th scope="col" class="px-4 py-2">Company</th>
+                <th scope="col" class="px-4 py-2 text-right">Quantity Δ</th>
+                <th scope="col" class="px-4 py-2 text-right">Holding %</th>
+                <th scope="col" class="px-4 py-2 text-right">Δ QoQ</th>
+                <th scope="col" class="px-4 py-2 text-right">Value (derived)</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-50">
@@ -404,9 +404,9 @@ function renderHistory(holder) {
       <table class="w-full min-w-[640px] text-sm">
         <thead class="bg-slate-50/70">
           <tr class="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            <th class="sticky left-0 z-10 bg-slate-50 px-4 py-2.5 text-left">Company</th>
-            ${quarters.map((q) => `<th class="px-3 py-2.5 text-right">${escapeHtml(q)}</th>`).join('')}
-            <th class="px-4 py-2.5 text-right">Trend</th>
+            <th scope="col" class="sticky left-0 z-10 bg-slate-50 px-4 py-2.5 text-left">Company</th>
+            ${quarters.map((q) => `<th scope="col" class="px-3 py-2.5 text-right">${escapeHtml(q)}</th>`).join('')}
+            <th scope="col" class="px-4 py-2.5 text-right">Trend</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-50">

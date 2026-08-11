@@ -711,7 +711,7 @@ function renderEarningsSurprise(ctx, rows) {
         title: 'Two different sources on one screen',
         body: `<p>This view deliberately keeps two provenances side by side rather than blending them:</p>
                <ul class="mt-2 list-disc space-y-1 pl-5">
-                 <li><strong>Earnings columns</strong> (surprise %, beat/miss, revenue and PAT growth) are <em>mock data</em> from <code class="rounded bg-slate-100 px-1">mock/earnings.json</code>. Real result parsing arrives in prompt 4.</li>
+                 <li><strong>Earnings columns</strong> (surprise %, beat/miss, revenue and PAT growth) are <em>mock data</em> from <code class="rounded bg-slate-100 px-1">mock/earnings.json</code>. Swapping in a real filings feed is documented in docs/DATA-CONTRACTS.md under “Wiring the real feed”.</li>
                  <li><strong>Technical score</strong> is <em>live</em> — computed today from Yahoo Finance daily OHLCV by the same 16-rule model as the rest of this tab.</li>
                </ul>
                <p class="mt-3 text-slate-500">No composite is computed across the two. Combining a mock number with a live one into a single score would make the mock half invisible, and the result would look more trustworthy than it is.</p>`,
@@ -752,7 +752,7 @@ function renderEarningsSurprise(ctx, rows) {
     })}
     <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
       <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
-      <span>Earnings figures are <strong>mock</strong> until prompt 4. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
+      <span>Earnings figures are <strong>mock</strong>. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
     </div>
     ${stats.html}
     ${table.html}

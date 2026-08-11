@@ -1,245 +1,510 @@
-// portfolio/drawdown.js — how far the book and each position sit below their highs.
+// portfolio/drawdown.js — the equity curve and the drawdown, built from REAL closing prices.
 //
-// THIS PROMPT: presentation only. Per-position drawdown is computed from the mock `high52w`
-// in portfolio.json, which is real enough to rank and signal on. The portfolio-level equity
-// curve genuinely needs daily price history (prompt 2), so it keeps an honest pending panel
-// rather than a drawn-from-nothing chart.
+// This is the one view where faking the input would have been worst. A max drawdown of −24%
+// computed from an invented price series looks exactly like a real one and nobody can check it
+// against anything, unlike a mock revenue figure that a filing would contradict. So the curve is
+// built from 741 trading days of actual Yahoo closes (scripts/scrape-portfolio-history.mjs) and
+// the file records what it could not fetch.
+//
+// THREE THINGS THIS VIEW REFUSES TO DO
+//   1. Quietly shorten the curve. TATAMOTORS is not on Yahoo, so it is carried at running cost,
+//      named in the ribbon and in the coverage line, and the headline says what fraction of the
+//      book is actually priced.
+//   2. Report one drawdown as if it were the drawdown. Retained cash dampens the portfolio
+//      figure — correctly, the cash is really there — but "how far did the stocks fall" is the
+//      other question a risk view is asked. Both are computed, both are labelled.
+//   3. Call the curve's start-to-end move a return. It rises from ~₹92k to ~₹42.6L, and most of
+//      that is money paid in. Time-weighted return is the figure shown against the index.
 
-import { statStrip, topCards, scoreTable, openDrill, sectionHead, roadmapStrip, pendingPanel } from '../ui/screener.js';
-import { legendStrip } from '../ui/visual.js';
+import { statStrip, sectionHead, roadmapStrip, scoreTable } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
-import { formatRupee, formatPct, formatNumber, formatDate, formatCroreCompact } from '../core/format.js';
-import { enrichHoldings } from './overview.js';
+import { escapeHtml } from '../core/dom.js';
+import { formatRupee, formatPct, formatNumber, formatDate } from '../core/format.js';
+import { exportRows } from '../ui/export.js';
+import * as portfolio from '../data/portfolio.js';
+import { provenanceRibbon, createLoader, moneyCell, pctCell, freshnessCard, exportBanner, RETURN_HELP } from './chrome.js';
 
 export const meta = {
   id: 'drawdown',
   title: 'Drawdown',
-  subtitle: 'Distance from peak, at the book level and per position.',
+  subtitle: 'Equity curve and drawdown from three years of real closing prices.',
   subviews: [
-    { id: 'portfolio', label: 'Portfolio' },
-    { id: 'per-position', label: 'Per Position' },
+    { id: 'curve', label: 'Equity Curve' },
+    { id: 'underwater', label: 'Underwater Plot' },
+    { id: 'episodes', label: 'Drawdown Episodes' },
   ],
 };
 
 const FEATURES = [
-  'Daily portfolio equity curve with peak/trough markers',
-  'Max drawdown and recovery-time statistics',
-  'Underwater plot vs Nifty 50',
-  'Per-position drawdown from true rolling 52w high',
-  'Volatility and downside-deviation metrics',
-  'Drawdown alerts at user-set thresholds',
+  'Rolling volatility and Sharpe from the same series',
+  'Per-position contribution to drawdown',
+  'Custom date-range windowing',
+  'Monte-Carlo forward risk bands',
 ];
 
-function withDrawdown(holdings) {
-  return holdings.map((h) => {
-    const drawdownPct = h.high52w ? ((h.lastPrice - h.high52w) / h.high52w) * 100 : 0;
-    const valueAtHigh = h.qty * (h.high52w || h.lastPrice);
-    return { ...h, drawdownPct, valueAtHigh, valueLostFromHigh: h.marketValue - valueAtHigh };
-  });
-}
-
-const DRAWDOWN_SIGNALS = (r) => [
-  { label: 'Within 3% of 52w high', status: r.drawdownPct > -3 ? 'pass' : 'fail' },
-  { label: 'Shallower than −10%', status: r.drawdownPct > -10 ? 'pass' : r.drawdownPct > -15 ? 'partial' : 'fail' },
-  { label: 'Shallower than −20%', status: r.drawdownPct > -20 ? 'pass' : 'hard_fail' },
-  { label: 'Still above cost', status: r.pnl > 0 ? 'pass' : 'fail' },
-];
-
-function drawdownCell(pct) {
-  const cls = pct <= -15 ? 'text-rose-600' : pct <= -5 ? 'text-amber-600' : 'text-slate-500';
-  return `<span class="font-semibold ${cls}">${formatPct(pct)}</span>`;
-}
-function severityPill(pct) {
-  const [label, cls] =
-    pct <= -20
-      ? ['Deep', 'bg-rose-100 text-rose-800 ring-rose-300']
-      : pct <= -10
-        ? ['Moderate', 'bg-amber-50 text-amber-700 ring-amber-200']
-        : pct <= -3
-          ? ['Shallow', 'bg-slate-100 text-slate-600 ring-slate-200']
-          : ['Near high', 'bg-emerald-50 text-emerald-700 ring-emerald-200'];
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${label}</span>`;
-}
-
-function drillDrawdown(row) {
-  openDrill({
-    name: row.name,
-    sub: `${row.ticker} · ${row.sector} · ${row.convictionTier}`,
-    headerStats: [
-      { label: 'Drawdown', value: formatPct(row.drawdownPct), caption: 'from 52-week high', tone: row.drawdownPct <= -10 ? 'negative' : row.drawdownPct <= -3 ? 'caution' : 'positive' },
-      { label: 'Value vs peak', value: formatRupee(row.valueLostFromHigh, { decimals: 0 }), caption: 'if held since the high', tone: row.valueLostFromHigh < 0 ? 'negative' : 'neutral' },
-    ],
-    banner:
-      row.drawdownPct <= -20
-        ? { tone: 'rose', title: 'Deep drawdown', body: 'More than 20% below its 52-week high. A market condition, not necessarily a company problem — check the fundamentals before acting.' }
-        : null,
-    groups: [
-      {
-        category: 'Distance from peak',
-        items: [
-          { label: 'Last price', status: null, value: formatRupee(row.lastPrice), note: `52-week high ${formatRupee(row.high52w)}` },
-          { label: 'Drawdown', criteria: '(last − 52w high) / 52w high', status: null, value: formatPct(row.drawdownPct), note: 'Computed from the mock 52-week high in portfolio.json.' },
-          { label: 'Value at peak', criteria: 'Quantity × 52-week high', status: null, value: formatRupee(row.valueAtHigh, { decimals: 0 }), note: `Current market value ${formatRupee(row.marketValue, { decimals: 0 })}` },
-        ],
-      },
-      { category: 'Signal readings', items: DRAWDOWN_SIGNALS(row).map((s) => ({ label: s.label, status: s.status, value: '', note: 'Direct reading of price against the 52-week high.' })) },
-      {
-        category: 'Awaiting daily price history (prompt 2)',
-        items: [
-          { label: 'True rolling 52-week high', criteria: 'Recomputed daily from real closes', status: 'na', value: '', note: 'Today the high is a static field in the mock file.' },
-          { label: 'Max drawdown & recovery time', criteria: 'Peak-to-trough and days to recover', status: 'na', value: '', note: 'Needs the full price series.' },
-          { label: 'Downside deviation', criteria: 'Volatility of negative returns', status: 'na', value: '', note: 'Needs the full price series.' },
-        ],
-      },
-    ],
-  });
-}
+const run = createLoader(meta.title, meta.subtitle);
+let disposers = [];
 
 export function render(ctx) {
-  if (ctx.scope === 'universe') return renderUniversePending(ctx);
-
-  const holdings = withDrawdown(enrichHoldings(ctx.data?.portfolio?.holdings || []));
-  const worst = holdings.slice().sort((a, b) => a.drawdownPct - b.drawdownPct)[0];
-  const avg = holdings.length ? holdings.reduce((s, r) => s + r.drawdownPct, 0) / holdings.length : 0;
-  const deep = holdings.filter((r) => r.drawdownPct <= -10).length;
-  const nearHigh = holdings.filter((r) => r.drawdownPct > -3).length;
-
-  const stats = statStrip([
-    { label: 'Avg drawdown', value: formatPct(avg), note: 'mean distance from peak' },
-    { label: 'Worst position', value: worst ? worst.ticker : '—', note: worst ? formatPct(worst.drawdownPct) : '' },
-    {
-      label: 'Below −10%',
-      value: `${deep} of ${holdings.length}`,
-      note: `${nearHigh} near their high`,
-      help: {
-        title: 'How drawdown is measured here',
-        body: `<p>Per position: <code class="rounded bg-slate-100 px-1">(last price − 52-week high) / 52-week high</code>. It is always zero or negative.</p>
-               <p class="mt-2">Severity bands: <strong>Near high</strong> above −3%, <strong>Shallow</strong> to −10%, <strong>Moderate</strong> to −20%, <strong>Deep</strong> beyond that.</p>
-               <p class="mt-3 text-slate-500">Both the last price and the 52-week high are static placeholders in <code class="rounded bg-slate-100 px-1">portfolio.json</code> today. A true rolling high, book-level max drawdown and recovery statistics all need daily price history — that lands in prompt 2.</p>`,
-      },
-    },
-    { hero: true, label: 'Last Refresh', value: ctx.data?.portfolio?.asOf ? formatDate(ctx.data.portfolio.asOf) : '—', note: 'Holdings snapshot · price feed pending' },
-  ]);
-
-  const ranked = holdings.slice().sort((a, b) => a.drawdownPct - b.drawdownPct);
-  const cards = topCards({
-    title: 'Deepest 10 by Drawdown from 52w High',
-    items: ranked.map((h) => ({
-      name: h.name,
-      sub: `${h.ticker} · ${h.sector}`,
-      value: formatPct(h.drawdownPct),
-      tone: h.drawdownPct <= -10 ? 'negative' : h.drawdownPct <= -3 ? 'caution' : 'neutral',
-      caption: `peak ${formatRupee(h.high52w)}`,
-      warn: h.drawdownPct <= -20 ? 'More than 20% below its 52-week high' : null,
-      payload: h,
-    })),
-    valueFormat: 'metric',
-    onSelect: (item) => drillDrawdown(item.payload),
-  });
-
-  const table = scoreTable({
-    rows: holdings,
-    key: (r) => r.ticker,
-    name: (r) => r.name,
-    sub: (r) => `${r.ticker} · ${r.sector}`,
-    showSignals: true,
-    signals: DRAWDOWN_SIGNALS,
-    columns: [
-      { label: 'Last', get: (r) => formatRupee(r.lastPrice), align: 'right', sortValue: (r) => r.lastPrice },
-      { label: '52w High', get: (r) => formatRupee(r.high52w), align: 'right', sortValue: (r) => r.high52w },
-      { label: 'Drawdown', get: (r) => drawdownCell(r.drawdownPct), html: true, align: 'right', sortValue: (r) => r.drawdownPct },
-      { label: 'Value vs Peak', get: (r) => `<span class="font-semibold ${r.valueLostFromHigh < 0 ? 'text-rose-600' : 'text-slate-500'}">${formatRupee(r.valueLostFromHigh, { decimals: 0 })}</span>`, html: true, align: 'right', sortValue: (r) => r.valueLostFromHigh },
-      { label: 'Severity', get: (r) => severityPill(r.drawdownPct), html: true, sortValue: (r) => r.drawdownPct },
-    ],
-    filters: {
-      options: [
-        { value: 'all', label: 'All positions' },
-        { value: 'deep', label: 'Deep (worse than −20%)' },
-        { value: 'moderate', label: 'Moderate (−10% to −20%)' },
-        { value: 'near', label: 'Near high (above −3%)' },
-      ],
-      match: (r, v) => (v === 'deep' ? r.drawdownPct <= -20 : v === 'moderate' ? r.drawdownPct <= -10 && r.drawdownPct > -20 : r.drawdownPct > -3),
-    },
-    searchable: (r) => `${r.name} ${r.ticker} ${r.sector}`,
-    initialSort: { key: 'Drawdown', dir: 'asc' },
-    onRowClick: drillDrawdown,
-    exportName: 'sattva-drawdown',
-  });
-
-  const isBookLevel = ctx.subview === 'portfolio';
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: meta.title,
-      description: isBookLevel ? 'Book-level equity curve and max drawdown — needs daily price history from the next prompt.' : 'Each holding measured against its own 52-week high.',
-      meta: scopeSummary({ scope: ctx.scope, count: holdings.length, noun: 'holdings' }),
-    })}
-    ${stats.html}
-    ${
-      isBookLevel
-        ? `<div class="mb-6">${pendingPanel({
-            title: 'Portfolio equity curve & underwater plot',
-            body: 'Deliberately blank — an equity curve drawn without real daily closes would be fiction. Per-position drawdown below is already live off the 52-week highs in portfolio.json.',
-            arriving: 'prompt 2',
-          })}</div>`
-        : ''
-    }
-    ${cards.html}
-    ${table.html}
-    ${legendStrip({ note: 'Signals read price against the 52-week high. Book-level max drawdown and recovery statistics arrive with the price feed in prompt 2.' })}
-    ${roadmapStrip(FEATURES)}
-  `;
-
-  stats.wire(ctx.root);
-  cards.wire(ctx.root);
-  table.wire(ctx.root);
-}
-
-// Universe-wide drawdown needs the price feed; nothing here is estimated in the meantime.
-function renderUniversePending(ctx) {
-  const universe = ctx.data?.universe || [];
-  const stats = statStrip([
-    { label: 'Universe size', value: formatNumber(universe.length), note: 'companies covered' },
-    { label: 'Price history', value: 'Pending', note: 'no drawdown computable' },
-    { label: 'Source', value: 'Yahoo EOD', note: 'NSE 500 · prompt 2' },
-    { hero: true, label: 'Last Refresh', value: 'Not yet wired', note: 'Yahoo Finance EOD · arrives prompt 2' },
-  ]);
-
-  const table = scoreTable({
-    rows: universe,
-    key: (r) => r.ticker,
-    name: (r) => r.name,
-    sub: (r) => `${r.ticker} · ${r.sector}`,
-    columns: [
-      { label: 'Sector', get: (r) => r.sector },
-      { label: 'Market Cap', get: (r) => formatCroreCompact(r.marketCap), align: 'right', sortValue: (r) => r.marketCap },
-      {
-        label: 'Drawdown',
-        get: () => '<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Pending</span>',
-        html: true,
-        sortable: false,
-      },
-    ],
-    searchable: (r) => `${r.name} ${r.ticker} ${r.sector}`,
-    initialSort: { key: 'Market Cap', dir: 'desc' },
-    exportName: 'sattva-universe',
-  });
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: meta.title,
-      description: 'Universe-wide drawdown needs the live price feed landing in the next prompt. Switch scope to Portfolio for per-holding drawdown.',
-      meta: scopeSummary({ scope: ctx.scope, count: universe.length, noun: 'companies' }),
-    })}
-    ${stats.html}
-    <div class="mb-6">${pendingPanel({ title: 'Universe drawdown distribution', body: 'No 52-week highs exist for names outside the portfolio until the price feed lands.', arriving: 'prompt 2' })}</div>
-    ${table.html}
-    ${roadmapStrip(FEATURES)}
-  `;
-  stats.wire(ctx.root);
-  table.wire(ctx.root);
+  run(ctx, paint, portfolio);
 }
 
 export function destroy() {
-  // No live pollers or global listeners registered by this tab.
+  disposers.forEach((d) => d && d());
+  disposers = [];
 }
+
+function paint(ctx) {
+  destroy();
+  const curve = portfolio.equityCurve();
+  const m = portfolio.meta();
+  if (!curve) return renderNoHistory(ctx, m);
+  const view = ctx.subview || 'curve';
+  if (view === 'underwater') return renderUnderwater(ctx, curve, m);
+  if (view === 'episodes') return renderEpisodes(ctx, curve, m);
+  return renderCurve(ctx, curve, m);
+}
+
+/**
+ * The honest empty state. Without the price history there is no curve, and a "drawdown: —" card
+ * on a page of otherwise-populated furniture reads as zero. So the whole view collapses to an
+ * explanation of what is missing and how to produce it.
+ */
+function renderNoHistory(ctx, m) {
+  ctx.root.innerHTML = `
+    ${sectionHead({ title: meta.title, description: meta.subtitle })}
+    ${provenanceRibbon(m)}
+    <div class="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-100">
+      <div class="text-3xl">📉</div>
+      <h3 class="font-display mt-2 text-base font-bold text-slate-900">No price history, so no drawdown</h3>
+      <p class="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-500">
+        <code class="rounded bg-slate-100 px-1">data/portfolio-history.json</code> could not be loaded${m?.historyError ? ` (${escapeHtml(m.historyError)})` : ''}.
+        A drawdown is a risk metric, and estimating one without the underlying prices would produce a number that looks exactly
+        like a measured one. So this view shows nothing rather than something.
+      </p>
+      <p class="mx-auto mt-3 max-w-lg text-xs text-slate-400">
+        Run <code class="rounded bg-slate-100 px-1">node scripts/scrape-portfolio-history.mjs</code> to fetch three years of daily
+        closes for every ticker the ledger touches, plus the Nifty 500.
+      </p>
+    </div>
+    ${roadmapStrip(FEATURES)}`;
+}
+
+// ---------------------------------------------------------------------------------------
+function statsFor(curve, m) {
+  const s = portfolio.summary();
+  return statStrip([
+    {
+      label: 'Max drawdown',
+      value: formatPct(curve.maxDrawdown, { decimals: 1 }),
+      note: `${formatDate(curve.maxDrawdownPeak)} → ${formatDate(curve.maxDrawdownTrough)}${curve.recoveryDate ? ` · recovered ${formatDate(curve.recoveryDate)}` : ' · not yet recovered'}`,
+      help: {
+        title: 'Which drawdown this is, and why there are two',
+        body: `<p>Drawdown is the fall from the running peak of portfolio value: <code class="rounded bg-slate-100 px-1">(value − peak) / peak</code>,
+                 evaluated on every one of the ${curve.tradingDays} trading days in the series.</p>
+               <p class="mt-2">This headline is the <strong>total portfolio</strong>, holdings plus retained cash. Sale proceeds and
+                 dividends are never reinvested, so cash accumulates and dampens the fall — correctly, because that cash really is
+                 there and really did not fall.</p>
+               <p class="mt-2">The <strong>holdings-only</strong> figure of ${escapeHtml(formatPct(curve.maxHoldingsDrawdown, { decimals: 1 }))} answers the
+                 other question: how far the equity exposure itself fell. Reporting only one of these would invite the wrong read.</p>
+               <p class="mt-3 text-slate-500">Prices are real closes from ${escapeHtml(curve.source)}, ${escapeHtml(formatDate(curve.from))} → ${escapeHtml(formatDate(curve.to))}.
+                 ${curve.excluded.length ? `${escapeHtml(curve.excluded.join(', '))} could not be fetched and is carried at running cost — ${escapeHtml(curve.coverage.toFixed(1))}% of the book is priced.` : 'Every position is priced.'}</p>`,
+      },
+    },
+    {
+      label: 'Time-weighted return',
+      value: formatPct(s.twr.total, { decimals: 1 }),
+      note: `${formatPct(s.twr.annualised, { decimals: 1 })} annualised · Nifty 500 ${formatPct(s.benchmarkReturn, { decimals: 1 })}`,
+      help: RETURN_HELP,
+    },
+    {
+      label: 'Curve coverage',
+      value: `${curve.coverage.toFixed(1)}%`,
+      note: curve.excluded.length ? `excludes ${curve.excluded.join(', ')} — carried at cost` : 'every position priced',
+    },
+    freshnessCard(m),
+  ]);
+}
+
+// ---------------------------------------------------------------------------------------
+// Equity curve
+// ---------------------------------------------------------------------------------------
+function renderCurve(ctx, curve, m) {
+  const stats = statsFor(curve, m);
+  const s = portfolio.summary();
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Equity curve',
+      description: `Portfolio value on every one of ${formatNumber(curve.tradingDays)} trading days, valued at real closing prices.`,
+      meta: scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' }),
+    })}
+    ${provenanceRibbon(m)}
+    ${stats.html}
+    ${curveChart(curve)}
+    <div class="mb-6 grid gap-4 lg:grid-cols-3">
+      ${infoCard('Money-weighted (XIRR)', s.xirr == null ? '—' : formatPct(s.xirr, { decimals: 2 }), 'What this investor earned, contribution timing included.')}
+      ${infoCard('Time-weighted (TWR)', formatPct(s.twr.total, { decimals: 2 }), `${formatPct(s.twr.annualised, { decimals: 2 })} annualised over ${s.twr.years.toFixed(1)} years — comparable to an index.`)}
+      ${infoCard('Nifty 500 over the same window', formatPct(s.benchmarkReturn, { decimals: 2 }), `${escapeHtml(curve.benchmark?.symbol || '—')} · same trading calendar, same start date.`)}
+    </div>
+    ${indexedChart(curve)}
+    ${roadmapStrip(FEATURES)}
+  `;
+  stats.wire(ctx.root);
+  wireChartHover(ctx.root, curve);
+}
+
+function infoCard(label, value, note) {
+  return `
+    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <div class="text-xs font-medium uppercase tracking-wider text-slate-500">${escapeHtml(label)}</div>
+      <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${escapeHtml(value)}</div>
+      <div class="mt-0.5 text-xs leading-relaxed text-slate-500">${note}</div>
+    </div>`;
+}
+
+const W = 1000;
+const H = 260;
+const PAD = { l: 8, r: 8, t: 12, b: 22 };
+
+function scaleX(i, n) {
+  return PAD.l + (i / Math.max(1, n - 1)) * (W - PAD.l - PAD.r);
+}
+
+function curveChart(curve) {
+  const pts = curve.points;
+  const max = Math.max(...pts.map((p) => p.value));
+  const min = 0; // a portfolio-value chart with a truncated baseline exaggerates every wiggle
+  const y = (v) => PAD.t + (1 - (v - min) / (max - min || 1)) * (H - PAD.t - PAD.b);
+
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${scaleX(i, pts.length).toFixed(2)},${y(p.value).toFixed(2)}`).join('');
+  const holdingsLine = pts.map((p, i) => `${i ? 'L' : 'M'}${scaleX(i, pts.length).toFixed(2)},${y(p.holdings + p.excludedCost).toFixed(2)}`).join('');
+  const area = `${line}L${scaleX(pts.length - 1, pts.length).toFixed(2)},${y(min).toFixed(2)}L${scaleX(0, pts.length).toFixed(2)},${y(min).toFixed(2)}Z`;
+
+  // Shade the worst drawdown so the headline number has a visible referent on the chart.
+  const pi = pts.findIndex((p) => p.d === curve.maxDrawdownPeak);
+  const ti = pts.findIndex((p) => p.d === curve.maxDrawdownTrough);
+  const shade =
+    pi >= 0 && ti > pi
+      ? `<rect x="${scaleX(pi, pts.length).toFixed(2)}" y="${PAD.t}" width="${(scaleX(ti, pts.length) - scaleX(pi, pts.length)).toFixed(2)}" height="${H - PAD.t - PAD.b}" fill="#e11d48" opacity="0.07"></rect>`
+      : '';
+
+  return `
+    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 class="font-display text-sm font-bold text-slate-900">Portfolio value</h3>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-indigo-500"></span>Total (holdings + cash)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-purple-300"></span>Holdings only</span>
+          <span class="inline-flex items-center gap-1.5"><span class="h-2 w-3 rounded-sm bg-rose-200"></span>Worst drawdown</span>
+        </div>
+      </div>
+      <div class="relative mt-3">
+        <svg id="equity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="h-56 w-full" role="img"
+          aria-label="Portfolio value from ${escapeHtml(formatDate(curve.from))} to ${escapeHtml(formatDate(curve.to))}, ending at ${escapeHtml(formatRupee(pts.at(-1).value, { decimals: 0 }))}, with a maximum drawdown of ${escapeHtml(formatPct(curve.maxDrawdown, { decimals: 1 }))}">
+          <defs>
+            <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6366f1" stop-opacity="0.22"></stop>
+              <stop offset="100%" stop-color="#ec4899" stop-opacity="0.02"></stop>
+            </linearGradient>
+          </defs>
+          ${shade}
+          <path d="${area}" fill="url(#equityFill)"></path>
+          <path d="${holdingsLine}" fill="none" stroke="#c4b5fd" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+          <path d="${line}" fill="none" stroke="#4f46e5" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+          <line id="equity-cursor" x1="0" y1="${PAD.t}" x2="0" y2="${H - PAD.b}" stroke="#4f46e5" stroke-width="1" stroke-dasharray="3 3" opacity="0" vector-effect="non-scaling-stroke"></line>
+        </svg>
+        <div id="equity-tip" class="pointer-events-none absolute hidden rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] leading-snug text-white shadow-lg"></div>
+      </div>
+      <div class="mt-1 flex justify-between text-[11px] text-slate-400">
+        <span>${escapeHtml(formatDate(curve.from))}</span>
+        <span>${escapeHtml(formatRupee(pts.at(-1).value, { decimals: 0 }))} on ${escapeHtml(formatDate(curve.to))}</span>
+      </div>
+      <p class="mt-3 text-[11px] leading-relaxed text-slate-500">
+        The gap between the two lines is retained cash: ${escapeHtml(formatRupee(pts.at(-1).cash, { decimals: 0 }))} of sale proceeds and
+        dividends, never reinvested. The y-axis starts at zero — a truncated baseline would exaggerate every move on a value chart.
+        ${curve.excluded.length ? `${escapeHtml(curve.excluded.join(', '))} has no price series and is carried at running cost inside the holdings line.` : ''}
+      </p>
+    </section>`;
+}
+
+function indexedChart(curve) {
+  if (!curve.benchmark) return '';
+  const pts = curve.points;
+  const bench = curve.benchmark.points;
+  // Index both to 100 at the first day so the comparison is of shape, not of scale. The
+  // portfolio line here is the TWR chain, not raw value — raw value would "beat" any index
+  // simply by having money added to it.
+  const twrSeries = twrChain(pts);
+  const all = [...twrSeries, ...bench.map((b) => b.indexed)];
+  const max = Math.max(...all);
+  const min = Math.min(...all);
+  const y = (v) => PAD.t + (1 - (v - min) / (max - min || 1)) * (H - PAD.t - PAD.b);
+
+  const pf = twrSeries.map((v, i) => `${i ? 'L' : 'M'}${scaleX(i, twrSeries.length).toFixed(2)},${y(v).toFixed(2)}`).join('');
+  const bm = bench.map((b, i) => `${i ? 'L' : 'M'}${scaleX(i, bench.length).toFixed(2)},${y(b.indexed).toFixed(2)}`).join('');
+
+  return `
+    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 class="font-display text-sm font-bold text-slate-900">Growth of ₹100 — portfolio vs Nifty 500</h3>
+        <div class="flex gap-4 text-[11px] text-slate-500">
+          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-indigo-500"></span>Portfolio (time-weighted)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-slate-400"></span>Nifty 500</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="mt-3 h-56 w-full" role="img"
+        aria-label="Growth of 100 rupees: portfolio ends at ${twrSeries.at(-1).toFixed(1)}, Nifty 500 ends at ${bench.at(-1).indexed.toFixed(1)}">
+        <line x1="${PAD.l}" y1="${y(100).toFixed(2)}" x2="${W - PAD.r}" y2="${y(100).toFixed(2)}" stroke="#e2e8f0" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+        <path d="${bm}" fill="none" stroke="#94a3b8" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+        <path d="${pf}" fill="none" stroke="#4f46e5" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+      </svg>
+      <div class="mt-1 flex justify-between text-[11px] text-slate-400">
+        <span>₹100 on ${escapeHtml(formatDate(curve.from))}</span>
+        <span>Portfolio <strong class="text-slate-600">₹${twrSeries.at(-1).toFixed(0)}</strong> · Nifty 500 <strong class="text-slate-600">₹${bench.at(-1).indexed.toFixed(0)}</strong></span>
+      </div>
+    </section>`;
+}
+
+/**
+ * The TWR chain as a series, for the indexed chart. Same maths as data/portfolio.js's
+ * `timeWeightedReturn`, kept as a series rather than a single number.
+ */
+function twrChain(points) {
+  const inflow = new Map();
+  for (const t of portfolio.transactions()) {
+    if (String(t.type || '').toLowerCase() !== 'buy') continue;
+    inflow.set(t.date, (inflow.get(t.date) || 0) + (Number(t.value) || 0) + (Number(t.charges) || 0));
+  }
+  const out = [100];
+  let factor = 1;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1].value;
+    const r = prev > 0 ? (points[i].value - (inflow.get(points[i].d) || 0)) / prev : 1;
+    if (Number.isFinite(r) && r > 0) factor *= r;
+    out.push(factor * 100);
+  }
+  return out;
+}
+
+function wireChartHover(root, curve) {
+  const svg = root.querySelector('#equity-svg');
+  const tip = root.querySelector('#equity-tip');
+  const cursor = root.querySelector('#equity-cursor');
+  if (!svg || !tip || !cursor) return;
+  const pts = curve.points;
+
+  const move = (e) => {
+    const box = svg.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+    const i = Math.round(frac * (pts.length - 1));
+    const p = pts[i];
+    if (!p) return;
+    const dd = curve.drawdown[i];
+    cursor.setAttribute('x1', String(scaleX(i, pts.length)));
+    cursor.setAttribute('x2', String(scaleX(i, pts.length)));
+    cursor.setAttribute('opacity', '1');
+    tip.classList.remove('hidden');
+    tip.innerHTML = `<strong>${escapeHtml(formatDate(p.d))}</strong><br>${escapeHtml(formatRupee(p.value, { decimals: 0 }))}<br><span class="opacity-70">holdings ${escapeHtml(formatRupee(p.holdings + p.excludedCost, { decimals: 0 }))} · cash ${escapeHtml(formatRupee(p.cash, { decimals: 0 }))}</span><br><span class="opacity-70">drawdown ${dd ? dd.dd.toFixed(1) : '0.0'}%</span>`;
+    const left = Math.min(box.width - 150, Math.max(0, frac * box.width - 60));
+    tip.style.left = `${left}px`;
+    tip.style.top = '4px';
+  };
+  const leave = () => {
+    tip.classList.add('hidden');
+    cursor.setAttribute('opacity', '0');
+  };
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('mouseleave', leave);
+  disposers.push(() => {
+    svg.removeEventListener('mousemove', move);
+    svg.removeEventListener('mouseleave', leave);
+  });
+}
+
+// ---------------------------------------------------------------------------------------
+// Underwater plot
+// ---------------------------------------------------------------------------------------
+function renderUnderwater(ctx, curve, m) {
+  const stats = statsFor(curve, m);
+  const under = curve.drawdown.filter((d) => d.dd < -0.01).length;
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Underwater plot',
+      description: 'Every day’s distance below the previous peak. The area is time spent in drawdown, which is the part investors actually experience.',
+      meta: scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' }),
+    })}
+    ${provenanceRibbon(m)}
+    ${stats.html}
+    ${underwaterChart(curve, 'drawdown', 'Total portfolio', '#e11d48')}
+    ${underwaterChart(curve, 'holdingsDrawdown', 'Holdings only (excludes retained cash)', '#a855f7')}
+    ${curve.benchmarkDrawdown ? underwaterChart({ ...curve, benchmarkSeries: curve.benchmarkDrawdown.series }, 'benchmarkSeries', 'Nifty 500, same window', '#64748b') : ''}
+    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <h3 class="font-display text-sm font-bold text-slate-900">Time under water</h3>
+      <p class="mt-1 text-xs leading-relaxed text-slate-500">
+        The portfolio was below a previous peak on <strong class="text-slate-700">${formatNumber(under)}</strong> of
+        ${formatNumber(curve.tradingDays)} trading days — ${((under / curve.tradingDays) * 100).toFixed(0)}% of the time.
+        The deepest point was ${escapeHtml(formatPct(curve.maxDrawdown, { decimals: 1 }))} on ${escapeHtml(formatDate(curve.maxDrawdownTrough))},
+        ${curve.recoveryDate ? `recovered on ${escapeHtml(formatDate(curve.recoveryDate))}.` : 'not yet recovered.'}
+      </p>
+    </section>
+    ${roadmapStrip(FEATURES)}
+  `;
+  stats.wire(ctx.root);
+}
+
+function underwaterChart(curve, seriesKey, title, colour) {
+  const series = curve[seriesKey];
+  if (!series?.length) return '';
+  const worst = Math.min(...series.map((d) => d.dd));
+  const y = (v) => PAD.t + (v / (worst || -1)) * (H - PAD.t - PAD.b);
+  const path = series.map((d, i) => `${i ? 'L' : 'M'}${scaleX(i, series.length).toFixed(2)},${y(d.dd).toFixed(2)}`).join('');
+  const area = `${path}L${scaleX(series.length - 1, series.length).toFixed(2)},${PAD.t}L${scaleX(0, series.length).toFixed(2)},${PAD.t}Z`;
+
+  return `
+    <section class="mb-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 class="font-display text-sm font-bold text-slate-900">${escapeHtml(title)}</h3>
+        <span class="text-xs font-semibold tabular-nums" style="color:${colour}">worst ${worst.toFixed(1)}%</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="mt-3 h-40 w-full" role="img"
+        aria-label="${escapeHtml(title)} underwater plot, worst drawdown ${worst.toFixed(1)} percent">
+        <line x1="${PAD.l}" y1="${PAD.t}" x2="${W - PAD.r}" y2="${PAD.t}" stroke="#e2e8f0" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+        <path d="${area}" fill="${colour}" opacity="0.14"></path>
+        <path d="${path}" fill="none" stroke="${colour}" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+      </svg>
+      <div class="mt-1 flex justify-between text-[11px] text-slate-400">
+        <span>0%</span><span>${worst.toFixed(1)}% at the bottom of the axis</span>
+      </div>
+    </section>`;
+}
+
+// ---------------------------------------------------------------------------------------
+// Episodes
+// ---------------------------------------------------------------------------------------
+function renderEpisodes(ctx, curve, m) {
+  const stats = statsFor(curve, m);
+  const episodes = findEpisodes(curve);
+
+  const table = scoreTable({
+    rows: episodes,
+    key: (e) => `${e.peakDate}-${e.troughDate}`,
+    name: (e) => `${formatDate(e.peakDate)} → ${formatDate(e.troughDate)}`,
+    nameLabel: 'Episode',
+    sub: (e) => (e.recoveryDate ? `recovered ${formatDate(e.recoveryDate)}` : 'not yet recovered'),
+    columns: [
+      { label: 'Depth', get: (e) => pctCell(e.depth), html: true, align: 'right', sortValue: (e) => e.depth },
+      { label: 'Peak value', get: (e) => formatRupee(e.peakValue, { decimals: 0 }), align: 'right', sortValue: (e) => e.peakValue },
+      { label: 'Trough value', get: (e) => formatRupee(e.troughValue, { decimals: 0 }), align: 'right', sortValue: (e) => e.troughValue },
+      { label: 'Fall', get: (e) => moneyCell(e.troughValue - e.peakValue), html: true, align: 'right', sortValue: (e) => e.troughValue - e.peakValue },
+      { label: 'Decline (days)', get: (e) => formatNumber(e.declineDays), align: 'right', sortValue: (e) => e.declineDays },
+      { label: 'Recovery (days)', get: (e) => (e.recoveryDays == null ? '<span class="text-amber-600 font-semibold">ongoing</span>' : formatNumber(e.recoveryDays)), html: true, align: 'right', sortValue: (e) => e.recoveryDays ?? Infinity },
+      { label: 'Total (days)', get: (e) => (e.recoveryDays == null ? '—' : formatNumber(e.declineDays + e.recoveryDays)), align: 'right', sortValue: (e) => e.declineDays + (e.recoveryDays ?? 0) },
+    ],
+    searchable: (e) => `${e.peakDate} ${e.troughDate} ${e.recoveryDate || 'ongoing'}`,
+    initialSort: { key: 'Depth', dir: 'asc' },
+    exportName: 'sattva-drawdown-episodes',
+    onExport: (visible) => exportEpisodes(visible, m),
+    emptyMessage: 'No drawdown deeper than 2% in this window.',
+  });
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Drawdown episodes',
+      description: 'Every peak-to-trough fall deeper than 2%, with how long it took to go down and how long to come back.',
+      meta: scopeSummary({ scope: ctx.scope, count: episodes.length, noun: 'episodes' }),
+    })}
+    ${provenanceRibbon(m)}
+    ${stats.html}
+    ${table.html}
+    <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
+      An episode runs from a peak to the lowest point before that peak is regained. A drawdown still open at
+      ${escapeHtml(formatDate(curve.to))} reports its recovery as <strong>ongoing</strong> rather than being closed at the last
+      day — the series simply has not reached its end yet, and closing it would understate the duration.
+    </p>
+    ${roadmapStrip(FEATURES)}
+  `;
+  stats.wire(ctx.root);
+  disposers.push(table.wire(ctx.root));
+}
+
+/**
+ * Split the series into peak-to-recovery episodes. Threshold at 2% so noise does not swamp the
+ * table; the threshold is stated in the description rather than left implicit.
+ */
+function findEpisodes(curve, threshold = -2) {
+  const pts = curve.points;
+  const out = [];
+  let peakValue = -Infinity;
+  let peakDate = null;
+  let peakIndex = 0;
+  let troughValue = Infinity;
+  let troughDate = null;
+  let troughIndex = 0;
+  let open = false;
+
+  const close = (recoveryIndex) => {
+    const depth = ((troughValue - peakValue) / peakValue) * 100;
+    if (depth <= threshold) {
+      out.push({
+        peakDate,
+        peakValue,
+        troughDate,
+        troughValue,
+        depth,
+        declineDays: days(peakDate, troughDate),
+        recoveryDate: recoveryIndex == null ? null : pts[recoveryIndex].d,
+        recoveryDays: recoveryIndex == null ? null : days(troughDate, pts[recoveryIndex].d),
+      });
+    }
+    open = false;
+  };
+
+  for (let i = 0; i < pts.length; i++) {
+    const v = pts[i].value;
+    if (v >= peakValue) {
+      if (open) close(i);
+      peakValue = v;
+      peakDate = pts[i].d;
+      peakIndex = i;
+      troughValue = v;
+      troughDate = pts[i].d;
+      troughIndex = i;
+    } else {
+      open = true;
+      if (v < troughValue) {
+        troughValue = v;
+        troughDate = pts[i].d;
+        troughIndex = i;
+      }
+    }
+  }
+  if (open) close(null);
+  void peakIndex;
+  void troughIndex;
+  return out.sort((a, b) => a.depth - b.depth);
+}
+
+const days = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000);
+
+async function exportEpisodes(rows, m) {
+  const banner = { __banner: exportBanner(m) };
+  await exportRows({
+    filename: 'sattva-drawdown-episodes',
+    sheetName: 'Drawdown Episodes',
+    columns: [
+      { header: 'Peak Date', key: 'pd', width: 14, get: (e) => (e.__banner ? e.__banner : e.peakDate) },
+      { header: 'Peak Value', key: 'pv', width: 16, get: (e) => (e.__banner ? '' : e.peakValue) },
+      { header: 'Trough Date', key: 'td', width: 14, get: (e) => (e.__banner ? '' : e.troughDate) },
+      { header: 'Trough Value', key: 'tv', width: 16, get: (e) => (e.__banner ? '' : e.troughValue) },
+      { header: 'Depth %', key: 'dp', width: 12, get: (e) => (e.__banner ? '' : e.depth) },
+      { header: 'Decline Days', key: 'dd', width: 14, get: (e) => (e.__banner ? '' : e.declineDays) },
+      { header: 'Recovery Date', key: 'rd', width: 16, get: (e) => (e.__banner ? '' : e.recoveryDate || 'ongoing') },
+      { header: 'Recovery Days', key: 'rdd', width: 16, get: (e) => (e.__banner ? '' : (e.recoveryDays ?? 'ongoing')) },
+    ],
+    rows: [banner, ...rows],
+  });
+}
+
+export { findEpisodes };
