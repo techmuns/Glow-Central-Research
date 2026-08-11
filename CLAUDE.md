@@ -220,6 +220,20 @@ stats.wire(ctx.root); cards.wire(ctx.root); table.wire(ctx.root);
 Score and Signals are **opt-in**. A tab with no scoring model leaves `showScore` off rather
 than rendering empty score furniture.
 
+**Layout knobs, for wide numeric tables.** Defaults give the screener look; the Earnings Hub is
+the only consumer that changes all four, because it carries thirteen columns:
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `showRank` | `true` | `false` drops the leading `#` column. The watchlist star does **not** go with it — it moves inside the identity cell, because the watchlist filter needs a per-row control. |
+| `nameAfter` | `0` | How many of `columns` render *before* the identity column. `1` puts a date or ID column first. |
+| `nameMaxPx` | `null` | Hard px cap on the identity column. `truncate` alone will not stop a long sub-line widening the table — a `<table>` in auto layout sizes to its widest content, so the cap on the inner block is what makes the ellipsis engage. |
+| `dense` | `false` | `px-2` instead of `px-4`, and `tracking-normal` instead of `tracking-wider` on the headers. Worth ~110px across thirteen columns. |
+
+Reach for these only when the alternative is a horizontal scrollbar at 1440px. Measure before and
+after — `[data-table-scroll]`'s `scrollWidth` vs `clientWidth` is the number that matters, and
+`verify-ui.mjs` asserts it for the Earnings Hub.
+
 ### Honesty rules for the kit
 
 These are not style preferences — they are why the dashboard can be trusted:
@@ -647,6 +661,8 @@ It covers, beyond the checklist below:
   watchlist survives a reload
 - the Sources modal opens and lists every documented source
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
+- the Earnings Hub's thirteen columns fit inside 1440px with no scrollbar of their own, and its
+  reported-figure columns recompute to the growth percentage shown beside them
 - **the two portfolio identities**, computed against the shipped data: open lots sum to position
   quantity on every ticker, and realised + unrealised + dividends equals total P&L per position
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both

@@ -289,6 +289,12 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
  *  exportName    file stem used by the Export button (a stub until prompt 3)
+ *  showRank      default true. false drops the leading rank column; the watchlist star moves
+ *                inside the identity cell so the first column can be a real column.
+ *  nameAfter     default 0. How many of `columns` render before the identity column.
+ *  nameMaxPx     default null. Hard px cap on the identity column so long names/subs truncate
+ *                instead of widening the table.
+ *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
  *
  * Sorting, search, watchlist-only and the filter select are all handled internally; the table
  * re-renders its own tbody without the tab getting involved.
@@ -313,6 +319,22 @@ export function scoreTable(config) {
     emptyMessage = 'No companies match your filters.',
     exportName = 'sattva-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
+    // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
+    // needs a per-row control — it moves inside the identity cell, ahead of the avatar. That frees
+    // the first column position for a real column instead of a counter.
+    showRank = true,
+    // How many of `columns` are rendered BEFORE the identity (avatar + name + sub) column.
+    // Default 0 keeps identity first, which is right for a screener. A results table reads better
+    // led by the date, so the Earnings Hub sets 1.
+    nameAfter = 0,
+    // Hard cap on the identity column, in px. A `<table>` in auto layout sizes a column to its
+    // widest content, and `truncate` alone cannot stop that — the cell just gets wider. Capping
+    // the inner block is what actually makes the ellipsis engage. Without it one long sub-line
+    // ("Aluminium & Aluminium Products") takes 474px and pushes the numeric columns off-screen.
+    nameMaxPx = null,
+    // Tighter horizontal padding. For wide numeric tables where the alternative is a horizontal
+    // scrollbar, which is worse than slightly closer columns.
+    dense = false,
     // Optional per-row tint, e.g. flagging a risk level. Returns Tailwind classes or ''.
     // Kept separate from the built-in red-flag tint, which belongs to the scoring models.
     rowClass = null,
@@ -368,23 +390,33 @@ export function scoreTable(config) {
 
   // ---- markup -------------------------------------------------------------------------
 
-  const colCount = 2 + (showScore ? 1 : 0) + (showSignals ? 1 : 0) + columns.length + (link ? 1 : 0);
+  const colCount = (showRank ? 1 : 0) + 1 + (showScore ? 1 : 0) + (showSignals ? 1 : 0) + columns.length + (link ? 1 : 0);
+
+  const PX = dense ? 'px-2' : 'px-4';
+  // Letter-spacing on 13 uppercase headers is ~50px of table width. Worth keeping normally,
+  // worth dropping when the alternative is a scrollbar.
+  const TRACK = dense ? 'tracking-normal' : 'tracking-wider';
+  // Columns rendered before / after the identity column. See `nameAfter`.
+  const leadCols = columns.slice(0, nameAfter);
+  const restCols = columns.slice(nameAfter);
 
   function headHtml() {
     const th = (label, sortKey, align = 'left') => {
       const sortable = sortKey !== null;
       const active = view.sort && view.sort.key === sortKey;
-      return `<th scope="col" class="whitespace-nowrap px-4 py-3 text-${align} text-xs font-bold uppercase tracking-wider text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
+      return `<th scope="col" class="whitespace-nowrap ${PX} py-3 text-${align} text-xs font-bold uppercase ${TRACK} text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
         ${sortable ? `data-sort="${escapeHtml(sortKey)}"` : ''}>${escapeHtml(label)}${active ? (view.sort.dir === 'asc' ? ' ▴' : ' ▾') : ''}</th>`;
     };
+    const dataTh = (c) => th(c.label, c.sortable === false ? null : c.label, c.align === 'right' ? 'right' : 'left');
     return `
       <tr>
-        <th scope="col" class="w-12 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">#</th>
+        ${showRank ? `<th scope="col" class="w-12 ${PX} py-3 text-left text-xs font-bold uppercase ${TRACK} text-slate-600">#</th>` : ''}
+        ${leadCols.map(dataTh).join('')}
         ${th(nameLabel, 'name')}
         ${showScore ? th('Score', 'score') : ''}
-        ${showSignals ? `<th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Signals</th>` : ''}
-        ${columns.map((c) => th(c.label, c.sortable === false ? null : c.label, c.align === 'right' ? 'right' : 'left')).join('')}
-        ${link ? `<th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Link</th>` : ''}
+        ${showSignals ? `<th scope="col" class="${PX} py-3 text-left text-xs font-bold uppercase ${TRACK} text-slate-600">Signals</th>` : ''}
+        ${restCols.map(dataTh).join('')}
+        ${link ? `<th scope="col" class="${PX} py-3 text-right text-xs font-bold uppercase ${TRACK} text-slate-600">Link</th>` : ''}
       </tr>`;
   }
 
@@ -419,28 +451,34 @@ export function scoreTable(config) {
         const sc = showScore && score ? score(row) : null;
         const redFlag = !!(sc && sc.redFlag);
         const extraClass = rowClass ? rowClass(row) || '' : '';
+        const star = `<button type="button" data-watch="${escapeHtml(slug)}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}"
+                  class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`;
+        const dataTd = (c) =>
+          `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
         return `
           <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
             ${redFlag ? 'style="box-shadow: inset 3px 0 0 #f43f5e"' : ''}>
-            <td class="px-4 py-3 text-sm font-medium text-slate-500">
-              <div class="flex items-center gap-1">
-                <button type="button" data-watch="${escapeHtml(slug)}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}"
-                  class="watch-star text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>
-                <span class="row-rank"></span>
-              </div>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-3">
+            ${
+              showRank
+                ? `<td class="${PX} py-3 text-sm font-medium text-slate-500">
+                     <div class="flex items-center gap-1">${star}<span class="row-rank"></span></div>
+                   </td>`
+                : ''
+            }
+            ${leadCols.map(dataTd).join('')}
+            <td class="${PX} py-3">
+              <div class="flex items-center gap-2"${nameMaxPx ? ` style="max-width:${nameMaxPx}px"` : ''}>
+                ${showRank ? '' : star}
                 <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-xs font-bold text-white shadow-sm">${escapeHtml(initials)}</div>
                 <div class="min-w-0">
-                  <div class="truncate font-semibold text-slate-900">${escapeHtml(label)}</div>
-                  <div class="truncate text-xs text-slate-500">${escapeHtml(sub(row))}</div>
+                  <div class="truncate font-semibold text-slate-900" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+                  <div class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</div>
                 </div>
               </div>
             </td>
             ${
               sc
-                ? `<td class="px-4 py-3">
+                ? `<td class="${PX} py-3">
                      <div class="flex items-center gap-2">
                        <span class="inline-flex min-w-[78px] items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${scoreBadgeClass(sc.pct)}">${escapeHtml(sc.points)}/${escapeHtml(sc.max)}</span>
                        ${redFlag ? `<span class="inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 ring-1 ring-rose-200" title="${escapeHtml(sc.redFlag)}">⚠ Red Flag</span>` : ''}
@@ -448,14 +486,9 @@ export function scoreTable(config) {
                    </td>`
                 : ''
             }
-            ${showSignals ? `<td class="px-4 py-3"><div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div></td>` : ''}
-            ${columns
-              .map(
-                (c) =>
-                  `<td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`
-              )
-              .join('')}
-            ${link ? `<td class="px-4 py-3 text-right"><a href="${escapeHtml(link(row) || '#')}" target="_blank" rel="noopener" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a></td>` : ''}
+            ${showSignals ? `<td class="${PX} py-3"><div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div></td>` : ''}
+            ${restCols.map(dataTd).join('')}
+            ${link ? `<td class="${PX} py-3 text-right"><a href="${escapeHtml(link(row) || '#')}" target="_blank" rel="noopener" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a></td>` : ''}
           </tr>`;
   }
 

@@ -209,7 +209,11 @@ live.onGlobalTick(cb);    // header Live pill
 ## 7. Tabs and planned features
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
-Quarterly results, scans and quality/growth signals.
+One table: every company that has reported this quarter, newest first. Thirteen columns —
+`Date · Company · Rev cur · Rev prior · Rev % · GP cur · GP prior · GP % · PAT cur · PAT prior ·
+PAT % · MCap · Basis` — because a growth percentage without the two figures it came from hides both
+the scale and the sign. Ticker and industry sit on the second line of the company cell. Live off
+Moneycontrol Rapid Results, polled every 30s.
 - Auto-parsed result PDFs (revenue, PAT, margin extraction)
 - Beat/miss scoring vs Street estimates
 - Segment-wise revenue break-up

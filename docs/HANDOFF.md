@@ -230,6 +230,19 @@ a loss becoming a profit. `classifyChange()` tags every metric, `pct` is null wh
 percentage exists, and the UI renders a labelled pill. Same failure mode as the `op_vs_pat` rule —
 check every growth figure for it.
 
+**And a percentage on its own is a ratio with its inputs thrown away.** The table therefore carries
+BOTH reported periods beside each growth figure — thirteen columns: `Date · Company · Rev cur · Rev
+prior · Rev % · GP cur · GP prior · GP % · PAT cur · PAT prior · PAT % · MCap · Basis`. "+43%" is
+the same cell whether a company earned ₹4 Cr or ₹4,000 Cr, and the pills only tell you a sign
+flipped, not how big the loss was. Column headers name the actual periods ("REV JUN 26") so a
+screenshot of the table still says what it is measuring against. `verify-ui.mjs` recomputes the
+percentage from the two figures on screen for ~160 cells and fails if they disagree — the growth
+column and the figure columns are three renderings of one fact and must never drift.
+
+Fitting thirteen columns in 1,352px needed four `scoreTable` layout options (`showRank: false`,
+`nameAfter: 1`, `nameMaxPx: 210`, `dense: true`) — see CLAUDE.md. Ticker and industry are no longer
+columns; they live on the second line of the company cell, still searchable, still in the export.
+
 **Identity for brand-new filers is resolved live.** The committed map cannot know about a company
 that reported an hour ago, and those rows sit at the top of the table. The Worker resolves unknown
 codes against the price feed per cache window (bounded at 40) and merges them, so the newest rows

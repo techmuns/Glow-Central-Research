@@ -31,9 +31,16 @@ try {
 }
 
 let failures = 0;
+let skipped = 0;
 const ok = (label, cond, detail = '') => {
   if (!cond) failures++;
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${detail ? `  — ${detail}` : ''}`);
+};
+// For the handful of checks that need the Tailwind CDN. Marking them SKIP is honest; asserting
+// them against an unstyled page would be a pass that means nothing.
+const skip = (label, why) => {
+  skipped++;
+  console.log(`SKIP  ${label}  — ${why}`);
 };
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-type'] });
@@ -116,13 +123,71 @@ ok('the sub-view rail is hidden for this single-view tab', !/Latest Results|Move
 ok('...but the workspace switcher survives, in the header', /Research Central/.test(await page.locator('#workspace-mount').innerText()));
 ok('...and the content spans the full width', (await page.locator('#content-host').boundingBox()).width > 1200);
 
-// The screenshot's column set.
+// The column set: date first, then the three metrics with BOTH reported periods beside each
+// growth figure, then market cap and basis.
 const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
-for (const c of ['UPDATED', 'TICKER', 'COMPANY', 'MCAP', 'INDUSTRY', 'PAT YOY', 'REVENUE YOY']) {
-  ok(`column present: ${c}`, ehHeads.some((h) => h.includes(c)));
+ok('DATE is the first column', /^DATE/.test(ehHeads[0] || ''), ehHeads[0]);
+ok('COMPANY is the second', /^COMPANY/.test(ehHeads[1] || ''), ehHeads[1]);
+for (const c of ['REV %', 'GP %', 'PAT %', 'MCAP', 'BASIS']) {
+  ok(`column present: ${c}`, ehHeads.some((h) => h === c));
 }
-ok('Return Since Result column is NOT present', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
-ok('default sort is newest-first', ehHeads.some((h) => h.includes('UPDATED') && /▾/.test(h)));
+// Two reported-figure columns per metric, each header naming the period it is — a bare "REVENUE"
+// would leave the reader guessing which quarter the number belongs to.
+for (const [m, label] of [['REV', 'revenue'], ['GP', 'gross profit'], ['PAT', 'net profit']]) {
+  const cols = ehHeads.filter((h) => h.startsWith(`${m} `) && h !== `${m} %`);
+  ok(`${label}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{2}$/.test(h)), cols.join(' + '));
+}
+ok('the serial-number column is gone', !ehHeads.some((h) => h === '#'));
+ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
+ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
+ok('...nor Return Since Result', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
+// Dropping them from the header must not drop them from the page — they moved under the name.
+const ehIdent = await page.locator('#content-host tbody tr').first().innerText();
+const ehSub = ehIdent.split('\n').find((l) => /[A-Z0-9&-]{2,}\s·\s\S/.test(l)) || '';
+ok('ticker and industry survive under the company name', !!ehSub, ehSub || ehIdent.replace(/\s+/g, ' ').slice(0, 60));
+ok('default sort is newest-first', /^DATE/.test(ehHeads[0]) && /▾/.test(ehHeads[0]));
+
+// The whole point of the wider column set was to keep it on screen. At the design width the
+// table must not need its own horizontal scrollbar; the page must never scroll sideways at all.
+// This one needs real CSS — an unstyled table lays out nothing like the shipped one.
+const ehFit = await page.evaluate(() => {
+  const box = document.querySelector('[data-table-scroll]');
+  const styled = getComputedStyle(document.querySelector('[data-score-table]')).borderRadius !== '0px';
+  return { need: box.scrollWidth, have: box.clientWidth, styled };
+});
+if (ehFit.styled) ok('the table fits at 1440 with no horizontal scrollbar', ehFit.need <= ehFit.have + 1, `${ehFit.need}px in ${ehFit.have}px`);
+else skip('the table fits at 1440 with no horizontal scrollbar', 'Tailwind CDN unreachable — serve a vendored copy to measure this');
+
+// THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
+// same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
+// the two figures actually on screen and require it to agree with the one actually on screen.
+const ehRecon = await page.evaluate(() => {
+  const heads = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
+  const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ''));
+  const out = { checked: 0, bad: [] };
+  for (const tr of [...document.querySelectorAll('#content-host tbody tr')].slice(0, 60)) {
+    const td = [...tr.children].map((c) => c.innerText.trim());
+    for (const m of ['REV', 'GP', 'PAT']) {
+      const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} %`);
+      const iPct = heads.indexOf(`${m} %`);
+      if (iCur < 0 || iPct < 0) continue;
+      const cur = num(td[iCur]);
+      const pri = num(td[iCur + 1]);
+      const shown = td[iPct];
+      if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
+      if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
+      out.checked++;
+      const calc = ((cur - pri) / Math.abs(pri)) * 100;
+      // Rounding: the figures are whole crore and the percentage is a whole number, so a small
+      // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
+      if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
+        out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+      }
+    }
+  }
+  return out;
+});
+ok('the figure columns reconcile with the growth column', ehRecon.checked > 100 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
 
 // The provenance did not vanish with the ribbon — it moved behind the button.
 await page.locator('[data-live-info]').click();
@@ -137,7 +202,7 @@ await page.waitForTimeout(300);
 // companies have one. These must render as labelled pills, never as a coloured number.
 ok('loss → profit renders as a pill, not a percentage', /to profit/i.test(ehText));
 ok('profit → loss renders as a pill', /to loss/i.test(ehText));
-ok('loss in both periods is labelled as a loss', /loss ↓|loss ↑/i.test(ehText));
+ok('loss in both periods is labelled as a loss', /loss\s*[↓↑]/i.test(ehText)); // \s matches the nbsp in the pill
 
 await page.locator('#content-host select').first().selectOption('turnaround');
 await page.waitForTimeout(600);
@@ -910,5 +975,5 @@ const unique = [...new Set(errors)];
 ok('zero console errors', unique.length === 0, unique.slice(0, 3).join(' | '));
 
 await browser.close();
-console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
+console.log(failures === 0 ? `\nAll checks passed.${skipped ? ` (${skipped} skipped — see SKIP lines)` : ''}` : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

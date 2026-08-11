@@ -23,6 +23,12 @@
 //   turnaround is not a growth rate, and a green +43% on a company that lost ₹3,754 Cr reads as
 //   profit growth when it means the loss narrowed. Every such cell is a labelled pill instead of
 //   a number — see `changeCell`.
+//
+//   That is also why the table carries BOTH periods for all three metrics rather than the growth
+//   percentage alone. A percentage is a ratio with its numerator and denominator thrown away:
+//   "+43%" is the same cell whether the company earned ₹4 Cr or ₹4,000 Cr, and Vodafone Idea's
+//   PAT "+43%" is -6,608 → -3,754. The reported figures sit next to the percentage so the reader
+//   can see what it was computed from without opening the drill.
 
 import { scoreTable, openDrill, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
@@ -106,6 +112,16 @@ const rowsFor = (ctx) => feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings 
 // ---------------------------------------------------------------------------------------
 
 /**
+ * Moneycontrol publishes whole-number percentages, so `formatPct`'s fixed decimal renders an
+ * invented ".0" on 99% of cells and widens three columns for nothing. Keep the decimal only where
+ * the value genuinely has one.
+ */
+function pctText(v) {
+  if (v == null) return '—';
+  return Number.isInteger(v) ? `${v > 0 ? '+' : ''}${v}%` : formatPct(v);
+}
+
+/**
  * A period-on-period change, rendered honestly.
  *
  * `normal` gets a signed percentage. Everything else gets a pill naming what actually happened,
@@ -117,7 +133,7 @@ function changeCell(m) {
 
   if (m.kind === 'normal') {
     const cls = m.pct > 0 ? 'text-emerald-600' : m.pct < 0 ? 'text-rose-600' : 'text-slate-500';
-    return `<span class="font-semibold ${cls}">${escapeHtml(formatPct(m.pct))}</span>`;
+    return `<span class="font-semibold ${cls}">${escapeHtml(pctText(m.pct))}</span>`;
   }
   if (m.kind === 'loss-flat') {
     return `<span class="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200"
@@ -126,9 +142,8 @@ function changeCell(m) {
   if (m.kind === 'loss-narrowed' || m.kind === 'loss-widened') {
     const narrowed = m.kind === 'loss-narrowed';
     const cls = narrowed ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200';
-    return `<span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${cls}"
-       title="Loss in both periods: ${escapeHtml(formatNumber(m.prior))} Cr → ${escapeHtml(formatNumber(m.current))} Cr. A percentage here describes the size of the loss, not profit growth.">
-       Loss ${narrowed ? '↓' : '↑'} ${m.pct != null ? escapeHtml(Math.abs(m.pct).toFixed(0)) + '%' : ''}</span>`;
+    return `<span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${cls}"
+       title="Loss in both periods: ${escapeHtml(formatNumber(m.prior))} Cr → ${escapeHtml(formatNumber(m.current))} Cr. A percentage here describes the size of the loss, not profit growth.">Loss&nbsp;${narrowed ? '↓' : '↑'}${m.pct != null ? escapeHtml(Math.abs(m.pct).toFixed(0)) + '%' : ''}</span>`;
   }
   if (m.kind === 'turnaround') {
     return `<span class="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200"
@@ -140,6 +155,20 @@ function changeCell(m) {
   }
   if (m.kind === 'flat') return '<span class="text-slate-400">0%</span>';
   return `<span class="text-slate-300" title="Prior period was zero, so there is no percentage to compute.">—</span>`;
+}
+
+/**
+ * One reported ₹ crore figure.
+ *
+ * A loss is tinted rose. Next to a five-figure revenue line a bare "-433" is genuinely easy to
+ * read past, and the whole reason these columns exist is that the growth percentage alone hides
+ * the sign. `muted` dims the prior-period column so the current period stays the primary read
+ * without having to make the comparison column smaller or move it away.
+ */
+function figureCell(v, { muted = false } = {}) {
+  if (v == null) return '<span class="text-slate-300">—</span>';
+  const cls = v < 0 ? (muted ? 'text-rose-400' : 'font-medium text-rose-600') : muted ? 'text-slate-400' : 'text-slate-700';
+  return `<span class="${cls}">${escapeHtml(formatNumber(v))}</span>`;
 }
 
 // Sort value that keeps the pills in a sensible order rather than dumping them all at one end.
@@ -227,10 +256,13 @@ function wireLiveButton(root, m, rows) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where each column comes from</h3>
           <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>PAT / Revenue YoY</strong> — as published. Where the sign flips between periods you get a labelled
-                pill instead of a percentage, because a change across zero is not a growth rate.</li>
-            <li><strong>Ticker and industry</strong> — resolved from Moneycontrol's own company code; names are truncated to
-                15 characters upstream, so the code is the join key, never the name.
+            <li><strong>Rev / GP / PAT, both periods</strong> — as published, in ₹ crore, unrounded. Both periods are shown
+                because the percentage alone hides the sign and the scale: "+43%" reads the same on ₹4 Cr and ₹4,000 Cr,
+                and on a loss that merely got smaller.</li>
+            <li><strong>The % columns</strong> — as published. Where the sign flips between periods you get a labelled pill
+                instead of a percentage, because a change across zero is not a growth rate.</li>
+            <li><strong>Ticker and industry</strong> (under the company name) — resolved from Moneycontrol's own company
+                code; names are truncated to 15 characters upstream, so the code is the join key, never the name.
                 ${noTicker ? `<strong>${formatNumber(noTicker)}</strong> unresolved.` : 'All resolved.'}</li>
             <li><strong>MCap</strong> — computed live as shares outstanding × the current price, so it is correct now rather
                 than as of the last data refresh. ${noCap ? `<strong>${formatNumber(noCap)}</strong> without a share count.` : ''}</li>
@@ -259,20 +291,47 @@ function renderLatest(ctx) {
   const rows = rowsFor(ctx);
   const m = feed.meta();
 
+  // Column headers name the actual periods being compared — "REV JUN 26" / "REV JUN 25" — rather
+  // than "current" and "prior". A screenshot of this table should say which quarters it is,
+  // because a growth percentage is meaningless without knowing what it is measured against.
+  const cur = m?.currentPeriod || 'Current';
+  const pri = m?.priorPeriod || 'Prior';
+
+  // Ticker and industry are not columns any more: they live on the second line of the identity
+  // cell, where they stay searchable and visible without costing two columns of width. The width
+  // freed up goes to the reported figures, which is what the growth percentages are derived from.
   const table = scoreTable({
     rows,
     key: (r) => r.scId,
     name: (r) => r.company,
     nameLabel: 'Company',
     sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || r.sectorSlug || '—'}`,
+    // No rank counter: a results table is sorted by date, and "#7" against a date-ordered list is
+    // a position, not a ranking, so it invites a reading the data does not support. The watchlist
+    // star moves into the company cell. `nameAfter: 1` puts Date ahead of the company name.
+    showRank: false,
+    nameAfter: 1,
+    dense: true,
+    nameMaxPx: 210,
     columns: [
-      { label: 'Updated', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
-      { label: 'Ticker', get: (r) => (r.ticker ? `<span class="font-mono text-xs font-semibold text-slate-700">${escapeHtml(r.ticker)}</span>` : '<span class="text-slate-300">—</span>'), html: true, sortValue: (r) => r.ticker || 'zzz' },
+      { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
+
+      // Revenue, gross profit, net profit — each as reported for both periods, then the change.
+      // Grouped in that order so a row reads across the way the filing does.
+      { label: `Rev ${cur}`, get: (r) => figureCell(r.revenue?.current), html: true, align: 'right', sortValue: (r) => r.revenue?.current ?? -Infinity },
+      { label: `Rev ${pri}`, get: (r) => figureCell(r.revenue?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.revenue?.prior ?? -Infinity },
+      { label: 'Rev %', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
+
+      { label: `GP ${cur}`, get: (r) => figureCell(r.grossProfit?.current), html: true, align: 'right', sortValue: (r) => r.grossProfit?.current ?? -Infinity },
+      { label: `GP ${pri}`, get: (r) => figureCell(r.grossProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.grossProfit?.prior ?? -Infinity },
+      { label: 'GP %', get: (r) => changeCell(r.grossProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.grossProfit) },
+
+      { label: `PAT ${cur}`, get: (r) => figureCell(r.netProfit?.current), html: true, align: 'right', sortValue: (r) => r.netProfit?.current ?? -Infinity },
+      { label: `PAT ${pri}`, get: (r) => figureCell(r.netProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.netProfit?.prior ?? -Infinity },
+      { label: 'PAT %', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
+
       { label: 'MCap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
-      { label: 'Industry', get: (r) => escapeHtml(r.industry || '—'), html: true, sortValue: (r) => r.industry || 'zzz' },
-      { label: 'PAT YoY', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
-      { label: 'Revenue YoY', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
-      { label: 'Basis', get: (r) => basisPill(r.basis), html: true, sortValue: (r) => r.basis || '' },
+      { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
     ],
     filters: {
       options: [
@@ -302,7 +361,7 @@ function renderLatest(ctx) {
     // had a nastier consequence than mere preference: a company that reported TODAY has no cached
     // result-day close yet, so its return is null and it sorted to the very bottom — the four
     // newest filings landed at positions 1313-1316 of 1326. Return is still one header click away.
-    initialSort: { key: 'Updated', dir: 'desc' },
+    initialSort: { key: 'Date', dir: 'desc' },
     onRowClick: (r) => drillResult(r, m),
     exportName: 'sattva-earnings',
     onExport: (visible) => exportResults(visible, m),
@@ -312,7 +371,7 @@ function renderLatest(ctx) {
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Latest Results',
-      description: 'Every company that has reported this quarter, newest first. Click a row for the full figures.',
+      description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}. Click a row for the full detail.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
     })}
     ${table.html}
@@ -329,7 +388,8 @@ function coverageNote(rows, m) {
   return `
     <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
       ${formatNumber(rows.length)} companies · ${formatNumber(rows.length - noTicker)} resolved to an NSE ticker ·
-      ${formatNumber(rows.length - noCap)} with a market cap. A dash means <em>not joined</em>, never zero.
+      ${formatNumber(rows.length - noCap)} with a market cap. Reported figures are in ₹ crore as published, not rounded.
+      A dash means <em>not joined</em>, never zero.
       ${m?.priorPeriod ? `Growth is against ${escapeHtml(m.priorPeriod)}.` : ''}
     </p>`;
 }
@@ -433,6 +493,12 @@ async function exportResults(rows, m) {
       `Return since result = live price vs the close on the result date. Blank cells mean not joined, not zero.`,
   };
   const pct = (mm) => (mm?.kind === 'normal' ? mm.pct : mm?.kind === 'turnaround' ? 'To profit' : mm?.kind === 'slipped-to-loss' ? 'To loss' : mm?.kind === 'loss-narrowed' ? `Loss narrowed ${mm.pct}%` : mm?.kind === 'loss-widened' ? `Loss widened ${mm.pct}%` : '');
+  // The sheet carries the same three metrics × two periods the table does. Ticker and industry
+  // stay as columns here even though they are no longer columns on screen: a spreadsheet has no
+  // second line under the company name, and a workbook you cannot filter by ticker is less useful.
+  const cur = m?.currentPeriod || 'Current';
+  const pri = m?.priorPeriod || 'Prior';
+  const val = (mm, field) => (mm?.[field] ?? '');
   await exportRows({
     filename: 'sattva-earnings',
     sheetName: 'Latest Results',
@@ -440,12 +506,17 @@ async function exportResults(rows, m) {
       { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
       { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
       { header: 'Company', key: 'c', width: 34, get: (r) => (r.__banner ? '' : r.company) },
-      { header: 'MCap (Cr)', key: 'm', width: 14, get: (r) => (r.__banner ? '' : (r.marketCap ?? '')) },
       { header: 'Industry', key: 'i', width: 26, get: (r) => (r.__banner ? '' : r.industry || '') },
-      { header: 'Revenue (Cr)', key: 'rv', width: 14, get: (r) => (r.__banner ? '' : (r.revenue?.current ?? '')) },
-      { header: 'Revenue YoY', key: 'rg', width: 18, get: (r) => (r.__banner ? '' : pct(r.revenue)) },
-      { header: 'Net Profit (Cr)', key: 'np', width: 16, get: (r) => (r.__banner ? '' : (r.netProfit?.current ?? '')) },
-      { header: 'PAT YoY', key: 'pg', width: 18, get: (r) => (r.__banner ? '' : pct(r.netProfit)) },
+      { header: `Revenue ${cur} (Cr)`, key: 'rv', width: 18, get: (r) => (r.__banner ? '' : val(r.revenue, 'current')) },
+      { header: `Revenue ${pri} (Cr)`, key: 'rvp', width: 18, get: (r) => (r.__banner ? '' : val(r.revenue, 'prior')) },
+      { header: 'Revenue Change', key: 'rg', width: 18, get: (r) => (r.__banner ? '' : pct(r.revenue)) },
+      { header: `Gross Profit ${cur} (Cr)`, key: 'gp', width: 20, get: (r) => (r.__banner ? '' : val(r.grossProfit, 'current')) },
+      { header: `Gross Profit ${pri} (Cr)`, key: 'gpp', width: 20, get: (r) => (r.__banner ? '' : val(r.grossProfit, 'prior')) },
+      { header: 'Gross Profit Change', key: 'gg', width: 20, get: (r) => (r.__banner ? '' : pct(r.grossProfit)) },
+      { header: `Net Profit ${cur} (Cr)`, key: 'np', width: 18, get: (r) => (r.__banner ? '' : val(r.netProfit, 'current')) },
+      { header: `Net Profit ${pri} (Cr)`, key: 'npp', width: 18, get: (r) => (r.__banner ? '' : val(r.netProfit, 'prior')) },
+      { header: 'Net Profit Change', key: 'pg', width: 18, get: (r) => (r.__banner ? '' : pct(r.netProfit)) },
+      { header: 'MCap (Cr)', key: 'm', width: 14, get: (r) => (r.__banner ? '' : (r.marketCap ?? '')) },
       { header: 'Return Since Result %', key: 'rs', width: 20, get: (r) => (r.__banner ? '' : (r.returnSinceResult ?? '')) },
       { header: 'Basis', key: 'b', width: 14, get: (r) => (r.__banner ? '' : r.basis) },
     ],
