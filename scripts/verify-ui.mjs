@@ -90,59 +90,57 @@ for (const [ws, tab, sub] of routes) {
 ok(`all ${routes.length} routes render in both scopes`, broken.length === 0, broken.slice(0, 4).join(', '));
 
 // URL + history
-await go('/#/research/earnings-hub/result-scans');
-ok('hash reflects the route', page.url().includes('earnings-hub/result-scans'));
+await go('/#/research/earnings-hub/movers');
+ok('hash reflects the route', page.url().includes('earnings-hub/movers'));
 await page.goBack();
 await page.waitForTimeout(600);
-ok('browser back navigates', !page.url().includes('result-scans'));
+ok('browser back navigates', !page.url().includes('movers'));
 
 // ---------------------------------------------------------------------------------------
-// 2. Earnings Hub — the three sub-views
+// 2. Earnings Hub — the LIVE results feed
 // ---------------------------------------------------------------------------------------
-console.log('\n— earnings hub —');
-await go('/#/research/earnings-hub/latest-results?scope=universe');
+console.log('\n— earnings hub (live) —');
+await go('/#/research/earnings-hub/latest-results?scope=universe', 2200);
 const latestRows = await rowCount();
-ok('Latest Results renders the full set', latestRows > 0, `${latestRows} rows`);
-ok('4-card stat strip with a gradient hero', /last refresh/i.test(await hostText()));
-ok('upcoming-results strip', /upcoming results/i.test(await hostText()));
+ok('Latest Results renders the full listed universe', latestRows > 1000, `${latestRows} companies`);
 
-const beforeChip = await rowCount();
-await page.locator('[data-chip-group="outcome"][data-chip-id="Beat"]').click();
+const ehText = await hostText();
+ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\bvs\b/i.test(ehText));
+ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
+ok('4-card stat strip with a gradient hero', (await page.locator('#content-host .stat-card').count()) === 4);
+
+// The screenshot's column set.
+const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
+for (const c of ['UPDATED', 'TICKER', 'COMPANY', 'MCAP', 'INDUSTRY', 'PAT YOY', 'REVENUE YOY', 'RETURN SINCE RESULT']) {
+  ok(`column present: ${c}`, ehHeads.some((h) => h.includes(c)));
+}
+
+// THE HONESTY CHECK. A percentage across a sign change is not a growth rate, and about 13% of
+// companies have one. These must render as labelled pills, never as a coloured number.
+ok('loss → profit renders as a pill, not a percentage', /to profit/i.test(ehText));
+ok('profit → loss renders as a pill', /to loss/i.test(ehText));
+ok('loss in both periods is labelled as a loss', /loss ↓|loss ↑/i.test(ehText));
+
+await page.locator('#content-host select').first().selectOption('turnaround');
 await page.waitForTimeout(600);
-const afterChip = await rowCount();
-ok('chip filter narrows the set', afterChip > 0 && afterChip < beforeChip, `${beforeChip} → ${afterChip}`);
-ok('chip filter is reflected in the URL', page.url().includes('tag=Beat'));
-await page.locator('[data-chip-group="outcome"][data-chip-id="any"]').click();
-await page.waitForTimeout(500);
-
-await go('/#/research/earnings-hub/result-scans?scope=universe');
-const scans = await page.locator('[data-scan-id]').count();
-ok('built-in scans listed', scans >= 8, `${scans} scans`);
-await page.locator('[data-scan-id]').nth(1).click();
-await page.waitForTimeout(700);
-ok('a scan filters and states its definition', /definition/i.test(await hostText()) && page.url().includes('scan='));
-
-await go('/#/research/earnings-hub/quality-growth?scope=universe');
-ok('Quality & Growth renders its charts', (await page.locator('#content-host svg').count()) > 0 && (await page.locator('#content-host table').count()) > 0);
+const turnRows = await rowCount();
+ok('the loss → profit filter narrows the set', turnRows > 0 && turnRows < latestRows, `${turnRows} turnarounds`);
+await page.locator('#content-host select').first().selectOption('all');
+await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
 // 3. Table mechanics
 // ---------------------------------------------------------------------------------------
 console.log('\n— table —');
-await go('/#/research/earnings-hub/latest-results?scope=universe');
 const full = await rowCount();
-await page.locator(SEARCH).first().fill('MARICO');
+await page.locator(SEARCH).first().fill('TITAN');
 await page.waitForTimeout(500);
 const searched = await rowCount();
 ok('search narrows the table', searched > 0 && searched < full, `${full} → ${searched}`);
 await page.locator(SEARCH).first().fill('');
 await page.waitForTimeout(400);
-
-// Correctness only — no timing. The repaint is not synchronous with the click, so anything
-// measured around it here reads 0ms and would be a made-up number. The sort-performance bar
-// is exercised against the 535-row technicals table, not this one.
 await page.locator('#content-host thead th').nth(3).click();
-await page.waitForTimeout(250);
+await page.waitForTimeout(300);
 ok('header sort keeps every row', (await rowCount()) === full);
 
 // ---------------------------------------------------------------------------------------
@@ -153,45 +151,32 @@ await page.locator('tr[data-row-key]').first().click();
 await page.waitForTimeout(700);
 const drill = await page.locator('#drill-content').innerText();
 ok('drill opens from a row', drill.length > 200);
-ok('drill shows all five categories', ['growth', 'margins', 'earnings quality', 'surprise', 'consistency'].every((c) => new RegExp(c, 'i').test(drill)));
-ok('drill shows provenance chips', /calculation/i.test(drill) && /implementation/i.test(drill));
+ok('drill shows the reported figures', /reported figures/i.test(drill));
+ok('drill explains the return calculation', /return since result/i.test(drill) && /close on/i.test(drill));
+ok('drill names the upstream source', /moneycontrol/i.test(drill));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
-ok('ESC closes the drill', await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count() > 0);
+ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count()) > 0);
 
 // ---------------------------------------------------------------------------------------
-// 5. Provenance — every surface that shows a synthetic number says so
+// 5. Provenance and the other two sub-views
 // ---------------------------------------------------------------------------------------
 console.log('\n— provenance —');
-for (const sub of ['latest-results', 'result-scans', 'quality-growth']) {
-  await go(`/#/research/earnings-hub/${sub}?scope=universe`);
-  ok(`${sub}: amber ribbon present`, (await page.locator('[data-mock-ribbon]').count()) === 1);
-}
-await go('/#/research/earnings-hub/latest-results?scope=universe');
-ok('freshness card says mock, not a filing time', /mock data/i.test(await hostText()) && /not a filing time/i.test(await hostText()));
+await go('/#/research/earnings-hub/movers?scope=universe', 1800);
+ok('Movers renders its panels', /biggest pat gains/i.test(await hostText()));
+await go('/#/research/earnings-hub/by-industry?scope=universe', 1800);
+const indRows = await rowCount();
+ok('By Industry aggregates', indRows > 10, `${indRows} industries`);
+ok('...and says it uses medians, not averages', /median/i.test(await hostText()));
 
-// the drill marker must survive on a loss-maker, where a red-flag banner also renders
-const openFirstMatch = async (q) => {
-  await go('/#/research/earnings-hub/latest-results?scope=universe');
-  await page.locator(SEARCH).first().fill(q);
-  await page.waitForTimeout(600);
-  if ((await rowCount()) === 0) return null;
-  await page.locator('tr[data-row-key]').first().click();
-  await page.waitForTimeout(700);
-  return page.locator('#drill-content').innerText();
-};
-const lossDrill = await openFirstMatch('M & M');
-if (lossDrill) {
-  ok('loss-maker drill shows the red flag', /red flag/i.test(lossDrill));
-  ok('loss-maker drill still shows the synthetic marker', /illustrative figures/i.test(lossDrill));
-}
-await page.keyboard.press('Escape');
+await go('/#/research/earnings-hub/latest-results?scope=universe', 1800);
+ok('the coverage note states what did not join', /a dash means/i.test(await hostText()));
 
-await go('/#/research/earnings-hub/latest-results?scope=universe');
 await page.locator('button:has-text("Sources")').first().click();
-await page.waitForTimeout(500);
+await page.waitForTimeout(600);
 const sources = await page.locator('#modal-content').innerText();
-ok('Sources modal lists earnings as mock and names the generator', /mock/i.test(sources) && /gen-mock-earnings/.test(sources));
+ok('Sources modal lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
+ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
 await page.keyboard.press('Escape');
 
 // ---------------------------------------------------------------------------------------
@@ -902,7 +887,7 @@ for (const width of [1440, 1024, 390]) {
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     ok(`${label}: no sideways page scroll at ${width}px`, over <= 0, `${over}px`);
   }
-  await go('/#/research/earnings-hub/quality-growth?scope=universe');
+  await go('/#/research/earnings-hub/by-industry?scope=universe', 1600);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`no sideways page scroll at ${width}px`, overflow <= 0, `${overflow}px`);
 }

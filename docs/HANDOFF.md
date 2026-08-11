@@ -35,6 +35,9 @@ This is the first thing to check before quoting any number off a screen.
 | Technicals: OHLCV, indicators, delivery %, FII/DII deltas for the NSE 500 | `public/data/technicals.json` (763 KB) | Yahoo Finance EOD + NSE delivery | Weekdays 07:00 IST |
 | ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 IST |
 | **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 IST |
+| **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
+| scID → NSE ticker, industry, share count | `public/data/mc-ticker-map.json` (190 KB) | Moneycontrol price feed | Incremental, daily |
+| Close on each result date | `public/data/result-returns.json` (80 KB) | Yahoo Finance | Incremental, daily |
 
 Both scrapes run from `.github/workflows/technicals-refresh.yml` and share one fetch helper,
 `scripts/lib/yahoo.mjs`, so the two feeds cannot drift about what a close price is.
@@ -189,6 +192,54 @@ Both are computed, both are labelled, neither is presented as *the* drawdown.
 
 ---
 
+## 5b. The Earnings Hub is live per-request, not per-schedule
+
+Every other feed here is live *on a schedule*: an Action scrapes, commits, the site serves a file.
+The Earnings Hub is different and it is worth understanding why before changing anything in it.
+
+```
+browser ──poll 30s──▶ /api/earnings ──30s edge cache──▶ api.moneycontrol.com
+                            │
+                            └─ on failure ─▶ public/data/earnings-live.json (committed snapshot)
+```
+
+A company that files at 14:32 is on the table by about 14:33. No Action run, no rebuild, no reload.
+
+**Why proxy at all** — Moneycontrol sends `access-control-allow-origin: *`, so the browser could
+call them directly. Going through the Worker means a thousand readers cost the upstream one fetch
+per cache window rather than a thousand, and it gives us somewhere to fall back to. When the
+upstream fails the Worker serves the committed snapshot with a `degraded` reason and the tab swaps
+its green "Live" ribbon for an amber "Showing the last snapshot" one. An empty feed is never served
+as success.
+
+**One normaliser, two consumers.** `worker/mc.mjs` is pure and dependency-free, imported by both the
+Worker and the scraper, so the fallback can never disagree with the live route about shape.
+
+**Repaint only on structural change.** The cache refreshes on every tick, but listeners fire only
+when a company files or a figure is revised. An early version included the traded price in the
+change fingerprint, which meant the 1,300-row table rebuilt every 30 seconds and discarded whatever
+the user had sorted. Related: the fingerprint is **order-independent**, because the payload arrives
+in Moneycontrol's sort order while the cache is held in ours — an order-sensitive hash reported
+"changed" on literally every tick.
+
+**A percentage across a sign change is not a growth rate.** 13% of companies in a full quarter have
+one. Vodafone Idea's "+43%" is a loss narrowing from ₹6,608 Cr to ₹3,754 Cr; Wockhardt's "+199%" is
+a loss becoming a profit. `classifyChange()` tags every metric, `pct` is null wherever no honest
+percentage exists, and the UI renders a labelled pill. Same failure mode as the `op_vs_pat` rule —
+check every growth figure for it.
+
+**Market cap is computed, not stored.** The ticker map holds the share count; the browser multiplies
+by the current price, so the column is correct now rather than as-of the last refresh.
+
+**What this feed does NOT give you:** only the latest quarter (no history), and only three figures
+per company — revenue, gross profit, net profit. That is why the Earnings Hub no longer carries the
+15-rule quality score: running a real model on three inputs, or on synthetic ones next to live data,
+would have been worse than not scoring at all. `js/scoring/earnings-scoring.js` and the mock set
+remain for Breakouts → Earnings Surprise, which still labels itself mock. **Moving that join onto
+this live feed is the obvious next piece of work.**
+
+---
+
 ## 6. The honesty rules
 
 These are why the dashboard can be trusted, and they are not style preferences.
@@ -284,9 +335,16 @@ do not read.
 Nothing here is hidden in the UI — each tab closes with a **Wiring roadmap** card listing its own.
 The ones that matter most:
 
-- **Con-call, chatter, earnings, super-investor and institutional data are mock.** Real feeds need
-  transcript, forum and filing scrapers that do not exist. The shapes are the contract; swapping the
-  files is the whole change.
+- **Con-call, chatter, super-investor and institutional data are mock.** Real feeds need transcript,
+  forum and filing scrapers that do not exist. The shapes are the contract; swapping the files is the
+  whole change. (Earnings is no longer in this list — the Earnings Hub is live.)
+- **Breakouts → Earnings Surprise still runs on the mock earnings set** even though real results now
+  flow into the Earnings Hub. It is labelled mock, but the incoherence is real and it should be
+  repointed at `js/data/earnings-live.js`.
+- **The live earnings feed is an undocumented third-party API.** It is stable-shaped, CORS-open, has
+  no auth and no bot wall, and `worker/mc.mjs` validates the payload's own header block so a column
+  insertion fails loudly rather than shifting every field. But it can change without notice; the
+  snapshot fallback is what stops that from blanking the tab.
 - **The transaction ledger is mock and CSV import does not persist.** Both need a server or a broker
   integration. `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" lists the six steps in order.
 - **`TATAMOTORS` has no price data at all** — Yahoo 404s the symbol, almost certainly because of the

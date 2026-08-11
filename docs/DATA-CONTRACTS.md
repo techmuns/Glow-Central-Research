@@ -50,13 +50,16 @@ they never read.
 | `concall-calls.json` | `js/data/concalls.js` (Con-call) | ~2MB |
 | `chatter-valuepickr.json`, `chatter-telegram.json` | `js/data/chatter.js` (Public Chatter) | ~160KB |
 | `portfolio-history.json` | `js/data/portfolio.js` (Portfolio Analytics) | ~285KB |
+| `earnings-live.json`, `mc-ticker-map.json`, `result-returns.json` | `js/data/earnings-live.js` (Earnings Hub) | ~1.2MB |
 
 The three Super Investors files load at bootstrap and seed `js/data/investors.js` through
 `prime()`, because the investor grid needs all three together on first paint.
 
 > **Mock vs real.** Everything under `public/data/mock/` is placeholder data so the shell has
-> something to render. Outside `mock/`: `technicals.json`, `atr-history.json` and
-> `portfolio-history.json` are **live** (scraped on a schedule), `universe.json` is a **real**
+> something to render. Outside `mock/`: `technicals.json`, `atr-history.json`,
+> `portfolio-history.json`, `earnings-live.json`, `mc-ticker-map.json` and `result-returns.json`
+> are **live** (scraped on a schedule, and the Earnings Hub is live per-request on top of that),
+> `universe.json` is a **real**
 > NSE-500 screener export refreshed by hand, and `portfolio.json` is user config whose `qty` and
 > `avgPrice` are *derived* from the ledger rather than typed in.
 >
@@ -450,6 +453,109 @@ change with each shareholding filing.
 **Real source** — Screener.in screen export over the NSE 500.
 **Consumed by** — the technicals scraper (its input list), global search, and every tab's Universe
 scope.
+
+---
+
+## `GET /api/earnings` — LIVE, the Earnings Hub feed
+
+**The dashboard's second genuinely live surface, and the only one that is live per-request rather
+than per-schedule.** Served by `worker/index.js`, which proxies Moneycontrol's Rapid Results API
+through `worker/mc.mjs` and caches the normalised result at the edge for 30 seconds.
+
+```
+GET /api/earnings?subType=yoy|qoq&category=all|std|con
+```
+
+```jsonc
+{
+  "ok": true,
+  "degraded": null,                       // a string when serving the fallback — see below
+  "latestResultDate": "2026-08-10",
+  "count": 1319,
+  "meta": { "quarter": "Q1 FY26-27", "currentPeriod": "Jun 26", "priorPeriod": "Jun 25",
+            "source": "Moneycontrol — Rapid Results", "fetchedAt": "2026-08-11T…Z" },
+  "rows": [
+    { "scId": "IC8", "name": "Vodafone Idea", "ticker": "IDEA",
+      "resultDate": "2026-08-10", "ltp": 13.26, "changePct": 2.63,
+      "exchange": "N", "basis": "Consolidated", "sectorSlug": "telecommunication-service-provider",
+      "revenue":    { "current": 11689, "prior": 11023, "reportedPct": 6,  "kind": "normal",        "pct": 6 },
+      "netProfit":  { "current": -3754, "prior": -6608, "reportedPct": 43, "kind": "loss-narrowed", "pct": 43 } }
+  ]
+}
+```
+
+### `kind` — the field that stops the table lying
+
+Moneycontrol reports growth as a plain percentage even when the sign flips between periods. In a
+full quarter that is **169 of 1,319 companies (13%)**, and the number does not mean what it looks
+like. Every metric is therefore classified:
+
+| `kind` | Meaning | `pct` |
+| --- | --- | --- |
+| `normal` | Profit in both periods. The only case where a growth rate is meaningful. | the percentage |
+| `loss-narrowed` / `loss-widened` | Loss in both periods. "+43%" describes the size of the loss, not profit growth. | reported, but labelled |
+| `turnaround` | Loss → profit. A change across zero is not a growth rate. | **null** |
+| `slipped-to-loss` | Profit → loss. Same. | **null** |
+| `from-zero`, `flat`, `na` | No prior base, or nothing to compare. | **null** |
+
+The UI renders a signed percentage only for `normal`; everything else is a labelled pill. Getting
+this wrong would paint Wockhardt's loss-to-profit recovery as a green "+199%" growth rate.
+
+**Degraded mode** — if the upstream fails or changes shape, the Worker serves the committed
+snapshot with `degraded` set to a human-readable reason, and the tab swaps its green "Live" ribbon
+for an amber "Showing the last snapshot" one. An empty feed is never served as success, because
+"no results" and "we could not reach the source" are different claims.
+
+**Consumed by** — `js/data/earnings-live.js` → the Earnings Hub.
+
+---
+
+## `public/data/earnings-live.json` — the snapshot
+
+The same payload shape as the route above, committed by `scripts/scrape-earnings.mjs`. Two jobs:
+**first paint** (so the table is populated before any network round-trip, and works on a plain
+`python3 -m http.server`) and the **Worker's fallback**. The live poll replaces it within seconds.
+
+Refreshing it more often would not make the tab fresher — the tab is live off the route. It only
+bounds how stale the fallback can be. ~900 KB.
+
+---
+
+## `public/data/mc-ticker-map.json` — the join
+
+`scID → { ticker, bseId, fullName, industry, shares, mktCapAtBuild }`, resolved from
+`priceapi.moneycontrol.com`. **This file is the whole integration.** Moneycontrol identifies
+companies by its own code and truncates display names to 15 characters — "Jubilant Pharmo",
+"Embassy Develop" — so neither is usable as a join key without silently mis-joining look-alikes.
+
+Two things worth knowing:
+
+- **It is incremental.** Entries are written once; a rerun costs one request per never-before-seen
+  company. A full build of 1,319 took about six minutes; a daily run costs a handful.
+- **`shares` is stored, market cap is not.** The browser computes `shares × live price` on every
+  poll, so the MCap column is current rather than as-of the last refresh. Verified against
+  Moneycontrol's own figure: 887,786,160 × ₹5,131.70 = ₹455,585 Cr, exactly what they publish.
+  `REFRESH_ALL=1` re-resolves everything, which is how share counts pick up a buyback or an issue.
+
+Anything with no NSEID lands in `unresolved` and renders without a ticker. Current coverage:
+**1,319 of 1,319 resolved, 0 unresolved.** ~190 KB.
+
+---
+
+## `public/data/result-returns.json` — the base of the return column
+
+`TICKER@YYYY-MM-DD → { close, pricedOn }`, from Yahoo, written by
+`scripts/scrape-result-returns.mjs`.
+
+"Return since result" is `(price now − close on the result date) / close on the result date`. The
+second half arrives live with every poll; the first half is a closing price on a date already past
+and **will never change again**. So it is cached once and never recomputed, and the column is live
+without anyone refetching a single historical price.
+
+**Convention:** the base is the **close on the result date** — the last price at which the market
+could trade without knowing the numbers, since Indian results are usually announced after the
+close. If that day was not a trading day the previous close is used, and `pricedOn` records which.
+Keys in `failures` render as "—", never 0%. Current coverage: **1,312 of 1,319**. ~80 KB.
 
 ---
 

@@ -1,13 +1,22 @@
-name: Technicals refresh
+name: Data refresh
 
-# The dashboard's live feeds. Two scrapes, one schedule:
+# The dashboard's committed live baselines. Four scrapes on two schedules:
 #
 #   scrape-technicals.mjs        ~400 calendar days of OHLCV for the NSE 500 from Yahoo, plus
 #                                NSE bhavcopy delivery %, recomputed into every indicator.
 #   scrape-portfolio-history.mjs 3 years of daily closes for the portfolio's tickers and the
 #                                Nifty 500 — the equity curve the Drawdown view is built from.
+#   scrape-earnings.mjs          the Moneycontrol results snapshot + the scID -> NSE ticker map.
+#   scrape-result-returns.mjs    the close on each result date, the base of "Return since result".
 #
-# Commits technicals.json, atr-history.json and portfolio-history.json back to main.
+# NOTE ON THE EARNINGS FEED: the Earnings Hub does not wait for this. It reads /api/earnings,
+# which proxies Moneycontrol live behind a 30s edge cache, so a company that files at 14:32 is on
+# screen by ~14:33 with no Action run involved. What this job commits is the SNAPSHOT — the first
+# paint, and the fallback the Worker serves when the upstream is unreachable. Scheduling it more
+# often would not make the tab fresher; it would only shorten how stale the fallback can be.
+#
+# Commits technicals.json, atr-history.json, portfolio-history.json, earnings-live.json,
+# mc-ticker-map.json and result-returns.json back to main.
 #
 # The ATR accumulator only grows when this runs, so a missed day is a missed data point for
 # the ATR-trend half of the ATR Stability rule — the rule degrades to scoring on the absolute
@@ -23,7 +32,7 @@ on:
 # Only one refresh in flight at a time — two concurrent runs would race on the same two
 # committed JSON files.
 concurrency:
-  group: technicals-refresh
+  group: data-refresh
   cancel-in-progress: false
 
 jobs:
@@ -53,6 +62,18 @@ jobs:
         continue-on-error: true
         run: node scripts/scrape-portfolio-history.mjs
 
+      # The results snapshot + ticker map. The map is incremental: it only resolves companies it
+      # has never seen, so a normal run costs a handful of requests rather than 1,300.
+      - name: Run earnings snapshot + ticker map
+        continue-on-error: true
+        run: node scripts/scrape-earnings.mjs
+
+      # Result-day closes, also incremental — one Yahoo call per newly-reported company. A past
+      # close never changes, so nothing already cached is refetched.
+      - name: Run result-day closes
+        continue-on-error: true
+        run: node scripts/scrape-result-returns.mjs
+
       - name: Upload technicals data (artifact)
         if: always()
         uses: actions/upload-artifact@v5
@@ -62,6 +83,9 @@ jobs:
             public/data/technicals.json
             public/data/atr-history.json
             public/data/portfolio-history.json
+            public/data/earnings-live.json
+            public/data/mc-ticker-map.json
+            public/data/result-returns.json
           if-no-files-found: warn
 
       - name: Commit refreshed technicals to main
@@ -72,6 +96,9 @@ jobs:
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
           [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
+          for f in earnings-live mc-ticker-map result-returns; do
+            [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
+          done
           if git diff --cached --quiet; then
             echo "No technicals changes to commit."
             exit 0

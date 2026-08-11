@@ -1,24 +1,27 @@
 // Cloudflare Worker entry point.
 //
 // The dashboard is static assets (./public), served through the ASSETS binding. This Worker
-// adds one small route on top:
+// adds two routes on top:
 //
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
+//   GET  /api/earnings                         ->  the live Moneycontrol results feed
 //
-// so the Breakouts tab's "Refresh prices" button can pull the very latest quotes on demand,
-// server-side. That keeps it fast (no rebuild) and token-free (no secret ever reaches the
-// browser). It is session-only: nothing is written back to the repo.
-//
-// The committed public/data/technicals.json remains the EOD baseline the dashboard loads on
-// first paint, refreshed by .github/workflows/technicals-refresh.yml. This endpoint is an
-// on-demand overlay on top of that, not a replacement.
+// Neither writes anything back to the repo; both are read-through overlays on committed data.
+
+import { fetchLatestResults, freshnessOf } from './mc.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const REQ_TIMEOUT_MS = 8000;
 const MAX_TICKERS = 60;
 
+// How long the edge holds one upstream response. This is the whole reason the browser polls us
+// rather than Moneycontrol directly: a thousand readers on the tab cost Moneycontrol ONE fetch
+// per window, not a thousand. Worst-case staleness is EARNINGS_TTL + the client's poll interval.
+const EARNINGS_TTL_S = 30;
+const EARNINGS_SNAPSHOT = '/data/earnings-live.json';
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // ---------------------------------------------------------------------------------
@@ -29,6 +32,9 @@ export default {
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request);
     }
+    if (url.pathname === '/api/earnings') {
+      return handleEarnings(request, env, ctx);
+    }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
     }
@@ -36,6 +42,84 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+// ---------------------------------------------------------------------------------------
+// GET /api/earnings — the live results feed.
+//
+// Proxies Moneycontrol's Rapid Results API, normalises it (worker/mc.mjs), and caches the
+// result at the edge for EARNINGS_TTL_S.
+//
+// WHY PROXY AT ALL, GIVEN MONEYCONTROL SENDS `access-control-allow-origin: *`?
+// The browser could call them directly. Three reasons not to:
+//   1. Politeness and cost. One upstream fetch per 30s window serves every reader.
+//   2. A fallback. If the upstream 403s or changes shape, we serve the last committed snapshot
+//      and SAY SO in `degraded`, instead of the tab going blank.
+//   3. One place to normalise. The snapshot on disk and the live response come out of the same
+//      code path (mc.mjs), so the fallback can never disagree with the live feed about shape.
+//
+// `?subType=qoq` and `?category=std|con` pass through; anything else is ignored rather than
+// forwarded, so this cannot be used as an open proxy to arbitrary upstream paths.
+// ---------------------------------------------------------------------------------------
+async function handleEarnings(request, env, ctx) {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+
+  const url = new URL(request.url);
+  const subType = url.searchParams.get('subType') === 'qoq' ? 'qoq' : 'yoy';
+  const category = ['std', 'con'].includes(url.searchParams.get('category')) ? url.searchParams.get('category') : 'all';
+
+  // Cache key is the normalised option set, not the raw URL — so a stray tracking param can't
+  // fragment the cache and multiply upstream fetches.
+  const cacheKey = new Request(`https://cache.invalid/earnings?subType=${subType}&category=${category}`, { method: 'GET' });
+  const cache = caches.default;
+
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('x-sattva-cache', 'hit');
+    return r;
+  }
+
+  let payload;
+  try {
+    const { rows, meta } = await fetchLatestResults({ limit: 5000, subType, category });
+    if (!rows.length) throw new Error('upstream returned no rows');
+    payload = { ok: true, degraded: null, ...freshnessOf(rows), meta, rows };
+  } catch (err) {
+    // Upstream is down, rate-limited, or has changed shape. Serve the committed snapshot and
+    // label it, rather than an empty feed that would read as "no results reported".
+    const fallback = await loadSnapshot(env, request);
+    if (!fallback) {
+      return json({ ok: false, degraded: `upstream failed and no snapshot is available: ${String(err.message || err)}`, rows: [] }, 502);
+    }
+    payload = {
+      ...fallback,
+      ok: true,
+      degraded: `Live feed unavailable (${String(err.message || err)}) — showing the last committed snapshot.`,
+    };
+    const res = json(payload, 200);
+    res.headers.set('cache-control', 'public, max-age=10'); // retry the upstream sooner than usual
+    res.headers.set('x-sattva-cache', 'fallback');
+    return res;
+  }
+
+  const res = json(payload, 200);
+  res.headers.set('cache-control', `public, max-age=${EARNINGS_TTL_S}`);
+  res.headers.set('x-sattva-cache', 'miss');
+  // Store a clone; the response body can only be read once.
+  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+  return res;
+}
+
+/** The committed last-good file, read through the ASSETS binding. Null if it isn't there. */
+async function loadSnapshot(env, request) {
+  try {
+    const res = await env.ASSETS.fetch(new Request(new URL(EARNINGS_SNAPSHOT, request.url)));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 async function handleLivePrices(request) {
   if (request.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -141,6 +225,13 @@ function parseQuote(str) {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      // The dashboard is same-origin with this Worker, so CORS is not needed for our own page.
+      // It is here so the feed can be pulled from a local `python3 -m http.server` during
+      // development without standing up wrangler.
+      'access-control-allow-origin': '*',
+    },
   });
 }

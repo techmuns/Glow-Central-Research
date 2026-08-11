@@ -77,6 +77,7 @@ public/
                               public-chatter, breakouts, breakouts-drill, super-investors
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
+                              earnings-live.json, mc-ticker-map.json, result-returns.json,
                               universe.json, portfolio.json, mock/*.json
 scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
@@ -87,7 +88,8 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
-worker/index.js               asset serving + POST /api/live-prices
+worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
+worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -490,6 +492,57 @@ Every `<th>` carries `scope="col"`. The verification suite fails if one does not
 
 ---
 
+## The live earnings feed — the one per-request live surface
+
+Everything else in this dashboard is live *on a schedule*: a GitHub Action scrapes, commits, and
+the site serves a file. The Earnings Hub is live *per request*. `worker/index.js` proxies
+Moneycontrol behind a 30-second edge cache and the browser polls it, so a company that files at
+14:32 is on screen by about 14:33 with no Action run and no rebuild.
+
+Four rules hold it together:
+
+1. **One normaliser, two consumers.** `worker/mc.mjs` is pure and dependency-free (`fetch` is a
+   parameter), imported by both the Worker and `scripts/scrape-earnings.mjs`. That is what stops
+   the committed fallback from disagreeing with the live route about shape.
+2. **The proxy exists for politeness and for the fallback, not for CORS.** Moneycontrol sends
+   `access-control-allow-origin: *`, so the browser could call it directly. Going through the
+   Worker means a thousand readers cost the upstream one fetch per cache window, and gives us
+   somewhere to serve the last committed snapshot from when it breaks — labelled `degraded`, never
+   as an empty "no results".
+3. **Refresh the cache on every tick; repaint only on a STRUCTURAL change.** Prices move
+   constantly. An early version fingerprinted the price too, so the 1,300-row table rebuilt every
+   30 seconds and threw away whatever the user had sorted. The fingerprint now covers identity and
+   the reported figures only.
+4. **The fingerprint must be order-independent.** The payload arrives in Moneycontrol's sort order
+   while the cache is held in ours; anything order-sensitive reports "changed" on every single
+   tick. It sums per-row hashes for exactly this reason.
+
+### A percentage across a sign change is not a growth rate
+
+169 of 1,319 companies in a full quarter — **13%** — report a profit move where the sign flips.
+Moneycontrol gives all of them a plain percentage. Rendered as a coloured number they lie:
+
+- **Loss in both periods.** Vodafone Idea's "+43%" is a loss narrowing from ₹6,608 Cr to ₹3,754 Cr.
+- **Loss → profit** and **profit → loss.** A change across zero has no percentage at all.
+
+So `classifyChange()` tags every metric with a `kind`, `pct` is null wherever no honest percentage
+exists, and the UI renders a labelled pill instead of a number. This is the same failure mode as
+the `op_vs_pat` rule in the earnings model — **check every growth figure for it.**
+
+### Market cap is computed, not stored
+
+`mc-ticker-map.json` holds the **share count**, not the market cap. The browser multiplies it by
+the price on the current tick, so the column is correct now rather than as-of the last refresh.
+Verified against Moneycontrol's own figure to the rupee.
+
+### Joins that can legitimately miss
+
+scID → ticker (1,319/1,319), ticker → market cap and industry, and (ticker, result date) → the
+result-day close (1,312/1,319). Every miss renders as an em dash and the coverage note under the
+table counts them. **A dash means "not joined"; it never means zero.**
+
+---
+
 ## Live engine — `js/core/live.js`
 
 ```js
@@ -518,6 +571,10 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
+| Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
+| Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
+| Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
+| Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
