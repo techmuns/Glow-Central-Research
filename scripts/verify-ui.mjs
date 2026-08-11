@@ -51,6 +51,8 @@ const go = async (hash, settle = 900) => {
   await page.waitForTimeout(settle);
 };
 const hostText = () => page.locator('#content-host').innerText();
+// Assigned in the con-call section; declared here because the chatter section uses it too.
+let setHidden;
 const rowCount = () => page.locator('tr[data-row-key]').count();
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
 
@@ -230,7 +232,7 @@ ok('elapsed clock advances', (await page.locator('[data-elapsed]').first().inner
 ok('keyword counters increment as hits stream in', k1 >= k0 && k1 > 0, `${k0} → ${k1}`);
 
 // The poller must pause when the tab is not visible, and stop when the tab unmounts.
-const setHidden = (hidden) =>
+setHidden = (hidden) =>
   page.evaluate((h) => {
     Object.defineProperty(document, 'hidden', { value: h, configurable: true });
     Object.defineProperty(document, 'visibilityState', { value: h ? 'hidden' : 'visible', configurable: true });
@@ -416,14 +418,212 @@ for (const sub of ['live-feed', 'keyword-scan', 'catalysts', 'deep-dive']) {
 ok('con-call ribbon flags the fictional people', /fictional/i.test(await hostText()));
 
 // ---------------------------------------------------------------------------------------
-// 8. Layout holds and nothing scrolls sideways
+// 8. Public Chatter — pump risk, the technicals join, and the quadrant
+// ---------------------------------------------------------------------------------------
+console.log('\n— public chatter —');
+
+for (const sub of ['valuepickr', 'telegram', 'trending']) {
+  await go(`/#/research/public-chatter/${sub}?scope=universe`, 2000);
+  const txt = await hostText();
+  ok(`chatter ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
+  ok(`chatter ${sub}: amber ribbon`, (await page.locator('[data-mock-ribbon]').count()) === 1);
+}
+ok('chatter ribbon flags fictional handles', /fictional/i.test(await hostText()));
+
+// Pump risk: the flag has to compute across levels and show its reasons.
+await go('/#/research/public-chatter/telegram?scope=universe', 1800);
+const riskLevels = await page.evaluate(async () => {
+  const c = await import('/js/data/chatter.js');
+  await c.load();
+  const dist = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  for (const g of c.groups()) dist[g.risk.level]++;
+  return dist;
+});
+ok('pump risk spans more than one level', Object.values(riskLevels).filter((n) => n > 0).length >= 3, JSON.stringify(riskLevels));
+ok('a quiet group cannot be flagged', await page.evaluate(async () => {
+  const c = await import('/js/data/chatter.js');
+  await c.load();
+  // Every group that failed the volume gate must be level 0, whatever its other ratios say.
+  return c.groups().filter((g) => !g.risk.gate.fired).every((g) => g.risk.level === 0);
+}));
+
+await page.locator('[data-tg-filter="risk"][data-tg-value="flagged"]').click();
+await page.waitForTimeout(700);
+const flaggedRows = await rowCount();
+ok('filter to flagged groups', flaggedRows > 0, `${flaggedRows} at level 2+`);
+ok('chatter filter is reflected in the URL', page.url().includes('risk=flagged'));
+await page.locator('tr[data-row-key]').first().click();
+await page.waitForTimeout(700);
+const riskDrill = await page.locator('#drill-content').innerText();
+ok('pump-risk drill lists every criterion', ['volume burst', 'few senders', 'forwarded', 'uniformly bullish'].every((t) => new RegExp(t, 'i').test(riskDrill)));
+ok('...with the measured values, not just a verdict', /messages in 24h/i.test(riskDrill) && /distinct senders/i.test(riskDrill));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+// The Trending join must pull REAL technical scores, and the quadrant must be clickable.
+await go('/#/research/public-chatter/trending?scope=universe', 2200);
+const joinCheck = await page.evaluate(async () => {
+  const [t, c] = await Promise.all([import('/js/data/technicals.js'), import('/js/data/chatter.js')]);
+  await Promise.all([t.load(), c.load()]);
+  const rows = c.trending();
+  const joined = rows.filter((r) => t.byTicker(r.ticker) && !t.byTicker(r.ticker).tickerError);
+  const sample = joined[0] ? t.byTicker(joined[0].ticker) : null;
+  return { total: rows.length, joined: joined.length, sampleScore: sample ? `${sample.totalPoints}/${sample.totalMax}` : null };
+});
+ok('trending joins the real technicals feed', joinCheck.joined > 0, `${joinCheck.joined}/${joinCheck.total} joined, e.g. ${joinCheck.sampleScore}`);
+ok('quadrant plots points', (await page.locator('[data-quad-point]').count()) > 0, `${await page.locator('[data-quad-point]').count()} points`);
+await page.locator('[data-quad-point]').first().click();
+await page.waitForTimeout(800);
+ok('quadrant point opens the technicals drill', (await page.locator('#drill-content').innerText()).length > 200);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+ok('trending states which axis is real', /real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
+
+// The chatter poller: arrivals, pause on hidden, stop on unmount.
+await go('/#/research/public-chatter/valuepickr?scope=universe', 2000);
+const arrivals = () => page.evaluate(async () => (await import('/js/data/chatter.js')).totalArrivals());
+const c0 = await arrivals();
+await page.waitForTimeout(18000);
+ok('chatter poller delivers arrivals', (await arrivals()) > c0, `${c0} → ${await arrivals()}`);
+await setHidden(true);
+const cHidden = await arrivals();
+await page.waitForTimeout(18000);
+ok('chatter poller pauses while hidden', (await arrivals()) === cHidden, `${cHidden} unchanged`);
+await setHidden(false);
+await page.waitForTimeout(3000);
+await go('/#/research/earnings-hub/latest-results?scope=universe');
+ok('chatter poller stops on unmount', await page.evaluate(async () => {
+  const live = await import('/js/core/live.js');
+  const before = live.getLastTick('chatter-live');
+  await new Promise((r) => setTimeout(r, 11000));
+  return before === live.getLastTick('chatter-live');
+}));
+
+// ---------------------------------------------------------------------------------------
+// 9. Super Investors — the workspace, the heatmap and the flow charts
+// ---------------------------------------------------------------------------------------
+console.log('\n— super investors —');
+
+for (const sub of ['superstar-investors', 'institutions', 'fund-flows']) {
+  await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
+  const txt = await hostText();
+  ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
+  ok(`investors ${sub}: attribution ribbon`, (await page.locator('[data-mock-ribbon]').count()) === 1);
+}
+ok('ribbon says the names are real and the holdings are not', /names are real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
+ok('ribbon names the real sources', /ticker finology/i.test(await hostText()) && /trendlyne/i.test(await hostText()) && /amfi/i.test(await hostText()));
+
+// The positions must reconcile internally — qtyDelta against the quantities beside it.
+ok('holdings arithmetic reconciles', await page.evaluate(async () => {
+  const inv = await import('/js/data/investors.js');
+  const qs = inv.meta().quarters.slice().reverse();
+  for (const h of inv.holders()) {
+    for (const [, list] of h.byTicker) {
+      const sorted = list.slice().sort((a, b) => qs.indexOf(a.quarter) - qs.indexOf(b.quarter));
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].qtyDelta !== sorted[i].qty - sorted[i - 1].qty) return false;
+      }
+    }
+  }
+  return true;
+}));
+
+// Fund Flows charts, including sign handling.
+await go('/#/research/super-investors/fund-flows?scope=universe', 2600);
+ok('flows charts render', (await page.locator('#content-host svg').count()) >= 5, `${await page.locator('#content-host svg').count()} charts`);
+ok('flows data contains both signs', await page.evaluate(async () => {
+  const inv = await import('/js/data/investors.js');
+  const m = inv.flows();
+  return m.some((x) => x.fiiNetCr < 0) && m.some((x) => x.fiiNetCr > 0);
+}));
+ok('flows chart draws bars on both sides of zero', await page.evaluate(() => {
+  const svg = document.querySelector('#content-host svg');
+  const zero = [...svg.querySelectorAll('line')].map((l) => +l.getAttribute('y1')).sort((a, b) => a - b);
+  const rects = [...svg.querySelectorAll('rect')];
+  if (!rects.length || !zero.length) return false;
+  const mid = zero[Math.floor(zero.length / 2)];
+  return rects.some((r) => +r.getAttribute('y') < mid) && rects.some((r) => +r.getAttribute('y') >= mid - 1);
+}));
+ok('institutional table joins the real ownership fields', (await page.locator('[data-open-tech]').count()) > 0, `${await page.locator('[data-open-tech]').count()} rows`);
+await page.locator('[data-open-tech]').first().click();
+await page.waitForTimeout(800);
+ok('...and cross-links to the technicals drill', (await page.locator('#drill-content').innerText()).length > 200);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+// Overlap heatmap.
+ok('overlap heatmap renders', (await page.locator('[data-heatmap]').count()) === 1);
+const heatCells = await page.locator('[data-heatmap] [data-open-holder]').count();
+ok('heatmap has populated cells', heatCells > 0, `${heatCells} cells`);
+await page.locator('[data-heatmap] [data-open-holder]').first().click();
+await page.waitForTimeout(900);
+ok('heatmap cell opens the investor workspace', (await page.locator('#workspace-overlay.is-open').count()) === 1);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+// The workspace, from a card and from a row, with all four views.
+await go('/#/research/super-investors/superstar-investors?scope=universe', 2000);
+ok('investor cards render', (await page.locator('[data-holder-card]').count()) === 8, `${await page.locator('[data-holder-card]').count()} cards`);
+await page.locator('[data-holder-card] [data-open-holder]').first().click();
+await page.waitForTimeout(900);
+ok('workspace opens from an investor card', (await page.locator('#workspace-overlay.is-open').count()) === 1);
+ok('workspace URL carries holder and view', /holder=/.test(page.url()) && /hview=/.test(page.url()));
+for (const view of ['portfolio', 'activity', 'history', 'overlap']) {
+  await page.locator(`[data-ws-tab="${view}"]`).click();
+  await page.waitForTimeout(700);
+  const txt = await page.locator('#workspace-content').innerText();
+  ok(`workspace view renders: ${view}`, txt.length > 200 && !/hit a snag/i.test(txt));
+  ok(`  ...${view} carries the attribution banner`, (await page.locator('#workspace-content [data-attribution]').count()) === 1);
+}
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2600);
+ok('investor workspace survives a reload', (await page.locator('#workspace-overlay.is-open').count()) === 1);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(500);
+ok('ESC closes it and clears the URL', (await page.locator('#workspace-overlay.is-open').count()) === 0 && !/holder=/.test(page.url()));
+await page.locator('tr[data-row-key]').first().click();
+await page.waitForTimeout(900);
+ok('workspace opens from a moves row', (await page.locator('#workspace-overlay.is-open').count()) === 1);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+// ---------------------------------------------------------------------------------------
+// 10. Scope and exports on both new tabs
+// ---------------------------------------------------------------------------------------
+console.log('\n— scope and exports —');
+await go('/#/research/public-chatter/trending?scope=portfolio', 2000);
+ok('chatter portfolio scope narrows and labels', /Portfolio/.test(await hostText()));
+ok('...and lists holdings with no chatter rather than dropping them', /no chatter tracked/i.test(await hostText()));
+await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2000);
+ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
+ok('...and marks holders with no overlap', /none of your holdings/i.test(await hostText()) || /of your holdings/i.test(await hostText()));
+
+for (const [hash, label] of [
+  ['/#/research/public-chatter/valuepickr?scope=universe', 'chatter'],
+  ['/#/research/super-investors/superstar-investors?scope=universe', 'investors'],
+]) {
+  await go(hash, 2000);
+  const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
+  await page.locator('#content-host button:has-text("Export")').first().click();
+  const file = await dl;
+  ok(`${label} export downloads`, !!file, file?.suggestedFilename() || 'no download (CDN blocked?)');
+}
+
+// ---------------------------------------------------------------------------------------
+// 11. Layout holds and nothing scrolls sideways
 // ---------------------------------------------------------------------------------------
 console.log('\n— layout —');
 for (const width of [1440, 1024, 390]) {
   await page.setViewportSize({ width, height: 900 });
-  await go('/#/research/concall/keyword-scan?scope=universe', 1600);
-  const cc = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  ok(`con-call matrix: no sideways page scroll at ${width}px`, cc <= 0, `${cc}px`);
+  for (const [route, label] of [
+    ['/#/research/concall/keyword-scan?scope=universe', 'con-call matrix'],
+    ['/#/research/public-chatter/trending?scope=universe', 'chatter trending'],
+    ['/#/research/super-investors/fund-flows?scope=universe', 'investor flows'],
+  ]) {
+    await go(route, 1700);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    ok(`${label}: no sideways page scroll at ${width}px`, over <= 0, `${over}px`);
+  }
   await go('/#/research/earnings-hub/quality-growth?scope=universe');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`no sideways page scroll at ${width}px`, overflow <= 0, `${overflow}px`);

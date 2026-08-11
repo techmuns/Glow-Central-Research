@@ -27,9 +27,9 @@ prompts — treat it as the interface, and change the doc and the producer toget
 | `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `concallKeywords` | `public/data/mock/concall-keywords.json` |
 | `catalysts` | `public/data/mock/catalysts.json` |
-| `chatter` | `public/data/mock/chatter.json` |
 | `superinvestors` | `public/data/mock/superinvestors.json` |
 | `institutions` | `public/data/mock/institutions.json` |
+| `fundFlows` | `public/data/mock/fund-flows.json` |
 | `transactions` | `public/data/mock/transactions.json` |
 
 `universe.json` is loaded twice over: the raw screener rows stay on `ctx.data.universeRaw`, and
@@ -48,6 +48,10 @@ they never read.
 | --- | --- | --- |
 | `technicals.json`, `atr-history.json`, `technicals-source.json` | `js/data/technicals.js` (Breakouts, global search) | ~800KB |
 | `concall-calls.json` | `js/data/concalls.js` (Con-call) | ~2MB |
+| `chatter-valuepickr.json`, `chatter-telegram.json` | `js/data/chatter.js` (Public Chatter) | ~160KB |
+
+The three Super Investors files load at bootstrap and seed `js/data/investors.js` through
+`prime()`, because the investor grid needs all three together on first paint.
 
 > **Mock vs real.** Everything under `public/data/mock/` is hand-written placeholder data so the
 > shell has something to render. Outside `mock/`: `technicals.json` and `atr-history.json` are
@@ -820,121 +824,323 @@ need no changes.
 
 ---
 
-## `public/data/mock/chatter.json`
+## `public/data/mock/chatter-valuepickr.json` — MOCK
 
-Community sentiment. Root is an **object** with three independent arrays.
+40 forum threads, one per company. Root is an object with a metadata envelope and `threads[]`.
+
+> **Illustrative data.** Company names, tickers and sectors are real. Every thread, post, count
+> and sentiment reading is synthetic, from `scripts/gen-mock-chatter.mjs` (`SEED = 20260812`).
+> **Every handle is fictional** and the thread URLs do not resolve — the same rule the con-call
+> analysts follow, for the same reason: a forum handle belongs to a real person, and attaching
+> invented opinions to one misattributes speech.
 
 ```jsonc
-{ "valuepickr": [...], "telegram": [...], "trending": [...] }
+{
+  "_provenance": "ILLUSTRATIVE DATA … ALL HANDLES ARE FICTIONAL …",
+  "generated_at": "2026-08-11T04:00:00.000Z",
+  "generator": "scripts/gen-mock-chatter.mjs",
+  "seed": 20260812,
+  "source": "Mock data",            // the flag the UI keys every honesty marker off
+  "as_of": "2026-08-11",
+  "thread_count": 40,
+  "threads": [
+    {
+      "threadId": "vp-001", "ticker": "PGHH", "name": "P & G Hygiene",
+      "sector": "Fast Moving Consumer Goods",
+      "title": "P & G Hygiene — what the market is missing",
+      "url": "https://forum.valuepickr.com/t/p-g-hygiene/48221",
+      "category": "Company analysis",
+      "createdAt": "2024-03-18T12:04:00+05:30",
+      "lastPostAt": "2026-08-10T19:41:00+05:30",
+      "postCount": 412, "participantCount": 37,
+      "posts7d": 24, "postsPrior7d": 11,
+      "weeklyPosts12w": [9, 14, 7, 12, 18, 11, 6, 15, 9, 13, 11, 24],
+      "sentiment": 0.42,
+      "topContributors": [{ "handle": "value_ledger", "posts": 9 }],
+      "recentPosts": [
+        { "handle": "moat_diary", "at": "2026-08-10T19:41:00+05:30",
+          "text": "Added a tracking position…", "sentiment": 0.35, "likes": 12 }
+      ],
+      "claims": [
+        { "text": "Capacity expansion announced in the last exchange filing.",
+          "kind": "fact", "at": "2026-08-02T11:12:00+05:30" }
+      ]
+    }
+  ]
+}
 ```
 
-### `valuepickr[]`
-
 | Field | Type | Unit / values | Notes |
 | --- | --- | --- | --- |
-| `id` | string | — | Stable unique id. |
-| `ticker` / `company` | string | — | |
-| `thread` | string | — | Thread title. |
-| `excerpt` | string | — | Post snippet. Rendered escaped. |
-| `author` | string | — | Forum username. |
-| `postedAt` | string | ISO 8601 +05:30 | |
-| `replies` | number | count | Replies on the thread. |
-| `sentiment` | string | `positive` \| `neutral` \| `negative` | |
+| `threadId` | string | `vp-NNN` | Stable key; used in the URL and the drill. |
+| `ticker` / `name` / `sector` | string | — | Real. `ticker` is the join key to technicals. |
+| `title` / `url` / `category` | string | — | **Synthetic.** The URL does not resolve. |
+| `createdAt` / `lastPostAt` | string | ISO 8601 +05:30 | `createdAt` drives "first mention" on Trending. |
+| `postCount` | number | count | Lifetime posts. |
+| `participantCount` | number | count | Distinct posters over the window — **reach**, which is a different question from post volume. |
+| `posts7d` / `postsPrior7d` | number | count | **The raw inputs momentum is derived from.** No momentum field is stored. |
+| `weeklyPosts12w` | number[] | 12 counts | Oldest first; the drill's sparkline. Last element equals `posts7d`. |
+| `sentiment` | number | −1 … +1 | Thread-level mean. |
+| `topContributors[]` | array | `{ handle, posts }` | **Fictional handles.** |
+| `recentPosts[]` | array | `{ handle, at, text, sentiment, likes }` | **Fictional handles, invented text.** |
+| `claims[]` | array | `{ text, kind, at }` | `kind` is `fact` \| `speculation` \| `question`. Kept separate in the UI: a post asserting something is not the same as one wondering about it, and flattening the three would make speculation look like research. |
 
-### `telegram[]`
-
-| Field | Type | Unit / values | Notes |
-| --- | --- | --- | --- |
-| `id` | string | — | Stable unique id. |
-| `channel` | string | — | Channel display name. |
-| `ticker` / `company` | string | — | |
-| `message` | string | — | Message body. Rendered escaped. |
-| `postedAt` | string | ISO 8601 +05:30 | |
-| `forwards` | number | count | Forward count, a rough reach proxy. |
-
-### `trending[]`
-
-| Field | Type | Unit / values | Notes |
-| --- | --- | --- | --- |
-| `ticker` / `company` | string | — | |
-| `mentions24h` | number | count | Mentions across all sources in the last 24h. |
-| `mentionsChangePct` | number | percent | vs the prior 24h. Signed. |
-| `sentimentScore` | number | −1.0 … +1.0 | Aggregate sentiment. **Not a percentage.** |
-
-**Refresh cadence** — ValuePickr every 15 min, Telegram near-real-time, `trending` recomputed
-hourly.
-**Real source** — ValuePickr forum (`forum.valuepickr.com`) crawler; Telegram Bot API for
-subscribed channels; `trending` is derived from both.
-**Consumed by** — Public Chatter (one sub-view per array).
+**Refresh cadence** — every 15 minutes. **Real source** — a ValuePickr crawler.
+**Consumed by** — Public Chatter → ValuePickr and Trending.
 
 ---
 
-## `public/data/mock/superinvestors.json`
+## `public/data/mock/chatter-telegram.json` — MOCK
 
-Disclosed superstar-investor position changes. Root is an **array**, one row per
-investor × company × quarter.
+25 public groups. Same envelope, `groups[]`.
 
 ```jsonc
-[
-  {
-    "id": "si-1", "investor": "Ashish Kacholia", "investorType": "Superstar Investor",
-    "ticker": "POLYCAB", "company": "Polycab India Ltd",
-    "action": "Buy", "qtyChange": 42000,
-    "pctHolding": 1.8, "pctHoldingChange": 0.2, "asOf": "2026-06-30"
-  }
-]
+{
+  "_provenance": "ILLUSTRATIVE DATA … ALL HANDLES AND GROUP NAMES ARE FICTIONAL …",
+  "generated_at": "2026-08-11T04:00:00.000Z",
+  "generator": "scripts/gen-mock-chatter.mjs",
+  "seed": 20260812,
+  "source": "Mock data",
+  "group_count": 25,
+  "groups": [
+    {
+      "groupId": "tg-001", "name": "Momentum Signals", "memberCount": 41200,
+      "ticker": "ULTRACEMCO", "companyName": "UltraTech Cem.", "sector": "Construction Materials",
+      "messages24h": 723, "messagesPrior24h": 189,
+      "uniqueSenders24h": 8, "sentiment": 0.71, "forwardRatio": 0.76,
+      "profile": "pumpy",
+      "recentMessages": [
+        { "handle": "swing_desk", "at": "2026-08-11T14:02:00+05:30",
+          "text": "Breakout on the daily…", "sentiment": 0.68 }
+      ]
+    }
+  ]
+}
 ```
 
 | Field | Type | Unit / values | Notes |
 | --- | --- | --- | --- |
-| `id` | string | — | Stable unique id. |
-| `investor` | string | — | Investor / fund name. |
-| `investorType` | string | `Superstar Investor` \| `Fund Manager` | |
-| `ticker` / `company` | string | — | |
-| `action` | string | `Buy` \| `Sell` \| `New` \| `Exit` \| `Hold` | `New` = first disclosure, `Exit` = fully out. |
-| `qtyChange` | number | shares | Signed. `0` for `Hold`. |
-| `pctHolding` | number | percent of company equity | Post-change holding. `0` after an `Exit`. |
-| `pctHoldingChange` | number | percentage points | Signed change vs the prior quarter. |
-| `asOf` | string | `YYYY-MM-DD` | Quarter-end the disclosure covers. |
+| `groupId` | string | `tg-NNN` | Stable key. |
+| `name` | string | — | **Fictional group name.** |
+| `memberCount` | number | count | |
+| `ticker` / `companyName` / `sector` | string | — | Real company. |
+| `messages24h` / `messagesPrior24h` | number | count | Volume and the prior day, for the spike ratio. |
+| `uniqueSenders24h` | number | count | **Load-bearing.** Volume ÷ senders is what separates a discussion from a wall. |
+| `forwardRatio` | number | 0 … 1 | Share of messages that are forwards rather than original posts. |
+| `sentiment` | number | −1 … +1 | Mean across the window. |
+| `profile` | string | see below | **Generator artefact** — which shape the group was built to have, kept so a reviewer can see whether the flag agrees. A real feed omits it, and nothing scores off it. |
+| `recentMessages[]` | array | `{ handle, at, text, sentiment }` | **Fictional handles.** |
 
-**Refresh cadence** — quarterly, ~3–6 weeks after each quarter end as shareholding patterns
-are filed.
-**Real source** — **Ticker Finology** (`ticker.finology.in`) superstar-investor pages, cross-checked
-against BSE/NSE shareholding pattern filings.
-**Consumed by** — Super Investors → Superstar Investors.
+`profile` is one of `pumpy`, `borderline`, `normal`, `quiet`. Borderline groups exist on purpose:
+a heuristic that only ever returns 0 or 3 is recognising two hand-built clusters, not
+discriminating. The shipped set spans all four risk levels.
+
+### The pump-risk heuristic — `js/chatter/pump-risk.js`
+
+**No risk level is stored in the file.** It is computed at render time from the fields above, and
+recomputed on every live tick, because another burst can tip a group over.
+
+A group must first clear a **volume gate**: at least `MIN_MESSAGES_24H` (120) messages in 24h
+*and* at least `MIN_VOLUME_SPIKE` (1.8×) the previous day. Without the gate the level is 0
+whatever the other ratios say — sender ratios on a quiet group are noise.
+
+Past the gate, each of three signals adds one level:
+
+| Signal | Threshold | What it means |
+| --- | --- | --- |
+| Few senders, many messages | ≥ 12 messages per distinct sender | Real discussion converges near 2–4 per person. |
+| Mostly forwarded | ≥ 50% forwards | Circulated, not written. |
+| Uniformly bullish | mean sentiment ≥ +0.55 | Genuine discussion contains disagreement. |
+
+`pumpRisk(group)` returns `{ level, label, gate, reasons[], firedCount, msgsPerSender, spike }`.
+`reasons` carries **every** criterion, fired or not, with its measured value — the UI is required
+to show them, because a risk number nobody can check is just a verdict. Thresholds are exported
+as `THRESHOLDS` so the help modal quotes the same constants the code uses.
+
+It is a **heuristic, not a finding**: it says a posting pattern is consistent with coordination,
+never that a pump is happening.
+
+**Refresh cadence** — near real-time. **Real source** — Telegram Bot API over subscribed groups.
+**Consumed by** — Public Chatter → Telegram and Trending.
+
+### The chatter live tick
+
+`js/data/chatter.js` registers an 8s poller. Like the con-call ticker it does **not** re-fetch
+either file: it picks the busiest threads and groups, increments their counters, recomputes
+momentum and pump risk, and returns `{ at, events[], total }`. `live.mockFetcher` would
+re-download both files every tick and jitter their numbers — and a jittered post count sitting
+beside the quoted post text would simply disagree with it.
 
 ---
 
-## `public/data/mock/institutions.json`
+## `public/data/mock/superinvestors.json` and `institutions.json` — MOCK
 
-Institutional shareholding by company. Root is an **array**, one row per company per quarter.
+Eight named individual investors and eight fund houses, each with four quarters of positions.
+Identical shape; institutions add `house`, `manager`, `category`, `aumCr`, `schemeCount` and
+`topSectors`.
+
+> ### Attribution — read this before wiring anything
+>
+> **The names are real. The positions are not.**
+>
+> Ashish Kacholia, Dolly Khanna, Vijay Kedia, Mukul Agrawal, Akash Bhanshali, Anil Kumar Goel,
+> Sunil Singhania and Porinju Veliyath are real public investors. Small Cap World Fund, Bandhan,
+> LIC and the rest are real funds. Their **actual** shareholdings are disclosed in quarterly
+> exchange filings and aggregated by Trendlyne, Ticker Finology and AMFI.
+>
+> Every ticker, quantity and holding percentage in these files is **synthetic**, from
+> `scripts/gen-mock-investors.mjs` (`SEED = 20260813`). "Dolly Khanna holds 2.4% of X" here is a
+> false statement about a real person's finances. It is only defensible because the dashboard
+> says so on every surface that renders it: the tab ribbon, the workspace banner on all four
+> tabs, and row 1 of every exported sheet. **If you add a surface, add the marker.**
+>
+> These files contain **numbers and positions only.** There is deliberately no `rationale`,
+> `commentary`, `quote`, `thesis` or `why` field, and none may be added while the data is
+> synthetic. Inventing a position is bounded and labelled; inventing a sentence a named person
+> supposedly said is putting words in a real mouth, and no ribbon fixes that. This is the same
+> rule that makes every speaker in the con-call transcripts fictional.
 
 ```jsonc
-[
-  {
-    "ticker": "RELIANCE", "company": "Reliance Industries Ltd", "quarter": "Q1FY27",
-    "fiiPct": 22.4, "fiiChangeQoqPct": 0.3,
-    "diiPct": 18.9, "diiChangeQoqPct": 0.6,
-    "mfPct": 9.1
-  }
-]
+{
+  "_provenance": "ILLUSTRATIVE DATA. The investor and fund names here are REAL public figures …",
+  "generated_at": "2026-08-11T04:10:00.000Z",
+  "generator": "scripts/gen-mock-investors.mjs",
+  "seed": 20260813,
+  "source": "Mock data",
+  "as_of": "2026-06-30",              // the shareholding cut-off the latest quarter reflects
+  "quarter": "Q1FY27",
+  "quarters": ["Q1FY27", "Q4FY26", "Q3FY26", "Q2FY26"],   // NEWEST FIRST
+  "investor_count": 8,
+  "investors": [
+    {
+      "investorId": "dolly-khanna", "name": "Dolly Khanna", "type": "individual",
+      "since": "2008",
+      "quarters": ["Q1FY27", "Q4FY26", "Q3FY26", "Q2FY26"],
+      "stocksHeld": 14, "portfolioValueCr": 3052.4,
+      "prevPortfolioValueCr": 2894.1, "valueChangePct": 5.5,
+      "topHolding": "Some Company Ltd",
+      "holdings": [
+        {
+          "ticker": "XYZ", "name": "Some Company Ltd", "sector": "Chemicals",
+          "quarter": "Q1FY27",
+          "qty": 1840000, "holdingPct": 2.31, "valueCr": 336.2,
+          "qtyDelta": 240000, "holdingPctDelta": 0.3, "action": "Buy"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-| Field | Type | Unit / values | Notes |
+### `investors[]` / `institutions[]`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `investorId` | string | Slug. Used in `?holder=` and as the workspace key. |
+| `name` | string | **Real person or fund.** |
+| `type` | string | `individual` \| `institution`. |
+| `since` | string \| null | Year first tracked. `null` for institutions. |
+| `quarters[]` | string[] | Newest first — the order the UI reads them in. |
+| `stocksHeld` / `portfolioValueCr` | number | Latest quarter, positions with `holdingPct > 0`. |
+| `prevPortfolioValueCr` / `valueChangePct` | number \| null | Against the previous quarter. |
+| `topHolding` | string \| null | Largest position by derived value. |
+| `house` / `manager` / `category` | string \| null | **Institutions only.** `category` is `FII` \| `DII` \| `Domestic MF`. |
+| `aumCr` / `schemeCount` | number | **Institutions only.** |
+| `topSectors[]` | array | **Institutions only.** `{ sector, sharePct }` — the mandate view. |
+
+### `holdings[]` — one row per company **per quarter**
+
+| Field | Type | Unit | Notes |
 | --- | --- | --- | --- |
-| `ticker` / `company` | string | — | |
+| `ticker` / `name` / `sector` | string | — | Real company. |
 | `quarter` | string | `Q<n>FY<yy>` | |
-| `fiiPct` | number | percent of equity | Foreign institutional holding. |
-| `fiiChangeQoqPct` | number | percentage points | Signed change vs prior quarter. |
-| `diiPct` | number | percent of equity | Domestic institutional holding. |
-| `diiChangeQoqPct` | number | percentage points | Signed. |
-| `mfPct` | number | percent of equity | Mutual fund holding — a **subset of** `diiPct`, not additive to it. |
+| `qty` | number | shares | **Synthetic.** Derived from `holdingPct` against a fixed share count per company, so the series is internally consistent: `qtyDelta` equals this quarter's `qty` minus last quarter's, exactly. |
+| `holdingPct` | number | percent of the company | **Synthetic.** Sized by position *value* first and then converted, because drawing the percentage directly produces "3% of a ₹6.7 lakh crore bank" — a ₹20,000 crore position for one individual. |
+| `valueCr` | number | ₹ crore | **DERIVED, not disclosed.** `holdingPct × marketCap`. A filing gives a percentage and never a rupee amount, so this moves with the market as well as with the position. Every view that shows it says so. |
+| `qtyDelta` | number | shares | Signed, vs the previous quarter. `0` in the oldest quarter. |
+| `holdingPctDelta` | number | percentage points | Signed. |
+| `action` | string | see below | **Derived from `holdingPctDelta`, not drawn independently** — a reader checking the arithmetic finds it holds. |
 
-**Refresh cadence** — quarterly, with the shareholding pattern filings.
-**Real source** — **AMFI** monthly portfolio disclosures and **Trendlyne** / BSE shareholding
-pattern filings.
-**Consumed by** — Super Investors → Institutions and Fund Flows (which derives
-`netFlowPct = fiiChangeQoqPct + diiChangeQoqPct`), Breakouts → FII Accumulation.
+`action` is `New` (0% → >0%), `Exit` (>0% → 0%), `Buy` (Δ > +0.01pp), `Sell` (Δ < −0.01pp) or
+`Hold`. A row with `holdingPct: 0` only appears when it is the `Exit` itself.
+
+### How a real quarterly shareholding scrape maps in
+
+Exchange filings publish, per company per quarter, a shareholder table listing every holder above
+1% with their share count and percentage. That is **company-major**; these files are
+**holder-major**. The transform is a pivot plus two derivations:
+
+1. **Scrape company-major.** For each company and quarter, pull the shareholder rows: holder name,
+   share count, percentage. Ticker Finology and Trendlyne already aggregate this; the raw source is
+   the BSE/NSE shareholding-pattern filing.
+2. **Match holder names to `investorId`.** This is the only genuinely hard step — filings render the
+   same person inconsistently (`DOLLY KHANNA`, `Dolly Khanna .`, jointly-held variants) and funds
+   appear scheme by scheme. Keep an alias table keyed by `investorId`; do not fuzzy-match silently,
+   because a wrong match attributes a real position to the wrong real person.
+3. **Pivot to holder-major** and sort each holder's rows newest-quarter first.
+4. **Derive `qtyDelta`, `holdingPctDelta` and `action`** by walking each `(holder, ticker)` series —
+   never take an `action` field from the source, so the label and the numbers cannot disagree.
+5. **Derive `valueCr`** as `holdingPct × marketCap` at the reporting date, and keep saying it is
+   derived.
+6. Set `source` to something that does not contain "mock", drop `generator` and `seed`, and every
+   illustrative marker disappears on its own.
+
+**Refresh cadence** — quarterly, 3–6 weeks after quarter end.
+**Real source** — Ticker Finology / Trendlyne / BSE shareholding patterns; AMFI for MF schemes.
+**Consumed by** — Super Investors → Superstar Investors, Institutions, Fund Flows, and the
+per-investor workspace.
+
+---
+
+## `public/data/mock/fund-flows.json` — MOCK
+
+24 months of net flows, ₹ crore.
+
+```jsonc
+{
+  "_provenance": "ILLUSTRATIVE DATA. Every flow figure is synthetic …",
+  "generator": "scripts/gen-mock-investors.mjs",
+  "seed": 20260813,
+  "source": "Mock data",
+  "unit": "INR crore, net",
+  "month_count": 24,
+  "months": [
+    {
+      "month": "2026-08",
+      "fiiNetCr": -18420,
+      "diiNetCr": 24310,
+      "mf": { "equityCr": 31200, "smallCapCr": 4180, "midCapCr": 5640, "largeCapCr": 8390 }
+    }
+  ]
+}
+```
+
+| Field | Type | Unit | Notes |
+| --- | --- | --- | --- |
+| `month` | string | `YYYY-MM` | Ascending. |
+| `fiiNetCr` | number | ₹ crore, **signed** | Negative is net selling. The chart's zero line is load-bearing. |
+| `diiNetCr` | number | ₹ crore, signed | Generated anti-correlated with FII, which is how the two usually behave. |
+| `mf.*` | number | ₹ crore | Category net inflows. Non-negative in the shipped set. |
+
+**Refresh cadence** — monthly. **Real source** — NSE/BSE publish FII/DII net flows; AMFI publishes
+category flows. **Consumed by** — Super Investors → Fund Flows.
+
+---
+
+## What the Trending and Fund Flows views join
+
+Both views put synthetic data beside **real** data from the technicals scrape, and both label
+which is which in the sub-header. The join key is always the ticker.
+
+| View | Synthetic columns | Real columns (from `technicals.json`) |
+| --- | --- | --- |
+| Public Chatter → Trending | mentions, momentum, sentiment, source split, first mention | technical score /24, `pct_change_today`, 52-week proximity, `relative_strength_6m` |
+| Super Investors → Fund Flows | tracked holders, their stakes, net action | `chg_fii_hold`, `chg_dii_hold`, combined, `delivery_trend_diff`, technical score /24 |
+
+A company with chatter or a tracked holder but no row in the NSE-500 universe shows `—` in the
+real columns rather than a zero. The chatter-vs-price quadrant therefore has one invented axis and
+one measured one; the view says so, because that is exactly the kind of chart that gets
+screenshotted without its caption.
 
 ---
 

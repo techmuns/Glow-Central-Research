@@ -251,6 +251,9 @@ export function scoreTable(config) {
     emptyMessage = 'No companies match your filters.',
     exportName = 'sattva-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
+    // Optional per-row tint, e.g. flagging a risk level. Returns Tailwind classes or ''.
+    // Kept separate from the built-in red-flag tint, which belongs to the scoring models.
+    rowClass = null,
   } = config;
 
   // Internal view state — search text, filter value, watchlist-only, sort.
@@ -353,8 +356,9 @@ export function scoreTable(config) {
         const { color, initials } = avatarFor(label);
         const sc = showScore && score ? score(row) : null;
         const redFlag = !!(sc && sc.redFlag);
+        const extraClass = rowClass ? rowClass(row) || '' : '';
         return `
-          <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-slate-50'}"
+          <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
             ${redFlag ? 'style="box-shadow: inset 3px 0 0 #f43f5e"' : ''}>
             <td class="px-4 py-3 text-sm font-medium text-slate-500">
               <div class="flex items-center gap-1">
@@ -506,6 +510,9 @@ export function scoreTable(config) {
         return;
       }
       if (!onRowClick) return;
+      // A link or control inside a cell owns its own click — opening the drill behind a
+      // newly-opened tab is not what anyone meant by clicking "open ↗".
+      if (e.target.closest('a[href], [data-norow]')) return;
       const tr = e.target.closest('tr[data-row-key]');
       if (!tr) return;
       const row = current.find((r) => String(key(r)) === tr.dataset.rowKey);

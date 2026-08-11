@@ -14,9 +14,8 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**Prompts 1–5 of 7 complete.** The shell, the screener kit, the live technicals pipeline, the
-Earnings Hub and the Con-call tab are in. The remaining tabs land one prompt at a time — see the
-roadmap in [`docs/SPEC.md`](docs/SPEC.md#8-roadmap).
+**Prompts 1–6 of 7 complete.** All five Research Central tabs are built. Portfolio Analytics is
+the last prompt — see the roadmap in [`docs/SPEC.md`](docs/SPEC.md#8-roadmap).
 
 **Breakouts / Technical is live.** 535 NSE-500 companies scored against a 16-rule, 24-point
 model, from a daily Yahoo Finance EOD scrape plus NSE bhavcopy delivery data, refreshed weekdays
@@ -138,6 +137,26 @@ says so on every surface that shows the data.
 The keyword counts, though, are **not** mock: `public/js/concall/keyword-engine.js` scans that
 text in the browser on every render, so editing a keyword's aliases genuinely changes what
 matches. No count is stored in any file.
+
+## Regenerate the mock chatter and investor sets
+
+```bash
+node scripts/gen-mock-chatter.mjs     # 40 forum threads, 25 Telegram groups
+node scripts/gen-mock-investors.mjs   # 8 investors + 8 funds x 4 quarters, 24 months of flows
+```
+
+Both seeded, so output is byte-stable. Two rules govern this data, and they are different:
+
+- **Chatter handles are fictional.** A forum handle belongs to a real person; attaching invented
+  opinions to one misattributes speech. Same rule as the con-call speakers.
+- **Investor names are real; their positions are not.** Ashish Kacholia, Dolly Khanna, Small Cap
+  World Fund and the rest are real, and their genuine holdings are public. Everything shown here
+  is synthetic, labelled on every surface — and the data set carries **numbers only**, with no
+  `rationale`, `quote` or `thesis` field, deliberately, so there is nothing to render that would
+  read as something a named person said.
+
+The pump-risk flag is **not** in the data: `public/js/chatter/pump-risk.js` computes it in the
+browser and returns the criteria it fired, with their measured values.
 
 ## Verify before pushing
 

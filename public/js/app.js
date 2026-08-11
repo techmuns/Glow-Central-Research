@@ -9,12 +9,13 @@ import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { primeCatalysts } from './data/concalls.js';
 import { primeDefaults as primeKeywords } from './concall/keyword-engine.js';
+import { prime as primeInvestors } from './data/investors.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
-// Two heavy feeds are NOT loaded here. js/data/technicals.js (~800KB) and js/data/concalls.js
-// (~2MB of transcripts) fetch and cache lazily the first time their tab mounts, so the other
-// tabs don't pay for a corpus they never read.
+// Heavy or tab-specific feeds are NOT loaded here. js/data/technicals.js (~800KB),
+// js/data/concalls.js (~2MB of transcripts) and js/data/chatter.js (~160KB) fetch and cache
+// lazily the first time their tab mounts, so the other tabs don't pay for data they never read.
 const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
@@ -22,9 +23,9 @@ const DATA_SOURCES = {
   earningsCalendar: 'data/mock/earnings-calendar.json',
   concallKeywords: 'data/mock/concall-keywords.json',
   catalysts: 'data/mock/catalysts.json',
-  chatter: 'data/mock/chatter.json',
   superinvestors: 'data/mock/superinvestors.json',
   institutions: 'data/mock/institutions.json',
+  fundFlows: 'data/mock/fund-flows.json',
   transactions: 'data/mock/transactions.json',
 };
 
@@ -57,6 +58,11 @@ async function loadAll() {
   // fetched by js/data/concalls.js when the tab mounts.
   primeKeywords(data.concallKeywords);
   primeCatalysts(data.catalysts);
+
+  // Super Investors: three small files, all needed together for the investor grid, so they
+  // load at bootstrap and seed the module. The chatter feeds are fetched lazily by
+  // js/data/chatter.js when that tab mounts.
+  primeInvestors(data.superinvestors, data.institutions, data.fundFlows);
   return data;
 }
 

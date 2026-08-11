@@ -58,10 +58,16 @@ public/
       keyword-engine.js       runtime transcript scanner + the keyword store
       keyword-editor.js       the keyword set editor (modal)
       deep-dive.js            the six-tab Con-call Deep Dive workspace
+    chatter/
+      pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
+    investors/
+      deep-dive.js            the four-tab per-investor workspace
     data/
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       concalls.js             same, for the transcript corpus (lazy — it is ~2MB)
+      chatter.js              forum + telegram feeds, momentum and pump risk derived here
+      investors.js            holders, overlap matrix, company interest, fund flows
       universe.js             screener-export -> legacy universe shape adapter
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
@@ -76,6 +82,8 @@ scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   gen-mock-concalls.mjs       seeded generator for the synthetic transcript corpus
+  gen-mock-chatter.mjs        seeded generator for the forum + telegram feeds
+  gen-mock-investors.mjs      seeded generator for holdings + fund flows
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
@@ -211,7 +219,17 @@ These are not style preferences — they are why the dashboard can be trusted:
    `holding % × market cap` and says so in the drill panel — filings disclose a percentage,
    never a rupee amount.
 4. **Every `?` help modal states what is mock and what is live**, and which prompt wires it.
-5. **Synthetic numbers must be unmistakable wherever they surface.** Earnings Hub is the
+5. **Never attribute invented words to a real person.** This is a harder line than the mock-data
+   rule and it is not negotiable by labelling. Synthetic *numbers* about a real subject are fine
+   when marked: the earnings figures sit against real companies, and the Super Investors holdings
+   sit against real, named investors, both under an unmissable ribbon. Synthetic *speech, views or
+   rationale* attributed to a named real person are not fine at any labelling level, because a
+   screenshot travels without the ribbon and the quote survives as something they said. So:
+   con-call speakers and analysts are fictional, forum and Telegram handles are fictional, and
+   `superinvestors.json` carries positions with **no** `rationale` / `quote` / `thesis` field —
+   deliberately, so there is nothing to render. If a field would read as something a real person
+   said or thought, drop the field.
+6. **Synthetic numbers must be unmistakable wherever they surface.** Earnings Hub is the
    reference: an amber ribbon on every sub-view, a freshness card reading "Mock data · generated
    `<date>` · not a filing time" rather than a fake filing time, an amber note in the drill, an
    amber banner as row 1 of every exported sheet, and a `mock` row in the Sources modal naming
@@ -427,6 +445,8 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
 | Regenerate the mock con-calls | `node scripts/gen-mock-concalls.mjs` — seeded, so output is stable |
+| Regenerate the mock chatter / investors | `node scripts/gen-mock-chatter.mjs`, `node scripts/gen-mock-investors.mjs` |
+| Change the pump-risk thresholds | `js/chatter/pump-risk.js` — named constants, and the help modal quotes them |
 | Change keyword matching | `js/concall/keyword-engine.js` — see the rules above before touching it |
 | Add a view to the Deep Dive | `js/concall/deep-dive.js`: add to `TABS`, `TAB_LABEL`, `RENDERERS`, and `WIRERS` if it needs listeners |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
