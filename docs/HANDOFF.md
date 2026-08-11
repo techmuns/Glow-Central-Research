@@ -267,6 +267,13 @@ Analytics' four); scope picks *whose data* the open tab shows. Removing either s
 Both carry a tooltip saying so, and the scope toggle now has a "Scope" kicker to match the
 dropdown's "Workspace" one.
 
+**The Calendar view is deliberately allowed to be incomplete, and to say so.** Moneycontrol
+publishes the per-date COUNT through a clean JSON API (complete) and the company LIST through the
+calendar page (the 20 largest by market cap, un-pageable — the route its own "load more" uses is
+Akamai-blocked to non-browser clients). Both numbers travel in the payload and both are printed:
+"170 companies report on this date… 20 are named here". There is no committed calendar file, because
+a stale schedule looks exactly like a fresh one. Full rules in `docs/DATA-CONTRACTS.md`.
+
 **YoY / QoQ is one toggle over two payloads that look identical.** Both carry the same
 current-period figures; only the comparison moves. That makes a mis-served payload the one error
 nothing downstream could catch, so `setSubType()` refuses any response whose `meta.subType` is not

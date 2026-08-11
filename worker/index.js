@@ -5,10 +5,11 @@
 //
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
+//   GET  /api/earnings-calendar                ->  who is SCHEDULED to report, and when
 //
 // Neither writes anything back to the repo; both are read-through overlays on committed data.
 
-import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity } from './mc.mjs';
+import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const REQ_TIMEOUT_MS = 8000;
@@ -34,6 +35,9 @@ export default {
     }
     if (url.pathname === '/api/earnings') {
       return handleEarnings(request, env, ctx);
+    }
+    if (url.pathname === '/api/earnings-calendar') {
+      return handleCalendar(request, env, ctx);
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -123,6 +127,96 @@ async function handleEarnings(request, env, ctx) {
   // Store a clone; the response body can only be read once.
   ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
   return res;
+}
+
+// ---------------------------------------------------------------------------------------
+// GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
+//
+// The forward-looking half of the Earnings Hub. Two upstreams, because Moneycontrol splits it:
+// a clean JSON date strip with the COMPLETE count per date, and the calendar page itself for the
+// company list — which is the twenty largest by market cap and cannot be paged past. See the
+// header of mc.mjs. Both numbers travel, so the UI can say "170 reporting, 20 shown".
+//
+// Cached longer than the results feed (CALENDAR_TTL_S vs 30s) because a schedule changes on the
+// order of hours, not ticks. The strip is fetched even when the day list fails, so a reader always
+// learns how many companies report — an empty list would read as "nobody reports that day".
+// ---------------------------------------------------------------------------------------
+const CALENDAR_TTL_S = 300;
+
+async function handleCalendar(request, env, ctx) {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+
+  const url = new URL(request.url);
+  const iso = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
+  const date = iso(url.searchParams.get('date'));
+  if (!date) return json({ error: 'date=YYYY-MM-DD is required' }, 400);
+  // Default window: a fortnight around the chosen date, which is what the strip is for — seeing
+  // where the clusters are without asking for a date you cannot see the shape of.
+  const from = iso(url.searchParams.get('from')) || shiftDays(date, -7);
+  const to = iso(url.searchParams.get('to')) || shiftDays(date, 14);
+
+  const cacheKey = new Request(`https://cache.invalid/earnings-calendar?date=${date}&from=${from}&to=${to}`, { method: 'GET' });
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('x-sattva-cache', 'hit');
+    return r;
+  }
+
+  // Independent, and deliberately not Promise.all-with-rejection: the strip is the part that is
+  // always available, and losing it because the page 403'd would be the wrong trade.
+  const [stripOut, dayOut] = await Promise.allSettled([
+    fetchCalendarStrip({ fromDate: from, toDate: to }),
+    fetchCalendarDay({ date }),
+  ]);
+
+  if (stripOut.status === 'rejected' && dayOut.status === 'rejected') {
+    return json({ ok: false, degraded: `calendar upstream unavailable: ${String(stripOut.reason?.message || stripOut.reason)}`, days: [], rows: [] }, 502);
+  }
+
+  const days = stripOut.status === 'fulfilled' ? stripOut.value : [];
+  const day = dayOut.status === 'fulfilled' ? dayOut.value : { rows: [], asOnDate: null, capped: false };
+  // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
+  // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
+  // industry. Resolving them here is bounded by the page's own 20-row cap.
+  const known = (await loadTickerMap(env, request)) || {};
+  const { resolved, attempted, failed } = await resolveMissing(day.rows, known, { limit: 25 });
+  const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
+
+  const payload = {
+    ok: true,
+    resolvedOnTheFly: attempted,
+    unresolved: failed,
+    degraded: dayOut.status === 'rejected' ? `Moneycontrol's calendar page is unavailable (${String(dayOut.reason?.message || dayOut.reason)}), so the company list for this date could not be loaded. The per-date counts below are live.` : null,
+    date,
+    from,
+    to,
+    asOnDate: day.asOnDate,
+    // The two numbers that must never be conflated: how many report, and how many we can name.
+    scheduledCount: days.find((d) => d.date === date)?.count ?? null,
+    listCap: CALENDAR_LIST_CAP,
+    capped: day.capped,
+    days,
+    rows: applyIdentity(day.rows, merged),
+    meta: {
+      source: 'Moneycontrol — Results Calendar (api…/earnings/result-calendar for the counts, the calendar page for the list)',
+      fetchedAt: new Date().toISOString(),
+    },
+  };
+
+  const res = json(payload, 200);
+  res.headers.set('cache-control', `public, max-age=${CALENDAR_TTL_S}`);
+  res.headers.set('x-sattva-cache', 'miss');
+  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+  return res;
+}
+
+/** "2026-08-11", -7 -> "2026-08-04". UTC arithmetic so a timezone can never move a date. */
+function shiftDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 /** The committed scID -> identity map, read through the ASSETS binding. */

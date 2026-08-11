@@ -217,6 +217,10 @@ feed and the Excel export but is not a column. A YoY/QoQ toggle repoints the com
 second dropdown filters consolidated vs standalone. Rows are not clickable — there is no drill,
 because the figures it held are now columns. Live off Moneycontrol Rapid Results, polled every
 30s.
+
+A second view, **Earnings Calendar**, answers the opposite question: who is *scheduled* to report.
+A date strip carries the complete count per date; the table names the 20 largest by market cap for
+the selected date, because that is all Moneycontrol publishes — and says so under itself.
 - Auto-parsed result PDFs (revenue, PAT, margin extraction)
 - Beat/miss scoring vs Street estimates
 - Segment-wise revenue break-up

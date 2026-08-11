@@ -40,12 +40,13 @@
 //
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
-import { scoreTable, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatCroreCompact, formatPct, formatNumber, formatRelativeTime } from '../core/format.js';
+import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
+import * as calendar from '../data/earnings-calendar.js';
 
 export const meta = {
   id: 'earnings-hub',
@@ -55,15 +56,17 @@ export const meta = {
   subviews: [],
 };
 
-const FEATURES = [
-  'Per-company quarter history (this feed carries the latest quarter only)',
-  'Margin, tax-rate and other-income detail from the XBRL filings',
-  'Result-day price reaction intraday, not just close-to-now',
-  'Alerts when a watchlisted company reports',
+// The two halves of this tab: what has been reported, and what is scheduled. Same source, same
+// quarter, opposite direction in time.
+const VIEWS = [
+  { value: 'reported', label: 'Earnings Reported', help: 'Companies that have already filed this quarter' },
+  { value: 'calendar', label: 'Earnings Calendar', help: 'Companies scheduled to report, by date' },
 ];
 
 let disposers = [];
 let renderToken = 0;
+let calendarDate = null; // the selected date in the calendar view
+let calendarBusy = false;
 // The table is rebuilt whenever a company files. Carrying its view forward means the reader's
 // search, filters, watchlist toggle and sort survive that rebuild instead of resetting under them.
 let tableView = null;
@@ -96,7 +99,9 @@ export function render(ctx) {
       disposers.push(
         feed.onChange(() => {
           if (token !== renderToken) return;
-          paint(ctx);
+          // A results tick must not repaint the calendar out from under the reader. Different
+          // half of the tab, different upstream, different refresh cadence.
+          if (viewOf(ctx) === 'reported') paint(ctx);
         })
       );
       disposers.push(feed.startLive(ctx.live));
@@ -122,7 +127,12 @@ export function destroy() {
   // half-applied filter. Only a live repaint carries the view forward.
   tableView = null;
   periodError = null;
+  calendarDate = null;
+  calendar.reset();
 }
+
+/** Which half of the tab the URL is asking for. Anything unrecognised falls back to reported. */
+const viewOf = (ctx) => (ctx.params?.view === 'calendar' ? 'calendar' : 'reported');
 
 function loadingHtml() {
   return `
@@ -134,7 +144,36 @@ function loadingHtml() {
 }
 
 function paint(ctx) {
-  renderLatest(ctx);
+  if (viewOf(ctx) === 'calendar') renderCalendar(ctx);
+  else renderLatest(ctx);
+}
+
+/**
+ * Reported / Calendar. Not a filter — two different upstreams answering opposite questions about
+ * the same quarter, so each half owns its own toolbar, its own freshness and its own caveats.
+ */
+function viewToggle(active) {
+  return `
+    <div class="inline-flex items-center gap-1 rounded-full bg-slate-100 p-0.5 ring-1 ring-slate-200" data-view-toggle>
+      ${VIEWS.map(
+        (v) => `<button type="button" data-view="${v.value}" title="${escapeHtml(v.help)}" aria-pressed="${v.value === active}"
+             class="rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+               v.value === active ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
+             }">${escapeHtml(v.label)}</button>`
+      ).join('')}
+    </div>`;
+}
+
+function wireViewToggle(root, ctx) {
+  for (const btn of root.querySelectorAll('[data-view]')) {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.view;
+      if (next === viewOf(ctx)) return;
+      // setParams, not setParamsQuiet: this swaps the whole panel, so a re-mount is exactly right
+      // and it gives the calendar half a clean load rather than a half-torn-down results table.
+      ctx.setParams({ ...ctx.params, view: next });
+    });
+  }
 }
 
 const rowsFor = (ctx) => feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
@@ -481,7 +520,7 @@ function renderLatest(ctx) {
     ${sectionHead({
       title: 'Latest Results',
       description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
     })}
     ${
       periodError
@@ -492,25 +531,266 @@ function renderLatest(ctx) {
         : ''
     }
     ${table.html}
-    ${coverageNote(rows, m)}
-    ${roadmapStrip(FEATURES)}
   `;
+  wireViewToggle(ctx.root, ctx);
   wirePeriodToggle(ctx.root, ctx);
   wireLiveButton(ctx.root, m, rows);
   disposers.push(table.wire(ctx.root));
 }
 
-function coverageNote(rows, m) {
-  const noTicker = rows.filter((r) => !r.ticker).length;
-  const noCap = rows.filter((r) => r.marketCap == null).length;
+// ---------------------------------------------------------------------------------------
+// Earnings Calendar — who is SCHEDULED to report, and when.
+//
+// TWO NUMBERS THAT MUST NEVER BE CONFLATED
+//   `scheduledCount` is complete: Moneycontrol's calendar API gives the true number reporting on
+//   each date. The company LIST is the twenty largest by market cap — the page cannot be paged
+//   past and the route its own "load more" uses is blocked to non-browser clients (see the header
+//   of worker/mc.mjs). So on a busy day this table shows 20 of 206, and it says exactly that.
+//   Rendering twenty rows under a plain heading would assert that twenty is all there are.
+// ---------------------------------------------------------------------------------------
+
+// "2026-08-13" -> "Thu 13 Aug". The strip needs the weekday: results cluster on weekdays and a
+// gap that turns out to be a Sunday is not the same information as a quiet Wednesday.
+function stripLabel(iso) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()];
+  const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()];
+  return `${wd} ${d.getUTCDate()} ${mo}`;
+}
+
+function dateStrip(active, today) {
+  const days = calendar.strip();
+  if (!days.length) return '';
+  // Oldest first reads like a calendar; the API hands them back newest first.
+  const ordered = [...days].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return `
-    <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
-      ${formatNumber(rows.length)} companies · ${formatNumber(rows.length - noTicker)} resolved to an NSE ticker ·
-      ${formatNumber(rows.length - noCap)} with a market cap. Reported figures are in ₹ crore as published, not rounded.
-      A dash means <em>not joined</em>, never zero.
-      ${m?.priorPeriod ? `Growth is ${escapeHtml((m.subType || 'yoy').toUpperCase())}, against ${escapeHtml(m.priorPeriod)}.` : ''}
-      Gross profit is not a column here but is in the Excel export.
+    <div class="scrollbar-thin mb-4 flex gap-2 overflow-x-auto pb-2" data-date-strip>
+      ${ordered
+        .map((d) => {
+          const on = d.date === active;
+          const empty = !d.count;
+          const isToday = d.date === today;
+          return `<button type="button" data-date="${escapeHtml(d.date)}" ${empty ? 'disabled' : ''}
+            title="${escapeHtml(stripLabel(d.date))}${empty ? ' — nothing scheduled' : ` — ${formatNumber(d.count)} companies`}"
+            class="flex min-w-[92px] flex-shrink-0 flex-col items-center rounded-xl px-3 py-2 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+              on
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : empty
+                  ? 'cursor-default bg-slate-50 text-slate-300 ring-1 ring-slate-100'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+            }">
+            <span class="font-semibold ${on ? '' : isToday ? 'text-indigo-600' : ''}">${escapeHtml(stripLabel(d.date))}${isToday ? ' ·' : ''}</span>
+            <span class="mt-0.5 font-bold tabular-nums ${on ? 'text-white' : empty ? '' : 'text-slate-900'}">${d.count ? formatNumber(d.count) : '—'}</span>
+          </button>`;
+        })
+        .join('')}
+    </div>`;
+}
+
+function renderCalendar(ctx) {
+  const today = new Date().toISOString().slice(0, 10);
+  const wanted = /^\d{4}-\d{2}-\d{2}$/.test(ctx.params?.date || '') ? ctx.params.date : calendarDate || today;
+  calendarDate = wanted;
+  const payload = calendar.forDate(wanted);
+
+  // Not loaded yet: fetch, then repaint. Guarded three ways — `calendarBusy` stops a rapid walk
+  // along the strip stacking paints, and `errorFor` stops the retry loop that a failure would
+  // otherwise create, because the repaint that follows a failed load asks for the same date again.
+  if (!payload && !calendarBusy && !calendar.errorFor(wanted)) {
+    calendarBusy = true;
+    const token = renderToken;
+    calendar
+      .loadDate(wanted)
+      .catch(() => {})
+      .finally(() => {
+        calendarBusy = false;
+        if (token === renderToken) renderCalendar(ctx);
+      });
+  }
+
+  const rows = payload?.rows || [];
+  const scoped = ctx.scope === 'portfolio' ? rows.filter((r) => holdings(ctx).has(String(r.ticker || '').toUpperCase())) : rows;
+  const err = calendar.errorFor(wanted);
+
+  const table = scoped.length
+    ? scoreTable({
+        rows: scoped,
+        key: (r) => r.scId,
+        name: (r) => r.name,
+        nameLabel: 'Company',
+        sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || '—'}`,
+        showRank: false,
+        nameAfter: 1,
+        dense: true,
+        nameMaxPx: 300,
+        stickyHead: 'max(280px, calc(100vh - 420px))',
+        columns: [
+          { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
+          { label: 'Quarter', get: (r) => escapeHtml(r.quarter || '—'), html: true, sortValue: (r) => r.quarter || '' },
+          // Moneycontrol says "Time Not Available" for almost every row; the normaliser turns that
+          // into null so this reads as a dash rather than a sentence where a clock belongs.
+          { label: 'Time', get: (r) => (r.time ? escapeHtml(r.time) : '<span class="text-slate-300">—</span>'), html: true, sortValue: (r) => r.time || 'zzz' },
+          { label: 'Price', get: (r) => (r.ltp == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatRupee(r.ltp))), html: true, align: 'right', sortValue: (r) => r.ltp ?? -Infinity },
+          {
+            label: 'Change',
+            get: (r) => {
+              if (r.changePct == null) return '<span class="text-slate-300">—</span>';
+              const cls = r.changePct > 0 ? 'text-emerald-600' : r.changePct < 0 ? 'text-rose-600' : 'text-slate-500';
+              return `<span class="font-semibold ${cls}">${escapeHtml(pctText(r.changePct))}</span>`;
+            },
+            html: true,
+            align: 'right',
+            sortValue: (r) => r.changePct ?? -Infinity,
+          },
+          { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
+        ],
+        searchable: (r) => `${r.name} ${r.ticker || ''} ${r.industry || ''}`,
+        initialSort: { key: 'Market Cap', dir: 'desc' },
+        exportName: 'sattva-earnings-calendar',
+        onExport: (visible) => exportCalendar(visible, payload),
+        emptyMessage: 'No companies match your filters.',
+      })
+    : null;
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Earnings Calendar',
+      description: 'Companies scheduled to report, by date. Pick a date from the strip.',
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed' })}</div>`,
+    })}
+    ${dateStrip(wanted, today)}
+    ${
+      err
+        ? `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
+             <div class="text-3xl">📅</div>
+             <div class="mt-2 text-sm font-semibold text-slate-700">The results calendar could not be loaded</div>
+             <div class="mt-1 text-xs text-slate-500">${escapeHtml(err)}</div>
+             <div class="mx-auto mt-3 max-w-lg text-xs text-slate-400">This view needs the live route. There is no committed calendar file on purpose — a schedule is a claim about the future, and a stale one looks exactly like a fresh one.</div>
+           </div>`
+        : !payload
+          ? '<div class="skeleton-shimmer h-80 rounded-2xl bg-slate-100"></div>'
+          : payload.degraded
+            ? `<div class="rounded-2xl bg-amber-50 p-5 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                 <strong>Counts only for this date.</strong> ${escapeHtml(payload.degraded)}
+               </div>`
+            : table
+              ? `${table.html}${calendarNote(payload, scoped.length, ctx)}`
+              : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
+                   <div class="text-3xl">🗓️</div>
+                   <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings is scheduled on this date' : 'Nothing scheduled on this date'}</div>
+                   <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${payload.scheduledCount ? ` · ${formatNumber(payload.scheduledCount)} companies report, none in this scope` : ''}</div>
+                 </div>`
+    }
+  `;
+  wireViewToggle(ctx.root, ctx);
+  wireCalendarPill(ctx.root, payload, wanted);
+  for (const btn of ctx.root.querySelectorAll('[data-date]')) {
+    btn.addEventListener('click', () => {
+      calendarDate = btn.dataset.date;
+      ctx.setParamsQuiet({ ...ctx.params, view: 'calendar', date: calendarDate });
+      renderCalendar(ctx);
+    });
+  }
+  if (table) disposers.push(table.wire(ctx.root));
+}
+
+const holdings = (ctx) => new Set((ctx.data?.portfolio?.holdings || []).map((h) => String(h.ticker).toUpperCase()));
+
+function calendarPill(payload, err) {
+  const bad = !!err || !!payload?.degraded;
+  const cls = bad ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+  const dot = bad
+    ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
+    : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
+  const count = payload?.scheduledCount;
+  return `
+    <button type="button" data-cal-info title="Where this calendar comes from, and what it does not show"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+      ${dot}<span>${bad ? 'Partial' : 'Live'}</span>
+      <span class="font-normal opacity-70">${count != null ? `${escapeHtml(formatNumber(count))} scheduled` : 'schedule'}</span>
+    </button>`;
+}
+
+// The one sentence that keeps this table honest: how many report, versus how many are named.
+function calendarNote(payload, shown, ctx) {
+  const total = payload?.scheduledCount;
+  const partial = total != null && payload.capped && shown < total;
+  return `
+    <p class="mb-6 text-[11px] leading-relaxed ${partial ? 'text-amber-700' : 'text-slate-500'}">
+      ${total != null ? `<strong>${formatNumber(total)}</strong> companies report on this date.` : ''}
+      ${
+        partial
+          ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}. The count above is the complete one.`
+          : `All ${formatNumber(shown)} are listed.`
+      }
+      Prices are live; a dash means not known, never zero.
     </p>`;
+}
+
+function wireCalendarPill(root, payload, date) {
+  const btn = root.querySelector('[data-cal-info]');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    openModal(
+      `<div class="px-7 py-6">
+        <div class="mb-3 flex items-start justify-between gap-4">
+          <h2 class="font-display text-xl font-bold text-slate-900">Results calendar</h2>
+          <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+        <div class="text-sm leading-relaxed text-slate-600">
+          <p><strong>Real, live, from Moneycontrol</strong> — the same source as the reported results, asked the other
+             way round: who is <em>due</em> to report rather than who has.</p>
+          <p class="mt-2">Showing <strong>${escapeHtml(stripLabel(date))}</strong>${payload?.asOnDate ? ` · Moneycontrol's schedule as on ${escapeHtml(payload.asOnDate)}` : ''}.</p>
+
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Two numbers, two sources</h3>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
+            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete, unpaginated.</li>
+            <li><strong>The company list</strong> — from the calendar page itself, which publishes the
+                <strong>${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap</strong> for a date and
+                offers no way to page past that. So on a busy day this table names a fraction of the count beside it,
+                and says so under the table rather than letting twenty rows imply twenty companies.</li>
+            <li><strong>Ticker and industry</strong> — resolved from Moneycontrol's company code, live, because a
+                company that has not reported yet is not in a map built from companies that have.</li>
+          </ul>
+
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why there is no offline copy</h3>
+          <p class="mt-1 text-xs">A schedule is a claim about the future. A committed file would go on saying a company
+             reports next Thursday long after that Thursday, and nothing on screen could tell you it was stale. If the
+             live route is unreachable this view says so instead of showing you a plausible old calendar.</p>
+          <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not known</em> — never zero.</p>
+        </div>
+      </div>`,
+      { size: 'default' }
+    );
+  });
+}
+
+async function exportCalendar(rows, payload) {
+  const banner = {
+    __banner:
+      `REAL DATA. Results calendar via Moneycontrol — companies scheduled to report on ${payload?.date || ''}` +
+      `${payload?.asOnDate ? ` (schedule as on ${payload.asOnDate})` : ''}, captured ${new Date().toISOString()}. ` +
+      `${payload?.scheduledCount != null ? `${payload.scheduledCount} companies report on this date; ` : ''}` +
+      `Moneycontrol publishes only the ${payload?.listCap ?? 20} largest by market cap per date, so THIS SHEET IS NOT THE FULL LIST. ` +
+      `Market cap in Rs. crore. Blank cells mean not known, not zero.`,
+  };
+  await exportRows({
+    filename: 'sattva-earnings-calendar',
+    sheetName: 'Results Calendar',
+    columns: [
+      { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
+      { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
+      { header: 'Company', key: 'c', width: 36, get: (r) => (r.__banner ? '' : r.name) },
+      { header: 'Industry', key: 'i', width: 26, get: (r) => (r.__banner ? '' : r.industry || '') },
+      { header: 'Quarter', key: 'q', width: 14, get: (r) => (r.__banner ? '' : r.quarter || '') },
+      { header: 'Time', key: 'tm', width: 14, get: (r) => (r.__banner ? '' : r.time || '') },
+      { header: 'Price', key: 'p', width: 14, get: (r) => (r.__banner ? '' : (r.ltp ?? '')) },
+      { header: 'Change %', key: 'ch', width: 12, get: (r) => (r.__banner ? '' : (r.changePct ?? '')) },
+      { header: 'MCap (Cr)', key: 'm', width: 16, get: (r) => (r.__banner ? '' : (r.marketCap ?? '')) },
+    ],
+    rows: [banner, ...rows],
+  });
 }
 
 async function exportResults(rows, m) {

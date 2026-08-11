@@ -392,6 +392,82 @@ if (!hasLiveRoute) {
 }
 
 // ---------------------------------------------------------------------------------------
+// 2c. Earnings Calendar — the forward-looking half of the tab.
+//
+// The honesty check here is the one that matters: the per-date COUNT is complete (a clean JSON
+// API) while the company LIST is the twenty largest by market cap (the page cannot be paged past).
+// Twenty rows under a bare heading would assert that twenty companies report. The table must name
+// both numbers.
+// ---------------------------------------------------------------------------------------
+console.log('\n— earnings calendar —');
+await go('/#/research/earnings-hub?scope=universe', 800);
+await waitForPanel();
+ok('the tab offers Reported / Calendar', (await page.locator('[data-view]').count()) === 2);
+
+await page.locator('[data-view="calendar"]').click();
+// The calendar is a live round trip with no snapshot fallback, so wait for the strip or the
+// failure panel rather than a fixed sleep.
+const calReady = await (async () => {
+  const started = Date.now();
+  while (Date.now() - started < 30000) {
+    const st = await page.evaluate(() => ({
+      chips: document.querySelectorAll('[data-date]').length,
+      failed: /could not be loaded/i.test(document.querySelector('#content-host')?.innerText || ''),
+      rows: document.querySelectorAll('tr[data-row-key]').length,
+    }));
+    if ((st.chips && st.rows) || st.failed) return st;
+    await page.waitForTimeout(300);
+  }
+  return { chips: 0, failed: false, rows: 0 };
+})();
+
+if (calReady.failed) {
+  // No Worker on this origin. The view must say so, not draw an empty calendar.
+  ok('without the live route, the calendar says so', /could not be loaded/i.test(await hostText()));
+  ok('...and explains why there is no offline copy', /claim about the future|stale/i.test(await hostText()));
+  console.log('      (calendar round trip not exercised — no /api/earnings-calendar on this origin)');
+  // Everything after this section reads the results table, so go back to it either way.
+  await page.locator('[data-view="reported"]').click();
+  await waitForPanel();
+} else {
+  ok('the calendar renders a date strip with counts', calReady.chips > 5, `${calReady.chips} dates`);
+  ok('...and the URL records the view', page.url().includes('view=calendar'));
+  const calHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
+  for (const c of ['DATE', 'COMPANY', 'QUARTER', 'TIME', 'PRICE', 'MARKET CAP']) {
+    ok(`calendar column: ${c}`, calHeads.some((h) => h.startsWith(c)), calHeads.join(' | '));
+  }
+
+  // THE CHECK THIS VIEW EXISTS TO PASS.
+  const calHonesty = await page.evaluate(() => {
+    const txt = document.querySelector('#content-host').innerText;
+    const m = /([\d,]+)\s+companies report on this date/.exec(txt);
+    return { total: m ? Number(m[1].replace(/,/g, '')) : null, rows: document.querySelectorAll('tr[data-row-key]').length, saysCap: /largest by market cap/i.test(txt) };
+  });
+  ok('the calendar states the complete count for the date', calHonesty.total > 0, `${calHonesty.total} scheduled`);
+  ok(
+    '...and says the list is a top-N when it is one',
+    calHonesty.rows >= calHonesty.total || calHonesty.saysCap,
+    `${calHonesty.rows} named of ${calHonesty.total}`
+  );
+
+  // Clicking another date must change both the data and the URL.
+  const otherDate = await page.evaluate(() => {
+    const active = document.querySelector('[data-date][aria-pressed], [data-date]');
+    const all = [...document.querySelectorAll('[data-date]:not([disabled])')].map((b) => b.dataset.date);
+    void active;
+    return all[all.length - 1];
+  });
+  await page.locator(`[data-date="${otherDate}"]`).click();
+  await page.waitForTimeout(6000);
+  ok('picking a date reloads that day and records it in the URL', page.url().includes(`date=${otherDate}`), otherDate);
+
+  // Back to reported, which is where the rest of the suite expects to be.
+  await page.locator('[data-view="reported"]').click();
+  await waitForPanel();
+  ok('switching back to Reported restores the results table', (await rowCount()) > 1000);
+}
+
+// ---------------------------------------------------------------------------------------
 // 3. Table mechanics
 // ---------------------------------------------------------------------------------------
 console.log('\n— table —');
@@ -471,7 +547,10 @@ await go('/#/research/earnings-hub?scope=universe', 1800);
 console.log('\n— provenance —');
 await go('/#/research/earnings-hub?scope=universe', 1800);
 ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
-ok('the coverage note states what did not join', /a dash means/i.test(await hostText()));
+// The coverage note and the roadmap card were removed from this tab deliberately — one table,
+// nothing under it. The dash rule they carried lives in the Live pill's modal, checked above.
+ok('no roadmap placeholder under the table', !/wiring roadmap/i.test(await hostText()));
+ok('...and no coverage paragraph either', !/resolved to an NSE ticker/i.test(await hostText()));
 
 await page.locator('button:has-text("Sources")').first().click();
 await page.waitForTimeout(600);

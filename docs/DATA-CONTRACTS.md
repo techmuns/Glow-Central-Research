@@ -551,6 +551,59 @@ two questions having different answers.
 
 ---
 
+## `GET /api/earnings-calendar` — LIVE, who is *scheduled* to report
+
+```
+GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
+```
+
+```jsonc
+{
+  "ok": true,
+  "date": "2026-08-13",
+  "from": "2026-08-06", "to": "2026-08-27",   // strip window; defaults to date-7 .. date+14
+  "asOnDate": "11/08/2026",                    // Moneycontrol's own "schedule as on"
+  "scheduledCount": 206,                       // COMPLETE count for `date`
+  "listCap": 20, "capped": true,               // …and how many of them we can name
+  "days": [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 206 }],
+  "rows": [{ "scId": "SE20", "name": "Solar Industries India", "ticker": "SOLARINDS",
+             "industry": "Commodity Chemicals", "resultDate": "2026-08-13",
+             "quarter": "Q1 FY26-27", "time": null, "ltp": 18770, "changePct": -1.2,
+             "marketCap": 169849.83, "mcUrl": "https://…" }]
+}
+```
+
+**Two upstreams, and the asymmetry between them is the whole story.**
+
+| What | Where from | Complete? |
+| --- | --- | --- |
+| The count on each date | `api.moneycontrol.com/mcapi/v1/earnings/result-calendar?fromDate&toDate&indexId=N` | **Yes** — clean JSON, unpaginated, not behind Akamai |
+| The company list for a date | the calendar page's `__NEXT_DATA__` server props | **No** — the 20 largest by market cap |
+
+The list cannot be widened. `?page=`, `?limit=`, `?pageNo=` and every other name are echoed back into
+Next.js's `query` and ignored; `/_next/data/<buildId>/…json` — the route the site's own "load more"
+uses — is 503'd by Akamai for non-browser clients; and every plausible JSON path under
+`/mcapi/v1/earnings/` 404s. So `scheduledCount` and `rows.length` are different numbers on a busy
+day, both travel in the payload, and **the UI must print both**. Twenty rows under a bare heading
+would assert that twenty companies report when two hundred do.
+
+**Identity is resolved live, always.** A company that has not reported yet is by definition absent
+from a map built from companies that have, so almost every calendar row would arrive with no ticker.
+The Worker resolves them per cache window, bounded by the page's own 20-row cap.
+
+**No snapshot, deliberately.** A schedule is a claim about the future: a committed file would go on
+saying a company reports next Thursday long after that Thursday, and nothing on screen could tell
+you it was stale. If the route is unreachable the tab says so instead. Cached 5 minutes at the edge —
+a schedule moves in hours, not ticks.
+
+**`time` is null, not "Time Not Available".** That is the upstream's string for "unknown"; carrying
+it into a Time column would render a sentence where a clock belongs. Null renders as a dash, which
+already means *not known* everywhere else here.
+
+**Consumed by** — `js/data/earnings-calendar.js` → the Earnings Hub's Calendar view.
+
+---
+
 ## `public/data/earnings-live.json` — the snapshot
 
 The same payload shape as the route above, committed by `scripts/scrape-earnings.mjs`. Two jobs:

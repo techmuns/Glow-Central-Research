@@ -89,6 +89,7 @@ scripts/
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
+                              + GET /api/earnings-calendar
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
@@ -599,6 +600,7 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
+| Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap in `docs/DATA-CONTRACTS.md` first |
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |

@@ -118,13 +118,22 @@ export const SOURCE_GROUPS = [
         file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
       },
       {
-        name: 'Results calendar',
-        url: 'https://www.nseindia.com/companies-listing/corporate-filings-board-meetings',
+        name: 'Moneycontrol — Results Calendar (counts)',
+        url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
         feeds:
-          'Scheduled board-meeting dates. <strong class="text-amber-700">Synthetic today:</strong> dates are generated, so treat them as layout, not as a diary. The live feed above reports results as they land rather than forecasting them.',
-        cadence: 'Daily during results season — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/earnings-calendar.json · scripts/gen-mock-earnings.mjs',
+          'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date. Complete and unpaginated — this is the authoritative count behind every chip in the date strip.',
+        cadence: 'Live — 5-minute edge cache. A schedule moves in hours, not ticks.',
+        status: 'live',
+        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarStrip()',
+      },
+      {
+        name: 'Moneycontrol — Results Calendar (company list)',
+        url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
+        feeds:
+          'The named companies for the selected date, with quarter, scheduled time, live price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. There is deliberately no committed copy: a stale schedule is indistinguishable from a live one.',
+        cadence: 'Live — 5-minute edge cache. No offline fallback, by design.',
+        status: 'live',
+        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay()',
       },
     ],
   },

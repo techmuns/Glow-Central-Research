@@ -285,3 +285,125 @@ export function freshnessOf(rows) {
   for (const r of rows) if (r.resultDate && (!latest || r.resultDate > latest)) latest = r.resultDate;
   return { latestResultDate: latest, count: rows.length };
 }
+
+// ---------------------------------------------------------------------------------------
+// THE RESULTS CALENDAR — who is *scheduled* to report, and when.
+//
+// A different question from Rapid Results, and it comes from two places because Moneycontrol
+// only publishes it in two places. Both are live; neither is complete on its own.
+//
+//   1. api.moneycontrol.com/mcapi/v1/earnings/result-calendar  — a clean JSON date strip:
+//      every date in a range with the FULL number of companies reporting on it. No pagination,
+//      no cap, no Akamai. This is the authoritative count.
+//
+//   2. www.moneycontrol.com/markets/earnings/results-calendar/?activeDate=YYYY-MM-DD — the page
+//      itself, whose Next.js server props carry the company list for that date. It returns the
+//      TWENTY LARGEST BY MARKET CAP and nothing else: `?page=`, `?limit=` and every other name
+//      tried are echoed back into `query` and ignored, `/_next/data/...` (the route the site's
+//      own "load more" uses) is 503'd by Akamai for non-browser clients, and there is no JSON
+//      endpoint for the list — every plausible path under /mcapi/v1/earnings/ 404s.
+//
+// So the count is complete and the list is a top-20. That asymmetry is DATA, not a bug to paper
+// over: `listCap` and `earningCount` both travel in the payload so the UI can say "170 reporting ·
+// the 20 largest shown" instead of implying twenty is all there are.
+// ---------------------------------------------------------------------------------------
+
+export const CALENDAR_STRIP_URL = 'https://api.moneycontrol.com/mcapi/v1/earnings/result-calendar';
+export const CALENDAR_PAGE_URL = 'https://www.moneycontrol.com/markets/earnings/results-calendar/';
+
+// The upstream page's own cap. Not ours, and not configurable — see the header.
+export const CALENDAR_LIST_CAP = 20;
+
+// A real browser UA. The API host does not care; www.moneycontrol.com is behind Akamai and does.
+const PAGE_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const assertIsoDate = (d, name) => {
+  if (!ISO_DATE.test(String(d || ''))) throw new Error(`${name} must be YYYY-MM-DD, got "${d}"`);
+  return d;
+};
+
+/**
+ * The date strip: `[{ date, displayDate, count }]`, newest first as the upstream returns it.
+ * `count` is the complete number of companies scheduled on that date.
+ */
+export async function fetchCalendarStrip({ fromDate, toDate, indexId = 'N' } = {}, fetchImpl = fetch) {
+  assertIsoDate(fromDate, 'fromDate');
+  assertIsoDate(toDate, 'toDate');
+  const url = `${CALENDAR_STRIP_URL}?fromDate=${fromDate}&toDate=${toDate}&indexId=${encodeURIComponent(indexId)}`;
+  const res = await fetchImpl(url, { headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0 (+dashboard)' } });
+  if (!res.ok) throw new Error(`Moneycontrol calendar HTTP ${res.status}`);
+  const body = await res.json();
+  if (!body || body.success !== 1 || !body.data) throw new Error(`Moneycontrol rejected the calendar request: ${typeof body?.data === 'string' ? body.data : 'unexpected payload'}`);
+
+  const idx = headerIndexOf(body.data.header);
+  for (const required of ['date', 'displayDate', 'earningCount']) {
+    if (idx[required] == null) throw new Error(`Moneycontrol calendar payload is missing the "${required}" column`);
+  }
+  return (body.data.list || [])
+    .map((r) => ({
+      date: r[idx.date],
+      displayDate: r[idx.displayDate],
+      // The upstream types this inconsistently — 0 as a number, "170" as a string. A count is a
+      // number; leaving it mixed would make every comparison downstream a coin flip.
+      count: Number(r[idx.earningCount]) || 0,
+    }))
+    .filter((d) => ISO_DATE.test(String(d.date || '')));
+}
+
+/** `<script id="__NEXT_DATA__">…</script>` -> the parsed object, or null if the page changed shape. */
+export function extractNextData(html) {
+  const m = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/.exec(html || '');
+  if (!m) return null;
+  try {
+    return JSON.parse(m[1]);
+  } catch {
+    return null;
+  }
+}
+
+/** One scheduled company, in the same field vocabulary the results feed uses. */
+export function normaliseCalendarRow(r, date) {
+  const ltp = parseNum(r?.ltp);
+  const mcap = parseNum(r?.marketCap);
+  // "Time Not Available" is the upstream's way of saying it does not know. Carrying that string
+  // into a Time column would render a sentence where a clock belongs; null renders as a dash,
+  // which already means "not known" everywhere else in this dashboard.
+  const time = r?.time && !/not available/i.test(r.time) ? String(r.time).trim() : null;
+  return {
+    scId: r?.scId || null,
+    name: r?.stockName || r?.stockShortName || null,
+    shortName: r?.stockShortName || null,
+    resultDate: date,
+    displayDate: r?.date || null,
+    quarter: r?.resultType || null,
+    time,
+    ltp,
+    changePct: parseNum(r?.change),
+    marketCap: mcap, // already in Rs crore upstream
+    exchange: r?.exchange || null,
+    mcUrl: r?.stockUrl || null,
+  };
+}
+
+/**
+ * The company list for one date. Returns `{ rows, asOnDate, capped }`.
+ *
+ * `capped` is true whenever the page handed back a full page — the honest reading of "we got
+ * exactly the cap" is "there are probably more", and the caller pairs it with the strip count.
+ */
+export async function fetchCalendarDay({ date, indexId = 'All' } = {}, fetchImpl = fetch) {
+  assertIsoDate(date, 'date');
+  const url = `${CALENDAR_PAGE_URL}?id=${encodeURIComponent(indexId)}&name=All&activeDate=${date}`;
+  const res = await fetchImpl(url, {
+    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': PAGE_UA, 'accept-language': 'en-US,en;q=0.9' },
+  });
+  if (!res.ok) throw new Error(`Moneycontrol calendar page HTTP ${res.status}`);
+  const data = extractNextData(await res.text());
+  const cal = data?.props?.pageProps?.resultCalendarData;
+  if (!cal) throw new Error('Moneycontrol calendar page did not carry its server props — the page shape has changed');
+
+  const list = cal.tableData?.list || [];
+  const rows = list.map((r) => normaliseCalendarRow(r, date)).filter((r) => r.scId);
+  return { rows, asOnDate: cal.tableData?.asOnDate || null, capped: list.length >= CALENDAR_LIST_CAP };
+}
