@@ -58,6 +58,21 @@ const go = async (hash, settle = 900) => {
   await page.waitForTimeout(settle);
 };
 const hostText = () => page.locator('#content-host').innerText();
+// Wait for a panel to actually finish painting rather than sleeping a magic number at it. The
+// Earnings Hub fetches 1,300+ live rows on a cold load, so any fixed settle time is a race that
+// gets lost the day the feed grows.
+const waitForPanel = async (timeout = 8000) => {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    const [len, skeleton] = await page.evaluate(() => [
+      (document.querySelector('#content-host')?.innerText || '').trim().length,
+      document.querySelectorAll('#content-host .skeleton-shimmer').length,
+    ]);
+    if (len > 120 && !skeleton) return true;
+    await page.waitForTimeout(150);
+  }
+  return false;
+};
 // Assigned in the con-call section; declared here because the chatter section uses it too.
 let setHidden;
 const rowCount = () => page.locator('tr[data-row-key]').count();
@@ -89,7 +104,8 @@ let broken = [];
 for (const [ws, tab, sub] of routes) {
   for (const scope of ['universe', 'portfolio']) {
     const hash = `/#/${ws}/${tab}${sub ? `/${sub}` : ''}?scope=${scope}`;
-    await go(hash, 620);
+    await go(hash, 300);
+    await waitForPanel();
     const txt = await hostText();
     if (/hit a snag/i.test(txt) || txt.trim().length < 120) broken.push(hash);
   }
@@ -128,15 +144,16 @@ ok('...and the content spans the full width', (await page.locator('#content-host
 const ehHeads = (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase())));
 ok('DATE is the first column', /^DATE/.test(ehHeads[0] || ''), ehHeads[0]);
 ok('COMPANY is the second', /^COMPANY/.test(ehHeads[1] || ''), ehHeads[1]);
-for (const c of ['REV %', 'GP %', 'PAT %', 'MCAP', 'BASIS']) {
+for (const c of ['REV %', 'PAT %', 'MCAP', 'BASIS']) {
   ok(`column present: ${c}`, ehHeads.some((h) => h === c));
 }
 // Two reported-figure columns per metric, each header naming the period it is — a bare "REVENUE"
 // would leave the reader guessing which quarter the number belongs to.
-for (const [m, label] of [['REV', 'revenue'], ['GP', 'gross profit'], ['PAT', 'net profit']]) {
+for (const [m, label] of [['REV', 'revenue'], ['PAT', 'net profit']]) {
   const cols = ehHeads.filter((h) => h.startsWith(`${m} `) && h !== `${m} %`);
   ok(`${label}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{2}$/.test(h)), cols.join(' + '));
 }
+ok('gross profit is not a column', !ehHeads.some((h) => h.startsWith('GP')));
 ok('the serial-number column is gone', !ehHeads.some((h) => h === '#'));
 ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
 ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
@@ -212,6 +229,117 @@ await page.locator('#content-host select').first().selectOption('all');
 await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
+// 2b. YoY / QoQ — the same filing asked two different questions.
+//
+// This is the one control on the page that changes what every number MEANS without changing
+// which quarter is on screen: the current-period figures are byte-identical between the two and
+// only the comparison column moves. So the headers have to move with it, or a screenshot of the
+// table is a lie about what it is measuring against.
+// ---------------------------------------------------------------------------------------
+console.log('\n— yoy / qoq —');
+const headsNow = () => page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
+const revCols = (hs) => hs.filter((h) => h.startsWith('REV ') && h !== 'REV %');
+// Read one named company's revenue pair, whichever row it is on.
+const figuresFor = (needle) =>
+  page.evaluate((n) => {
+    const hs = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
+    const i = hs.findIndex((h) => h.startsWith('REV ') && h !== 'REV %');
+    for (const tr of document.querySelectorAll('#content-host tbody tr')) {
+      const tds = [...tr.children].map((c) => c.innerText.trim());
+      if (tds[1] && tds[1].toUpperCase().includes(n)) return { cur: tds[i], prior: tds[i + 1] };
+    }
+    return null;
+  }, needle);
+
+// The switch is a network round trip against the live upstream — on a cold cache that is seconds,
+// not milliseconds. Wait for the toggle to actually flip (or for the tab to say it could not),
+// rather than sleeping a number at it.
+const waitForPeriod = async (want, timeout = 25000) => {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    const state = await page.evaluate(() => ({
+      active: document.querySelector('[data-period][aria-pressed="true"]')?.dataset.period || null,
+      error: /Comparison not switched/i.test(document.querySelector('#content-host')?.innerText || ''),
+    }));
+    if (state.active === want || state.error) return state;
+    await page.waitForTimeout(250);
+  }
+  return { active: null, error: false };
+};
+
+ok('a YoY / QoQ toggle is present', (await page.locator('[data-period]').count()) === 2);
+const yoyHeads = await headsNow();
+const yoyPrior = revCols(yoyHeads)[1];
+ok('YoY is the default', (await page.locator('[data-period][aria-pressed="true"]').innerText()).toUpperCase() === 'YOY');
+
+// QoQ needs the live route. Without a Worker (a plain `python3 -m http.server`) there is nothing
+// to fetch, and there is deliberately no committed QoQ snapshot to fall back to. Which of the two
+// worlds we are in decides what to assert — and the no-Worker case is the more interesting test,
+// because it is the one where the tab could quietly show YoY under QoQ headers and nobody would
+// see it. Probe first, then assert the behaviour that world is supposed to have.
+const hasLiveRoute = await page.evaluate(async () => {
+  try {
+    const r = await fetch('api/earnings?subType=qoq', { cache: 'no-store' });
+    if (!r.ok) return false;
+    return ((await r.json())?.rows?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+});
+
+// Pin one company so the before/after comparison is about the same filing, not about whichever
+// row happened to sort first. Read the name off the table rather than hard-coding it — the
+// committed snapshot and the live feed do not contain the same companies.
+const pinned = await page.evaluate(() => {
+  const tr = document.querySelector('#content-host tbody tr');
+  return (tr?.children[1]?.innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).find((x) => x.length > 3) || '';
+});
+const yoyPinned = pinned ? await figuresFor(pinned.toUpperCase()) : null;
+
+await page.locator('[data-period="qoq"]').click();
+const qoqState = await waitForPeriod('qoq');
+
+if (!hasLiveRoute) {
+  // No Worker. The ONLY acceptable outcome is a refusal that says so — never YoY numbers sitting
+  // under QoQ column headers, which is the one failure the page itself could not reveal.
+  ok('without the live route, QoQ refuses rather than switching', qoqState.error === true && qoqState.active !== 'qoq');
+  ok('...and says which comparison you are actually looking at', /Comparison not switched/i.test(await hostText()));
+  ok('...and the comparison columns are untouched', revCols(await headsNow())[1] === yoyPrior, yoyPrior);
+  ok('...and the toggle still reads YoY', (await page.locator('[data-period][aria-pressed="true"]').innerText()).toUpperCase() === 'YOY');
+  console.log('      (QoQ round trip not exercised — no /api/earnings on this origin)');
+} else {
+  ok('the QoQ switch completes against the live feed', qoqState.active === 'qoq' && !qoqState.error);
+  await page.waitForTimeout(400);
+  const qoqHeads = await headsNow();
+  const qoqPrior = revCols(qoqHeads)[1];
+  ok('switching to QoQ repoints the comparison columns', !!qoqPrior && qoqPrior !== yoyPrior, `${yoyPrior} → ${qoqPrior}`);
+  ok('...while the current period is unchanged', revCols(qoqHeads)[0] === revCols(yoyHeads)[0], revCols(qoqHeads)[0]);
+  ok('...and the URL records it, so the view is shareable', page.url().includes('period=qoq'));
+  ok('...with no bogus sub-view segment in the path', !/earnings-hub\/(null|undefined)/.test(page.url()), page.url().split('#')[1]);
+
+  // A reload has to come back on the same comparison, not silently on the other one.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForPanel();
+  await waitForPeriod('qoq');
+  ok('a reload restores QoQ rather than falling back to YoY', (await page.locator('[data-period][aria-pressed="true"]').innerText()).toUpperCase() === 'QOQ');
+  ok('...and the headers agree with the toggle', revCols(await headsNow())[1] === qoqPrior);
+
+  // THE INVARIANT. Same filing, two questions: the reported current-period figure must be
+  // IDENTICAL under both, and only the comparison figure may move. If the current figure moved
+  // too, the toggle would be switching quarters rather than switching comparisons — and because
+  // the columns look the same either way, nothing else on the page would reveal it.
+  const qoqPinned = pinned ? await figuresFor(pinned.toUpperCase()) : null;
+  ok('the same filing keeps its current-period figure under both comparisons', !!yoyPinned && !!qoqPinned && yoyPinned.cur === qoqPinned.cur, `${pinned}: ${yoyPinned?.cur} both ways`);
+  ok('...and only the comparison figure moves', !!yoyPinned && !!qoqPinned && yoyPinned.prior !== qoqPinned.prior, `${yoyPinned?.prior} (YoY) vs ${qoqPinned?.prior} (QoQ)`);
+
+  await page.locator('[data-period="yoy"]').click();
+  await waitForPeriod('yoy');
+  await page.waitForTimeout(400);
+  ok('switching back to YoY restores the year-ago comparison', revCols(await headsNow())[1] === yoyPrior);
+  ok('...and drops period=qoq from the URL', !/period=qoq/.test(page.url()), page.url().split('?')[1] || '');
+}
+
+// ---------------------------------------------------------------------------------------
 // 3. Table mechanics
 // ---------------------------------------------------------------------------------------
 console.log('\n— table —');
@@ -222,24 +350,68 @@ const searched = await rowCount();
 ok('search narrows the table', searched > 0 && searched < full, `${full} → ${searched}`);
 await page.locator(SEARCH).first().fill('');
 await page.waitForTimeout(400);
+// Re-read immediately before the click. This runs against a LIVE feed, so a company filing
+// between the two reads would otherwise fail a sort assertion for a reason that is not the sort.
+const beforeSort = await rowCount();
 await page.locator('#content-host thead th').nth(3).click();
 await page.waitForTimeout(300);
-ok('header sort keeps every row', (await rowCount()) === full);
+ok('header sort keeps every row', (await rowCount()) === beforeSort, `${beforeSort} rows`);
+
+// The two filter dropdowns are independent questions and must AND together.
+const selCount = await page.locator('#content-host select').count();
+ok('there are two filter dropdowns', selCount === 2, `${selCount} selects`);
+const preBasis = await rowCount();
+await page.locator('#content-host select').nth(1).selectOption('std');
+await page.waitForTimeout(500);
+const stdOnly = await rowCount();
+await page.locator('#content-host select').nth(1).selectOption('con');
+await page.waitForTimeout(500);
+const conOnly = await rowCount();
+ok('standalone + consolidated partition the set exactly', stdOnly > 0 && conOnly > 0 && stdOnly + conOnly === preBasis, `${stdOnly} STD + ${conOnly} CON = ${preBasis}`);
+ok('...and the rows actually carry that basis', (await page.locator('#content-host tbody tr').first().innerText()).includes('CON'));
+// AND, not OR: narrowing the other dropdown on top of this one must narrow further.
+await page.locator('#content-host select').first().selectOption('pat-up');
+await page.waitForTimeout(500);
+const bothFilters = await rowCount();
+ok('the two dropdowns combine rather than replace each other', bothFilters > 0 && bothFilters < conOnly, `${conOnly} CON → ${bothFilters} CON with PAT up`);
+await page.locator('#content-host select').first().selectOption('all');
+await page.locator('#content-host select').nth(1).selectOption('all');
+await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
 // 4. Drill panel
+//
+// The Earnings Hub deliberately has none: once both reported periods became columns, the drill
+// was restating the row you clicked on. So the check here is the opposite of everywhere else —
+// clicking a row must do NOTHING, and the row must not advertise itself as clickable.
 // ---------------------------------------------------------------------------------------
 console.log('\n— drill —');
+const ehRow = page.locator('tr[data-row-key]').first();
+ok('earnings rows are not styled as clickable', !((await ehRow.getAttribute('class')) || '').includes('cursor-pointer'));
+await ehRow.click();
+await page.waitForTimeout(600);
+const ehDrillOpen = await page.evaluate(() => {
+  const d = document.getElementById('drill-panel');
+  return !!d && d.classList.contains('translate-x-0');
+});
+ok('...and clicking one opens no drill', !ehDrillOpen);
+// The provenance the drill used to carry has to still be reachable, or this is just deletion.
+// It lives behind the Live pill — verified above — which is one click from anywhere on the page.
+ok('...because the provenance moved to the Live pill', (await page.locator('[data-live-info]').count()) === 1);
+
+// The drill itself still has to work where it IS used. Breakouts is the reference consumer: a
+// scored row with per-rule provenance behind it.
+await go('/#/research/breakouts/technical-scanner?scope=universe', 2000);
 await page.locator('tr[data-row-key]').first().click();
 await page.waitForTimeout(700);
 const drill = await page.locator('#drill-content').innerText();
 ok('drill opens from a row', drill.length > 200);
-ok('drill shows the reported figures', /reported figures/i.test(drill));
-ok('drill explains the return calculation', /return since result/i.test(drill) && /close on/i.test(drill));
-ok('drill names the upstream source', /moneycontrol/i.test(drill));
+ok('drill shows the scored rules', /moving average|trend|momentum/i.test(drill));
+ok('drill carries per-rule provenance', /source|calculation/i.test(drill));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count()) > 0);
+await go('/#/research/earnings-hub?scope=universe', 1800);
 
 // ---------------------------------------------------------------------------------------
 // 5. Provenance and the other two sub-views

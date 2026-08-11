@@ -28,12 +28,22 @@
 //   percentage alone. A percentage is a ratio with its numerator and denominator thrown away:
 //   "+43%" is the same cell whether the company earned ₹4 Cr or ₹4,000 Cr, and Vodafone Idea's
 //   PAT "+43%" is -6,608 → -3,754. The reported figures sit next to the percentage so the reader
-//   can see what it was computed from without opening the drill.
+//   can see what it was computed from, on the row itself.
+//
+// WHY THERE IS NO DRILL PANEL
+//   There was one, and the six reported figures were the bulk of what it said — so once those
+//   became columns it was mostly restating the row you clicked. Rows are not clickable now.
+//   Nothing accountable was lost with it: the return-since-result figure it explained is no
+//   longer a column at all, and the provenance it carried (what is live, where each column is
+//   joined from, how market cap is computed, what a dash means) lives behind the Live pill,
+//   which is one click from anywhere on the page rather than one click per row.
+//
+//   Do not re-add a drill to hold a number that could be a column. Add the column.
 
-import { scoreTable, openDrill, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
+import { formatCroreCompact, formatPct, formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 
@@ -54,6 +64,12 @@ const FEATURES = [
 
 let disposers = [];
 let renderToken = 0;
+// The table is rebuilt whenever a company files. Carrying its view forward means the reader's
+// search, filters, watchlist toggle and sort survive that rebuild instead of resetting under them.
+let tableView = null;
+// Set when a QoQ/YoY switch was asked for and could not be made. Rendered as an amber note rather
+// than swallowed, because the alternative is one comparison shown under the other's label.
+let periodError = null;
 
 export function render(ctx) {
   const token = ++renderToken;
@@ -61,8 +77,20 @@ export function render(ctx) {
 
   feed
     .load()
-    .then(() => {
+    .then(async () => {
       if (token !== renderToken) return;
+      // Restore the comparison basis from the URL, so ?period=qoq is a shareable link and survives
+      // a reload. A failure here is reported, never silently downgraded to the other basis.
+      const wanted = ctx.params?.period;
+      if (wanted && wanted !== feed.currentSubType()) {
+        try {
+          await feed.setSubType(wanted);
+          periodError = null;
+        } catch (err) {
+          periodError = String(err.message || err);
+        }
+        if (token !== renderToken) return;
+      }
       paint(ctx);
       // One subscription for the life of the tab: the poller repaints in place on real change.
       disposers.push(
@@ -90,6 +118,10 @@ export function destroy() {
   renderToken++;
   disposers.forEach((d) => d && d());
   disposers = [];
+  // Leaving the tab is a deliberate exit; coming back should be a clean table, not last visit's
+  // half-applied filter. Only a live repaint carries the view forward.
+  tableView = null;
+  periodError = null;
 }
 
 function loadingHtml() {
@@ -229,6 +261,48 @@ function liveButton(m, rows) {
     </button>`;
 }
 
+/**
+ * YoY / QoQ. The current-period figures are identical between the two — only the comparison
+ * changes — so this switches what the "prior" columns and every percentage MEAN, not what quarter
+ * you are looking at. That is exactly why the column headers carry the period names.
+ */
+function periodToggle(m) {
+  const active = m?.subType || feed.currentSubType();
+  const help = { yoy: 'Compare against the same quarter last year', qoq: 'Compare against the previous quarter' };
+  return `
+    <div class="inline-flex items-center gap-1 rounded-full bg-slate-100 p-0.5 ring-1 ring-slate-200" data-period-toggle>
+      ${feed.SUB_TYPES.map(
+        (s) => `<button type="button" data-period="${s.value}" title="${escapeHtml(help[s.value] || '')}"
+             aria-pressed="${s.value === active}"
+             class="rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+               s.value === active ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
+             }">${escapeHtml(s.label)}</button>`
+      ).join('')}
+    </div>`;
+}
+
+function wirePeriodToggle(root, ctx) {
+  const btns = [...root.querySelectorAll('[data-period]')];
+  for (const btn of btns) {
+    btn.addEventListener('click', async () => {
+      const next = btn.dataset.period;
+      if (next === feed.currentSubType()) return;
+      btns.forEach((b) => (b.disabled = true));
+      try {
+        await feed.setSubType(next); // notifies -> paint()
+        periodError = null;
+        // Quiet, not setParams: setParams re-mounts the tab, which would refetch what we just
+        // fetched and throw away the table's view. The URL still updates, so the link is shareable.
+        ctx.setParamsQuiet({ ...ctx.params, period: next });
+      } catch (err) {
+        btns.forEach((b) => (b.disabled = false));
+        periodError = String(err.message || err);
+        paint(ctx);
+      }
+    });
+  }
+}
+
 function wireLiveButton(root, m, rows) {
   const btn = root.querySelector('[data-live-info]');
   if (!btn) return;
@@ -256,9 +330,16 @@ function wireLiveButton(root, m, rows) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where each column comes from</h3>
           <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>Rev / GP / PAT, both periods</strong> — as published, in ₹ crore, unrounded. Both periods are shown
+            <li><strong>Rev / PAT, both periods</strong> — as published, in ₹ crore, unrounded. Both periods are shown
                 because the percentage alone hides the sign and the scale: "+43%" reads the same on ₹4 Cr and ₹4,000 Cr,
-                and on a loss that merely got smaller.</li>
+                and on a loss that merely got smaller. Gross profit is in the feed and in the Excel export, but is not
+                a column — three metrics × three columns did not fit on screen.</li>
+            <li><strong>YoY / QoQ</strong> — the same filing, compared two ways. The ${escapeHtml(m.currentPeriod || 'current')}
+                figures are identical under both; only the comparison column and the percentage change.
+                YoY is ${escapeHtml(m.currentPeriod || '')} against the same quarter a year earlier, QoQ against the
+                quarter before it. The column headers name whichever is active, so a screenshot cannot mislead.</li>
+            <li><strong>Basis</strong> — CON is consolidated (the whole group), STD is standalone (the parent alone).
+                They are not comparable with each other, which is what the second dropdown is for.</li>
             <li><strong>The % columns</strong> — as published. Where the sign flips between periods you get a labelled pill
                 instead of a percentage, because a change across zero is not a growth rate.</li>
             <li><strong>Ticker and industry</strong> (under the company name) — resolved from Moneycontrol's own company
@@ -316,16 +397,14 @@ function renderLatest(ctx) {
     columns: [
       { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
 
-      // Revenue, gross profit, net profit — each as reported for both periods, then the change.
-      // Grouped in that order so a row reads across the way the filing does.
+      // Revenue then net profit, each as reported for both periods followed by the change, so a
+      // row reads across the way the filing does.
       { label: `Rev ${cur}`, get: (r) => figureCell(r.revenue?.current), html: true, align: 'right', sortValue: (r) => r.revenue?.current ?? -Infinity },
       { label: `Rev ${pri}`, get: (r) => figureCell(r.revenue?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.revenue?.prior ?? -Infinity },
       { label: 'Rev %', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
 
-      { label: `GP ${cur}`, get: (r) => figureCell(r.grossProfit?.current), html: true, align: 'right', sortValue: (r) => r.grossProfit?.current ?? -Infinity },
-      { label: `GP ${pri}`, get: (r) => figureCell(r.grossProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.grossProfit?.prior ?? -Infinity },
-      { label: 'GP %', get: (r) => changeCell(r.grossProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.grossProfit) },
-
+      // Gross profit is not shown. The feed still carries it and the export still includes it —
+      // it is only the on-screen columns that were cut, to keep the table readable.
       { label: `PAT ${cur}`, get: (r) => figureCell(r.netProfit?.current), html: true, align: 'right', sortValue: (r) => r.netProfit?.current ?? -Infinity },
       { label: `PAT ${pri}`, get: (r) => figureCell(r.netProfit?.prior, { muted: true }), html: true, align: 'right', sortValue: (r) => r.netProfit?.prior ?? -Infinity },
       { label: 'PAT %', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
@@ -333,28 +412,45 @@ function renderLatest(ctx) {
       { label: 'MCap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
     ],
-    filters: {
-      options: [
-        { value: 'all', label: 'All results' },
-        { value: 'pat-up', label: 'PAT grew' },
-        { value: 'pat-down', label: 'PAT fell' },
-        { value: 'turnaround', label: 'Loss → profit' },
-        { value: 'to-loss', label: 'Profit → loss' },
-        { value: 'rev-up-20', label: 'Revenue +20% or more' },
-        { value: 'in-universe', label: 'NSE 500 only' },
-        { value: 'today', label: 'Reported on the latest date' },
-      ],
-      match: (r, v) => {
-        if (v === 'pat-up') return r.netProfit?.kind === 'normal' && r.netProfit.pct > 0;
-        if (v === 'pat-down') return r.netProfit?.kind === 'normal' && r.netProfit.pct < 0;
-        if (v === 'turnaround') return r.netProfit?.kind === 'turnaround';
-        if (v === 'to-loss') return r.netProfit?.kind === 'slipped-to-loss';
-        if (v === 'rev-up-20') return r.revenue?.kind === 'normal' && r.revenue.pct >= 20;
-        if (v === 'in-universe') return r.inUniverse;
-        if (v === 'today') return r.resultDate === m?.latestResultDate;
-        return true;
+    // Two dropdowns, not one: "PAT grew" and "Consolidated only" are different questions and a
+    // reader should be able to ask both at once.
+    filters: [
+      {
+        label: 'Result shape',
+        options: [
+          { value: 'all', label: 'All results' },
+          { value: 'pat-up', label: 'PAT grew' },
+          { value: 'pat-down', label: 'PAT fell' },
+          { value: 'turnaround', label: 'Loss → profit' },
+          { value: 'to-loss', label: 'Profit → loss' },
+          { value: 'rev-up-20', label: 'Revenue +20% or more' },
+          { value: 'in-universe', label: 'NSE 500 only' },
+          { value: 'today', label: 'Reported on the latest date' },
+        ],
+        match: (r, v) => {
+          if (v === 'pat-up') return r.netProfit?.kind === 'normal' && r.netProfit.pct > 0;
+          if (v === 'pat-down') return r.netProfit?.kind === 'normal' && r.netProfit.pct < 0;
+          if (v === 'turnaround') return r.netProfit?.kind === 'turnaround';
+          if (v === 'to-loss') return r.netProfit?.kind === 'slipped-to-loss';
+          if (v === 'rev-up-20') return r.revenue?.kind === 'normal' && r.revenue.pct >= 20;
+          if (v === 'in-universe') return r.inUniverse;
+          if (v === 'today') return r.resultDate === m?.latestResultDate;
+          return true;
+        },
       },
-    },
+      {
+        // Reporting basis. A group's consolidated numbers and the parent's standalone numbers are
+        // not comparable, so screening across a mix of both is a real trap — Moneycontrol offers
+        // the same three-way choice for the same reason. The Basis column shows which each row is.
+        label: 'Reporting basis',
+        options: [
+          { value: 'all', label: 'All' },
+          { value: 'con', label: 'Consolidated' },
+          { value: 'std', label: 'Standalone' },
+        ],
+        match: (r, v) => (v === 'con' ? r.basis === 'Consolidated' : v === 'std' ? r.basis === 'Standalone' : true),
+      },
+    ],
     searchable: (r) => `${r.company} ${r.shortName} ${r.ticker || ''} ${r.industry || ''} ${r.sectorSlug || ''}`,
     // Newest first. The view is called Latest Results and Moneycontrol's own page defaults the
     // same way, so anything else is a surprise. It used to default to Return Since Result, which
@@ -362,22 +458,33 @@ function renderLatest(ctx) {
     // result-day close yet, so its return is null and it sorted to the very bottom — the four
     // newest filings landed at positions 1313-1316 of 1326. Return is still one header click away.
     initialSort: { key: 'Date', dir: 'desc' },
-    onRowClick: (r) => drillResult(r, m),
+    // No onRowClick, deliberately — see "WHY THERE IS NO DRILL PANEL" at the top of this file.
     exportName: 'sattva-earnings',
     onExport: (visible) => exportResults(visible, m),
     emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has reported in this quarter yet.' : 'No results match your filters.',
+    initialView: tableView,
   });
+  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Latest Results',
-      description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}. Click a row for the full detail.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
+      description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}.`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
     })}
+    ${
+      periodError
+        ? `<div class="mb-4 rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+             <strong>Comparison not switched.</strong> ${escapeHtml(periodError)}
+             You are still looking at ${escapeHtml((m?.subType || 'yoy').toUpperCase())} — ${escapeHtml(m?.currentPeriod || '')} against ${escapeHtml(m?.priorPeriod || '')}, as the column headers say.
+           </div>`
+        : ''
+    }
     ${table.html}
     ${coverageNote(rows, m)}
     ${roadmapStrip(FEATURES)}
   `;
+  wirePeriodToggle(ctx.root, ctx);
   wireLiveButton(ctx.root, m, rows);
   disposers.push(table.wire(ctx.root));
 }
@@ -390,104 +497,16 @@ function coverageNote(rows, m) {
       ${formatNumber(rows.length)} companies · ${formatNumber(rows.length - noTicker)} resolved to an NSE ticker ·
       ${formatNumber(rows.length - noCap)} with a market cap. Reported figures are in ₹ crore as published, not rounded.
       A dash means <em>not joined</em>, never zero.
-      ${m?.priorPeriod ? `Growth is against ${escapeHtml(m.priorPeriod)}.` : ''}
+      ${m?.priorPeriod ? `Growth is ${escapeHtml((m.subType || 'yoy').toUpperCase())}, against ${escapeHtml(m.priorPeriod)}.` : ''}
+      Gross profit is not a column here but is in the Excel export.
     </p>`;
-}
-
-// ---------------------------------------------------------------------------------------
-// Drill
-// ---------------------------------------------------------------------------------------
-function metricRows(r) {
-  const line = (m) => {
-    if (!m) return null;
-    return {
-      label: m.label,
-      criteria: `${r.meta?.currentPeriod || 'current'} vs prior year`,
-      status: m.kind === 'normal' ? (m.pct > 0 ? 'pass' : 'fail') : m.kind === 'turnaround' ? 'pass' : m.kind === 'slipped-to-loss' || m.kind === 'loss-widened' ? 'fail' : m.kind === 'loss-narrowed' ? 'partial' : 'na',
-      value: `${formatNumber(m.current)} Cr`,
-      note:
-        m.kind === 'normal'
-          ? `Prior ${formatNumber(m.prior)} Cr — ${formatPct(m.pct)}.`
-          : m.kind === 'loss-narrowed'
-            ? `Loss in both periods: ${formatNumber(m.prior)} Cr → ${formatNumber(m.current)} Cr. The loss narrowed; this is not profit growth.`
-            : m.kind === 'loss-widened'
-              ? `Loss in both periods: ${formatNumber(m.prior)} Cr → ${formatNumber(m.current)} Cr. The loss widened.`
-              : m.kind === 'turnaround'
-                ? `A loss of ${formatNumber(m.prior)} Cr became a profit of ${formatNumber(m.current)} Cr. No percentage is shown because a change across zero is not a growth rate.`
-                : m.kind === 'slipped-to-loss'
-                  ? `A profit of ${formatNumber(m.prior)} Cr became a loss of ${formatNumber(m.current)} Cr.`
-                  : `Prior period was ${formatNumber(m.prior)} Cr.`,
-    };
-  };
-  return [line(r.revenue), line(r.grossProfit), line(r.netProfit)].filter(Boolean);
-}
-
-function drillResult(row, m) {
-  openDrill({
-    name: row.company,
-    sub: `${row.ticker || 'no NSE ticker'} · ${row.industry || row.sectorSlug || '—'} · ${row.basis}`,
-    link: row.mcUrl,
-    linkLabel: 'Moneycontrol ↗',
-    headerStats: [
-      {
-        label: 'Net profit',
-        value: `${formatNumber(row.netProfit?.current)} Cr`,
-        caption: row.netProfit?.kind === 'normal' ? formatPct(row.netProfit.pct) : row.netProfit?.kind?.replace(/-/g, ' ') || '',
-        tone: (row.netProfit?.direction ?? 0) > 0 ? 'positive' : (row.netProfit?.direction ?? 0) < 0 ? 'negative' : 'neutral',
-      },
-      {
-        label: 'Since result',
-        value: row.returnSinceResult == null ? '—' : formatPct(row.returnSinceResult, { decimals: 2 }),
-        caption: row.basePrice ? `from ${formatRupee(row.basePrice)}` : 'no base price',
-        tone: (row.returnSinceResult ?? 0) > 0 ? 'positive' : (row.returnSinceResult ?? 0) < 0 ? 'negative' : 'neutral',
-      },
-    ],
-    beforeGroupsHtml: `
-      <div class="mb-4 rounded-xl bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-900 ring-1 ring-emerald-200">
-        <strong>Reported ${escapeHtml(row.resultDateLabel || row.resultDate || '')}</strong> · ${escapeHtml(m?.quarter || '')}
-        (${escapeHtml(m?.currentPeriod || '')} vs ${escapeHtml(m?.priorPeriod || '')}) · ${escapeHtml(row.basis)} basis.
-        Figures are as published by Moneycontrol, in ₹ crore.
-      </div>`,
-    groups: [
-      { category: 'Reported figures', items: metricRows({ ...row, meta: m }) },
-      {
-        category: 'Market',
-        items: [
-          { label: 'Last traded price', status: null, value: formatRupee(row.ltp), note: `${formatPct(row.changePct)} today. Live from the Moneycontrol feed.` },
-          {
-            label: 'Return since result',
-            criteria: 'Price now vs the close on the result date',
-            status: row.returnSinceResult == null ? 'na' : row.returnSinceResult > 0 ? 'pass' : 'fail',
-            value: row.returnSinceResult == null ? 'not available' : formatPct(row.returnSinceResult, { decimals: 2 }),
-            note: row.basePrice ? `Base ${formatRupee(row.basePrice)}, the close on ${row.basePricedOn}${row.basePricedOn !== row.resultDate ? ' (the result date was not a trading day)' : ''}.` : 'No cached closing price for the result date, so this is not computed rather than shown as zero.',
-          },
-          {
-            label: 'Market cap',
-            status: row.marketCap == null ? 'na' : null,
-            value: row.marketCap == null ? 'not available' : formatCroreCompact(row.marketCap),
-            note: row.marketCapIsLive
-              ? 'Computed live: shares outstanding × the price above. The share count is cached; the price is this tick, so this figure is current rather than as-of the last data refresh.'
-              : row.inUniverse
-                ? 'From the NSE-500 screener export, refreshed by hand.'
-                : 'No share count cached for this company, so market cap is not computed.',
-          },
-        ],
-      },
-      {
-        category: 'Provenance',
-        items: [
-          { label: 'Figures', status: 'pass', value: 'real', note: 'Published quarterly results, via Moneycontrol Rapid Results. Polled every 30 seconds.' },
-          { label: 'Ticker join', status: row.ticker ? 'pass' : 'na', value: row.ticker || 'unresolved', note: `Moneycontrol code ${row.scId} resolved through its price feed. Names are truncated to 15 characters upstream, so the code is the join key, never the name.` },
-        ],
-      },
-    ],
-  });
 }
 
 async function exportResults(rows, m) {
   const banner = {
     __banner:
-      `REAL DATA. Quarterly results as published, via Moneycontrol Rapid Results — ${m?.quarter || ''} (${m?.currentPeriod || ''} vs ${m?.priorPeriod || ''}), ` +
+      `REAL DATA. Quarterly results as published, via Moneycontrol Rapid Results — ${m?.quarter || ''}, ` +
+      `${(m?.subType || 'yoy').toUpperCase()}: ${m?.currentPeriod || ''} vs ${m?.priorPeriod || ''}, ` +
       `captured ${new Date().toISOString()}. Figures in Rs. crore. Where the sign flips between periods the "growth" column reads ` +
       `"To profit" / "To loss" / "Loss narrowed" instead of a percentage, because a percentage change across zero is not a growth rate. ` +
       `Return since result = live price vs the close on the result date. Blank cells mean not joined, not zero.`,

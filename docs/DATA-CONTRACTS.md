@@ -513,6 +513,29 @@ snapshot with `degraded` set to a human-readable reason, and the tab swaps its g
 for an amber "Showing the last snapshot" one. An empty feed is never served as success, because
 "no results" and "we could not reach the source" are different claims.
 
+### `subType` — one filing, two questions
+
+`subType=yoy` compares the quarter against the same quarter a year earlier; `subType=qoq` compares
+it against the quarter before. **The current-period figures are byte-identical between the two** —
+only `prior`, `reportedPct`, `pct` and `kind` change. The Earnings Hub exposes this as a YoY/QoQ
+toggle and mirrors it into the URL as `?period=`.
+
+Three rules follow from that, and all three exist because the two payloads look the same:
+
+1. **The response's `meta.subType` is authoritative, not the request.** `setSubType()` in
+   `js/data/earnings-live.js` refuses a payload whose `meta.subType` is not what it asked for.
+   Serving YoY under QoQ headers is the one error nothing downstream could catch — the visible
+   current-period column would be correct.
+2. **The change fingerprint covers `prior` as well as `current`**, for the same reason: a checksum
+   over the current period alone cannot tell the two sub-types apart.
+3. **There is no QoQ snapshot, deliberately.** `earnings-live.json` is YoY. A committed QoQ file
+   would be indistinguishable from a live one while comparing against a stale quarter, so when the
+   live route is unreachable the tab says QoQ is unavailable rather than falling back.
+
+A `kind` can differ between the two for the same company — Unichem Labs' Q1 is a `turnaround`
+YoY (−10 → 41) and a plain `normal` +272% QoQ (11 → 41). That is not an inconsistency; it is the
+two questions having different answers.
+
 **Consumed by** — `js/data/earnings-live.js` → the Earnings Hub.
 
 ---
@@ -522,6 +545,8 @@ for an amber "Showing the last snapshot" one. An empty feed is never served as s
 The same payload shape as the route above, committed by `scripts/scrape-earnings.mjs`. Two jobs:
 **first paint** (so the table is populated before any network round-trip, and works on a plain
 `python3 -m http.server`) and the **Worker's fallback**. The live poll replaces it within seconds.
+
+YoY only — see the `subType` rules above for why there is no QoQ counterpart.
 
 Refreshing it more often would not make the tab fresher — the tab is live off the route. It only
 bounds how stale the fallback can be. ~900 KB.

@@ -231,17 +231,31 @@ percentage exists, and the UI renders a labelled pill. Same failure mode as the 
 check every growth figure for it.
 
 **And a percentage on its own is a ratio with its inputs thrown away.** The table therefore carries
-BOTH reported periods beside each growth figure — thirteen columns: `Date · Company · Rev cur · Rev
-prior · Rev % · GP cur · GP prior · GP % · PAT cur · PAT prior · PAT % · MCap · Basis`. "+43%" is
-the same cell whether a company earned ₹4 Cr or ₹4,000 Cr, and the pills only tell you a sign
-flipped, not how big the loss was. Column headers name the actual periods ("REV JUN 26") so a
-screenshot of the table still says what it is measuring against. `verify-ui.mjs` recomputes the
-percentage from the two figures on screen for ~160 cells and fails if they disagree — the growth
-column and the figure columns are three renderings of one fact and must never drift.
+BOTH reported periods beside each growth figure — ten columns: `Date · Company · Rev cur · Rev
+prior · Rev % · PAT cur · PAT prior · PAT % · MCap · Basis`. "+43%" is the same cell whether a
+company earned ₹4 Cr or ₹4,000 Cr, and the pills only tell you a sign flipped, not how big the
+loss was. Column headers name the actual periods ("REV JUN 26") so a screenshot of the table still
+says what it is measuring against. `verify-ui.mjs` recomputes the percentage from the two figures
+on screen for ~110 cells and fails if they disagree — the growth column and the figure columns are
+three renderings of one fact and must never drift.
 
-Fitting thirteen columns in 1,352px needed four `scoreTable` layout options (`showRank: false`,
-`nameAfter: 1`, `nameMaxPx: 210`, `dense: true`) — see CLAUDE.md. Ticker and industry are no longer
-columns; they live on the second line of the company cell, still searchable, still in the export.
+Fitting them in 1,352px needed four `scoreTable` layout options (`showRank: false`, `nameAfter: 1`,
+`nameMaxPx: 210`, `dense: true`) — see CLAUDE.md. Ticker and industry are no longer columns; they
+live on the second line of the company cell, still searchable, still in the export. Gross profit is
+likewise in the feed and the export but not on screen.
+
+**There is no drill panel, and re-adding one would be a regression.** There was one; six reported
+figures were the bulk of what it said, so once those became columns it was restating the row you
+clicked. Rows are not clickable. The provenance it carried moved behind the Live pill, which is one
+click from anywhere on the page rather than one click per row. If a number wants to be in a drill,
+make it a column instead.
+
+**YoY / QoQ is one toggle over two payloads that look identical.** Both carry the same
+current-period figures; only the comparison moves. That makes a mis-served payload the one error
+nothing downstream could catch, so `setSubType()` refuses any response whose `meta.subType` is not
+what it asked for, the change fingerprint covers `prior` as well as `current`, and there is no
+committed QoQ snapshot to fall back to — the tab says QoQ is unavailable instead. Full rules in
+`docs/DATA-CONTRACTS.md` under `subType`.
 
 **Identity for brand-new filers is resolved live.** The committed map cannot know about a company
 that reported an hour ago, and those rows sit at the top of the table. The Worker resolves unknown

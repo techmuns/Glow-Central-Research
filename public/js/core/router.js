@@ -33,7 +33,11 @@ export function buildHash({ workspace, tab, subview, scope, params = {} }) {
     search.set(k, v);
   }
   const query = search.toString();
-  return `#/${workspace}/${tab}/${subview}${query ? `?${query}` : ''}`;
+  // A tab with `subviews: []` has no sub-view, and interpolating one anyway wrote the literal
+  // string "null" into the path (`#/research/earnings-hub/null?...`). parseHash then read "null"
+  // back as a sub-view id, so a shared link carried a sub-view that does not exist.
+  const path = [workspace, tab, subview].filter(Boolean).join('/');
+  return `#/${path}${query ? `?${query}` : ''}`;
 }
 
 // Push a new history entry (normal in-app navigation — clicking a tab, rail item, search result…).

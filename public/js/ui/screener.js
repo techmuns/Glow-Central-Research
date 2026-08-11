@@ -284,7 +284,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  showSignals   default false. When true, supply signals(row) => [{ label, status }]
  *  link          (row) => url for the right-aligned ↗, or null to omit the column
  *  onRowClick    (row) => void
- *  filters       { label, options: [{ value, label }], match(row, value) } — the <select>
+ *  filters       { label, options: [{ value, label }], match(row, value), value? } — the <select>.
+ *                Pass an ARRAY of these for several dropdowns; they AND together.
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
@@ -338,15 +339,36 @@ export function scoreTable(config) {
     // Optional per-row tint, e.g. flagging a risk level. Returns Tailwind classes or ''.
     // Kept separate from the built-in red-flag tint, which belongs to the scoring models.
     rowClass = null,
+    // Seed the search box, filters, watchlist-only and sort from a previous instance's `view`.
+    // A tab that rebuilds its table when live data lands would otherwise throw away whatever the
+    // reader had typed, filtered and sorted — every time a company reports.
+    initialView = null,
   } = config;
 
-  // Internal view state — search text, filter value, watchlist-only, sort.
+  // `filters` takes one config or several. Several render as several <select>s and AND together,
+  // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
+  // into one dropdown would make them mutually exclusive for no reason.
+  const filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
+
+  // Internal view state — search text, one value per filter, watchlist-only, sort.
   const view = {
     q: '',
-    filter: filters ? 'all' : null,
+    filters: filterDefs.map((f) => f.value || 'all'),
     watchOnly: false,
     sort: initialSort ? { ...initialSort } : null,
   };
+  if (initialView) {
+    if (typeof initialView.q === 'string') view.q = initialView.q;
+    if (typeof initialView.watchOnly === 'boolean') view.watchOnly = initialView.watchOnly;
+    if (initialView.sort) view.sort = { ...initialView.sort };
+    // Length-checked: a restored value only applies if the filter set still has that slot, so a
+    // tab that changes its filters between paints cannot resurrect a filter that no longer exists.
+    if (Array.isArray(initialView.filters)) {
+      initialView.filters.forEach((v, i) => {
+        if (i < view.filters.length && filterDefs[i].options.some((o) => o.value === v)) view.filters[i] = v;
+      });
+    }
+  }
 
   const totalCount = rows.length;
 
@@ -370,7 +392,9 @@ export function scoreTable(config) {
     let out = rows.filter((row) => {
       if (view.q && !haystack(row).includes(view.q)) return false;
       if (watched && !watched.has(String(key(row)))) return false;
-      if (filters && view.filter !== 'all' && !filters.match(row, view.filter)) return false;
+      for (let i = 0; i < filterDefs.length; i++) {
+        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
+      }
       return true;
     });
     if (view.sort) {
@@ -500,19 +524,20 @@ export function scoreTable(config) {
         <div class="flex flex-1 flex-wrap items-center gap-2">
           <div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" data-table-search placeholder="Search company..."
+            <input type="text" data-table-search placeholder="Search company..." value="${escapeHtml(view.q)}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
-          ${
-            filters
-              ? `<select data-table-filter class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                   ${filters.options.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
+          ${filterDefs
+            .map(
+              (f, i) => `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
+                   class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
                  </select>`
-              : ''
-          }
+            )
+            .join('')}
           <button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
-            <span data-watch-icon class="text-amber-400">☆</span>
+            <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
           </button>
@@ -543,7 +568,7 @@ export function scoreTable(config) {
     const body = host.querySelector('[data-table-body]');
     const countEl = host.querySelector('[data-row-count]');
     const searchEl = host.querySelector('[data-table-search]');
-    const filterEl = host.querySelector('[data-table-filter]');
+    const filterEls = [...host.querySelectorAll('[data-table-filter]')];
     const watchBtn = host.querySelector('[data-watch-toggle]');
     const watchIcon = host.querySelector('[data-watch-icon]');
     const watchCount = host.querySelector('[data-watch-count]');
@@ -619,10 +644,12 @@ export function scoreTable(config) {
       repaint();
     });
 
-    filterEl?.addEventListener('change', () => {
-      view.filter = filterEl.value;
-      repaint();
-    });
+    filterEls.forEach((el, i) =>
+      el.addEventListener('change', () => {
+        view.filters[i] = el.value;
+        repaint();
+      })
+    );
 
     watchBtn.addEventListener('click', () => {
       view.watchOnly = !view.watchOnly;
@@ -644,7 +671,7 @@ export function scoreTable(config) {
     return () => {};
   }
 
-  return { html, wire };
+  return { html, wire, view };
 }
 
 // ---------------------------------------------------------------------------------------

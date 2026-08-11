@@ -221,14 +221,16 @@ Score and Signals are **opt-in**. A tab with no scoring model leaves `showScore`
 than rendering empty score furniture.
 
 **Layout knobs, for wide numeric tables.** Defaults give the screener look; the Earnings Hub is
-the only consumer that changes all four, because it carries thirteen columns:
+the only consumer that changes all four, because it carries ten numeric columns:
 
 | Option | Default | Effect |
 | --- | --- | --- |
 | `showRank` | `true` | `false` drops the leading `#` column. The watchlist star does **not** go with it — it moves inside the identity cell, because the watchlist filter needs a per-row control. |
 | `nameAfter` | `0` | How many of `columns` render *before* the identity column. `1` puts a date or ID column first. |
 | `nameMaxPx` | `null` | Hard px cap on the identity column. `truncate` alone will not stop a long sub-line widening the table — a `<table>` in auto layout sizes to its widest content, so the cap on the inner block is what makes the ellipsis engage. |
-| `dense` | `false` | `px-2` instead of `px-4`, and `tracking-normal` instead of `tracking-wider` on the headers. Worth ~110px across thirteen columns. |
+| `dense` | `false` | `px-2` instead of `px-4`, and `tracking-normal` instead of `tracking-wider` on the headers. Worth ~110px across ten columns. |
+| `filters` | `null` | One config, or an **array** of them. An array renders several `<select>`s that AND together — "PAT grew" and "Consolidated only" are different questions and folding both into one dropdown would make them mutually exclusive for no reason. |
+| `initialView` | `null` | Seed search / filters / watchlist-only / sort from a previous instance's `view` (which the table now returns). A tab that rebuilds on live data must pass this, or the reader's state is discarded every time a row arrives. |
 
 Reach for these only when the alternative is a horizontal scrollbar at 1440px. Measure before and
 after — `[data-table-scroll]`'s `scrollWidth` vs `clientWidth` is the number that matters, and
@@ -656,13 +658,18 @@ It covers, beyond the checklist below:
 - the URL hash updates; browser back/forward work
 - a reload restores the same route and scope
 - the top-tab underline scales in on the active tab only
-- top cards and table rows both open the drill panel; ESC and the backdrop close it
+- top cards and table rows open the drill panel; ESC and the backdrop close it
+  (the Earnings Hub has no drill by design — its rows are inert and the suite asserts that)
 - scoreTable search, header sort, filter select and watchlist toggle all work, and the
   watchlist survives a reload
 - the Sources modal opens and lists every documented source
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
-- the Earnings Hub's thirteen columns fit inside 1440px with no scrollbar of their own, and its
+- the Earnings Hub's ten columns fit inside 1440px with no scrollbar of their own, and its
   reported-figure columns recompute to the growth percentage shown beside them
+- the Earnings Hub's YoY/QoQ toggle repoints the comparison columns and the URL, survives a
+  reload, and leaves the current-period figure for a given company **identical** under both
+- its two filter dropdowns partition the set exactly (STD + CON = all) and combine rather than
+  replace each other
 - **the two portfolio identities**, computed against the shipped data: open lots sum to position
   quantity on every ticker, and realised + unrealised + dividends equals total P&L per position
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both

@@ -37,14 +37,34 @@ const LIVE_ENDPOINT = 'api/earnings';
 export const LIVE_ID = 'earnings-live';
 export const POLL_MS = 30000;
 
+// The comparison basis. Moneycontrol serves both from the same endpoint and the current-period
+// figures are identical between them — only the PRIOR period changes, YoY against the same
+// quarter last year, QoQ against the previous quarter. So this is a different question about the
+// same filing, not a different feed.
+export const SUB_TYPES = [
+  { value: 'yoy', label: 'YoY' },
+  { value: 'qoq', label: 'QoQ' },
+];
+const DEFAULT_SUB_TYPE = 'yoy';
+let subType = DEFAULT_SUB_TYPE;
+
 let loadPromise = null;
-let cache = null; // { rows, meta, byTicker }
+let cache = null; // the ACTIVE { rows, meta, byTicker }
+// One cache per sub-type, so switching back is instant and neither can be shown under the other's
+// headers. The committed snapshot is YoY only — see `setSubType`.
+const bySubType = new Map();
 let tickerMap = null;
 let returnsBase = null;
 let universeIndex = null;
 let seenScIds = null; // populated on first successful load; anything new after that is an arrival
 let arrivals = [];
 const listeners = new Set();
+
+const endpointFor = (st) => `${LIVE_ENDPOINT}?subType=${encodeURIComponent(st)}`;
+
+export function currentSubType() {
+  return subType;
+}
 
 export function load() {
   if (cache) return Promise.resolve(cache);
@@ -86,9 +106,53 @@ async function build() {
   // Try the live endpoint once during load so the very first paint is live where possible. It is
   // deliberately not awaited hard: a missing Worker (plain `python3 -m http.server`) must not stop
   // the tab from rendering the snapshot.
-  const fresh = await fetchJson(LIVE_ENDPOINT, { optional: true });
+  const fresh = await fetchJson(endpointFor(subType), { optional: true });
   if (fresh?.rows?.length) ingest(fresh, { live: true });
 
+  return cache;
+}
+
+/**
+ * Switch the comparison basis. Resolves to the new cache, or throws if the switch could not be
+ * made — the caller repaints on success and says what happened on failure.
+ *
+ * WHY THIS CAN FAIL AND MUST BE ALLOWED TO
+ *   The committed snapshot is YoY. There is no QoQ file on disk, and there deliberately isn't one:
+ *   the two differ only in the prior-period column, so a stale QoQ snapshot would look exactly
+ *   like a live one while comparing against the wrong quarter. If the live endpoint is
+ *   unreachable, QoQ genuinely cannot be shown, and saying so is the only honest option —
+ *   silently leaving YoY numbers under QoQ headers would be the worst outcome available.
+ */
+export async function setSubType(next) {
+  const wanted = SUB_TYPES.some((s) => s.value === next) ? next : DEFAULT_SUB_TYPE;
+  if (wanted === subType && cache) return cache;
+
+  const cached = bySubType.get(wanted);
+  if (cached) {
+    subType = wanted;
+    cache = cached;
+    notify();
+    return cache;
+  }
+
+  const payload = await fetchJson(endpointFor(wanted), { optional: true });
+  if (!payload?.rows?.length) {
+    throw new Error(
+      wanted === DEFAULT_SUB_TYPE
+        ? 'The results feed is unreachable.'
+        : `${wanted.toUpperCase()} needs the live feed, which is unreachable right now. Only ${DEFAULT_SUB_TYPE.toUpperCase()} ships as a committed snapshot.`
+    );
+  }
+  // The server must have answered the question we asked. A payload that says `yoy` when we asked
+  // for `qoq` is the one failure that would be invisible downstream — the current-period figures
+  // are identical, so it would look right while comparing against the wrong quarter. Refuse it.
+  const served = payload.meta?.subType || null;
+  if (served && served !== wanted) {
+    throw new Error(`The feed answered with ${served.toUpperCase()} when ${wanted.toUpperCase()} was requested, so the comparison would have been mislabelled.`);
+  }
+  subType = wanted;
+  ingest(payload, { live: true });
+  notify();
   return cache;
 }
 
@@ -133,6 +197,9 @@ function ingest(payload, { live }) {
       count: rows.length,
       isLive: live && !payload?.degraded,
       degraded: payload?.degraded || null,
+      // Which comparison this cache holds. The UI labels its columns from `currentPeriod` /
+      // `priorPeriod`, so this and those must always come from the same payload.
+      subType: payload?.meta?.subType || subType,
       // What each optional join actually managed, so the UI can be specific about gaps rather
       // than showing dashes with no explanation.
       mappedTickers: rows.filter((r) => r.ticker).length,
@@ -141,7 +208,18 @@ function ingest(payload, { live }) {
       receivedAt: Date.now(),
     },
   };
+  bySubType.set(cache.meta.subType, cache);
   return cache;
+}
+
+function notify() {
+  for (const fn of listeners) {
+    try {
+      fn(cache);
+    } catch (err) {
+      console.error('[earnings-live] listener failed', err);
+    }
+  }
 }
 
 function joinRow(raw) {
@@ -204,8 +282,13 @@ export function startLive(live) {
   live.register(LIVE_ID, {
     intervalMs: POLL_MS,
     fetcher: async () => {
-      const payload = await fetchJson(LIVE_ENDPOINT, { optional: true });
+      // Always the ACTIVE sub-type: the poller follows the toggle rather than pinning whichever
+      // basis happened to be selected when it was registered.
+      const payload = await fetchJson(endpointFor(subType), { optional: true });
       if (!payload?.rows?.length) return null;
+      // A tick that arrives for the basis the user has since switched away from is dropped rather
+      // than folded in — it would overwrite the active cache with the other comparison.
+      if ((payload.meta?.subType || subType) !== subType) return null;
       // ALWAYS refresh the cache, but only NOTIFY on a structural change. Prices move on every
       // tick, and repainting 1,300 rows every 30s would rebuild the table and throw away
       // whatever the user had sorted or searched. So the data stays current underneath, and the
@@ -218,13 +301,7 @@ export function startLive(live) {
   });
   const off = live.subscribe(LIVE_ID, (payload) => {
     if (!payload) return;
-    for (const fn of listeners) {
-      try {
-        fn(cache);
-      } catch (err) {
-        console.error('[earnings-live] listener failed', err);
-      }
-    }
+    notify();
   });
   live.start(LIVE_ID);
   return () => {
@@ -246,6 +323,7 @@ export function stopLive(live) {
  */
 function hasStructuralChange(payload) {
   if (!cache) return true;
+  if ((payload.meta?.subType || subType) !== cache.meta.subType) return true;
   if ((payload.rows?.length ?? 0) !== cache.meta.count) return true;
   if ((payload.latestResultDate ?? null) !== (cache.meta.latestResultDate ?? null)) return true;
   if (!!payload.degraded !== !!cache.meta.degraded) return true;
@@ -265,7 +343,9 @@ function hasStructuralChange(payload) {
 function fingerprint(rows = []) {
   let total = 0;
   for (const r of rows) {
-    const tok = `${r.scId}|${r.resultDate}|${r.netProfit?.current ?? ''}|${r.revenue?.current ?? ''}`;
+    // Prior is in here as well as current: the two sub-types share every current-period figure and
+    // differ only in the comparison, so a checksum over `current` alone cannot tell them apart.
+    const tok = `${r.scId}|${r.resultDate}|${r.netProfit?.current ?? ''}|${r.netProfit?.prior ?? ''}|${r.revenue?.current ?? ''}|${r.revenue?.prior ?? ''}`;
     let h = 0;
     for (let i = 0; i < tok.length; i++) h = (h * 31 + tok.charCodeAt(i)) | 0;
     total = (total + h) | 0; // sum: row order cannot affect this

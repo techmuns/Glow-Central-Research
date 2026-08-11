@@ -46,7 +46,7 @@ optional right-aligned count badge.
 
 | Tab | Sub-views |
 | --- | --- |
-| Earnings Hub | Latest Results · Result Scans · Quality & Growth |
+| Earnings Hub | *(none — one table, so the rail is hidden)* |
 | Con-call | Live Feed · Keyword Scan · Catalysts · Deep Dive |
 | Public Chatter | ValuePickr · Telegram · Trending |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
@@ -209,11 +209,14 @@ live.onGlobalTick(cb);    // header Live pill
 ## 7. Tabs and planned features
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
-One table: every company that has reported this quarter, newest first. Thirteen columns —
-`Date · Company · Rev cur · Rev prior · Rev % · GP cur · GP prior · GP % · PAT cur · PAT prior ·
-PAT % · MCap · Basis` — because a growth percentage without the two figures it came from hides both
-the scale and the sign. Ticker and industry sit on the second line of the company cell. Live off
-Moneycontrol Rapid Results, polled every 30s.
+One table: every company that has reported this quarter, newest first. Ten columns —
+`Date · Company · Rev cur · Rev prior · Rev % · PAT cur · PAT prior · PAT % · MCap · Basis` —
+because a growth percentage without the two figures it came from hides both the scale and the
+sign. Ticker and industry sit on the second line of the company cell; gross profit stays in the
+feed and the Excel export but is not a column. A YoY/QoQ toggle repoints the comparison, and a
+second dropdown filters consolidated vs standalone. Rows are not clickable — there is no drill,
+because the figures it held are now columns. Live off Moneycontrol Rapid Results, polled every
+30s.
 - Auto-parsed result PDFs (revenue, PAT, margin extraction)
 - Beat/miss scoring vs Street estimates
 - Segment-wise revenue break-up
