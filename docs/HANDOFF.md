@@ -228,6 +228,11 @@ a loss becoming a profit. `classifyChange()` tags every metric, `pct` is null wh
 percentage exists, and the UI renders a labelled pill. Same failure mode as the `op_vs_pat` rule —
 check every growth figure for it.
 
+**Identity for brand-new filers is resolved live.** The committed map cannot know about a company
+that reported an hour ago, and those rows sit at the top of the table. The Worker resolves unknown
+codes against the price feed per cache window (bounded at 40) and merges them, so the newest rows
+are not also the emptiest ones.
+
 **Market cap is computed, not stored.** The ticker map holds the share count; the browser multiplies
 by the current price, so the column is correct now rather than as-of the last refresh.
 

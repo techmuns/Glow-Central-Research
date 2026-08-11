@@ -85,6 +85,9 @@ export function classifyChange(current, prior, reportedPct) {
   }
   if (current < 0 && prior < 0) {
     // Both loss-making. Improvement means the loss got smaller, i.e. current is less negative.
+    // An unchanged loss is its own case: treating "not narrowed" as "widened" rendered Eurotex's
+    // -1 vs -1 as "Loss ↑ 0%", which claims a deterioration that did not happen.
+    if (current === prior) return { kind: 'loss-flat', pct: 0, direction: 0 };
     const narrowed = current > prior;
     return { kind: narrowed ? 'loss-narrowed' : 'loss-widened', pct: reportedPct, direction: narrowed ? 1 : -1 };
   }
@@ -189,6 +192,79 @@ export async function fetchLatestResults(opts = {}, fetchImpl = fetch) {
       fetchedAt: new Date().toISOString(),
     },
   };
+}
+
+export const PRICE_FEED_URL = 'https://priceapi.moneycontrol.com/pricefeed/nse/equitycash';
+
+/**
+ * Resolve a Moneycontrol company code to its NSE identity.
+ *
+ * Returns `{ ticker, industry, shares, fullName }` or null. Never throws: an unresolvable code
+ * must degrade to "no ticker shown", not to a failed request for the whole table.
+ */
+export async function resolveIdentity(scId, fetchImpl = fetch) {
+  try {
+    const res = await fetchImpl(`${PRICE_FEED_URL}/${encodeURIComponent(scId)}`, {
+      headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0' },
+    });
+    if (!res.ok) return null;
+    const d = (await res.json())?.data || {};
+    const ticker = String(d.NSEID || '').trim().toUpperCase();
+    if (!ticker) return null;
+    const shares = Number(d.SHRS);
+    return {
+      ticker,
+      bseId: String(d.BSEID || '').trim() || null,
+      fullName: String(d.company || d.SC_FULLNM || '').trim() || null,
+      industry: String(d.newSubsector || d.main_sector || '').replace(/\s+/g, ' ').trim() || null,
+      shares: Number.isFinite(shares) && shares > 0 ? shares : null,
+      mktCapAtBuild: Number(d.MKTCAP) || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fill in the identity of companies the committed ticker map has never seen.
+ *
+ * A company that reports TODAY is by definition not in a map built yesterday, so without this the
+ * freshest rows — the entire point of a live results feed — arrive with no ticker, no market cap
+ * and no industry until the nightly job catches up. Those are exactly the rows a user is looking
+ * at, so they get resolved now.
+ *
+ * Bounded by `limit`: outside results season this resolves nothing, and on the busiest day it is
+ * a few dozen requests once per cache window, not per reader. Anything beyond the cap keeps its
+ * null ticker and is picked up by the next scheduled run.
+ */
+export async function resolveMissing(rows, knownMap = {}, { limit = 40, fetchImpl = fetch } = {}) {
+  const unknown = [...new Set(rows.filter((r) => r.scId && !knownMap[r.scId]).map((r) => r.scId))].slice(0, limit);
+  if (!unknown.length) return { resolved: {}, attempted: 0, failed: 0 };
+
+  const entries = await Promise.all(unknown.map(async (scId) => [scId, await resolveIdentity(scId, fetchImpl)]));
+  const resolved = {};
+  let failed = 0;
+  for (const [scId, hit] of entries) {
+    if (hit) resolved[scId] = hit;
+    else failed++;
+  }
+  return { resolved, attempted: unknown.length, failed };
+}
+
+/** Attach identity + a live market cap to each row from the merged map. */
+export function applyIdentity(rows, map = {}) {
+  return rows.map((r) => {
+    const m = map[r.scId];
+    if (!m) return r;
+    return {
+      ...r,
+      ticker: m.ticker || null,
+      fullName: m.fullName || null,
+      industry: m.industry || null,
+      shares: m.shares ?? null,
+      mktCapAtBuild: m.mktCapAtBuild ?? null,
+    };
+  });
 }
 
 /**

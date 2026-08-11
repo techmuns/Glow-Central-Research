@@ -8,7 +8,7 @@
 //
 // Neither writes anything back to the repo; both are read-through overlays on committed data.
 
-import { fetchLatestResults, freshnessOf } from './mc.mjs';
+import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity } from './mc.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const REQ_TIMEOUT_MS = 8000;
@@ -83,7 +83,22 @@ async function handleEarnings(request, env, ctx) {
   try {
     const { rows, meta } = await fetchLatestResults({ limit: 5000, subType, category });
     if (!rows.length) throw new Error('upstream returned no rows');
-    payload = { ok: true, degraded: null, ...freshnessOf(rows), meta, rows };
+
+    // Identity from the committed map, plus on-the-fly resolution for anything it has never seen.
+    // A company that reports today is not in a map built yesterday, and those are precisely the
+    // rows at the top of a live results table — shipping them with no ticker, market cap or
+    // industry would make the freshest data the least useful data on the page.
+    const known = (await loadTickerMap(env, request)) || {};
+    const { resolved, attempted, failed } = await resolveMissing(rows, known, { limit: 40 });
+    const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
+
+    payload = {
+      ok: true,
+      degraded: null,
+      ...freshnessOf(rows),
+      meta: { ...meta, resolvedOnTheFly: attempted, unresolved: failed },
+      rows: applyIdentity(rows, merged),
+    };
   } catch (err) {
     // Upstream is down, rate-limited, or has changed shape. Serve the committed snapshot and
     // label it, rather than an empty feed that would read as "no results reported".
@@ -108,6 +123,17 @@ async function handleEarnings(request, env, ctx) {
   // Store a clone; the response body can only be read once.
   ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
   return res;
+}
+
+/** The committed scID -> identity map, read through the ASSETS binding. */
+async function loadTickerMap(env, request) {
+  try {
+    const res = await env.ASSETS.fetch(new Request(new URL('/data/mc-ticker-map.json', request.url)));
+    if (!res.ok) return null;
+    return (await res.json())?.map || null;
+  } catch {
+    return null;
+  }
 }
 
 /** The committed last-good file, read through the ASSETS binding. Null if it isn't there. */

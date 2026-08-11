@@ -501,6 +501,13 @@ like. Every metric is therefore classified:
 The UI renders a signed percentage only for `normal`; everything else is a labelled pill. Getting
 this wrong would paint Wockhardt's loss-to-profit recovery as a green "+199%" growth rate.
 
+**Identity is resolved on the fly for companies the map has never seen.** A company that reports
+today is by definition not in a map built yesterday — and those are exactly the rows at the top of
+a live results table. The Worker resolves up to 40 unknown codes per cache window against the price
+feed and merges them in, so the freshest rows arrive with a ticker, an industry and a share count
+rather than three dashes. `meta.resolvedOnTheFly` reports how many. The scheduled job still
+maintains the durable map; this only covers the gap between filings and the next run.
+
 **Degraded mode** — if the upstream fails or changes shape, the Worker serves the committed
 snapshot with `degraded` set to a human-readable reason, and the tab swaps its green "Live" ribbon
 for an amber "Showing the last snapshot" one. An empty feed is never served as success, because

@@ -126,6 +126,10 @@ function changeCell(m) {
     const cls = m.pct > 0 ? 'text-emerald-600' : m.pct < 0 ? 'text-rose-600' : 'text-slate-500';
     return `<span class="font-semibold ${cls}">${escapeHtml(formatPct(m.pct))}</span>`;
   }
+  if (m.kind === 'loss-flat') {
+    return `<span class="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200"
+       title="Loss in both periods and unchanged: ${escapeHtml(formatNumber(m.prior))} Cr → ${escapeHtml(formatNumber(m.current))} Cr.">Loss flat</span>`;
+  }
   if (m.kind === 'loss-narrowed' || m.kind === 'loss-widened') {
     const narrowed = m.kind === 'loss-narrowed';
     const cls = narrowed ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200';
@@ -151,6 +155,7 @@ function changeSortValue(m) {
   if (m.kind === 'normal') return m.pct ?? -Infinity;
   if (m.kind === 'turnaround') return 1e6; // best possible outcome, sorts above any percentage
   if (m.kind === 'slipped-to-loss') return -1e6;
+  if (m.kind === 'loss-flat') return -5e5;
   if (m.kind === 'loss-narrowed') return (m.pct ?? 0) - 5e5; // improving, but still loss-making
   if (m.kind === 'loss-widened') return -5e5 - Math.abs(m.pct ?? 0);
   return -Infinity;
@@ -334,7 +339,12 @@ function renderLatest(ctx) {
       },
     },
     searchable: (r) => `${r.company} ${r.shortName} ${r.ticker || ''} ${r.industry || ''} ${r.sectorSlug || ''}`,
-    initialSort: { key: 'Return Since Result', dir: 'desc' },
+    // Newest first. The view is called Latest Results and Moneycontrol's own page defaults the
+    // same way, so anything else is a surprise. It used to default to Return Since Result, which
+    // had a nastier consequence than mere preference: a company that reported TODAY has no cached
+    // result-day close yet, so its return is null and it sorted to the very bottom — the four
+    // newest filings landed at positions 1313-1316 of 1326. Return is still one header click away.
+    initialSort: { key: 'Updated', dir: 'desc' },
     onRowClick: (r) => drillResult(r, m),
     exportName: 'sattva-earnings',
     onExport: (visible) => exportResults(visible, m),

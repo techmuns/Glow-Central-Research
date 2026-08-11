@@ -154,8 +154,9 @@ function joinRow(raw) {
   // instead of correct whenever the map was last built. Falls back to universe.json (a curated
   // but hand-refreshed export) and then to the count-times-price captured at build time.
   //   shares × price is in rupees; ÷ 1e7 gives crore.
-  const liveCap = mapped?.shares && raw.ltp ? (mapped.shares * raw.ltp) / 1e7 : null;
-  const marketCap = liveCap ?? uni?.marketCap ?? mapped?.mktCapAtBuild ?? null;
+  const shares = raw.shares ?? mapped?.shares ?? null;
+  const liveCap = shares && raw.ltp ? (shares * raw.ltp) / 1e7 : null;
+  const marketCap = liveCap ?? uni?.marketCap ?? raw.mktCapAtBuild ?? mapped?.mktCapAtBuild ?? null;
 
   // Return since result: base is the close on the result day (immutable, cached); the current
   // price is Moneycontrol's live `ltp`. So this figure moves on every tick, which is the point.
@@ -175,7 +176,7 @@ function joinRow(raw) {
     marketCapIsLive: liveCap != null,
     // universe.json's industry is the curated one and wins where it exists; Moneycontrol's
     // subsector fills in the ~69% of reporters that sit outside the NSE-500 export.
-    industry: uni?.industry || uni?.sector || mapped?.industry || null,
+    industry: uni?.industry || uni?.sector || raw.industry || mapped?.industry || null,
     inUniverse: !!uni,
     basePrice: base,
     basePricedOn: baseEntry?.pricedOn ?? null,
