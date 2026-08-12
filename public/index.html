@@ -17,6 +17,27 @@
       rel="stylesheet"
     />
 
+    <script>
+      // The Concall Deep Dive dashboard — a SEPARATE deployment that runs its own LLM pipeline
+      // over a company's call. The Con-call tab's Deep Dive column talks to it.
+      //
+      // Set here rather than left to each reader's browser because that Worker has no custom
+      // domain, so the address is not something anyone can guess. Reading its report index and
+      // any finished report is free; STARTING a run costs real compute on their side, which is
+      // why nothing in this app dispatches one without an explicit click and a confirm step.
+      // `localStorage['sattva:deepdive-base']` overrides this, which is how verify-ui.mjs points
+      // a whole verification run at a stub.
+      //
+      // IN ITS OWN BLOCK, BEFORE THE CDN. It first shared the Tailwind config script below, and
+      // when the CDN was unreachable `tailwind.config = …` threw on the line above it — so this
+      // assignment never ran and the column silently fell back to asking for a URL. An unrelated
+      // network failure must not be able to unwire a feature.
+      //
+      // That endpoint is unauthenticated, so this line makes it reachable by anyone who loads the
+      // page. Putting auth on `POST /api/analyze` belongs on that Worker — see docs/HANDOFF.md §9.
+      window.SATTVA_DEEPDIVE_URL = 'https://concall-sattva.tech-441.workers.dev';
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       // Tailwind CDN config — no build step, no bundler (see CLAUDE.md).

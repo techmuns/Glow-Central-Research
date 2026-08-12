@@ -201,10 +201,10 @@ export const SOURCE_GROUPS = [
       },
       {
         name: 'Concall Deep Dive — per-company report',
-        url: null,
+        url: 'https://concall-sattva.tech-441.workers.dev',
         feeds:
-          'The <strong>Deep Dive</strong> button on every scan row. A separate dashboard runs its own LLM pipeline over that company\'s call and returns a report — verdict, takeaways, financials, risks — which this page lays out and links back to. <strong>The whole report is theirs</strong>; nothing on that panel is computed or re-scored here. Two things to know: it does nothing until you paste that dashboard\'s URL (it is deployment-specific, so it is not committed here), and <strong>each run costs real compute on their side</strong>, so the button asks before dispatching and nothing ever fires on its own.',
-        cadence: 'On demand — one run per click, polled every 4s until it finishes (usually minutes). A report under a fortnight old is reused from their cache.',
+          'The <strong>Deep Dive</strong> button on every scan row. A separate dashboard runs its own LLM pipeline over that company\'s call and returns a report — provenance, guidance, themes, the analyst Q&amp;A with transcript quotes, thesis and anti-thesis, financials, valuation. <strong>The whole report is theirs</strong>; this page lays it out, computes nothing on top, and links back to their own rendering. Their index of finished reports is read once per visit, which is free, and the rows it names get a filled <strong>Deep Dive ✓</strong> button that opens the report without starting anything. Every other row <strong>starts a real run that costs real compute</strong>, so it confirms first and nothing ever dispatches on its own.',
+        cadence: 'On demand — a report they already hold opens instantly; a new run is polled every 4s and takes minutes. A report under a fortnight old is reused from their cache.',
         status: 'ondemand',
         file: 'public/js/data/deep-dive.js · public/js/concall/deep-dive.js',
       },

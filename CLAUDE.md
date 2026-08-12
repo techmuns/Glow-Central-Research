@@ -415,26 +415,37 @@ renders the report it produces. Everything in *Reproducing someone else's analys
 reproduce, never recompute; say whose it is on every surface; link to their own rendering — plus
 three that only arise when you can make another service *do work*:
 
-1. **A click costs money, so nothing fires on its own.** Their `POST /api/analyze` is
-   unauthenticated and every accepted call starts a real LLM + compute run. So: no poller
-   registers this, no row peeks at it on render, the cell is a button and nothing more, and the
-   first click opens a confirm step that says so before anything is sent. Reopening a panel calls
-   `resume(slug)`, which polls and never dispatches — their API would dedup a second `POST`
-   anyway, but not asking at all is the version that cannot cost a run through a bug of ours.
+1. **Separate what costs money from what does not, and hold that line everywhere.** `POST
+   /api/analyze` is unauthenticated and every accepted call starts a real LLM run; `GET
+   /api/summary` and `GET /api/report` are free. So **nothing that costs a run ever fires on its
+   own** — no poller, no peek on render, the cell is a button, the first click confirms, and
+   "Re-run from scratch" returns to that confirm step rather than dispatching on the click.
+   Reopening calls `resume(slug)`, which only polls; their API would dedup a second `POST` anyway,
+   but not asking at all is the version that cannot cost a run through a bug of ours.
+   **The free index, by contrast, IS fetched unprompted** — once per page load, never polled — so
+   a row can say *"report ready"* instead of making the reader pay to discover it exists. Getting
+   that backwards in either direction is the bug: polling their trigger, or charging for an answer
+   already sitting there.
 2. **The loading window is their words, not our spinner.** A run takes minutes. The panel prints
    the `stage` and `message` their pipeline reports on each poll, the elapsed clock, and the stage
    trail. A generic "Analysing…" would be inventing reassurance about a process we cannot see.
    `unknown` right after dispatch is KV lag, not failure — render it as *waiting to register*,
    never as an error and never as an empty report.
-3. **Render defensively, because the schema is not ours to pin.** `report`'s shape lives in their
-   repo. Known sections get a heading in a sensible order and **anything unrecognised still
-   renders** through a generic walker, so a field they add next month shows up rather than
-   vanishing. Escape every string — this is external content and none of it may reach the DOM as
+3. **Render by shape, not by field name, because the schema is not ours to pin.** `report`'s shape
+   lives in their repo. Sections render **in their own key order** — reordering is editing their
+   report — and each is drawn from what it *is*: uniform short scalars become a table, prose-
+   carrying arrays become cards, flat objects become definition grids. Only `meta` is special-
+   cased (provenance), plus two cosmetic hints (`*_url` links, `quote` blockquotes). A section they
+   add next month arrives laid out rather than dropped. Escape every string and only ever make an
+   anchor from an `http(s)` value — this is external content and none of it may reach the DOM as
    markup.
+4. **Never show one company's report under another's name.** The panel is titled from our row and
+   the report from theirs; a slug is resolved from two places, so if `report.meta.ticker`
+   contradicts the row, say so loudly rather than retitling it.
 
-The base URL is not committed: that Worker has no custom domain, so its address is
-deployment-specific. The column ships unconnected and asks once, storing it in `localStorage`
-(`sattva:deepdive-base`), or reads `window.SATTVA_DEEPDIVE_URL` if `index.html` sets it.
+The base URL is `window.SATTVA_DEEPDIVE_URL` in `index.html`; `localStorage['sattva:deepdive-base']`
+overrides it, which is how `verify-ui.mjs` points the whole run at a stub so a verification never
+touches — or spends against — the real dashboard.
 
 ### One tab, one provenance — and how it got that way
 

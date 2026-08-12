@@ -722,21 +722,23 @@ Worker, nothing is cached in `public/data/`, and nothing is committed.**
 
 **Client** — `public/js/data/deep-dive.js` (transport) and `public/js/concall/deep-dive.js` (panel).
 
-### The base URL is not in this repo, deliberately
+### Where the base URL lives
 
-That Worker has no custom domain, so its address is whatever Cloudflare assigned it
-(`https://concall-sattva.<subdomain>.workers.dev`). It is deployment-specific and nobody reading
-this repo can know it, so the column ships **unconnected**: the first click opens a *Connect*
-step that stores the URL in `localStorage` under `sattva:deepdive-base`. To set it for everyone
-instead of per-browser, define `window.SATTVA_DEEPDIVE_URL` in `public/index.html` — the client
-reads localStorage first and falls back to that global.
+`https://concall-sattva.tech-441.workers.dev`, set as `window.SATTVA_DEEPDIVE_URL` in
+`public/index.html`. That Worker has no custom domain, so the address is whatever Cloudflare
+assigned it and nothing can derive it — which is why it is written down rather than constructed.
 
-### The two routes it uses
+`baseUrl()` reads `localStorage['sattva:deepdive-base']` **first** and falls back to the global, so
+a reader (or the verification suite) can point the column somewhere else without touching the
+page. If neither is set the column renders a *Connect* step instead of a broken button.
 
-| Call | Sends | Returns |
-| --- | --- | --- |
-| `POST /api/analyze` | `{ company, ticker?, force? }` | `{ ok, slug, status }` — `status: "done"` means a cached report was reused and no run started |
-| `GET /api/report?slug=` | — | `{ ok, slug, status, stage?, message?, report?, partial? }` |
+### The three routes it uses — and only one of them costs anything
+
+| Call | Sends | Returns | Cost |
+| --- | --- | --- | --- |
+| `GET /api/summary` | — | `{ ok, version, count, summaries[] }` — every report they already hold, with `slug`, `ticker`, `company`, `quarter`, `verdict`, `generated_at` | free |
+| `GET /api/report?slug=` | — | `{ ok, slug, status, stage?, message?, report?, partial? }` | free |
+| `POST /api/analyze` | `{ company, ticker?, force? }` | `{ ok, slug, status }` — `status: "done"` means a cached report was reused and no run started | **a real LLM + compute run** |
 
 `status` is one of `queued` \| `running` \| `done` \| `error` \| `unknown`. **`unknown` is not a
 failure** right after a dispatch — it is KV propagation lag, and the panel shows it as "waiting to
@@ -747,18 +749,22 @@ ticker in `localStorage` under `sattva:deepdive-slugs` so closing the panel and 
 reattaches to a run in flight rather than dispatching a second one, and `<BASE>/#/report/<slug>`
 deep-links to their own rendering.
 
-### A CLICK COSTS MONEY, so nothing fires on its own
+### A DISPATCH COSTS MONEY; A READ DOES NOT. The integration is built on that line
 
 Their `POST /api/analyze` is **unauthenticated** and every accepted call dispatches a real LLM +
-compute run. That constrains the integration, and the constraints are load-bearing:
+compute run. The reads are plain GETs with no pipeline behind them. So:
 
-- No poller registers this feed, no row peeks at it on render, and the table's `Deep Dive` cell is
-  a button and nothing else.
-- The first click opens a **confirm** step that says a run costs compute before anything is sent.
-- Reopening a panel uses `resume(slug)`, which polls only. Their API would dedup a second
-  `POST` anyway, but not asking at all is the version that cannot cost a run through a bug of ours.
-- The dot on a row's button means a run for that ticker is already on record — that one comes back
-  from their cache.
+- **Nothing that costs a run ever fires on its own.** No poller registers this, no row triggers it
+  on render, the cell is a button and nothing else, and the first click opens a **confirm** step
+  that says a run costs compute before anything is sent. "Re-run from scratch" on a finished report
+  returns to that same confirm step rather than dispatching on the click.
+- **The free index IS fetched unprompted**, once per page load — never polled, never per row. It
+  is what lets a row say *"report ready"* instead of making the reader pay to find out. Rows it
+  names get a filled button and open through `resume(slug)`, which only polls.
+- Reopening a panel uses `resume(slug)` too. Their API would dedup a second `POST` anyway, but not
+  asking at all is the version that cannot cost a run through a bug of ours.
+- The dot on an outlined button means *this browser* has dispatched a run for that ticker; the
+  filled button means *they* hold a finished report. Different facts, different marks.
 
 ### The report is theirs, and the renderer never pretends otherwise
 
@@ -766,12 +772,32 @@ Same rule as the StockScans scores above and the Trendlyne holding values below:
 do not recompute. The panel adds no scoring, no re-banding and no judgement, says whose analysis it
 is at the top of every finished report, and links to their own rendering of it.
 
-`report`'s schema lives in *their* repo and is expected to grow, so `renderReport()` is
-deliberately defensive: known sections (`meta`, `verdict`, `key_takeaways`, `thesis`, `financials`,
-`valuation`, `risks`, `catalysts`, `guidance`, `management`, `sources`) get a heading in that
-order, and **anything unrecognised is still rendered** by a generic walker rather than dropped. A
-field they add next month appears without a change here. Every string is escaped — this is
-external content and none of it reaches the DOM as markup.
+**The renderer is shape-driven, not field-driven.** `report`'s schema lives in *their* repo and is
+expected to grow, so sections render **in their own key order** — reordering them would be this
+dashboard editing their report — and each is drawn from its *shape*: a uniform array of short
+scalars becomes a table, an array carrying prose becomes cards titled by their first field, a flat
+object becomes a definition grid. Nothing keys off a field name except `meta`, which is provenance
+and gets a purpose-built strip, and two cosmetic hints (`*_url` renders as a link, `quote` renders
+as a blockquote). A section they add next month arrives laid out rather than dropped or dumped as
+JSON. Today's payload is `meta`, `about`, `concall`, `key_takeaways`, `thesis`, `anti_thesis`,
+`financials`, `valuation`, `next_steps`, `earnings`, `call_over_call` — **none of that list is
+hard-coded anywhere.**
+
+Every string is escaped and only `http(s)` values ever become anchors — this is external content
+and none of it reaches the DOM as markup.
+
+**Quoted speech is real speech.** A report carries transcript quotes attributed to named
+executives and named sell-side analysts. That is the opposite of the synthetic-speech case
+CLAUDE.md forbids: the words are lifted from a filed transcript by their pipeline, not invented,
+nothing here edits them, and `meta.sources.transcript_url` links the filing they came from. If
+that ever stopped being true, this panel would have to stop rendering quotes rather than caveat
+them.
+
+**The panel is titled from our row; the report is titled from theirs.** If `report.meta.ticker`
+contradicts the row's ticker, the panel says so in a rose banner instead of quietly presenting one
+company's analysis under another's name. That is the worst failure this feature could have, and a
+slug is resolved in two places (their index, and this browser's memory of a dispatch), so it is
+checked rather than assumed.
 
 `partial: true` means they could not fill every field; the panel says so in amber rather than
 rendering the gaps as if complete.

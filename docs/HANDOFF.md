@@ -62,7 +62,7 @@ still feeds Fund Flows' category charts.
 
 | Feed | Where | Notes |
 | --- | --- | --- |
-| **Concall Deep Dive** — a per-company report on one call | The **Deep Dive** column on the Con-call tab | A separate Cloudflare Worker runs its own LLM pipeline and returns the report; this dashboard triggers it, mirrors its progress and lays out the result. Nothing is stored in `public/data/` and nothing is committed. It ships **unconnected** — that Worker's URL is deployment-specific — and **each run costs real compute**, so nothing fires on its own. See §5c. |
+| **Concall Deep Dive** — a per-company report on one call | The **Deep Dive** column on the Con-call tab | A separate Cloudflare Worker runs its own LLM pipeline and returns the report; this dashboard triggers it, mirrors its progress and lays out the result. Nothing is stored in `public/data/` and nothing is committed. Reading the reports they already hold is free and happens once per visit; **starting a new run costs real compute**, so that never fires without a click and a confirm. See §5c. |
 
 ### Mock — placeholder data shipped so the shell has something to render
 
@@ -356,19 +356,28 @@ its own LLM pipeline over that call. We dispatch, mirror its progress in its own
 out the report it returns. `js/data/deep-dive.js` is the transport, `js/concall/deep-dive.js` the
 panel; full contract in `docs/DATA-CONTRACTS.md`.
 
-Three things to know before touching it:
+Four things to know before touching it:
 
-- **It ships unconnected, on purpose.** That Worker has no custom domain, so its URL is
-  deployment-specific and is not in this repo. The first click asks for it and stores it in
-  `localStorage`; set `window.SATTVA_DEEPDIVE_URL` in `public/index.html` to fix it for everyone.
+- **The URL is `window.SATTVA_DEEPDIVE_URL` in `public/index.html`**
+  (`https://concall-sattva.tech-441.workers.dev`). That Worker has no custom domain, so the
+  address is assigned rather than derivable. `localStorage['sattva:deepdive-base']` overrides it,
+  which is how `verify-ui.mjs` runs the whole suite against a stub.
 - **Their `POST /api/analyze` is unauthenticated and every accepted call costs a real run.** That
   is a known gap on their side, not something this dashboard can fix from the browser — an
-  anonymous reader clicking through a 877-row table would be spending the owner's money. It is why
-  nothing here fires on its own and why the button confirms first. **Put auth on that endpoint
-  before the URL is public**; until then, treat the base URL as the only thing standing between a
-  public page and a metered pipeline.
-- **The report is theirs end to end.** Nothing on that panel is computed or re-scored here, and
-  every finished report links to their own rendering of it.
+  anonymous reader clicking through an 877-row table would be spending the owner's money, and the
+  URL is now in the page source. **Put auth on that endpoint** — a shared secret, an allowlisted
+  origin, a rate limit. Everything on this side (confirm step, no auto-dispatch, reattach instead
+  of re-run) is courtesy, not a control.
+- **Reads are free, and the column uses that.** `GET /api/summary` lists the reports they already
+  hold; it is fetched once per page load and the rows it names get a filled *Deep Dive ✓* button
+  that opens the report at no cost. Making a reader pay to discover an answer already exists would
+  be the other half of getting this wrong.
+- **The report is theirs end to end.** Nothing on that panel is computed or re-scored here; it
+  renders sections in their own key order, lays each out by its shape rather than by a hard-coded
+  field list, and links to their own rendering. It also carries real transcript quotes from named
+  people — real speech, lifted by their pipeline, with the filed transcript linked in the
+  provenance strip. And it checks that the report it received is about the company whose row was
+  clicked, rather than assuming.
 
 ---
 

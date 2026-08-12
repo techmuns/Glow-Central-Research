@@ -2,9 +2,17 @@
 //
 //   configured()                    is a base URL set?
 //   setBaseUrl(url) / baseUrl()     where that dashboard lives
+//   readyByTicker()                 which companies ALREADY have a report — free, no run
 //   start(row, { onProgress })      dispatch a run and poll it to completion
+//   resume(slug, { onProgress })    reattach to an existing run or open a finished report
 //   reportUrl(slug)                 deep link into THEIR rendering of the report
 //   remembered(ticker)              a slug we already have for this company
+//
+// TWO KINDS OF CALL, AND ONLY ONE OF THEM COSTS ANYTHING.
+//   Reading — `GET /api/summary` (their index of finished reports) and `GET /api/report` — is
+//   free. Writing — `POST /api/analyze` — starts a real LLM pipeline. So the index is fetched
+//   once per page load to mark the rows that are already free to open, and a dispatch happens
+//   only on an explicit click through a confirm step. Never blur those two.
 //
 // THIS TALKS TO A DIFFERENT DASHBOARD, AND EVERY FIELD IT RENDERS IS THAT DASHBOARD'S.
 //   Concall Deep Dive runs its own LLM pipeline over a company's call and publishes a report. We
@@ -123,6 +131,55 @@ export async function peek(ticker) {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------------------
+// Their index of finished reports — free, and the reason most clicks cost nothing
+//
+// `GET /api/summary` lists every report that dashboard has already produced. Reading it is a
+// plain GET with no pipeline behind it, so unlike a dispatch it is safe to fetch on our own —
+// and it is what lets the scan table say "this one is ready" instead of making the reader pay to
+// find out. Fetched ONCE per page load: it is small, it changes only when a run completes, and
+// polling someone else's service for a list that moves a few times a day would be rude.
+// ---------------------------------------------------------------------------------------
+
+let summaryPromise = null;
+
+/** The raw `/api/summary` payload, fetched at most once per page load. Never throws. */
+export function summary({ refresh = false } = {}) {
+  if (refresh) summaryPromise = null;
+  if (!summaryPromise) {
+    summaryPromise = (async () => {
+      if (!configured()) return null;
+      try {
+        const body = await call('/api/summary');
+        return Array.isArray(body?.summaries) ? body : null;
+      } catch {
+        // A missing index is not an error: it means we cannot pre-mark rows, and every row falls
+        // back to the ask-first path, which is where they would have been anyway.
+        return null;
+      }
+    })();
+  }
+  return summaryPromise;
+}
+
+/**
+ * ticker (upper-case) -> the summary row for the report they already hold.
+ *
+ * Only rows with a slug are kept, because the slug is the whole point: it is what opens the
+ * finished report without dispatching anything.
+ */
+export async function readyByTicker() {
+  const body = await summary();
+  const out = {};
+  for (const r of body?.summaries || []) {
+    const t = String(r?.ticker || '').toUpperCase();
+    if (!t || !r.slug) continue;
+    // Several quarters of the same company can exist; keep the most recently generated.
+    if (!out[t] || String(r.generated_at || '') > String(out[t].generated_at || '')) out[t] = r;
+  }
+  return out;
 }
 
 /**

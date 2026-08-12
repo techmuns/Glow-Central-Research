@@ -22,12 +22,16 @@
 //   Until then `resultScore` is null and StockScans' own UI says "pending". A zero would claim
 //   they had assessed it and found it worthless.
 //
-// THE DEEP DIVE COLUMN TALKS TO A THIRD DASHBOARD, AND IT COSTS MONEY PER CLICK.
+// THE DEEP DIVE COLUMN TALKS TO A THIRD DASHBOARD, AND STARTING A RUN THERE COSTS MONEY.
 //   The last column hands a row to Concall Deep Dive, a separate Cloudflare Worker that runs its
-//   own LLM pipeline over the call and publishes a report. Two rules hold here:
-//     - Nothing fires on render. The column is a button and only a button; no row peeks, no
-//       poller registers, and the panel asks for confirmation before the first dispatch. Their
-//       `POST /api/analyze` is unauthenticated and every accepted call is a real compute run.
+//   own LLM pipeline over the call and publishes a report. Three rules hold here:
+//     - Nothing that costs a run ever fires on its own. `POST /api/analyze` is unauthenticated
+//       and every accepted call is a real compute run, so no poller registers it, no row triggers
+//       it on render, the cell is a button, and the panel confirms before dispatching.
+//     - Reading their index IS free, and the column uses that. `GET /api/summary` lists the
+//       reports they already hold; it is fetched once per page load, and the rows it names get a
+//       "Ready" button that opens the finished report at no cost to anyone. The reader should not
+//       have to pay to discover the answer already exists.
 //     - The report is theirs. js/concall/deep-dive.js lays it out and computes nothing on top,
 //       and every finished report links to their own rendering of it — same rule as the
 //       StockScans scores above and the Trendlyne holding values on Institutions.
@@ -293,10 +297,43 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     const btn = e.target.closest('[data-deep-dive]');
     if (!btn) return;
     const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
-    if (row) openDeepDive(row, { onRecorded: () => markDived(btn) });
+    if (!row) return;
+    // A report they already hold opens directly; anything else goes through the confirm step.
+    const ready = row.ticker ? readyReports[String(row.ticker).toUpperCase()] : null;
+    openDeepDive(row, { ready, onRecorded: () => markDived(btn) });
   };
   ctx.root.addEventListener('click', onDeepDive);
   disposers.push(() => ctx.root.removeEventListener('click', onDeepDive));
+
+  // Their index of finished reports. A GET, no pipeline behind it, so unlike a dispatch it is
+  // fine to ask for unprompted — and it is the difference between a reader paying to find out a
+  // report exists and simply being shown that it does. Resolved once per page load; when it
+  // lands, the rows it names are marked in place rather than by rebuilding the table.
+  loadReady().then((ready) => {
+    if (!ready || !ctx.root.isConnected) return;
+    for (const btn of ctx.root.querySelectorAll('[data-deep-dive]')) {
+      const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
+      const hit = row?.ticker ? ready[String(row.ticker).toUpperCase()] : null;
+      if (hit) markReady(btn, hit);
+    }
+  });
+}
+
+// ticker -> their summary row, for every company they have already analysed. Module-level so a
+// live repaint paints the marks immediately instead of waiting on the promise again.
+let readyReports = {};
+let readyPromise = null;
+function loadReady() {
+  if (!readyPromise) {
+    readyPromise = deepDive
+      .readyByTicker()
+      .then((map) => {
+        readyReports = map || {};
+        return readyReports;
+      })
+      .catch(() => ({}));
+  }
+  return readyPromise;
 }
 
 /** The row key, in one place, because the Deep Dive button carries it back. */
@@ -305,12 +342,18 @@ const rowKey = (r) => `${r.companyKey}|${r.when}`;
 /**
  * The Deep Dive cell.
  *
- * A button and nothing more — no request is made until the reader confirms one inside the panel,
- * because a dispatch is a real LLM run on an unauthenticated endpoint. The dot marks a company we
- * have already run, which is worth knowing before clicking: that one comes back from their cache.
+ * A button and nothing more — no run is dispatched until the reader confirms one inside the panel,
+ * because that is a real LLM run on an unauthenticated endpoint. The dot marks a company this
+ * browser has already run; `markReady` upgrades the button once their index says a finished report
+ * exists, which is the state worth distinguishing: that one opens for free.
  */
 function deepDiveButton(r, dived) {
-  const seen = r.ticker ? dived[String(r.ticker).toUpperCase()] : null;
+  const t = r.ticker ? String(r.ticker).toUpperCase() : '';
+  // Once their index has resolved, later paints render the Ready state directly instead of
+  // painting the plain button and upgrading it a frame later.
+  const hit = t ? readyReports[t] : null;
+  if (hit) return readyButtonHtml(r, hit);
+  const seen = t ? dived[t] : null;
   return `
     <button type="button" data-norow data-deep-dive="${escapeHtml(rowKey(r))}"
       title="${seen ? 'Open the Deep Dive — a run for this company is already on record' : 'Analyse this call on the Concall Deep Dive dashboard (asks first — a run costs compute)'}"
@@ -331,6 +374,29 @@ function markDived(btn) {
   btn.appendChild(dot);
   btn.title = 'Open the Deep Dive — a run for this company is already on record';
 }
+
+/**
+ * Upgrade a button to "Ready": Concall Deep Dive already holds a report for this company, so the
+ * click is free. Filled rather than outlined, because the difference between "opens a report" and
+ * "starts a metered run" is the most important thing this column can tell a reader.
+ */
+function markReady(btn, hit) {
+  if (btn.dataset.ddReady) return;
+  btn.dataset.ddReady = '1';
+  btn.className = READY_CLASS;
+  btn.innerHTML = READY_INNER;
+  btn.title = readyTitle(hit);
+}
+
+const READY_CLASS =
+  'inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-indigo-600 px-2 py-1 text-[11px] font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
+const READY_INNER =
+  '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Deep Dive</span>';
+const readyTitle = (hit) =>
+  `Report ready${hit.quarter ? ` for ${hit.quarter}` : ''}${hit.generated_at ? ` — Concall Deep Dive generated it ${formatRelativeTime(hit.generated_at)}` : ''}. Opens without starting a run.`;
+
+const readyButtonHtml = (r, hit) =>
+  `<button type="button" data-norow data-dd-ready="1" data-deep-dive="${escapeHtml(rowKey(r))}" title="${escapeHtml(readyTitle(hit))}" class="${READY_CLASS}">${READY_INNER}</button>`;
 
 /** The one way into the schedule now that it is not a sub-view. Carries its own count. */
 function scheduleButton(count) {

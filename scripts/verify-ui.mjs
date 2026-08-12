@@ -51,6 +51,17 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${String(e.stack || e).slice(0, 400)}`));
 
+// THE DEEP DIVE DASHBOARD IS STUBBED FOR THE WHOLE RUN — see section 6d for what is checked.
+//
+// index.html ships the real dashboard's URL, and the Con-call tab reads that service's free index
+// of finished reports whenever it mounts. A verification run must never touch it: it is somebody
+// else's production service, and one bug away from being somebody else's bill. `baseUrl()` reads
+// localStorage ahead of the baked-in URL, so seeding that key before the first navigation points
+// every con-call render at this stub instead. It stays up until the browser closes.
+const ddHits = { analyze: 0, report: 0, forced: 0, summary: 0 };
+const { server: ddStub, origin: ddOrigin, setReady: ddSetReady } = await startDeepDiveStub(ddHits);
+await context.addInitScript((origin) => localStorage.setItem('sattva:deepdive-base', JSON.stringify(origin)), ddOrigin);
+
 // Scope persists to localStorage by design, so any check that assumes the full universe
 // must say so in the URL rather than inherit whatever the previous navigation left behind.
 const go = async (hash, settle = 900) => {
@@ -97,6 +108,11 @@ const SEARCH = '#content-host input[type="search"], #content-host input[placehol
 async function startDeepDiveStub(hits) {
   const { createServer } = await import('node:http');
   const runs = new Map(); // slug -> report polls served so far
+  // Which companies the stub claims to already hold a report for. Set by the suite from a ticker
+  // it actually finds in the live scan feed, so the "already ready" path is exercised against a
+  // real row rather than one invented here.
+  let ready = [];
+  const identities = new Map(); // slug -> the company that slug's report is actually about
   const REPORT = {
     meta: { company: 'Tata Motors', ticker: 'TATAMOTORS', quarter: 'Q1FY27', call_date: '2026-08-05' },
     verdict: 'Constructive. Margin recovery is ahead of the guided path. <img src=x onerror="window.__dd_pwned=1">',
@@ -120,6 +136,10 @@ async function startDeepDiveStub(hits) {
       res.end(JSON.stringify(obj));
     };
     if (req.method === 'OPTIONS') return send({});
+    if (url.pathname === '/api/summary') {
+      hits.summary++;
+      return send({ ok: true, version: 1, count: ready.length, summaries: ready });
+    }
     if (url.pathname === '/api/analyze') {
       let raw = '';
       req.on('data', (c) => (raw += c));
@@ -142,13 +162,25 @@ async function startDeepDiveStub(hits) {
       // 1: the KV propagation beat. 2: a stage with a message. 3+: the finished report.
       if (n === 1) return send({ ok: true, slug, status: 'unknown' });
       if (n === 2) return send({ ok: true, slug, status: 'running', stage: 'transcript', message: 'Pulling the transcript from the exchange filing' });
-      return send({ ok: true, slug, status: 'done', report: REPORT, partial: false });
+      // A slug the stub was told to pre-hold reports under ITS OWN identity, so the panel opens
+      // clean. A slug from a dispatch keeps the fixture's TATAMOTORS identity, which will NOT be
+      // the company the suite clicked — that is deliberate, and it is what proves the panel
+      // notices a report belongs to someone else instead of quietly titling it with our row.
+      const identity = identities.get(slug);
+      const report = identity ? { ...REPORT, meta: { ...REPORT.meta, ...identity } } : REPORT;
+      return send({ ok: true, slug, status: 'done', report, partial: false });
     }
     res.writeHead(404, { 'access-control-allow-origin': '*' });
     res.end('{}');
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  return { server, origin: `http://127.0.0.1:${server.address().port}` };
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const setReady = (ticker, company, slug) => {
+    ready = [{ slug, company, ticker, quarter: 'Q1FY27', generated_at: '2026-08-07T09:39:57.305Z', verdict: 'Hold-watch' }];
+    identities.set(slug, { company, ticker });
+    runs.set(slug, 9); // already finished on their side, so the first poll returns the report
+  };
+  return { server, origin, setReady };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -872,25 +904,28 @@ ok('ESC closes the schedule overlay', (await page.locator('#modal-overlay.is-ope
 // ---------------------------------------------------------------------------------------
 // 6d. The Deep Dive column — triggering someone else's pipeline
 //
-// This column dispatches a run on a SEPARATE dashboard. Two things make it different from every
-// other feed here and both are checked below rather than trusted:
+// This column dispatches a run on a SEPARATE dashboard. Three things make it different from every
+// other feed here and all three are checked below rather than trusted:
 //
-//   1. A CLICK COSTS MONEY. Their POST /api/analyze is unauthenticated and every accepted call
-//      starts a real LLM run. So the suite counts requests: rendering the table must dispatch
-//      NOTHING, reaching the confirm step must dispatch NOTHING, and reopening a finished panel
-//      must reattach rather than pay for a second run. A regression here is not a visual bug.
+//   1. A DISPATCH COSTS MONEY, A READ DOES NOT. Their POST /api/analyze is unauthenticated and
+//      every accepted call starts a real LLM run; GET /api/summary and GET /api/report are free.
+//      So the suite counts requests by kind: rendering the table may read their index but must
+//      dispatch NOTHING, reaching the confirm step must dispatch NOTHING, opening a report they
+//      already hold must dispatch NOTHING, and reopening a finished panel must reattach rather
+//      than pay for a second run. A regression here is not a visual bug.
 //   2. THE REPORT IS EXTERNAL CONTENT with a schema we do not own. It must render sections we
 //      have never heard of, and it must not be able to inject markup.
+//   3. A REPORT MUST NEVER BE SHOWN UNDER THE WRONG COMPANY'S NAME. The panel is titled from our
+//      row and the report is titled from theirs; if those disagree the panel has to say so.
 //
 // The stub below speaks the documented contract and nothing more, which is exactly what this
-// integration is allowed to assume. Pointing the suite at the real dashboard would spend money on
-// every run — and its URL is deployment-specific and deliberately not in this repo.
+// integration is allowed to assume. The suite points the client at it via localStorage, which
+// `baseUrl()` reads ahead of the deployed URL in index.html — so a verification run never touches
+// the real dashboard and can never spend a run on it.
 // ---------------------------------------------------------------------------------------
 console.log('\n— con-call: deep dive —');
 
-const ddHits = { analyze: 0, report: 0, forced: 0 };
-const { server: ddStub, origin: ddOrigin } = await startDeepDiveStub(ddHits);
-
+const ddSummaryBefore = ddHits.summary;
 await go('/#/research/concall?scope=universe', 1200);
 await waitForPanel();
 await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
@@ -898,17 +933,21 @@ const ddCells = await page.locator('[data-deep-dive]').count();
 ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
 ok('THE TABLE DISPATCHES NOTHING ON RENDER', ddHits.analyze === 0 && ddHits.report === 0, `analyze=${ddHits.analyze} report=${ddHits.report}`);
+// Their free index is read once per document load and never again — not per row, not per repaint,
+// not on a route change within the tab. This navigation is a hash change, so it must add nothing.
+ok('their free index has been read', ddHits.summary >= 1, `${ddHits.summary} fetches so far`);
+ok('...and a route change inside the tab does not re-read it', ddHits.summary === ddSummaryBefore, `${ddHits.summary - ddSummaryBefore} extra`);
+
+// The shipped page carries the dashboard URL, so a reader lands on the confirm step rather than
+// being asked to paste an address nobody could guess.
+ok('the deployed page is wired to the Deep Dive dashboard', await page.evaluate(() => typeof window.SATTVA_DEEPDIVE_URL === 'string' && /^https?:\/\//.test(window.SATTVA_DEEPDIVE_URL)));
 
 // The button owns its click: opening the drill behind a panel is not what anyone meant.
 await page.locator('[data-deep-dive]').first().click();
 await page.waitForTimeout(600);
 ok('the button opens the Deep Dive, not the row drill', (await page.locator('#drill-panel.is-open').count()) === 0 && (await page.locator('#workspace-overlay:not(.hidden)').count()) === 1);
 
-// Unconnected is the shipped state, because that URL is not in this repo.
-ok('an unconnected column asks for the dashboard URL', (await page.locator('#dd-base').count()) === 1);
-await page.fill('#dd-base', ddOrigin);
-await page.click('[data-dd-save]');
-await page.waitForSelector('[data-dd-start]', { timeout: 5000 });
+await page.waitForSelector('[data-dd-start]', { timeout: 8000 });
 const ddConfirm = await page.locator('#workspace-panel').innerText();
 ok('...then says a run costs real compute before anything is sent', /costs real compute/i.test(ddConfirm) && /entirely theirs/i.test(ddConfirm));
 ok('...and STILL has not dispatched anything', ddHits.analyze === 0, `analyze=${ddHits.analyze}`);
@@ -934,6 +973,10 @@ ok('...and says the whole analysis is theirs', /reproduced here unchanged/i.test
 const ddLink = await page.getAttribute('#workspace-panel a[target=_blank]', 'href');
 ok('...and links to their own rendering of it', !!ddLink && ddLink.startsWith(`${ddOrigin}/#/report/`), ddLink || 'no link');
 
+// The stub's dispatched report is deliberately about TATAMOTORS, which is not the row that was
+// clicked. Presenting it under this row's name would be the worst thing this panel could do.
+ok('a report about another company is called out, not quietly retitled', /This report is for a different company/i.test(ddDone) && /TATAMOTORS/.test(ddDone));
+
 // The schema lives in their repo. A section we have never heard of must still appear.
 ok('a section the renderer has never heard of still renders', /Weird New Section/i.test(ddDone) && /kept anyway/i.test(ddDone));
 
@@ -957,14 +1000,49 @@ await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
 ok('...AND REATTACHING COSTS NOTHING', ddHits.analyze === ddAfterRun, `${ddHits.analyze} dispatches total`);
 ok('...never forcing a fresh run behind the reader’s back', ddHits.forced === 0, `${ddHits.forced} forced`);
 
+// "Re-run from scratch" is the one control on a finished report that spends money. It must ask.
+await page.click('[data-dd-rerun]');
+await page.waitForTimeout(400);
+ok('“re-run” asks before spending, rather than dispatching on the click', (await page.locator('[data-dd-start]').count()) === 1 && ddHits.analyze === ddAfterRun, `${ddHits.analyze} dispatches`);
+ok('...and says plainly that forcing skips the free reuse', /Forcing a fresh run skips that reuse/i.test(await page.locator('#workspace-panel').innerText()));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
-// Leave no base URL behind: later sections must see the shipped, unconnected state.
-await page.evaluate(() => {
-  localStorage.removeItem('sattva:deepdive-base');
-  localStorage.removeItem('sattva:deepdive-slugs');
+
+// ---------------------------------------------------------------------------------------
+// A report they ALREADY HOLD is a free click, and the column has to say so before it is clicked.
+// This is the difference between a reader paying to discover an answer exists and being shown
+// that it does, so the button changes and the panel opens the report with no confirm step.
+// ---------------------------------------------------------------------------------------
+const ddRow = await page.evaluate(() => {
+  const lines = (document.querySelector('tr[data-row-key]')?.innerText || '').split('\n').map((l) => l.trim());
+  const i = lines.findIndex((l) => l.includes('·'));
+  return { ticker: i > 0 ? lines[i].split('·')[0].trim() : '', name: i > 0 ? lines[i - 1] : '' };
 });
-await new Promise((r) => ddStub.close(r));
+ddSetReady(ddRow.ticker, ddRow.name, 'already-held-q1fy27');
+const ddBeforeReady = ddHits.analyze;
+const ddSummaryBeforeReload = ddHits.summary;
+// A REAL reload, not a hash change: only a fresh document re-reads their index.
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1000);
+await waitForPanel();
+await page.waitForSelector('[data-dd-ready]', { timeout: 20000 }).catch(() => {});
+ok('a fresh page load re-reads their index, exactly once', ddHits.summary === ddSummaryBeforeReload + 1, `${ddHits.summary - ddSummaryBeforeReload} fetches on this load`);
+ok('a company they already hold a report for is marked ready', (await page.locator('[data-dd-ready]').count()) === 1, `ticker ${ddRow.ticker}`);
+ok('...and the mark says the click starts no run', /Opens without starting a run/i.test((await page.getAttribute('[data-dd-ready]', 'title')) || ''));
+
+await page.locator('[data-dd-ready]').click();
+await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
+const ddReadyPanel = await page.locator('#workspace-panel').innerText();
+ok('...clicking it opens their report with no confirm step', /Key Takeaways/i.test(ddReadyPanel));
+ok('...AND IT COST NOTHING', ddHits.analyze === ddBeforeReady, `${ddHits.analyze} dispatches total`);
+ok('...and says the report was already on file rather than freshly run', /already held/i.test(ddReadyPanel));
+ok('...with no mismatch warning, because this one is about the right company', !/different company/i.test(ddReadyPanel));
+
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+// The stub stays up for the rest of the run — see the note beside its construction. Only the
+// remembered slugs are cleared, so a later con-call render starts from the shipped state.
+await page.evaluate(() => localStorage.removeItem('sattva:deepdive-slugs'));
 
 // ---------------------------------------------------------------------------------------
 // 8. Public Chatter — pump risk, the technicals join, and the quadrant
@@ -1683,5 +1761,6 @@ const unique = [...new Set(errors)];
 ok('zero console errors', unique.length === 0, unique.slice(0, 3).join(' | '));
 
 await browser.close();
+await new Promise((r) => ddStub.close(r));
 console.log(failures === 0 ? `\nAll checks passed.${skipped ? ` (${skipped} skipped — see SKIP lines)` : ''}` : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
