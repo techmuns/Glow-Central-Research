@@ -271,7 +271,7 @@ export const SOURCE_GROUPS = [
         name: 'Trendlyne / BSE — the funds not yet wired',
         url: 'https://trendlyne.com/',
         feeds:
-          'The other seven institutions on the Institutions view, and the FII/DII monthly net flow series. <strong class="text-amber-700">Synthetic today</strong>: real fund names, invented positions. They sit below the filed panel under their own ribbon and are excluded from every figure on it. Wiring one for real is a single entry in <code class="rounded bg-slate-100 px-1">FUNDS</code> in the scraper above. Note the real FII/DII holding <em>changes</em> already reach the dashboard through the technicals scrape — Fund Flows joins to those and labels which columns are which.',
+          'Seven more institutions and the FII/DII monthly net flow series. <strong class="text-amber-700">Synthetic today</strong>: real fund names, invented positions. They are <strong>not shown on the Institutions view</strong> — that page is the filed table above and nothing else — and now feed only Fund Flows\u2019 category charts. Wiring one for real is a single entry in <code class="rounded bg-slate-100 px-1">FUNDS</code> in the scraper above. Note the real FII/DII holding <em>changes</em> already reach the dashboard through the technicals scrape — Fund Flows joins to those and labels which columns are which.',
         cadence: 'Quarterly with the shareholding filings — not yet connected',
         status: 'mock',
         file: 'public/data/mock/institutions.json · public/data/mock/fund-flows.json',

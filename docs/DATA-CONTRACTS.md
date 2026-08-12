@@ -1289,8 +1289,7 @@ Two traps the parser is built around, both of which produce a *plausible* wrong 
 
 One entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs` — the `id` and `slug` come
 straight out of the Trendlyne URL — then re-run it. No UI change: the Institutions view renders a
-picker as soon as there is more than one, and every fund still lacking real filings stays in the
-synthetic section below with its own ribbon.
+fund picker as soon as there is more than one.
 
 ---
 

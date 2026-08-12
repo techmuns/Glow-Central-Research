@@ -336,6 +336,8 @@ export function scoreTable(config) {
     // Tighter horizontal padding. For wide numeric tables where the alternative is a horizontal
     // scrollbar, which is worse than slightly closer columns.
     dense = false,
+    wrapHeads = false,
+    showAvatar = true,
     // Optional per-row tint, e.g. flagging a risk level. Returns Tailwind classes or ''.
     // Kept separate from the built-in red-flag tint, which belongs to the scoring models.
     rowClass = null,
@@ -437,7 +439,9 @@ export function scoreTable(config) {
     const th = (label, sortKey, align = 'left') => {
       const sortable = sortKey !== null;
       const active = view.sort && view.sort.key === sortKey;
-      return `<th scope="col" class="whitespace-nowrap ${PX} py-3 text-${align} text-xs font-bold uppercase ${TRACK} text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
+      // `wrapHeads` lets a long heading stack instead of forcing its column as wide as the label.
+      // On a table with a dozen numeric columns the headings, not the figures, are what overflows.
+      return `<th scope="col" class="${wrapHeads ? 'align-bottom' : 'whitespace-nowrap'} ${PX} py-3 text-${align} text-xs font-bold uppercase ${TRACK} text-slate-600 ${sortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}"
         ${sortable ? `data-sort="${escapeHtml(sortKey)}"` : ''}>${escapeHtml(label)}${active ? (view.sort.dir === 'asc' ? ' ▴' : ' ▾') : ''}</th>`;
     };
     const dataTh = (c) => th(c.label, c.sortable === false ? null : c.label, c.align === 'right' ? 'right' : 'left');
@@ -502,7 +506,7 @@ export function scoreTable(config) {
             <td class="${PX} py-3">
               <div class="flex items-center gap-2"${nameMaxPx ? ` style="max-width:${nameMaxPx}px"` : ''}>
                 ${showRank ? '' : star}
-                <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-xs font-bold text-white shadow-sm">${escapeHtml(initials)}</div>
+                ${showAvatar ? `<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-xs font-bold text-white shadow-sm">${escapeHtml(initials)}</div>` : ''}
                 <div class="min-w-0">
                   <div class="truncate font-semibold text-slate-900" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
                   <div class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</div>

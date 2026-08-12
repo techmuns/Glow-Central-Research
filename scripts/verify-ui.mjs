@@ -893,7 +893,10 @@ for (const sub of ['superstar-investors', 'institutions', 'fund-flows']) {
   await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
   const txt = await hostText();
   ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
-  ok(`investors ${sub}: attribution ribbon`, (await page.locator('[data-mock-ribbon]').count()) === 1);
+  // Institutions is real filed data and carries no ribbon; the other two are synthetic and must.
+  const ribbons = await page.locator('[data-mock-ribbon]').count();
+  if (sub === 'institutions') ok('investors institutions: no ribbon, because nothing on it is synthetic', ribbons === 0, `${ribbons} ribbons`);
+  else ok(`investors ${sub}: attribution ribbon`, ribbons === 1);
 }
 ok('ribbon says the names are real and the holdings are not', /names are real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
 
@@ -936,25 +939,47 @@ if (filedData) {
 
   const inst = await hostText();
   ok('the table renders every filed holding', (await rowCount()) === filedData.stocksHeld, `${await rowCount()} rows`);
-  ok('the panel says the value is Trendlyne’s, not ours', /Trendlyne/.test(inst) && /derivation|not ours/i.test(inst));
-  ok('...and an unfiled percentage reads as not filed', filedData.awaiting === 0 || /not filed yet/i.test(inst));
+  ok('the panel says the value is Trendlyne’s, not ours', /Trendlyne/.test(inst) && /derivation/i.test(inst));
+  // A row awaiting its filing shows a dash for the percentage and says WHY in the change column —
+  // Trendlyne's own label. A zero there would report a live position as sold.
+  ok('...and a holding awaiting its filing says so rather than showing zero', filedData.awaiting === 0 || /Filing Awaited/i.test(inst));
+  ok('...and the note explains what the dash means', /dash there means/i.test(inst) && /never sold/i.test(inst));
 
-  // THE BOUNDARY. One ribbon, and it must sit BELOW the real table — not above it, where it would
-  // read as covering the filed figures too.
-  ok('exactly one illustrative ribbon on the view', (await page.locator('[data-mock-ribbon]').count()) === 1);
-  ok(
-    '...and it sits below the filed panel, not over it',
-    await page.evaluate(() => {
-      const rib = document.querySelector('[data-mock-ribbon]');
-      const tbl = document.querySelector('[data-table-scroll]');
-      return !!rib && !!tbl && (tbl.compareDocumentPosition(rib) & Node.DOCUMENT_POSITION_FOLLOWING) > 0;
-    })
-  );
-  ok('...and says the funds under it are excluded from the figures above', /excluded from every figure/i.test(inst));
+  // THE COLUMN SET IS TRENDLYNE'S: Stock, Holding Value, Qty Held, the latest quarter's change and
+  // holding percentage, then the eight prior quarters. Thirteen columns, every one sortable.
+  const cols = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => ({ label: t.innerText.trim().toUpperCase().replace(/\s*[▾▴]$/, ''), sortable: !!t.dataset.sort })));
+  ok('the table carries Trendlyne’s full column set', cols.length === 13, `${cols.length} columns: ${cols.map((c) => c.label).join(' | ').slice(0, 90)}…`);
+  for (const want of ['STOCK', 'HOLDING VALUE', 'QTY HELD']) {
+    ok(`column: ${want}`, cols.some((c) => c.label.replace(/\s+/g, ' ') === want), cols.map((c) => c.label).join(' | '));
+  }
+  ok('the latest quarter has both a change and a holding column', cols.filter((c) => /CHANGE %|HOLDING %/.test(c.label)).length === 2);
+  ok('...and eight prior quarters follow it', cols.filter((c) => /^[A-Z]{3} \d{2} %$/.test(c.label.replace(/\s+/g, ' '))).length === 8);
+  ok('EVERY heading is a sort button', cols.every((c) => c.sortable), `${cols.filter((c) => !c.sortable).length} not sortable`);
 
-  // No headline number may mix the two. The stat strip's book value must equal the real fund's.
-  const shown = /₹\s*([\d,]+)\s*Cr/.exec(inst);
-  ok('the disclosed book is the real fund alone', !!shown && Math.abs(Number(shown[1].replace(/,/g, '')) - filedData.portfolioValueCr) < 1, shown?.[0]);
+  // And sorting has to actually reorder the rows, on a numeric column and on the name.
+  const firstBy = async (label) => {
+    await page.locator(`th[data-sort="${label}"]`).click();
+    await page.waitForTimeout(400);
+    return (await page.locator('tr[data-row-key]').first().getAttribute('data-row-key')) || '';
+  };
+  const byValue = await firstBy('Holding Value');
+  const byQty = await firstBy('Qty Held');
+  ok('sorting by a heading reorders the table', byValue !== byQty, `by value ${byValue}, by qty ${byQty}`);
+  const qtyDesc = await page.evaluate(() => [...document.querySelectorAll('tr[data-row-key] td')].length > 0);
+  ok('...and the sorted column is the one that is ordered', qtyDesc && (await page.evaluate(() => {
+    const idx = [...document.querySelectorAll('#content-host thead th')].findIndex((t) => t.dataset.sort === 'Qty Held');
+    const vals = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => Number((tr.children[idx]?.innerText || '').replace(/[^0-9]/g, '')) || 0);
+    return vals.every((v, i) => i === 0 || vals[i - 1] >= v);
+  })));
+
+  // Thirteen columns is a lot. They have to fit the content column at the design width without
+  // the table needing a scrollbar of its own — the same bar the Earnings Hub is held to.
+  const filedFit = await page.evaluate(() => {
+    const e = document.querySelector('[data-table-scroll]');
+    return { over: e.scrollWidth - e.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  ok('the thirteen columns fit at 1440 with no scrollbar of their own', filedFit.over <= 0, `${filedFit.over}px over`);
+  ok('...and the page never scrolls sideways', filedFit.page <= 0, `${filedFit.page}px`);
 
   await page.locator('[data-filed-info]').click();
   await page.waitForTimeout(500);

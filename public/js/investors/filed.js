@@ -14,7 +14,6 @@
 //   the single most misleading number the dashboard could print.
 
 import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
-import { statStrip } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
@@ -23,35 +22,6 @@ import { exportRows } from '../ui/export.js';
 import * as filed from '../data/institution-holdings.js';
 
 const ATTRIBUTION = 'Share counts and holding percentages are exchange filings; the ₹ value is Trendlyne’s own derivation.';
-
-/** A signed percentage-point figure. A gap between two percentages is measured in pp, not %. */
-function ppCell(v, note) {
-  if (v == null) {
-    return note
-      ? `<span class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200" title="Trendlyne’s own label for this row">${escapeHtml(note)}</span>`
-      : '<span class="text-slate-300">—</span>';
-  }
-  if (v === 0) return '<span class="tabular-nums text-slate-400">0.0 pp</span>';
-  const cls = v > 0 ? 'text-emerald-700' : 'text-rose-700';
-  return `<span class="font-semibold tabular-nums ${cls}">${v > 0 ? '+' : ''}${v.toFixed(1)} pp</span>`;
-}
-
-/** Nine quarters of filed percentage as a bar strip — the shape of the position over two years. */
-function historyStrip(h, quarters, labels) {
-  const vals = quarters.map((q) => h.pctByQuarter?.[q] ?? null);
-  const max = Math.max(...vals.filter((v) => v != null), 0.1);
-  // Oldest on the left, so it reads left-to-right like every other time series on the dashboard.
-  return `<span class="inline-flex items-end gap-0.5" title="${escapeHtml(quarters.map((q, i) => `${labels[i]}: ${vals[i] == null ? 'not filed' : `${vals[i]}%`}`).reverse().join(' · '))}">
-    ${[...vals]
-      .reverse()
-      .map((v, i) =>
-        v == null
-          ? '<span class="inline-block w-1 rounded-sm bg-slate-200" style="height:2px" aria-hidden="true"></span>'
-          : `<span class="inline-block w-1 rounded-sm ${i === vals.length - 1 ? 'bg-indigo-600' : 'bg-indigo-200'}" style="height:${Math.max(2, Math.round((v / max) * 18))}px" aria-hidden="true"></span>`
-      )
-      .join('')}
-  </span>`;
-}
 
 export function renderFiled(ctx, { disposers = [] } = {}) {
   const funds = filed.all();
@@ -63,90 +33,82 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
   const wanted = ctx.params?.fund;
   const fund = funds.find((f) => f.investorId === wanted) || funds[0];
   const rows = filed.holdingsForScope(ctx.scope, ctx.data?.portfolio?.holdings || [], fund.holdings);
-
-  const q0 = fund.quarters[0];
-  const q1 = fund.quarters[1];
   const label0 = fund.quarterLabels[0];
-  const label1 = fund.quarterLabels[1];
 
-  const added = rows.filter((h) => h.pctDelta != null && h.pctDelta > 0).length;
-  const trimmed = rows.filter((h) => h.pctDelta != null && h.pctDelta < 0).length;
-  const fresh = rows.filter((h) => h.changeNote === 'New').length;
-  const scopedValue = rows.reduce((s, h) => s + (h.valueCr ?? 0), 0);
+  // THE COLUMN SET IS TRENDLYNE'S, IN TRENDLYNE'S ORDER.
+  //   Stock · Holding Value · Qty Held · <latest> Change % · <latest> Holding % · then the eight
+  //   prior quarters. Every one sortable, which `scoreTable` gives by default — a column opts OUT
+  //   with `sortable: false`, and none of these do.
+  //
+  // Quarter labels are shortened to "Mar 26" in the header. Thirteen columns is a lot to fit at
+  // 1440px, and "MAR 2026 %" spelled out costs ~30px eight times over; the full label lives in
+  // each cell's title attribute. `verify-ui.mjs` asserts the table does not overflow.
+  const shortQ = (label) => label.replace(/\s(\d{2})(\d{2})$/, ' $2');
 
-  const stats = statStrip([
-    {
-      label: 'Companies held',
-      value: formatNumber(rows.length),
-      note: ctx.scope === 'portfolio' ? `of ${formatNumber(fund.stocksHeld)} — narrowed to your holdings` : `${formatNumber(fund.filedThisQuarter)} filed for ${escapeHtml(label0)}`,
-    },
-    {
-      label: 'Disclosed book',
-      value: formatCroreCompact(scopedValue),
-      note: 'Trendlyne’s figure, not ours',
-      help: {
-        title: 'Whose number this is, and what it means',
-        body: `<p>A shareholding filing discloses a <strong>share count and a percentage of the company</strong> — never a rupee amount. The ₹ figure is <strong>Trendlyne's</strong> derivation: that percentage applied to the company's market cap.</p>
-               <p class="mt-3">It is reproduced here unchanged and attributed, not recomputed — a number of our own printed under their label would read as theirs. It moves for two reasons, the holder changing the position and the market repricing the company, and it is not what anyone paid.</p>
-               <p class="mt-3">The share counts and percentages beside it <strong>are</strong> the filings, and those are the numbers to trust.</p>`,
-      },
-    },
-    {
-      label: `Moved in ${escapeHtml(label0)}`,
-      value: `${added} up · ${trimmed} down`,
-      note: fresh ? `${fresh} newly disclosed above 1%` : `measured against ${escapeHtml(label1)}`,
-    },
-    {
-      hero: true,
-      label: 'Filed shareholding',
-      value: escapeHtml(label0),
-      note: `Real exchange filings · read ${m?.generatedAt ? escapeHtml(formatRelativeTime(Date.parse(m.generatedAt))) : '—'}${fund.awaitingFiling.length ? ` · ${fund.awaitingFiling.length} still to file` : ''}`,
-    },
-  ]);
+  const historyColumns = fund.quarters.slice(1).map((q, i) => {
+    const label = fund.quarterLabels[i + 1];
+    const prev = fund.quarters[i + 2] || null; // the quarter BEFORE this one, for the shading
+    return {
+      label: `${shortQ(label)} %`,
+      get: (r) => pctCell(r.pctByQuarter?.[q], prev ? r.pctByQuarter?.[prev] : null, label),
+      html: true,
+      align: 'right',
+      sortValue: (r) => r.pctByQuarter?.[q] ?? -1,
+    };
+  });
 
   const table = scoreTable({
     rows,
     key: (r) => r.ticker,
     name: (r) => r.name,
-    nameLabel: 'Company',
-    sub: (r) => `${r.ticker} · ${r.sector || 'outside the NSE 500'}`,
+    nameLabel: 'Stock',
+    // Trendlyne's Stock column is the company name alone. The ticker earns its place as the
+    // sub-line because it is the join key everywhere else in the dashboard; the sector does not,
+    // and dropping it is what buys the thirteen columns their headroom. It is still searchable.
+    sub: (r) => r.ticker,
+    // No rank column: this is a portfolio, and "#7" against a value-sorted list is a position in
+    // the current sort rather than a ranking of anything. The watchlist star moves into the
+    // identity cell, which is what `showRank: false` does.
     showRank: false,
     dense: true,
-    nameMaxPx: 240,
-    stickyHead: 'max(300px, calc(100vh - 420px))',
+    wrapHeads: true,
+    // No gradient mark: Trendlyne's Stock column is text, and the ~46px it costs is exactly what
+    // thirteen columns need to stop truncating company names.
+    showAvatar: false,
+    nameMaxPx: 165,
+    stickyHead: 'max(320px, calc(100vh - 300px))',
     columns: [
       {
-        label: 'Shares held',
-        get: (r) => (r.qty == null ? '<span class="text-slate-300">—</span>' : `<span class="tabular-nums">${escapeHtml(formatNumber(r.qty))}</span>`),
-        html: true,
-        align: 'right',
-        sortValue: (r) => r.qty ?? -1,
-      },
-      {
-        label: `${label0} holding`,
-        get: (r) =>
-          r.holdingPct == null
-            ? `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200" title="The company has not filed its ${escapeHtml(label0)} shareholding pattern yet. The position is still held — there is a share count and a value — the percentage is simply not published.">not filed yet</span>`
-            : `<span class="font-semibold tabular-nums text-slate-900">${r.holdingPct.toFixed(1)}%</span>`,
-        html: true,
-        align: 'right',
-        sortValue: (r) => r.holdingPct ?? -1,
-      },
-      { label: 'Change', get: (r) => ppCell(r.pctDelta, r.changeNote), html: true, align: 'right', sortValue: (r) => r.pctDelta ?? -99 },
-      {
-        label: 'Value (Trendlyne)',
-        get: (r) => (r.valueCr == null ? '<span class="text-slate-300">—</span>' : `<span class="tabular-nums">${escapeHtml(formatCroreCompact(r.valueCr))}</span>`),
+        label: 'Holding Value',
+        get: (r) => (r.valueCr == null ? dash('no value published') : `<span class="tabular-nums" title="Trendlyne&rsquo;s derivation: holding % × market cap">${escapeHtml(formatCrore(r.valueCr))}</span>`),
         html: true,
         align: 'right',
         sortValue: (r) => r.valueCr ?? -1,
       },
       {
-        label: 'Since ' + escapeHtml(fund.quarterLabels[fund.quarterLabels.length - 1]),
-        get: (r) => historyStrip(r, fund.quarters, fund.quarterLabels),
+        label: 'Qty Held',
+        get: (r) => (r.qty == null ? dash('no share count filed') : `<span class="tabular-nums" title="Shares held, as filed">${escapeHtml(groupInt(r.qty))}</span>`),
         html: true,
         align: 'right',
-        sortable: false,
+        sortValue: (r) => r.qty ?? -1,
       },
+      {
+        label: `${shortQ(label0)} Change %`,
+        get: (r) => changeCell(r),
+        html: true,
+        align: 'right',
+        // A label sorts below every number but above a blank, so "New" rows group together at the
+        // bottom of a descending sort instead of scattering.
+        sortValue: (r) => (r.changePp != null ? r.changePp : r.changeNote ? -998 : -999),
+      },
+      {
+        label: `${shortQ(label0)} Holding %`,
+        get: (r) => pctCell(r.holdingPct, r.pctByQuarter?.[fund.quarters[1]], label0, { bold: true }),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.holdingPct ?? -1,
+      },
+      ...historyColumns,
     ],
     filters: [
       {
@@ -168,43 +130,49 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
       },
     ],
     searchable: (r) => `${r.name} ${r.ticker} ${r.sector || ''} ${r.industry || ''}`,
-    initialSort: { key: 'Value (Trendlyne)', dir: 'desc' },
+    initialSort: { key: 'Holding Value', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
     exportName: `sattva-${fund.investorId}-holdings`,
     onExport: (visible) => exportFiled(visible, fund),
     emptyMessage: ctx.scope === 'portfolio' ? 'This fund holds none of your positions.' : 'No holding matches your filters.',
   });
 
+  // ONE TABLE AND NOTHING ELSE, the way the Earnings Hub is built. No stat strip, no ranking grid:
+  // this is a portfolio listing and the reader came for the rows. The provenance did not go away —
+  // it moved behind the Filed pill, which is one click from anywhere on the page. See the
+  // "honesty rules for the kit" section of CLAUDE.md: decluttering is fine, deleting the
+  // accountability is not.
   const html = `
     ${sectionHead({
       title: 'Institutions',
-      description: `Filed shareholdings for the funds we track, quarter by quarter. ${ATTRIBUTION}`,
+      description: `Indian shareholdings as filed with the exchanges, quarter by quarter. ${ATTRIBUTION}`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${filedPill(fund, m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings' })}</div>`,
     })}
     ${funds.length > 1 ? fundPicker(funds, fund) : ''}
-    <div class="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+    <div class="mb-4 flex flex-wrap items-center gap-3">
       ${avatarBlock(fund)}
       <div class="min-w-0 flex-1">
         <div class="font-display text-base font-bold text-slate-900">${escapeHtml(fund.name)}</div>
-        <div class="text-xs text-slate-500">${escapeHtml(fund.house || '')}${fund.category ? ` · ${escapeHtml(fund.category)}` : ''} · ${escapeHtml(formatNumber(fund.stocksHeld))} Indian holdings disclosed${fund.former.length ? ` · ${escapeHtml(formatNumber(fund.former.length))} previously held` : ''}</div>
+        <div class="text-xs text-slate-500">${escapeHtml(fund.house || '')}${fund.category ? ` · ${escapeHtml(fund.category)}` : ''} · ${escapeHtml(formatNumber(fund.stocksHeld))} holdings worth ${escapeHtml(formatCrore(fund.portfolioValueCr))} as of ${escapeHtml(label0)}${fund.former.length ? ` · ${escapeHtml(formatNumber(fund.former.length))} previously held` : ''}</div>
       </div>
       <a href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener"
          class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">Trendlyne source ↗</a>
     </div>
-    ${stats.html}
     ${table.html}
     <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
-      Companies file their shareholding pattern within weeks of a quarter closing, and they do not all file at once —
-      <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))} have filed for ${escapeHtml(label0)}.
-      A row reading <em>not filed yet</em> is still held: the share count and the value are there, the percentage is not published.
-      ${fund.former.length ? `A further <strong>${escapeHtml(formatNumber(fund.former.length))}</strong> companies appear in the fund's history with no current position.` : ''}
-      Sector comes from the NSE-500 export where the company is in it; ${escapeHtml(formatNumber(rows.filter((r) => !r.inUniverse).length))} of these sit outside it and show none.
+      Every heading sorts. Share counts and percentages are the filings themselves;
+      <strong>Holding Value is Trendlyne's own derivation</strong> (holding % × market cap) — a filing never discloses a
+      rupee amount. Companies file within weeks of a quarter closing and not all at once, so
+      <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))}
+      have filed for ${escapeHtml(label0)}; a dash there means <em>not filed</em>, never sold — the share count and value
+      are still present, and the Change column says <em>Filing Awaited</em>.
+      A holder is only named above 1%, so crossing that line either way is a disclosure event rather than necessarily a trade.
+      ${filed.all().length === 1 ? 'One fund is wired to filings so far; the rest need one entry each in the scraper.' : ''}
     </p>`;
 
   return {
     html,
     wire(root) {
-      stats.wire(root);
       const off = table.wire(root);
       if (off) disposers.push(off);
       root.querySelector('[data-filed-info]')?.addEventListener('click', () => openProvenance(fund, m));
@@ -213,6 +181,48 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
       }
     },
   };
+}
+
+// Trendlyne group share counts internationally — 14,947,573, not the Indian 1,49,47,573 — and
+// matching them keeps the column both faithful and two characters narrower.
+const groupInt = (n) => n.toLocaleString('en-US');
+
+/** A dash that says why it is a dash. Never a zero — see the header of this file. */
+const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
+
+/** "1,104.2 Cr" — Trendlyne's own unit, so the column reads the same as their page. */
+function formatCrore(v) {
+  if (v == null) return '—';
+  return `${v.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Cr`;
+}
+
+/**
+ * One quarter's filed percentage, tinted against the quarter before it.
+ *
+ * The tint is arithmetic on two filed numbers, not a judgement: higher than last quarter is
+ * emerald, lower is rose. Trendlyne shade their grid the same way and it is what makes a
+ * two-year row readable at a glance instead of nine numbers to diff by eye.
+ */
+function pctCell(v, prev, label, { bold = false } = {}) {
+  if (v == null) return dash(`${label}: not filed`);
+  const tint = prev == null ? '' : v > prev ? 'bg-emerald-50' : v < prev ? 'bg-rose-50' : '';
+  return `<span class="-mx-1 inline-block rounded px-1 tabular-nums ${tint} ${bold ? 'font-semibold text-slate-900' : 'text-slate-700'}" title="${escapeHtml(label)}${prev == null ? '' : ` · was ${prev}% the quarter before`}">${v.toFixed(1)}%</span>`;
+}
+
+/**
+ * The change column, as Trendlyne print it: a signed number, or their own label where no number
+ * applies. "New" and "Below 1% first time" are disclosure events, not measurements, so they stay
+ * words — turning them into a percentage would invent a figure the filing does not contain.
+ */
+function changeCell(r) {
+  if (r.changePp == null) {
+    if (!r.changeNote) return dash('no change published');
+    const tone = r.changeNote === 'New' ? 'text-emerald-700' : r.changeNote === 'Filing Awaited' ? 'text-amber-700' : 'text-slate-500';
+    return `<span class="whitespace-nowrap font-medium ${tone}" title="Trendlyne&rsquo;s own label for this row">${escapeHtml(r.changeNote)}</span>`;
+  }
+  if (r.changePp === 0) return '<span class="tabular-nums text-slate-400">0.0</span>';
+  const cls = r.changePp > 0 ? 'text-emerald-700' : 'text-rose-700';
+  return `<span class="font-semibold tabular-nums ${cls}" title="Change in percentage points against the previous quarter">${r.changePp > 0 ? '' : ''}${r.changePp.toFixed(1)}</span>`;
 }
 
 function avatarBlock(fund) {
