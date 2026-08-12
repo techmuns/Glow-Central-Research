@@ -324,20 +324,30 @@ const yoyHeads = await headsNow();
 const yoyPrior = revCols(yoyHeads)[1];
 ok('YoY is the default', (await page.locator('[data-period][aria-pressed="true"]').innerText()).toUpperCase() === 'YOY');
 
-// QoQ needs the live route. Without a Worker (a plain `python3 -m http.server`) there is nothing
-// to fetch, and there is deliberately no committed QoQ snapshot to fall back to. Which of the two
-// worlds we are in decides what to assert — and the no-Worker case is the more interesting test,
-// because it is the one where the tab could quietly show YoY under QoQ headers and nobody would
-// see it. Probe first, then assert the behaviour that world is supposed to have.
-const hasLiveRoute = await page.evaluate(async () => {
+// QoQ needs the live route to actually be serving QoQ. Three worlds, and which one we are in
+// decides what to assert:
+//   1. No Worker (a plain `python3 -m http.server`) — nothing to fetch.
+//   2. A Worker whose upstream is down — it serves the committed snapshot, which is YoY-only.
+//      There is deliberately no committed QoQ file, because a stale one would look exactly like a
+//      live one while comparing against the wrong quarter.
+//   3. A working live route.
+// Worlds 1 and 2 are the MORE interesting test: they are where the tab could quietly show YoY
+// numbers under QoQ headers and nothing on the page would reveal it. So probe for a genuinely
+// live QoQ answer — not merely a 200 with rows in it — and assert the refusal otherwise.
+const qoqProbe = await page.evaluate(async () => {
   try {
     const r = await fetch('api/earnings?subType=qoq', { cache: 'no-store' });
-    if (!r.ok) return false;
-    return ((await r.json())?.rows?.length ?? 0) > 0;
+    if (!r.ok) return { live: false, why: `HTTP ${r.status}` };
+    const p = await r.json();
+    if (!(p?.rows?.length > 0)) return { live: false, why: 'no rows' };
+    if (p.degraded) return { live: false, why: 'the route is serving the committed snapshot' };
+    if ((p.meta?.subType || 'yoy') !== 'qoq') return { live: false, why: `the feed answered with ${p.meta?.subType}` };
+    return { live: true, why: '' };
   } catch {
-    return false;
+    return { live: false, why: 'no /api/earnings on this origin' };
   }
 });
+const hasLiveRoute = qoqProbe.live;
 
 // Pin one company so the before/after comparison is about the same filing, not about whichever
 // row happened to sort first. Read the name off the table rather than hard-coding it — the
@@ -354,11 +364,11 @@ const qoqState = await waitForPeriod('qoq');
 if (!hasLiveRoute) {
   // No Worker. The ONLY acceptable outcome is a refusal that says so — never YoY numbers sitting
   // under QoQ column headers, which is the one failure the page itself could not reveal.
-  ok('without the live route, QoQ refuses rather than switching', qoqState.error === true && qoqState.active !== 'qoq');
+  ok('without a live QoQ feed, QoQ refuses rather than switching', qoqState.error === true && qoqState.active !== 'qoq', qoqProbe.why);
   ok('...and says which comparison you are actually looking at', /Comparison not switched/i.test(await hostText()));
   ok('...and the comparison columns are untouched', revCols(await headsNow())[1] === yoyPrior, yoyPrior);
   ok('...and the toggle still reads YoY', (await page.locator('[data-period][aria-pressed="true"]').innerText()).toUpperCase() === 'YOY');
-  console.log('      (QoQ round trip not exercised — no /api/earnings on this origin)');
+  skip('the QoQ round trip against a live feed', qoqProbe.why);
 } else {
   ok('the QoQ switch completes against the live feed', qoqState.active === 'qoq' && !qoqState.error);
   await page.waitForTimeout(400);
@@ -441,9 +451,22 @@ if (calReady.failed) {
   const calHonesty = await page.evaluate(() => {
     const txt = document.querySelector('#content-host').innerText;
     const m = /([\d,]+)\s+companies report on this date/.exec(txt);
-    return { total: m ? Number(m[1].replace(/,/g, '')) : null, rows: document.querySelectorAll('tr[data-row-key]').length, saysCap: /largest by market cap/i.test(txt) };
+    return {
+      total: m ? Number(m[1].replace(/,/g, '')) : null,
+      rows: document.querySelectorAll('tr[data-row-key]').length,
+      saysCap: /largest by market cap/i.test(txt),
+      saysUnknown: /how many report on this date is not known/i.test(txt),
+    };
   });
-  ok('the calendar states the complete count for the date', calHonesty.total > 0, `${calHonesty.total} scheduled`);
+  // Moneycontrol serves the counts and the lists from two different endpoints, and the count one
+  // goes flat — zero for every date in the window — while the lists keep working. The page must
+  // never print "0 companies report" above twenty of them: with no believable count it has to say
+  // the count is unknown. Either state is acceptable; asserting a number that is not there is not.
+  if (calHonesty.total != null) {
+    ok('the calendar states the complete count for the date', calHonesty.total >= calHonesty.rows, `${calHonesty.total} scheduled, ${calHonesty.rows} named`);
+  } else {
+    ok('...and says so plainly when the count endpoint is not answering', calHonesty.saysUnknown, 'no count printed and no explanation either');
+  }
 
   // The list is read live where the calendar page answers this server and comes from the committed
   // capture where it does not (Akamai). Either is fine; showing captured rows under a "Live" pill
@@ -466,20 +489,28 @@ if (calReady.failed) {
   }
   ok(
     '...and says the list is a top-N when it is one',
-    calHonesty.rows >= calHonesty.total || calHonesty.saysCap,
+    calHonesty.total == null || calHonesty.rows >= calHonesty.total || calHonesty.saysCap,
     `${calHonesty.rows} named of ${calHonesty.total}`
   );
 
-  // Clicking another date must change both the data and the URL.
-  const otherDate = await page.evaluate(() => {
-    const active = document.querySelector('[data-date][aria-pressed], [data-date]');
-    const all = [...document.querySelectorAll('[data-date]:not([disabled])')].map((b) => b.dataset.date);
-    void active;
-    return all[all.length - 1];
-  });
-  await page.locator(`[data-date="${otherDate}"]`).click();
-  await page.waitForTimeout(6000);
-  ok('picking a date reloads that day and records it in the URL', page.url().includes(`date=${otherDate}`), otherDate);
+  // Clicking another date must change both the data and the URL. A date with a zero count is
+  // disabled — but when NO count is readable, none may be disabled, or the reader is locked out of
+  // a calendar whose lists are working fine.
+  const strip = await page.evaluate(() => ({
+    all: [...document.querySelectorAll('[data-date]')].map((b) => b.dataset.date),
+    enabled: [...document.querySelectorAll('[data-date]:not([disabled])')].map((b) => b.dataset.date),
+    counted: [...document.querySelectorAll('[data-date]')].filter((b) => /\d/.test(b.textContent.split('\n').pop() || '')).length,
+  }));
+  ok('the date strip never disables every date at once', strip.enabled.length > 0, `${strip.enabled.length} of ${strip.all.length} clickable`);
+  const activeDate = /[?&]date=(\d{4}-\d{2}-\d{2})/.exec(page.url())?.[1] || null;
+  const otherDate = strip.enabled.filter((d) => d !== activeDate).pop() || strip.enabled[strip.enabled.length - 1];
+  if (otherDate) {
+    await page.locator(`[data-date="${otherDate}"]`).click();
+    await page.waitForTimeout(6000);
+    ok('picking a date reloads that day and records it in the URL', page.url().includes(`date=${otherDate}`), otherDate);
+  } else {
+    ok('picking a date reloads that day and records it in the URL', false, 'no clickable date in the strip');
+  }
 
   // Back to reported, which is where the rest of the suite expects to be.
   await page.locator('[data-view="reported"]').click();

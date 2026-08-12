@@ -567,9 +567,24 @@ function stripLabel(iso) {
   return `${wd} ${d.getUTCDate()} ${mo}`;
 }
 
+/**
+ * Are the per-date counts believable?
+ *
+ * Moneycontrol serves the counts and the company lists from two different endpoints, and the count
+ * endpoint can go flat — every date in the window returning 0 while the calendar page still names
+ * twenty companies for today. Taken literally that says "nobody reports, here are the twenty who
+ * are reporting", and it greys out every date in the strip so no date can be opened at all.
+ *
+ * Zero everywhere is not a schedule; it is a feed that did not answer. Treat it as unknown.
+ */
+function countsAreReadable(days = calendar.strip()) {
+  return days.some((d) => d.count > 0);
+}
+
 function dateStrip(active, today) {
   const days = calendar.strip();
   if (!days.length) return '';
+  const readable = countsAreReadable(days);
   // Oldest first reads like a calendar; the API hands them back newest first.
   const ordered = [...days].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return `
@@ -577,7 +592,9 @@ function dateStrip(active, today) {
       ${ordered
         .map((d) => {
           const on = d.date === active;
-          const empty = !d.count;
+          // With no readable counts, no date can be called empty — so none is disabled, and each
+          // shows a dash. A dash means "not known", which is what it is.
+          const empty = readable && !d.count;
           const isToday = d.date === today;
           return `<button type="button" data-date="${escapeHtml(d.date)}" ${empty ? 'disabled' : ''}
             title="${escapeHtml(stripLabel(d.date))}${empty ? ' — nothing scheduled' : ` — ${formatNumber(d.count)} companies`}"
@@ -724,7 +741,10 @@ function calendarPill(payload, err) {
     : captured
       ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
       : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
-  const count = payload?.scheduledCount;
+  // A count of zero on a date that has named companies is the count endpoint failing, not a quiet
+  // day — see `countsAreReadable`. Say "schedule" rather than assert a number we do not believe.
+  const raw = payload?.scheduledCount;
+  const count = raw != null && (raw > 0 || !(payload?.rows?.length > 0)) ? raw : null;
   return `
     <button type="button" data-cal-info title="Where this calendar comes from, and what it does not show"
       class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
@@ -737,16 +757,23 @@ function calendarPill(payload, err) {
 // how old the naming is. The count is always live, so if the schedule has moved since a capture,
 // the count and the list disagree on screen — which is the point of not freezing both together.
 function calendarNote(payload, shown, ctx) {
-  const total = payload?.scheduledCount;
+  // A count below the number of companies actually named cannot be the number reporting. That is
+  // what the count endpoint returns when it goes flat — zero for every date in the window — and
+  // printing it would put "0 companies report" directly above twenty of them.
+  const raw = payload?.scheduledCount;
+  const total = raw != null && raw >= shown ? raw : null;
+  const unreadable = raw != null && total == null;
   const partial = total != null && payload.capped && shown < total;
   const captured = payload?.listSource === 'snapshot';
   return `
-    <p class="mb-6 text-[11px] leading-relaxed ${partial || captured ? 'text-amber-700' : 'text-slate-500'}">
+    <p class="mb-6 text-[11px] leading-relaxed ${partial || captured || unreadable ? 'text-amber-700' : 'text-slate-500'}">
       ${total != null ? `<strong>${formatNumber(total)}</strong> companies report on this date — that count is live.` : ''}
       ${
-        partial
-          ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}.`
-          : `All ${formatNumber(shown)} are listed.`
+        unreadable
+          ? `<strong>How many report on this date is not known right now</strong> — Moneycontrol's count endpoint is answering zero for every date in this window, which it does when it fails rather than when nobody reports. ${formatNumber(shown)} ${shown === 1 ? 'company is' : 'are'} named below, and its list is capped at the ${formatNumber(payload?.listCap ?? 20)} largest by market cap, so treat this as a floor and not a total.`
+          : partial
+            ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}.`
+            : `All ${formatNumber(shown)} are listed.`
       }
       ${
         captured
@@ -810,7 +837,9 @@ async function exportCalendar(rows, payload) {
     __banner:
       `REAL DATA. Results calendar via Moneycontrol — companies scheduled to report on ${payload?.date || ''}` +
       `${payload?.asOnDate ? ` (schedule as on ${payload.asOnDate})` : ''}, captured ${new Date().toISOString()}. ` +
-      `${payload?.scheduledCount != null ? `${payload.scheduledCount} companies report on this date; ` : ''}` +
+      // Same rule as the on-screen note, and it matters more here: a workbook leaves the page
+      // without its chrome, so a count we do not believe must not travel with it as a fact.
+      `${payload?.scheduledCount != null && payload.scheduledCount >= (payload?.rows?.length || 0) ? `${payload.scheduledCount} companies report on this date; ` : 'HOW MANY REPORT ON THIS DATE IS NOT KNOWN — the count endpoint was not answering when this was exported; '}` +
       `Moneycontrol publishes only the ${payload?.listCap ?? 20} largest by market cap per date, so THIS SHEET IS NOT THE FULL LIST. ` +
       `Market cap in Rs. crore. Blank cells mean not known, not zero.`,
   };
