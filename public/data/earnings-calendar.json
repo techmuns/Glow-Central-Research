@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-08-11T17:33:56.533Z",
-  "from": "2026-08-08",
-  "to": "2026-09-01",
+  "capturedAt": "2026-08-12T03:36:34.032Z",
+  "from": "2026-08-09",
+  "to": "2026-09-02",
   "listCap": 20,
   "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
   "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-02",
+      "displayDate": "02 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-01",
       "displayDate": "01 Sep",
@@ -99,37 +104,32 @@
     {
       "date": "2026-08-14",
       "displayDate": "14 Aug",
-      "count": 122
+      "count": 183
     },
     {
       "date": "2026-08-13",
       "displayDate": "13 Aug",
-      "count": 206
+      "count": 253
     },
     {
       "date": "2026-08-12",
       "displayDate": "12 Aug",
-      "count": 216
+      "count": 227
     },
     {
       "date": "2026-08-11",
       "displayDate": "11 Aug",
-      "count": 170
+      "count": 169
     },
     {
       "date": "2026-08-10",
       "displayDate": "10 Aug",
-      "count": 114
+      "count": 112
     },
     {
       "date": "2026-08-09",
       "displayDate": "09 Aug",
       "count": 3
-    },
-    {
-      "date": "2026-08-08",
-      "displayDate": "08 Aug",
-      "count": 52
     }
   ],
   "byDate": {
@@ -153,6 +153,25 @@
           "industry": "Automobile - Trucks/LCVs",
           "shares": 5873854552,
           "mktCapAtBuild": 102692.6
+        },
+        {
+          "scId": "NMD01",
+          "name": "NMDC",
+          "shortName": "NMDC",
+          "resultDate": "2026-08-14",
+          "displayDate": "14 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 85.45,
+          "changePct": -0.04,
+          "marketCap": 75126.08,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/mining-minerals/nmdc/NMD02",
+          "ticker": "NMDC",
+          "fullName": "NMDC",
+          "industry": "Iron & Steel",
+          "shares": 8791817550,
+          "mktCapAtBuild": 75126.08
         },
         {
           "scId": "AL16",
@@ -191,6 +210,25 @@
           "industry": "Cycles",
           "shares": 193572320,
           "mktCapAtBuild": 53813.1
+        },
+        {
+          "scId": "FCT",
+          "name": "Fertilisers and Chemicals Travancore",
+          "shortName": "Fert and Chem",
+          "resultDate": "2026-08-14",
+          "displayDate": "14 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 828.4,
+          "changePct": -0.75,
+          "marketCap": 53603.44,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/fertilisers/fertiliserschemicalstravancore/FCT",
+          "ticker": "FACT",
+          "fullName": "Fert and Chem",
+          "industry": "Fertilizers",
+          "shares": 647071974,
+          "mktCapAtBuild": 53606.68
         },
         {
           "scId": "BDL01",
@@ -247,7 +285,26 @@
           "fullName": "3M India",
           "industry": "Diversified",
           "shares": 11265070,
-          "mktCapAtBuild": 40683.8
+          "mktCapAtBuild": 40627.47
+        },
+        {
+          "scId": "CS17",
+          "name": "Cochin Shipyard",
+          "shortName": "Cochin Shipyard",
+          "resultDate": "2026-08-14",
+          "displayDate": "14 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 1496,
+          "changePct": -0.4,
+          "marketCap": 39356.88,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/ship-building/cochinshipyard/CS",
+          "ticker": "COCHINSHIP",
+          "fullName": "Cochin Shipyard",
+          "industry": "Ship Building",
+          "shares": 263080780,
+          "mktCapAtBuild": 39356.88
         },
         {
           "scId": "RSI",
@@ -269,6 +326,25 @@
           "mktCapAtBuild": 38410.23
         },
         {
+          "scId": "PL10",
+          "name": "Physicswallah",
+          "shortName": "Physicswallah",
+          "resultDate": "2026-08-14",
+          "displayDate": "14 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 125.52,
+          "changePct": -1.57,
+          "marketCap": 36411.93,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/educational-institutions/physicswallah/PL09",
+          "ticker": "PWL",
+          "fullName": "Physicswallah",
+          "industry": "Educational Institutions",
+          "shares": 2900886652,
+          "mktCapAtBuild": 36539.57
+        },
+        {
           "scId": "SEI04",
           "name": "Schneider Electric Infrastructure",
           "shortName": "Schneider Infra",
@@ -285,7 +361,7 @@
           "fullName": "Schneider Infra",
           "industry": "Electric Equipment",
           "shares": 239104035,
-          "mktCapAtBuild": 33553.47
+          "mktCapAtBuild": 33534.34
         },
         {
           "scId": "TII",
@@ -304,7 +380,7 @@
           "fullName": "Chola Fin Hold",
           "industry": "Finance - Investment",
           "shares": 187777462,
-          "mktCapAtBuild": 30243.44
+          "mktCapAtBuild": 30326.06
         },
         {
           "scId": "PTC02",
@@ -323,12 +399,12 @@
           "fullName": "PTC Industries",
           "industry": "Auto Ancillaries - Castings/Forgings",
           "shares": 14992549,
-          "mktCapAtBuild": 28344.91
+          "mktCapAtBuild": 28238.47
         },
         {
           "scId": "RRL04",
           "name": "Rubicon Research",
-          "shortName": "Rubicon Res",
+          "shortName": "Rubicon Researc",
           "resultDate": "2026-08-14",
           "displayDate": "14 Aug",
           "quarter": "Q1 FY26-27",
@@ -342,7 +418,26 @@
           "fullName": "Rubicon Res",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 165531908,
-          "mktCapAtBuild": 27397.19
+          "mktCapAtBuild": 27445.19
+        },
+        {
+          "scId": "BIL07",
+          "name": "Belrise Industries",
+          "shortName": "Belrise Ind",
+          "resultDate": "2026-08-14",
+          "displayDate": "14 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 253.97,
+          "changePct": 0.47,
+          "marketCap": 24562.76,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/belriseindustries/BIL08",
+          "ticker": "BELRISE",
+          "fullName": "Belrise Ind",
+          "industry": "Auto Ancillaries",
+          "shares": 967151919,
+          "mktCapAtBuild": 24608.21
         },
         {
           "scId": "NP01",
@@ -361,7 +456,7 @@
           "fullName": "Natco Pharma",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 179109870,
-          "mktCapAtBuild": 16245.27
+          "mktCapAtBuild": 16281.09
         },
         {
           "scId": "NBF01",
@@ -380,140 +475,50 @@
           "fullName": "NAVA",
           "industry": "Power Generation/Distribution",
           "shares": 283255096,
-          "mktCapAtBuild": 16121.46
+          "mktCapAtBuild": 16120.05
         },
         {
-          "scId": "SSG02",
-          "name": "Shreeji Shipping Global",
-          "shortName": "Shreeji Shippin",
+          "scId": "ARI02",
+          "name": "Anupam Rasayan India",
+          "shortName": "Anupam",
           "resultDate": "2026-08-14",
           "displayDate": "14 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 629.75,
-          "changePct": -4.96,
-          "marketCap": 10259.78,
+          "ltp": 1209.3,
+          "changePct": -0.58,
+          "marketCap": 13767.68,
           "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/shipping/shreejishippingglobal/SSG",
-          "ticker": "SHREEJISPG",
-          "fullName": "Shreeji Shippin",
-          "industry": "Shipping",
-          "shares": 162918254,
-          "mktCapAtBuild": 10259.78
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/speciality-chemicals/anupamrasayanindia/ARI02",
+          "ticker": "ANURAS",
+          "fullName": "Anupam Rasayan",
+          "industry": "Speciality Chemicals",
+          "shares": 113848310,
+          "mktCapAtBuild": 13678.87
         },
         {
-          "scId": "SRF03",
-          "name": "Kama Holdings",
-          "shortName": "Kama Holdings",
+          "scId": "NS16",
+          "name": "NMDC Steel",
+          "shortName": "NMDC Steel",
           "resultDate": "2026-08-14",
           "displayDate": "14 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 2488.1,
-          "changePct": -0.5,
-          "marketCap": 7984.46,
-          "exchange": "B",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/petrochemicals/kamaholdings/SRF03"
-        },
-        {
-          "scId": "HSS",
-          "name": "Kingfa Science & Technology",
-          "shortName": "Kingfa Science",
-          "resultDate": "2026-08-14",
-          "displayDate": "14 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 5708,
-          "changePct": 1.52,
-          "marketCap": 7735.13,
+          "ltp": 44.15,
+          "changePct": -1.16,
+          "marketCap": 12938.62,
           "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/plastics/kingfasciencetechnology/HSS",
-          "ticker": "KINGFA",
-          "fullName": "Kingfa Science",
-          "industry": "Plastic Products - Others",
-          "shares": 13551381,
-          "mktCapAtBuild": 7735.13
-        },
-        {
-          "scId": "KME",
-          "name": "Knowledge Marine & Engineering Works",
-          "shortName": "Knowledge Marin",
-          "resultDate": "2026-08-14",
-          "displayDate": "14 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 2621.1,
-          "changePct": 0.94,
-          "marketCap": 6648.24,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/knowledgemarineengineeringworks/KME01",
-          "ticker": "KMEW",
-          "fullName": "Knowledge Marin",
-          "industry": "Miscellaneous",
-          "shares": 25364317,
-          "mktCapAtBuild": 6648.24
-        },
-        {
-          "scId": "ACI12",
-          "name": "Ahluwalia Contracts India",
-          "shortName": "Ahluwalia",
-          "resultDate": "2026-08-14",
-          "displayDate": "14 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 833.95,
-          "changePct": 0.49,
-          "marketCap": 5586.43,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-contracting-civil/ahluwaliacontractsindia/ACI12",
-          "ticker": "AHLUCONT",
-          "fullName": "Ahluwalia",
-          "industry": "Construction - Residential & Commercial Complexes",
-          "shares": 66987560,
-          "mktCapAtBuild": 5586.43
-        },
-        {
-          "scId": "SGEL",
-          "name": "Saatvik Green Energy",
-          "shortName": "Saatvik Green",
-          "resultDate": "2026-08-14",
-          "displayDate": "14 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 426.7,
-          "changePct": 1.86,
-          "marketCap": 5423.57,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/renewables/saatvikgreenenergy/SGEL",
-          "ticker": "SAATVIKGL",
-          "fullName": "Saatvik Green",
-          "industry": "Renewables",
-          "shares": 127105004,
-          "mktCapAtBuild": 5423.57
-        },
-        {
-          "scId": "PP27",
-          "name": "Puravankara",
-          "shortName": "Puravankara",
-          "resultDate": "2026-08-14",
-          "displayDate": "14 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 212.31,
-          "changePct": -0.4,
-          "marketCap": 5034.92,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-contracting-real-estate/puravankara/PP01",
-          "ticker": "PURVA",
-          "fullName": "Puravankara",
-          "industry": "Construction - Residential & Commercial Complexes",
-          "shares": 237149686,
-          "mktCapAtBuild": 5034.92
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/iron-steel/nmdcsteel/NS15",
+          "ticker": "NSLNISP",
+          "fullName": "NMDC Steel",
+          "industry": "Iron & Steel",
+          "shares": 2930605850,
+          "mktCapAtBuild": 12953.28
         }
       ],
-      "scheduledCount": 122,
+      "scheduledCount": 183,
       "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     },
     "2026-08-13": {
       "rows": [
@@ -572,7 +577,45 @@
           "fullName": "LG Electronics",
           "industry": "Domestic Appliances",
           "shares": 678772392,
-          "mktCapAtBuild": 106329.7
+          "mktCapAtBuild": 106635.14
+        },
+        {
+          "scId": "MHI",
+          "name": "Max Healthcare Institute",
+          "shortName": "Max Healthcare",
+          "resultDate": "2026-08-13",
+          "displayDate": "13 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 1040,
+          "changePct": -2.71,
+          "marketCap": 101220.44,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/hospital-healthcare-services/maxhealthcareinstitute/MHI",
+          "ticker": "MAXHEALTH",
+          "fullName": "Max Healthcare",
+          "industry": "Hospital & Healthcare Services",
+          "shares": 973273438,
+          "mktCapAtBuild": 101220.44
+        },
+        {
+          "scId": "GIC12",
+          "name": "General Insurance Corporation of India",
+          "shortName": "General Insuran",
+          "resultDate": "2026-08-13",
+          "displayDate": "13 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 355.7,
+          "changePct": 0.82,
+          "marketCap": 62404.01,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diversified/generalinsurancecorporationindia/GIC12",
+          "ticker": "GICRE",
+          "fullName": "General Insuran",
+          "industry": "Reinsurance",
+          "shares": 1754400000,
+          "mktCapAtBuild": 62377.69
         },
         {
           "scId": "MI",
@@ -610,7 +653,7 @@
           "fullName": "Ipca Labs",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 253704218,
-          "mktCapAtBuild": 44357.65
+          "mktCapAtBuild": 44385.55
         },
         {
           "scId": "GS",
@@ -629,7 +672,7 @@
           "fullName": "Godrej Ind",
           "industry": "Diversified Chemicals",
           "shares": 336851055,
-          "mktCapAtBuild": 43447.05
+          "mktCapAtBuild": 43824.32
         },
         {
           "scId": "PI35",
@@ -667,7 +710,7 @@
           "fullName": "Endurance Techn",
           "industry": "Auto Ancillaries - Others",
           "shares": 140662848,
-          "mktCapAtBuild": 42027.25
+          "mktCapAtBuild": 42030.06
         },
         {
           "scId": "JF04",
@@ -705,7 +748,26 @@
           "fullName": "ITI",
           "industry": "Telecommunication - Equipment",
           "shares": 960886938,
-          "mktCapAtBuild": 27433.32
+          "mktCapAtBuild": 27409.3
+        },
+        {
+          "scId": "AEI01",
+          "name": "Amber Enterprises India Limited",
+          "shortName": "Amber Enterpris",
+          "resultDate": "2026-08-13",
+          "displayDate": "13 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 7078.5,
+          "changePct": -0.23,
+          "marketCap": 24964.29,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/amberenterprisesindialimited/AEI01",
+          "ticker": "AMBER",
+          "fullName": "Amber Enterpris",
+          "industry": "Air Conditioners",
+          "shares": 35267767,
+          "mktCapAtBuild": 24964.29
         },
         {
           "scId": "KIO",
@@ -724,7 +786,7 @@
           "fullName": "KIOCL",
           "industry": "Iron & Steel",
           "shares": 607751096,
-          "mktCapAtBuild": 23756.99
+          "mktCapAtBuild": 23690.14
         },
         {
           "scId": "DC05",
@@ -743,7 +805,7 @@
           "fullName": "Diamond Power",
           "industry": "Cables",
           "shares": 598071060,
-          "mktCapAtBuild": 21650.17
+          "mktCapAtBuild": 21653.16
         },
         {
           "scId": "IG04",
@@ -762,7 +824,7 @@
           "fullName": "IGL",
           "industry": "Gas Distribution",
           "shares": 1400001600,
-          "mktCapAtBuild": 21429.82
+          "mktCapAtBuild": 21532.02
         },
         {
           "scId": "CES",
@@ -781,7 +843,7 @@
           "fullName": "CESC",
           "industry": "Power Generation/Distribution",
           "shares": 1325570430,
-          "mktCapAtBuild": 21343.01
+          "mktCapAtBuild": 21328.43
         },
         {
           "scId": "BE08",
@@ -800,7 +862,7 @@
           "fullName": "Brigade Ent",
           "industry": "Construction - Residential & Commercial Complexes",
           "shares": 326162380,
-          "mktCapAtBuild": 19736.09
+          "mktCapAtBuild": 19732.82
         },
         {
           "scId": "IHF01",
@@ -819,7 +881,7 @@
           "fullName": "Sammaan Capital",
           "industry": "Finance - Housing",
           "shares": 1162553057,
-          "mktCapAtBuild": 18996.12
+          "mktCapAtBuild": 19065.87
         },
         {
           "scId": "TFS02",
@@ -838,69 +900,12 @@
           "fullName": "Travel Food Ser",
           "industry": "Hotel, Resort & Restaurants",
           "shares": 131679484,
-          "mktCapAtBuild": 18290.28
-        },
-        {
-          "scId": "EE01",
-          "name": "Elgi Equipments",
-          "shortName": "Elgi Equipments",
-          "resultDate": "2026-08-13",
-          "displayDate": "13 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 573.85,
-          "changePct": -1.49,
-          "marketCap": 18185.82,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/compressors/elgiequipments/EE01",
-          "ticker": "ELGIEQUIP",
-          "fullName": "Elgi Equipments",
-          "industry": "Compressors / Pumps",
-          "shares": 316909016,
-          "mktCapAtBuild": 18185.82
-        },
-        {
-          "scId": "JCL02",
-          "name": "JSW Cement",
-          "shortName": "JSW Cement",
-          "resultDate": "2026-08-13",
-          "displayDate": "13 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 131.52,
-          "changePct": -0.99,
-          "marketCap": 17930.98,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cement/jswcement/JCL02",
-          "ticker": "JSWCEMENT",
-          "fullName": "JSW Cement",
-          "industry": "Cement",
-          "shares": 1363364936,
-          "mktCapAtBuild": 17930.98
-        },
-        {
-          "scId": "MC22",
-          "name": "Minda Corporation",
-          "shortName": "Minda Corp",
-          "resultDate": "2026-08-13",
-          "displayDate": "13 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 721.45,
-          "changePct": -1.99,
-          "marketCap": 17248.39,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/mindacorporation/MC23",
-          "ticker": "MINDACORP",
-          "fullName": "Minda Corp",
-          "industry": "Auto Ancillaries - Others",
-          "shares": 239079428,
-          "mktCapAtBuild": 17248.39
+          "mktCapAtBuild": 18342.95
         }
       ],
-      "scheduledCount": 206,
+      "scheduledCount": 253,
       "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     },
     "2026-08-12": {
       "rows": [
@@ -959,7 +964,7 @@
           "fullName": "Tata Motors Com",
           "industry": "Automobile - Trucks/LCVs",
           "shares": 3682700304,
-          "mktCapAtBuild": 165739.93
+          "mktCapAtBuild": 165960.89
         },
         {
           "scId": "AHE",
@@ -1016,26 +1021,7 @@
           "fullName": "Lenskart Solu",
           "industry": "Retailing",
           "shares": 1738720607,
-          "mktCapAtBuild": 102445.42
-        },
-        {
-          "scId": "GIC12",
-          "name": "General Insurance Corporation of India",
-          "shortName": "General Insuran",
-          "resultDate": "2026-08-12",
-          "displayDate": "12 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 355.7,
-          "changePct": 0.82,
-          "marketCap": 62404.01,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diversified/generalinsurancecorporationindia/GIC12",
-          "ticker": "GICRE",
-          "fullName": "General Insuran",
-          "industry": "Reinsurance",
-          "shares": 1754400000,
-          "mktCapAtBuild": 62404.01
+          "mktCapAtBuild": 102245.47
         },
         {
           "scId": "KP",
@@ -1054,7 +1040,7 @@
           "fullName": "Abbott India",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 21249302,
-          "mktCapAtBuild": 59540.54
+          "mktCapAtBuild": 59604.29
         },
         {
           "scId": "GUJAR54281",
@@ -1073,7 +1059,7 @@
           "fullName": "Gujarat Fluoro",
           "industry": "Speciality Chemicals",
           "shares": 109850000,
-          "mktCapAtBuild": 48511.96
+          "mktCapAtBuild": 48498.77
         },
         {
           "scId": "AIL10",
@@ -1092,7 +1078,7 @@
           "fullName": "Aditya Infotech",
           "industry": "Diversified",
           "shares": 118300435,
-          "mktCapAtBuild": 45019.23
+          "mktCapAtBuild": 44835.86
         },
         {
           "scId": "AIE01",
@@ -1111,7 +1097,7 @@
           "fullName": "AIA Engineering",
           "industry": "Engineering - Industrial Equipments",
           "shares": 93320370,
-          "mktCapAtBuild": 44622.07
+          "mktCapAtBuild": 44481.15
         },
         {
           "scId": "PLN",
@@ -1149,7 +1135,7 @@
           "fullName": "IRCTC",
           "industry": "Online Services",
           "shares": 800000000,
-          "mktCapAtBuild": 41204
+          "mktCapAtBuild": 41240
         },
         {
           "scId": "APT02",
@@ -1173,7 +1159,7 @@
         {
           "scId": "SE30",
           "name": "Sansera Engineering",
-          "shortName": "Sansera Eng",
+          "shortName": "Sansera",
           "resultDate": "2026-08-12",
           "displayDate": "12 Aug",
           "quarter": "Q1 FY26-27",
@@ -1187,7 +1173,7 @@
           "fullName": "Sansera Eng",
           "industry": "Auto Ancillaries - Others",
           "shares": 62403568,
-          "mktCapAtBuild": 22996.34
+          "mktCapAtBuild": 23055
         },
         {
           "scId": "CPL",
@@ -1206,7 +1192,7 @@
           "fullName": "Caplin Labs",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 76011696,
-          "mktCapAtBuild": 19988.04
+          "mktCapAtBuild": 20059.49
         },
         {
           "scId": "STV01",
@@ -1225,7 +1211,7 @@
           "fullName": "Sun TV Network",
           "industry": "TV Broadcasting & Software Production",
           "shares": 394084620,
-          "mktCapAtBuild": 19061.87
+          "mktCapAtBuild": 19113.1
         },
         {
           "scId": "AM",
@@ -1244,7 +1230,7 @@
           "fullName": "Arvind",
           "industry": "Textiles & Apparel",
           "shares": 272040630,
-          "mktCapAtBuild": 15442.39
+          "mktCapAtBuild": 15408.38
         },
         {
           "scId": "EID",
@@ -1263,7 +1249,7 @@
           "fullName": "EID Parry",
           "industry": "Sugar",
           "shares": 177955692,
-          "mktCapAtBuild": 14031.81
+          "mktCapAtBuild": 13951.73
         },
         {
           "scId": "TT03",
@@ -1282,12 +1268,31 @@
           "fullName": "BLACK BOX",
           "industry": "Telecommunication - Equipment",
           "shares": 177599205,
-          "mktCapAtBuild": 13201.84
+          "mktCapAtBuild": 13142.34
+        },
+        {
+          "scId": "TP01",
+          "name": "Marksans Pharma",
+          "shortName": "Marksans Pharma",
+          "resultDate": "2026-08-12",
+          "displayDate": "12 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 278.95,
+          "changePct": 2.76,
+          "marketCap": 12641,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals/marksanspharma/MP21",
+          "ticker": "MARKSANS",
+          "fullName": "Marksans Pharma",
+          "industry": "Pharmaceuticals & Drugs",
+          "shares": 453163746,
+          "mktCapAtBuild": 12643.27
         }
       ],
-      "scheduledCount": 216,
+      "scheduledCount": 227,
       "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     },
     "2026-08-11": {
       "rows": [
@@ -1328,6 +1333,25 @@
           "industry": "Pharmaceuticals & Drugs",
           "shares": 1006233990,
           "mktCapAtBuild": 119842.47
+        },
+        {
+          "scId": "BOC",
+          "name": "Linde India",
+          "shortName": "Linde India",
+          "resultDate": "2026-08-11",
+          "displayDate": "11 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 6972,
+          "changePct": -1.08,
+          "marketCap": 59460.16,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/chemicals/lindeindia/BOC",
+          "ticker": "LINDEINDIA",
+          "fullName": "Linde India",
+          "industry": "Diversified",
+          "shares": 85284223,
+          "mktCapAtBuild": 59289.59
         },
         {
           "scId": "MRF",
@@ -1422,7 +1446,7 @@
           "fullName": "Gujarat Energy",
           "industry": "Gas Distribution",
           "shares": 938230849,
-          "mktCapAtBuild": 25745.05
+          "mktCapAtBuild": 25707.53
         },
         {
           "scId": "NBC",
@@ -1498,7 +1522,7 @@
           "fullName": "TD Power System",
           "industry": "Electric Equipment",
           "shares": 156228430,
-          "mktCapAtBuild": 19928.5
+          "mktCapAtBuild": 19919.12
         },
         {
           "scId": "FC01",
@@ -1536,7 +1560,7 @@
           "fullName": "JSW Dulux",
           "industry": "Paints",
           "shares": 45797996,
-          "mktCapAtBuild": 14458.43
+          "mktCapAtBuild": 14426.37
         },
         {
           "scId": "PS14",
@@ -1555,7 +1579,7 @@
           "fullName": "Swan Defence",
           "industry": "Shipping",
           "shares": 52682150,
-          "mktCapAtBuild": 13559.33
+          "mktCapAtBuild": 13697.36
         },
         {
           "scId": "SII06",
@@ -1574,7 +1598,7 @@
           "fullName": "SKFINDUS",
           "industry": "Auto Ancillaries - Bearings",
           "shares": 49437963,
-          "mktCapAtBuild": 13496.56
+          "mktCapAtBuild": 13481.73
         },
         {
           "scId": "BCM",
@@ -1612,7 +1636,7 @@
           "fullName": "Techno Electric",
           "industry": "Engineering & Construction",
           "shares": 116299574,
-          "mktCapAtBuild": 12305.08
+          "mktCapAtBuild": 12304.49
         },
         {
           "scId": "SGT",
@@ -1651,30 +1675,11 @@
           "industry": "Pharmaceuticals & Drugs",
           "shares": 438876813,
           "mktCapAtBuild": 11474.43
-        },
-        {
-          "scId": "MMT",
-          "name": "MMTC",
-          "shortName": "MMTC",
-          "resultDate": "2026-08-11",
-          "displayDate": "11 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 64.98,
-          "changePct": 1.61,
-          "marketCap": 9747,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/mmtc/MMT",
-          "ticker": "MMTC",
-          "fullName": "MMTC",
-          "industry": "Trading",
-          "shares": 1500000000,
-          "mktCapAtBuild": 9747
         }
       ],
-      "scheduledCount": 170,
+      "scheduledCount": 169,
       "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     },
     "2026-08-10": {
       "rows": [
@@ -1733,7 +1738,7 @@
           "fullName": "Lloyds Metals",
           "industry": "Iron & Steel",
           "shares": 562906951,
-          "mktCapAtBuild": 111804.58
+          "mktCapAtBuild": 111849.61
         },
         {
           "scId": "BFC",
@@ -1772,25 +1777,6 @@
           "industry": "Misc. Commercial Services",
           "shares": 648420600,
           "mktCapAtBuild": 88256.53
-        },
-        {
-          "scId": "BOC",
-          "name": "Linde India",
-          "shortName": "Linde India",
-          "resultDate": "2026-08-10",
-          "displayDate": "10 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 6972,
-          "changePct": -1.08,
-          "marketCap": 59460.16,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/chemicals/lindeindia/BOC",
-          "ticker": "LINDEINDIA",
-          "fullName": "Linde India",
-          "industry": "Diversified",
-          "shares": 85284223,
-          "mktCapAtBuild": 59460.16
         },
         {
           "scId": "HC07",
@@ -1928,7 +1914,7 @@
         {
           "scId": "ARB",
           "name": "Amara Raja Energy & Mobility",
-          "shortName": "Amara Raja",
+          "shortName": "Amara Raja Batt",
           "resultDate": "2026-08-10",
           "displayDate": "10 Aug",
           "quarter": "Q1 FY26-27",
@@ -2011,7 +1997,7 @@
           "time": null,
           "ltp": 450.75,
           "changePct": -5.27,
-          "marketCap": 11998.96,
+          "marketCap": 11998.97,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/power-transmission-equipment/kecinternational/KEC04",
           "ticker": "KEC",
@@ -2057,11 +2043,30 @@
           "industry": "Construction - Residential & Commercial Complexes",
           "shares": 1390633433,
           "mktCapAtBuild": 9115.6
+        },
+        {
+          "scId": "ZT",
+          "name": "Zee Entertainment Enterprises",
+          "shortName": "Zee Entertain",
+          "resultDate": "2026-08-10",
+          "displayDate": "10 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 91.56,
+          "changePct": -3.03,
+          "marketCap": 8794.52,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/media-entertainment/zeeentertainmententerprises/ZEE",
+          "ticker": "ZEEL",
+          "fullName": "Zee Entertain",
+          "industry": "TV Broadcasting & Software Production",
+          "shares": 960519420,
+          "mktCapAtBuild": 8913.62
         }
       ],
-      "scheduledCount": 114,
+      "scheduledCount": 112,
       "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     },
     "2026-08-09": {
       "rows": [
@@ -2073,9 +2078,9 @@
           "displayDate": "9 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 790.05,
-          "changePct": 1.34,
-          "marketCap": 12235.81,
+          "ltp": 792,
+          "changePct": 0.25,
+          "marketCap": 12266.01,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diamond--jewellery/skygolddiamonds/SG08",
           "ticker": "SKYGOLD",
@@ -2093,7 +2098,7 @@
           "quarter": "Q1 FY26-27",
           "time": null,
           "ltp": 1239.3,
-          "changePct": 5,
+          "changePct": null,
           "marketCap": 9597.65,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/electric-equipment/qualitypowerelectricalequipments/QPEEL",
@@ -2111,9 +2116,9 @@
           "displayDate": "9 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 206.78,
-          "changePct": -3.97,
-          "marketCap": 2530.27,
+          "ltp": 206.3,
+          "changePct": -0.23,
+          "marketCap": 2524.39,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/packaging-sacks-bags/knackpackaging/KPL02",
           "ticker": "KNACK",
@@ -2139,394 +2144,7 @@
       ],
       "scheduledCount": 3,
       "capped": false,
-      "asOnDate": "11/08/2026"
-    },
-    "2026-08-08": {
-      "rows": [
-        {
-          "scId": "D05",
-          "name": "Delhivery",
-          "shortName": "Delhivery",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 473.45,
-          "changePct": -1.02,
-          "marketCap": 35463.99,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/courier-services/delhivery/D06",
-          "ticker": "DELHIVERY",
-          "fullName": "Delhivery",
-          "industry": "Courier Services",
-          "shares": 749054626,
-          "mktCapAtBuild": 35595.08
-        },
-        {
-          "scId": "AI72",
-          "name": "AFFLE 3I",
-          "shortName": "AFFLE 3I",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 1677.3,
-          "changePct": 5.19,
-          "marketCap": 23629.7,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/it-services-consulting/affle3i/AI82",
-          "ticker": "AFFLE",
-          "fullName": "AFFLE 3I",
-          "industry": "IT Services & Consulting",
-          "shares": 140879384,
-          "mktCapAtBuild": 23005.6
-        },
-        {
-          "scId": "ARI",
-          "name": "Anant Raj",
-          "shortName": "Anant Raj",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 606.25,
-          "changePct": 0.33,
-          "marketCap": 21817.54,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-real-estate/anantraj/ARI",
-          "ticker": "ANANTRAJ",
-          "fullName": "Anant Raj",
-          "industry": "Construction - Real Estate",
-          "shares": 359876930,
-          "mktCapAtBuild": 21634
-        },
-        {
-          "scId": "SNP",
-          "name": "HBL Engineering",
-          "shortName": "HBL Eng",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 695.25,
-          "changePct": 0.1,
-          "marketCap": 19271.98,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/electric-equipment/hblengineering/HBL02",
-          "ticker": "HBLENGINE",
-          "fullName": "HBL Eng",
-          "industry": "Batteries",
-          "shares": 277194946,
-          "mktCapAtBuild": 19420.28
-        },
-        {
-          "scId": "SEP01",
-          "name": "Shaily Engineering Plastics",
-          "shortName": "Shaily Engg",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 3457.9,
-          "changePct": 2.69,
-          "marketCap": 15889.98,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/shailyengineeringplastics/SEP02",
-          "ticker": "SHAILY",
-          "fullName": "Shaily Engg",
-          "industry": "Plastic Products - Others",
-          "shares": 45952677,
-          "mktCapAtBuild": 15871.14
-        },
-        {
-          "scId": "AMS",
-          "name": "Apollo Micro Systems",
-          "shortName": "Apollo Micro Sy",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 388.7,
-          "changePct": 0.12,
-          "marketCap": 13888.46,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/aerospace-defence/apollomicrosystems/AMS",
-          "ticker": "APOLLO",
-          "fullName": "Apollo Micro Sy",
-          "industry": "Aerospace & Defence",
-          "shares": 357305440,
-          "mktCapAtBuild": 13875.96
-        },
-        {
-          "scId": "ADP03",
-          "name": "Akums Drugs Pharmaceuticals",
-          "shortName": "Akums Drugs P",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 760.95,
-          "changePct": 4.23,
-          "marketCap": 11976.9,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/akumsdrugspharmaceuticals/ADP03",
-          "ticker": "AKUMS",
-          "fullName": "Akums Drugs P",
-          "industry": "Pharmaceuticals & Drugs",
-          "shares": 157393988,
-          "mktCapAtBuild": 12037.49
-        },
-        {
-          "scId": "BPI",
-          "name": "Banco Products (India)",
-          "shortName": "Banco Products",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 633.85,
-          "changePct": 1.01,
-          "marketCap": 9066.42,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/bancoproductsindia/BPI",
-          "ticker": "BANCOINDIA",
-          "fullName": "Banco Products",
-          "industry": "Auto Ancillaries - Others",
-          "shares": 143037300,
-          "mktCapAtBuild": 9108.62
-        },
-        {
-          "scId": "PMP",
-          "name": "Power Mech Projects",
-          "shortName": "Power Mech",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 2442.3,
-          "changePct": -3.49,
-          "marketCap": 7721.65,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/infrastructure-general/powermechprojects/PMP",
-          "ticker": "POWERMECH",
-          "fullName": "Power Mech",
-          "industry": "Infrastructure",
-          "shares": 31616292,
-          "mktCapAtBuild": 7900.91
-        },
-        {
-          "scId": "PFR",
-          "name": "Aditya Birla Fashion & Retail",
-          "shortName": "Aditya Birla F",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 58.63,
-          "changePct": -3.95,
-          "marketCap": 7156.02,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/retail/adityabirlafashionretail/PFR",
-          "ticker": "ABFRL",
-          "fullName": "Aditya Birla F",
-          "industry": "Retailing",
-          "shares": 1220538192,
-          "mktCapAtBuild": 7165.78
-        },
-        {
-          "scId": "PI29",
-          "name": "PNC Infratech",
-          "shortName": "PNC Infratech",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 222.4,
-          "changePct": 5.7,
-          "marketCap": 5705.43,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-contracting-real-estate/pncinfratech/PI26",
-          "ticker": "PNCINFRA",
-          "fullName": "PNC Infratech",
-          "industry": "Construction - Infrastructure",
-          "shares": 256539165,
-          "mktCapAtBuild": 5658.48
-        },
-        {
-          "scId": "CIL07",
-          "name": "Ceigall India",
-          "shortName": "Ceigall India",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 325.75,
-          "changePct": 1.86,
-          "marketCap": 5674.72,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/ceigallindia/CIL07",
-          "ticker": "CEIGALL",
-          "fullName": "Ceigall India",
-          "industry": "Construction - Infrastructure",
-          "shares": 174204861,
-          "mktCapAtBuild": 5647.72
-        },
-        {
-          "scId": "LI05",
-          "name": "Lumax Industries",
-          "shortName": "Lumax Inds",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 5996.5,
-          "changePct": 6.03,
-          "marketCap": 5605.37,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/lumaxindustries/LI05",
-          "ticker": "LUMAXIND",
-          "fullName": "Lumax Inds",
-          "industry": "Auto Ancillaries - Head lamps & lights",
-          "shares": 9347732,
-          "mktCapAtBuild": 5571.72
-        },
-        {
-          "scId": "OPL02",
-          "name": "Oswal Pumps",
-          "shortName": "Oswal Pumps",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 306.35,
-          "changePct": 0.02,
-          "marketCap": 3492.54,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-industrial-equipments/oswalpumps/OPL02",
-          "ticker": "OSWALPUMPS",
-          "fullName": "Oswal Pumps",
-          "industry": "Engineering - Industrial Equipments",
-          "shares": 114004897,
-          "mktCapAtBuild": 3476.58
-        },
-        {
-          "scId": "AET02",
-          "name": "Advanced Enzyme Technologies",
-          "shortName": "Advanced Enzyme",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 298.3,
-          "changePct": 1.27,
-          "marketCap": 3340.25,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals/advancedenzymetechnologies/AET",
-          "ticker": "ADVENZYMES",
-          "fullName": "Advanced Enzyme",
-          "industry": "Pharmaceuticals & Drugs",
-          "shares": 111976150,
-          "mktCapAtBuild": 3326.25
-        },
-        {
-          "scId": "NS12",
-          "name": "Nitin Spinners",
-          "shortName": "Nitin Spinners",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 564.15,
-          "changePct": 0.97,
-          "marketCap": 3171.65,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/textiles-spinning-cotton-blended/nitinspinners/NS12",
-          "ticker": "NITINSPIN",
-          "fullName": "Nitin Spinners",
-          "industry": "Textiles & Apparel",
-          "shares": 56220000,
-          "mktCapAtBuild": 3174.18
-        },
-        {
-          "scId": "DGP",
-          "name": "Windsor Machines",
-          "shortName": "Windsor",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 302.6,
-          "changePct": -0.35,
-          "marketCap": 3130.68,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-heavy/windsormachines/WM01",
-          "ticker": "WINDMACHIN",
-          "fullName": "Windsor",
-          "industry": "Engineering - Industrial Equipments",
-          "shares": 103459417,
-          "mktCapAtBuild": 3123.44
-        },
-        {
-          "scId": "EII02",
-          "name": "Eveready Industries India",
-          "shortName": "Eveready Ind",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 357.35,
-          "changePct": 1.93,
-          "marketCap": 2597.48,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/dry-cells/evereadyindustriesindia/EII02",
-          "ticker": "EVEREADY",
-          "fullName": "Eveready Ind",
-          "industry": "Batteries",
-          "shares": 72687260,
-          "mktCapAtBuild": 2568.04
-        },
-        {
-          "scId": "MAH01",
-          "name": "Medi Assist Healthcare Services",
-          "shortName": "Medi Assist Hea",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 346.25,
-          "changePct": -1.91,
-          "marketCap": 2586.55,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/hospital-healthcare-services/mediassisthealthcareservices/MAH01",
-          "ticker": "MEDIASSIST",
-          "fullName": "Medi Assist Hea",
-          "industry": "Hospital & Healthcare Services",
-          "shares": 74701842,
-          "mktCapAtBuild": 2617.18
-        },
-        {
-          "scId": "MC03",
-          "name": "Mangalam Cement",
-          "shortName": "Mangalam Cement",
-          "resultDate": "2026-08-08",
-          "displayDate": "8 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 906.15,
-          "changePct": 0.52,
-          "marketCap": 2491.67,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cement-major/mangalamcement/MC03",
-          "ticker": "MANGLMCEM",
-          "fullName": "Mangalam Cement",
-          "industry": "Cement",
-          "shares": 27497298,
-          "mktCapAtBuild": 2481.49
-        }
-      ],
-      "scheduledCount": 52,
-      "capped": true,
-      "asOnDate": "11/08/2026"
+      "asOnDate": "12/08/2026"
     }
   }
 }
