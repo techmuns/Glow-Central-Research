@@ -253,16 +253,25 @@ export const SOURCE_GROUPS = [
         name: 'AMFI — monthly portfolio disclosures',
         url: 'https://www.amfiindia.com/',
         feeds:
-          'Mutual fund scheme holdings and monthly category flows (equity, large / mid / small cap). Feeds the fund cards, the mandate table and the category small-multiples. <strong class="text-amber-700">Synthetic today</strong>, including the AUM and scheme counts shown against each real fund name.',
+          'Mutual fund scheme holdings and monthly category flows (equity, large / mid / small cap). Feeds the category small-multiples and the not-yet-wired fund cards. <strong class="text-amber-700">Synthetic today</strong>, including the AUM and scheme counts shown against each real fund name.',
         cadence: 'Monthly — not yet connected',
         status: 'mock',
         file: 'public/data/mock/institutions.json · public/data/mock/fund-flows.json',
       },
       {
-        name: 'Trendlyne / BSE shareholding patterns',
+        name: 'Trendlyne — superstar shareholdings (filed)',
+        url: 'https://trendlyne.com/portfolio/superstar-shareholders/54015/latest/smallcap-world-fund-inc/',
+        feeds:
+          '<strong>Real filings.</strong> Indian companies file their shareholding pattern with the exchanges every quarter, naming each holder above 1% with a share count and a percentage of the company; Trendlyne aggregate those filings by holder. Wired for <strong>Smallcap World Fund Inc</strong> (Capital Group) — 37 Indian holdings worth ₹35,818 Cr as of Jun 2026, with nine quarters of filed history each, plus 35 companies it previously held. <strong>Share counts and percentages are the filings; the ₹ value is Trendlyne\'s own derivation</strong> (holding % × market cap), reproduced unchanged and attributed rather than recomputed. A blank percentage means the company has not filed yet, not that the position was sold.',
+        cadence: 'Quarterly, as filings arrive over the weeks after a quarter closes · re-run the scraper',
+        status: 'live',
+        file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
+      },
+      {
+        name: 'Trendlyne / BSE — the funds not yet wired',
         url: 'https://trendlyne.com/',
         feeds:
-          'FII and DII holding percentages and their quarter-on-quarter change, and the FII/DII monthly net flow series. <strong class="text-amber-700">Synthetic today</strong> for the tracked-holder positions. Note the real FII/DII holding <em>changes</em> already reach the dashboard through the technicals scrape — the Fund Flows view joins to those, and labels which columns are which.',
+          'The other seven institutions on the Institutions view, and the FII/DII monthly net flow series. <strong class="text-amber-700">Synthetic today</strong>: real fund names, invented positions. They sit below the filed panel under their own ribbon and are excluded from every figure on it. Wiring one for real is a single entry in <code class="rounded bg-slate-100 px-1">FUNDS</code> in the scraper above. Note the real FII/DII holding <em>changes</em> already reach the dashboard through the technicals scrape — Fund Flows joins to those and labels which columns are which.',
         cadence: 'Quarterly with the shareholding filings — not yet connected',
         status: 'mock',
         file: 'public/data/mock/institutions.json · public/data/mock/fund-flows.json',

@@ -43,6 +43,13 @@ This is the first thing to check before quoting any number off a screen.
 Both scrapes run from `.github/workflows/technicals-refresh.yml` and share one fetch helper,
 `scripts/lib/yahoo.mjs`, so the two feeds cannot drift about what a close price is.
 
+**Filed shareholdings — Smallcap World Fund Inc.** Every Indian company the fund appears in, with
+the share count and percentage the company filed with the exchanges, nine quarters deep, scraped
+from Trendlyne. 37 holdings, ₹35,818 Cr as of Jun 2026, cross-checked to the rupee against
+Trendlyne's own stated total before the file is written. The rupee value is *their* derivation and
+says so everywhere. The other seven institutions on that view are still synthetic and sit below it
+under their own ribbon, excluded from every figure on the real panel.
+
 ### Real, but refreshed by hand
 
 | Feed | File | Notes |

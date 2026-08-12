@@ -62,11 +62,13 @@ public/
       pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
     investors/
       deep-dive.js            the four-tab per-investor workspace
+      filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
     data/
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter.js              forum + telegram feeds, momentum and pump risk derived here
-      investors.js            holders, overlap matrix, company interest, fund flows
+      investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
+      institution-holdings.js real filed shareholdings, by institution (Trendlyne)
       universe.js             screener-export -> legacy universe shape adapter
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
@@ -82,6 +84,8 @@ scripts/
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   gen-mock-chatter.mjs        seeded generator for the forum + telegram feeds
   gen-mock-investors.mjs      seeded generator for holdings + fund flows
+  scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
+  lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
@@ -387,8 +391,13 @@ What makes it honest is that the boundary never blurs:
    imported by `worker/stockscans.mjs`, so the browser and the Worker cannot drift about what
    "Strong" means.
 
-The same rules would apply to any future feed where the *analysis* is someone else's rather than
-the *measurement*.
+The same rules apply to any feed where the *analysis* is someone else's rather than the
+*measurement*. **Institutions is the second consumer**: a shareholding filing discloses a share
+count and a percentage of the company and never a rupee amount, so the ₹ value beside every
+holding is Trendlyne's derivation — reproduced unchanged, headed "Value (Trendlyne)", and split
+from the filings in the drill's Provenance group. `scrape-institution-holdings.mjs` refuses to
+write the file unless its own total matches the one Trendlyne print on the page, which is how a
+parse that silently dropped a row would be caught rather than shipped.
 
 ### One tab, one provenance — and how it got that way
 
@@ -676,6 +685,7 @@ Rules:
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
 | Regenerate the mock chatter / investors | `node scripts/gen-mock-chatter.mjs`, `node scripts/gen-mock-investors.mjs` |
+| Wire another fund's real holdings | one entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs`, then re-run it |
 | Change the pump-risk thresholds | `js/chatter/pump-risk.js` — named constants, and the help modal quotes them |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
 | Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |

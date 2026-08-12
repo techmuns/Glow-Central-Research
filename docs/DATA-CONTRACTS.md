@@ -27,6 +27,7 @@ the interface, and change the doc and the producer together.
 | `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `superinvestors` | `public/data/mock/superinvestors.json` |
 | `institutions` | `public/data/mock/institutions.json` |
+| `filedHoldings` | `public/data/institution-holdings.json` |
 | `fundFlows` | `public/data/mock/fund-flows.json` |
 | `transactions` | `public/data/mock/transactions.json` |
 
@@ -1202,6 +1203,94 @@ either file: it picks the busiest threads and groups, increments their counters,
 momentum and pump risk, and returns `{ at, events[], total }`. `live.mockFetcher` would
 re-download both files every tick and jitter their numbers — and a jittered post count sitting
 beside the quoted post text would simply disagree with it.
+
+---
+
+## `public/data/institution-holdings.json` — REAL, filed shareholdings
+
+Every Indian company a tracked institution appears in, with what the company **filed** with the
+exchanges. Written by `scripts/scrape-institution-holdings.mjs` off Trendlyne's superstar pages.
+
+```jsonc
+{
+  "source": "Trendlyne — Superstar Shareholders (…)",
+  "generator": "scripts/scrape-institution-holdings.mjs",
+  "generated_at": "2026-08-12T…Z",
+  "quarter": "Q1FY27", "quarterLabel": "Jun 2026",
+  "institutions": [{
+    "investorId": "smallcap-world-fund-inc",
+    "name": "Smallcap World Fund Inc", "house": "Capital Group", "category": "FII",
+    "trendlyneId": 54015,
+    "sourceUrl": "https://trendlyne.com/portfolio/superstar-shareholders/54015/latest/…/",
+    "latestQuarter": "Q1FY27", "latestQuarterLabel": "Jun 2026",
+    "quarters":      ["Q1FY27", "Q4FY26", … 9 deep],
+    "quarterLabels": ["Jun 2026", "Mar 2026", …],
+    "stocksHeld": 37,            // holdings carrying a value — the portfolio
+    "portfolioValueCr": 35818,   // their sum; cross-checked against Trendlyne's own figure
+    "filedThisQuarter": 36,      // how many have actually filed for Jun 2026
+    "awaitingFiling": ["JBCHEPHARM"],
+    "holdings": [{
+      "ticker": "AEGISLOG", "name": "Aegis Logistics",
+      "sector": "Oil, Gas & Consumable Fuels", "industry": "Trading - Gas", "inUniverse": true,
+      "qty": 8732412,            // FILED
+      "holdingPct": 2.5,         // FILED — null where the company has not filed this quarter
+      "valueCr": 1104.2,         // TRENDLYNE'S DERIVATION, not ours
+      "changePp": 0.2,           // Trendlyne's published change for the quarter
+      "changeNote": null,        // their label where no number applies — see below
+      "pctDelta": 0.2,           // ours: this quarter's filed % minus last quarter's
+      "pctByQuarter": { "Q1FY27": 2.5, "Q4FY26": 2.3, … },
+      "url": "https://trendlyne.com/equity/share-holding/35/AEGISLOG/latest/…/"
+    }],
+    "former": [ … same shape, companies with history but no current position … ]
+  }]
+}
+```
+
+### Which numbers are filings, and which one is not
+
+A shareholding filing discloses a **share count and a percentage of the company**. It never
+discloses a rupee amount. So `qty` and `holdingPct` are the filing itself; `valueCr` is
+**Trendlyne's derivation** — holding % × market cap — reproduced unchanged and labelled as theirs
+on every surface it reaches, including the column header (`Value (Trendlyne)`), the stat card, the
+drill's Provenance group and row 1 of the exported sheet. The same rule as the StockScans con-call
+scores: reproduce, attribute, never re-derive.
+
+`pctDelta` **is** ours, and it is only the difference between two filed percentages — never a
+stand-in for `changePp`. On the Jun 2026 pull the two agree on every row, which is a useful check
+that the history columns are being read in the right order.
+
+### A blank percentage means NOT FILED, not sold
+
+Companies file within weeks of a quarter closing, and not all at once. A holding can carry a share
+count and a value while its percentage for the newest quarter is still outstanding — Trendlyne
+label that row **Filing Awaited**, and one of the 37 Jun-2026 holdings is in exactly that state.
+`holdingPct: null` renders as *not filed yet*; a zero there would report a live position as exited.
+
+`changeNote` carries their label wherever a number does not apply. Three seen in the wild:
+**New**, **Below 1% first time**, **Filing Awaited**. A filing only names holders above 1%, so
+crossing that line in either direction is a disclosure event, not necessarily a trade.
+
+### The run fails rather than shipping a wrong total
+
+Trendlyne state the holding count and the portfolio value in prose on the page. The scraper
+computes both from the rows it parsed and **refuses to write the file if they disagree** — the
+parse dropping or double-counting a row is the failure mode that would otherwise look like a
+clean run. They agree to the rupee on the Jun 2026 pull: 37 holdings, ₹35,818.0 Cr.
+
+Two traps the parser is built around, both of which produce a *plausible* wrong answer:
+
+- **Balance the `<table>` tags.** Each row has an expandable child table, so cutting at the first
+  `</table>` yields three rows out of seventy-two and looks like it worked. Check the row count.
+- **Key on the per-row equity link, not the visible name.** The child rows repeat the same figures
+  shifted by one column and would double every holding; the link is also where the NSE ticker
+  comes from, which the truncated display name cannot give.
+
+### Adding a fund
+
+One entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs` — the `id` and `slug` come
+straight out of the Trendlyne URL — then re-run it. No UI change: the Institutions view renders a
+picker as soon as there is more than one, and every fund still lacking real filings stays in the
+synthetic section below with its own ribbon.
 
 ---
 

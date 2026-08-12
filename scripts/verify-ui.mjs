@@ -896,7 +896,78 @@ for (const sub of ['superstar-investors', 'institutions', 'fund-flows']) {
   ok(`investors ${sub}: attribution ribbon`, (await page.locator('[data-mock-ribbon]').count()) === 1);
 }
 ok('ribbon says the names are real and the holdings are not', /names are real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
-ok('ribbon names the real sources', /ticker finology/i.test(await hostText()) && /trendlyne/i.test(await hostText()) && /amfi/i.test(await hostText()));
+
+// ---------------------------------------------------------------------------------------
+// 9b. Institutions — REAL filed shareholdings, and the line between them and the rest.
+//
+// This is the one view where a real feed and the synthetic placeholders share a sub-view, so the
+// checks that matter are about the boundary: no headline number may span both, and the reader must
+// never be able to mistake which half a figure came from.
+// ---------------------------------------------------------------------------------------
+await go('/#/research/super-investors/institutions?scope=universe', 2400);
+await waitForPanel();
+const filedData = await page.evaluate(async () => {
+  const m = await import('/js/data/institution-holdings.js');
+  const f = m.all()[0];
+  if (!f) return null;
+  return {
+    name: f.name,
+    stocksHeld: f.stocksHeld,
+    portfolioValueCr: f.portfolioValueCr,
+    sumOfRows: Math.round(f.holdings.reduce((a, h) => a + (h.valueCr ?? 0), 0) * 10) / 10,
+    filed: f.filedThisQuarter,
+    awaiting: f.awaitingFiling.length,
+    quarters: f.quarters.length,
+    // The one number that must never be faked: a holding with no filed percentage keeps its
+    // share count, and must not be carrying a zero percentage instead.
+    zeroPcts: f.holdings.filter((h) => h.holdingPct === 0).length,
+    nullPctWithQty: f.holdings.filter((h) => h.holdingPct == null && h.qty != null).length,
+    deltaDisagreements: f.holdings.filter((h) => h.changePp != null && h.pctDelta != null && Math.abs(h.changePp - h.pctDelta) > 0.11).length,
+  };
+});
+if (filedData) {
+  ok('the filed-holdings file loads', filedData.stocksHeld > 0, `${filedData.name}: ${filedData.stocksHeld} holdings`);
+  ok("...and its total is the sum of its own rows", Math.abs(filedData.portfolioValueCr - filedData.sumOfRows) < 0.5, `${filedData.portfolioValueCr} vs ${filedData.sumOfRows}`);
+  ok('...with nine quarters of filed history', filedData.quarters === 9, `${filedData.quarters} quarters`);
+  // Trendlyne publish their own change per row; ours is the difference of two filed percentages.
+  // They should agree — a disagreement means the history columns are being read out of order.
+  ok("our change agrees with Trendlyne's on every row", filedData.deltaDisagreements === 0, `${filedData.deltaDisagreements} rows differ by >0.11pp`);
+  ok('a holding awaiting its filing keeps null, never a zero percentage', filedData.zeroPcts === 0 && filedData.nullPctWithQty === filedData.awaiting, `${filedData.awaiting} awaiting, ${filedData.zeroPcts} zeros`);
+
+  const inst = await hostText();
+  ok('the table renders every filed holding', (await rowCount()) === filedData.stocksHeld, `${await rowCount()} rows`);
+  ok('the panel says the value is Trendlyne’s, not ours', /Trendlyne/.test(inst) && /derivation|not ours/i.test(inst));
+  ok('...and an unfiled percentage reads as not filed', filedData.awaiting === 0 || /not filed yet/i.test(inst));
+
+  // THE BOUNDARY. One ribbon, and it must sit BELOW the real table — not above it, where it would
+  // read as covering the filed figures too.
+  ok('exactly one illustrative ribbon on the view', (await page.locator('[data-mock-ribbon]').count()) === 1);
+  ok(
+    '...and it sits below the filed panel, not over it',
+    await page.evaluate(() => {
+      const rib = document.querySelector('[data-mock-ribbon]');
+      const tbl = document.querySelector('[data-table-scroll]');
+      return !!rib && !!tbl && (tbl.compareDocumentPosition(rib) & Node.DOCUMENT_POSITION_FOLLOWING) > 0;
+    })
+  );
+  ok('...and says the funds under it are excluded from the figures above', /excluded from every figure/i.test(inst));
+
+  // No headline number may mix the two. The stat strip's book value must equal the real fund's.
+  const shown = /₹\s*([\d,]+)\s*Cr/.exec(inst);
+  ok('the disclosed book is the real fund alone', !!shown && Math.abs(Number(shown[1].replace(/,/g, '')) - filedData.portfolioValueCr) < 1, shown?.[0]);
+
+  await page.locator('[data-filed-info]').click();
+  await page.waitForTimeout(500);
+  const prov = await page.locator('#modal-content').innerText();
+  ok('the Filed pill explains which numbers are filings', /filing/i.test(prov) && /derivation/i.test(prov));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+} else {
+  skip('the filed-holdings file loads', 'public/data/institution-holdings.json is not present');
+}
+
+await go('/#/research/super-investors/superstar-investors?scope=universe', 2000);
+ok('ribbon names the real sources', /ticker finology/i.test(await hostText()) && /amfi|trendlyne/i.test(await hostText()));
 
 // The positions must reconcile internally — qtyDelta against the quantities beside it.
 ok('holdings arithmetic reconciles', await page.evaluate(async () => {
