@@ -24,6 +24,7 @@
 import { sectionHead } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import * as scans from '../concall/scans.js';
+import { stopDeepDive } from '../concall/deep-dive.js';
 import * as feed from '../data/concall-scans.js';
 
 export const meta = {
@@ -88,6 +89,9 @@ function cleanup() {
     unsubscribe();
     unsubscribe = null;
   }
+  // The shell closes overlays on route change with `{ silent: true }`, which skips the workspace's
+  // own onClose — so the Deep Dive poller has to be stopped from here or it outlives its panel.
+  stopDeepDive();
   disposePanel();
   mountDisposers.forEach((d) => d && d());
   mountDisposers = [];

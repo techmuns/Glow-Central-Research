@@ -58,6 +58,8 @@ public/
     concall/
       scans.js                the WHOLE Con-call tab, live off StockScans (scores are THEIRS)
                               — the scan table plus the "Upcoming Concalls" schedule overlay
+      deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
+                              dashboard, mirror its progress, render its report (also THEIRS)
     chatter/
       pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
     investors/
@@ -69,6 +71,8 @@ public/
       chatter.js              forum + telegram feeds, momentum and pump risk derived here
       investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
       institution-holdings.js real filed shareholdings, by institution (Trendlyne)
+      deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
+                              so nothing in here fires on its own
       universe.js             screener-export -> legacy universe shape adapter
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
@@ -401,6 +405,37 @@ from the filings in the drill's Provenance group. `scrape-institution-holdings.m
 write the file unless its own total matches the one Trendlyne print on the page, which is how a
 parse that silently dropped a row would be caught rather than shipped.
 
+**Concall Deep Dive is the third**, and the strongest case: the whole artefact is theirs, not one
+column of it. See below.
+
+### Triggering someone else's pipeline — the Deep Dive rule
+
+The Con-call table's last column dispatches a run on a **separate** dashboard, watches it, and
+renders the report it produces. Everything in *Reproducing someone else's analysis* applies —
+reproduce, never recompute; say whose it is on every surface; link to their own rendering — plus
+three that only arise when you can make another service *do work*:
+
+1. **A click costs money, so nothing fires on its own.** Their `POST /api/analyze` is
+   unauthenticated and every accepted call starts a real LLM + compute run. So: no poller
+   registers this, no row peeks at it on render, the cell is a button and nothing more, and the
+   first click opens a confirm step that says so before anything is sent. Reopening a panel calls
+   `resume(slug)`, which polls and never dispatches — their API would dedup a second `POST`
+   anyway, but not asking at all is the version that cannot cost a run through a bug of ours.
+2. **The loading window is their words, not our spinner.** A run takes minutes. The panel prints
+   the `stage` and `message` their pipeline reports on each poll, the elapsed clock, and the stage
+   trail. A generic "Analysing…" would be inventing reassurance about a process we cannot see.
+   `unknown` right after dispatch is KV lag, not failure — render it as *waiting to register*,
+   never as an error and never as an empty report.
+3. **Render defensively, because the schema is not ours to pin.** `report`'s shape lives in their
+   repo. Known sections get a heading in a sensible order and **anything unrecognised still
+   renders** through a generic walker, so a field they add next month shows up rather than
+   vanishing. Escape every string — this is external content and none of it may reach the DOM as
+   markup.
+
+The base URL is not committed: that Worker has no custom domain, so its address is
+deployment-specific. The column ships unconnected and asks once, storing it in `localStorage`
+(`sattva:deepdive-base`), or reads `window.SATTVA_DEEPDIVE_URL` if `index.html` sets it.
+
 ### One tab, one provenance — and how it got that way
 
 The Con-call tab used to carry six sub-views behind a left rail. Two were live off StockScans; the
@@ -672,6 +707,7 @@ Rules:
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
 | Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
+| Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |

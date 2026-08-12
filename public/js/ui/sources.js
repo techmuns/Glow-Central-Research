@@ -199,6 +199,15 @@ export const SOURCE_GROUPS = [
         status: 'live',
         file: 'worker/index.js → /api/concalls · worker/stockscans.mjs · public/data/concall-scans.json · scripts/scrape-concalls.mjs',
       },
+      {
+        name: 'Concall Deep Dive — per-company report',
+        url: null,
+        feeds:
+          'The <strong>Deep Dive</strong> button on every scan row. A separate dashboard runs its own LLM pipeline over that company\'s call and returns a report — verdict, takeaways, financials, risks — which this page lays out and links back to. <strong>The whole report is theirs</strong>; nothing on that panel is computed or re-scored here. Two things to know: it does nothing until you paste that dashboard\'s URL (it is deployment-specific, so it is not committed here), and <strong>each run costs real compute on their side</strong>, so the button asks before dispatching and nothing ever fires on its own.',
+        cadence: 'On demand — one run per click, polled every 4s until it finishes (usually minutes). A report under a fortnight old is reused from their cache.',
+        status: 'ondemand',
+        file: 'public/js/data/deep-dive.js · public/js/concall/deep-dive.js',
+      },
     ],
   },
   {
@@ -321,9 +330,13 @@ const STATUS_CHIP = {
   live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   static: 'bg-blue-50 text-blue-700 ring-blue-200',
   mock: 'bg-amber-50 text-amber-700 ring-amber-200',
+  // Indigo is the brand/action colour and this status IS an action — a source that produces
+  // nothing until the reader asks it to. It is deliberately not emerald: counting it among the
+  // live feeds would claim data is flowing when none is until someone clicks.
+  ondemand: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
   pending: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
-const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data', pending: 'Not yet built' };
+const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data', ondemand: 'On demand', pending: 'Not yet built' };
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
 export function sourcesModalHtml() {
@@ -331,6 +344,7 @@ export function sourcesModalHtml() {
   const total = items.length;
   const live = items.filter((i) => i.status === 'live').length;
   const realStatic = items.filter((i) => i.status === 'static').length;
+  const onDemand = items.filter((i) => i.status === 'ondemand').length;
 
   return `
     <div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
@@ -340,7 +354,8 @@ export function sourcesModalHtml() {
           <p class="mt-1 text-sm text-slate-500">
             Every source that feeds this dashboard, grouped by the tabs it serves.
             <span class="font-semibold text-slate-700">${live} of ${total}</span> are wired to a live feed today,
-            ${realStatic} more carry real data refreshed by hand — the rest ship with mock data and are labelled as such.
+            ${realStatic} more carry real data refreshed by hand${onDemand ? `, and ${onDemand} runs only when you ask it to` : ''} —
+            the rest ship with mock data and are labelled as such.
           </p>
         </div>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>

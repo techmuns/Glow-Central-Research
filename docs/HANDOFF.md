@@ -58,6 +58,12 @@ still feeds Fund Flows' category charts.
 | --- | --- | --- |
 | The coverage universe | `public/data/universe.json` | The actual NSE-500 Screener export, 535 companies. Names, tickers, sectors and market caps everywhere else in the app come from here. |
 
+### Real, but produced only when the reader asks for it
+
+| Feed | Where | Notes |
+| --- | --- | --- |
+| **Concall Deep Dive** — a per-company report on one call | The **Deep Dive** column on the Con-call tab | A separate Cloudflare Worker runs its own LLM pipeline and returns the report; this dashboard triggers it, mirrors its progress and lays out the result. Nothing is stored in `public/data/` and nothing is committed. It ships **unconnected** — that Worker's URL is deployment-specific — and **each run costs real compute**, so nothing fires on its own. See §5c. |
+
 ### Mock — placeholder data shipped so the shell has something to render
 
 `public/data/mock/`: earnings, the earnings calendar, ValuePickr
@@ -133,6 +139,8 @@ public/js/
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
                            "Upcoming Concalls" schedule overlay
+                           deep-dive.js — the panel behind the Deep Dive column (a SEPARATE
+                           dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
   tabs/                    the five Research Central tabs
 worker/
@@ -338,8 +346,29 @@ analysed yet, and link to their reader rather than reproducing their summaries.
 corpus with fictional speakers, because no open source publishes full transcript text. That put a
 live half and a synthetic half in one tab, separated by an amber ribbon on one side and a green
 pill on the other. The four are gone — the tab has one source, no rail and no ribbon. The keyword
-engine and the Deep Dive workspace live on in git history and would come back if BSE's filed
+engine and the old Deep Dive workspace live on in git history and would come back if BSE's filed
 transcript PDFs were ever wired, pointed at real text.
+
+### The Deep Dive column — a third party we can spend money on
+
+The last column hands one company to **Concall Deep Dive**, a separate Cloudflare Worker running
+its own LLM pipeline over that call. We dispatch, mirror its progress in its own words, and lay
+out the report it returns. `js/data/deep-dive.js` is the transport, `js/concall/deep-dive.js` the
+panel; full contract in `docs/DATA-CONTRACTS.md`.
+
+Three things to know before touching it:
+
+- **It ships unconnected, on purpose.** That Worker has no custom domain, so its URL is
+  deployment-specific and is not in this repo. The first click asks for it and stores it in
+  `localStorage`; set `window.SATTVA_DEEPDIVE_URL` in `public/index.html` to fix it for everyone.
+- **Their `POST /api/analyze` is unauthenticated and every accepted call costs a real run.** That
+  is a known gap on their side, not something this dashboard can fix from the browser — an
+  anonymous reader clicking through a 877-row table would be spending the owner's money. It is why
+  nothing here fires on its own and why the button confirms first. **Put auth on that endpoint
+  before the URL is public**; until then, treat the base URL as the only thing standing between a
+  public page and a metered pipeline.
+- **The report is theirs end to end.** Nothing on that panel is computed or re-scored here, and
+  every finished report links to their own rendering of it.
 
 ---
 
@@ -478,6 +507,12 @@ The ones that matter most:
   no auth and no bot wall, and `worker/mc.mjs` validates the payload's own header block so a column
   insertion fails loudly rather than shifting every field. But it can change without notice; the
   snapshot fallback is what stops that from blanking the tab.
+- **The Deep Dive endpoint is unauthenticated and metered.** `POST /api/analyze` on the Concall Deep
+  Dive Worker has no auth and CORS is open, and every accepted call starts a real LLM run. This page
+  therefore never dispatches without an explicit click and a confirm step — but that is a courtesy,
+  not a control: anyone who learns the URL can spend against it from anywhere, with or without this
+  dashboard. The fix belongs on that Worker (a shared secret, an allowlisted origin, a rate limit),
+  and it should land before that URL goes anywhere public.
 - **The transaction ledger is mock and CSV import does not persist.** Both need a server or a broker
   integration. `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" lists the six steps in order.
 - **`TATAMOTORS` has no price data at all** — Yahoo 404s the symbol, almost certainly because of the

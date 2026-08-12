@@ -84,6 +84,73 @@ const setHidden = (hidden) =>
 const rowCount = () => page.locator('tr[data-row-key]').count();
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
 
+/**
+ * A stand-in for the Concall Deep Dive dashboard (see section 6d).
+ *
+ * It implements the documented contract and nothing else, and it counts what it is asked to do —
+ * which is the point: the checks that matter about that integration are about requests NOT made.
+ * Deterministic by call count rather than by wall clock, so a slow machine cannot skip a state.
+ *
+ * The report body is deliberately hostile in two ways: it carries a section this renderer has
+ * never heard of, and a string that is markup. Both must survive as text.
+ */
+async function startDeepDiveStub(hits) {
+  const { createServer } = await import('node:http');
+  const runs = new Map(); // slug -> report polls served so far
+  const REPORT = {
+    meta: { company: 'Tata Motors', ticker: 'TATAMOTORS', quarter: 'Q1FY27', call_date: '2026-08-05' },
+    verdict: 'Constructive. Margin recovery is ahead of the guided path. <img src=x onerror="window.__dd_pwned=1">',
+    key_takeaways: ['JLR EBIT margin guided to 8-10% for FY27.', 'Net automotive debt down to near zero.'],
+    financials: [
+      { metric: 'Revenue', current: 108000, prior: 102300 },
+      { metric: 'PAT', current: 5900, prior: 3200 },
+    ],
+    weird_new_section: 'A field this renderer has never heard of, kept anyway.',
+  };
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://stub');
+    const send = (obj) => {
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        // Their CORS is wide open; the stub matches so the browser behaves the same way.
+        'access-control-allow-origin': '*',
+        'access-control-allow-headers': '*',
+        'access-control-allow-methods': 'GET,POST,OPTIONS',
+      });
+      res.end(JSON.stringify(obj));
+    };
+    if (req.method === 'OPTIONS') return send({});
+    if (url.pathname === '/api/analyze') {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        hits.analyze++;
+        const body = JSON.parse(raw || '{}');
+        if (body.force) hits.forced++;
+        const slug = `${String(body.ticker || body.company || 'x').toLowerCase().replace(/\W+/g, '-')}-q1fy27`;
+        runs.set(slug, 0);
+        send({ ok: true, slug, status: 'queued' });
+      });
+      return;
+    }
+    if (url.pathname === '/api/report') {
+      hits.report++;
+      const slug = url.searchParams.get('slug');
+      if (!runs.has(slug)) return send({ ok: true, slug, status: 'unknown' });
+      const n = runs.get(slug) + 1;
+      runs.set(slug, n);
+      // 1: the KV propagation beat. 2: a stage with a message. 3+: the finished report.
+      if (n === 1) return send({ ok: true, slug, status: 'unknown' });
+      if (n === 2) return send({ ok: true, slug, status: 'running', stage: 'transcript', message: 'Pulling the transcript from the exchange filing' });
+      return send({ ok: true, slug, status: 'done', report: REPORT, partial: false });
+    }
+    res.writeHead(404, { 'access-control-allow-origin': '*' });
+    res.end('{}');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { server, origin: `http://127.0.0.1:${server.address().port}` };
+}
+
 // ---------------------------------------------------------------------------------------
 // 1. Every route in both scopes renders a real panel
 // ---------------------------------------------------------------------------------------
@@ -801,6 +868,103 @@ ok('schedule times are 12-hour IST, as StockScans print them', /\b\d{1,2}:\d{2}\
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the schedule overlay', (await page.locator('#modal-overlay.is-open').count()) === 0);
+
+// ---------------------------------------------------------------------------------------
+// 6d. The Deep Dive column — triggering someone else's pipeline
+//
+// This column dispatches a run on a SEPARATE dashboard. Two things make it different from every
+// other feed here and both are checked below rather than trusted:
+//
+//   1. A CLICK COSTS MONEY. Their POST /api/analyze is unauthenticated and every accepted call
+//      starts a real LLM run. So the suite counts requests: rendering the table must dispatch
+//      NOTHING, reaching the confirm step must dispatch NOTHING, and reopening a finished panel
+//      must reattach rather than pay for a second run. A regression here is not a visual bug.
+//   2. THE REPORT IS EXTERNAL CONTENT with a schema we do not own. It must render sections we
+//      have never heard of, and it must not be able to inject markup.
+//
+// The stub below speaks the documented contract and nothing more, which is exactly what this
+// integration is allowed to assume. Pointing the suite at the real dashboard would spend money on
+// every run — and its URL is deployment-specific and deliberately not in this repo.
+// ---------------------------------------------------------------------------------------
+console.log('\n— con-call: deep dive —');
+
+const ddHits = { analyze: 0, report: 0, forced: 0 };
+const { server: ddStub, origin: ddOrigin } = await startDeepDiveStub(ddHits);
+
+await go('/#/research/concall?scope=universe', 1200);
+await waitForPanel();
+await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
+const ddCells = await page.locator('[data-deep-dive]').count();
+ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
+ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
+ok('THE TABLE DISPATCHES NOTHING ON RENDER', ddHits.analyze === 0 && ddHits.report === 0, `analyze=${ddHits.analyze} report=${ddHits.report}`);
+
+// The button owns its click: opening the drill behind a panel is not what anyone meant.
+await page.locator('[data-deep-dive]').first().click();
+await page.waitForTimeout(600);
+ok('the button opens the Deep Dive, not the row drill', (await page.locator('#drill-panel.is-open').count()) === 0 && (await page.locator('#workspace-overlay:not(.hidden)').count()) === 1);
+
+// Unconnected is the shipped state, because that URL is not in this repo.
+ok('an unconnected column asks for the dashboard URL', (await page.locator('#dd-base').count()) === 1);
+await page.fill('#dd-base', ddOrigin);
+await page.click('[data-dd-save]');
+await page.waitForSelector('[data-dd-start]', { timeout: 5000 });
+const ddConfirm = await page.locator('#workspace-panel').innerText();
+ok('...then says a run costs real compute before anything is sent', /costs real compute/i.test(ddConfirm) && /entirely theirs/i.test(ddConfirm));
+ok('...and STILL has not dispatched anything', ddHits.analyze === 0, `analyze=${ddHits.analyze}`);
+
+await page.click('[data-dd-start]');
+// Their pipeline reports `unknown` for a beat after dispatch while the record propagates. That is
+// not a failure and must not read as one.
+await page.waitForFunction(() => /Waiting for the run to register/i.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 15000 })
+  .then(() => ok('“unknown” right after dispatch reads as waiting, not as an error', true))
+  .catch(() => ok('“unknown” right after dispatch reads as waiting, not as an error', false, 'never showed the registering state'));
+
+// The loading window is THEIR words. A spinner of ours would be inventing reassurance.
+await page.waitForFunction(() => /Pulling the transcript from the exchange filing/.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 20000 })
+  .then(() => ok('the loading window prints their stage and message verbatim', true))
+  .catch(() => ok('the loading window prints their stage and message verbatim', false, 'their message never appeared'));
+const ddRunning = await page.locator('#workspace-panel').innerText();
+ok('...with an elapsed clock and the stages so far', /\d+m \d{2}s elapsed/.test(ddRunning) && /Stages so far/i.test(ddRunning));
+
+await page.waitForSelector('[data-dd-raw]', { timeout: 40000 });
+const ddDone = await page.locator('#workspace-panel').innerText();
+ok('the finished report renders', /Constructive/.test(ddDone) && /Key Takeaways/i.test(ddDone));
+ok('...and says the whole analysis is theirs', /reproduced here unchanged/i.test(ddDone) && /Nothing on this panel is computed/i.test(ddDone));
+const ddLink = await page.getAttribute('#workspace-panel a[target=_blank]', 'href');
+ok('...and links to their own rendering of it', !!ddLink && ddLink.startsWith(`${ddOrigin}/#/report/`), ddLink || 'no link');
+
+// The schema lives in their repo. A section we have never heard of must still appear.
+ok('a section the renderer has never heard of still renders', /Weird New Section/i.test(ddDone) && /kept anyway/i.test(ddDone));
+
+// It is external content, so none of it may reach the DOM as markup.
+const ddInjection = await page.evaluate(() => ({
+  pwned: !!window.__dd_pwned,
+  imgs: document.querySelectorAll('#workspace-panel img').length,
+  literal: document.querySelector('#workspace-panel').innerText.includes('<img src=x'),
+}));
+ok('report strings are escaped, not parsed as markup', !ddInjection.pwned && ddInjection.imgs === 0 && ddInjection.literal, JSON.stringify(ddInjection));
+
+// Reopening must reattach, not pay for a second run.
+const ddAfterRun = ddHits.analyze;
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+await page.locator('[data-deep-dive]').first().click();
+await page.waitForTimeout(600);
+ok('reopening offers to reattach to the run on record', (await page.locator('[data-dd-resume]').count()) === 1);
+await page.click('[data-dd-resume]');
+await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
+ok('...AND REATTACHING COSTS NOTHING', ddHits.analyze === ddAfterRun, `${ddHits.analyze} dispatches total`);
+ok('...never forcing a fresh run behind the reader’s back', ddHits.forced === 0, `${ddHits.forced} forced`);
+
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+// Leave no base URL behind: later sections must see the shipped, unconnected state.
+await page.evaluate(() => {
+  localStorage.removeItem('sattva:deepdive-base');
+  localStorage.removeItem('sattva:deepdive-slugs');
+});
+await new Promise((r) => ddStub.close(r));
 
 // ---------------------------------------------------------------------------------------
 // 8. Public Chatter — pump risk, the technicals join, and the quadrant

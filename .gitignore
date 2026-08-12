@@ -1,0 +1,4 @@
+# `npx wrangler dev` — the local Worker used to verify the /api routes and the caching layer —
+# writes its state, its build cache and a local KV/D1 sandbox here. It is machine-local and a few
+# megabytes, and nothing in the deploy reads it.
+.wrangler/

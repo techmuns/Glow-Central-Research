@@ -713,6 +713,71 @@ fresh. The script refuses to write an empty file.
 
 ---
 
+## Concall Deep Dive — a SEPARATE dashboard, called on demand
+
+The **Deep Dive** column on the scan table hands one company to a different Cloudflare Worker,
+which runs its own LLM pipeline over that company's call and publishes a report. This dashboard
+triggers it, mirrors its progress, and lays out what it returns. **Nothing here goes through our
+Worker, nothing is cached in `public/data/`, and nothing is committed.**
+
+**Client** — `public/js/data/deep-dive.js` (transport) and `public/js/concall/deep-dive.js` (panel).
+
+### The base URL is not in this repo, deliberately
+
+That Worker has no custom domain, so its address is whatever Cloudflare assigned it
+(`https://concall-sattva.<subdomain>.workers.dev`). It is deployment-specific and nobody reading
+this repo can know it, so the column ships **unconnected**: the first click opens a *Connect*
+step that stores the URL in `localStorage` under `sattva:deepdive-base`. To set it for everyone
+instead of per-browser, define `window.SATTVA_DEEPDIVE_URL` in `public/index.html` — the client
+reads localStorage first and falls back to that global.
+
+### The two routes it uses
+
+| Call | Sends | Returns |
+| --- | --- | --- |
+| `POST /api/analyze` | `{ company, ticker?, force? }` | `{ ok, slug, status }` — `status: "done"` means a cached report was reused and no run started |
+| `GET /api/report?slug=` | — | `{ ok, slug, status, stage?, message?, report?, partial? }` |
+
+`status` is one of `queued` \| `running` \| `done` \| `error` \| `unknown`. **`unknown` is not a
+failure** right after a dispatch — it is KV propagation lag, and the panel shows it as "waiting to
+register". Polling is every 4s with a 25-minute ceiling, just past their pipeline's own ~20.
+
+`slug` is **always theirs**, derived server-side. Never construct one here. It is remembered per
+ticker in `localStorage` under `sattva:deepdive-slugs` so closing the panel and reopening
+reattaches to a run in flight rather than dispatching a second one, and `<BASE>/#/report/<slug>`
+deep-links to their own rendering.
+
+### A CLICK COSTS MONEY, so nothing fires on its own
+
+Their `POST /api/analyze` is **unauthenticated** and every accepted call dispatches a real LLM +
+compute run. That constrains the integration, and the constraints are load-bearing:
+
+- No poller registers this feed, no row peeks at it on render, and the table's `Deep Dive` cell is
+  a button and nothing else.
+- The first click opens a **confirm** step that says a run costs compute before anything is sent.
+- Reopening a panel uses `resume(slug)`, which polls only. Their API would dedup a second
+  `POST` anyway, but not asking at all is the version that cannot cost a run through a bug of ours.
+- The dot on a row's button means a run for that ticker is already on record — that one comes back
+  from their cache.
+
+### The report is theirs, and the renderer never pretends otherwise
+
+Same rule as the StockScans scores above and the Trendlyne holding values below: we reproduce, we
+do not recompute. The panel adds no scoring, no re-banding and no judgement, says whose analysis it
+is at the top of every finished report, and links to their own rendering of it.
+
+`report`'s schema lives in *their* repo and is expected to grow, so `renderReport()` is
+deliberately defensive: known sections (`meta`, `verdict`, `key_takeaways`, `thesis`, `financials`,
+`valuation`, `risks`, `catalysts`, `guidance`, `management`, `sources`) get a heading in that
+order, and **anything unrecognised is still rendered** by a generic walker rather than dropped. A
+field they add next month appears without a change here. Every string is escaped — this is
+external content and none of it reaches the DOM as markup.
+
+`partial: true` means they could not fill every field; the panel says so in amber rather than
+rendering the gaps as if complete.
+
+---
+
 ## `GET /api/earnings-calendar` — LIVE, who is *scheduled* to report
 
 ```

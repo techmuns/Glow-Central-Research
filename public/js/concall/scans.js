@@ -21,6 +21,16 @@
 //   A call appears on the feed when it is HELD and acquires its analysis some minutes later.
 //   Until then `resultScore` is null and StockScans' own UI says "pending". A zero would claim
 //   they had assessed it and found it worthless.
+//
+// THE DEEP DIVE COLUMN TALKS TO A THIRD DASHBOARD, AND IT COSTS MONEY PER CLICK.
+//   The last column hands a row to Concall Deep Dive, a separate Cloudflare Worker that runs its
+//   own LLM pipeline over the call and publishes a report. Two rules hold here:
+//     - Nothing fires on render. The column is a button and only a button; no row peeks, no
+//       poller registers, and the panel asks for confirmation before the first dispatch. Their
+//       `POST /api/analyze` is unauthenticated and every accepted call is a real compute run.
+//     - The report is theirs. js/concall/deep-dive.js lays it out and computes nothing on top,
+//       and every finished report links to their own rendering of it — same rule as the
+//       StockScans scores above and the Trendlyne holding values on Institutions.
 
 import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
@@ -30,6 +40,8 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/concall-scans.js';
+import * as deepDive from '../data/deep-dive.js';
+import { openDeepDive } from './deep-dive.js';
 
 const ATTRIBUTION = 'Scores, sentiment and highlights are StockScans’ own analysis, shown unchanged.';
 
@@ -169,10 +181,12 @@ export function wireLivePill(root, m) {
 export function renderScans(ctx, { disposers, tableView, onView }) {
   const m = feed.meta();
   const rows = feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
+  // Read once for the whole paint rather than per row — see rememberedMap() in data/deep-dive.js.
+  const dived = deepDive.rememberedMap();
 
   const table = scoreTable({
     rows,
-    key: (r) => `${r.companyKey}|${r.when}`,
+    key: rowKey,
     name: (r) => r.name,
     nameLabel: 'Company',
     sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || '—'}`,
@@ -201,9 +215,18 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
         label: 'Highlights',
         get: (r) =>
           r.tags.length
-            ? `<div class="flex max-w-[430px] flex-col gap-0.5 whitespace-normal text-[11px] leading-snug">${r.tags.slice(0, 3).map(highlight).join('')}</div>`
+            ? `<div class="flex max-w-[380px] flex-col gap-0.5 whitespace-normal text-[11px] leading-snug">${r.tags.slice(0, 3).map(highlight).join('')}</div>`
             : `<span class="text-slate-300">—</span>`,
         html: true,
+        sortable: false,
+      },
+      {
+        // An action, not a reading — so it does not sort, and it is not in the export either: a
+        // workbook of "click here" cells would be a column of nothing.
+        label: 'Deep Dive',
+        get: (r) => deepDiveButton(r, dived),
+        html: true,
+        align: 'right',
         sortable: false,
       },
     ],
@@ -262,6 +285,51 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   wireLivePill(ctx.root, m);
   ctx.root.querySelector('[data-open-schedule]')?.addEventListener('click', () => openScheduleModal(scheduled, { scope: ctx.scope }));
   disposers.push(table.wire(ctx.root));
+
+  // Delegated on the host rather than per button: the table body is rebuilt on every sort, filter
+  // and live tick, and 500 listeners would be rebuilt with it. The button carries `data-norow`, so
+  // scoreTable's own handler leaves the drill closed and lets this one through.
+  const onDeepDive = (e) => {
+    const btn = e.target.closest('[data-deep-dive]');
+    if (!btn) return;
+    const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
+    if (row) openDeepDive(row, { onRecorded: () => markDived(btn) });
+  };
+  ctx.root.addEventListener('click', onDeepDive);
+  disposers.push(() => ctx.root.removeEventListener('click', onDeepDive));
+}
+
+/** The row key, in one place, because the Deep Dive button carries it back. */
+const rowKey = (r) => `${r.companyKey}|${r.when}`;
+
+/**
+ * The Deep Dive cell.
+ *
+ * A button and nothing more — no request is made until the reader confirms one inside the panel,
+ * because a dispatch is a real LLM run on an unauthenticated endpoint. The dot marks a company we
+ * have already run, which is worth knowing before clicking: that one comes back from their cache.
+ */
+function deepDiveButton(r, dived) {
+  const seen = r.ticker ? dived[String(r.ticker).toUpperCase()] : null;
+  return `
+    <button type="button" data-norow data-deep-dive="${escapeHtml(rowKey(r))}"
+      title="${seen ? 'Open the Deep Dive — a run for this company is already on record' : 'Analyse this call on the Concall Deep Dive dashboard (asks first — a run costs compute)'}"
+      class="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>
+      <span>Deep Dive</span>
+      ${seen ? '<span data-dived class="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500" aria-hidden="true"></span>' : ''}
+    </button>`;
+}
+
+/** Stamp the "run on record" dot on one button, the moment the run gets its id. */
+function markDived(btn) {
+  if (btn.querySelector('[data-dived]')) return;
+  const dot = document.createElement('span');
+  dot.dataset.dived = '';
+  dot.className = 'ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500';
+  dot.setAttribute('aria-hidden', 'true');
+  btn.appendChild(dot);
+  btn.title = 'Open the Deep Dive — a run for this company is already on record';
 }
 
 /** The one way into the schedule now that it is not a sub-view. Carries its own count. */
