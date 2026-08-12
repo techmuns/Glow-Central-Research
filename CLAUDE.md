@@ -56,10 +56,8 @@ public/
       components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
     concall/
-      scans.js                the two LIVE sub-views off StockScans (scores are THEIRS)
-      keyword-engine.js       runtime transcript scanner + the keyword store
-      keyword-editor.js       the keyword set editor (modal)
-      deep-dive.js            the six-tab Con-call Deep Dive workspace
+      scans.js                the WHOLE Con-call tab, live off StockScans (scores are THEIRS)
+                              — the scan table plus the "Upcoming Concalls" schedule overlay
     chatter/
       pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
     investors/
@@ -67,7 +65,6 @@ public/
     data/
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
-      concalls.js             same, for the transcript corpus (lazy — it is ~2MB)
       chatter.js              forum + telegram feeds, momentum and pump risk derived here
       investors.js            holders, overlap matrix, company interest, fund flows
       universe.js             screener-export -> legacy universe shape adapter
@@ -75,8 +72,7 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     earnings-hub, earnings-scans, earnings-drill, concall,
-                              public-chatter, breakouts, breakouts-drill, super-investors
+    tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
                               earnings-live.json, mc-ticker-map.json, result-returns.json,
@@ -84,7 +80,6 @@ public/
 scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
-  gen-mock-concalls.mjs       seeded generator for the synthetic transcript corpus
   gen-mock-chatter.mjs        seeded generator for the forum + telegram feeds
   gen-mock-investors.mjs      seeded generator for holdings + fund flows
   verify-ui.mjs               the pre-push checklist, driven with Playwright
@@ -316,49 +311,6 @@ Rules that make it behave:
 - `refreshWorkspace()` re-renders the current panel in place, for when the data behind it
   changes (a keyword edit).
 
-### The keyword engine — `js/concall/keyword-engine.js`
-
-A general text scanner, not a Con-call-only helper. Anything with a text corpus and a
-user-editable term list should use it rather than growing a second one.
-
-```js
-const scan = engine.scanCall(call, engine.getKeywords());
-scan.byKeyword['capex'].hits        // 7
-scan.byKeyword['capex'].prepared    // 4 — management volunteered it
-scan.byKeyword['capex'].qna         // 3 — analysts asked
-scan.byKeyword['capex'].contexts    // [{ speaker, section, sentence, matchedTerm }]
-engine.compareScans(latest, previous)  // deltas, plus introduced[] / dropped[]
-engine.highlight(text, keywords, escapeHtml)   // trusted markup
-```
-
-The non-negotiables:
-
-1. **Never store a count in a file.** Counts are computed at render time. That is the whole
-   reason editing a keyword updates the screen instantly, and it is why `concall-keywords.json`
-   ships terms and no `hits` field. A precomputed count would go stale the moment a user edits
-   an alias, and nothing would tell them.
-2. **Matching is word-boundary anchored and case-insensitive**, multi-word terms tolerate any
-   whitespace run, and **overlapping aliases count once** — longest alias wins. Without that
-   last rule, adding a broad alias silently inflates every count the narrow one already caught.
-3. **Keep `prepared` and `qna` separate all the way to the UI.** They mean opposite things:
-   management volunteering a topic versus an analyst having to extract it. Summing them away
-   throws out the most interesting thing in the data.
-4. **Missing input is not zero.** A call with no transcript returns `hasTranscript: false`, and
-   the UI must render "not held yet" rather than a row of zeroes — "management mentioned this
-   0 times" and "nobody has spoken yet" are different claims. Same for `compareScans` with no
-   previous call: every delta is `null`, never the latest count.
-5. **Scans are memoised on `(callId, keywordsHash)`**, where the hash covers only `id` +
-   `terms`. A colour or label edit must not bust a cache it cannot affect. The cache clears on
-   every keyword change.
-6. **Keyword colours are categorical only** — `indigo`, `violet`, `purple`, `fuchsia`, `pink`,
-   `sky`, `cyan`, `blue`, `teal`, `slate`. Emerald, amber and rose are semantic here, so a
-   keyword may never take one: a keyword tinted emerald reads as a verdict.
-
-Edits persist to `localStorage` under `sattva:concall-keywords` and broadcast through
-`onKeywordsChange()`. Subscribe once in the tab's `render()` and repaint from there — that one
-wire is what makes the editor feel instant instead of "save and reload". The write-back path for
-moving the set to a server store is in `docs/DATA-CONTRACTS.md`.
-
 ### Chrome primitives — `js/ui/components.js`
 
 Navigation furniture only: `tabBar`, `railNav`, `segmentedToggle`, `searchInput`, `liveBadge`,
@@ -438,15 +390,22 @@ What makes it honest is that the boundary never blurs:
 The same rules would apply to any future feed where the *analysis* is someone else's rather than
 the *measurement*.
 
-### Two provenances in one tab
+### One tab, one provenance — and how it got that way
 
-The Con-call tab is the only place where a live feed and the synthetic corpus sit under one tab
-header: the first two sub-views are live off StockScans, the last four run on generated
-transcripts with fictional speakers, because no open source gives us full transcript text. The
-line is held by three things — `LIVE_SUBVIEWS` in `js/tabs/concall.js` routes the two halves
-through separate code paths, the live half carries a green Live pill and the synthetic half its
-amber ribbon, and neither half's loader or poller may repaint the other. **Never put a live number
-and a synthetic one in the same panel.**
+The Con-call tab used to carry six sub-views behind a left rail. Two were live off StockScans; the
+other four ran on a **synthetic transcript corpus with fictional speakers**, because no open source
+gives us full transcript text. Holding that line took an amber ribbon on one half, a green Live
+pill on the other, `LIVE_SUBVIEWS` routing the two through separate code paths, and a rule that
+neither half's poller could repaint the other.
+
+The four synthetic views are gone, and so is the machinery: the tab is one live table plus the
+schedule overlay, `subviews: []`, no rail, no ribbon. **That is the preferred resolution whenever
+a tab acquires two provenances** — not a better ribbon. If the real transcript feed is ever wired
+(BSE publishes filed transcript PDFs), the keyword engine and the Deep Dive workspace are in git
+history at `8e31eec..` and would come back pointed at real text.
+
+The rule that survives: **never put a live number and a synthetic one in the same panel**, and
+prefer removing the synthetic one to labelling it.
 
 ### Mock data that has to behave like real data
 
@@ -622,11 +581,10 @@ live.stop('concall-live');    // in destroy(), and call off()
   refetch immediately on return.
 - Exponential backoff on error, capped at 60s. Errors never reach the UI.
 - Swap mock → real by changing one argument: `live.realFetcher('/api/technicals')`.
-- **`live.mockFetcher(path)` re-reads `path` on every tick and jitters its numbers.** That is
-  fine for a small file whose numbers are meant to breathe. It is wrong for anything containing
-  quoted speech — jittering a transcript invents words nobody said. The Con-call poller passes a
-  plain function that computes a small delta from the already-loaded corpus instead; see
-  `liveTickFetcher` in `js/data/concalls.js`.
+- **`live.mockFetcher(path)` re-reads `path` on every tick and jitters its numbers.** That is fine
+  for a small file whose numbers are meant to breathe, and wrong for anything else — a feed with
+  real figures must poll the real route, and jittering quoted speech would invent words nobody
+  said.
 - **A tick that early-returns from `tick()` never reschedules.** The `!running || hidden ||
   inFlight` guard has no `finally`, so a fetcher that never settles kills the poller silently —
   no error, no tick, just a feed that quietly stops. If you write a fetcher, make sure every path
@@ -679,8 +637,7 @@ Rules:
   response ETag against the stored one **before** reading the body, so an unchanged tick still
   skips the parse.
 - **`no-cache` for committed static files, never `no-store`.** `no-store` forbids reuse; `no-cache`
-  revalidates and reuses. That one word was ~800KB per visit, and 2MB of it on the Con-call tab
-  alone (`concall-calls.json`).
+  revalidates and reuses. That one word was ~800KB per visit.
 - **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
   `meta.origin` says where this paint came from (`live` / `store` / `snapshot`) and
   `meta.checkedAt` when the server last confirmed it — a different fact from `meta.fetchedAt`,
@@ -703,6 +660,7 @@ Rules:
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
+| Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
@@ -717,11 +675,8 @@ Rules:
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
-| Regenerate the mock con-calls | `node scripts/gen-mock-concalls.mjs` — seeded, so output is stable |
 | Regenerate the mock chatter / investors | `node scripts/gen-mock-chatter.mjs`, `node scripts/gen-mock-investors.mjs` |
 | Change the pump-risk thresholds | `js/chatter/pump-risk.js` — named constants, and the help modal quotes them |
-| Change keyword matching | `js/concall/keyword-engine.js` — see the rules above before touching it |
-| Add a view to the Deep Dive | `js/concall/deep-dive.js`: add to `TABS`, `TAB_LABEL`, `RENDERERS`, and `WIRERS` if it needs listeners |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
 | Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |
 | Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |

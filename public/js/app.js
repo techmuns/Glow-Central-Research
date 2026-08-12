@@ -7,23 +7,20 @@ import { setData, setDataError } from './core/state.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
-import { primeCatalysts } from './data/concalls.js';
-import { primeDefaults as primeKeywords } from './concall/keyword-engine.js';
 import { prime as primeInvestors } from './data/investors.js';
 import { prime as primePortfolio } from './data/portfolio.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
 // Heavy or tab-specific feeds are NOT loaded here. js/data/technicals.js (~800KB),
-// js/data/concalls.js (~2MB of transcripts) and js/data/chatter.js (~160KB) fetch and cache
-// lazily the first time their tab mounts, so the other tabs don't pay for data they never read.
+// js/data/chatter.js (~160KB) fetches and caches lazily the first time its tab mounts, so the
+// other tabs don't pay for data they never read. The Con-call tab loads nothing from here at all:
+// it is live off /api/concalls, cached on the device by js/core/store.js.
 const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
-  concallKeywords: 'data/mock/concall-keywords.json',
-  catalysts: 'data/mock/catalysts.json',
   superinvestors: 'data/mock/superinvestors.json',
   institutions: 'data/mock/institutions.json',
   fundFlows: 'data/mock/fund-flows.json',
@@ -56,12 +53,6 @@ async function loadAll() {
   data.earningsRaw = data.earnings;
   primeEarnings(data.earningsRaw, data.earningsCalendar);
   data.earnings = adaptLegacySummary(data.earningsRaw);
-
-  // Con-call: the keyword defaults and the catalyst list are small and needed before the
-  // transcript corpus arrives, so they load here and seed their modules. The corpus itself is
-  // fetched by js/data/concalls.js when the tab mounts.
-  primeKeywords(data.concallKeywords);
-  primeCatalysts(data.catalysts);
 
   // Super Investors: three small files, all needed together for the investor grid, so they
   // load at bootstrap and seed the module. The chatter feeds are fetched lazily by

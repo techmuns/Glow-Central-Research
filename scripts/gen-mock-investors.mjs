@@ -25,8 +25,9 @@
 //   `commentary`, `quote`, `thesis` or `why` field, and none should ever be added while the
 //   data is synthetic. Inventing a number is bounded and labelled; inventing a sentence a
 //   named person supposedly said or thought is putting words in a real mouth, and no ribbon
-//   fixes that. The same rule governs the con-call transcripts (see gen-mock-concalls.mjs),
-//   where the speakers are fictional for exactly this reason.
+//   fixes that. The synthetic con-call transcripts hit the same wall and were removed rather
+//   than kept behind a label — invented speech attributed to anyone is the line this repo
+//   does not cross.
 //
 // Determinism: mulberry32 seeded from SEED, so reruns are byte-identical.
 

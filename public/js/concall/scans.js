@@ -1,7 +1,11 @@
-// concall/scans.js — the two LIVE Con-call sub-views, off StockScans.
+// concall/scans.js — the Con-call tab, live off StockScans.
 //
-//   renderScans(ctx)     the quarter's calls: result score, sentiment, highlights, links
-//   renderSchedule(ctx)  today's calls and what is coming
+//   renderScans(ctx)         the quarter's calls: result score, sentiment, highlights, links
+//   openScheduleModal(rows)  "Upcoming Concalls" — the schedule, as an overlay off that table
+//
+// This is the WHOLE tab now. It used to be two of six sub-views behind a left rail; the other
+// four ran on a synthetic transcript corpus with fictional speakers, and they are gone. One
+// screen, one provenance, no ribbon to explain which half you are looking at.
 //
 // EVERYTHING SCORED HERE IS STOCKSCANS' OWN ANALYSIS.
 //   `resultScore` (0-100), `sentimentTier` (0-4) and the highlight bullets are theirs, rendered
@@ -20,6 +24,7 @@
 
 import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
+import { avatarFor } from '../ui/visual.js';
 import { deliveryNote } from '../ui/sources.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -244,75 +249,202 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   });
   onView?.(table.view);
 
+  const scheduled = feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || [], feed.upcoming());
+
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Concall Scans',
       description: `Every earnings call held this quarter, newest first. Times are IST. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${scheduleButton(scheduled.length)}${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls' })}</div>`,
     })}
     ${table.html}
   `;
   wireLivePill(ctx.root, m);
+  ctx.root.querySelector('[data-open-schedule]')?.addEventListener('click', () => openScheduleModal(scheduled, { scope: ctx.scope }));
   disposers.push(table.wire(ctx.root));
 }
 
-// ---------------------------------------------------------------------------------------
-// Sub-view 2 — today and upcoming
-// ---------------------------------------------------------------------------------------
-export function renderSchedule(ctx, { disposers }) {
-  const m = feed.meta();
-  const held = ctx.data?.portfolio?.holdings || [];
-  const today = feed.today();
-  const todayRows = feed.forScope(ctx.scope, held, today.rows || []);
-  const upcomingRows = feed.forScope(ctx.scope, held, feed.upcoming());
+/** The one way into the schedule now that it is not a sub-view. Carries its own count. */
+function scheduleButton(count) {
+  return `
+    <button type="button" data-open-schedule title="Calls scheduled but not yet held"
+      class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span>Upcoming Concalls</span>
+      ${count ? `<span class="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">${escapeHtml(formatNumber(count))}</span>` : ''}
+    </button>`;
+}
 
-  const card = (label, rows, empty) => `
-    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-      <div class="mb-3 flex items-baseline justify-between gap-3">
-        <h3 class="font-display text-sm font-bold text-slate-900">${escapeHtml(label)}</h3>
-        <span class="text-xs text-slate-500">${escapeHtml(formatNumber(rows.length))} ${rows.length === 1 ? 'call' : 'calls'}</span>
+// ---------------------------------------------------------------------------------------
+// The schedule, as an overlay — "Upcoming Concalls"
+//
+// This used to be a second sub-view with its own page. It is a modal off the scan table now,
+// which is how StockScans present it, and it is the right shape for the content: a schedule is
+// something you glance at and dismiss, not somewhere you navigate to and lose your place in the
+// table for.
+//
+// BUILT FROM `upcoming` ALONE, NOT FROM `upcoming` + `today`.
+//   The two overlap. `today` is the subset of today's calls that have not started yet (43 of the
+//   64 listed for today, at the time of writing), so merging them would double-count and then
+//   need de-duplicating for no gain. `upcoming` already contains the whole day, which is exactly
+//   what a calendar should show: the 09:00 call belongs on today's page at 15:00, it has simply
+//   already happened.
+// ---------------------------------------------------------------------------------------
+
+// StockScans print schedule times as "9:00 AM". Everything else on this tab is 24-hour, but this
+// panel is theirs and reads as theirs. Still explicitly IST — see the note above IST_DATE.
+const IST_CLOCK = new Intl.DateTimeFormat('en-US', { timeZone: IST, hour: 'numeric', minute: '2-digit', hour12: true });
+const IST_WEEKDAY = new Intl.DateTimeFormat('en-IN', { timeZone: IST, weekday: 'short' });
+const IST_DAYMONTH = new Intl.DateTimeFormat('en-IN', { timeZone: IST, day: 'numeric', month: 'short' });
+
+// How many companies a day shows before it collapses behind "+N more". Seven plus the "+N more"
+// cell fills two rows of the four-column grid exactly, which is why it is seven and not eight.
+const PER_DAY = 7;
+
+// Which days the reader has expanded, and what they have typed. Module state rather than a
+// closure because the modal re-renders its own body in place on every interaction.
+let calExpanded = new Set();
+let calQuery = '';
+
+/**
+ * The schedule overlay. `rows` is the upcoming list already narrowed to the active scope, so the
+ * Portfolio/Universe toggle reaches in here too rather than the panel quietly ignoring it.
+ */
+export function openScheduleModal(rows, { scope = 'universe' } = {}) {
+  calExpanded = new Set();
+  calQuery = '';
+  openModal(scheduleModalHtml(rows, scope), { size: 'wide' });
+  wireScheduleModal(rows, scope);
+}
+
+function scheduleModalHtml(rows, scope) {
+  return `
+    <div class="flex max-h-[85vh] flex-col">
+      <div class="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-6 py-4">
+        <span class="text-lg" aria-hidden="true">🗓️</span>
+        <h2 class="font-display text-lg font-bold text-slate-900">Upcoming Concalls</h2>
+        <div class="relative ml-auto">
+          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </span>
+          <input type="search" data-cal-search aria-label="Search companies"
+            class="w-56 rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-700 placeholder-slate-400 focus:border-indigo-400 focus:outline-none sm:w-64"
+            placeholder="Search companies" value="${escapeHtml(calQuery)}" />
+        </div>
+        <button data-modal-close aria-label="Close" class="ml-1 rounded-lg p-1 text-2xl leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">&times;</button>
       </div>
-      ${
-        rows.length
-          ? `<div class="scrollbar-thin max-h-[420px] overflow-y-auto"><ul class="divide-y divide-slate-100">
-               ${rows
-                 .map(
-                   (r) => `<li class="flex items-center gap-3 py-2">
-                     <span class="w-14 flex-shrink-0 text-xs font-semibold tabular-nums text-indigo-600">${escapeHtml(timeOf(r.when))}</span>
-                     <span class="min-w-0 flex-1 truncate text-sm text-slate-800">${escapeHtml(r.name)}</span>
-                     <span class="flex-shrink-0 font-mono text-[11px] text-slate-400">${escapeHtml(r.ticker || '—')}</span>
-                   </li>`
-                 )
-                 .join('')}
-             </ul></div>`
-          : `<p class="py-6 text-center text-sm text-slate-500">${escapeHtml(empty)}</p>`
-      }
-    </section>`;
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: 'Today & Upcoming',
-      description: 'Calls scheduled by StockScans, with their listed start times in IST. Times are as published and do slip.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: todayRows.length + upcomingRows.length, noun: 'scheduled' })}</div>`,
-    })}
-    <div class="grid gap-0 md:grid-cols-2 md:gap-5">
-      ${card(today.day ? `Today · ${today.day}` : 'Today', todayRows, ctx.scope === 'portfolio' ? 'None of your holdings is on today.' : 'No calls listed for today.')}
-      ${card('Upcoming', upcomingRows, ctx.scope === 'portfolio' ? 'None of your holdings has a call scheduled.' : 'Nothing scheduled yet.')}
-    </div>
-    <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
-      A call listed here has not been held yet, so it carries no score — it appears in <strong>Concall Scans</strong> with
-      its analysis once StockScans has processed it. Schedule from
-      <a class="font-medium text-indigo-600 hover:underline" href="https://www.stockscans.in/concall-scans" target="_blank" rel="noopener">StockScans</a>.
-    </p>`;
-  wireLivePill(ctx.root, m);
-  void disposers;
+      <div data-cal-body class="scrollbar-thin flex-1 overflow-y-auto">${scheduleBodyHtml(rows, scope)}</div>
+    </div>`;
 }
 
-function timeOf(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : IST_TIME.format(d);
+function scheduleBodyHtml(rows, scope) {
+  const q = calQuery.trim().toLowerCase();
+  const matched = q ? rows.filter((r) => `${r.name} ${r.ticker || ''}`.toLowerCase().includes(q)) : rows;
+
+  if (!matched.length) {
+    return `<div class="px-6 py-14 text-center">
+      <p class="text-sm font-semibold text-slate-700">${q ? 'No company matches that search' : scope === 'portfolio' ? 'None of your holdings has a call scheduled' : 'Nothing is scheduled yet'}</p>
+      <p class="mt-1 text-xs text-slate-500">${
+        q
+          ? 'Only companies with a call already on the schedule appear here.'
+          : 'A call joins this list when StockScans lists it, and moves to the scan table once it has been held and analysed.'
+      }</p>
+    </div>`;
+  }
+
+  // Group by date, preserving the feed's own chronological order within each day.
+  const byDate = new Map();
+  for (const r of matched) {
+    const key = r.date || (r.when || '').slice(0, 10);
+    if (!key) continue;
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(r);
+  }
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: IST }).format(new Date());
+  const days = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  return days
+    .map(([date, list], i) => {
+      const isToday = date === today;
+      // A search is a request to see everything that matched, so it overrides the collapse.
+      const showAll = !!q || calExpanded.has(date);
+      const shown = showAll ? list : list.slice(0, PER_DAY);
+      const hidden = list.length - shown.length;
+      return `
+        <section class="${isToday ? 'bg-slate-50/70' : ''} ${i ? 'border-t border-slate-100' : ''} px-6 py-5">
+          <div class="mb-3 flex items-center gap-2">
+            <span class="text-sm text-slate-400">${escapeHtml(weekdayOf(date))}</span>
+            <span class="font-display text-sm font-bold text-slate-900">${escapeHtml(dayMonthOf(date))}</span>
+            ${isToday ? '<span class="rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700">Today</span>' : ''}
+            <span class="ml-auto text-xs tabular-nums text-slate-400">${escapeHtml(formatNumber(list.length))} ${list.length === 1 ? 'call' : 'calls'}</span>
+          </div>
+          <div class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+            ${shown.map(companyTile).join('')}
+            ${
+              hidden > 0
+                ? `<button type="button" data-cal-more="${escapeHtml(date)}"
+                     class="flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                     +${escapeHtml(formatNumber(hidden))} more</button>`
+                : ''
+            }
+          </div>
+        </section>`;
+    })
+    .join('');
 }
+
+/**
+ * One company on the schedule.
+ *
+ * StockScans put a company logo here. We do not have logo rights or logo files, and hotlinking
+ * theirs would be leeching their CDN to reproduce their asset — so this uses the dashboard's own
+ * deterministic gradient avatar, which is the same mark this company gets everywhere else in the
+ * app. Same layout, our vocabulary.
+ */
+function companyTile(r) {
+  const { color, initials } = avatarFor(r.name || r.ticker || '?');
+  return `
+    <div class="flex items-center gap-3">
+      <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-xs font-bold text-white">${escapeHtml(initials)}</span>
+      <span class="min-w-0">
+        <span class="block truncate text-sm font-semibold text-slate-900" title="${escapeHtml(r.name || '')}">${escapeHtml(r.ticker || r.name || '—')}</span>
+        <span class="block text-xs text-slate-500">${escapeHtml(clockOf(r.when))}</span>
+      </span>
+    </div>`;
+}
+
+function wireScheduleModal(rows, scope) {
+  const body = document.querySelector('[data-cal-body]');
+  const search = document.querySelector('[data-cal-search]');
+  if (!body) return;
+  const repaint = () => {
+    body.innerHTML = scheduleBodyHtml(rows, scope);
+  };
+  // Delegated, because the body is replaced on every keystroke and every expand.
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-cal-more]');
+    if (!btn) return;
+    calExpanded.add(btn.dataset.calMore);
+    repaint();
+  });
+  search?.addEventListener('input', () => {
+    calQuery = search.value;
+    repaint();
+  });
+}
+
+const clockOf = (iso) => {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime()) ? IST_CLOCK.format(d) : '—';
+};
+const weekdayOf = (date) => {
+  const d = new Date(`${date}T06:00:00Z`); // midday IST, so the label cannot slip a day
+  return Number.isNaN(d.getTime()) ? '' : IST_WEEKDAY.format(d);
+};
+const dayMonthOf = (date) => {
+  const d = new Date(`${date}T06:00:00Z`);
+  return Number.isNaN(d.getTime()) ? date : IST_DAYMONTH.format(d);
+};
 
 // ---------------------------------------------------------------------------------------
 // Drill

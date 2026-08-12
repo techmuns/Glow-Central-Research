@@ -28,7 +28,7 @@ inactive slate with hover. Order is fixed:
 
 **Research Central**
 1. Earnings Hub
-2. Con-call *(Deep Dive lives inside this tab)*
+2. Con-call
 3. Public Chatter
 4. Breakouts / Technical
 5. Super Investors
@@ -47,7 +47,7 @@ optional right-aligned count badge.
 | Tab | Sub-views |
 | --- | --- |
 | Earnings Hub | *(none — one table, so the rail is hidden)* |
-| Con-call | Concall Scans *(live)* · Today & Upcoming *(live)* · Live Feed · Keyword Scan · Catalysts · Deep Dive |
+| Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
 | Public Chatter | ValuePickr · Telegram · Trending |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions · Fund Flows |
@@ -229,13 +229,14 @@ the selected date, because that is all Moneycontrol publishes — and says so un
 - Historical per-company result trend charts
 
 ### Con-call — `concall`
-**Concall Scans** and **Today & Upcoming** are live off StockScans: every call held this quarter
-with their result score, sentiment tier and highlight bullets, reproduced unchanged and
-attributed, plus the schedule. The remaining four sub-views still run on the synthetic transcript
-corpus, because no open source gives us full transcript text — see `docs/HANDOFF.md` §5c.
-- Live transcript feed, keyword scanning, catalyst tracking, Deep Dive.
-- Live transcript ingestion from exchange filings
-- Custom keyword sets with instant alerts (default 9 keywords ship today)
+One screen, live off StockScans: every earnings call held this quarter with their result score,
+sentiment tier and highlight bullets, reproduced unchanged and attributed. The schedule of calls
+not yet held sits behind an **Upcoming Concalls** button that opens an overlay grouped by date.
+
+Four sub-views that ran on a synthetic transcript corpus — Live Feed, Keyword Scan, Catalysts and
+Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.md` §5c.
+- Live transcript ingestion from BSE's filed transcript PDFs — the prerequisite for everything below
+- Custom keyword sets scanned against real transcript text
 - Sentiment scoring per management commentary line
 - Catalyst tagging (guidance raise/cut, capex, M&A)
 - Deep Dive: full transcript + quarter-over-quarter diff
