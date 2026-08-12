@@ -162,9 +162,13 @@ function jitterDeep(node, amount) {
 
 // Development fetcher: reads a static mock JSON file and jitters its numbers slightly on every
 // poll so the UI visibly "breathes" even though the underlying file never changes on disk.
+//
+// `no-cache`, not `no-store`. The file on disk never changes, so re-downloading it every tick —
+// 232KB for the earnings mock — bought nothing at all: the jitter is applied to the PARSED object
+// afterwards, so a revalidated 304 breathes exactly as much as a full download did.
 export function mockFetcher(path, { jitter = 0.02 } = {}) {
   return async function fetchMock() {
-    const res = await fetch(path, { cache: 'no-store' });
+    const res = await fetch(path, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`mockFetcher: ${path} -> ${res.status}`);
     const data = await res.json();
     return jitterDeep(data, jitter);

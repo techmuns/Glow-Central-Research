@@ -113,7 +113,7 @@ public/index.html          design tokens, fonts, Tailwind CDN, #app, three overl
                            (drill z-50 < workspace z-55 < modal z-60)
 public/js/
   app.js                   bootstrap: fetch the small JSON set once, prime the data modules, mount
-  core/                    state · router (hash) · live (polling) · format · dom
+  core/                    state · router (hash) · live (polling) · store (IndexedDB cache) · format · dom
   ui/
     screener.js            THE KIT: statStrip · topCards · scoreTable · openDrill · openWorkspace
                            · openModal · sectionHead · roadmapStrip · pendingPanel · trapFocus
@@ -126,6 +126,12 @@ public/js/
   concall/                 keyword-engine · keyword-editor · deep-dive workspace
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
   tabs/                    the five Research Central tabs
+worker/
+  index.js                 asset serving + the four /api routes
+  http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
+                           stand-in, so the caching semantics under test are the shipped ones
+  mc.mjs                   Moneycontrol client + normaliser, shared with scripts/
+  stockscans.mjs           StockScans client; the vocabulary lives in public/js/data/
 ```
 
 **To add a tab:** write a module exporting `meta` / `render(ctx)` / `destroy()`, then add it to
@@ -422,6 +428,37 @@ The heavy feeds are **lazy**: technicals, the con-call corpus, the chatter files
 history load when their tab first mounts, not at bootstrap, so eight tabs never pay for data they
 do not read.
 
+### Bytes, which were the real problem
+
+Lazy loading fixed *when* the big files load. It did nothing about *how often*. Every loader used
+`cache: 'no-store'`, which forbids reuse outright, and the two polled feeds — 1.1MB of results and
+450KB of con-call scans — were re-fetched in full every 30 seconds to discover that nothing had
+changed. One open Earnings Hub tab pulled **1,135KB per tick, about 136MB an hour.** Measured, not
+estimated: the poller was traced ticking at t+4.5s, t+36.5s, t+69.1s, each a full download.
+
+| | Before | After |
+| --- | --- | --- |
+| Earnings Hub — cold visit | 2,388 KB | 2,388 KB |
+| Earnings Hub — reload | ~2,300 KB | **5 KB** |
+| Earnings Hub — one poll, nothing changed | 1,135 KB | **0.3 KB** |
+| Con-call scans — reload | ~3,400 KB | **5 KB** |
+| Con-call scans — one poll, nothing changed | 452 KB | **0.3 KB** |
+
+Three mechanisms, described in full in *Conditional delivery and the device store* in
+`docs/DATA-CONTRACTS.md`: a content ETag on every route with a bodyless 304; an IndexedDB copy on
+the device so first paint costs no network at all; and a prices-only projection for the results
+feed, which is the one place a 304 buys nothing because the traded price really does change every
+tick.
+
+Two traps worth carrying forward:
+
+- **Hash content, never delivery.** A tag that includes `fetchedAt` changes on every request while
+  the payload does not, so the 304 never fires and the optimisation silently does nothing while
+  appearing to be wired. The test that catches it is a tag that survives an edge-cache expiry.
+- **Do not send `If-None-Match` by hand.** Chromium aborts the resulting 304 with
+  `net::ERR_ABORTED`; pollers swallow optional errors, so the symptom is not an error but a feed
+  that quietly stops updating. Use `cache: 'no-cache'` and let the browser send the validator.
+
 ---
 
 ## 9. Known gaps
@@ -462,5 +499,11 @@ node scripts/verify-ui.mjs
 The bar is **zero console errors** and every check passing. Beyond what the script covers, eyeball:
 the layout at 1440 / 1024 / 390 px with no sideways page scroll, the Portfolio/Universe toggle
 visibly changing what every tab reports, and a reload restoring the same route and scope.
+
+A plain `http.server` has no `/api/*`, so the caching checks report **SKIP** rather than passing
+vacuously — which also proves the snapshot fallback still works with no Worker at all. To exercise
+them, serve the site through the Worker (`npx wrangler dev`) and point the suite at it:
+`node scripts/verify-ui.mjs http://127.0.0.1:8787`. **A SKIP on those lines is not a pass**; the
+caching path has to be verified against a Worker before shipping a change to it.
 
 And the rule that outranks the rest: **if a number cannot be traced to a source, it does not ship.**

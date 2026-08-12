@@ -85,8 +85,11 @@ function bestFirst(a, b) {
   return b.scorePct - a.scorePct;
 }
 
+// Committed static files, so `no-cache` and not `no-store`: revalidate on each load, and reuse the
+// bytes already on disk when the server says they have not changed. `no-store` forbids reuse
+// outright, which meant a 2MB corpus was re-downloaded in full on every single visit.
 async function fetchJson(path) {
-  const res = await fetch(path, { cache: 'no-store' });
+  const res = await fetch(path, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
   return res.json();
 }

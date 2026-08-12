@@ -11,6 +11,54 @@
 //   'mock'    — placeholder data ships in the repo; the real source is named but not connected
 //   'pending' — nothing exists yet; named so the gap is visible rather than hidden
 
+import { escapeHtml } from '../core/dom.js';
+import { formatRelativeTime } from '../core/format.js';
+
+/**
+ * "How this reached you" — the line every polled feed's provenance modal carries.
+ *
+ * A cached feed is the one case where the number on screen can be older than the moment you are
+ * looking at it, so the reader is owed two separate facts, not one: when the upstream was actually
+ * read (`fetchedAt`), and when we last confirmed that reading was still current (`checkedAt`). A
+ * 304 moves the second and not the first, and collapsing them into a single "last updated" would
+ * make a five-hour-old figure look like it arrived seconds ago.
+ *
+ * `origin` is where THIS paint came from: 'live' from the network, 'store' from this device's own
+ * copy, 'snapshot' from the file committed to the repo.
+ */
+export function deliveryNote(meta, { poll } = {}) {
+  if (!meta) return '';
+  const stamp = (v) => {
+    const t = typeof v === 'number' ? v : Date.parse(v || '');
+    return Number.isFinite(t) ? formatRelativeTime(t) : null;
+  };
+  const read = stamp(meta.fetchedAt);
+  const checked = stamp(meta.checkedAt);
+  const stale = meta.origin === 'store' && !checked;
+
+  const where =
+    meta.origin === 'snapshot'
+      ? 'the snapshot committed to this repo'
+      : meta.origin === 'store'
+        ? 'this device&rsquo;s own cached copy'
+        : 'the live feed';
+
+  return `
+    <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How this reached you</h3>
+    <p class="mt-1 text-xs leading-relaxed text-slate-500">
+      Painted from <strong>${where}</strong>${meta.persisted === false ? ' <span class="text-slate-400">(storage unavailable in this browser, so it lasts for this session only)</span>' : ''}.
+      ${read ? `Upstream was read <strong>${escapeHtml(read)}</strong>` : 'The upstream read time is unknown'}${
+        checked ? `, and last confirmed still current <strong>${escapeHtml(checked)}</strong>.` : '.'
+      }
+      ${stale ? '<span class="text-amber-700">The feed could not be reached this visit, so this copy has not been confirmed.</span>' : ''}
+    </p>
+    <p class="mt-1 text-xs leading-relaxed text-slate-500">
+      ${poll ? `Polled every ${poll} seconds. ` : ''}Each poll sends the fingerprint of the copy already held, so an unchanged
+      feed answers with <strong>no data at all</strong> rather than resending itself. The full payload crosses the wire only
+      when something in it actually changed.
+    </p>`;
+}
+
 export const SOURCE_GROUPS = [
   {
     title: 'Market data',
@@ -367,8 +415,14 @@ export function sourcesModalHtml() {
       </div>
 
       <div class="mt-6 border-t border-slate-100 pt-4 text-[11px] leading-relaxed text-slate-400">
-        Full field-level contracts — exact JSON shapes, units and refresh cadence — live in
-        <code class="rounded bg-slate-100 px-1 py-0.5">docs/DATA-CONTRACTS.md</code>.
+        <p><strong class="text-slate-500">Kept on this device.</strong> The results feed and the con-call scan are large and
+        polled, so the copy last received is stored in this browser and reused on the next visit. Every poll sends its
+        fingerprint and an unchanged feed replies with nothing at all, so what travels is only what actually changed.
+        A cached paint is never presented as a live one — each of those tabs' Live pill says where the figures on screen
+        came from and when the feed was last confirmed. Nothing is stored for a feed you have not opened, and clearing
+        this site&rsquo;s data removes it.</p>
+        <p class="mt-2">Full field-level contracts — exact JSON shapes, units and refresh cadence — live in
+        <code class="rounded bg-slate-100 px-1 py-0.5">docs/DATA-CONTRACTS.md</code>.</p>
       </div>
     </div>`;
 }

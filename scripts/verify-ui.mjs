@@ -1366,6 +1366,131 @@ for (const width of [1440, 1024, 390]) {
 }
 
 // ---------------------------------------------------------------------------------------
+// 17. Persistent caching — the two big polled feeds must not re-download themselves
+//
+// The results feed is 1.1MB and the con-call scan 450KB, both polled every 30 seconds. Before
+// this was wired, one open Earnings Hub tab pulled 1,135KB PER TICK — measured, ~136MB an hour —
+// to report that nothing had changed. The assertions below are the ones that keep it that way.
+// ---------------------------------------------------------------------------------------
+console.log('\n— persistent cache —');
+await page.setViewportSize({ width: 1440, height: 1100 });
+
+// The store must actually persist, and must hold the server's own bytes under the server's own
+// tag. That pairing is the whole basis for trusting an unchanged answer: if the stored value and
+// the stored tag ever describe different things, every later revalidation is a lie.
+await go('/#/research/earnings-hub?scope=universe', 400);
+await waitForPanel(12000);
+await page.waitForTimeout(1200); // the writes are fire-and-forget, off the paint path
+
+const stored = await page.evaluate(async () => {
+  const s = await import('./js/core/store.js');
+  const e = await s.readEntry(s.KEYS.earnings('yoy'));
+  return { persistent: s.isPersistent(), has: !!e, tag: e?.tag || null, rows: e?.value?.rows?.length || 0, bodyTag: e?.value?.meta?.contentTag || null };
+});
+if (stored.has) {
+  ok('the results payload is kept on this device', stored.rows > 100, `${stored.rows} rows stored`);
+  ok('...under a content tag', !!stored.tag, stored.tag || 'none');
+  ok(
+    "...and the tag describes the value stored with it",
+    !stored.bodyTag || stored.tag.replace(/"/g, '') === stored.bodyTag,
+    `header ${stored.tag} vs body ${stored.bodyTag}`
+  );
+} else {
+  skip('the results payload is kept on this device', 'no /api/earnings on this origin — nothing live to store');
+}
+
+// A revalidation must cost headers, not a payload. `transferSize` is the honest measure:
+// `content-length` is present on a browser-cache hit too, so counting it would report a full
+// download for a request that moved nothing.
+const revalidation = await page.evaluate(async () => {
+  const url = 'api/earnings?subType=yoy&fields=prices';
+  const probe = async () => {
+    performance.clearResourceTimings();
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) return null;
+    await res.arrayBuffer();
+    await new Promise((r) => setTimeout(r, 250));
+    const e = performance.getEntriesByType('resource').filter((x) => x.name.includes('fields=prices')).pop();
+    return e ? { transfer: e.transferSize, decoded: e.decodedBodySize } : null;
+  };
+  const first = await probe();
+  const second = await probe();
+  return { first, second };
+});
+if (revalidation.second) {
+  ok(
+    'a repeat fetch of the prices projection transfers no payload',
+    revalidation.second.transfer < 2000,
+    `${revalidation.second.transfer} bytes on the wire vs ${revalidation.second.decoded} decoded`
+  );
+  ok(
+    '...and the projection is a fraction of the full feed',
+    revalidation.first.decoded > 0 && revalidation.first.decoded < 200_000,
+    `${Math.round(revalidation.first.decoded / 1024)}KB`
+  );
+} else {
+  skip('a repeat fetch of the prices projection transfers no payload', 'no /api/earnings on this origin');
+}
+
+// The freshness claim has to distinguish "read from the upstream at X" from "confirmed still
+// current at Y". Collapsing them would let a five-hour-old figure read as seconds old.
+const freshness = await page.evaluate(async () => {
+  const feed = await import('./js/data/earnings-live.js');
+  const m = feed.meta();
+  return m ? { origin: m.origin, checkedAt: m.checkedAt, fetchedAt: m.fetchedAt || null } : null;
+});
+ok('the feed records where this paint came from', !!freshness?.origin, `origin=${freshness?.origin}`);
+ok('...and when the server last confirmed it', Number.isFinite(freshness?.checkedAt), String(freshness?.checkedAt));
+const provenance = await page.evaluate(() => {
+  document.querySelector('[data-live-info]')?.click();
+  return new Promise((r) => setTimeout(() => r(document.querySelector('#modal-content')?.innerText || ''), 400));
+});
+ok('the Live pill says where the figures came from', /Painted from/.test(provenance));
+ok('...and never presents a cached copy as a live one', !/Painted from this device/.test(provenance) || /last confirmed|could not be reached/.test(provenance));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+
+// Con-call: same contract, one channel — nothing on a con-call row moves on a tick, so the
+// conditional GET does the whole job there and no projection exists.
+await go('/#/research/concall/concall-scans?scope=universe', 400);
+await waitForPanel(12000);
+await page.waitForTimeout(1200);
+const ccStore = await page.evaluate(async () => {
+  const s = await import('./js/core/store.js');
+  const e = await s.readEntry(s.KEYS.concalls);
+  const probe = async () => {
+    performance.clearResourceTimings();
+    const res = await fetch('api/concalls', { cache: 'no-cache' });
+    if (!res.ok) return null;
+    await res.arrayBuffer();
+    await new Promise((r) => setTimeout(r, 250));
+    const t = performance.getEntriesByType('resource').filter((x) => x.name.includes('api/concalls')).pop();
+    return t ? { transfer: t.transferSize, decoded: t.decodedBodySize } : null;
+  };
+  await probe();
+  return { has: !!e, rows: e?.value?.rows?.length || 0, second: await probe() };
+});
+if (ccStore.has) {
+  ok('the con-call scan is kept on this device', ccStore.rows > 50, `${ccStore.rows} calls stored`);
+  ok('...and a repeat fetch transfers no payload', (ccStore.second?.transfer ?? 1e9) < 2000, `${ccStore.second?.transfer} bytes vs ${ccStore.second?.decoded} decoded`);
+} else {
+  skip('the con-call scan is kept on this device', 'no /api/concalls on this origin');
+}
+
+// The committed snapshots and lookup tables are static files. Fetching them with `no-store` — as
+// every loader did — forbids reuse outright and made each visit pay ~800KB again.
+const noStore = await page.evaluate(async () => {
+  const files = ['js/app.js', 'js/data/concalls.js', 'js/data/technicals.js', 'js/data/portfolio.js', 'js/data/earnings.js', 'js/data/chatter.js'];
+  const out = [];
+  for (const f of files) {
+    const src = await (await fetch(f, { cache: 'no-cache' })).text();
+    if (/cache:\s*'no-store'/.test(src)) out.push(f);
+  }
+  return out;
+});
+ok('no static-file loader still uses cache: no-store', noStore.length === 0, noStore.join(', '));
+
+// ---------------------------------------------------------------------------------------
 console.log('\n— console —');
 const unique = [...new Set(errors)];
 ok('zero console errors', unique.length === 0, unique.slice(0, 3).join(' | '));

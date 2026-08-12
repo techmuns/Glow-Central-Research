@@ -42,8 +42,11 @@ export function load() {
   return loadPromise;
 }
 
+// Committed static files, so `no-cache` and not `no-store`: revalidate on each load, and reuse the
+// bytes already on disk when the server says they have not changed. `no-store` forbids reuse
+// outright, which meant a 2MB corpus was re-downloaded in full on every single visit.
 async function build() {
-  const res = await fetch(CALLS_PATH, { cache: 'no-store' });
+  const res = await fetch(CALLS_PATH, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Failed to load ${CALLS_PATH} (${res.status})`);
   cache = ingest(await res.json());
   return cache;

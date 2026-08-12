@@ -20,6 +20,7 @@
 
 import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
+import { deliveryNote } from '../ui/sources.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
@@ -131,6 +132,8 @@ export function wireLivePill(root, m) {
           <p class="mt-1 text-xs">A call joins the feed when it is <em>held</em> and gains its score some minutes later, once
              StockScans has processed it. The poller watches for both, so a row can arrive twice over: once listed, once
              analysed. ${pending ? `<strong>${escapeHtml(formatNumber(pending))}</strong> calls are listed but not yet analysed — they read <em>pending</em>, never zero.` : ''}</p>
+
+          ${deliveryNote(m, { poll: feed.POLL_MS / 1000 })}
 
           ${
             arrivals.length

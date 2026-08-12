@@ -473,7 +473,9 @@ GET /api/earnings?subType=yoy|qoq&category=all|std|con
   "latestResultDate": "2026-08-10",
   "count": 1319,
   "meta": { "quarter": "Q1 FY26-27", "currentPeriod": "Jun 26", "priorPeriod": "Jun 25",
-            "source": "Moneycontrol — Rapid Results", "fetchedAt": "2026-08-11T…Z" },
+            "source": "Moneycontrol — Rapid Results", "fetchedAt": "2026-08-11T…Z",
+            "contentTag": "d04fdba9b88b5439",     // == the ETag; see "Conditional delivery"
+            "structureTag": "8c514c34cec2ebfb" }, // identity + reported figures, price EXCLUDED
   "rows": [
     { "scId": "IC8", "name": "Vodafone Idea", "ticker": "IDEA",
       "resultDate": "2026-08-10", "ltp": 13.26, "changePct": 2.63,
@@ -551,6 +553,91 @@ two questions having different answers.
 
 ---
 
+## `GET /api/earnings?fields=prices` — the polling projection
+
+The same feed with everything that does not move stripped out: **~30KB against 1.1MB.**
+
+```jsonc
+{
+  "ok": true,
+  "fields": "prices",
+  "structureTag": "8c514c34cec2ebfb",   // the full feed's identity + reported figures
+  "latestResultDate": "2026-08-11",
+  "count": 1488,
+  "degraded": null,
+  "prices": { "CHC": [1191, 6.43], "IC8": [13.26, 2.63] },   // scId -> [ltp, changePct]
+  "meta": { "subType": "yoy", "category": "all", "quarter": "Q1 FY26-27",
+            "currentPeriod": "Jun 26", "priorPeriod": "Jun 25",
+            "source": "…", "fetchedAt": "…", "contentTag": "579cfa7abe7ebfb8" }
+}
+```
+
+Two-element arrays rather than objects on purpose: `"CHC":[1191,6.43]` is 20 bytes where
+`{"ltp":1191,"changePct":6.43}` is 44, and there are ~1,500 of them.
+
+**Why this exists when every route is already conditional.** The results feed is the one place a
+304 buys nothing: `ltp` moves on every tick during market hours, so the full representation
+genuinely changes every 30 seconds even when not one reported figure has. Splitting the volatile
+field out means the poll carries only what actually moved.
+
+`structureTag` is a tag over identity and the reported figures with the **traded price
+deliberately excluded** (`structureTagOf` in `worker/index.js`). The client re-fetches the full
+feed exactly when it moves, which is when a company has filed or revised — so a filing still
+reaches the screen on the very next tick. `js/data/earnings-live.js` folds the prices onto the
+payload it holds and re-ingests through the same `joinRow`, because market cap is `shares × price`
+and return-since-result is measured against the result-day close: both move with the price, and
+recomputing them anywhere else is how the two would drift.
+
+**The con-call route deliberately has no equivalent.** Nothing on a con-call row moves on a tick,
+so the conditional GET does the whole job there; a merge path that could drift from the server's
+truth would be complexity bought for nothing.
+
+---
+
+## Conditional delivery and the device store
+
+Every `GET /api/*` route answers with a content-derived `ETag` and answers a matching
+`If-None-Match` with a **bodyless 304** (`worker/http.mjs`, shared by the Worker and any local
+stand-in so the two cannot drift). The dashboard keeps the last payload it received in IndexedDB
+and paints from it before touching the network.
+
+Measured in Chromium, Earnings Hub: **cold 2,388KB → reload 5KB → one unchanged poll 0.3KB.**
+Before this, one open tab pulled 1,135KB per tick — about 136MB an hour — to be told nothing
+had changed.
+
+| Field / key | Where | Meaning |
+| --- | --- | --- |
+| `ETag` / `meta.contentTag` | every `/api/*` response | the payload's content tag. Identical values, so a caller that cannot read the header (cross-origin without `expose-headers`) finds it in the body. |
+| `meta.structureTag` | `/api/earnings`, both representations | identity + reported figures, price excluded. |
+| `x-sattva-cache` | every `/api/*` response | `miss` / `hit` / `derived` / `fallback`, and `…-304` when the body was withheld. |
+| `sattva-cache` → `payloads` | IndexedDB | `{ tag, savedAt, value }` under `earnings:<subType>`, `earnings:<subType>:prices`, `concalls`, `calendar:<date>`. |
+
+The rules that make it safe to trust:
+
+- **The tag covers content, never delivery.** `VOLATILE_KEYS` in `worker/http.mjs` drops
+  `fetchedAt`, `servedAt`, `resolvedOnTheFly`, `unresolved`, `headFresh` and `contentTag` itself
+  before hashing. Include any of them and the tag changes on every request while the payload does
+  not, so the 304 never fires and the whole scheme silently does nothing. The test that catches
+  this is a tag that survives an **edge-cache expiry**, where the Worker really has gone back
+  upstream and re-stamped the timestamps.
+- **The store holds the server's own bytes under the server's own tag.** Price updates from the
+  projection are folded into memory and never written back. A locally patched value under a tag
+  that no longer describes it would make the next 304 a lie.
+- **Two freshness facts, never merged.** `meta.fetchedAt` is when the upstream was read;
+  `meta.checkedAt` is when we last confirmed that reading was still current. A 304 moves the
+  second and not the first. `meta.origin` (`live` / `store` / `snapshot`) says where the paint on
+  screen came from, and `deliveryNote()` in `js/ui/sources.js` renders all three behind each
+  tab's Live pill.
+- **The client must not send `If-None-Match` itself.** Chromium aborts a hand-rolled conditional
+  fetch whose response is a 304 with `net::ERR_ABORTED`; because pollers swallow optional errors,
+  the symptom is a feed that quietly stops updating rather than an error. `conditionalJson` uses
+  `cache: 'no-cache'` and lets the browser send the validator, then compares the response ETag
+  against the stored one before reading the body so an unchanged tick still skips the parse.
+- **A store miss is not an error** — it means "fetch it". Private windows and disabled storage
+  fall back to an in-memory Map; `isPersistent()` reports which, and the UI says so.
+
+---
+
 ## `GET /api/concalls` — LIVE, the con-call scan (StockScans)
 
 ```jsonc
@@ -563,9 +650,15 @@ two questions having different answers.
              "ssUrl": "as-…pdf", "pptSsUrl": "…pdf" }],
   "upcoming": [{ "ticker": "LANDMARK", "name": "Landmark Cars Ltd", "when": "2026-08-12T09:00:00+05:30" }],
   "today":    { "day": "2026-08-12", "rows": [ … ] },
-  "meta": { "quarter": 202606, "total": 877, "headRows": 50, "tailRows": 827, "truncated": false }
+  "meta": { "quarter": 202606, "total": 877, "headRows": 50, "tailRows": 827, "truncated": false,
+            "fetchedAt": "2026-08-11T…Z", "contentTag": "2a4926653eb47e5e" }
 }
 ```
+
+The body carries **no "served at" stamp**, deliberately: it would differ on every request while
+the content did not, so the ETag would never match and the 304 this route depends on would never
+fire. `meta.fetchedAt` — when StockScans was actually read — is the honest freshness signal, and
+the client stamps its own `checkedAt` on every poll, 304s included.
 
 **The scores are StockScans', not ours.** `resultScore` (0–100), `sentimentTier` (0–4) and the
 `tags` bullets are their analysis of each call, reproduced unchanged. The tier bands in

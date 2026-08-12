@@ -45,6 +45,7 @@ public/
       state.js                global state + localStorage + pub/sub
       router.js               hash routing (#/ws/tab/subview?scope=)
       live.js                 live-update polling engine
+      store.js                IndexedDB payload cache + conditional fetch (see the caching section)
       format.js               number/date/currency/relative-time helpers
       dom.js                  $, $$, escapeHtml, el, empty
     ui/
@@ -90,7 +91,8 @@ scripts/
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
-                              + GET /api/earnings-calendar
+                              (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
+worker/http.mjs               content ETags, 304s and CORS — shared with any local stand-in
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 wrangler.jsonc
@@ -620,11 +622,73 @@ live.stop('concall-live');    // in destroy(), and call off()
   refetch immediately on return.
 - Exponential backoff on error, capped at 60s. Errors never reach the UI.
 - Swap mock → real by changing one argument: `live.realFetcher('/api/technicals')`.
-- **`live.mockFetcher(path)` re-downloads `path` on every tick and jitters its numbers.** That is
-  fine for a small file whose numbers are meant to breathe. It is wrong for a large one, and
-  wrong for anything containing quoted speech — jittering a transcript invents words nobody
-  said. The Con-call poller passes a plain function that computes a small delta from the
-  already-loaded corpus instead; see `liveTickFetcher` in `js/data/concalls.js`.
+- **`live.mockFetcher(path)` re-reads `path` on every tick and jitters its numbers.** That is
+  fine for a small file whose numbers are meant to breathe. It is wrong for anything containing
+  quoted speech — jittering a transcript invents words nobody said. The Con-call poller passes a
+  plain function that computes a small delta from the already-loaded corpus instead; see
+  `liveTickFetcher` in `js/data/concalls.js`.
+- **A tick that early-returns from `tick()` never reschedules.** The `!running || hidden ||
+  inFlight` guard has no `finally`, so a fetcher that never settles kills the poller silently —
+  no error, no tick, just a feed that quietly stops. If you write a fetcher, make sure every path
+  through it resolves.
+
+---
+
+## Never re-download what the reader already has — `js/core/store.js`
+
+The two polled feeds are large: the results payload is **1.1MB** and the con-call scan **450KB**,
+and both are polled every 30 seconds. Every loader used to fetch with `cache: 'no-store'`, which
+forbids reuse outright, so a single open Earnings Hub tab pulled **1,135KB per tick — ~136MB an
+hour** to discover that nothing had changed. Fixing that is what `core/store.js` and the ETag
+layer in `worker/http.mjs` are for.
+
+Measured, end to end in Chromium: cold visit **2,388KB** → reload **5KB** → one unchanged poll
+**0.3KB**.
+
+Three mechanisms, and each is load-bearing:
+
+1. **A content ETag on every GET route** (`withTag` / `revalidate` in `worker/http.mjs`, shared by
+   the Worker and any local stand-in). A matching `If-None-Match` gets a bodyless 304.
+   The tag is computed over the payload **minus the volatile keys** — `fetchedAt`, `servedAt`,
+   `resolvedOnTheFly`, `unresolved`, `contentTag` itself. Miss that and the tag changes on every
+   request while the content does not, and the 304 never fires. `stableJson` drops them with a
+   replacer rather than a field list, so a field added next month is covered automatically.
+   **The test that matters is that the tag survives an edge-cache expiry**: the Worker re-fetches
+   upstream, re-normalises, re-stamps the timestamps, and must still produce the same tag.
+2. **A persistent store** (IndexedDB, `js/core/store.js`). First paint comes off the device with
+   no network at all; the committed snapshot is fetched last and only when the store is empty or
+   the live route is unreachable. **The store holds the server's own bytes under the server's own
+   tag** — never a locally patched copy. That pairing is the entire basis for trusting "you
+   already have this", and price updates are folded into memory only, never written back.
+3. **A prices-only projection for the results feed**, `GET /api/earnings?fields=prices` — scID →
+   `[ltp, changePct]` plus a `structureTag`, ~30KB against 1.1MB. This exists because the results
+   feed is the one place a conditional GET alone buys nothing: `ltp` moves on every tick during
+   market hours, so the full representation genuinely changes every 30 seconds even when not one
+   reported figure has. The client re-fetches the full feed exactly when `structureTag` moves,
+   which is when a company has filed or revised. **The con-call route deliberately has no
+   projection** — nothing on a con-call row moves on a tick, so the 304 does the whole job there,
+   and a merge path that could drift from the server's truth would be complexity for nothing.
+
+Rules:
+
+- **Do not hand-roll the conditional request.** `cache: 'no-store'` plus your own `If-None-Match`
+  is the obvious implementation and Chromium kills it: the 304 response is aborted with
+  `net::ERR_ABORTED` a couple of seconds later, the fetch rejects, and because pollers swallow
+  optional errors the symptom is not an error — it is a feed that silently stops updating. Use
+  `cache: 'no-cache'` and let the browser send the validator. `conditionalJson` then compares the
+  response ETag against the stored one **before** reading the body, so an unchanged tick still
+  skips the parse.
+- **`no-cache` for committed static files, never `no-store`.** `no-store` forbids reuse; `no-cache`
+  revalidates and reuses. That one word was ~800KB per visit, and 2MB of it on the Con-call tab
+  alone (`concall-calls.json`).
+- **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
+  `meta.origin` says where this paint came from (`live` / `store` / `snapshot`) and
+  `meta.checkedAt` when the server last confirmed it — a different fact from `meta.fetchedAt`,
+  which is when the upstream was read. A 304 moves the second and not the first. `deliveryNote()`
+  in `js/ui/sources.js` renders both, and both Live pills carry it.
+- A store miss is never an error. It means "fetch it", which is what the code did before the store
+  existed. Private windows and disabled storage fall back to an in-memory Map, and
+  `isPersistent()` reports it so the UI can say so.
 
 ---
 
@@ -660,7 +724,7 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Add a view to the Deep Dive | `js/concall/deep-dive.js`: add to `TABS`, `TAB_LABEL`, `RENDERERS`, and `WIRERS` if it needs listeners |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
 | Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |
-| Add a server route | the API block in `worker/index.js` |
+| Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, rail or tab bar | `js/ui/shell.js` |
@@ -669,6 +733,9 @@ live.stop('concall-live');    // in destroy(), and call off()
 | Change routing or URL shape | `js/core/router.js` |
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
+| Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
+| Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
+| Add a cached feed to the device store | give it a key in `KEYS` (`js/core/store.js`) and fetch it with `conditionalJson` |
 | Add a new JSON file | drop it in `public/data/`, add to `DATA_SOURCES` in `js/app.js`, document it in `docs/DATA-CONTRACTS.md` |
 | Add a server route | the marked `/api/*` block in `worker/index.js` |
 | Understand a JSON shape / unit / source | `docs/DATA-CONTRACTS.md` |
@@ -721,6 +788,15 @@ It covers, beyond the checklist below:
 - the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
 - the CSV round trip parses every row back, and a malformed file names each rejection with its line
 - every `<th>` carries `scope="col"`; the three overlays trap focus and restore it on close
+- **the two polled feeds do not re-download themselves**: the payload is kept on the device under
+  a tag that describes it, a repeat fetch of either transfers headers and no body, the prices
+  projection is a fraction of the full feed, the Live pill says where the paint came from, and no
+  static-file loader is still using `cache: 'no-store'`
+
+> The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
+> `/api/*`, so they report **SKIP** — which is itself worth seeing, because it exercises the
+> snapshot fallback. Verify a caching change against `npx wrangler dev`:
+> `node scripts/verify-ui.mjs http://127.0.0.1:8787`. A SKIP there is not a pass.
 
 > Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach
 > `cdn.tailwindcss.com` or Google Fonts. To screenshot with real styling, copy `public/` to a

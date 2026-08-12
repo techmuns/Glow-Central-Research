@@ -41,6 +41,7 @@
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { deliveryNote } from '../ui/sources.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
@@ -390,6 +391,13 @@ function wireLiveButton(root, m, rows) {
             <li><strong>MCap</strong> — computed live as shares outstanding × the current price, so it is correct now rather
                 than as of the last data refresh. ${noCap ? `<strong>${formatNumber(noCap)}</strong> without a share count.` : ''}</li>
           </ul>
+
+          ${deliveryNote(m, { poll: feed.POLL_MS / 1000 })}
+          <p class="mt-1 text-xs leading-relaxed text-slate-500">
+            The tick itself asks only for prices — about 30KB against 1.1MB for the feed — plus a fingerprint of the
+            reported figures. The table is rebuilt when that fingerprint moves, which is when a company has filed or
+            revised something, and not when someone merely traded.
+          </p>
 
           ${
             arrivals.length

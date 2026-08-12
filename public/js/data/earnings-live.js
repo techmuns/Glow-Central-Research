@@ -9,13 +9,25 @@
 //   newArrivals()            // companies that appeared since this page loaded
 //
 // HOW "LIVE" ACTUALLY WORKS HERE
-//   First paint reads the committed snapshot (data/earnings-live.json) so the table is populated
-//   instantly and works with no network. Then the tab polls /api/earnings, which proxies
+//   First paint reads whatever this device already holds (core/store.js, IndexedDB) so the table
+//   is populated with no network at all. Then the tab polls /api/earnings, which proxies
 //   Moneycontrol behind a 30s edge cache. A company that files at 14:32 is on screen by ~14:33.
 //
-//   The poller only repaints when something CHANGED — a new company, a revised figure, a moved
-//   price. Repainting a 1,300-row table every 30s regardless would fight the user's scroll
-//   position and sort for no reason.
+//   The poller only repaints when something CHANGED — a new company, a revised figure. Repainting
+//   a 1,300-row table every 30s regardless would fight the user's scroll position and sort for no
+//   reason.
+//
+// WHAT ACTUALLY TRAVELS ON A TICK
+//   The payload is 1.1MB of JSON, and re-fetching it every 30 seconds to discover that nothing has
+//   changed is the largest waste this dashboard is capable of. So the poll asks for
+//   /api/earnings?fields=prices — scID -> [ltp, changePct] and a `structureTag`, about 10KB. The
+//   full feed is re-fetched only when that tag moves, which is exactly when a company has filed or
+//   revised a figure. Everything else is served out of the device's own copy.
+//
+//   THE STORE HOLDS THE SERVER'S BYTES, NOT OURS. A stored payload is always exactly the
+//   representation its ETag describes — price updates from the projection are folded into memory
+//   and never written back. That invariant is the whole reason a 304 can be trusted: it says "you
+//   already have this", and we must actually have it.
 //
 // THREE JOINS, ALL OF WHICH CAN LEGITIMATELY MISS
 //   1. scId -> NSE ticker, via the committed map. Moneycontrol truncates company names to 15
@@ -28,6 +40,7 @@
 //   this" and "this is zero" are different claims.
 
 import { adaptUniverse } from './universe.js';
+import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/earnings-live.json';
 const TICKER_MAP_PATH = 'data/mc-ticker-map.json';
@@ -53,6 +66,10 @@ let cache = null; // the ACTIVE { rows, meta, byTicker }
 // One cache per sub-type, so switching back is instant and neither can be shown under the other's
 // headers. The committed snapshot is YoY only — see `setSubType`.
 const bySubType = new Map();
+// The last FULL payload per sub-type, as received. Prices from the projection are folded onto this
+// and re-ingested, so market cap and return-since-result are always recomputed by the same code
+// that computed them at load rather than by a second, price-only derivation that could drift.
+const rawBySubType = new Map();
 let tickerMap = null;
 let returnsBase = null;
 let universeIndex = null;
@@ -61,6 +78,10 @@ let arrivals = [];
 const listeners = new Set();
 
 const endpointFor = (st) => `${LIVE_ENDPOINT}?subType=${encodeURIComponent(st)}`;
+const pricesEndpointFor = (st) => `${LIVE_ENDPOINT}?subType=${encodeURIComponent(st)}&fields=prices`;
+const storeKey = (st) => KEYS.earnings(st);
+const priceStoreKey = (st) => `${KEYS.earnings(st)}:prices`;
+const structureTagFor = (st) => rawBySubType.get(st)?.meta?.structureTag || null;
 
 export function currentSubType() {
   return subType;
@@ -76,40 +97,67 @@ export function load() {
   return loadPromise;
 }
 
-async function fetchJson(path, { optional = false } = {}) {
-  try {
-    const res = await fetch(path, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`${path} (${res.status})`);
-    return await res.json();
-  } catch (err) {
-    if (optional) return null;
-    throw err;
-  }
-}
-
 async function build() {
   // The three join tables are optional: without them the feed still renders, just with fewer
-  // columns filled. Only the results payload itself is required.
-  const [snapshot, map, returns, universeRaw] = await Promise.all([
-    fetchJson(SNAPSHOT_PATH),
-    fetchJson(TICKER_MAP_PATH, { optional: true }),
-    fetchJson(RETURNS_PATH, { optional: true }),
-    fetchJson('data/universe.json', { optional: true }),
+  // columns filled. `revalidatedJson` lets the browser reuse them across loads instead of
+  // re-downloading half a megabyte of lookup tables every visit.
+  const [map, returns, universeRaw] = await Promise.all([
+    revalidatedJson(TICKER_MAP_PATH, { optional: true }),
+    revalidatedJson(RETURNS_PATH, { optional: true }),
+    revalidatedJson('data/universe.json', { optional: true }),
   ]);
 
   tickerMap = map?.map || {};
   returnsBase = returns?.base || {};
   universeIndex = buildUniverseIndex(universeRaw);
 
-  ingest(snapshot, { live: false });
+  // 1. Whatever this device already holds, on screen with no network at all.
+  const stored = await readEntry(storeKey(subType));
+  if (stored?.value?.rows?.length) ingest(stored.value, { live: true, origin: 'store', checkedAt: stored.savedAt });
 
-  // Try the live endpoint once during load so the very first paint is live where possible. It is
-  // deliberately not awaited hard: a missing Worker (plain `python3 -m http.server`) must not stop
-  // the tab from rendering the snapshot.
-  const fresh = await fetchJson(endpointFor(subType), { optional: true });
-  if (fresh?.rows?.length) ingest(fresh, { live: true });
+  // 2. Ask the Worker what has changed since. Carrying the stored ETag means the answer is usually
+  //    a bodyless 304 — a couple of hundred bytes instead of 1.1MB. Deliberately optional: a
+  //    missing Worker (plain `python3 -m http.server`) must not stop the tab rendering.
+  const out = await conditionalJson(endpointFor(subType), { key: storeKey(subType), optional: true });
+  if (out.status === 200 && out.value?.rows?.length) ingest(out.value, { live: true, origin: 'live', checkedAt: out.checkedAt });
+  else if (out.status === 304) markChecked('live', out.checkedAt);
 
+  // 3. The committed snapshot, last and only when it is needed: on a first visit with no Worker,
+  //    or when the live route is unreachable and a redeploy may have shipped something newer than
+  //    the copy on this device. It is 1.1MB, so it is never fetched speculatively.
+  if (!cache || out.status === 0) {
+    const snapshot = await revalidatedJson(SNAPSHOT_PATH, { optional: !!cache });
+    if (snapshot?.rows?.length && isNewerThanHeld(snapshot)) ingest(snapshot, { live: false, origin: 'snapshot', checkedAt: Date.now() });
+  }
+
+  if (!cache) throw new Error(`${SNAPSHOT_PATH} could not be loaded and no cached copy exists.`);
   return cache;
+}
+
+/**
+ * Is a payload newer than the one we are already showing?
+ *
+ * Only asked of the committed snapshot, and only when the live route is down. Without a stamp to
+ * compare, the honest answer is no — replacing a copy we know the age of with one we do not would
+ * make the freshness label a guess.
+ */
+function isNewerThanHeld(payload) {
+  if (!cache) return true;
+  const incoming = Date.parse(payload?.meta?.fetchedAt || '');
+  const held = Date.parse(cache.meta?.fetchedAt || '');
+  if (!Number.isFinite(incoming)) return false;
+  if (!Number.isFinite(held)) return true;
+  return incoming > held;
+}
+
+/**
+ * Record that the server confirmed our copy, without rebuilding a single row. This is what a 304
+ * means and it is worth showing: "as of 09:14, last checked 14:31" is a different and more useful
+ * claim than either half alone.
+ */
+function markChecked(origin, at) {
+  if (!cache) return;
+  cache.meta = { ...cache.meta, origin, checkedAt: at || Date.now() };
 }
 
 /**
@@ -122,6 +170,11 @@ async function build() {
  *   like a live one while comparing against the wrong quarter. If the live endpoint is
  *   unreachable, QoQ genuinely cannot be shown, and saying so is the only honest option —
  *   silently leaving YoY numbers under QoQ headers would be the worst outcome available.
+ *
+ *   A QoQ payload held in the device's own store is a different case and IS shown: it is real QoQ
+ *   under QoQ headers, so nothing is mislabelled. What it can be is old, and that is answered the
+ *   same way everything else here is — `meta.origin` and `meta.checkedAt` travel with it and the
+ *   Live pill says when it was last confirmed.
  */
 export async function setSubType(next) {
   const wanted = SUB_TYPES.some((s) => s.value === next) ? next : DEFAULT_SUB_TYPE;
@@ -135,7 +188,19 @@ export async function setSubType(next) {
     return cache;
   }
 
-  const payload = await fetchJson(endpointFor(wanted), { optional: true });
+  // The device may already hold this basis from an earlier visit. Show it at once and confirm in
+  // the background — the toggle is instant on a warm store rather than a network round trip.
+  const stored = await readEntry(storeKey(wanted));
+  if (stored?.value?.rows?.length && (stored.value.meta?.subType || wanted) === wanted) {
+    subType = wanted;
+    ingest(stored.value, { live: true, origin: 'store', checkedAt: stored.savedAt });
+    notify();
+    confirmInBackground(wanted);
+    return cache;
+  }
+
+  const out = await conditionalJson(endpointFor(wanted), { key: storeKey(wanted), optional: true });
+  const payload = out.value;
   if (!payload?.rows?.length) {
     throw new Error(
       wanted === DEFAULT_SUB_TYPE
@@ -151,9 +216,25 @@ export async function setSubType(next) {
     throw new Error(`The feed answered with ${served.toUpperCase()} when ${wanted.toUpperCase()} was requested, so the comparison would have been mislabelled.`);
   }
   subType = wanted;
-  ingest(payload, { live: true });
+  ingest(payload, { live: true, origin: 'live', checkedAt: out.checkedAt });
   notify();
   return cache;
+}
+
+/** Revalidate a basis we painted from the store. Silent on 304; repaints through `notify` on 200. */
+function confirmInBackground(wanted) {
+  conditionalJson(endpointFor(wanted), { key: storeKey(wanted), optional: true })
+    .then((out) => {
+      if (subType !== wanted) return; // the reader moved on; do not overwrite what they are looking at
+      if (out.status === 200 && out.value?.rows?.length && (out.value.meta?.subType || wanted) === wanted) {
+        ingest(out.value, { live: true, origin: 'live', checkedAt: out.checkedAt });
+        notify();
+      } else if (out.status === 304) {
+        markChecked('live', out.checkedAt);
+        notify();
+      }
+    })
+    .catch(() => {});
 }
 
 function buildUniverseIndex(raw) {
@@ -169,7 +250,7 @@ function buildUniverseIndex(raw) {
  * Fold a payload into the cache. Shared by the snapshot and every live tick so the two can never
  * diverge in shape — the same join, the same derivations, one code path.
  */
-function ingest(payload, { live }) {
+function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   const rows = (payload?.rows || []).map(joinRow).sort(byNewestResult);
 
   const isFirst = seenScIds === null;
@@ -206,9 +287,16 @@ function ingest(payload, { live }) {
       withMarketCap: rows.filter((r) => r.marketCap != null).length,
       withReturn: rows.filter((r) => r.returnSinceResult != null).length,
       receivedAt: Date.now(),
+      // Where THIS paint came from, and when the server last confirmed it. Two different claims:
+      // `fetchedAt` is when Moneycontrol was read, `checkedAt` is when we last asked whether that
+      // was still current. A 304 moves the second and not the first, which is the honest reading.
+      origin,
+      checkedAt,
+      persisted: isPersistent(),
     },
   };
   bySubType.set(cache.meta.subType, cache);
+  rawBySubType.set(cache.meta.subType, payload);
   return cache;
 }
 
@@ -300,18 +388,35 @@ export function startLive(live) {
     fetcher: async () => {
       // Always the ACTIVE sub-type: the poller follows the toggle rather than pinning whichever
       // basis happened to be selected when it was registered.
-      const payload = await fetchJson(endpointFor(subType), { optional: true });
-      if (!payload?.rows?.length) return null;
+      const st = subType;
+
+      // THE TICK ASKS FOR PRICES, NOT FOR THE FEED. Measured: 30KB against 1.1MB, and when even
+      // the prices have not moved the browser's revalidation makes it 0.3KB on the wire. The
+      // `structureTag` in the reply is what tells us whether the rows underneath those prices are
+      // still the rows we hold.
+      const out = await conditionalJson(pricesEndpointFor(st), { key: priceStoreKey(st), optional: true });
+      if (!out.value?.prices) return null;
       // A tick that arrives for the basis the user has since switched away from is dropped rather
       // than folded in — it would overwrite the active cache with the other comparison.
-      if ((payload.meta?.subType || subType) !== subType) return null;
-      // ALWAYS refresh the cache, but only NOTIFY on a structural change. Prices move on every
-      // tick, and repainting 1,300 rows every 30s would rebuild the table and throw away
-      // whatever the user had sorted or searched. So the data stays current underneath, and the
-      // screen is rebuilt only when something worth rebuilding for happened: a company filed, or
-      // a figure was revised.
-      const structural = hasStructuralChange(payload);
-      ingest(payload, { live: true });
+      if (st !== subType || (out.value.meta?.subType || st) !== st) return null;
+      markChecked('live', out.checkedAt);
+
+      const held = structureTagFor(st);
+      if (held && out.value.structureTag === held) {
+        // Same rows, possibly moved prices. Refresh the cache but do NOT notify: repainting 1,300
+        // rows because someone traded would rebuild the table and throw away whatever the reader
+        // had sorted or searched, for no new information about any result.
+        applyPrices(out.value);
+        return null;
+      }
+
+      // Either a company has filed or revised, or we have nothing to compare against yet (the
+      // committed snapshot carries no structure tag). Now — and only now — pull the full feed.
+      const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
+      if (!full.value?.rows?.length) return null;
+      if (st !== subType || (full.value.meta?.subType || st) !== st) return null;
+      const structural = hasStructuralChange(full.value);
+      ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
       return structural ? cache : null;
     },
   });
@@ -328,6 +433,37 @@ export function startLive(live) {
 
 export function stopLive(live) {
   live?.stop?.(LIVE_ID);
+}
+
+/**
+ * Fold a prices projection onto the full payload we hold and re-ingest.
+ *
+ * Re-ingesting rather than patching the derived rows in place is deliberate: market cap is
+ * `shares × price` and return-since-result is measured against the result-day close, so both move
+ * with the price. Recomputing them anywhere but `joinRow` is exactly how the two would drift.
+ *
+ * The store is NOT rewritten here. It holds the server's own bytes under the server's own ETag,
+ * and a locally-patched copy under a tag that no longer describes it would make the next 304 a
+ * lie. Prices are re-applied from the projection after every load instead.
+ */
+function applyPrices(pricePayload) {
+  const st = pricePayload.meta?.subType || subType;
+  const raw = rawBySubType.get(st);
+  if (!raw?.rows?.length) return false;
+
+  let moved = 0;
+  const rows = raw.rows.map((r) => {
+    const p = pricePayload.prices?.[r.scId];
+    if (!p) return r;
+    const [ltp, changePct] = p;
+    if (ltp === r.ltp && changePct === r.changePct) return r;
+    moved++;
+    return { ...r, ltp, changePct };
+  });
+  if (!moved) return false;
+
+  ingest({ ...raw, rows }, { live: true, origin: 'live', checkedAt: Date.now() });
+  return true;
 }
 
 /**

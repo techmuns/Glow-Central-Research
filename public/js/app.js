@@ -34,7 +34,10 @@ async function loadAll() {
   const entries = Object.entries(DATA_SOURCES);
   const results = await Promise.all(
     entries.map(async ([key, path]) => {
-      const res = await fetch(path, { cache: 'no-store' });
+      // `no-cache`, not `no-store`: revalidate every load, but reuse what is already on disk when
+      // the server answers 304. These are committed files — re-downloading ~800KB of them on every
+      // visit bought nothing.
+      const res = await fetch(path, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
       return [key, await res.json()];
     })

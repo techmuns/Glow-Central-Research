@@ -5,13 +5,21 @@
 //
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
+//   GET  /api/earnings?fields=prices           ->  just the traded prices, for the poll
 //   GET  /api/earnings-calendar                ->  who is SCHEDULED to report, and when
 //   GET  /api/concalls                         ->  the live StockScans con-call scan
 //
 // Neither writes anything back to the repo; both are read-through overlays on committed data.
+//
+// EVERY GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this file.
+// The two big feeds are polled every 30 seconds and are 1.1MB and 450KB of JSON. Answering
+// "nothing has changed" by re-sending the whole thing, 120 times an hour, is the single largest
+// waste in the system. So each response carries a content-derived ETag, and a request that
+// arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
+import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const REQ_TIMEOUT_MS = 8000;
@@ -32,6 +40,12 @@ export default {
     // Add new handlers here and keep them in their own module once this grows past a
     // couple of routes. Everything not matched falls through to the static assets.
     // ---------------------------------------------------------------------------------
+    // A conditional GET carries `If-None-Match`, which is not a CORS-safelisted request header, so
+    // a cross-origin caller preflights it. Production is same-origin and never sees this; local
+    // development, where the static site and the Worker sit on different ports, does.
+    if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
+      return preflight();
+    }
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request);
     }
@@ -68,6 +82,17 @@ export default {
 //
 // `?subType=qoq` and `?category=std|con` pass through; anything else is ignored rather than
 // forwarded, so this cannot be used as an open proxy to arbitrary upstream paths.
+//
+// TWO REPRESENTATIONS, BECAUSE ONLY ONE FIELD MOVES ON A TICK.
+// `?fields=prices` returns the traded price and day change per scID and nothing else — measured at
+// 30KB against 1.1MB for the full feed. This exists because the results feed is the one place
+// where a conditional GET alone buys nothing: `ltp` moves on every tick during market hours, so
+// the full representation genuinely changes every 30 seconds even though not one reported figure
+// has. Splitting the volatile field out means the poll carries only what actually moved.
+//
+// The projection carries `structureTag` — a tag over identity and the REPORTED FIGURES, price
+// excluded. The client refetches the full feed exactly when that moves, which is when a company
+// has filed or revised. So a filing still reaches the screen on the very next tick.
 // ---------------------------------------------------------------------------------------
 async function handleEarnings(request, env, ctx) {
   if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
@@ -75,17 +100,27 @@ async function handleEarnings(request, env, ctx) {
   const url = new URL(request.url);
   const subType = url.searchParams.get('subType') === 'qoq' ? 'qoq' : 'yoy';
   const category = ['std', 'con'].includes(url.searchParams.get('category')) ? url.searchParams.get('category') : 'all';
+  const fields = url.searchParams.get('fields') === 'prices' ? 'prices' : 'full';
 
   // Cache key is the normalised option set, not the raw URL — so a stray tracking param can't
-  // fragment the cache and multiply upstream fetches.
-  const cacheKey = new Request(`https://cache.invalid/earnings?subType=${subType}&category=${category}`, { method: 'GET' });
+  // fragment the cache and multiply upstream fetches. The two representations are cached
+  // separately so the poll never has to parse the 1.1MB one to answer with 10KB.
   const cache = caches.default;
+  const fullKey = edgeKey(`earnings?subType=${subType}&category=${category}`);
+  const pricesKey = edgeKey(`earnings-prices?subType=${subType}&category=${category}`);
 
-  const hit = await cache.match(cacheKey);
-  if (hit) {
-    const r = new Response(hit.body, hit);
-    r.headers.set('x-sattva-cache', 'hit');
-    return r;
+  const hit = await cache.match(fields === 'prices' ? pricesKey : fullKey);
+  if (hit) return revalidate(request, hit, 'hit');
+
+  // The other representation may still be warm. Deriving the projection from a cached full payload
+  // is a parse rather than an upstream fetch, and the two keys can be evicted independently.
+  if (fields === 'prices') {
+    const warm = await cache.match(fullKey);
+    if (warm) {
+      const { body, tag } = withTag(pricesPayload(await warm.json()));
+      ctx?.waitUntil?.(cache.put(pricesKey, tagged(body, tag, EARNINGS_TTL_S)));
+      return revalidate(request, tagged(body, tag, EARNINGS_TTL_S), 'derived');
+    }
   }
 
   let payload;
@@ -101,12 +136,13 @@ async function handleEarnings(request, env, ctx) {
     const { resolved, attempted, failed } = await resolveMissing(rows, known, { limit: 40 });
     const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
 
+    const joined = applyIdentity(rows, merged);
     payload = {
       ok: true,
       degraded: null,
       ...freshnessOf(rows),
-      meta: { ...meta, resolvedOnTheFly: attempted, unresolved: failed },
-      rows: applyIdentity(rows, merged),
+      meta: { ...meta, resolvedOnTheFly: attempted, unresolved: failed, structureTag: structureTagOf(joined, `${subType}|${category}`) },
+      rows: joined,
     };
   } catch (err) {
     // Upstream is down, rate-limited, or has changed shape. Serve the committed snapshot and
@@ -119,19 +155,74 @@ async function handleEarnings(request, env, ctx) {
       ...fallback,
       ok: true,
       degraded: `Live feed unavailable (${String(err.message || err)}) — showing the last committed snapshot.`,
+      meta: { ...(fallback.meta || {}), structureTag: structureTagOf(fallback.rows || [], `${subType}|${category}|snapshot`) },
     };
-    const res = json(payload, 200);
-    res.headers.set('cache-control', 'public, max-age=10'); // retry the upstream sooner than usual
-    res.headers.set('x-sattva-cache', 'fallback');
-    return res;
+    // Retry the upstream sooner than usual, and do not poison the edge cache with the fallback —
+    // a degraded answer must not be handed to the next reader for a full window.
+    const { body, tag } = withTag(fields === 'prices' ? pricesPayload(payload) : payload);
+    return revalidate(request, tagged(body, tag, 10), 'fallback');
   }
 
-  const res = json(payload, 200);
-  res.headers.set('cache-control', `public, max-age=${EARNINGS_TTL_S}`);
-  res.headers.set('x-sattva-cache', 'miss');
-  // Store a clone; the response body can only be read once.
-  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
-  return res;
+  const full = withTag(payload);
+  const prices = withTag(pricesPayload(payload));
+  ctx?.waitUntil?.(
+    Promise.all([
+      cache.put(fullKey, tagged(full.body, full.tag, EARNINGS_TTL_S)),
+      cache.put(pricesKey, tagged(prices.body, prices.tag, EARNINGS_TTL_S)),
+    ])
+  );
+  const out = fields === 'prices' ? prices : full;
+  return revalidate(request, tagged(out.body, out.tag, EARNINGS_TTL_S), 'miss');
+}
+
+/**
+ * The polling projection: scID -> [ltp, changePct], plus the structure tag that tells the client
+ * whether it still holds the right rows underneath those prices.
+ *
+ * A two-element array rather than an object per row on purpose — `"CHC":[1191,6.43]` is 20 bytes
+ * where `{"ltp":1191,"changePct":6.43}` is 44, and there are 1,384 of them.
+ */
+function pricesPayload(payload) {
+  const prices = {};
+  for (const r of payload.rows || []) {
+    if (r.ltp == null && r.changePct == null) continue;
+    prices[r.scId] = [r.ltp ?? null, r.changePct ?? null];
+  }
+  return {
+    ok: true,
+    fields: 'prices',
+    structureTag: payload.meta?.structureTag || null,
+    latestResultDate: payload.latestResultDate ?? null,
+    count: (payload.rows || []).length,
+    degraded: payload.degraded || null,
+    prices,
+    meta: {
+      subType: payload.meta?.subType || null,
+      category: payload.meta?.category || null,
+      quarter: payload.meta?.quarter || null,
+      currentPeriod: payload.meta?.currentPeriod || null,
+      priorPeriod: payload.meta?.priorPeriod || null,
+      source: payload.meta?.source || null,
+      fetchedAt: payload.meta?.fetchedAt || null,
+    },
+  };
+}
+
+/**
+ * A tag over identity and the reported figures, with the traded price DELIBERATELY EXCLUDED.
+ *
+ * This is the server-side twin of `hasStructuralChange` in js/data/earnings-live.js, and it exists
+ * for the same reason: prices move constantly and results do not. A client polling the price
+ * projection needs one number that tells it "the rows themselves changed, come and get them", and
+ * that number must not move just because someone traded.
+ */
+function structureTagOf(rows, salt) {
+  const fig = (m) => (m ? `${m.current ?? ''},${m.prior ?? ''},${m.reportedPct ?? ''},${m.kind ?? ''}` : '');
+  let acc = `${salt}#${rows.length}#`;
+  for (const r of rows) {
+    acc += `${r.scId}|${r.resultDate}|${r.basis}|${r.ticker || ''}|${fig(r.revenue)}|${fig(r.netProfit)}|${fig(r.grossProfit)}\n`;
+  }
+  return contentTag(acc);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -160,14 +251,10 @@ async function handleCalendar(request, env, ctx) {
   const from = iso(url.searchParams.get('from')) || shiftDays(date, -7);
   const to = iso(url.searchParams.get('to')) || shiftDays(date, 14);
 
-  const cacheKey = new Request(`https://cache.invalid/earnings-calendar?date=${date}&from=${from}&to=${to}`, { method: 'GET' });
+  const cacheKey = edgeKey(`earnings-calendar?date=${date}&from=${from}&to=${to}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
-  if (hit) {
-    const r = new Response(hit.body, hit);
-    r.headers.set('x-sattva-cache', 'hit');
-    return r;
-  }
+  if (hit) return revalidate(request, hit, 'hit');
 
   // Independent, and deliberately not Promise.all-with-rejection: the strip is the part that is
   // always available, and losing it because the page 403'd would be the wrong trade.
@@ -243,12 +330,10 @@ async function handleCalendar(request, env, ctx) {
     return json({ ok: false, degraded: `calendar upstream unavailable: ${String(stripOut.reason?.message || stripOut.reason || 'no data')}`, days: [], rows: [] }, 502);
   }
 
-  const res = json(payload, 200);
-  res.headers.set('cache-control', `public, max-age=${CALENDAR_TTL_S}`);
-  res.headers.set('x-sattva-cache', 'miss');
-  res.headers.set('x-sattva-list-source', listSource || 'none');
-  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
-  return res;
+  const { body, tag } = withTag(payload);
+  const extra = { 'x-sattva-list-source': listSource || 'none' };
+  ctx?.waitUntil?.(cache.put(cacheKey, tagged(body, tag, CALENDAR_TTL_S, extra)));
+  return revalidate(request, tagged(body, tag, CALENDAR_TTL_S, extra), 'miss');
 }
 
 // ---------------------------------------------------------------------------------------
@@ -267,6 +352,15 @@ async function handleCalendar(request, env, ctx) {
 // taken from the head with its score rather than from the tail without one.
 //
 // In steady state that is one upstream request per 30 seconds instead of eighteen.
+//
+// AND WHY THERE IS NO ?fields= PROJECTION HERE, UNLIKE /api/earnings.
+// Nothing on a con-call row moves on a tick. A row appears when the call is held and changes once
+// more when StockScans finishes analysing it — a handful of times an hour in season, never
+// otherwise. So the conditional GET does the whole job: 119 of every 120 polls are answered with
+// a 304 and no body, and the one that is not has to carry the changed rows anyway. Splitting the
+// payload would save a few hundred KB an hour and add a merge path that could drift from the
+// server's truth; the earnings feed pays that complexity only because its price field leaves it
+// no choice.
 // ---------------------------------------------------------------------------------------
 const CONCALL_HEAD_TTL_S = 30;
 const CONCALL_TAIL_TTL_S = 600;
@@ -281,13 +375,14 @@ async function handleConcalls(request, env, ctx) {
   // under its own key and TTL; the route itself is never cached as a whole, because its parts
   // expire at very different rates.
   const cached = async (key, ttl, load) => {
-    const cacheKey = new Request(`https://cache.invalid/concalls/${key}`, { method: 'GET' });
+    const cacheKey = edgeKey(`concalls/${key}`);
     const hit = await cache.match(cacheKey);
     if (hit) return { value: await hit.json(), fresh: false };
     const value = await load();
-    const res = json(value, 200);
-    res.headers.set('cache-control', `public, max-age=${ttl}`);
-    ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+    // These three entries are internal scratch, never handed to a client, so the tag is only
+    // there because `tagged` wants one — nothing revalidates against it. The client-facing
+    // validator is computed once over the assembled payload below.
+    ctx?.waitUntil?.(cache.put(cacheKey, tagged(JSON.stringify(value), contentTag(key), ttl)));
     return { value, fresh: true };
   };
 
@@ -317,26 +412,25 @@ async function handleConcalls(request, env, ctx) {
         // True if OUR page bound stopped the walk, not the feed's own end. A truncated quarter
         // must not be presented as the whole quarter.
         truncated: !!tail.value.meta.truncated,
-        headFresh: head.fresh,
-        servedAt: new Date().toISOString(),
       },
     };
-    const res = json(payload, 200);
-    res.headers.set('cache-control', `public, max-age=${CONCALL_HEAD_TTL_S}`);
-    res.headers.set('x-sattva-cache', head.fresh ? 'miss' : 'hit');
-    return res;
+    // The body deliberately carries no "served at" stamp. It would differ on every request while
+    // the content did not, so the ETag would never match and the 304 this route exists for would
+    // never fire. `meta.fetchedAt` — when the upstream was actually read — is the honest freshness
+    // signal, and the client stamps its own "last checked" on every poll, 304s included.
+    const { body, tag } = withTag(payload);
+    return revalidate(request, tagged(body, tag, CONCALL_HEAD_TTL_S, { 'x-sattva-head': head.fresh ? 'fresh' : 'cached' }), head.fresh ? 'miss' : 'hit');
   } catch (err) {
     const fallback = await loadConcallSnapshot(env, request);
     if (!fallback) {
       return json({ ok: false, degraded: `StockScans is unreachable and no snapshot is available: ${String(err.message || err)}`, rows: [] }, 502);
     }
-    const res = json(
-      { ...fallback, ok: true, degraded: `StockScans is unavailable (${String(err.message || err)}) — showing the last committed snapshot.` },
-      200
-    );
-    res.headers.set('cache-control', 'public, max-age=15'); // retry sooner than a normal window
-    res.headers.set('x-sattva-cache', 'fallback');
-    return res;
+    const { body, tag } = withTag({
+      ...fallback,
+      ok: true,
+      degraded: `StockScans is unavailable (${String(err.message || err)}) — showing the last committed snapshot.`,
+    });
+    return revalidate(request, tagged(body, tag, 15), 'fallback'); // retry sooner than a normal window
   }
 }
 
@@ -498,10 +592,12 @@ function json(obj, status = 200) {
     headers: {
       'content-type': 'application/json',
       'cache-control': 'no-store',
-      // The dashboard is same-origin with this Worker, so CORS is not needed for our own page.
-      // It is here so the feed can be pulled from a local `python3 -m http.server` during
-      // development without standing up wrangler.
-      'access-control-allow-origin': '*',
+      ...CORS,
     },
   });
+}
+
+/** Cache keys live on a hostname that cannot resolve, so an entry can never be confused for a fetch. */
+function edgeKey(path) {
+  return new Request(`https://cache.invalid/${path}`, { method: 'GET' });
 }

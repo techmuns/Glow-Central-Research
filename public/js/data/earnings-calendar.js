@@ -20,6 +20,8 @@
 //   reports on the 13th" long after the 13th, and there is no way to tell a stale schedule from a
 //   live one by looking at it. If the route is unreachable the tab says so.
 
+import { KEYS, conditionalJson } from '../core/store.js';
+
 const ENDPOINT = 'api/earnings-calendar';
 
 let stripCache = []; // [{ date, displayDate, count }]
@@ -57,10 +59,11 @@ export function loadDate(iso, { from, to } = {}) {
   if (from) qs.set('from', from);
   if (to) qs.set('to', to);
 
-  const p = fetch(`${ENDPOINT}?${qs}`, { cache: 'no-store' })
-    .then(async (res) => {
-      if (!res.ok) throw new Error(`calendar feed returned ${res.status}`);
-      const payload = await res.json();
+  // Conditional, and persisted per date: a schedule changes on the order of hours, so revisiting a
+  // date already seen on this device costs a 304 rather than the whole day's list again.
+  const p = conditionalJson(`${ENDPOINT}?${qs}`, { key: KEYS.calendar(iso) })
+    .then((out) => {
+      const payload = out.value;
       if (!payload?.ok) throw new Error(payload?.degraded || 'calendar feed returned no data');
       // The strip covers a window around whichever date was asked for, so later loads widen it
       // rather than replacing it — clicking around the strip must not make dates disappear.
