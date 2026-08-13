@@ -460,6 +460,94 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
     .join('')}</div>`;
 }
 
+/**
+ * The header status control: one pill reading `● Live · updated 4m ago`, plus a refresh button.
+ *
+ * It used to be two separate chips — a green "Live · just now" and a white "Updated 52 minutes
+ * ago" — which read as two competing claims about the same thing and left the reader to work out
+ * which mattered. They also measured different facts: the green one moved on the 20-second
+ * heartbeat, which asks nothing of any server, so it said "just now" whether or not a single byte
+ * of data had been confirmed in an hour.
+ *
+ * One pill, one honest timestamp: `getTimestamp` is wired to the last tick of a poller that
+ * actually talked to a server (`live.getLastDataTick()`), falling back to when the page loaded its
+ * data. Clicking it opens the provenance modal, which is where the removed "Sources" button went —
+ * the button is gone from the chrome, the accountability behind it is one click from every screen.
+ *
+ * `onRefresh` returns `{ announced }` so the button can report a result instead of just spinning.
+ */
+export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null, onOpenSources = null }) {
+  const html = `
+    <div class="flex items-center gap-1.5">
+      <button type="button" data-status-pill
+        title="When a feed last confirmed its data with the server. Click for every source this dashboard uses."
+        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+        <span class="relative flex h-1.5 w-1.5">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+        </span>
+        <span>Live</span>
+        <span class="text-emerald-300">·</span>
+        <span data-live-time class="tabular-nums font-medium text-emerald-600">—</span>
+      </button>
+      <button type="button" data-header-refresh title="Check every live feed for new data now"
+        class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
+        <svg data-header-refresh-icon width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+        <span data-header-refresh-label>Refresh</span>
+      </button>
+    </div>`;
+
+  function wire(root) {
+    const timeEl = root.querySelector('[data-live-time]');
+    const pill = root.querySelector('[data-status-pill]');
+    const btn = root.querySelector('[data-header-refresh]');
+    const icon = root.querySelector('[data-header-refresh-icon]');
+    const label = root.querySelector('[data-header-refresh-label]');
+
+    function refresh() {
+      const ts = getTimestamp ? getTimestamp() : null;
+      timeEl.textContent = ts ? `updated ${formatRelativeTime(ts)}` : 'waiting…';
+    }
+    refresh();
+    const interval = setInterval(refresh, 15000);
+    const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
+    pill.addEventListener('click', () => onOpenSources?.());
+
+    let resetTimer = null;
+    async function doRefresh() {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      clearTimeout(resetTimer);
+      icon.classList.add('spin-slow');
+      label.textContent = 'Checking…';
+      let announced = 0;
+      try {
+        ({ announced = 0 } = (await onRefresh?.()) || {});
+      } catch (err) {
+        console.error('[status] refresh failed', err);
+      }
+      icon.classList.remove('spin-slow');
+      // Say what happened. "Up to date" is a real answer and the common one — a spinner that
+      // vanishes leaves the reader unsure whether anything was checked at all.
+      label.textContent = announced ? `${announced} new` : 'Up to date';
+      refresh();
+      btn.disabled = false;
+      resetTimer = setTimeout(() => { label.textContent = 'Refresh'; }, 4000);
+    }
+    btn.addEventListener('click', doRefresh);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(resetTimer);
+      unsubscribe?.();
+    };
+  }
+
+  return { html, wire };
+}
+
 // Pulsing-dot "Live" indicator + relative last-update time. Refreshes on every poller tick via
 // `subscribeTick`, plus on a slow interval so the relative time ("2m ago") keeps ageing.
 export function liveBadge({ label = 'Live', getTimestamp, subscribeTick = null }) {

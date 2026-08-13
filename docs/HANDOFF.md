@@ -138,11 +138,13 @@ public/index.html          design tokens, fonts, Tailwind CDN, #app, three overl
 public/js/
   app.js                   bootstrap: fetch the small JSON set once, prime the data modules, mount
   core/                    state · router (hash) · live (polling) · store (IndexedDB cache) · format · dom
+                           watch.js — app-wide feed watchers behind the alert stack (§4b)
   ui/
     screener.js            THE KIT: statStrip · topCards · scoreTable · openDrill · openWorkspace
                            · openModal · sectionHead · roadmapStrip · pendingPanel · trapFocus
     visual.js              avatars, tiers, status pills, signal dots, legend
     sources.js             the Sources-modal registry — the honest status of every feed
+    notifications.js       the lower-right live alert stack (§4b)
     export.js              exceljs-from-CDN "Export Excel"
     shell.js               header, rail, tab bar, the WORKSPACES registry
   data/                    one module per feed: load once, compute once, cache, expose accessors
@@ -169,6 +171,50 @@ is lost by dropping the rail.
 
 **To add a data source:** three files, together — `docs/DATA-CONTRACTS.md`, the loader in
 `js/app.js` (or a lazy `js/data/*.js`), and the entry in `js/ui/sources.js` with an honest `status`.
+
+---
+
+## 4b. The header and the live alert stack
+
+The header is the brand, the scope toggle, **one** status pill and a refresh button.
+
+It used to also carry a global search box, a Sources button, a green *"Live · just now"* chip and a
+white *"Updated 52 minutes ago"* chip. The two chips are the part worth understanding: they made
+competing claims about the same subject, and the green one was measuring the 20-second heartbeat —
+a poller whose fetcher returns `Date.now()` and asks no server anything — so it said *"just now"*
+whether or not a byte of data had been confirmed in an hour.
+
+- One pill now, `● Live · updated 4m ago`, reading `live.getLastDataTick()`: the last tick of a
+  poller that actually talked to a server. `live.register(id, { synthetic: true })` is what keeps
+  the heartbeat out of that clock.
+- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
+  has to stay reachable from every screen, and *how current is this* / *where did it come from* are
+  one question. `verify-ui.mjs` still opens the modal, now via the pill.
+- The refresh button calls `live.refreshAll()` and **reports a result** — `Up to date` or `3 new`.
+  A spinner that simply vanishes leaves the reader unsure anything was checked.
+- **The global search is gone with the box.** Nothing else used it; a company is reached from its
+  tab's own table. If it comes back, `buildSearchOptions()` is in git history at `9c8c911..`.
+
+**Alerts** (`js/ui/notifications.js`, fed by `js/core/watch.js`) appear in the lower-right when a
+company files a result or a con-call gains its analysis. Both feeds already tracked exactly that in
+`newArrivals()`; the watcher only turns it into a card.
+
+Four things hold it together, and all four are the difference between an alert and a nuisance:
+
+- **The watchers run app-wide.** `startLive` / `stopLive` are owned by the tab that shows a feed,
+  which is right for a table and useless for an alert — an alert is only worth having if it fires
+  while the reader is elsewhere. `watch.ensureRunning()` re-asserts the claim after every route
+  change, because the tab you just left called `live.stop()` on the same poller id.
+- **It is affordable only because of the caching layer.** An unchanged con-call tick is a bodyless
+  304; an unchanged results tick is the ~30KB prices projection. The 1.1MB payload is pulled only
+  when a company has actually filed. Without that, watching two feeds app-wide would be
+  indefensible.
+- **The backlog is suppressed, not replayed.** Arrivals accumulate from page load, so the first
+  change event would otherwise announce rows the reader has had on screen for ten minutes.
+- **The text obeys the table's honesty rules.** A loss-to-profit swing reads *"turned profitable"*
+  rather than a percentage that does not exist, and a con-call with no score reads *"analysis
+  pending"* rather than `0/100`. The suite asserts both, because an alert is the one surface that
+  travels to a phone notification shade without any of its context.
 
 ---
 

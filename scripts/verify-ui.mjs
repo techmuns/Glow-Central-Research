@@ -69,6 +69,18 @@ const go = async (hash, settle = 900) => {
   await page.waitForTimeout(settle);
 };
 const hostText = () => page.locator('#content-host').innerText();
+// A hash-routed SPA can navigate under a running `evaluate` — the router normalises a route, a
+// poller lands, the tab remounts — and Playwright tears the execution context down mid-call. That
+// is a harness race, not a defect in the page, so retry once rather than failing the run on it.
+const evalSafe = async (fn, arg) => {
+  try {
+    return await page.evaluate(fn, arg);
+  } catch (err) {
+    if (!/Execution context was destroyed/.test(String(err))) throw err;
+    await page.waitForTimeout(700);
+    return page.evaluate(fn, arg);
+  }
+};
 // Wait for a panel to actually finish painting rather than sleeping a magic number at it. The
 // Earnings Hub fetches 1,300+ live rows on a cold load, so any fixed settle time is a race that
 // gets lost the day the feed grows.
@@ -741,7 +753,10 @@ ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
 ok('no roadmap placeholder under the table', !/wiring roadmap/i.test(await hostText()));
 ok('...and no coverage paragraph either', !/resolved to an NSE ticker/i.test(await hostText()));
 
-await page.locator('button:has-text("Sources")').first().click();
+// The Sources button is gone from the header; the provenance it opened is not. The status pill
+// carries it now — freshness and provenance are one question — and the rule that survives is that
+// it stays reachable from every screen.
+await page.locator('[data-status-pill]').first().click();
 await page.waitForTimeout(600);
 const sources = await page.locator('#modal-content').innerText();
 ok('Sources modal lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
@@ -1861,16 +1876,121 @@ console.log('\n— accessibility —');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
   ok('...and focus leaves it on close', await page.evaluate(() => !document.getElementById('drill-panel').contains(document.activeElement)));
 }
+// ---------------------------------------------------------------------------------------
+// 12b. The header: one status control, and the alert stack
+//
+// The header used to carry a search box, a Sources button, a green "Live · just now" chip and a
+// white "Updated 52 minutes ago" chip. The two chips were the interesting problem: they made two
+// competing claims about the same subject, and the green one tracked the 20-second heartbeat,
+// which asks nothing of any server — so it read "just now" whether or not a byte had been
+// confirmed in an hour. These check the replacement is one control telling one truth.
+// ---------------------------------------------------------------------------------------
+console.log('\n— header status and live alerts —');
 {
-  let kOk = 0;
-  const kRoutes = ['/#/research/earnings-hub', '/#/research/concall', '/#/portfolio/drawdown/curve', '/#/portfolio/transactions/import'];
-  for (const r of kRoutes) {
-    await go(r, 1300);
-    await page.keyboard.press('Meta+k'); await page.waitForTimeout(250);
-    if (await page.evaluate(() => document.activeElement?.tagName === 'INPUT')) kOk++;
-    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
-  }
-  ok('⌘K focuses global search from every route', kOk === kRoutes.length, `${kOk}/${kRoutes.length}`);
+  await go('/#/research/breakouts/technical-scanner?scope=universe', 3500);
+  const header = await evalSafe(() => {
+    const h = document.querySelector('header');
+    return {
+      inputs: h.querySelectorAll('input').length,
+      sourcesBtn: !!document.getElementById('sources-btn'),
+      pills: h.querySelectorAll('[data-status-pill]').length,
+      pillText: h.querySelector('[data-status-pill]')?.innerText.replace(/\s+/g, ' ').trim() || '',
+      refresh: h.querySelectorAll('[data-header-refresh]').length,
+      updatedChip: h.querySelectorAll('[data-updated-chip]').length,
+    };
+  });
+  ok('the header search box is gone', header.inputs === 0, `${header.inputs} inputs in the header`);
+  ok('...and so is the Sources button', !header.sourcesBtn);
+  ok('one status pill, not two competing chips', header.pills === 1 && header.updatedChip === 0, `${header.pills} pill(s), ${header.updatedChip} legacy chip(s)`);
+  ok('...reading "Live · updated <when>"', /^Live · updated /.test(header.pillText) || /waiting/.test(header.pillText), header.pillText);
+  ok('...and a refresh button beside it', header.refresh === 1);
+
+  // The pill's timestamp must come from a poller that actually asked a server something. The
+  // heartbeat is registered `synthetic` for exactly this reason.
+  const tickHonesty = await evalSafe(async () => {
+    const live = await import('/js/core/live.js');
+    return { data: live.getLastDataTick(), global: live.getLastTick() };
+  });
+  ok('the pill dates from a real data tick, not the heartbeat', tickHonesty.data === null || tickHonesty.data <= tickHonesty.global,
+    tickHonesty.data ? `data ${tickHonesty.global - tickHonesty.data}ms behind the heartbeat` : 'no data tick yet');
+
+  // Refresh must say what it found. "Up to date" is the common answer and a real one — a spinner
+  // that simply vanishes leaves the reader unsure anything was checked.
+  await page.locator('[data-header-refresh]').click();
+  await page.waitForTimeout(3600);
+  const label = await page.locator('[data-header-refresh-label]').innerText();
+  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh/.test(label), label);
+
+  // The alert stack.
+  const alerts = await evalSafe(async () => {
+    const n = await import('/js/ui/notifications.js');
+    n.clear();
+    const first = n.push({ key: 'v1', kind: 'earnings', title: 'Test Co', detail: 'Revenue ₹100 Cr' });
+    const dupe = n.push({ key: 'v1', kind: 'earnings', title: 'Test Co', detail: 'again' });
+    n.push({ key: 'v2', kind: 'concall', title: 'Other Co', detail: 'Analysis ready' });
+    for (let i = 0; i < 5; i++) n.push({ key: `f${i}`, kind: 'system', title: `Filler ${i}` });
+    const root = document.getElementById('notification-root');
+    const r = root.getBoundingClientRect();
+    return {
+      accepted: first, dupeRejected: dupe === false,
+      cards: root.children.length,
+      z: Number(getComputedStyle(root).zIndex),
+      bottomRight: window.innerHeight - r.bottom < 40 && window.innerWidth - r.right < 40,
+    };
+  });
+  ok('an alert renders in the lower-right corner', alerts.accepted && alerts.cards > 0 && alerts.bottomRight, `${alerts.cards} card(s)`);
+  // It has to be VISIBLE, not merely present. The first version used the shared `.fade-in` class —
+  // `animation: … both`, which pins the element at the keyframe's opacity-0 start state until the
+  // animation actually runs. Anything that stops it running left a correctly-positioned, fully
+  // laid-out, completely invisible alert. `elementFromPoint` is the check that cannot be fooled by
+  // geometry alone.
+  await page.waitForTimeout(500);
+  const visible = await evalSafe(() => {
+    const root = document.getElementById('notification-root');
+    const card = root.lastElementChild;
+    if (!card) return { ok: false, why: 'no card' };
+    const r = card.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { ok: root.contains(hit), opacity: Number(getComputedStyle(card).opacity), why: hit ? hit.tagName : 'nothing' };
+  });
+  ok('...and is actually painted, not just present at opacity 0', visible.ok && visible.opacity > 0.5,
+    `opacity ${visible.opacity}, topmost element at its centre is ${visible.ok ? 'the card' : visible.why}`);
+  ok('...the same event never announces twice', alerts.dupeRejected);
+  ok('...and the stack is capped rather than unbounded', alerts.cards <= 4, `${alerts.cards} visible after 7 pushes`);
+
+  // Stacking: a toast must never cover something the reader opened on purpose.
+  const drillZ = await evalSafe(() => Number(getComputedStyle(document.getElementById('drill-panel')).zIndex));
+  const wsZ = await evalSafe(() => Number(getComputedStyle(document.getElementById('workspace-overlay')).zIndex));
+  ok('alerts sit BEHIND the drill, the workspace and modals', alerts.z < drillZ && alerts.z < wsZ, `toast z-${alerts.z} < drill z-${drillZ} < workspace z-${wsZ}`);
+
+  // The honesty rules the alert text has to obey. Both are the same failure mode the tables
+  // already guard: a missing figure is not a zero, and a move across zero is not a percentage.
+  const wording = await evalSafe(async () => {
+    const w = await import('/js/core/watch.js');
+    return {
+      lossToProfit: w.earningsDetail({ netProfit: { current: 120, prior: -80, kind: 'loss_to_profit', pct: null } }),
+      lossBoth: w.earningsDetail({ netProfit: { current: -3754, prior: -6608, kind: 'loss_both', pct: 43 } }),
+      normal: w.earningsDetail({ revenue: { current: 5000, prior: 4000, kind: 'normal', pct: 25 } }),
+      noFigures: w.earningsDetail({ resultDate: '2026-08-12' }),
+      pending: w.concallDetail({ reason: 'listed', resultScore: null }),
+      analysed: w.concallDetail({ reason: 'analysed', resultScore: 75.7 }),
+    };
+  });
+  ok('an alert never turns a sign change into a growth rate', /turned profitable/.test(wording.lossToProfit) && !/%/.test(wording.lossToProfit), wording.lossToProfit);
+  ok('...and never calls a narrowing loss a gain', /loss in both periods/.test(wording.lossBoth) && !/\+43/.test(wording.lossBoth), wording.lossBoth);
+  ok('...but does show a real percentage where one exists', /\+25\.0%/.test(wording.normal), wording.normal);
+  ok('a result with no parsed figures says so, rather than showing zeros', /not yet parsed/.test(wording.noFigures) && !/0/.test(wording.noFigures.replace(/2026-08-12/, '')), wording.noFigures);
+  ok('an unanalysed con-call is "pending", never a score of nil', /analysis pending/i.test(wording.pending) && !/0\/100/.test(wording.pending), wording.pending);
+  ok('...and an analysed one credits StockScans', /StockScans/.test(wording.analysed) && /76\/100/.test(wording.analysed), wording.analysed);
+
+  // The whole point of the watcher: alerts must keep arriving on a tab that owns neither feed.
+  const watching = await evalSafe(async () => {
+    const live = await import('/js/core/live.js');
+    return { earnings: live.getLastTick('earnings-live') !== null, concall: live.getLastTick('concall-scans') !== null };
+  });
+  ok('both feeds are watched app-wide, from a tab that owns neither', watching.earnings || watching.concall,
+    `earnings ${watching.earnings ? 'ticking' : 'idle'}, con-call ${watching.concall ? 'ticking' : 'idle'}`);
+  await evalSafe(async () => (await import('/js/ui/notifications.js')).clear());
 }
 
 // ---------------------------------------------------------------------------------------

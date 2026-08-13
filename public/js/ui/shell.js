@@ -3,15 +3,13 @@
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
 
 import { $, escapeHtml } from '../core/dom.js';
-import { formatRelativeTime } from '../core/format.js';
 import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
-import { tabBar, railNav, segmentedToggle, searchInput, liveBadge, emptyState } from './components.js';
+import * as watch from '../core/watch.js';
+import { tabBar, railNav, segmentedToggle, statusControl, emptyState } from './components.js';
 import { openModal, closeDrill, closeModal, closeWorkspace } from './screener.js';
 import { sourcesModalHtml } from './sources.js';
-import * as technicals from '../data/technicals.js';
-import { openTechnicalsDrill } from '../tabs/breakouts-drill.js';
 
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -22,7 +20,6 @@ import * as overview from '../portfolio/overview.js';
 import * as positionBy from '../portfolio/position-by.js';
 import * as transactions from '../portfolio/transactions.js';
 import * as drawdown from '../portfolio/drawdown.js';
-import * as coverage from '../data/coverage.js';
 
 // The nav model in one place: two workspaces, each an ordered list of tab modules.
 // Every module's `meta.subviews` supplies the rail/rail-dropdown items — nothing here is
@@ -35,6 +32,7 @@ const WORKSPACES = [
 let contentHost = null;
 let currentTabModule = null;
 let chromeDisposers = [];
+let headerDisposer = null;
 
 export function mount(root) {
   root.innerHTML = shellTemplate();
@@ -42,10 +40,15 @@ export function mount(root) {
 
   wireStaticHeader(root);
 
-  // Always-on poller so the header "Live" pill ticks even when the active tab has no poller
-  // of its own — real tab pollers (e.g. the Con-call feed) update the same global tick too.
-  live.register('heartbeat', { intervalMs: 20000, fetcher: async () => Date.now() });
+  // Always-on poller so the header pill re-renders on a cadence even when nothing else is
+  // polling. `synthetic: true` keeps it out of `getLastDataTick()` — it asks no server anything,
+  // so counting it as a data confirmation would let the pill claim freshness it has not got.
+  live.register('heartbeat', { intervalMs: 20000, fetcher: async () => Date.now(), synthetic: true });
   live.start('heartbeat');
+
+  // App-wide feed watchers. These keep the results and con-call pollers alive whatever tab is
+  // open, which is the only way an alert can fire while the reader is looking elsewhere.
+  watch.start(live);
 
   router.start((rawRoute) => handleRoute(root, rawRoute));
 }
@@ -62,21 +65,13 @@ function shellTemplate() {
           </div>
         </div>
 
-        <div id="search-mount" class="relative mx-auto w-full max-w-xl flex-1 sm:px-4"></div>
-
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
-          <button id="sources-btn" type="button" title="See every data source this dashboard uses"
-            class="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-            <span class="font-medium">Sources</span>
-          </button>
           <div class="flex items-center gap-1.5"
                title="Data scope: whether the tab you are on covers every listed company or only your holdings. This is not the Workspace switcher on the left — that picks which tabs exist.">
             <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
           </div>
-          <div id="live-badge-mount"></div>
-          <div id="updated-chip-mount"></div>
+          <div id="status-mount"></div>
         </div>
       </div>
     </header>
@@ -100,86 +95,32 @@ function shellTemplate() {
 
 // ---- Header: parts that never change across route changes ----------------------------------
 
-function wireStaticHeader(root) {
-  const isMac = navigator.platform ? navigator.platform.toLowerCase().includes('mac') : false;
-  const search = searchInput({
-    placeholder: 'Search any company, theme or investor…',
-    shortcutLabel: isMac ? '⌘K' : 'Ctrl K',
-    options: buildSearchOptions(),
-    onSelect: openCompanyTechnicals,
-  });
-  $('#search-mount', root).innerHTML = search.html;
-  search.wire(root);
-
-  const liveWidget = liveBadge({ label: 'Live', getTimestamp: () => live.getLastTick(), subscribeTick: live.onGlobalTick });
-  $('#live-badge-mount', root).innerHTML = liveWidget.html;
-  liveWidget.wire(root);
-
-  $('#updated-chip-mount', root).innerHTML = updatedChipHtml();
-  wireUpdatedChip(root, () => state.dataLoadedAt);
-
-  $('#sources-btn', root).addEventListener('click', () => openModal(sourcesModalHtml(), { size: 'magazine' }));
-}
-
-// Selecting a search result opens that company's technicals drill from ANY tab. The feed is
-// loaded lazily, so the first search before visiting Breakouts triggers the fetch; afterwards
-// it resolves from cache. A ticker with no technicals row (scrape failure, or a portfolio name
-// outside the NSE 500) still opens the panel, which states that plainly.
-function openCompanyTechnicals(ticker) {
-  technicals
-    .load()
-    .then(() => {
-      const scored = technicals.byTicker(ticker);
-      if (scored) return openTechnicalsDrill(scored);
-      const known = (state.data?.universe || []).find((c) => c.ticker === ticker);
-      openTechnicalsDrill({
-        company: { ticker, name: known?.name || ticker, sector: known?.sector, screenerUrl: known?.screenerUrl },
-        tickerError: 'No technicals row for this ticker in the latest scrape',
-        breakdown: [],
-        hardFails: [],
-        totalPoints: 0,
-        totalMax: 0,
-        scorePct: 0,
-      });
-    })
-    .catch((err) => console.error('[shell] could not open technicals for', ticker, err));
-}
-
 /**
- * The global search index: the coverage universe plus everything the family holds.
+ * One status control where there used to be a search box, a Sources button, a Live chip and an
+ * Updated chip.
  *
- * NINETEEN BOOK LINES HAVE NO TICKER — unlisted holdings, warrant lines, BSE-only companies. They
- * still belong in this list, because a reader typing "Turtlemint" should find out that it is held
- * and why nothing else on the dashboard mentions it. They are keyed by name and sorted by whatever
- * label they have; an earlier version keyed and sorted on `ticker` alone, and a single null there
- * threw inside `Array.sort`, took out `wireStaticHeader` with it, and left every tab empty.
+ * The two chips said different things about the same subject and neither was quite true: the green
+ * one tracked the 20-second heartbeat, which asks nothing of any server, and the white one tracked
+ * page load and never moved again. They are now one pill on `live.getLastDataTick()` — the last
+ * time a poller actually confirmed something — with the page-load time as the fallback for before
+ * any poller has ticked.
+ *
+ * The Sources button is gone from the chrome, not the app: the pill opens it. Provenance has to
+ * stay reachable from every screen (see the honesty rules in CLAUDE.md), and a freshness control
+ * is the right place for it — "how current is this, and where did it come from" is one question.
  */
-function buildSearchOptions() {
-  const data = state.data;
-  const byKey = new Map();
-  for (const c of data?.universe || []) if (c.ticker) byKey.set(c.ticker, { ticker: c.ticker, name: c.name });
-  for (const h of coverage.holdings()) {
-    const key = h.ticker || `name:${h.name}`;
-    byKey.set(key, { ticker: h.ticker || null, name: h.name, held: true, reason: h.reason || null });
-  }
-  return Array.from(byKey.values()).sort((a, b) => String(a.ticker || a.name).localeCompare(String(b.ticker || b.name)));
-}
-
-function updatedChipHtml() {
-  return `
-    <span class="hidden items-center gap-1 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-slate-200 lg:inline-flex" data-updated-chip>
-      <span>Updated</span><span data-updated-time class="font-semibold tabular-nums text-slate-700">—</span>
-    </span>`;
-}
-
-function wireUpdatedChip(root, getTimestamp) {
-  const timeEl = root.querySelector('[data-updated-time]');
-  function refresh() {
-    const ts = getTimestamp();
-    timeEl.textContent = ts ? formatRelativeTime(ts) : '—';
-  }
-  refresh();
-  setInterval(refresh, 15000);
+function wireStaticHeader(root) {
+  const status = statusControl({
+    getTimestamp: () => live.getLastDataTick() ?? state.dataLoadedAt,
+    subscribeTick: live.onGlobalTick,
+    onRefresh: () => watch.refreshNow(),
+    onOpenSources: () => openModal(sourcesModalHtml(), { size: 'magazine' }),
+  });
+  $('#status-mount', root).innerHTML = status.html;
+  // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
+  // of the static header. Putting it there would stop its clock the first time the reader changed
+  // tab, leaving a pill frozen on whatever it last said.
+  headerDisposer = status.wire(root);
 }
 
 // ---- Route-dependent chrome: workspace dropdown, rail, top tabs, scope toggle ---------------
@@ -288,6 +229,11 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   chromeDisposers.push(bar.wire(tabBarMount));
 
   document.title = `${tabModule.meta.title} · Sattva Central Research`;
+
+  // The tab we just left called `live.stop()` on the pollers it owns, and two of those are the
+  // ones the alert watchers depend on. Re-assert the claim: `start()` is a no-op on a poller that
+  // is already running, so this only matters on the navigation that would otherwise silence them.
+  watch.ensureRunning();
 }
 
 function disposeChrome() {

@@ -12,13 +12,19 @@
 
 const pollers = new Map(); // id -> poller record
 let lastGlobalTick = null;
+// The last tick of a poller that actually ASKED A SERVER SOMETHING. The heartbeat exists only to
+// keep the header pill ticking and its "fetcher" returns Date.now() without a request, so counting
+// it here would let the pill say "updated just now" on the strength of nothing at all. Freshness
+// has to be a claim about data.
+let lastDataTick = null;
 const globalTickListeners = new Set();
 
-function makeRecord(id, { intervalMs, fetcher }) {
+function makeRecord(id, { intervalMs, fetcher, synthetic }) {
   return {
     id,
     intervalMs,
     fetcher,
+    synthetic: !!synthetic,
     timer: null,
     running: false, // start() called (tab mounted)
     inFlight: false,
@@ -32,14 +38,15 @@ function makeRecord(id, { intervalMs, fetcher }) {
 
 // Register (or update) a poller. Safe to call again with the same id — e.g. on tab re-render —
 // it just refreshes the config without dropping existing subscribers or restarting a live timer.
-export function register(id, { intervalMs, fetcher }) {
+export function register(id, { intervalMs, fetcher, synthetic = false }) {
   const existing = pollers.get(id);
   if (existing) {
     existing.intervalMs = intervalMs;
     existing.fetcher = fetcher;
+    existing.synthetic = !!synthetic;
     return;
   }
-  pollers.set(id, makeRecord(id, { intervalMs, fetcher }));
+  pollers.set(id, makeRecord(id, { intervalMs, fetcher, synthetic }));
 }
 
 export function subscribe(id, cb) {
@@ -77,10 +84,31 @@ export function getLastTick(id) {
   return id ? pollers.get(id)?.lastTick ?? null : lastGlobalTick;
 }
 
+/** When a poller last confirmed something with a server. Null until one has. */
+export function getLastDataTick() {
+  return lastDataTick;
+}
+
 // Header "Live" pill hook — fires whenever ANY poller completes a successful fetch.
 export function onGlobalTick(cb) {
   globalTickListeners.add(cb);
   return () => globalTickListeners.delete(cb);
+}
+
+/**
+ * Tick every running poller NOW, and resolve when they have all settled. Behind the header's
+ * refresh button.
+ *
+ * It deliberately does not touch stopped pollers: a poller is stopped because its tab is not
+ * mounted, and starting one here would begin polling a feed nothing is showing. The app-wide
+ * watchers (`core/watch.js`) keep the feeds that drive notifications running on their own.
+ *
+ * `tick()` reschedules in its own `finally`, so a poller that was mid-interval when this ran comes
+ * back on its normal cadence rather than drifting or stopping.
+ */
+export function refreshAll() {
+  const due = [...pollers.values()].filter((p) => p.running && !p.synthetic);
+  return Promise.all(due.map((p) => tick(p).catch(() => {})));
 }
 
 function clearTimer(poller) {
@@ -106,6 +134,7 @@ async function tick(poller) {
     poller.lastData = data;
     poller.lastTick = Date.now();
     lastGlobalTick = poller.lastTick;
+    if (!poller.synthetic) lastDataTick = poller.lastTick;
     for (const cb of poller.listeners) safeNotify(cb, data, null);
     for (const cb of globalTickListeners) safeNotify(cb, lastGlobalTick);
   } catch (err) {

@@ -45,13 +45,15 @@ public/
       state.js                global state + localStorage + pub/sub
       router.js               hash routing (#/ws/tab/subview?scope=)
       live.js                 live-update polling engine
+      watch.js                app-wide feed watchers -> the alert stack
       store.js                IndexedDB payload cache + conditional fetch (see the caching section)
       format.js               number/date/currency/relative-time helpers
       dom.js                  $, $$, escapeHtml, el, empty
     ui/
       screener.js             THE SCREENER KIT — build tabs from this
       visual.js               avatars, tiers, status pills, signal dots, legend
-      sources.js              data-source registry behind the header "Sources" modal
+      sources.js              data-source registry, opened from the header status pill
+      notifications.js        the live alert stack, lower-right
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, rail, toggle, search…)
       shell.js                header + rail + tabs + content host + tab registry
@@ -722,6 +724,61 @@ table counts them. **A dash means "not joined"; it never means zero.**
 
 ---
 
+## The header, and the alert stack — `js/ui/notifications.js` + `js/core/watch.js`
+
+The header carries the brand, the scope toggle, **one** status pill and a refresh button. There
+used to also be a global search box, a Sources button, a green *"Live · just now"* chip and a white
+*"Updated 52 minutes ago"* chip. The two chips are the instructive removal: they made competing
+claims about the same subject, and the green one tracked the 20-second heartbeat — a poller whose
+"fetcher" returns `Date.now()` without asking any server anything — so it read *"just now"* whether
+or not a byte had been confirmed in an hour.
+
+- `statusControl()` in `components.js` is the replacement: `● Live · updated 4m ago`, on
+  `live.getLastDataTick()`, plus a refresh button that **says what it found** (`Up to date` /
+  `3 new`) rather than spinning and vanishing.
+- `live.register(id, { synthetic: true })` keeps a poller out of `getLastDataTick()`. The heartbeat
+  is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
+  server does not get to move that clock.
+- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
+  must stay reachable from every screen (see the honesty rules above), and a freshness control is
+  the right home: *how current is this* and *where did it come from* are one question.
+- `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
+  It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
+
+### Alerts: what may interrupt, and what may not
+
+`notifications.push({ key, kind, title, detail, href })` renders a card in the lower-right stack.
+`core/watch.js` feeds it from the two live feeds' existing `onChange` + `newArrivals()`.
+
+Five rules, and each is load-bearing:
+
+1. **An alert is a fact that arrived**, never a summary of what is on screen. A repaint is not an
+   event; a company filing a result and a con-call gaining its analysis are.
+2. **`key` dedupes for the life of the page.** Both feeds re-hand their whole arrival list on every
+   change, so without a stable key the same result re-announces itself on every tick.
+3. **The backlog is suppressed, not replayed.** Arrivals accumulate from page load, so the
+   watcher's first change event would otherwise dump rows the reader has been looking at for ten
+   minutes. `notifications.suppress(keys)` marks them announced without showing them — a
+   notification asserts *this just happened*, and replaying history through it devalues every alert
+   after it.
+4. **z-30: alerts sit under every overlay** (drill 50 < workspace 55 < modal 60). The reader opened
+   those deliberately; a toast landing on top of one is the failure mode this component is one step
+   from.
+5. **The text obeys the same honesty rules as the tables.** `earningsDetail()` routes through
+   `kind` from `classifyChange()`, so a loss-to-profit swing reads *"turned profitable"* rather
+   than a percentage that does not exist; a con-call with no score reads *"analysis pending"*, not
+   `0/100`. The suite asserts both.
+
+**The watchers run app-wide, and that is the whole point.** `startLive` / `stopLive` are owned by
+the tab that shows a feed — right for a table, useless for an alert, which is only worth having if
+it fires while the reader is elsewhere. So `watch.start(live)` holds its own claim on both pollers
+and `watch.ensureRunning()` re-asserts it after every route change, because the tab you just left
+called `live.stop()` on the same id. This is affordable **only** because both feeds are conditional:
+an unchanged con-call tick is a bodyless 304 and an unchanged results tick is the ~30KB prices
+projection. Without the caching layer, watching two feeds app-wide would be indefensible.
+
+---
+
 ## Live engine — `js/core/live.js`
 
 ```js
@@ -846,6 +903,8 @@ Rules:
 | Change the header, rail or tab bar | `js/ui/shell.js` |
 | Add a row to the Sources modal | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) |
 | Add a reusable chrome widget | `js/ui/components.js` |
+| Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
+| Change what raises a live alert | `js/core/watch.js` (what counts as an event) + `js/ui/notifications.js` (how it looks) — read *The header, and the alert stack* first |
 | Change routing or URL shape | `js/core/router.js` |
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
@@ -887,7 +946,12 @@ It covers, beyond the checklist below:
   (the Earnings Hub has no drill by design — its rows are inert and the suite asserts that)
 - scoreTable search, header sort, filter select and watchlist toggle all work, and the
   watchlist survives a reload
-- the Sources modal opens and lists every documented source
+- the Sources modal opens off the status pill and lists every documented source
+- the header carries no search box and no Sources button, exactly one status pill reading
+  "Live · updated <when>", and a refresh button that reports a result
+- an alert renders in the lower-right corner, never announces the same event twice, caps its stack,
+  sits behind all three overlays, and never turns a sign change into a growth rate or an
+  unanalysed con-call into a score of nil
 - layout holds at 1440px, 1024px and 390px with no sideways page scroll
 - the Earnings Hub's ten columns fit inside 1440px with no scrollbar of their own, and its
   reported-figure columns recompute to the growth percentage shown beside them

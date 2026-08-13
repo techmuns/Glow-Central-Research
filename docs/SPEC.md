@@ -60,6 +60,34 @@ Under 1024px the rail collapses to a dropdown above the content.
 
 ---
 
+## 1b. The header
+
+Brand, the scope toggle, one status pill and a refresh button — nothing else.
+
+- **One status pill**, `● Live · updated 4m ago`, on the last tick of a poller that actually
+  reached a server. It replaced a green "Live · just now" chip and a white "Updated 52 minutes
+  ago" chip, which claimed different things about the same subject; the green one tracked a
+  heartbeat that asks nothing of any server, so it read "just now" regardless.
+- **Clicking the pill opens the data-sources modal.** There is no separate Sources button; the
+  provenance it opened has to stay reachable from every screen, and a freshness control is its
+  natural home.
+- **A refresh button** re-checks every live feed on demand and reports what it found — "Up to
+  date" or "3 new" — rather than spinning and vanishing.
+- **No global search box.** A company is reached from its own tab's table.
+
+## 1c. Live alerts
+
+New data announces itself in the lower-right corner: a company filing a result, a con-call gaining
+its StockScans analysis. The alerts fire whatever tab is open, because the two feeds are watched
+app-wide rather than only while their tab is mounted.
+
+They never announce the same event twice, they cap the visible stack, they sit **behind** the drill
+panel, the workspace and modals, and they inherit the tables' honesty rules — a swing across zero
+is described in words rather than as a percentage that does not exist, and a con-call awaiting
+analysis says so rather than showing a score of nil.
+
+---
+
 ## 2. Global scope toggle — Portfolio ⇄ Universe
 
 A segmented control in the header (right side, before the Live pill). It is **global**: it
@@ -101,18 +129,22 @@ Hash-based and shareable:
 
 ---
 
-## 4. Header
+## 4. Header — the detail
 
-Sticky, full-width, on a glass/blur background.
+Sticky, full-width, on a glass/blur background. See §1b for what it carries and why; this is the
+layout.
 
 - **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
   "Sattva Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
-- **Centre** — global search, placeholder "Search any company, theme or investor…", with a
-  ⌘K / Ctrl-K badge and shortcut. Typeahead over the merged universe + portfolio company list.
-  Selecting a result opens that company's **technicals drill panel from any tab**.
-- **Right** — a "Sources" button (the data-source modal), the Portfolio/Universe segmented
-  toggle, a "Live" pill with a pulsing dot and last-tick time, and an "Updated <relative
-  time>" chip.
+- **Right** — the Portfolio/Universe segmented toggle, then the status pill (pulsing dot,
+  `Live · updated <relative time>`, opens the data-sources modal on click), then the refresh
+  button.
+- **Centre** — nothing. The global search box, the separate Sources button and the second
+  "Updated …" chip were removed; the middle of the header is deliberately empty so the brand and
+  the two live controls are the only things competing for attention.
+
+Live alerts are **not** in the header — they are a stack in the lower-right corner, so an arriving
+result never reflows the chrome or shifts what the reader is pointing at. See §1c.
 
 ---
 
