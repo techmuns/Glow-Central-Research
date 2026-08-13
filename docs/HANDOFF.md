@@ -197,11 +197,18 @@ Each carries the reason it has no symbol and the UI shows it as *held but not co
 them would have made "Portfolio" quietly mean *"the 123 we happen to have a feed for"*, with nothing
 on screen saying so.
 
-**No feed covers the whole book, and every scoped pill says so** — *"Portfolio · 96 of 142
-reported"*. Measured against the shipped data: Earnings Hub 96, Con-call 80 held calls plus 11
-scheduled, Breakouts 55, Public Chatter 4. The gap is the feeds' coverage of Indian small- and
-mid-caps, not a wiring error; `coverageNote()` in `js/data/coverage.js` is the one place that
-sentence is written.
+**Every scoped pill prints the denominator** — *"Portfolio · 123 of 142 companies"* — because no
+feed covers the whole book and a bare count invites the reading that it does. Measured against the
+shipped data: **Breakouts 123** (every listed line; 121 score, and the two that do not are recent
+listings with too little history), Earnings Hub 103, Con-call 77 held calls plus scheduled, Public
+Chatter 4. `coverageNote()` in `js/data/coverage.js` is the one place that sentence is written.
+
+Breakouts is the only one at full coverage, and that is not a coincidence: **it is the one feed
+whose input list we choose.** It used to reach 55, because the scrape read the NSE-500 screener
+export and nothing else — see §5b. Everywhere else the gap belongs to the upstream: a company is on
+the Earnings Hub when it has filed, and on Con-call when StockScans has covered its call. That gap
+is theirs to close, and the denominator is how the reader can tell which kind of gap they are
+looking at.
 
 To change the book: edit `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net`
 lets it reach Yahoo's symbol search for anything the in-repo feeds cannot match), and commit the
@@ -210,6 +217,43 @@ the network, pins ten hand-checked symbols in `CONFIRMED`, pins the not-listed l
 `NOT_LISTED_EQUITY`, and **fails the run if two book lines resolve to one symbol** — which is how
 *Allcargo Global* (`AGL`) and *Allcargo Logistics* (`ALLCARGO`) were caught before one inherited the
 other's rows.
+
+---
+
+## 5b. The technicals scrape covers the book, not just the index
+
+`scripts/scrape-technicals.mjs` scrapes the **union** of `universe.json` (the NSE-500 screener
+export) and every listed line in the book — 603 companies, `535 + 68`.
+
+It used to scrape the export alone. That made `technicals.json` *the Nifty 500 and nothing else*,
+which capped the whole dashboard: a holding outside the index had no price series, so no score, no
+Breakouts row and nothing in the global search — and **nothing on screen said the index was the
+reason**. Only 55 of the book's 123 listed companies are constituents. The rule this is an instance
+of: *a filter nobody chose is still a filter, and an invisible one is the worst kind.*
+
+Three things fall out of it, and each is a trap worth knowing:
+
+- **A book row has no market cap and no FII/DII change**, because there is no screener row behind
+  it. They stay null: the market cap is an em dash and the institutional-activity rule scores `na`
+  with its full max. A zero there would read as *"no institutional buying"*, which is a claim, not
+  an absence.
+- **Market breadth is computed over the NSE-500 rows only.** Breadth is a statement about the
+  index; folding 68 small- and mid-caps into an advance/decline ratio still labelled "Nifty 500"
+  would leave the label true-looking and the number wrong.
+- **`TECH_FILL_GAPS=1` scrapes only what is missing** and merges, so adding a name to the book does
+  not cost a 600-company re-fetch. It retries `error` rows too (a failure is a gap), drops the row
+  it is retrying from the carry-over so a success cannot land beside the stale failure, and carries
+  everything else byte-for-byte — including the NSE delivery %, which a gap-fill cannot recollect.
+  `partial_refresh` in the payload records that `generated_at` describes the write, not the pricing.
+
+One symbol trap it exposed: **NSE suffixes SME symbols `-SM` and Yahoo does not.** `ALPEXSOLAR-SM.NS`
+returns a one-bar stub that looks exactly like a delisting; `ALPEXSOLAR.NS` has 270 bars. The scrape
+strips the suffix as a fallback.
+
+Two holdings still carry an `error` rather than a score, honestly: `JAYBEE-SM` is not on Yahoo under
+any variant, and `AGL` (Allcargo Global) has 28 trading days of history because it listed on the
+demerger — the model needs 60 for its indicators and 200 for the DMA. Both render as flagged rows,
+not as zero-scored ones.
 
 ---
 

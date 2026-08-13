@@ -23,7 +23,7 @@ import * as coverage from '../data/coverage.js';
 export const meta = {
   id: 'breakouts',
   title: 'Breakouts / Technical',
-  subtitle: 'Live technical scoring across the NSE 500 — 16 rules, 24 points.',
+  subtitle: 'Live technical scoring across the NSE 500 and every listed holding — 16 rules, 24 points.',
   subviews: [
     { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
@@ -154,7 +154,7 @@ function freshnessCard() {
     hero: true,
     label: 'Last Refresh',
     value: ts ? formatRelativeTime(ts) : '—',
-    note: `${m?.source || 'Yahoo Finance'} EOD · NSE 500`,
+    note: `${m?.source || 'Yahoo Finance'} EOD · ${technicals.coverage().label}`,
   };
 }
 
@@ -225,7 +225,7 @@ function renderScanner(ctx, rows) {
   const maxPoints = scored[0]?.totalMax ?? 24;
 
   const stats = statStrip([
-    { label: 'Universe', value: formatNumber(rows.length), note: `${m?.source || 'Yahoo Finance'} EOD · NSE 500` },
+    { label: 'Universe', value: formatNumber(rows.length), note: `${m?.source || 'Yahoo Finance'} EOD · ${technicals.coverage().label}` },
     {
       label: 'Scoring Method',
       value: `${ACTIVE_RULES.length} / ${ACTIVE_RULES.length}`,

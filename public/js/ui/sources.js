@@ -68,7 +68,12 @@ export const SOURCE_GROUPS = [
       {
         name: 'Yahoo Finance — EOD OHLCV',
         url: 'https://finance.yahoo.com',
-        feeds: 'Daily close and volume for the NSE 500 plus the Nifty 500 index (^CRSLDX). Every technical indicator on the Breakouts tab — EMA/SMA, RSI, MACD, ADX, ATR, beta, relative strength, breakout and base patterns — is computed from this.',
+        feeds:
+          'Daily close and volume for the NSE 500, every listed company in the book, and the Nifty 500 index (^CRSLDX). ' +
+          'Every technical indicator on the Breakouts tab — EMA/SMA, RSI, MACD, ADX, ATR, beta, relative strength, breakout ' +
+          'and base patterns — is computed from this. The 68 holdings that are not index constituents are scraped because they ' +
+          'are held; having no screener row behind them they carry no market cap and no FII/DII change, and the institutional ' +
+          'rule scores those N/A rather than zero.',
         cadence: 'Weekdays 07:00 IST · GitHub Actions',
         status: 'live',
         file: 'public/data/technicals.json',

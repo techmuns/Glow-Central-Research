@@ -69,6 +69,12 @@ async function buildCache() {
       index_6m_return: payload?.index_6m_return ?? null,
       market_breadth: payload?.market_breadth ?? null,
       company_count: payload?.company_count ?? rows.length,
+      // How the coverage splits — see `coverage()` below. Absent on a payload written before the
+      // scrape took the book as input, and `coverage()` treats that as "all index", which is what
+      // such a file actually was.
+      nse500_count: payload?.nse500_count ?? null,
+      book_count: payload?.book_count ?? 0,
+      partial_refresh: payload?.partial_refresh ?? null,
       failures: payload?.failures ?? scored.filter((s) => s.tickerError).length,
       scored_count: scored.filter((s) => !s.tickerError).length,
     },
@@ -125,6 +131,27 @@ export function all() {
 
 export function meta() {
   return cache ? cache.meta : null;
+}
+
+/**
+ * How this feed's coverage splits, for the notes that used to just say "NSE 500".
+ *
+ * They said that because for a long time it was true — the scrape read an NSE-500 screener export
+ * and nothing else, which meant a holding outside the index had no row here at all. It now also
+ * carries every listed company in the book, so a label reading "NSE 500" over a list that is more
+ * than that would be the wrong kind of wrong: not a missing number, a stated one that is false.
+ */
+export function coverage() {
+  const m = meta();
+  if (!m) return { total: 0, nse500: 0, book: 0, label: '' };
+  const total = m.company_count ?? all().length;
+  const book = m.book_count || 0;
+  return {
+    total,
+    nse500: m.nse500_count ?? (total - book),
+    book,
+    label: book ? `NSE 500 + ${book} held` : 'NSE 500',
+  };
 }
 
 export function byTicker(ticker) {

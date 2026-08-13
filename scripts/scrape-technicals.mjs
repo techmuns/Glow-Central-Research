@@ -1,13 +1,30 @@
 #!/usr/bin/env node
-// Technicals scraper: pulls daily OHLC for every company in the NSE-500 screener
-// list (and the Nifty 500 index) from Yahoo Finance, computes the technical
-// indicators the client's scoring framework needs, and writes a single
-// public/data/technicals.json that the dashboard reads.
+// Technicals scraper: pulls daily OHLC for every company we cover (and the Nifty
+// 500 index) from Yahoo Finance, computes the technical indicators the client's
+// scoring framework needs, and writes a single public/data/technicals.json that
+// the dashboard reads.
 //
-// Ported verbatim from the reference pipeline. Only two changes:
+// Ported verbatim from the reference pipeline. Only three changes:
 //   - reads public/data/universe.json (our name for the screener export)
+//   - ADDS THE BOOK to that list — see below
 //   - honours TECH_LIMIT to cap how many companies are fetched, so a smoke
-//     test doesn't need a full 535-company run. TECH_LIMIT=0 (default) = all.
+//     test doesn't need a full run. TECH_LIMIT=0 (default) = all.
+//
+// WHY THE BOOK IS PART OF THE INPUT, AND NOT JUST THE SCREENER EXPORT
+//   The reference pipeline scrapes an NSE-500 screener export, so for a long time
+//   this file WAS the Nifty 500 and nothing else. That silently capped the whole
+//   dashboard: a holding outside the index had no row here, so it had no price,
+//   no score, no Breakouts line and nothing in the global search — and, worse,
+//   nothing on screen said the index was the reason. Only 55 of the 123 listed
+//   companies in the book are Nifty 500 constituents, so nearly half the book was
+//   invisible in Portfolio scope on the one tab that scores technicals.
+//
+//   The universe we cover is therefore the UNION of the screener export and the
+//   book. A holding is scraped because it is held, whatever index it is or is not
+//   in. Book-only rows carry `listSource: 'book'` and, having no screener row
+//   behind them, no market cap and no FII/DII change — those render as an em dash
+//   and the institutional-activity rule scores `na`, which is the honest answer.
+//   It is NOT a zero: see `ruleInstitutionalActivity` in js/scoring/tech-scoring.js.
 //
 // Usage:  node scripts/scrape-technicals.mjs
 //         TECH_LIMIT=15 node scripts/scrape-technicals.mjs
@@ -22,12 +39,23 @@ const IMPACT_COST_ORDER_SIZE_RUPEES = 5e7;   // ₹5 crore — standardized inst
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMPANIES_PATH = resolve(__dirname, "../public/data/universe.json");
+const BOOK_PATH = resolve(__dirname, "../public/data/portfolio-companies.json");
 const ATR_HISTORY_PATH = resolve(__dirname, "../public/data/atr-history.json");
 
 const HISTORY_DAYS = 400;          // calendar days back; ~280 trading days
 const INDEX_SYMBOL = "^CRSLDX";    // Nifty 500 on Yahoo Finance
 const FETCH_DELAY_MS = 200;        // be polite — ~5 req/sec
 const TECH_LIMIT = Number(process.env.TECH_LIMIT || 0) || 0;   // 0 = all companies
+
+// TECH_FILL_GAPS=1 — scrape only the companies the committed file does not already carry, and
+// merge them in. Adding names to the book should not cost a 600-company re-fetch of tickers that
+// were priced hours ago, and a re-fetch is not free for the upstream either.
+//
+// The merged rows are NOT equivalent to a full run and the payload says so: `partial_refresh`
+// records what was added and when, and the NSE delivery figures on carried rows are the ones the
+// scheduled run collected, untouched. A gap-fill where NSE is unreachable leaves the new rows with
+// no delivery history at all — the rule scores `na`, never a zero, and the next full run fills it.
+const FILL_GAPS = process.env.TECH_FILL_GAPS === "1";
 
 // A capped smoke run writes to a sibling file and leaves the ATR accumulator alone, so
 // testing on 15 companies can never truncate the committed 535-company feed.
@@ -39,6 +67,20 @@ const FNO_STOCKS_PATH = resolve(__dirname, "static/fno-stocks.json");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Rows carried over from the committed file in a gap-fill run. Empty on a full run, which is what
+// makes `flush()` behave identically in both modes.
+let carried = [];
+
+function readExistingRows() {
+  try {
+    const prev = JSON.parse(readFileSync(OUT_PATH, "utf8"));
+    return Array.isArray(prev.companies) ? prev.companies : [];
+  } catch {
+    console.log("No existing technicals.json to fill gaps in — this will be a full run.");
+    return [];
+  }
+}
+
 run().catch((err) => {
   console.error("Fatal:", err.stack || err.message);
   process.exit(1);
@@ -46,10 +88,35 @@ run().catch((err) => {
 
 // ---------- main ----------
 async function run() {
-  const allCompanies = JSON.parse(readFileSync(COMPANIES_PATH, "utf8"));
-  const companies = TECH_LIMIT > 0 ? allCompanies.slice(0, TECH_LIMIT) : allCompanies;
-  console.log(`Loaded ${allCompanies.length} companies from universe.json`);
-  if (TECH_LIMIT > 0) console.log(`TECH_LIMIT=${TECH_LIMIT} — smoke run over the first ${companies.length} only.`);
+  const screenerRows = JSON.parse(readFileSync(COMPANIES_PATH, "utf8"));
+  const bookRows = bookCompaniesNotInScreener(screenerRows);
+  const allCompanies = [...screenerRows, ...bookRows];
+  console.log(`Loaded ${screenerRows.length} companies from universe.json`);
+  console.log(`Added ${bookRows.length} held companies that are not in it — ${allCompanies.length} in the universe`);
+
+  let companies = allCompanies;
+  if (FILL_GAPS) {
+    const existing = readExistingRows();
+    // A row that carries an `error` is a gap too, not a result — it is a company with no usable
+    // price series, and the reason is usually transient (a Yahoo stub, a symbol that has since
+    // resolved). Retrying costs one fetch each and is the whole point of a fill.
+    const have = new Set(existing.filter((r) => !r.error).map((r) => String(r.ticker).toUpperCase()));
+    companies = allCompanies.filter((c) => {
+      const t = extractTicker(c["Screener URL"]);
+      return t && !have.has(t);
+    });
+    // Whatever we are about to re-attempt must not ALSO be carried over, or a successful retry
+    // would land beside the stale failure it replaces and the file would hold the ticker twice.
+    const retrying = new Set(companies.map((c) => extractTicker(c["Screener URL"])).filter(Boolean));
+    carried = existing.filter((r) => !retrying.has(String(r.ticker).toUpperCase()));
+    const retries = existing.length - carried.length;
+    console.log(`TECH_FILL_GAPS=1 — ${carried.length} rows kept, scraping ${companies.length} (${companies.length - retries} new, ${retries} retried).`);
+    if (!companies.length) { console.log("Nothing to fill. Exiting without rewriting the file."); return; }
+  }
+  if (TECH_LIMIT > 0) {
+    companies = companies.slice(0, TECH_LIMIT);
+    console.log(`TECH_LIMIT=${TECH_LIMIT} — smoke run over the first ${companies.length} only.`);
+  }
 
   // F&O eligible list — used by the Sentiment & Liquidity tab's F&O rule.
   let fnoSet = new Set();
@@ -103,13 +170,23 @@ async function run() {
       // whose history was migrated under a different symbol — fall back
       // to the BSE .BO ticker before giving up. Costs one extra HTTP
       // call only for the handful of NSE failures per run.
+      //
+      // The second fallback is the SME platform. NSE suffixes SME symbols with "-SM"
+      // (ALPEXSOLAR-SM, SAHANA-SM) and Yahoo does not: it carries them under the bare symbol.
+      // Left alone that returns a one-bar stub, which reads exactly like a delisting — the ticker
+      // is right, the exchange is right, and the company simply appears to have no history. Both
+      // of these have 270 bars under the bare symbol.
       if (!tickerIsNumeric && bars.length < 60) {
-        const altSym = `${ticker}.BO`;
-        const alt = await fetchBars(altSym, start, end).catch(() => []);
-        if (alt.length > bars.length) {
-          process.stdout.write(`(fallback ${altSym}) `);
-          bars = alt;
-          usedSym = altSym;
+        const alts = [`${ticker}.BO`];
+        if (/-SM$/.test(ticker)) alts.unshift(`${ticker.replace(/-SM$/, "")}.NS`, `${ticker.replace(/-SM$/, "")}.BO`);
+        for (const altSym of alts) {
+          const alt = await fetchBars(altSym, start, end).catch(() => []);
+          if (alt.length > bars.length) {
+            process.stdout.write(`(fallback ${altSym}) `);
+            bars = alt;
+            usedSym = altSym;
+          }
+          if (bars.length >= 60) break;
         }
       }
       if (bars.length < 60) throw new Error(`only ${bars.length} bars`);
@@ -117,6 +194,9 @@ async function run() {
       const delivery = deliveryTrends[ticker] || null;
       results.push({
         ticker, name: c.Company, screenerUrl: c["Screener URL"],
+        // 'nse500' from the screener export, 'book' from the holdings statement. A book row has no
+        // market cap and no FII/DII change, and this is what lets the UI say so.
+        listSource: c.listSource || "nse500",
         marketCap: c["Market Cap"] || null,
         sector: c["Sector"] || null,
         broadSector: c["Broad Sector"] || null,
@@ -153,7 +233,7 @@ async function run() {
       console.log(`OK  RSI ${indicators.rsi14}  MACD ${indicators.macd.line.toFixed(1)}  ADX ${indicators.adx14}`);
     } catch (err) {
       failures++;
-      results.push({ ticker, name: c.Company, screenerUrl: c["Screener URL"], error: err.message });
+      results.push({ ticker, name: c.Company, screenerUrl: c["Screener URL"], listSource: c.listSource || "nse500", error: err.message });
       console.log(`FAIL ${err.message}`);
     }
     await sleep(FETCH_DELAY_MS);
@@ -207,11 +287,20 @@ function parsePercentValue(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function flush(results, indexBars, failures) {
+function flush(scraped, indexBars, failures) {
   mkdirSync(dirname(OUT_PATH), { recursive: true });
+  // On a full run `carried` is empty and this is just `scraped`. On a gap-fill it is every row the
+  // committed file already had, kept byte-for-byte — including the NSE delivery figures, which the
+  // gap-fill has no way to re-collect for them and must not blank.
+  const results = carried.length ? [...carried, ...scraped] : scraped;
   // Market-wide advances vs declines across the Nifty 500 universe. Used by
   // the Sentiment & Liquidity tab so we don't depend on NSE's breadth API.
-  const withChange = results.filter((r) => Number.isFinite(r.pct_change_today));
+  //
+  // NSE-500 ROWS ONLY, deliberately. Breadth is a statement about the index, and this file now
+  // also carries held companies that are not in it. Folding 68 small- and mid-caps into an
+  // advance/decline ratio would leave it labelled "Nifty 500" while measuring something else —
+  // the same class of error as reporting a count without its denominator.
+  const withChange = results.filter((r) => r.listSource !== "book" && Number.isFinite(r.pct_change_today));
   const advances = withChange.filter((r) => r.pct_change_today > 0).length;
   const declines = withChange.filter((r) => r.pct_change_today < 0).length;
   const breadth = withChange.length ? {
@@ -230,6 +319,19 @@ function flush(results, indexBars, failures) {
       : null,
     market_breadth: breadth,
     company_count: results.length,
+    // How the coverage splits, so the UI never has to say "NSE 500" over a list that is more
+    // than that. `book_count` is the holdings the index does not carry.
+    nse500_count: results.filter((r) => r.listSource !== "book").length,
+    book_count: results.filter((r) => r.listSource === "book").length,
+    // Present only on a gap-fill, and the reason it is present is that `generated_at` above would
+    // otherwise claim every row was priced at that moment. Most were not: they are the scheduled
+    // run's rows, carried over. Say which, rather than let one timestamp stand for two runs.
+    partial_refresh: carried.length ? {
+      at: new Date().toISOString(),
+      added: scraped.length,
+      carried_over: carried.length,
+      note: "Gap-fill run: only the companies missing from the previous file were fetched. Every other row — including its NSE delivery %, which a gap-fill cannot recollect — is the previous scheduled run's, unchanged.",
+    } : null,
     failures,
     companies: results,
   };
@@ -240,6 +342,52 @@ function extractTicker(url) {
   // /company/ICICIAMC/ or /company/ICICIAMC/consolidated/ → ICICIAMC
   const m = String(url || "").match(/\/company\/([^/]+)/);
   return m ? m[1].toUpperCase() : null;
+}
+
+/**
+ * The held companies the screener export does not carry, shaped like screener rows so the scrape
+ * loop below needs no special case.
+ *
+ * The export is the Nifty 500. The book is 142 companies chosen for other reasons entirely, and
+ * only 55 of its 123 listed lines are index constituents — so reading the export alone left 68
+ * holdings with no price series at all. They are held; that is the only qualification the scrape
+ * needs.
+ *
+ * What a synthesised row CANNOT carry is anything that only exists in the screener export: market
+ * cap, and the FII/DII holding changes. Those stay null rather than zero, and `listSource: 'book'`
+ * travels with the row so the dashboard can say why the columns are empty instead of leaving the
+ * reader to guess whether it means "no institutional buying" or "we never had the figure".
+ */
+function bookCompaniesNotInScreener(screenerRows) {
+  let book;
+  try {
+    book = JSON.parse(readFileSync(BOOK_PATH, "utf8"));
+  } catch {
+    console.log("portfolio-companies.json not found — scraping the screener export only.");
+    return [];
+  }
+  const covered = new Set(screenerRows.map((r) => extractTicker(r["Screener URL"])).filter(Boolean));
+  const seen = new Set();
+  const rows = [];
+  for (const h of book.holdings || []) {
+    if (!h.ticker) continue;                       // unlisted, warrants, BSE-only — no NSE series to fetch
+    const t = String(h.ticker).toUpperCase();
+    if (covered.has(t) || seen.has(t)) continue;
+    seen.add(t);
+    rows.push({
+      Company: h.name,
+      "Screener URL": `https://www.screener.in/company/${t}/`,
+      "Market Cap": null,
+      "Broad Sector": h.sector || null,
+      Sector: h.sector || null,
+      "Broad Industry": null,
+      Industry: null,
+      "Chg in FII Hold": null,
+      "Chg in DII Hold": null,
+      listSource: "book",
+    });
+  }
+  return rows;
 }
 
 // Bid-Ask spread helper. Kept around so the rule auto-recovers if

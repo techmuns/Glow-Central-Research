@@ -581,8 +581,12 @@ Three rules:
    zero.
 2. **Always print the denominator.** `scopeSummary({ scope, count, noun, book })` renders
    *"Portfolio · 96 of 142 reported"*, and `coverageNote()` writes the long form. Ninety-six rows
-   look complete until you know the book is 142, and no feed covers all of it: Earnings Hub reaches
-   96, Con-call 80 (plus 11 scheduled), Breakouts 55, Public Chatter 4.
+   look complete until you know the book is 142, and no feed covers all of it: Breakouts reaches
+   **123** — every listed line — Earnings Hub 103, Con-call 77 (plus scheduled), Public Chatter 4.
+   Breakouts reaches all of them because it is the one feed whose input we control, and it only
+   does since the scrape stopped reading the NSE-500 export alone (see *The universe is the index
+   plus the book* in `docs/DATA-CONTRACTS.md`). Where a feed is someone else's index, the gap is
+   theirs and the denominator is how the reader can tell.
 3. **Resolve by script, never by hand, and let it fail on a collision.** Two book lines resolving to
    one symbol means one is wrong — *Allcargo Global* and *Allcargo Logistics* are `AGL` and
    `ALLCARGO`, and without the guard one would have inherited the other's rows. Names checked by
@@ -805,7 +809,8 @@ Rules:
 | --- | --- |
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
-| Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) |
+| Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) — its universe is the NSE-500 export **plus the book**, deliberately; read *The universe is the index PLUS the book* in `docs/DATA-CONTRACTS.md` before narrowing it |
+| Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |

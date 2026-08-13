@@ -1191,6 +1191,40 @@ for (const [hash, label, wait] of [
   ok(`  ...and the pill states the denominator`, /of 142/.test(pill), pill || 'no scope pill found');
 }
 
+// The technicals feed used to BE the Nifty 500, because the scrape read an NSE-500 screener export
+// and nothing else. That silently capped the dashboard at the 55 book companies which happen to be
+// index constituents, and nothing on screen said the index was the reason. These two assert the
+// scrape's input is the book as well as the index — the check that would have caught it.
+await go('/#/research/breakouts?scope=portfolio', 4000);
+const techCover = await page.evaluate(async () => {
+  const [t, c] = await Promise.all([import('/js/data/technicals.js'), import('/js/data/coverage.js')]);
+  const rows = new Set(t.all().map((s) => s.company?.ticker?.toUpperCase()).filter(Boolean));
+  const scored = new Set(t.scoredOnly().map((s) => s.company?.ticker?.toUpperCase()).filter(Boolean));
+  const held = c.tracked().map((h) => h.ticker.toUpperCase());
+  return {
+    missing: held.filter((x) => !rows.has(x)),
+    unscored: held.filter((x) => !scored.has(x)),
+    held: held.length,
+    coverage: t.coverage(),
+  };
+});
+// "Has a row" is the assertion, not "scores". A company that listed three weeks ago genuinely has
+// too little history for a 200-day moving average, and its row says so — that is Yahoo's data, not
+// our pipeline. What the pipeline owes is an ATTEMPT for every holding, which is exactly what was
+// missing while the scrape read the index alone.
+ok(
+  'every listed holding has a technicals row, index constituent or not',
+  techCover.missing.length === 0,
+  techCover.missing.length
+    ? `no attempt made for ${techCover.missing.slice(0, 6).join(', ')}`
+    : `${techCover.held} attempted, ${techCover.held - techCover.unscored.length} scored${techCover.unscored.length ? ` (${techCover.unscored.join(', ')} lack the history)` : ''}`,
+);
+ok(
+  '...and the feed does not call itself "NSE 500" when it is more than that',
+  techCover.coverage.book === 0 ? techCover.coverage.label === 'NSE 500' : /held/.test(techCover.coverage.label),
+  `${techCover.coverage.label} — ${techCover.coverage.nse500} index + ${techCover.coverage.book} held`,
+);
+
 // ---------------------------------------------------------------------------------------
 // 9. Super Investors — the workspace, the heatmap and the flow charts
 // ---------------------------------------------------------------------------------------

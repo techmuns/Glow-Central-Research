@@ -78,18 +78,37 @@ The three Super Investors files load at bootstrap and seed `js/data/investors.js
 weekdays at 07:00 IST by `.github/workflows/technicals-refresh.yml`, and consumed by
 `public/js/data/technicals.js`, which scores every row through `public/js/scoring/tech-scoring.js`.
 
+### The universe is the index PLUS the book, and that is not cosmetic
+
+The scrape's input is the **union** of `universe.json` (the NSE-500 screener export) and every
+listed line in `portfolio-companies.json`. It used to be the export alone, which quietly made this
+file *the Nifty 500 and nothing else* — so a holding outside the index had no price series, no
+score, no Breakouts row and nothing in the global search, and **no surface said the index was the
+reason**. Only 55 of the book's 123 listed companies are constituents, so nearly half the book was
+invisible in Portfolio scope on the one tab that scores technicals. A company is scraped because it
+is held, whatever index it is or is not in.
+
+A row that came from the book and not the export carries `listSource: "book"` and, having no
+screener row behind it, **no market cap and no FII/DII holding change**. Those stay null: the market
+cap renders as an em dash and the institutional-activity rule scores `na` with its full `max`.
+Neither is a zero — `na` means "we never had the figure", and a zero would mean "no institutional
+buying", which is a different and false claim.
+
 Root is an **object** with a metadata header and a `companies` array.
 
 ```jsonc
 {
-  "generated_at": "2026-08-10T09:58:26.417Z",
+  "generated_at": "2026-08-13T13:56:03.304Z",
   "source": "Yahoo Finance",
   "index_symbol": "^CRSLDX",
   "index_close": 23723.55,
   "index_6m_return": 0.0113,
-  "market_breadth": { "advances": 248, "declines": 269, "unchanged": 3, "ad_ratio": 0.92, "universe": 520 },
-  "company_count": 535,
-  "failures": 15,
+  "market_breadth": { "advances": 143, "declines": 177, "unchanged": 200, "ad_ratio": 0.81, "universe": 520 },
+  "company_count": 603,
+  "nse500_count": 535,
+  "book_count": 68,
+  "partial_refresh": null,
+  "failures": 17,
   "companies": [ /* … */ ]
 }
 ```
@@ -101,9 +120,36 @@ Root is an **object** with a metadata header and a `companies` array.
 | `index_symbol` | string | — | `^CRSLDX` — Nifty 500 on Yahoo. |
 | `index_close` | number | index points | Latest index close. |
 | `index_6m_return` | number | **fraction**, not percent | `0.0113` = +1.13% over ~126 trading days. |
-| `market_breadth` | object \| null | counts | Advances / declines / unchanged across the scored universe, plus `ad_ratio` (advances ÷ declines, null when declines is 0). |
+| `market_breadth` | object \| null | counts | Advances / declines / unchanged, plus `ad_ratio` (advances ÷ declines, null when declines is 0). **NSE-500 rows only** — breadth is a statement about the index, so the held non-constituents are excluded rather than quietly folded into a figure still labelled "Nifty 500". |
 | `company_count` | number | count | Rows in `companies`, including failures. |
+| `nse500_count` | number | count | Of those, the ones from the screener export. |
+| `book_count` | number | count | Of those, the held companies the index does not carry. Drives `coverage().label`, which is why the Breakouts notes read *"NSE 500 + 68 held"* rather than *"NSE 500"*. |
+| `partial_refresh` | object \| null | — | Non-null only after a `TECH_FILL_GAPS=1` run — see below. Its presence means `generated_at` describes when the file was written, **not** when most of its rows were priced. |
 | `failures` | number | count | Rows carrying an `error` instead of indicators. |
+
+### `TECH_FILL_GAPS=1` — scraping only what is missing
+
+`TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` fetches only the companies the committed file
+does not already carry successfully, and merges them in. Adding names to the book should not cost a
+600-company re-fetch of tickers priced hours ago, and the re-fetch is not free for Yahoo either.
+
+Two rules make the merge honest:
+
+- **A row carrying an `error` counts as a gap and is retried**, and the row being retried is dropped
+  from the carry-over set — otherwise a successful retry would land beside the stale failure it
+  replaces and the file would hold that ticker twice.
+- **Everything else is carried byte-for-byte, including the NSE delivery %.** A gap-fill has no way
+  to re-collect delivery figures for rows it did not fetch, and blanking them would turn a real
+  measurement into an `na`. `partial_refresh` records `added`, `carried_over` and the timestamp, so
+  one `generated_at` never silently stands for two runs.
+
+### SME symbols: NSE says `-SM`, Yahoo does not
+
+NSE suffixes SME-platform symbols (`ALPEXSOLAR-SM`, `SAHANA-SM`); Yahoo carries them under the bare
+symbol. Left alone, `ALPEXSOLAR-SM.NS` returns a **one-bar stub** — which reads exactly like a
+delisting, because the ticker is right, the exchange is right, and the company simply appears to
+have no history. The scrape now strips the suffix as a fallback before trying `.BO`; both of those
+have 270 bars under the bare symbol.
 
 ### `companies[]` — a company that scraped successfully
 
@@ -111,17 +157,18 @@ Every numeric field is `null` when it could not be computed (usually too little 
 scoring model treats `null` as **N/A**, which scores 0 out of that rule's max — it never
 substitutes a guess.
 
-**Identity and pass-through (from `universe.json`)**
+**Identity and pass-through (from `universe.json`, or from the book — see `listSource`)**
 
 | Field | Type | Unit | Meaning |
 | --- | --- | --- | --- |
 | `ticker` | string | — | NSE symbol, uppercase. Join key everywhere. |
 | `name` | string | — | Company name. |
+| `listSource` | `"nse500"` \| `"book"` | — | Which list put this company in the scrape. **`"book"` means the four fields below are null and cannot be filled** — there is no screener row behind it. |
 | `screenerUrl` | string | — | Screener.in company page; the drill panel's "View on Screener.in" link. |
-| `marketCap` | string | display text | Verbatim from the screener export, e.g. `"27,582 Cr."`. |
-| `sector`, `broadSector`, `industry` | string | — | Classification. |
-| `chg_fii_hold` | number \| null | **percentage points** | Change in FII holding, latest period. Scored by Institutional Activity. |
-| `chg_dii_hold` | number \| null | **percentage points** | Change in DII holding. |
+| `marketCap` | string \| null | display text | Verbatim from the screener export, e.g. `"27,582 Cr."`. Null on a `book` row. |
+| `sector`, `broadSector`, `industry` | string \| null | — | Classification. A `book` row carries the statement's sector and no industry. |
+| `chg_fii_hold` | number \| null | **percentage points** | Change in FII holding, latest period. Scored by Institutional Activity. Null on a `book` row, where the rule scores `na` — never a zero, which would read as "no institutional buying". |
+| `chg_dii_hold` | number \| null | **percentage points** | Change in DII holding. Same. |
 
 **Delivery % (NSE bhavcopy)**
 
