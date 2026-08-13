@@ -1343,7 +1343,12 @@ if (siProbe.state === 'no-route') {
   ok('with no Worker, the view says the feed needs one rather than showing nothing', /needs the Worker/i.test(await hostText()));
   skip('the live investor books render', 'no /api/super-investors on this origin');
 } else if (siProbe.state === 'error') {
-  ok(`with the feed unavailable (${siProbe.reason}), the view names the reason`, /token|could not be reached|returned an error|unreadable/i.test(await hostText()));
+  ok(`with the feed unavailable (${siProbe.reason}), the view names the reason`,
+    /token|could not be reached|returned an error|unreadable|does not have the super-investor endpoints|did not answer in time/i.test(await hostText()));
+  // A 404 on the LIST route means the endpoint is absent, not that an investor is missing. The two
+  // were once conflated, and the panel said "No such investor" while the real problem was that the
+  // backend had never shipped the route — a diagnosis that sent the search in the wrong direction.
+  if (siProbe.reason === 'route-missing') ok('...and a missing endpoint is never reported as a missing investor', !/no such investor/i.test(await hostText()));
   ok('...and shows no positions rather than empty or invented ones', (await page.locator('tr[data-row-key]').count()) === 0);
   skip('the live investor books render', `the upstream reported "${siProbe.reason}"`);
 } else {
@@ -1361,17 +1366,33 @@ if (siProbe.state === 'no-route') {
   ok('every published quarter gets its own column', qCols.every((q) => heads.includes(q.toUpperCase()) || heads.includes(q)), `${qCols.length} quarters`);
   ok('...and the two attributed columns are headed as such', heads.some((h) => /CHANGE \(DERIVED\)/i.test(h)) && heads.some((h) => /VALUE \(FINOLOGY\)/i.test(h)), heads.join(' | '));
 
-  // A blank quarter must be a dash, and must never be counted as a holding of zero.
+  // A quarter the source omits must arrive as null — that is OUR transformation, and it is what
+  // the whole "a blank is not a zero" rule rests on. Note what is deliberately NOT asserted: that
+  // no quarter is ever 0. If Finology publish a literal 0 we must show a literal 0; claiming they
+  // never do would be asserting something about their data rather than about our handling of it,
+  // and an earlier version of this check failed for exactly that reason.
   const blanks = await page.evaluate(async () => {
+    const shared = await import('/js/data/finology-shared.js');
+    const probe = shared.normalisePortfolio(
+      { name: 'X', slug: 'x', quarters: ['Q1', 'Q2', 'Q3'], holdings: [{ company: 'A Ltd', quarterlyHoldings: { Q1: 4.2, Q3: 0 } }] },
+      'x'
+    ).holdings[0].quarterlyHoldings;
     const f = await import('/js/data/super-investors.js');
     const rows = f.allHoldings();
-    const nulls = rows.filter((r) => r.quarters.some((q) => r.quarterlyHoldings[q] == null));
-    const zeros = rows.filter((r) => r.quarters.some((q) => r.quarterlyHoldings[q] === 0));
-    return { rows: rows.length, withGaps: nulls.length, zeros: zeros.length };
+    return {
+      omittedIsNull: probe.Q2 === null,
+      keyPresent: 'Q2' in probe,
+      zeroSurvives: probe.Q3 === 0,
+      complete: rows.every((r) => r.quarters.every((q) => q in r.quarterlyHoldings)),
+      withGaps: rows.filter((r) => r.quarters.some((q) => r.quarterlyHoldings[q] == null)).length,
+      rows: rows.length,
+    };
   });
-  ok('an undisclosed quarter is null, never a zero', blanks.zeros === 0, `${blanks.withGaps} of ${blanks.rows} rows have a gap; ${blanks.zeros} carry a literal 0`);
-  if (blanks.withGaps) ok('...and renders as a dash on screen', (await page.locator('#content-host tbody td:has-text("—")').count()) > 0);
-  else skip('...and renders as a dash on screen', 'no book in this feed has a gap to render');
+  ok('a quarter the source omits becomes null, not zero', blanks.omittedIsNull && blanks.keyPresent, JSON.stringify(blanks));
+  ok('...while a zero the source DOES publish survives as a zero', blanks.zeroSurvives);
+  ok('...and every published quarter is a key on every holding', blanks.complete, `${blanks.withGaps} of ${blanks.rows} rows have at least one gap`);
+  if (blanks.withGaps) ok('...and a gap renders as a dash on screen', (await page.locator('#content-host tbody td:has-text("—")').count()) > 0);
+  else skip('...and a gap renders as a dash on screen', 'no book in this feed has a gap to render');
 
   // THE IDENTITY THAT CAUGHT A REAL BUG: the count and the total must describe the same set.
   const consistency = await page.evaluate(async () => {

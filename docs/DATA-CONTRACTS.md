@@ -1466,9 +1466,21 @@ request — a cold cache would become sixty simultaneous page reads on their ser
 
 An upstream or credential failure returns **200 with `ok: false` and a `reason`** — the same shape
 `/api/concalls` uses for `degraded`, because the request to *this* Worker succeeded and the body is
-what explains the rest. `reason` is one of `no-token`, `unauthorised`, `unreachable`, `upstream`,
-`shape`; the view renders a named explanation for each, and `no-token` / `unauthorised` name the
-`wrangler secret put` that fixes them. Error responses are cached for **15 seconds**, not six
+what explains the rest. `reason` is one of `no-token`, `unauthorised`, `route-missing`, `timeout`, `unreachable`,
+`upstream`, `shape`; the view renders a named explanation for each, and `no-token` /
+`unauthorised` name the `wrangler secret put` that fixes them.
+
+**`route-missing` versus `not-found`.** A 404 means different things on the two routes, so they are
+not one reason. On `/super-investors/{slug}` it means no such investor. On the bare list route
+there is no investor being looked up, so the only thing it can mean is that **the endpoint is not
+deployed on the host being called** — which is exactly what happened in production: the token was
+correct, and `devde.muns.io` returned 404 because it has no such route. Conflating the two made the
+panel say *"No such investor"* about a missing deployment.
+
+**Transient failures are retried.** The upstream is a live scrape and visibly flaps — observed
+returning 502, then timing out, then 200, within a minute. `call()` makes up to `ATTEMPTS` (3)
+attempts with a 15s ceiling each and 400ms/1200ms backoff, retrying only `unreachable`, `timeout`
+and 502/503/504. A 401 or a 404 is an answer, not a blip, and is never retried. Error responses are cached for **15 seconds**, not six
 hours, so pasting a working token takes effect immediately.
 
 `holdings: []` never travels without `ok: false` beside it — a book that failed to load must not be

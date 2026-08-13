@@ -135,6 +135,16 @@ const REASONS = {
     title: 'The API rejected the token',
     body: 'The token configured on the Worker was refused, which usually means it has expired. Renewing it is <code>npx wrangler secret put MUNS_TOKEN</code>.',
   },
+  // This is a deployment fact, not a data condition, so it says so rather than implying the
+  // investor list came back empty. The credential is fine; the endpoint is simply not there.
+  'route-missing': {
+    title: 'That service does not have the super-investor endpoints',
+    body: 'The token works, but <code>GET /super-investors</code> returns 404 on the host this dashboard is pointed at. Its own OpenAPI document (<code>/api-json</code>) lists no route matching "investor", so this is not a bad path on our side — the endpoint is not deployed there. Whoever owns that backend needs to ship it, or point us at the host that already has it.',
+  },
+  timeout: {
+    title: 'The super-investor API did not answer in time',
+    body: 'The request was given 15 seconds and retried, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.',
+  },
   unreachable: { title: 'The super-investor API could not be reached', body: 'The upstream service did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
   upstream: { title: 'The super-investor API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
   shape: { title: 'The super-investor API returned something unreadable', body: 'The response was not JSON in the shape this dashboard knows. That is a change on their side worth looking at.' },
