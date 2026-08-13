@@ -62,8 +62,6 @@ public/
                               — the scan table plus the "Upcoming Concalls" schedule overlay
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
-    chatter/
-      pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
     investors/
       deep-dive.js            the four-tab per-investor workspace (synthetic set; Fund Flows only)
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
@@ -73,10 +71,13 @@ public/
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
-      chatter.js              forum + telegram feeds, momentum and pump risk derived here
+      chatter-live.js         the live chatter feed: mention counts + sentiment, split by
+                              whether the slug resolved to a symbol we cover
       investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
       institution-holdings.js real filed shareholdings, by institution (Trendlyne)
       finology-shared.js      pure shape guards + deriveMoves — imported by worker/finology.mjs
+      sentiment-shared.js     pure shape guards + the slug->NSE resolver — imported by
+                              worker/sentiment.mjs
       super-investors.js      the live super-investor feed: list, then every book, four at a time
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
@@ -95,7 +96,6 @@ scripts/
   resolve-portfolio-companies.mjs  book names -> NSE symbols, collision-guarded
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
-  gen-mock-chatter.mjs        seeded generator for the forum + telegram feeds
   gen-mock-investors.mjs      seeded generator for holdings + fund flows
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
@@ -104,11 +104,12 @@ scripts/
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
-                              + /api/super-investors (+ /{slug})
+                              + /api/super-investors (+ /{slug}) + /api/chatter
 worker/http.mjs               content ETags, 304s and CORS — shared with any local stand-in
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
+worker/sentiment.mjs          the SentimentDash chatter client (base URL is env.SENTIMENT_BASE)
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -871,6 +872,7 @@ Rules:
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
+| Change the chatter feed | `worker/sentiment.mjs` + `public/js/data/sentiment-shared.js`, then `/api/chatter` — read *`GET /api/chatter`* in `docs/DATA-CONTRACTS.md` first; `changePct` there is mention volume, not price |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
@@ -892,9 +894,8 @@ Rules:
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
-| Regenerate the mock chatter / investors | `node scripts/gen-mock-chatter.mjs`, `node scripts/gen-mock-investors.mjs` |
+| Regenerate the mock investors | `node scripts/gen-mock-investors.mjs` |
 | Wire another fund's real holdings | one entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs`, then re-run it |
-| Change the pump-risk thresholds | `js/chatter/pump-risk.js` — named constants, and the help modal quotes them |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
 | Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |
 | Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |

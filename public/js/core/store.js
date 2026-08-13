@@ -41,6 +41,7 @@ export const KEYS = {
   // upstream, so a quarter landing for one investor must not invalidate the other fifty.
   investorList: 'investors:list',
   investorBook: (slug) => `investor:${slug}`,
+  chatter: 'chatter',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

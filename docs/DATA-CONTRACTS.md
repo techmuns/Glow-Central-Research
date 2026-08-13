@@ -1536,6 +1536,128 @@ fund picker as soon as there is more than one.
 
 ---
 
+## `GET /api/chatter` — LIVE, retail chatter (SentimentDash)
+
+A read-through proxy onto the SentimentDash API: companies and topics trending across ValuePickr,
+TradingQnA and Google News over a rolling 30 days, ranked by mention count and keyword-scored for
+sentiment. Public, unauthenticated, CORS-open. Re-scraped twice daily at **01:30 and 13:30 UTC**,
+so the edge holds 30 minutes and polling faster than hourly asks a question whose answer cannot
+have changed.
+
+### Four traps, and what this repo does about each
+
+1. **`changePct` is a change in MENTION COUNT, not a price move.** There is no price, market cap
+   or return anywhere in that API. It is renamed `mentionsChangePct` in `normaliseEntry`, and no
+   field called `changePct` survives onto our entry — so nothing downstream can render it as a
+   return by reading the field name. It must never be coloured like a P&L or given a ₹.
+2. **Their `ticker` is a forum-topic slug, not an exchange symbol** — `zomato`, `fiis`,
+   `3b-blackbio-dx` — and their `exchange` / `sector` are empty strings on essentially every
+   entry. It travels as `slug`. Our `ticker` is null unless the resolver found a real NSE symbol.
+3. **About a third of entries are not companies.** Entries are discovered bottom-up from forum
+   topics, so the list carries brokers (`guggenheim`, `td-cowen`), themes (`nuclear-energy`,
+   `defence`) and bare words (`value`, `growth`, `income`). In one of their runs the "top mover"
+   was a broker and the "most bullish" was the word *Growth*. `overview.mostBullish` and
+   `overview.topMover` are reproduced under their own names, and any surface showing them has to
+   survive that or not show them.
+4. **Sentiment skews ~80% neutral** (14% bullish, 6% bearish) and is keyword-scored, not
+   model-scored. A design assuming a balanced bull/bear split will look broken. `reddit` is a
+   valid source key that is currently 0 everywhere — it stays in the vocabulary because their
+   schema has it.
+
+Also: `sparkline` is a per-**run** series (up to 12 points, oldest first), not a per-day one. Points
+are scrape runs, so nothing may put a time axis under it.
+
+### The resolver — how "is this a company?" is decided
+
+`buildResolverIndex()` + `resolveEntry()` in `sentiment-shared.js`. An entry is a company **when
+its slug or name resolves to a symbol we already cover** — `universe.json` or the book. Everything
+else is not rejected: it carries `ticker: null` and a stated reason, exactly as a book line with no
+NSE symbol does in `coverage.js`.
+
+Deliberately **not** a hand-kept list of brokers and themes to exclude — such a list is
+unfalsifiable, rots silently, and makes the answer depend on what someone remembered to type.
+
+Matching is **exact only**, unlike `resolve-portfolio-companies.mjs`, which prefix-matches. The
+book is 142 lines checked by hand against a statement; this is an open-ended stream of forum topics
+where `value`, `growth` and `defence` are real entries. A wrong symbol here does not fail loudly —
+it files someone else's forum posts under a company you hold. An unresolved entry costs a row in
+the second section; a mis-resolved one corrupts the first.
+
+Verified against the real `universe.json` + book: `tata-motors`→`TMCV`, `hind-aeronautics`→`HAL`,
+`infosys`→`INFY`, `crizac`→`CRIZAC`, `allcargo-logistics`→`ALLCARGO`, while `guggenheim`,
+`td-cowen`, `nuclear-energy`, `defence`, `value`, `growth` and `fiis` all correctly resolve to
+nothing.
+
+### Response
+
+```jsonc
+{
+  "ok": true, "reason": null,
+  "generatedAt": "2026-08-13T14:35:02.862Z", "window": "30d",
+  "overview": { "totalPosts": 603, "totalEntries": 219, "marketMood": { … },
+                "mostBullish": { … }, "topMover": { … }, "sourceTotals": { … } },
+  "total": 219,
+  "entries": [ { "slug": "fiis", "name": "FIIs", "rank": 1, "mentions": 22,
+                 "mentionsPrev": 21, "mentionsChangePct": 4.8, "direction": "up",
+                 "sentiment": { … }, "sources": { … }, "activeSources": [ … ],
+                 "sourceLabel": "Google News · TradingQnA", "sparkline": [ … ] } ],
+  "health": { "status": "ok", "ageSeconds": 4211 }
+}
+```
+
+`health.ageSeconds` is **their** figure, from their `/health` route — how stale the scrape is
+according to the only clock that is authoritative about it, rather than a subtraction between
+their `generatedAt` and ours.
+
+### Failure is reported by kind, and a failed read is never an empty one
+
+`entries: []` only ever travels with `ok: false` and a `reason`. Upstream failures return **200
+with `ok: false`** — the request to *our* Worker succeeded — cached 15 seconds rather than 30
+minutes, so a corrected configuration takes effect at once.
+
+| `reason` | Means | Fix |
+| --- | --- | --- |
+| `no-base` | `env.SENTIMENT_BASE` is unset | set it — see below |
+| `bad-base` | set, but not an http(s) URL | correct the value |
+| `not-found` | 404 — wrong base, or the route moved | check the base ends in `/v1` |
+| `unreachable` / `timeout` | could not reach it | wait; retried 3× with backoff |
+| `upstream` | it answered with an error status | wait; 502/503/504 are retried |
+| `shape` | answered, but not in the documented shape | their contract changed |
+
+### The base URL is configuration, and its absence is a state
+
+`env.SENTIMENT_BASE`, e.g. `https://sentimentdash-api.<subdomain>.workers.dev/v1`. A plain `var`
+in `wrangler.jsonc`, not a secret — the endpoint is public and unauthenticated, so there is
+nothing to leak. **There is no default and no guess**: a wrong base 404s in a way indistinguishable
+from an outage and sends diagnosis in the wrong direction. Override per run with
+`npx wrangler dev --var SENTIMENT_BASE:https://…/v1`.
+
+### What the tab does with it
+
+One view, two sections, `subviews: []`. **Covered companies** — the resolved half, scope-aware,
+rows opening the technicals drill. **Not in our coverage** — everything else, whole in both scopes,
+because a list with no tickers cannot be filtered by one.
+
+Measured on a real 219-entry run: **45 covered, 174 not, 8 of them in the book.**
+
+The synthetic corpus this tab used to render is deleted, not parked under a ribbon — the same
+resolution the Con-call tab reached. Gone with it:
+
+- **The Telegram sub-view**, because no live Telegram source exists.
+- **The pump-risk heuristic**, because its gate is `MIN_MESSAGES_24H = 120` and this feed carries
+  ~600 posts per scrape across 219 entries — the busiest entry in a real run had 22 mentions in
+  *thirty days*. Every row would score "Clear", which is not a clean bill of health but a
+  fabricated one. `pump-risk.js`, `chatter.js`, `gen-mock-chatter.mjs` and the two mock JSON files
+  are in git history at `ce2aa18..`.
+
+**Alerts fire only for book holdings, and only on first appearance.** The other two feeds announce
+every arrival; chatter would otherwise fill the stack with brokers and themes and train the reader
+to dismiss the component, results alerts included. The alert text carries the mention count and
+their sentiment word, never `mentionsChangePct` — a percentage in a one-line notification is
+exactly where it would be read as a price move.
+
+---
+
 ## `GET /api/super-investors` and `/api/super-investors/{slug}` — LIVE, filed holdings (Finology)
 
 The whole **Superstar Investors** view. Two routes on this Worker, proxying the Ticker Finology

@@ -1068,86 +1068,132 @@ await page.waitForTimeout(300);
 await page.evaluate(() => localStorage.removeItem('sattva:deepdive-slugs'));
 
 // ---------------------------------------------------------------------------------------
-// 8. Public Chatter — pump risk, the technicals join, and the quadrant
+// 8. Public Chatter — one live feed, two sections, and the numbers that are not what they look like
+//
+// This tab used to be three sub-views over a synthetic corpus with fictional handles. It is now
+// live off SentimentDash, and the checks moved with it. What matters here is not that a table
+// renders — it is the two things this feed makes easy to get wrong:
+//
+//   • `changePct` upstream is a change in MENTION COUNT. Rendered as a coloured percentage it
+//     reads as a price move, and there is no price anywhere in that API.
+//   • entries are discovered bottom-up from forum topics, so a third of them are brokers, themes
+//     and bare words. A mis-resolved slug would file someone else's forum posts under a holding.
 // ---------------------------------------------------------------------------------------
 console.log('\n— public chatter —');
 
-for (const sub of ['valuepickr', 'telegram', 'trending']) {
-  await go(`/#/research/public-chatter/${sub}?scope=universe`, 2000);
-  const txt = await hostText();
-  ok(`chatter ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
-  ok(`chatter ${sub}: amber ribbon`, (await page.locator('[data-mock-ribbon]').count()) === 1);
+await go('/#/research/public-chatter?scope=universe', 6000);
+await waitForPanel();
+
+const chatterState = await evalSafe(async () => {
+  const c = await import('/js/data/chatter-live.js');
+  const host = document.querySelector('#content-host');
+  const m = c.meta();
+  return {
+    ok: !!m?.ok,
+    reason: m?.reason || null,
+    total: m?.total ?? 0,
+    companies: m?.companies ?? 0,
+    uncovered: m?.uncovered ?? 0,
+    generatedAt: m?.generatedAt || null,
+    ageSeconds: m?.ageSeconds ?? null,
+    tables: host.querySelectorAll('[data-table-scroll]').length,
+    headings: [...host.querySelectorAll('h2')].map((h) => h.textContent.trim()),
+    resolvedSample: c.companies().slice(0, 5).map((r) => `${r.slug}->${r.ticker}`),
+    unresolvedAllNull: c.uncovered().every((r) => r.ticker === null && !!r.unresolvedReason),
+  };
+});
+
+if (!chatterState.ok) {
+  // No Worker on this origin means no /api/chatter. That is a legitimate configuration, and the
+  // tab is required to say WHICH one — so the skip still checks the failure is named.
+  const named = await hostText();
+  skip('the chatter feed is live', `reason=${chatterState.reason} — no Worker on this origin`);
+  ok('...and the tab names the state rather than showing an empty table', /not configured|unreachable|no chatter route|404|misconfigured/i.test(named), named.slice(0, 90));
+} else {
+  ok('the chatter feed is live', chatterState.total > 0, `${chatterState.total} entries`);
+  ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,
+    `${chatterState.companies} covered + ${chatterState.uncovered} not = ${chatterState.total}`);
+  ok('...rendered as two tables in one view', chatterState.tables === 2, `${chatterState.tables} tables`);
+  ok('...the second section says it is about OUR coverage', /not in our coverage/i.test(chatterState.headings.join(' ')), chatterState.headings.join(' · '));
+  ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
+  ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
+  ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+
+  // THE CENTRAL HONESTY CHECK. A mention delta must never be styled like a return: no emerald, no
+  // rose, no currency. Those are what make a reader parse it as money.
+  const deltaStyling = await evalSafe(() => {
+    const cells = [...document.querySelectorAll('#content-host tbody tr')]
+      .flatMap((tr) => [...tr.querySelectorAll('td')])
+      .filter((td) => /[▲▼·]\s*[+-]?\d+%/.test(td.textContent));
+    return {
+      n: cells.length,
+      coloured: cells.filter((td) => {
+        const c = getComputedStyle(td.querySelector('span') || td).color;
+        const [r, g, b] = c.match(/\d+/g).map(Number);
+        return (g > r + 30 && g > b + 30) || (r > g + 60 && r > b + 30); // emerald-ish or rose-ish
+      }).length,
+      currency: cells.filter((td) => /[₹$]/.test(td.textContent)).length,
+    };
+  });
+  ok('a mention delta is never coloured like a P&L', deltaStyling.n === 0 || deltaStyling.coloured === 0,
+    `${deltaStyling.n} delta cells, ${deltaStyling.coloured} coloured`);
+  ok('...and never carries a currency symbol', deltaStyling.currency === 0);
+
+  // The column heading has to say what the number is, because the tooltip is not always read.
+  const heads = await evalSafe(() => [...document.querySelectorAll('#content-host thead th')].map((th) => th.textContent.trim()));
+  ok('the column says "Mentions", not "Change" or "Return"', heads.some((h) => /mentions/i.test(h)) && !heads.some((h) => /\breturn\b|\bprice\b/i.test(h)), heads.join(' | '));
+
+  // Scope. The covered half narrows to the book; the uncovered half cannot and must not pretend to.
+  await go('/#/research/public-chatter?scope=portfolio', 5000);
+  const scoped = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    return { covered: c.forScope('portfolio').length, uncovered: c.uncovered().length, all: c.companies().length };
+  });
+  ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
+  ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
+    `${scoped.uncovered} rows in both scopes`);
+
+  // Nothing synthetic is left on this tab, so nothing may claim to be.
+  ok('no mock ribbon, because nothing here is synthetic', (await page.locator('[data-mock-ribbon]').count()) === 0);
+  ok('...and the pump-risk flag is gone with the corpus it was calibrated for', !/pump risk/i.test(await hostText()));
 }
-ok('chatter ribbon flags fictional handles', /fictional/i.test(await hostText()));
 
-// Pump risk: the flag has to compute across levels and show its reasons.
-await go('/#/research/public-chatter/telegram?scope=universe', 1800);
-const riskLevels = await page.evaluate(async () => {
-  const c = await import('/js/data/chatter.js');
-  await c.load();
-  const dist = { 0: 0, 1: 0, 2: 0, 3: 0 };
-  for (const g of c.groups()) dist[g.risk.level]++;
-  return dist;
+// The slug resolver is pure, so it is testable directly — and the failure that matters is a FALSE
+// POSITIVE. An unresolved entry costs a row in the second section; a wrong symbol files someone
+// else's forum posts under a company you hold.
+const resolverTraps = await evalSafe(async () => {
+  const s = await import('/js/data/sentiment-shared.js');
+  const idx = s.buildResolverIndex([
+    { ticker: 'TMCV', name: 'Tata Motors' },
+    { ticker: 'INFY', name: 'Infosys' },
+    { ticker: 'VALUEIND', name: 'Value Industries' },
+  ]);
+  const hit = (slug, name) => s.resolveEntry({ slug, name: name || slug.replace(/-/g, ' ') }, idx).ticker;
+  return {
+    realCompany: hit('tata-motors', 'Tata Motors'),
+    bySymbol: hit('infy', 'INFY'),
+    bareWord: hit('value', 'Value'),
+    theme: hit('nuclear-energy', 'Nuclear Energy'),
+    broker: hit('guggenheim', 'Guggenheim'),
+  };
 });
-ok('pump risk spans more than one level', Object.values(riskLevels).filter((n) => n > 0).length >= 3, JSON.stringify(riskLevels));
-ok('a quiet group cannot be flagged', await page.evaluate(async () => {
-  const c = await import('/js/data/chatter.js');
-  await c.load();
-  // Every group that failed the volume gate must be level 0, whatever its other ratios say.
-  return c.groups().filter((g) => !g.risk.gate.fired).every((g) => g.risk.level === 0);
-}));
+ok('the resolver matches a real company', resolverTraps.realCompany === 'TMCV', String(resolverTraps.realCompany));
+ok('...by symbol as well as name', resolverTraps.bySymbol === 'INFY', String(resolverTraps.bySymbol));
+ok('...and does NOT prefix-match a bare word onto a company', resolverTraps.bareWord === null,
+  `"value" resolved to ${resolverTraps.bareWord} (Value Industries is in the index deliberately)`);
+ok('...nor a theme', resolverTraps.theme === null, String(resolverTraps.theme));
+ok('...nor a broker', resolverTraps.broker === null, String(resolverTraps.broker));
 
-await page.locator('[data-tg-filter="risk"][data-tg-value="flagged"]').click();
-await page.waitForTimeout(700);
-const flaggedRows = await rowCount();
-ok('filter to flagged groups', flaggedRows > 0, `${flaggedRows} at level 2+`);
-ok('chatter filter is reflected in the URL', page.url().includes('risk=flagged'));
-await page.locator('tr[data-row-key]').first().click();
-await page.waitForTimeout(700);
-const riskDrill = await page.locator('#drill-content').innerText();
-ok('pump-risk drill lists every criterion', ['volume burst', 'few senders', 'forwarded', 'uniformly bullish'].every((t) => new RegExp(t, 'i').test(riskDrill)));
-ok('...with the measured values, not just a verdict', /messages in 24h/i.test(riskDrill) && /distinct senders/i.test(riskDrill));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(400);
-
-// The Trending join must pull REAL technical scores, and the quadrant must be clickable.
-await go('/#/research/public-chatter/trending?scope=universe', 2200);
-const joinCheck = await page.evaluate(async () => {
-  const [t, c] = await Promise.all([import('/js/data/technicals.js'), import('/js/data/chatter.js')]);
-  await Promise.all([t.load(), c.load()]);
-  const rows = c.trending();
-  const joined = rows.filter((r) => t.byTicker(r.ticker) && !t.byTicker(r.ticker).tickerError);
-  const sample = joined[0] ? t.byTicker(joined[0].ticker) : null;
-  return { total: rows.length, joined: joined.length, sampleScore: sample ? `${sample.totalPoints}/${sample.totalMax}` : null };
+// An alert about chatter is limited to the book, and says nothing that reads as a price.
+const chatterAlert = await evalSafe(async () => {
+  const w = await import('/js/core/watch.js');
+  return w.chatterDetail({
+    name: 'Test Co', mentions: 4, mentionsChangePct: 200,
+    sourceLabel: 'ValuePickr', sentiment: { labelText: 'Bullish' },
+  });
 });
-ok('trending joins the real technicals feed', joinCheck.joined > 0, `${joinCheck.joined}/${joinCheck.total} joined, e.g. ${joinCheck.sampleScore}`);
-ok('quadrant plots points', (await page.locator('[data-quad-point]').count()) > 0, `${await page.locator('[data-quad-point]').count()} points`);
-await page.locator('[data-quad-point]').first().click();
-await page.waitForTimeout(800);
-ok('quadrant point opens the technicals drill', (await page.locator('#drill-content').innerText()).length > 200);
-await page.keyboard.press('Escape');
-await page.waitForTimeout(400);
-ok('trending states which axis is real', /real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
-
-// The chatter poller: arrivals, pause on hidden, stop on unmount.
-await go('/#/research/public-chatter/valuepickr?scope=universe', 2000);
-const arrivals = () => page.evaluate(async () => (await import('/js/data/chatter.js')).totalArrivals());
-const c0 = await arrivals();
-await page.waitForTimeout(18000);
-ok('chatter poller delivers arrivals', (await arrivals()) > c0, `${c0} → ${await arrivals()}`);
-await setHidden(true);
-const cHidden = await arrivals();
-await page.waitForTimeout(18000);
-ok('chatter poller pauses while hidden', (await arrivals()) === cHidden, `${cHidden} unchanged`);
-await setHidden(false);
-await page.waitForTimeout(3000);
-await go('/#/research/earnings-hub?scope=universe');
-ok('chatter poller stops on unmount', await page.evaluate(async () => {
-  const live = await import('/js/core/live.js');
-  const before = live.getLastTick('chatter-live');
-  await new Promise((r) => setTimeout(r, 11000));
-  return before === live.getLastTick('chatter-live');
-}));
+ok('a chatter alert reports mentions, never a percentage', /4 mentions/.test(chatterAlert) && !/%/.test(chatterAlert), chatterAlert);
+ok('...and credits SentimentDash for the sentiment', /SentimentDash/.test(chatterAlert));
 
 // ---------------------------------------------------------------------------------------
 // 8b. The book — 142 company lines, and the promise that none of them is silently missing.
@@ -1579,9 +1625,13 @@ if (await page.locator('#modal-overlay.is-open').count()) {
 // 10. Scope and exports on both new tabs
 // ---------------------------------------------------------------------------------------
 console.log('\n— scope and exports —');
-await go('/#/research/public-chatter/trending?scope=portfolio', 2000);
-ok('chatter portfolio scope narrows and labels', /Portfolio/.test(await hostText()));
-ok('...and lists holdings with no chatter rather than dropping them', /no chatter tracked/i.test(await hostText()));
+await go('/#/research/public-chatter?scope=portfolio', 5000);
+{
+  const t = await hostText();
+  // Either the scope pill, or the named reason the feed is unavailable on this origin. An empty
+  // panel that explains neither is the one outcome that must not happen.
+  ok('chatter portfolio scope narrows and labels', /Portfolio/.test(t) || /not configured|unreachable|no chatter route/i.test(t), t.slice(0, 80).replace(/\s+/g, ' '));
+}
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
 ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
 // Either the scope note, or — when the feed is unavailable on this origin — the named reason it
@@ -1593,7 +1643,7 @@ ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
 }
 
 for (const [hash, label] of [
-  ['/#/research/public-chatter/valuepickr?scope=universe', 'chatter'],
+  ['/#/research/public-chatter?scope=universe', 'chatter'],
   ['/#/research/super-investors/superstar-investors?scope=universe', 'investors'],
 ]) {
   await go(hash, 2500);
@@ -1951,17 +2001,34 @@ console.log('\n— header status and live alerts —');
     if (!card) return { ok: false, why: 'no card' };
     const r = card.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { ok: root.contains(hit), opacity: Number(getComputedStyle(card).opacity), why: hit ? hit.tagName : 'nothing' };
+    return {
+      ok: root.contains(hit),
+      opacity: Number(getComputedStyle(card).opacity),
+      why: hit ? hit.tagName : 'nothing',
+      styled: getComputedStyle(card).backgroundColor !== 'rgba(0, 0, 0, 0)',
+    };
   });
-  ok('...and is actually painted, not just present at opacity 0', visible.ok && visible.opacity > 0.5,
-    `opacity ${visible.opacity}, topmost element at its centre is ${visible.ok ? 'the card' : visible.why}`);
+  // Needs Tailwind: without it the card has no background, so `elementFromPoint` finds whatever is
+  // behind it and the check measures the stylesheet rather than the component.
+  if (visible.styled) {
+    ok('...and is actually painted, not just present at opacity 0', visible.ok && visible.opacity > 0.5,
+      `opacity ${visible.opacity}, topmost element at its centre is ${visible.ok ? 'the card' : visible.why}`);
+  } else {
+    skip('...and is actually painted, not just present at opacity 0', 'Tailwind CDN unreachable — the card has no background to hit-test');
+  }
   ok('...the same event never announces twice', alerts.dupeRejected);
   ok('...and the stack is capped rather than unbounded', alerts.cards <= 4, `${alerts.cards} visible after 7 pushes`);
 
   // Stacking: a toast must never cover something the reader opened on purpose.
   const drillZ = await evalSafe(() => Number(getComputedStyle(document.getElementById('drill-panel')).zIndex));
   const wsZ = await evalSafe(() => Number(getComputedStyle(document.getElementById('workspace-overlay')).zIndex));
-  ok('alerts sit BEHIND the drill, the workspace and modals', alerts.z < drillZ && alerts.z < wsZ, `toast z-${alerts.z} < drill z-${drillZ} < workspace z-${wsZ}`);
+  if (Number.isFinite(alerts.z) && Number.isFinite(drillZ) && Number.isFinite(wsZ)) {
+    ok('alerts sit BEHIND the drill, the workspace and modals', alerts.z < drillZ && alerts.z < wsZ, `toast z-${alerts.z} < drill z-${drillZ} < workspace z-${wsZ}`);
+  } else {
+    // The stacking order lives entirely in Tailwind's z-* utilities, so with the CDN blocked every
+    // one of them computes to `auto`. Reporting that as a failure would be measuring the network.
+    skip('alerts sit BEHIND the drill, the workspace and modals', 'Tailwind CDN unreachable — every z-index computes to auto');
+  }
 
   // The honesty rules the alert text has to obey. Both are the same failure mode the tables
   // already guard: a missing figure is not a zero, and a move across zero is not a percentage.
@@ -2001,7 +2068,7 @@ for (const width of [1440, 1024, 390]) {
   await page.setViewportSize({ width, height: 900 });
   for (const [route, label] of [
     ['/#/research/concall?scope=universe', 'con-call scan table'],
-    ['/#/research/public-chatter/trending?scope=universe', 'chatter trending'],
+    ['/#/research/public-chatter?scope=universe', 'public chatter'],
     ['/#/research/super-investors/fund-flows?scope=universe', 'investor flows'],
   ]) {
     await go(route, 1700);

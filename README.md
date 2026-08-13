@@ -18,7 +18,9 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
-**Two surfaces are genuinely live.**
+**Public Chatter is live too**, off the SentimentDash API — mention counts and sentiment across ValuePickr, TradingQnA and Google News. The synthetic forum/Telegram corpus that used to fill it is deleted rather than relabelled.
+
+**Two more surfaces are genuinely live.**
 
 *Breakouts / Technical* scores 535 NSE-500 companies against a 16-rule, 24-point model from a
 daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
@@ -84,8 +86,9 @@ public/
     core/             state, router, live engine, format, dom helpers
     ui/               components.js (primitives), shell.js (chrome + tab registry)
     concall/          keyword-engine.js (runtime scanner), keyword-editor, deep-dive
-    data/             per-feed loaders: technicals, earnings, concalls, universe
+    data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
+                      sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
     tabs/             earnings-hub, concall, public-chatter, breakouts, super-investors
     portfolio/        overview, position-by, transactions, drawdown
@@ -150,25 +153,19 @@ The keyword counts, though, are **not** mock: `public/js/concall/keyword-engine.
 text in the browser on every render, so editing a keyword's aliases genuinely changes what
 matches. No count is stored in any file.
 
-## Regenerate the mock chatter and investor sets
+## Regenerate the mock investor set
 
 ```bash
-node scripts/gen-mock-chatter.mjs     # 40 forum threads, 25 Telegram groups
 node scripts/gen-mock-investors.mjs   # 8 investors + 8 funds x 4 quarters, 24 months of flows
 ```
 
-Both seeded, so output is byte-stable. Two rules govern this data, and they are different:
+Seeded, so output is byte-stable.
 
-- **Chatter handles are fictional.** A forum handle belongs to a real person; attaching invented
-  opinions to one misattributes speech. Same rule as the con-call speakers.
 - **Investor names are real; their positions are not.** Ashish Kacholia, Dolly Khanna, Small Cap
   World Fund and the rest are real, and their genuine holdings are public. Everything shown here
   is synthetic, labelled on every surface — and the data set carries **numbers only**, with no
   `rationale`, `quote` or `thesis` field, deliberately, so there is nothing to render that would
   read as something a named person said.
-
-The pump-risk flag is **not** in the data: `public/js/chatter/pump-risk.js` computes it in the
-browser and returns the criteria it fired, with their measured values.
 
 ## Verify before pushing
 

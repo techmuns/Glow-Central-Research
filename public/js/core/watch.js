@@ -27,6 +27,8 @@
 
 import * as earnings from '../data/earnings-live.js';
 import * as concalls from '../data/concall-scans.js';
+import * as chatter from '../data/chatter-live.js';
+import * as coverage from '../data/coverage.js';
 import * as notifications from '../ui/notifications.js';
 import { formatCroreCompact, formatPct } from './format.js';
 
@@ -38,6 +40,7 @@ const stops = [];
 // re-hand the whole arrival list every time anything changes.
 const earningsKey = (r) => `earnings:${r.scId}:${r.resultDate}`;
 const concallKey = (r) => `concall:${r.companyKey}:${r.when}:${r.reason}`;
+const chatterKey = (r) => `chatter:${r.slug}`;
 
 export function start(live) {
   if (started) return;
@@ -50,6 +53,7 @@ export function start(live) {
   // noise about our plumbing rather than news about the market.
   wire(earnings, { keyOf: earningsKey, announce: announceEarnings, label: earnings.LIVE_ID });
   wire(concalls, { keyOf: concallKey, announce: announceConcalls, label: concalls.LIVE_ID });
+  wire(chatter, { keyOf: chatterKey, announce: announceChatter, label: chatter.LIVE_ID });
 }
 
 function wire(feed, { keyOf, announce, label }) {
@@ -75,7 +79,7 @@ function wire(feed, { keyOf, announce, label }) {
  */
 export function ensureRunning() {
   if (!engine) return;
-  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID]) engine.start(id);
+  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID]) engine.start(id);
 }
 
 /**
@@ -161,6 +165,38 @@ export function concallDetail(r) {
   }
   if (r.resultScore == null) return 'Call held — analysis pending';
   return `Result score ${Math.round(r.resultScore)}/100 (StockScans)`;
+}
+
+/**
+ * Chatter alerts fire ONLY for companies in the book, and only on first appearance.
+ *
+ * The other two feeds announce every arrival, which is right: a company filing a result is an
+ * event whoever owns it. Chatter is different in scale and in kind — a scrape adds entries for
+ * brokers, themes and companies nobody here holds, and a stack of "Guggenheim was mentioned"
+ * cards would train the reader to dismiss the whole component, including the results alerts that
+ * matter. So the filter is the book, and the threshold is appearance rather than movement: a
+ * holding being discussed for the first time is news; its count drifting from 3 to 4 is not.
+ */
+function announceChatter() {
+  for (const r of [...chatter.newArrivals()].reverse()) {
+    if (!r.ticker || !coverage.has(r.ticker)) continue;
+    notifications.push({
+      key: chatterKey(r),
+      kind: 'chatter',
+      title: r.name,
+      detail: chatterDetail(r),
+      href: '#/research/public-chatter',
+      at: r.seenAt || Date.now(),
+    });
+  }
+}
+
+export function chatterDetail(r) {
+  const where = r.sourceLabel ? ` on ${r.sourceLabel}` : '';
+  const n = r.mentions === 1 ? '1 mention' : `${r.mentions} mentions`;
+  // Their sentiment word, not a score of ours, and no percentage — `mentionsChangePct` is mention
+  // volume and putting it in a one-line alert is exactly where it would be read as a price move.
+  return `Now discussed${where} — ${n} in 30 days · ${r.sentiment.labelText} (SentimentDash)`;
 }
 
 export function stop() {

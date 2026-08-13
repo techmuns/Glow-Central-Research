@@ -48,7 +48,7 @@ optional right-aligned count badge.
 | --- | --- |
 | Earnings Hub | *(none — one table, so the rail is hidden)* |
 | Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
-| Public Chatter | ValuePickr · Telegram · Trending |
+| Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions · Fund Flows |
 | Overview | Positions · Allocation |
@@ -78,8 +78,13 @@ Brand, the scope toggle, one status pill and a refresh button — nothing else.
 ## 1c. Live alerts
 
 New data announces itself in the lower-right corner: a company filing a result, a con-call gaining
-its StockScans analysis. The alerts fire whatever tab is open, because the two feeds are watched
-app-wide rather than only while their tab is mounted.
+its StockScans analysis, or a book holding appearing in the retail-chatter feed for the first time.
+The alerts fire whatever tab is open, because those feeds are watched app-wide rather than only
+while their tab is mounted.
+
+Chatter alerts are limited to book holdings, unlike the other two. The feed carries brokers and
+themes as well as companies, and a stack of "Guggenheim was mentioned" cards would teach the reader
+to dismiss the component — results alerts included.
 
 They never announce the same event twice, they cap the visible stack, they sit **behind** the drill
 panel, the workspace and modals, and they inherit the tables' honesty rules — a swing across zero
