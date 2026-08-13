@@ -444,6 +444,12 @@ function renderLatest(ctx) {
     showRank: false,
     nameAfter: 1,
     dense: true,
+    // On this table the HEADINGS are what overflow, not the figures: "Net Profit Growth" needs
+    // 161px on one line where the numbers under it need about 90. Left unwrapped the ten columns
+    // come to 1,397px inside a 1,352px container at 1440 — a horizontal scrollbar on the flagship
+    // table. Stacking the headings takes it to 1,352px exactly. Measured both ways against the
+    // full 1,722-row snapshot; the live feed is shorter, which is what hid this.
+    wrapHeads: true,
     // Ten columns leave room the thirteen did not, so the identity column gets it back: fewer
     // industries truncate and the ticker never does.
     nameMaxPx: 260,
