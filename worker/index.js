@@ -8,8 +8,15 @@
 //   GET  /api/earnings?fields=prices           ->  just the traded prices, for the poll
 //   GET  /api/earnings-calendar                ->  who is SCHEDULED to report, and when
 //   GET  /api/concalls                         ->  the live StockScans con-call scan
+//   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
+//   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
 //
-// Neither writes anything back to the repo; both are read-through overlays on committed data.
+// None writes anything back to the repo; all are read-through overlays on committed data.
+//
+// THE SUPER-INVESTOR ROUTES EXIST TO HOLD A CREDENTIAL. Unlike every other upstream here, that
+// API needs `Authorization: Bearer …`. A token in front-end code is a token published, so the
+// browser calls this Worker and the Worker adds the header from `env.MUNS_TOKEN` — the same
+// reason /api/live-prices is proxied. Set it with `npx wrangler secret put MUNS_TOKEN`.
 //
 // EVERY GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this file.
 // The two big feeds are polled every 30 seconds and are 1.1MB and 450KB of JSON. Answering
@@ -19,6 +26,7 @@
 
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
+import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -57,6 +65,12 @@ export default {
     }
     if (url.pathname === '/api/concalls') {
       return handleConcalls(request, env, ctx);
+    }
+    if (url.pathname === '/api/super-investors') {
+      return handleInvestorList(request, env, ctx);
+    }
+    if (url.pathname.startsWith('/api/super-investors/')) {
+      return handleInvestorPortfolio(request, env, ctx, url.pathname.slice('/api/super-investors/'.length));
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -433,6 +447,76 @@ async function handleConcalls(request, env, ctx) {
     return revalidate(request, tagged(body, tag, 15), 'fallback'); // retry sooner than a normal window
   }
 }
+
+// ---------------------------------------------------------------------------------------
+// GET /api/super-investors  and  GET /api/super-investors/{slug}
+//
+// A THIN, AUTHENTICATED PROXY — and the edge cache is the point, not a nicety.
+//
+// The upstream scrapes finology.in on every call. Shareholding data moves ONCE A QUARTER, so
+// serving a hundred readers a hundred fresh scrapes would be pure waste on somebody else's
+// service. The edge holds each response for hours; the browser then revalidates against our
+// ETag and gets a bodyless 304, so a repeat visit costs a header exchange.
+//
+// The fan-out is deliberately NOT here. One route returns one investor, and the client walks the
+// list a few at a time — see js/data/super-investors.js. A `?full=1` that fetched sixty books in
+// one request would turn a cold cache into sixty simultaneous scrapes upstream.
+//
+// FAILURE IS REPORTED BY KIND, because the fixes differ. A missing or expired token is a
+// credential to renew; an unreachable host is a service to wait for. The UI says which.
+// ---------------------------------------------------------------------------------------
+
+// Six hours. Quarterly data with a generous margin: even at the very end of a window the figure
+// on screen is the same figure the source would give.
+const INVESTOR_TTL_S = 6 * 60 * 60;
+
+async function handleInvestorList(request, env) {
+  try {
+    const list = await fetchInvestorList(fetch, env.MUNS_TOKEN, env.MUNS_BASE);
+    const { body, tag } = withTag({ ok: true, source: 'Ticker Finology, via devde.muns.io', fetchedAt: new Date().toISOString(), ...list });
+    return revalidate(request, tagged(body, tag, INVESTOR_TTL_S), 'live');
+  } catch (err) {
+    return investorError(request, err, { count: 0, investors: [] });
+  }
+}
+
+async function handleInvestorPortfolio(request, env, ctx, slug) {
+  if (!isSlug(slug)) {
+    return json({ ok: false, error: 'bad-slug', message: 'An investor slug may only contain a-z, 0-9 and hyphens.' }, 400);
+  }
+  try {
+    const portfolio = await fetchInvestorPortfolio(fetch, env.MUNS_TOKEN, slug, env.MUNS_BASE);
+    const { body, tag } = withTag({ ok: true, source: 'Ticker Finology, via devde.muns.io', fetchedAt: new Date().toISOString(), ...portfolio });
+    return revalidate(request, tagged(body, tag, INVESTOR_TTL_S), 'live');
+  } catch (err) {
+    return investorError(request, err, { slug, quarters: [], holdings: [] });
+  }
+}
+
+/**
+ * One shape for every failure, carrying the REASON rather than an empty success.
+ *
+ * A 200 with `ok: false`, the same shape `/api/concalls` uses for its degraded case. The request
+ * to THIS Worker succeeded; what failed was the upstream, and the body says so by name so the
+ * panel can tell a reader whose problem it is: `no-token` and `unauthorised` are a credential for
+ * the operator to fix, everything else is a service to wait for. A bare 502 would collapse those
+ * into one unreadable state, and the store layer would discard the body that explains it.
+ *
+ * `holdings: []` never travels without `ok: false` beside it — a book that failed to load must
+ * not be able to read as an investor who holds nothing.
+ *
+ * FIFTEEN SECONDS, not six hours. An error must not be cached for the length of a success, or
+ * pasting the right token would appear not to have worked until the afternoon.
+ */
+function investorError(request, err, extra = {}) {
+  const reason = err?.code || 'upstream';
+  // A bad slug is the caller's mistake and an unknown investor genuinely does not exist. Those
+  // stay real HTTP errors; only upstream and credential conditions become a readable 200.
+  if (reason === 'not-found') return json({ ok: false, reason, message: String(err?.message || err), ...extra }, 404);
+  const { body, tag } = withTag({ ok: false, reason, message: String(err?.message || err), fetchedAt: new Date().toISOString(), ...extra });
+  return revalidate(request, tagged(body, tag, ERROR_TTL_S), reason);
+}
+const ERROR_TTL_S = 15;
 
 /** The committed con-call snapshot, read through the ASSETS binding. */
 async function loadConcallSnapshot(env, request) {

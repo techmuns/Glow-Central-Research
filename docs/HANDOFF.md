@@ -43,6 +43,15 @@ This is the first thing to check before quoting any number off a screen.
 Both scrapes run from `.github/workflows/technicals-refresh.yml` and share one fetch helper,
 `scripts/lib/yahoo.mjs`, so the two feeds cannot drift about what a close price is.
 
+**Superstar investor books — Ticker Finology, behind a credential.** Every tracked individual
+investor Finology carry, and for each the full book they publish: company by company, one column
+per quarter of disclosed holding percentage, plus net worth, active/total stock counts and any
+biography. Read live through `/api/super-investors` and `/api/super-investors/{slug}`. This is the
+one upstream that needs `Authorization: Bearer …`, so the Worker holds the token in
+`env.MUNS_TOKEN` and the browser never sees it. Percentages are the filings; the ₹ value is
+**Finology's** derivation and is headed as such. The only computed figure is the
+quarter-over-quarter change, headed *Change (derived)*. See §5d.
+
 **Filed shareholdings — Smallcap World Fund Inc.** Every Indian company the fund appears in, with
 the share count and percentage the company filed with the exchanges, nine quarters deep, scraped
 from Trendlyne. 37 holdings, ₹35,818 Cr as of Jun 2026, cross-checked to the rupee against
@@ -381,6 +390,47 @@ Four things to know before touching it:
 
 ---
 
+## 5d. Superstar Investors: real books behind a credential
+
+The whole sub-view is live off the Ticker Finology super-investor API, proxied by this Worker. It
+replaced a synthetic set of the same shape — real names, invented positions — and the amber ribbon
+went with it, because there is no longer anything on that panel to label.
+
+**The token lives on the Worker.** That API is the only upstream here that needs
+`Authorization: Bearer …`, and a token in front-end code is a token published. `worker/finology.mjs`
+injects `env.MUNS_TOKEN`; nothing under `public/` has ever seen it, and `verify-ui.mjs` asserts both
+halves — no credential in any served file, and no request from the browser to that host.
+
+```bash
+npx wrangler secret put MUNS_TOKEN     # production
+echo 'MUNS_TOKEN="…"' >> .dev.vars     # local, gitignored
+```
+
+`env.MUNS_BASE` redirects the upstream, which is how a verification run drives the whole path
+against a stand-in instead of scraping their production.
+
+**Three things about the data that are easy to get wrong:**
+
+- **A blank quarter is not a zero.** Indian companies name only holders above a threshold, so a
+  real position below it is invisible in the filing. `null` travels to the cell, renders as a dash
+  and stays out of every total. A position disappearing is *"no longer disclosed"*, not *"sold"*.
+- **`valueCr` is Finology's, not ours.** A filing states a percentage, never a rupee amount. The
+  column is headed *Value (Finology)* — same relation Institutions has with Trendlyne's value.
+- **One figure is computed here**: the quarter-over-quarter change, headed *Change (derived)*.
+  Neither a new position nor a vanished one carries a percentage-point figure, because printing
+  ±the whole holding would invent a trade size.
+
+**A caught bug worth remembering.** The card count used the latest quarter and the book total used
+all of history, so an investor with nothing currently disclosed rendered `0 holdings` beside
+`₹793 Cr book`. Both now describe the same set — `summarise()` in `finology-shared.js` — and the
+suite asserts the two can never diverge again.
+
+**Failure states are named, not blank.** `no-token` and `unauthorised` are an operator's problem
+and the panel prints the command that fixes them; `unreachable` / `upstream` are a service's. A
+failed book shows "could not be read", never an empty one — those must never look the same.
+
+---
+
 ## 6. The honesty rules
 
 These are why the dashboard can be trusted, and they are not style preferences.
@@ -516,6 +566,11 @@ The ones that matter most:
   no auth and no bot wall, and `worker/mc.mjs` validates the payload's own header block so a column
   insertion fails loudly rather than shifting every field. But it can change without notice; the
   snapshot fallback is what stops that from blanking the tab.
+- **The super-investor token is a deployment secret with no rotation story.** `env.MUNS_TOKEN` is
+  set by hand with `npx wrangler secret put MUNS_TOKEN`, and the API documents it as a *session*
+  token. If it expires the view says so by name and names the command that fixes it — it does not
+  fall back to stale or invented positions — but nothing renews it automatically. A long-lived
+  service credential would be the better shape.
 - **The Deep Dive endpoint is unauthenticated and metered.** `POST /api/analyze` on the Concall Deep
   Dive Worker has no auth and CORS is open, and every accepted call starts a real LLM run. This page
   therefore never dispatches without an explicit click and a confirm step — but that is a courtesy,

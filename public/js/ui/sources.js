@@ -251,12 +251,21 @@ export const SOURCE_GROUPS = [
     items: [
       {
         name: 'Ticker Finology — superstar investors',
-        url: 'https://ticker.finology.in/',
+        url: 'https://ticker.finology.in/superstar-portfolios',
         feeds:
-          'Disclosed positions for eight tracked individual investors across four quarters: holding percentage, quantity and the quarter-on-quarter action. <strong class="text-amber-700">The names are real; the positions are not.</strong> These are real public investors whose genuine shareholdings appear in quarterly exchange filings. Every position here is synthetic, from <code class="rounded bg-amber-100 px-1">scripts/gen-mock-investors.mjs</code> (seed 20260813). The data set carries numbers only — no quote, view or rationale is attributed to any of them.',
-        cadence: 'Quarterly, 3–6 weeks after quarter end — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/superinvestors.json · scripts/gen-mock-investors.mjs',
+          '<strong>Real filings.</strong> The whole Superstar Investors view: every tracked investor Finology carry, and for each one the full book they publish — company by company, one column per quarter of disclosed holding percentage, with their net worth, active and total stock counts and any biography. <strong>Percentages are what the company filed with the exchanges; the ₹ value beside each holding is Finology\'s own derivation</strong> from that percentage and a market cap, reproduced unchanged rather than recomputed. A blank quarter means <strong>not disclosed</strong> — below the threshold a real holding is invisible — so it renders as a dash and is excluded from totals, never counted as zero. The one figure this dashboard computes is the quarter-over-quarter change, headed <em>Change (derived)</em>.',
+        cadence: 'Quarterly, as filings arrive · read once per visit through the Worker, then cached on the device',
+        status: 'live',
+        file: 'worker/index.js → /api/super-investors · worker/finology.mjs · public/js/data/finology-shared.js',
+      },
+      {
+        name: 'Ticker Finology — the credential',
+        url: null,
+        feeds:
+          'That API requires <code class="rounded bg-slate-100 px-1">Authorization: Bearer …</code>, so unlike every other upstream here the browser cannot call it. The Worker holds the token in <code class="rounded bg-slate-100 px-1">env.MUNS_TOKEN</code> and adds the header server-side; <strong>nothing in <code class="rounded bg-slate-100 px-1">public/</code> has ever seen it</strong>, the same arrangement as the Munshot quote route. Set or renew it with <code class="rounded bg-slate-100 px-1">npx wrangler secret put MUNS_TOKEN</code>. With no token the view says so by name instead of showing an empty grid.',
+        cadence: 'Set once per deployment · renewed if the token expires',
+        status: 'ondemand',
+        file: 'worker/index.js · .dev.vars for local development',
       },
       {
         name: 'AMFI — monthly portfolio disclosures',

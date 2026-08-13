@@ -1135,12 +1135,14 @@ for (const sub of ['superstar-investors', 'institutions', 'fund-flows']) {
   await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
   const txt = await hostText();
   ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
-  // Institutions is real filed data and carries no ribbon; the other two are synthetic and must.
+  // Two of the three are now real feeds and carry no ribbon. Fund Flows is still synthetic and
+  // must keep one — the rule is that a tab never mixes provenances inside one panel, not that
+  // every panel is labelled.
   const ribbons = await page.locator('[data-mock-ribbon]').count();
-  if (sub === 'institutions') ok('investors institutions: no ribbon, because nothing on it is synthetic', ribbons === 0, `${ribbons} ribbons`);
-  else ok(`investors ${sub}: attribution ribbon`, ribbons === 1);
+  if (sub === 'fund-flows') ok('investors fund-flows: attribution ribbon', ribbons === 1, `${ribbons} ribbons`);
+  else ok(`investors ${sub}: no ribbon, because nothing on it is synthetic`, ribbons === 0, `${ribbons} ribbons`);
 }
-ok('ribbon says the names are real and the holdings are not', /names are real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
+ok('the remaining synthetic view still says the names are real and the holdings are not', /names are real/i.test(await hostText()) && /synthetic/i.test(await hostText()));
 
 // ---------------------------------------------------------------------------------------
 // 9b. Institutions — REAL filed shareholdings, and the line between them and the rest.
@@ -1233,8 +1235,8 @@ if (filedData) {
   skip('the filed-holdings file loads', 'public/data/institution-holdings.json is not present');
 }
 
-await go('/#/research/super-investors/superstar-investors?scope=universe', 2000);
-ok('ribbon names the real sources', /ticker finology/i.test(await hostText()) && /amfi|trendlyne/i.test(await hostText()));
+// The synthetic set still backs Fund Flows, so its internal arithmetic is still worth holding.
+await go('/#/research/super-investors/fund-flows?scope=universe', 2000);
 
 // The positions must reconcile internally — qtyDelta against the quantities beside it.
 ok('holdings arithmetic reconciles', await page.evaluate(async () => {
@@ -1284,31 +1286,159 @@ ok('heatmap cell opens the investor workspace', (await page.locator('#workspace-
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 
-// The workspace, from a card and from a row, with all four views.
-await go('/#/research/super-investors/superstar-investors?scope=universe', 2000);
-ok('investor cards render', (await page.locator('[data-holder-card]').count()) === 8, `${await page.locator('[data-holder-card]').count()} cards`);
-await page.locator('[data-holder-card] [data-open-holder]').first().click();
-await page.waitForTimeout(900);
-ok('workspace opens from an investor card', (await page.locator('#workspace-overlay.is-open').count()) === 1);
-ok('workspace URL carries holder and view', /holder=/.test(page.url()) && /hview=/.test(page.url()));
-for (const view of ['portfolio', 'activity', 'history', 'overlap']) {
-  await page.locator(`[data-ws-tab="${view}"]`).click();
-  await page.waitForTimeout(700);
-  const txt = await page.locator('#workspace-content').innerText();
-  ok(`workspace view renders: ${view}`, txt.length > 200 && !/hit a snag/i.test(txt));
-  ok(`  ...${view} carries the attribution banner`, (await page.locator('#workspace-content [data-attribution]').count()) === 1);
+// ---------------------------------------------------------------------------------------
+// 9c. Superstar Investors — REAL filed books, off Ticker Finology, behind a credential.
+//
+// Three things separate this feed from every other one here, and each is checked rather than
+// trusted:
+//
+//   1. THE TOKEN MUST NEVER REACH THE BROWSER. It lives in `env.MUNS_TOKEN` on the Worker. The
+//      static check below is unconditional — it runs whatever the feed is doing — because a
+//      leaked credential is the one failure that cannot be undone by a later deploy.
+//   2. A BLANK QUARTER IS NOT A ZERO. Below the disclosure threshold a real holding is invisible,
+//      so a gap must render as a dash, stay out of every total, and never be counted as a sale.
+//   3. A FAILURE MUST NAME ITSELF. No route, no token and a refused token are different problems
+//      with different fixes, and the view says which one it is instead of an empty grid.
+//
+// The data checks need the Worker AND a reachable upstream, so they report SKIP otherwise — which
+// is itself worth seeing, because it exercises the unavailable states.
+// ---------------------------------------------------------------------------------------
+// Watch every request the page makes while the view loads. The claim being tested is a runtime
+// one — that the browser talks only to our own origin for this feed — so it is tested at runtime.
+// An earlier version grepped the module for the upstream hostname and failed on the string in its
+// own `source:` label, which proved nothing either way.
+const siRequests = [];
+const siWatch = (r) => siRequests.push(r.url());
+page.on('request', siWatch);
+await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
+
+// Unconditional: nothing that looks like a bearer credential may appear in the served client.
+const tokenLeak = await page.evaluate(async () => {
+  const files = ['index.html', 'js/data/super-investors.js', 'js/data/finology-shared.js', 'js/investors/live.js', 'js/app.js'];
+  const hits = [];
+  for (const f of files) {
+    const src = await (await fetch(f, { cache: 'no-cache' })).text().catch(() => '');
+    if (/Bearer\s+[A-Za-z0-9._-]{8,}|MUNS_TOKEN\s*=\s*['"]\S/.test(src)) hits.push(f);
+  }
+  // Also: the page must never have sent an Authorization header of its own.
+  return { hits, base: typeof window.SATTVA_FINOLOGY_TOKEN };
+});
+ok('NO API TOKEN IS SHIPPED TO THE BROWSER', tokenLeak.hits.length === 0 && tokenLeak.base === 'undefined', tokenLeak.hits.join(', ') || 'clean');
+const offOrigin = siRequests.filter((u) => /muns\.io|finology\.in/i.test(u));
+ok('...and the browser never calls the credentialed upstream itself', offOrigin.length === 0, offOrigin.slice(0, 2).join(', ') || `${siRequests.length} requests, all same-origin`);
+page.off('request', siWatch);
+
+const siProbe = await page.evaluate(async () => {
+  try {
+    const res = await fetch('api/super-investors', { cache: 'no-cache' });
+    if (!res.ok && res.status === 404) return { state: 'no-route' };
+    const b = await res.json();
+    return b?.ok === false ? { state: 'error', reason: b.reason } : { state: 'live', count: b?.investors?.length || 0 };
+  } catch {
+    return { state: 'no-route' };
+  }
+});
+
+if (siProbe.state === 'no-route') {
+  ok('with no Worker, the view says the feed needs one rather than showing nothing', /needs the Worker/i.test(await hostText()));
+  skip('the live investor books render', 'no /api/super-investors on this origin');
+} else if (siProbe.state === 'error') {
+  ok(`with the feed unavailable (${siProbe.reason}), the view names the reason`, /token|could not be reached|returned an error|unreadable/i.test(await hostText()));
+  ok('...and shows no positions rather than empty or invented ones', (await page.locator('tr[data-row-key]').count()) === 0);
+  skip('the live investor books render', `the upstream reported "${siProbe.reason}"`);
+} else {
+  // Books arrive a few at a time; wait for the walk to finish before measuring totals.
+  await page.waitForFunction(() => !/still arriving/.test(document.querySelector('#content-host')?.innerText || ''), null, { timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(500);
+
+  const cards = await page.locator('[data-open-investor]').count();
+  ok('an investor card renders for every investor in their list', cards === siProbe.count, `${cards} cards for ${siProbe.count} investors`);
+  ok('the table renders a row per investor-company pair', (await page.locator('tr[data-row-key]').count()) > 0);
+
+  // Every quarter the source publishes gets its own column, in the source's own order.
+  const heads = await page.$$eval('#content-host thead th', (t) => t.map((x) => x.innerText.trim()));
+  const qCols = await page.evaluate(async () => (await import('/js/data/super-investors.js')).quarterLabels());
+  ok('every published quarter gets its own column', qCols.every((q) => heads.includes(q.toUpperCase()) || heads.includes(q)), `${qCols.length} quarters`);
+  ok('...and the two attributed columns are headed as such', heads.some((h) => /CHANGE \(DERIVED\)/i.test(h)) && heads.some((h) => /VALUE \(FINOLOGY\)/i.test(h)), heads.join(' | '));
+
+  // A blank quarter must be a dash, and must never be counted as a holding of zero.
+  const blanks = await page.evaluate(async () => {
+    const f = await import('/js/data/super-investors.js');
+    const rows = f.allHoldings();
+    const nulls = rows.filter((r) => r.quarters.some((q) => r.quarterlyHoldings[q] == null));
+    const zeros = rows.filter((r) => r.quarters.some((q) => r.quarterlyHoldings[q] === 0));
+    return { rows: rows.length, withGaps: nulls.length, zeros: zeros.length };
+  });
+  ok('an undisclosed quarter is null, never a zero', blanks.zeros === 0, `${blanks.withGaps} of ${blanks.rows} rows have a gap; ${blanks.zeros} carry a literal 0`);
+  if (blanks.withGaps) ok('...and renders as a dash on screen', (await page.locator('#content-host tbody td:has-text("—")').count()) > 0);
+  else skip('...and renders as a dash on screen', 'no book in this feed has a gap to render');
+
+  // THE IDENTITY THAT CAUGHT A REAL BUG: the count and the total must describe the same set.
+  const consistency = await page.evaluate(async () => {
+    const f = await import('/js/data/super-investors.js');
+    const bad = [];
+    for (const b of f.books()) {
+      const t = f.totalsFor(b.slug);
+      if (t.disclosedCount === 0 && t.valueCr != null) bad.push(`${b.slug}: 0 holdings but a book value`);
+      if (t.valuedCount > t.disclosedCount) bad.push(`${b.slug}: more valued than disclosed`);
+    }
+    return bad;
+  });
+  ok('a book value never covers positions the holding count excludes', consistency.length === 0, consistency.slice(0, 3).join('; ') || 'consistent');
+
+  // The derived move is subtraction of their own two percentages, recomputed here independently.
+  const moveCheck = await page.evaluate(async () => {
+    const f = await import('/js/data/super-investors.js');
+    const bad = [];
+    for (const m of f.allMoves()) {
+      if (m.action === 'new' || m.action === 'exited') {
+        if (m.deltaPp != null) bad.push(`${m.company}: ${m.action} carries a pp figure`);
+      } else if (Math.abs(m.deltaPp - Math.round((m.now - m.before) * 100) / 100) > 1e-9) {
+        bad.push(`${m.company}: ${m.deltaPp} != ${m.now} - ${m.before}`);
+      }
+    }
+    return bad;
+  });
+  ok('the derived change equals their latest minus their prior, independently recomputed', moveCheck.length === 0, moveCheck.slice(0, 3).join('; ') || 'all agree');
+  ok('...and an appearance or disappearance carries no percentage-point figure', !moveCheck.some((b) => /carries a pp/.test(b)));
+
+  // A book that failed to load must not read as an investor holding nothing.
+  const failed = await page.evaluate(async () => {
+    const f = await import('/js/data/super-investors.js');
+    return f.list().filter((i) => f.failureFor(i.slug)).map((i) => i.slug);
+  });
+  if (failed.length) ok('a book that could not be read says so rather than showing as empty', /could not be read/i.test(await hostText()), `${failed.length} failed`);
+  else skip('a book that could not be read says so rather than showing as empty', 'every book loaded in this run');
+
+  // The workspace: three panels, every API field reachable.
+  await page.locator('[data-open-investor]').first().click();
+  await page.waitForSelector('#workspace-panel', { timeout: 15000 });
+  await page.waitForTimeout(400);
+  ok('an investor card opens the book workspace', (await page.locator('#workspace-overlay.is-open').count()) === 1);
+  for (const [tab, expect] of [['holdings', /Value \(Finology\)/i], ['moves', /Derived|only one quarter/i], ['profile', /Finology id/i]]) {
+    await page.locator(`[data-ws-tab="${tab}"]`).click();
+    await page.waitForTimeout(500);
+    const txt = await page.locator('#workspace-panel').innerText();
+    ok(`workspace panel renders: ${tab}`, expect.test(txt) && !/hit a snag/i.test(txt));
+  }
+  ok('the profile panel reaches the scalar fields the API returns', /Net worth|Active stocks|Total stocks/i.test(await page.locator('#workspace-panel').innerText()));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  ok('ESC closes the book workspace', (await page.locator('#workspace-overlay.is-open').count()) === 0);
 }
-await page.reload({ waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(2600);
-ok('investor workspace survives a reload', (await page.locator('#workspace-overlay.is-open').count()) === 1);
-await page.keyboard.press('Escape');
+
+// The provenance modal has to say whose numbers these are, on any state.
+await page.locator('[data-si-info]').first().click().catch(() => {});
 await page.waitForTimeout(500);
-ok('ESC closes it and clears the URL', (await page.locator('#workspace-overlay.is-open').count()) === 0 && !/holder=/.test(page.url()));
-await page.locator('tr[data-row-key]').first().click();
-await page.waitForTimeout(900);
-ok('workspace opens from a moves row', (await page.locator('#workspace-overlay.is-open').count()) === 1);
-await page.keyboard.press('Escape');
-await page.waitForTimeout(400);
+if (await page.locator('#modal-overlay.is-open').count()) {
+  const t = await page.locator('#modal-content').innerText();
+  ok('the Live pill says the percentages are filings and the value is theirs', /Not ours/i.test(t) && /Finology's own derivation/i.test(t));
+  ok('...and explains that a blank quarter is not a zero', /not disclosed/i.test(t) && /not zero/i.test(t));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+} else {
+  skip('the Live pill says the percentages are filings and the value is theirs', 'the feed is unavailable, so there is no pill to open');
+}
 
 // ---------------------------------------------------------------------------------------
 // 10. Scope and exports on both new tabs
@@ -1317,17 +1447,25 @@ console.log('\n— scope and exports —');
 await go('/#/research/public-chatter/trending?scope=portfolio', 2000);
 ok('chatter portfolio scope narrows and labels', /Portfolio/.test(await hostText()));
 ok('...and lists holdings with no chatter rather than dropping them', /no chatter tracked/i.test(await hostText()));
-await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2000);
+await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
 ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
-ok('...and marks holders with no overlap', /none of your holdings/i.test(await hostText()) || /of your holdings/i.test(await hostText()));
+ok('...and says so plainly when no tracked investor discloses a holding of yours',
+  /none of your holdings/i.test(await hostText()) || /of your holdings/i.test(await hostText()) || /needs the Worker/i.test(await hostText()) || /token/i.test(await hostText()));
 
 for (const [hash, label] of [
   ['/#/research/public-chatter/valuepickr?scope=universe', 'chatter'],
   ['/#/research/super-investors/superstar-investors?scope=universe', 'investors'],
 ]) {
-  await go(hash, 2000);
+  await go(hash, 2500);
+  // A view with no data has no table and therefore no export button — that is the correct
+  // behaviour, not a missing feature, so it reports SKIP rather than hanging on a click.
+  const btn = page.locator('#content-host button:has-text("Export")').first();
+  if (!(await btn.count())) {
+    skip(`${label} export downloads`, 'this view has no data to export on this origin');
+    continue;
+  }
   const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
-  await page.locator('#content-host button:has-text("Export")').first().click();
+  await btn.click();
   const file = await dl;
   ok(`${label} export downloads`, !!file, file?.suggestedFilename() || 'no download (CDN blocked?)');
 }

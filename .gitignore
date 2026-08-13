@@ -2,3 +2,7 @@
 # writes its state, its build cache and a local KV/D1 sandbox here. It is machine-local and a few
 # megabytes, and nothing in the deploy reads it.
 .wrangler/
+
+# `npx wrangler dev` reads this for local secrets. It holds a real API token in normal use,
+# so it is machine-local and never committed. Production values go in `wrangler secret put`.
+.dev.vars

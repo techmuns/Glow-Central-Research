@@ -23,6 +23,8 @@ import * as technicals from '../data/technicals.js';
 import { openTechnicalsDrillByTicker } from './breakouts-drill.js';
 import * as investorDive from '../investors/deep-dive.js';
 import { renderFiled } from '../investors/filed.js';
+import { renderLive } from '../investors/live.js';
+import * as liveInvestors from '../data/super-investors.js';
 
 export const meta = {
   id: 'super-investors',
@@ -49,6 +51,11 @@ let ctxRef = null;
 // it registers anything on the document, and it has to be released on nav away or every visit
 // stacks another.
 let disposers = [];
+// The live Superstar view's own lifetime: a subscription that survives repaints (books arrive one
+// at a time) and the table's search/sort/filter state, carried across those repaints so a book
+// landing mid-read does not throw away what the reader had set up.
+let liveUnsub = null;
+let liveView = null;
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -58,7 +65,10 @@ export function render(ctx) {
   const token = ++renderToken;
   ctxRef = ctx;
 
-  if (!investors.isLoaded()) {
+  // Superstar Investors is live off Finology and needs nothing from the committed JSON. Only the
+  // two views that still read it are gated on it — before, a missing mock file blanked the live
+  // half of the tab as well.
+  if (ctx.subview !== 'superstar-investors' && !investors.isLoaded()) {
     ctx.root.innerHTML = `
       ${sectionHead({ title: meta.title, description: 'The investor data set could not be loaded.' })}
       <div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
@@ -88,6 +98,13 @@ export function destroy() {
   ctxRef = null;
   disposers.forEach((d) => d && d());
   disposers = [];
+  // The book-arrival subscription outlives a repaint by design, so leaving the tab is the only
+  // place it can be released. Without this, every visit stacks another repainter on a dead ctx.
+  liveUnsub?.();
+  liveUnsub = null;
+  // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
+  // half-applied filter. Only a repaint mid-load carries the view forward.
+  liveView = null;
 }
 
 function loadingHtml() {
@@ -353,14 +370,41 @@ function movesTable(ctx, rows, exportName, onExport) {
 // (a) SUPERSTAR INVESTORS
 // ---------------------------------------------------------------------------------------
 
+/**
+ * Superstar Investors — REAL FILED HOLDINGS, live off Ticker Finology.
+ *
+ * This used to be the synthetic half of the tab: real names against invented positions, held
+ * together by an amber ribbon. It is now the live feed, so the ribbon is gone from this sub-view
+ * along with the data that needed it. Everything it renders lives in js/investors/live.js.
+ *
+ * The books arrive one at a time — each is a separate page on Finology's side — so this subscribes
+ * and repaints as they land rather than blocking the whole view on the slowest one.
+ */
 function renderIndividuals(ctx) {
-  renderHolderView(ctx, {
-    pool: investors.individuals(),
-    type: 'individual',
-    noun: 'investors',
-    description: 'Eight tracked individual investors, their books and every position change this quarter.',
-    exportName: `sattva-superinvestors-${todayStamp()}`,
-  });
+  disposers.forEach((d) => d && d());
+  disposers = [];
+
+  if (!liveInvestors.isLoaded()) {
+    ctx.root.innerHTML = loadingHtml();
+    const token = renderToken;
+    liveInvestors.load().then(() => {
+      if (token === renderToken) renderIndividuals(ctx);
+    });
+    return;
+  }
+
+  renderLive(ctx, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+
+  // Repaint as each book lands. The subscription is a mount-lifetime thing, so it is released in
+  // destroy() and not by the next repaint — otherwise the first arrival would tear down the
+  // subscription that produced it.
+  if (!liveUnsub) {
+    const token = renderToken;
+    liveUnsub = liveInvestors.onChange(() => {
+      if (token !== renderToken || ctxRef?.subview !== 'superstar-investors') return;
+      renderLive(ctxRef, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+    });
+  }
 }
 
 /**

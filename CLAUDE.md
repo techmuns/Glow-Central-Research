@@ -63,14 +63,17 @@ public/
     chatter/
       pump-risk.js            the 0-3 coordinated-posting heuristic + its reasons
     investors/
-      deep-dive.js            the four-tab per-investor workspace
+      deep-dive.js            the four-tab per-investor workspace (synthetic set; Fund Flows only)
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
+      live.js                 the WHOLE Superstar Investors view — real filed books off Finology
     data/
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter.js              forum + telegram feeds, momentum and pump risk derived here
       investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
       institution-holdings.js real filed shareholdings, by institution (Trendlyne)
+      finology-shared.js      pure shape guards + deriveMoves — imported by worker/finology.mjs
+      super-investors.js      the live super-investor feed: list, then every book, four at a time
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
       universe.js             screener-export -> legacy universe shape adapter
@@ -95,9 +98,11 @@ scripts/
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
+                              + /api/super-investors (+ /{slug})
 worker/http.mjs               content ETags, 304s and CORS — shared with any local stand-in
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
+worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -408,6 +413,45 @@ parse that silently dropped a row would be caught rather than shipped.
 **Concall Deep Dive is the third**, and the strongest case: the whole artefact is theirs, not one
 column of it. See below.
 
+**Superstar Investors is the fourth**: the holding percentages are the companies' own filings, and
+the ₹ value beside each one is Ticker Finology's derivation from a percentage and a market cap —
+headed *Value (Finology)*, reproduced, never recomputed. The single figure this dashboard computes
+on that feed is the quarter-over-quarter change, and it is headed *Change (derived)*.
+
+### An upstream that needs a credential — the Finology rule
+
+Every other source here is open. The super-investor API is not: it wants
+`Authorization: Bearer …`. That changes three things.
+
+1. **The token lives on the Worker and the browser never sees it.** `env.MUNS_TOKEN`, injected in
+   `worker/finology.mjs`, exactly as `/api/live-prices` proxies Munshot. A token shipped to the
+   client is a token published — there is no "obfuscated" version of this that is not that.
+   `npx wrangler secret put MUNS_TOKEN` in production, `.dev.vars` locally (gitignored).
+   `env.MUNS_BASE` redirects the upstream so a verification run never scrapes their production.
+2. **A missing or rejected token is its own state, named on screen.** `no-token` and
+   `unauthorised` are things an operator fixes, and the view says which command fixes them;
+   `unreachable` / `upstream` are things to wait for. Collapsing them into one "could not load"
+   wastes the only information that makes the failure actionable. Upstream failures come back as
+   **200 with `ok: false` and a `reason`** — the request to our Worker succeeded — cached for 15
+   seconds rather than the six hours a success gets, so a corrected token takes effect at once.
+3. **A failed read is never an empty result.** `holdings: []` only ever travels with `ok: false`
+   beside it, and the card says "could not be read". An investor who holds nothing and an investor
+   whose book 500'd must never render the same.
+
+And two that come from the upstream being a live scrape rather than an API over a database:
+
+- **Cache hard and fan out on the client.** Shareholding data moves once a quarter, so the edge
+  holds six hours and each book is stored on the device under its own tag. The list is one request
+  and each book is another, walked **four at a time** with the view painting as they land. A
+  `?full=1` that fetched every book in one request would turn a cold cache into sixty simultaneous
+  page reads on their service.
+- **A blank quarter is not a zero.** Below the disclosure threshold a real holding is invisible in
+  the filing, so `null` travels to the cell, renders as an em dash, and is excluded from totals. A
+  position disappearing is *"no longer disclosed"*, not *"sold"* — and neither `new` nor `exited`
+  carries a percentage-point figure, because printing ±the whole holding would invent a trade size.
+  This is the same class of error as `classifyChange()` and the `op_vs_pat` rule: **check every
+  place a missing value could be read as a measured one.**
+
 ### Triggering someone else's pipeline — the Deep Dive rule
 
 The Con-call table's last column dispatches a run on a **separate** dashboard, watches it, and
@@ -716,6 +760,8 @@ Rules:
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
+| Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
+| Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
 | Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |

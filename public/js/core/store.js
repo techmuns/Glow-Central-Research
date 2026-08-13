@@ -37,6 +37,10 @@ export const KEYS = {
   earnings: (subType) => `earnings:${subType}`,
   concalls: 'concalls',
   calendar: (date) => `calendar:${date}`,
+  // One entry per investor rather than one blob for all of them. Each book has its own ETag
+  // upstream, so a quarter landing for one investor must not invalidate the other fifty.
+  investorList: 'investors:list',
+  investorBook: (slug) => `investor:${slug}`,
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

@@ -1,0 +1,668 @@
+// investors/live.js — Superstar Investors, live off Ticker Finology.
+//
+//   renderLive(ctx, { disposers })   the whole sub-view
+//   openInvestor(slug)               one investor's book, as a workspace
+//
+// EVERY FIELD THE API RETURNS APPEARS SOMEWHERE, which is the point of the view:
+//
+//   list      name → card + table       slug → the deep link and the export
+//             bio  → card + Profile     imageUrl → the card's portrait
+//   portfolio netWorthCr, activeStocks, totalStocks → card and Profile
+//             quarters[]        → one table column each, in the source's own order
+//             company           → the identity column
+//             companySlug       → the link out to Finology's own page
+//             quarterlyHoldings → the cells
+//             valueCr           → the value column, headed as theirs
+//
+// THE NUMBERS ARE FINOLOGY'S AND THE PANEL SAYS SO. Holding percentages are what the company
+// filed; `valueCr` is Finology's derivation from that percentage and a market cap, exactly as the
+// Institutions view treats Trendlyne's value column. Nothing here re-bands or recomputes either.
+//
+// ONE DERIVED FIGURE: the quarter-over-quarter change, which is subtraction of two of their own
+// percentages (see deriveMoves in js/data/finology-shared.js). It is headed "Change (derived)" and
+// the help modal says how it is computed.
+//
+// A BLANK QUARTER IS AN EM DASH, NEVER A ZERO. Finology print "-" where a holder was not on the
+// shareholding pattern, which below the disclosure threshold means "not disclosed", not "sold".
+
+import { statStrip, scoreTable, sectionHead, openWorkspace, openModal, roadmapStrip } from '../ui/screener.js';
+import { scopeSummary } from '../ui/components.js';
+import { avatarFor } from '../ui/visual.js';
+import { escapeHtml } from '../core/dom.js';
+import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
+import { exportSheets, todayStamp } from '../ui/export.js';
+import { deliveryNote } from '../ui/sources.js';
+import * as feed from '../data/super-investors.js';
+
+const SOURCE = 'Ticker Finology, read live through this dashboard’s Worker.';
+const FINOLOGY_INVESTOR = (slug) => `https://ticker.finology.in/investor/${encodeURIComponent(slug)}`;
+const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
+
+const dash = '<span class="text-slate-300">—</span>';
+const pct = (v) => (v == null ? dash : `${Number(v).toFixed(2)}%`);
+const cr = (v) => (v == null ? dash : formatCroreCompact(v));
+
+// ---------------------------------------------------------------------------------------
+// Entry
+// ---------------------------------------------------------------------------------------
+
+export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
+  const m = feed.meta();
+
+  if (!m.ok) return renderUnavailable(ctx, m);
+
+  const rows = scopedHoldings(ctx);
+  const quarters = feed.quarterLabels();
+  const moves = feed.allMoves();
+  const investorList = feed.list();
+
+  const stats = statStrip([
+    {
+      label: 'Investors tracked',
+      value: formatNumber(investorList.length),
+      note: booksNote(m),
+    },
+    {
+      label: 'Combined book',
+      value: cr(sumValue(rows)),
+      note: valuedNote(rows),
+      help: {
+        title: 'Whose rupee figure this is',
+        body: `<p>A shareholding filing discloses a <strong>percentage of the company</strong>, never a rupee amount. The ₹ figure beside every holding is <strong>Ticker Finology's own derivation</strong> from that percentage and a market cap — reproduced here unchanged, not recomputed.</p>
+               <p class="mt-3">It therefore moves for two different reasons: the holder changing their position, and the market repricing the company. It is not what anyone paid, and not what they are up.</p>
+               <p class="mt-3">The total sums only the positions that carry a value. ${escapeHtml(valuedNote(rows))} — a total that silently skipped the rest while looking complete would be worse than none.</p>`,
+      },
+    },
+    {
+      label: `This quarter${moves.length ? ` · ${escapeHtml(moves[0].latest)}` : ''}`,
+      value: `${count(moves, 'new')} new · ${count(moves, 'exited')} exits`,
+      note: `${count(moves, 'added')} added, ${count(moves, 'trimmed')} trimmed · derived`,
+      help: {
+        title: 'How the quarter’s moves are derived',
+        body: `<p>This is the <strong>only computed figure on the page</strong>. Finology publish a holding percentage per quarter; the change is the latest quarter minus the one before it, per company, per investor.</p>
+               <p class="mt-3"><strong>A blank quarter is not a zero.</strong> Where a holder is not on the shareholding pattern the source prints "-", which below the disclosure threshold means <em>not disclosed</em> rather than <em>sold</em>. So a position appearing is counted as <strong>new</strong> and one disappearing as <strong>exited</strong>, and neither carries a percentage-point change — printing ±the whole holding would invent a trade size.</p>
+               <p class="mt-3">An investor whose book has only one published quarter is not comparable, and contributes nothing here rather than counting as entirely new.</p>`,
+      },
+    },
+    freshnessCard(m),
+  ]);
+
+  const table = holdingsTable(ctx, rows, quarters, tableView);
+  onView?.(table.view);
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Superstar Investors',
+      description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors' })}</div>`,
+    })}
+    ${stats.html}
+    ${loadingStrip(m)}
+    <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>
+    <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+      <span class="text-xs font-bold uppercase tracking-wider text-slate-500">All disclosed positions</span>
+      <span class="text-[11px] text-slate-400">${escapeHtml(coverageNote(rows, quarters))}</span>
+    </div>
+    ${table.html}
+    ${roadmapStrip(FEATURES)}`;
+
+  stats.wire(ctx.root);
+  disposers.push(table.wire(ctx.root));
+  wireLivePill(ctx.root, m);
+  wireCards(ctx.root);
+}
+
+const FEATURES = [
+  'Join each holding to the technicals feed for price and momentum context',
+  'Alert when a tracked investor enters or exits a portfolio name',
+  'Cost-basis estimation from the quarter’s traded range',
+];
+
+// ---------------------------------------------------------------------------------------
+// States where there is nothing to show — and each says which
+// ---------------------------------------------------------------------------------------
+
+const REASONS = {
+  'no-route': {
+    title: 'The live investor feed needs the Worker',
+    body: 'This origin serves the static files only, so there is no <code>/api/super-investors</code> route to answer. Run <code>npx wrangler dev</code>, or open the deployed site.',
+  },
+  'no-token': {
+    title: 'No API token is configured',
+    body: 'The super-investor API requires a bearer token, and this deployment has none. An operator sets it with <code>npx wrangler secret put MUNS_TOKEN</code> — it lives on the Worker and never reaches the browser.',
+  },
+  unauthorised: {
+    title: 'The API rejected the token',
+    body: 'The token configured on the Worker was refused, which usually means it has expired. Renewing it is <code>npx wrangler secret put MUNS_TOKEN</code>.',
+  },
+  unreachable: { title: 'The super-investor API could not be reached', body: 'The upstream service did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
+  upstream: { title: 'The super-investor API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
+  shape: { title: 'The super-investor API returned something unreadable', body: 'The response was not JSON in the shape this dashboard knows. That is a change on their side worth looking at.' },
+};
+
+/**
+ * Nothing to show, and why.
+ *
+ * Deliberately NOT `pendingPanel()`. That component means "not built yet" and draws shimmering
+ * skeletons, which here would promise data that is not coming: nothing arrives until an operator
+ * sets a token or the upstream recovers. It also escapes its body, so the very command a reader
+ * needs would render as literal angle brackets. This says what happened, what fixes it, and shows
+ * no furniture pretending to fill.
+ */
+function renderUnavailable(ctx, m) {
+  const r = REASONS[m.reason] || REASONS.upstream;
+  const operator = m.reason === 'no-token' || m.reason === 'unauthorised';
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: 'Superstar Investors',
+      description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
+      meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'investors' }),
+    })}
+    <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+      <div class="flex flex-wrap items-start gap-3">
+        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${operator ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' : 'bg-slate-100 text-slate-500'}" aria-hidden="true">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            ${operator ? '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/>'}
+          </svg>
+        </span>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
+          <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
+          ${m.message ? `<p class="mt-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-500">${escapeHtml(m.message)}</p>` : ''}
+          <p class="mt-3 text-xs leading-relaxed text-slate-500">
+            <strong>No positions are shown.</strong> Not an empty book and not last week's figures — there is nothing to display
+            until the feed answers, and inventing furniture to fill the space would be worse than the gap.
+          </p>
+        </div>
+      </div>
+    </div>
+    ${roadmapStrip(FEATURES)}`;
+}
+
+/** While the books are still arriving, say so — a half-filled grid should explain itself. */
+function loadingStrip(m) {
+  if (!m.pending && !m.inFlight) return '';
+  return `
+    <div class="mb-5 flex items-center gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
+      <span class="relative flex h-2 w-2 flex-shrink-0">
+        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-600"></span>
+      </span>
+      <p class="text-xs text-slate-600">
+        Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'book' : 'books'} from Finology.
+        Each is a separate page on their side, so they arrive a few at a time and the figures above fill in as they land.
+      </p>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------------------
+// The Live pill and its provenance modal
+// ---------------------------------------------------------------------------------------
+
+function livePill(m) {
+  const done = m.pending === 0;
+  return `
+    <button type="button" data-si-info title="Where this comes from, and what is ours versus theirs"
+      class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      ${
+        done
+          ? '<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>'
+          : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>'
+      }
+      <span>Live</span>
+      <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.loadedBooks))} of ${escapeHtml(formatNumber(m.total))} books</span>
+    </button>`;
+}
+
+function wireLivePill(root, m) {
+  root.querySelector('[data-si-info]')?.addEventListener('click', () => {
+    openModal(
+      `<div class="px-7 py-6">
+        <div class="mb-3 flex items-start justify-between gap-4">
+          <h2 class="font-display text-xl font-bold text-slate-900">Live superstar holdings</h2>
+          <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+        <div class="text-sm leading-relaxed text-slate-600">
+          <p><strong>Real, live</strong> from <a class="font-semibold text-indigo-600 hover:underline" href="https://ticker.finology.in/superstar-portfolios" target="_blank" rel="noopener">Ticker Finology &rarr; Superstar Portfolios</a>,
+             read through this dashboard's Worker because the API needs a credential the browser must never hold.</p>
+          <p class="mt-2"><strong>${escapeHtml(formatNumber(m.total))}</strong> investors tracked ·
+             <strong>${escapeHtml(formatNumber(m.loadedBooks))}</strong> books read${m.failedBooks ? ` · <strong class="text-amber-700">${escapeHtml(formatNumber(m.failedBooks))}</strong> could not be read` : ''}${m.pending ? ` · ${escapeHtml(formatNumber(m.pending))} still arriving` : ''}.</p>
+
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Whose numbers these are</h3>
+          <p class="mt-1 text-xs"><strong>Not ours.</strong> The holding percentage in every cell is what the company filed with the exchanges, as Finology publish it. The <strong>₹ value is Finology's own derivation</strong> from that percentage and a market cap — a filing never states a rupee amount. Both are reproduced unchanged.</p>
+          <p class="mt-2 text-xs">The <strong>one figure this dashboard computes</strong> is the quarter-over-quarter change, which is their latest percentage minus their previous one. It is headed <em>Change (derived)</em> wherever it appears.</p>
+
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What a blank quarter means</h3>
+          <p class="mt-1 text-xs">Finology print "-" where a holder does not appear on that quarter's shareholding pattern. Below the disclosure threshold a real holding is invisible, so a blank means <strong>not disclosed</strong> — not zero, and not necessarily sold. Every blank renders as an em dash and is excluded from totals rather than counted as nil.</p>
+
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How often it is read</h3>
+          <p class="mt-1 text-xs">Once per visit, never polled: shareholding data moves when a company files, which is four times a year. Each book is cached on this device under its own fingerprint, so a return visit re-reads nothing that has not changed.</p>
+          ${deliveryNote({ origin: m.origin, checkedAt: m.checkedAt, fetchedAt: m.fetchedAt, persisted: m.persisted })}
+          ${m.dropped ? `<p class="mt-3 text-xs text-amber-700">${escapeHtml(formatNumber(m.dropped))} investor${m.dropped === 1 ? '' : 's'} in their list carried no usable id and could not be opened, so ${m.dropped === 1 ? 'it is' : 'they are'} not shown.</p>` : ''}
+        </div>
+      </div>`,
+      { size: 'default' }
+    );
+  });
+}
+
+function freshnessCard(m) {
+  return {
+    hero: true,
+    label: 'Last read',
+    value: m.fetchedAt ? formatRelativeTime(m.fetchedAt) : 'just now',
+    note: `Ticker Finology · ${m.origin === 'store' ? 'from this device’s cache, revalidated' : 'read live'} · filings, not a market clock`,
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// The investor cards
+// ---------------------------------------------------------------------------------------
+
+/**
+ * One investor.
+ *
+ * `imageUrl` is an address from an external API, so it is only ever used as an `src` when it is
+ * an http(s) URL, and a failure to load falls back to the deterministic gradient mark used
+ * everywhere else in the app rather than a broken image.
+ */
+function investorCard(inv) {
+  const b = feed.book(inv.slug);
+  const t = feed.totalsFor(inv.slug);
+  const fail = feed.failureFor(inv.slug);
+  const { color, initials } = avatarFor(inv.name || inv.slug);
+  const portrait =
+    inv.imageUrl && /^https?:\/\//i.test(inv.imageUrl)
+      ? `<img src="${escapeHtml(inv.imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+           class="h-11 w-11 flex-shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+           onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-xs font-bold text-white',textContent:'${escapeHtml(initials)}'}))" />`
+      : `<span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-xs font-bold text-white">${escapeHtml(initials)}</span>`;
+
+  return `
+    <button type="button" data-open-investor="${escapeHtml(inv.slug)}"
+      class="flex flex-col rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <div class="flex items-center gap-3">
+        ${portrait}
+        <span class="min-w-0">
+          <span class="block truncate font-display text-sm font-bold text-slate-900">${escapeHtml(inv.name || inv.slug)}</span>
+          <span class="block truncate text-[11px] text-slate-500">${escapeHtml(b?.quarters?.[0] ? `as of ${b.quarters[0]}` : fail ? 'not read' : 'reading…')}</span>
+        </span>
+      </div>
+      ${inv.bio ? `<p class="mt-2.5 line-clamp-2 text-[11px] leading-snug text-slate-500">${escapeHtml(inv.bio)}</p>` : ''}
+      ${
+        fail
+          ? `<p class="mt-3 rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-800 ring-1 ring-amber-200">This book could not be read${fail.reason === 'unauthorised' ? ' — the token was refused' : ''}. Not shown as empty.</p>`
+          : b
+            ? `<div class="mt-3 grid grid-cols-2 gap-2">
+                 ${statCell(t?.disclosedCount, 'holdings')}
+                 ${statCell(t?.valueCr == null ? null : cr(t.valueCr), 'book (Finology)', true)}
+                 ${statCell(b.netWorthCr == null ? null : cr(b.netWorthCr), 'net worth', true)}
+                 ${statCell(b.activeStocks == null ? null : `${formatNumber(b.activeStocks)}${b.totalStocks != null ? ` / ${formatNumber(b.totalStocks)}` : ''}`, 'active / total', true)}
+               </div>`
+            : `<div class="mt-3 h-[68px] animate-pulse rounded-lg bg-slate-50"></div>`
+      }
+    </button>`;
+}
+
+const statCell = (value, label, raw = false) => `
+  <span class="rounded-lg bg-slate-50 px-2 py-1.5">
+    <span class="block text-sm font-bold tabular-nums text-slate-900">${value == null ? dash : raw ? value : escapeHtml(formatNumber(value))}</span>
+    <span class="block text-[10px] uppercase tracking-wide text-slate-400">${escapeHtml(label)}</span>
+  </span>`;
+
+function wireCards(root) {
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-open-investor]');
+    if (btn) openInvestor(btn.dataset.openInvestor);
+  });
+}
+
+// ---------------------------------------------------------------------------------------
+// The all-positions table
+//
+// Thirteen-ish columns once a few quarters land, so it borrows the Institutions recipe wholesale:
+// no rank, no avatar, dense padding, wrapped headings and a hard cap on the identity column. That
+// combination is what keeps a wide numeric table inside 1440px instead of growing its own
+// horizontal scrollbar — see the layout-knobs table in CLAUDE.md.
+// ---------------------------------------------------------------------------------------
+
+function holdingsTable(ctx, rows, quarters, initialView) {
+  const investorNames = [...new Set(rows.map((r) => r.investor))].sort();
+
+  return scoreTable({
+    rows,
+    key: (r) => `${r.slug}|${r.company}`,
+    name: (r) => r.company,
+    nameLabel: 'Company',
+    sub: (r) => r.investor,
+    showRank: false,
+    showAvatar: false,
+    dense: true,
+    wrapHeads: true,
+    nameMaxPx: 200,
+    stickyHead: 'max(320px, calc(100vh - 340px))',
+    columns: [
+      ...quarters.map((q) => ({
+        label: q,
+        get: (r) => pct(r.quarterlyHoldings[q]),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.quarterlyHoldings[q] ?? -1,
+      })),
+      {
+        // Ours, and headed as such.
+        label: 'Change (derived)',
+        get: (r) => changeCell(r),
+        html: true,
+        align: 'right',
+        sortValue: (r) => changeOf(r)?.deltaPp ?? -999,
+      },
+      {
+        // Theirs, and headed as such — a filing never states a rupee amount.
+        label: 'Value (Finology)',
+        get: (r) => cr(r.valueCr),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.valueCr ?? -1,
+      },
+    ],
+    filters: [
+      {
+        label: 'Investor',
+        options: [{ value: 'all', label: 'All investors' }, ...investorNames.map((n) => ({ value: n, label: n }))],
+        match: (r, v) => r.investor === v,
+      },
+      {
+        label: 'This quarter',
+        options: [
+          { value: 'all', label: 'Any change' },
+          { value: 'new', label: 'New positions' },
+          { value: 'added', label: 'Added to' },
+          { value: 'trimmed', label: 'Trimmed' },
+          { value: 'exited', label: 'No longer disclosed' },
+          { value: 'held', label: 'Unchanged' },
+        ],
+        match: (r, v) => changeOf(r)?.action === v,
+      },
+    ],
+    searchable: (r) => `${r.company} ${r.investor} ${r.companySlug || ''}`,
+    initialSort: { key: 'Value (Finology)', dir: 'desc' },
+    onRowClick: (r) => openInvestor(r.slug),
+    exportName: `sattva-superinvestors-${todayStamp()}`,
+    onExport: () => runExport(),
+    emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings is disclosed by a tracked investor.' : 'No positions match your filters.',
+    initialView,
+  });
+}
+
+/** The derived move for one row, computed from the two most recent quarters of its own book. */
+function changeOf(r) {
+  const [latest, prior] = r.quarters || [];
+  if (!latest || !prior) return null;
+  const now = r.quarterlyHoldings[latest];
+  const before = r.quarterlyHoldings[prior];
+  if (now == null && before == null) return null;
+  if (before == null) return { action: 'new', deltaPp: null };
+  if (now == null) return { action: 'exited', deltaPp: null };
+  const deltaPp = Math.round((now - before) * 100) / 100;
+  return { action: deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held', deltaPp };
+}
+
+const ACTION = {
+  new: ['New', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+  added: ['Added', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+  held: ['Held', 'bg-slate-100 text-slate-600 ring-slate-200'],
+  trimmed: ['Trimmed', 'bg-amber-50 text-amber-800 ring-amber-200'],
+  exited: ['Undisclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+};
+
+function changeCell(r) {
+  const c = changeOf(r);
+  if (!c) return `<span class="text-slate-300" title="Only one quarter is published for this investor, so there is nothing to compare.">—</span>`;
+  const [label, cls] = ACTION[c.action];
+  const delta =
+    c.deltaPp == null
+      ? ''
+      : `<span class="mr-1.5 font-semibold tabular-nums ${c.deltaPp > 0 ? 'text-emerald-700' : c.deltaPp < 0 ? 'text-rose-700' : 'text-slate-400'}">${c.deltaPp > 0 ? '+' : ''}${c.deltaPp.toFixed(2)}pp</span>`;
+  const why =
+    c.action === 'exited'
+      ? 'Not on the latest shareholding pattern. Below the disclosure threshold a holding is invisible, so this is "no longer disclosed", not necessarily "sold".'
+      : c.action === 'new'
+        ? 'Not disclosed in the prior quarter, disclosed in the latest.'
+        : 'Latest disclosed percentage minus the prior one.';
+  return `<span class="inline-flex items-center whitespace-nowrap" title="${escapeHtml(why)}">${delta}<span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${label}</span></span>`;
+}
+
+// ---------------------------------------------------------------------------------------
+// One investor, as a workspace
+// ---------------------------------------------------------------------------------------
+
+let open = null;
+
+export function openInvestor(slug) {
+  const inv = feed.list().find((i) => i.slug === slug);
+  const b = feed.book(slug);
+  if (!inv && !b) return;
+  open = { slug, inv, b };
+
+  openWorkspace({
+    title: b?.name || inv?.name || slug,
+    subtitle: `Ticker Finology${b?.quarters?.length ? ` · ${b.quarters.length} quarters published · latest ${b.quarters[0]}` : ''}`,
+    avatarName: b?.name || inv?.name || slug,
+    badges: ['<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">Filed holdings</span>'],
+    actionsHtml: `<a href="${escapeHtml(FINOLOGY_INVESTOR(slug))}" target="_blank" rel="noopener" class="rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50">Open on Finology ↗</a>`,
+    tabs: [
+      { id: 'holdings', label: 'Holdings', badge: b?.holdings?.length ?? undefined, render: holdingsPanel },
+      { id: 'moves', label: 'This quarter', render: movesPanel },
+      { id: 'profile', label: 'Profile', render: profilePanel },
+    ],
+    activeTab: 'holdings',
+    onClose: () => (open = null),
+  });
+}
+
+function holdingsPanel() {
+  const b = open?.b;
+  if (!b) return `<p class="py-10 text-center text-sm text-slate-500">This investor's book has not been read yet.</p>`;
+  if (!b.holdings.length) return `<p class="py-10 text-center text-sm text-slate-500">Finology publish no positions for this investor.</p>`;
+  return `
+    <p class="mb-3 text-xs leading-relaxed text-slate-500">
+      Every quarter Finology publish for ${escapeHtml(b.name)}, in their own order. A dash is a quarter in which this holder was
+      <strong>not on the shareholding pattern</strong> — below the disclosure threshold a real position is invisible, so it is not a zero.
+      The ₹ value is <strong>Finology's derivation</strong> from the percentage and a market cap; a filing never states one.
+    </p>
+    <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600">Company</th>
+            ${b.quarters.map((q) => `<th scope="col" class="whitespace-nowrap px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600">${escapeHtml(q)}</th>`).join('')}
+            <th scope="col" class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600">Value (Finology)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${b.holdings
+            .map(
+              (h) => `<tr class="border-t border-slate-100">
+                <td class="px-3 py-2 font-semibold text-slate-900">${
+                  h.companySlug ? `<a href="${escapeHtml(FINOLOGY_COMPANY(h.companySlug))}" target="_blank" rel="noopener" class="hover:text-indigo-700 hover:underline">${escapeHtml(h.company)}</a>` : escapeHtml(h.company)
+                }</td>
+                ${b.quarters.map((q) => `<td class="px-3 py-2 text-right tabular-nums text-slate-700">${pct(h.quarterlyHoldings[q])}</td>`).join('')}
+                <td class="px-3 py-2 text-right tabular-nums text-slate-700">${cr(h.valueCr)}</td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function movesPanel() {
+  const { comparable, latest, prior, moves } = feed.movesFor(open?.slug);
+  if (!comparable) {
+    return `<p class="py-10 text-center text-sm text-slate-500">Finology publish only one quarter for this investor, so there is nothing to compare it against. No moves are shown rather than calling every position new.</p>`;
+  }
+  const order = ['new', 'added', 'trimmed', 'exited', 'held'];
+  return `
+    <p class="mb-3 text-xs leading-relaxed text-slate-500">
+      <strong>Derived</strong> — ${escapeHtml(latest)} minus ${escapeHtml(prior)}, per company, from Finology's own disclosed percentages.
+      A position appearing or disappearing carries no percentage-point figure, because a blank quarter means <em>not disclosed</em> rather than a trade of the whole holding.
+    </p>
+    ${order
+      .map((action) => {
+        const group = moves.filter((m) => m.action === action);
+        if (!group.length) return '';
+        const [label, cls] = ACTION[action];
+        return `<div class="mb-4">
+          <div class="mb-1.5 flex items-baseline gap-2">
+            <span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${label}</span>
+            <span class="text-xs text-slate-400">${group.length}</span>
+          </div>
+          <div class="grid gap-1.5 sm:grid-cols-2">
+            ${group
+              .map(
+                (m) => `<div class="flex items-baseline justify-between gap-3 rounded-lg bg-slate-50 px-3 py-1.5">
+                  <span class="min-w-0 truncate text-sm text-slate-800">${escapeHtml(m.company)}</span>
+                  <span class="flex-shrink-0 text-xs tabular-nums text-slate-500">${pct(m.before)} → ${pct(m.now)}${m.deltaPp != null ? ` <span class="${m.deltaPp > 0 ? 'text-emerald-700' : m.deltaPp < 0 ? 'text-rose-700' : ''}">(${m.deltaPp > 0 ? '+' : ''}${m.deltaPp.toFixed(2)}pp)</span>` : ''}</span>
+                </div>`
+              )
+              .join('')}
+          </div>
+        </div>`;
+      })
+      .join('')}`;
+}
+
+function profilePanel() {
+  const { inv, b, slug } = open || {};
+  const t = feed.totalsFor(slug);
+  const rows = [
+    ['Name', b?.name || inv?.name],
+    ['Finology id', slug],
+    ['Net worth', b?.netWorthCr == null ? null : cr(b.netWorthCr)],
+    ['Active stocks', b?.activeStocks == null ? null : formatNumber(b.activeStocks)],
+    ['Total stocks', b?.totalStocks == null ? null : formatNumber(b.totalStocks)],
+    ['Quarters published', b?.quarters?.length ? `${b.quarters.length} — ${b.quarters.join(', ')}` : null],
+    ['Positions listed', t ? formatNumber(t.rowCount) : null],
+    ['Disclosed in the latest quarter', t ? formatNumber(t.disclosedCount) : null],
+    ['Book value (Finology)', t?.valueCr == null ? null : `${cr(t.valueCr)} across ${formatNumber(t.valuedCount)} of ${formatNumber(t.rowCount)} positions`],
+  ];
+  return `
+    ${inv?.bio ? `<p class="mb-4 text-sm leading-relaxed text-slate-700">${escapeHtml(inv.bio)}</p>` : '<p class="mb-4 text-sm text-slate-400">Finology publish no biography for this investor.</p>'}
+    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+      ${rows
+        .map(
+          ([k, v]) => `<div class="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
+            <dt class="text-xs text-slate-500">${escapeHtml(k)}</dt>
+            <dd class="text-right text-sm font-semibold text-slate-900">${v == null ? dash : v}</dd>
+          </div>`
+        )
+        .join('')}
+    </dl>
+    <p class="mt-4 text-xs leading-relaxed text-slate-500">
+      Every field above is exactly as the Ticker Finology API returns it. Where one is blank the source did not publish it — nothing here is inferred or filled in.
+    </p>`;
+}
+
+// ---------------------------------------------------------------------------------------
+// Scope, totals and the export
+// ---------------------------------------------------------------------------------------
+
+/** Universe is every disclosed position; Portfolio narrows to companies the family actually owns. */
+function scopedHoldings(ctx) {
+  const all = feed.allHoldings();
+  if (ctx.scope !== 'portfolio') return all;
+  const held = (ctx.data?.portfolio?.holdings || []).map((h) => String(h.name || '').toLowerCase());
+  if (!held.length) return [];
+  return all.filter((r) => held.some((n) => n && r.company.toLowerCase().includes(n.slice(0, 12))));
+}
+
+const count = (moves, action) => moves.filter((m) => m.action === action).length;
+
+/**
+ * Rows still disclosed in their own book's latest quarter.
+ *
+ * `allHoldings()` returns every company that has ever appeared in a book, because the table shows
+ * the full quarterly history. A "combined book" figure must not: summing positions that dropped
+ * off the shareholding pattern quarters ago would state as currently held something the source
+ * stopped disclosing.
+ */
+const stillHeld = (rows) => rows.filter((r) => r.latest && r.quarterlyHoldings[r.latest] != null);
+
+const sumValue = (rows) => {
+  const valued = stillHeld(rows).filter((r) => r.valueCr != null);
+  return valued.length ? Math.round(valued.reduce((a, r) => a + r.valueCr, 0) * 100) / 100 : null;
+};
+const valuedNote = (rows) => {
+  const held = stillHeld(rows);
+  const valued = held.filter((r) => r.valueCr != null).length;
+  if (!held.length) return 'no positions are disclosed in the latest quarter';
+  return valued === held.length
+    ? `Finology’s value, all ${formatNumber(held.length)} currently disclosed positions`
+    : `Finology’s value, ${formatNumber(valued)} of ${formatNumber(held.length)} currently disclosed positions carry one`;
+};
+const booksNote = (m) =>
+  m.failedBooks
+    ? `${formatNumber(m.loadedBooks)} books read · ${formatNumber(m.failedBooks)} could not be`
+    : m.pending
+      ? `${formatNumber(m.loadedBooks)} books read · ${formatNumber(m.pending)} still arriving`
+      : `${formatNumber(m.loadedBooks)} books, all read`;
+
+const coverageNote = (rows, quarters) =>
+  `${formatNumber(rows.length)} investor-company rows · ${quarters.length} quarter${quarters.length === 1 ? '' : 's'} published · a dash is a quarter with no disclosure, not a zero`;
+
+async function runExport() {
+  const m = feed.meta();
+  const quarters = feed.quarterLabels();
+  const rows = feed.allHoldings();
+  await exportSheets({
+    filename: `sattva-superinvestors-${todayStamp()}`,
+    banner:
+      `REAL FILED HOLDINGS, NOT OURS. Superstar investor shareholdings via Ticker Finology (ticker.finology.in), read ${new Date().toISOString()}. ` +
+      `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value (Finology)" column is THEIR derivation ` +
+      `from that percentage and a market cap — a shareholding filing never states a rupee amount. A BLANK QUARTER MEANS NOT DISCLOSED, NOT ZERO: below the ` +
+      `disclosure threshold a real holding is invisible, so it is neither a nil position nor necessarily a sale. The only figure computed by this dashboard is ` +
+      `"Change (derived)", the latest disclosed percentage minus the prior one.`,
+    sheets: [
+      {
+        name: 'Holdings',
+        columns: [
+          { header: 'Investor', width: 26, get: (r) => r.investor },
+          { header: 'Finology Id', width: 22, get: (r) => r.slug },
+          { header: 'Company', width: 34, get: (r) => r.company },
+          { header: 'Company Id', width: 24, get: (r) => r.companySlug || '' },
+          ...quarters.map((q) => ({ header: `${q} %`, width: 13, get: (r) => (r.quarterlyHoldings[q] == null ? '' : r.quarterlyHoldings[q]) })),
+          { header: 'Value Cr (Finology)', width: 20, get: (r) => (r.valueCr == null ? '' : r.valueCr) },
+        ],
+        rows,
+      },
+      {
+        name: 'Investors',
+        columns: [
+          { header: 'Investor', width: 26, get: (r) => r.name },
+          { header: 'Finology Id', width: 22, get: (r) => r.slug },
+          { header: 'Net Worth Cr', width: 16, get: (r) => (r.netWorthCr == null ? '' : r.netWorthCr) },
+          { header: 'Active Stocks', width: 14, get: (r) => (r.activeStocks == null ? '' : r.activeStocks) },
+          { header: 'Total Stocks', width: 14, get: (r) => (r.totalStocks == null ? '' : r.totalStocks) },
+          { header: 'Quarters Published', width: 40, get: (r) => (r.quarters || []).join(' | ') },
+          { header: 'Bio', width: 70, get: (r) => feed.list().find((i) => i.slug === r.slug)?.bio || '' },
+        ],
+        rows: feed.books(),
+      },
+      {
+        name: 'This quarter (derived)',
+        columns: [
+          { header: 'Investor', width: 26, get: (r) => r.investor },
+          { header: 'Company', width: 34, get: (r) => r.company },
+          { header: 'Action', width: 14, get: (r) => r.action },
+          { header: 'Prior %', width: 12, get: (r) => (r.before == null ? '' : r.before) },
+          { header: 'Latest %', width: 12, get: (r) => (r.now == null ? '' : r.now) },
+          { header: 'Change pp', width: 12, get: (r) => (r.deltaPp == null ? '' : r.deltaPp) },
+          { header: 'Value Cr (Finology)', width: 20, get: (r) => (r.valueCr == null ? '' : r.valueCr) },
+        ],
+        rows: feed.allMoves(),
+      },
+    ],
+  });
+  return m;
+}

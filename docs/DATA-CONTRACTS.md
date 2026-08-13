@@ -1384,7 +1384,103 @@ fund picker as soon as there is more than one.
 
 ---
 
+## `GET /api/super-investors` and `/api/super-investors/{slug}` — LIVE, filed holdings (Finology)
+
+The whole **Superstar Investors** view. Two routes on this Worker, proxying the Ticker Finology
+super-investor API at `https://devde.muns.io` — the one upstream in this dashboard that needs a
+credential.
+
+**Modules** — `worker/finology.mjs` (HTTP client) · `public/js/data/finology-shared.js` (pure shape
+guards, imported by both sides) · `public/js/data/super-investors.js` (browser feed) ·
+`public/js/investors/live.js` (the view).
+
+### The Worker exists to hold the token
+
+`Authorization: Bearer …` is required upstream. A token in front-end code is a token published, so
+the browser calls this Worker and the Worker adds the header from `env.MUNS_TOKEN`. Nothing under
+`public/` has ever seen it — the same arrangement as `/api/live-prices`.
+
+```bash
+npx wrangler secret put MUNS_TOKEN     # production
+echo 'MUNS_TOKEN="…"' >> .dev.vars     # local; .dev.vars is gitignored
+```
+
+`env.MUNS_BASE` overrides the upstream host, which is how local development and `verify-ui.mjs`
+point at a stand-in instead of scraping somebody else's production on every run.
+
+### Shapes
+
+`GET /api/super-investors` → `{ ok, source, fetchedAt, count, dropped, investors[] }`, each
+investor `{ name, slug, bio, imageUrl }`. `dropped` counts rows the upstream returned without a
+usable slug — the slug is the only way to fetch a book, so a card without one is a dead end and is
+not rendered. Reporting the count keeps `count` and what is on screen from disagreeing silently.
+
+`GET /api/super-investors/{slug}` → `{ ok, source, fetchedAt, name, slug, netWorthCr, activeStocks,
+totalStocks, quarters[], holdings[] }`, each holding `{ company, companySlug, quarterlyHoldings,
+valueCr }`. `quarters` is the ordered column set, newest first, and keys `quarterlyHoldings`.
+
+Slugs are `[a-z0-9-]` only — anything else is a 400 here rather than a 400 upstream. An unknown
+investor is a 404.
+
+### A BLANK QUARTER MEANS NOT DISCLOSED, NEVER ZERO
+
+Finology print `-` where a holder is absent from that quarter's shareholding pattern. Indian
+companies only name holders above a threshold, so a real position below it is **invisible in the
+filing**. `null` therefore travels unchanged all the way to the cell, which renders an em dash and
+is excluded from every total.
+
+Two consequences that are easy to get wrong:
+
+- A position disappearing is **"no longer disclosed"**, not "sold". The UI says exactly that.
+- `deriveMoves` classifies an appearance as `new` and a disappearance as `exited` but gives
+  **neither a percentage-point figure**. Printing ±the whole holding would invent a trade size.
+
+### One derived figure, and it is labelled
+
+`deriveMoves()` subtracts the prior quarter's disclosed percentage from the latest, per company.
+That is the only computation this dashboard performs on the feed; everything else is reproduced.
+It appears under the heading **Change (derived)**, and the stat card and help modal say so. An
+investor with only one published quarter is not comparable and contributes nothing, rather than
+counting as entirely new.
+
+`valueCr` is **Finology's** derivation from a percentage and a market cap — a shareholding filing
+never states a rupee amount. Same relation as Trendlyne's value column on Institutions: reproduced,
+headed **Value (Finology)**, never recomputed.
+
+The combined-book total sums only positions **still disclosed in the latest quarter**, and only
+those carrying a value, and says how many of each. Summing all history produced a card reading
+`0 holdings` beside `₹793 Cr book`; the count and the total now use the same set.
+
+### Caching, and why the fan-out is on the client
+
+Each upstream call is a live scrape of finology.in, and shareholding data moves once a quarter. So
+the edge holds each response for **six hours** and the browser revalidates against our ETag for a
+bodyless 304. Each book is stored on the device under its own key (`investor:<slug>`), so a quarter
+landing for one investor does not invalidate the other fifty.
+
+The list is one request and each book is another; the client walks them **four at a time**,
+painting as they land. There is deliberately no `?full=1` that would fetch every book in one
+request — a cold cache would become sixty simultaneous page reads on their service.
+
+### Failure is reported by kind
+
+An upstream or credential failure returns **200 with `ok: false` and a `reason`** — the same shape
+`/api/concalls` uses for `degraded`, because the request to *this* Worker succeeded and the body is
+what explains the rest. `reason` is one of `no-token`, `unauthorised`, `unreachable`, `upstream`,
+`shape`; the view renders a named explanation for each, and `no-token` / `unauthorised` name the
+`wrangler secret put` that fixes them. Error responses are cached for **15 seconds**, not six
+hours, so pasting a working token takes effect immediately.
+
+`holdings: []` never travels without `ok: false` beside it — a book that failed to load must not be
+able to read as an investor who holds nothing. The card says "could not be read" instead.
+
+---
+
 ## `public/data/mock/superinvestors.json` and `institutions.json` — MOCK
+
+> **`superinvestors.json` no longer reaches the Superstar Investors view.** That view is live off
+> Finology (above). The file is still loaded because Fund Flows reads the institution side of it;
+> the individual half is now unused by any panel.
 
 Eight named individual investors and eight fund houses, each with four quarters of positions.
 Identical shape; institutions add `house`, `manager`, `category`, `aumCr`, `schemeCount` and
