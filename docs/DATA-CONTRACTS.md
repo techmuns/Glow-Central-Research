@@ -741,8 +741,20 @@ page. If neither is set the column renders a *Connect* step instead of a broken 
 | `POST /api/analyze` | `{ company, ticker?, force? }` | `{ ok, slug, status }` — `status: "done"` means a cached report was reused and no run started | **a real LLM + compute run** |
 
 `status` is one of `queued` \| `running` \| `done` \| `error` \| `unknown`. **`unknown` is not a
-failure** right after a dispatch — it is KV propagation lag, and the panel shows it as "waiting to
-register". Polling is every 4s with a 25-minute ceiling, just past their pipeline's own ~20.
+failure** right after a dispatch — it is KV propagation lag, and the panel shows it as the first
+step of the checklist. Polling is every 4s with a 25-minute ceiling, just past their own ~20.
+
+**A running response carries a bare stage key and nothing else** — `{ ok, slug, status: "running",
+stage: "research" }`. There is no `message` field, so anything that looks like one on screen would
+have been written here. `STAGES` in `public/js/data/deep-dive.js` is their own key → label →
+percentage table, copied from their frontend, and the panel renders their screen from it: label,
+percentage, bar and a seven-step checklist. An unrecognised key resolves to the first stage rather
+than blanking the panel.
+
+**Reopening reattaches by itself.** `resume(slug)` polls and never dispatches, so it is safe to run
+unprompted: closing the panel leaves the run alone upstream, and opening it again lands on live
+progress, or on the finished report, or — if the slug has aged out of their store — quietly on the
+confirm step.
 
 `slug` is **always theirs**, derived server-side. Never construct one here. It is remembered per
 ticker in `localStorage` under `sattva:deepdive-slugs` so closing the panel and reopening

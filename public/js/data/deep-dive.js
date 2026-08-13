@@ -41,6 +41,42 @@ const LS_SLUGS = 'sattva:deepdive-slugs';
 export const POLL_MS = 4000;
 export const TIMEOUT_MS = 25 * 60 * 1000;
 
+/**
+ * THEIR STAGE VOCABULARY, COPIED FROM THEIR OWN FRONTEND — keys, order, wording and percentages.
+ *
+ * The API sends a bare `stage` key and nothing else: `{ ok, slug, status: "running", stage:
+ * "research" }`. No message, no percentage. Their dashboard turns that key into a sentence and a
+ * position on a bar using this table, which lives in `js/analyze.js` on their side.
+ *
+ * So this is reproduction, not invention — the same rule as the StockScans tiers. If we wrote our
+ * own wording for "extract" we would be describing their pipeline in our words and would drift the
+ * first time they changed it. The percentages are theirs too; they are a position in a known
+ * sequence of stages, not a measurement of work done.
+ *
+ * An unknown key resolves to the first entry rather than throwing, so a stage they add lands as
+ * "starting" instead of blanking the panel.
+ */
+export const STAGES = [
+  { key: 'queued', pct: 5, label: 'Starting the analysis…' },
+  { key: 'resolve', pct: 15, label: 'Gathering price, financials & balance sheet…' },
+  { key: 'transcript', pct: 30, label: 'Pulling the latest earnings call & deck…' },
+  { key: 'extract', pct: 50, label: "Reading management's commentary…" },
+  { key: 'research', pct: 68, label: 'Researching risks & the bull/bear case…' },
+  { key: 'verify', pct: 80, label: 'Fact-checking every claim against the transcript…' },
+  { key: 'model', pct: 90, label: 'Building the financial model & valuation…' },
+  { key: 'finalize', pct: 97, label: 'Assembling your report…' },
+  { key: 'done', pct: 100, label: 'Report ready.' },
+];
+
+/** The stages drawn as a checklist — their bookends (`queued`, `done`) are not steps. */
+export const CHECKLIST_STAGES = STAGES.filter((s) => s.key !== 'queued' && s.key !== 'done');
+
+/** stage key -> { key, pct, label, index }. Unknown or blank resolves to the start. */
+export function stageInfo(stage) {
+  const i = Math.max(0, STAGES.findIndex((s) => s.key === stage));
+  return { ...STAGES[i], index: i };
+}
+
 const read = (k, fallback) => {
   try {
     const v = localStorage.getItem(k);
@@ -285,7 +321,14 @@ export async function resume(slug, { onProgress = () => {}, signal } = {}) {
       return { status: 'done', slug, report: tick.report ?? null, partial: !!tick.partial, cached: true };
     }
     if (tick?.status === 'error') throw new Error(tick.error || 'The Deep Dive run failed.');
-    if (tick?.status === 'unknown') throw new Error('That run is no longer on record. Start a new one.');
+    if (tick?.status === 'unknown') {
+      // Not a failure — the slug this browser remembered has aged out of their store. The caller
+      // may be auto-resuming on open, where the right answer is "offer to start one" rather than
+      // an error card, so it is tagged instead of being thrown as a plain Error.
+      const err = new Error('That run is no longer on record. Start a new one.');
+      err.code = 'unknown';
+      throw err;
+    }
     onProgress({ status: tick?.status || 'running', stage: tick?.stage || null, message: tick?.message || null, elapsedMs, slug });
     if (elapsedMs > TIMEOUT_MS) throw new Error('The run has not finished in the expected window.');
     await sleep(POLL_MS, signal);

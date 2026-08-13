@@ -470,11 +470,22 @@ three that only arise when you can make another service *do work*:
    a row can say *"report ready"* instead of making the reader pay to discover it exists. Getting
    that backwards in either direction is the bug: polling their trigger, or charging for an answer
    already sitting there.
-2. **The loading window is their words, not our spinner.** A run takes minutes. The panel prints
-   the `stage` and `message` their pipeline reports on each poll, the elapsed clock, and the stage
-   trail. A generic "Analysing…" would be inventing reassurance about a process we cannot see.
-   `unknown` right after dispatch is KV lag, not failure — render it as *waiting to register*,
-   never as an error and never as an empty report.
+2. **The loading window is their screen, not one of ours.** A run takes minutes, and their API
+   sends exactly one field while it runs: a bare `stage` key. Their own dashboard turns that into a
+   sentence, a percentage and a seven-step checklist using the table in `js/analyze.js`; that table
+   is copied into `js/data/deep-dive.js` and this panel draws the same screen. Reproducing their
+   vocabulary is the rule (same as the StockScans tiers) — writing our own wording for "extract"
+   would be describing their pipeline in our words and would drift the moment they changed it.
+
+   Two failure modes, both of which happened here. Rendering the raw key shows the reader
+   "EXTRACT". And **inventing a message where the payload has none** is worse: the panel printed
+   "Waiting for the pipeline to report in…" because `message` does not exist in their response, so
+   it implied nothing was happening while the stage beside it said the transcript was being read.
+   The stage IS the information. `unknown` right after dispatch is KV lag, not failure — it is
+   simply the first step of their checklist, never an error and never an empty report.
+
+   The panel also carries nothing their screen does not: no elapsed clock, no trail of stages, no
+   slug, no paragraph about how long runs take.
 3. **Render by shape, not by field name, because the schema is not ours to pin.** `report`'s shape
    lives in their repo. Sections render **in their own key order** — reordering is editing their
    report — and each is drawn from what it *is*: uniform short scalars become a table, prose-

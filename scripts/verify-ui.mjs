@@ -160,8 +160,11 @@ async function startDeepDiveStub(hits) {
       const n = runs.get(slug) + 1;
       runs.set(slug, n);
       // 1: the KV propagation beat. 2: a stage with a message. 3+: the finished report.
+      // Exactly what the real API sends mid-run: a status and a bare stage KEY. No message field
+      // — the wording comes from their published stage table, which is why we copy that table.
       if (n === 1) return send({ ok: true, slug, status: 'unknown' });
-      if (n === 2) return send({ ok: true, slug, status: 'running', stage: 'transcript', message: 'Pulling the transcript from the exchange filing' });
+      if (n === 2) return send({ ok: true, slug, status: 'running', stage: 'transcript' });
+      if (n === 3) return send({ ok: true, slug, status: 'running', stage: 'research' });
       // A slug the stub was told to pre-hold reports under ITS OWN identity, so the panel opens
       // clean. A slug from a dispatch keeps the fixture's TATAMOTORS identity, which will NOT be
       // the company the suite clicked — that is deliberate, and it is what proves the panel
@@ -954,17 +957,22 @@ ok('...and STILL has not dispatched anything', ddHits.analyze === 0, `analyze=${
 
 await page.click('[data-dd-start]');
 // Their pipeline reports `unknown` for a beat after dispatch while the record propagates. That is
-// not a failure and must not read as one.
-await page.waitForFunction(() => /Waiting for the run to register/i.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 15000 })
-  .then(() => ok('“unknown” right after dispatch reads as waiting, not as an error', true))
-  .catch(() => ok('“unknown” right after dispatch reads as waiting, not as an error', false, 'never showed the registering state'));
+// not a failure and must not read as one — it is simply the first step of their checklist.
+await page.waitForFunction(() => /Starting the analysis/i.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 15000 })
+  .then(() => ok('“unknown” right after dispatch reads as the first stage, not as an error', true))
+  .catch(() => ok('“unknown” right after dispatch reads as the first stage, not as an error', false, 'never showed the starting state'));
+ok('...and never as an error card', (await page.locator('#workspace-panel [data-dd-start]').count()) === 0);
 
-// The loading window is THEIR words. A spinner of ours would be inventing reassurance.
-await page.waitForFunction(() => /Pulling the transcript from the exchange filing/.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 20000 })
-  .then(() => ok('the loading window prints their stage and message verbatim', true))
-  .catch(() => ok('the loading window prints their stage and message verbatim', false, 'their message never appeared'));
+// THE LOADING WINDOW IS THEIR SCREEN. The API sends a bare stage key; the sentence beside it is
+// the one their own dashboard prints for that key, copied from their stage table rather than
+// written here. Rendering the raw key, or our own paraphrase, would both be wrong.
+await page.waitForFunction(() => /Pulling the latest earnings call & deck/i.test(document.querySelector('#workspace-panel')?.innerText || ''), null, { timeout: 25000 })
+  .then(() => ok('a stage key renders as THEIR published label for it', true))
+  .catch(() => ok('a stage key renders as THEIR published label for it', false, 'their label never appeared'));
 const ddRunning = await page.locator('#workspace-panel').innerText();
-ok('...with an elapsed clock and the stages so far', /\d+m \d{2}s elapsed/.test(ddRunning) && /Stages so far/i.test(ddRunning));
+ok('...with their percentage and the full checklist', /\d+%/.test(ddRunning) && /Fact-checking every claim/i.test(ddRunning) && /Building the financial model/i.test(ddRunning));
+ok('...and none of the chrome their screen does not have', !/elapsed/i.test(ddRunning) && !/Stages so far/i.test(ddRunning) && !/Waiting for the pipeline/i.test(ddRunning));
+ok('...and it says the run keeps going in the background', /keeps going in the background/i.test(ddRunning));
 
 await page.waitForSelector('[data-dd-raw]', { timeout: 40000 });
 const ddDone = await page.locator('#workspace-panel').innerText();
@@ -988,15 +996,15 @@ const ddInjection = await page.evaluate(() => ({
 }));
 ok('report strings are escaped, not parsed as markup', !ddInjection.pwned && ddInjection.imgs === 0 && ddInjection.literal, JSON.stringify(ddInjection));
 
-// Reopening must reattach, not pay for a second run.
+// "Leave it running" has to mean it. Closing the panel leaves the run alone, and REOPENING must
+// pick the progress back up on its own — not ask the reader to click "reattach", which is what it
+// used to do. Reattaching is a poll, so it costs nothing and may fire unprompted.
 const ddAfterRun = ddHits.analyze;
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 await page.locator('[data-deep-dive]').first().click();
-await page.waitForTimeout(600);
-ok('reopening offers to reattach to the run on record', (await page.locator('[data-dd-resume]').count()) === 1);
-await page.click('[data-dd-resume]');
 await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
+ok('reopening reattaches on its own, with no confirm step in the way', true);
 ok('...AND REATTACHING COSTS NOTHING', ddHits.analyze === ddAfterRun, `${ddHits.analyze} dispatches total`);
 ok('...never forcing a fresh run behind the reader’s back', ddHits.forced === 0, `${ddHits.forced} forced`);
 
@@ -1470,8 +1478,13 @@ ok('chatter portfolio scope narrows and labels', /Portfolio/.test(await hostText
 ok('...and lists holdings with no chatter rather than dropping them', /no chatter tracked/i.test(await hostText()));
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
 ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
-ok('...and says so plainly when no tracked investor discloses a holding of yours',
-  /none of your holdings/i.test(await hostText()) || /of your holdings/i.test(await hostText()) || /needs the Worker/i.test(await hostText()) || /token/i.test(await hostText()));
+// Either the scope note, or — when the feed is unavailable on this origin — the named reason it
+// is unavailable. What must never happen is an empty panel that explains neither.
+{
+  const t = await hostText();
+  ok('...and says so plainly when no tracked investor discloses a holding of yours',
+    /none of your holdings/i.test(t) || /of your holdings/i.test(t) || /No positions are shown/i.test(t), t.slice(0, 90).replace(/\s+/g, ' '));
+}
 
 for (const [hash, label] of [
   ['/#/research/public-chatter/valuepickr?scope=universe', 'chatter'],

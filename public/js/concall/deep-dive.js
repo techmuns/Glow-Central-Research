@@ -68,16 +68,21 @@ export function openDeepDive(row, { onRecorded = null, ready = null } = {}) {
   const company = row.name || ticker || '';
   const known = api.remembered(ticker);
 
+  // A run this browser started, or a report their index says exists. Either way there is a slug to
+  // poll, and polling is free — so the panel reattaches instead of asking a question whose answer
+  // it already has.
+  const attachSlug = ready?.slug || known?.slug || null;
+
   live = {
     ticker,
     company,
     onRecorded,
     ready,
-    phase: api.configured() ? 'confirm' : 'connect',
+    phase: !api.configured() ? 'connect' : attachSlug ? 'running' : 'confirm',
     progress: null,
-    trail: [],
+    displayPct: 0,
     report: null,
-    slug: ready?.slug || known?.slug || null,
+    slug: attachSlug,
     partial: false,
     cached: false,
     error: null,
@@ -96,8 +101,15 @@ export function openDeepDive(row, { onRecorded = null, ready = null } = {}) {
     onClose: () => stop(),
   });
 
-  // Their report is already on file: open it. No dispatch, no confirm, no cost.
-  if (ready?.slug && api.configured()) run({ resume: true, slug: ready.slug });
+  // REATTACH ON OPEN — this is what makes "Leave it running" mean what it says.
+  //
+  // `resume()` only ever polls `GET /api/report`, which is free, so doing it unprompted breaks no
+  // rule: the one thing that must never fire on its own is a dispatch. If the run is still going
+  // the reader lands straight on its live progress; if it finished while the panel was closed they
+  // land on the report; if the slug has aged out upstream, `run()` drops quietly to the confirm
+  // step. Before this, reopening showed a confirm panel with a "Reattach to it" link — the run was
+  // never lost, but you had to know to ask for it.
+  if (attachSlug && api.configured()) run({ resume: true, slug: attachSlug, auto: true });
 }
 
 /**
@@ -194,54 +206,73 @@ function confirmPanel() {
     </div>`;
 }
 
-/** The loading window: their stage and message, the trail of stages, and the clock. */
+/**
+ * The loading window — THEIR progress screen, not ours.
+ *
+ * Their API sends one field while a run is in flight: a `stage` key. Their own dashboard turns it
+ * into a sentence, a percentage and a checklist using the table in js/data/deep-dive.js, and this
+ * is that same screen: spinner line, stage label, percentage, bar, the seven steps with the ones
+ * behind you ticked.
+ *
+ * WHAT WAS REMOVED, AND WHY. An earlier version printed a raw stage key ("EXTRACT"), an elapsed
+ * clock, a running trail of every stage with timestamps, the slug, and two paragraphs about how
+ * long runs take. None of it is on their screen, and one line was actively misleading: it showed
+ * "Waiting for the pipeline to report in…" as the message, because their payload has no `message`
+ * field at all — so the panel implied nothing was happening while the stage beside it said the
+ * pipeline was mid-way through reading the transcript. The stage IS the information.
+ */
 function runningPanel() {
-  const p = live.progress || {};
-  const mins = Math.floor((p.elapsedMs || 0) / 60000);
-  const secs = Math.floor(((p.elapsedMs || 0) % 60000) / 1000);
+  const info = api.stageInfo(live.progress?.stage);
+  const pct = Math.round(live.displayPct ?? info.pct);
   return `
     <div class="mx-auto max-w-2xl px-6 py-10">
-      <div class="flex items-center gap-3">
-        <span class="relative flex h-3 w-3">
-          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
-          <span class="relative inline-flex h-3 w-3 rounded-full bg-indigo-600"></span>
-        </span>
-        <h3 class="font-display text-lg font-bold text-slate-900">Analysing ${escapeHtml(live.company)}</h3>
-      </div>
-
-      <div class="mt-5 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">${escapeHtml(p.stage || p.status || 'starting')}</span>
-          <span class="text-xs tabular-nums text-slate-500">${mins}m ${String(secs).padStart(2, '0')}s elapsed</span>
+      <div class="mb-8 text-center">
+        <div class="mb-3 inline-flex items-center gap-2 text-xs text-slate-400">
+          <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500"></span>
+          Analysing — this usually takes a few minutes
         </div>
-        <p class="mt-1 text-sm text-slate-700">${escapeHtml(p.message || 'Waiting for the pipeline to report in…')}</p>
-        ${p.transientError ? '<p class="mt-2 text-xs text-amber-700">Connection blipped — still polling; the run is unaffected.</p>' : ''}
+        <h2 class="font-display text-2xl font-bold text-slate-800">${escapeHtml(live.company)}</h2>
+        ${live.ticker ? `<p class="mt-1 font-mono text-sm text-slate-400">${escapeHtml(live.ticker)}</p>` : ''}
       </div>
 
-      ${
-        live.trail.length > 1
-          ? `<div class="mt-4">
-               <div class="mb-1 text-xs font-bold uppercase tracking-wider text-slate-500">Stages so far</div>
-               <ol class="space-y-1">
-                 ${live.trail
-                   .map(
-                     (t, i) => `<li class="flex items-baseline gap-2 text-xs ${i === live.trail.length - 1 ? 'text-slate-900' : 'text-slate-500'}">
-                       <span class="w-14 flex-shrink-0 tabular-nums">${escapeHtml(t.at)}</span>
-                       <span class="font-semibold">${escapeHtml(t.stage)}</span>
-                       ${t.message ? `<span class="min-w-0 flex-1 truncate">${escapeHtml(t.message)}</span>` : ''}
-                     </li>`
-                   )
-                   .join('')}
-               </ol>
-             </div>`
-          : ''
-      }
+      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+        <div class="mb-2 flex items-center justify-between text-sm">
+          <span class="font-medium text-slate-600">${escapeHtml(info.label)}</span>
+          <span class="font-mono tabular-nums text-slate-400">${pct}%</span>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700" style="width:${pct}%"></div>
+        </div>
 
-      <p class="mt-5 text-xs leading-relaxed text-slate-500">
-        A full run usually takes several minutes and their pipeline gives up after about twenty.
-        Closing this panel does not cancel the run — reopening reattaches to it${live.slug ? `, and it is on record as <code class="rounded bg-slate-100 px-1">${escapeHtml(live.slug)}</code>` : ''}.
-      </p>
-      <button data-dd-close class="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Leave it running</button>
+        <ul class="mt-6 space-y-3">
+          ${api.CHECKLIST_STAGES.map((s) => {
+            const idx = api.stageInfo(s.key).index;
+            const done = idx < info.index;
+            const active = idx === info.index;
+            return `<li class="flex items-center gap-3 text-sm ${done ? 'text-slate-600' : active ? 'font-medium text-slate-800' : 'text-slate-400'}">
+              <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                done ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white' : 'text-slate-300 ring-1 ring-slate-200'
+              }">
+                ${
+                  done
+                    ? '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
+                    : active
+                      ? '<svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>'
+                      : '<svg class="h-2 w-2" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/></svg>'
+                }
+              </span>
+              <span>${escapeHtml(s.label)}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+
+        <div class="mt-7 border-t border-slate-100 pt-5 text-center">
+          <button data-dd-close class="rounded-lg bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200">Leave it running</button>
+          <p class="mt-4 text-xs text-slate-400">
+            This run keeps going in the background. Close this, switch tabs or reload — reopening it picks the progress back up.
+          </p>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -652,23 +683,15 @@ function wirePanel(panel) {
   }
 }
 
-async function run({ force = false, resume = false, slug = null } = {}) {
+async function run({ force = false, resume = false, slug = null, auto = false } = {}) {
   if (!live) return;
   const controller = new AbortController();
   live.controller?.abort();
   live.controller = controller;
   live.phase = 'running';
   live.error = null;
-  live.trail = [];
-  live.progress = {
-    status: resume ? 'running' : 'dispatching',
-    message: resume
-      ? live.ready?.slug === slug
-        ? 'Fetching the report they already hold…'
-        : 'Reattaching to the run already on record…'
-      : 'Asking the Deep Dive dashboard to start…',
-    elapsedMs: 0,
-  };
+  live.progress = { status: 'queued', stage: null };
+  live.displayPct = api.stageInfo(null).pct;
   refreshWorkspace();
 
   const onProgress = (p) => {
@@ -680,14 +703,7 @@ async function run({ force = false, resume = false, slug = null } = {}) {
       // a live tick. Tell it now so the mark appears with the run rather than a minute later.
       live.onRecorded?.(p.slug);
     }
-    const stage = p.stage || p.status;
-    const last = live.trail[live.trail.length - 1];
-    // One entry per stage change, not per tick — a trail of forty identical lines is noise.
-    if (stage && (!last || last.stage !== stage)) {
-      live.trail.push({ stage, message: p.message || null, at: clock(p.elapsedMs) });
-    } else if (last && p.message && last.message !== p.message) {
-      last.message = p.message;
-    }
+    live.displayPct = creep(live.displayPct, p.stage);
     refreshWorkspace();
   };
 
@@ -708,13 +724,31 @@ async function run({ force = false, resume = false, slug = null } = {}) {
   } catch (err) {
     if (err?.name === 'AbortError') return; // the reader closed the panel; the run continues
     if (!live || live.controller !== controller) return;
+    // An auto-resume that finds nothing on record is not an error to show anybody: the slug this
+    // browser remembered has simply aged out upstream. Offer to start a run instead of a red card.
+    if (auto && err?.code === 'unknown') {
+      live.slug = null;
+      live.phase = 'confirm';
+      refreshWorkspace();
+      return;
+    }
     live.error = String(err.message || err);
     live.phase = 'error';
   }
   refreshWorkspace();
 }
 
-const clock = (ms) => {
-  const total = Math.floor((ms || 0) / 1000);
-  return `${Math.floor(total / 60)}m ${String(total % 60).padStart(2, '0')}s`;
-};
+/**
+ * Move the bar toward the current stage's floor, and drift gently within it.
+ *
+ * Their own screen does this, and the reason is visible on a real run: `research` and `verify`
+ * each take minutes, so a bar pinned exactly to the stage floor looks frozen and reads as a hung
+ * job. The drift is bounded by the NEXT stage's floor, so it can never claim progress past a
+ * stage the pipeline has not actually reached, and it never moves backwards.
+ */
+function creep(current, stage) {
+  const info = api.stageInfo(stage);
+  const next = api.STAGES[info.index + 1];
+  const ceiling = next ? next.pct - 1 : info.pct;
+  return Math.min(ceiling, Math.max(current ?? 0, info.pct) + (stage ? 0.6 : 0));
+}
