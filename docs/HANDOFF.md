@@ -462,13 +462,20 @@ These are why the dashboard can be trusted, and they are not style preferences.
 
 ```jsonc
 // wrangler.jsonc
-{ "name": "sattva-central", "compatibility_date": "2026-05-23",
+{ "name": "sattva-central-research", "compatibility_date": "2026-05-23",
   "main": "worker/index.js", "assets": { "directory": "./public", "binding": "ASSETS" } }
 ```
 
 ```bash
 npx wrangler deploy
 ```
+
+**The `name` must match the deployed Worker**, which is
+`sattva-central-research.tech-441.workers.dev`. It read `sattva-central` for a long time while the
+live Worker was `sattva-central-research`, and that is a quiet trap rather than a loud one: both
+`wrangler deploy` and `wrangler secret put` would have addressed a *second*, empty Worker of that
+name, succeeded, and left the real site untouched. A secret in particular looks perfectly set that
+way — it is just set somewhere nothing reads it.
 
 There is no `functions/` directory, no `_routes.json`, no `public/_headers`, no `_redirects` and no
 `pages_build_output_dir` — none of the Pages conventions are present, and none are needed. If you
