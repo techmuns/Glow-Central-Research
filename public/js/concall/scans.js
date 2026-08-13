@@ -46,6 +46,7 @@ import { exportRows } from '../ui/export.js';
 import * as feed from '../data/concall-scans.js';
 import * as deepDive from '../data/deep-dive.js';
 import { openDeepDive } from './deep-dive.js';
+import * as coverage from '../data/coverage.js';
 
 const ATTRIBUTION = 'Scores, sentiment and highlights are StockScans’ own analysis, shown unchanged.';
 
@@ -184,7 +185,7 @@ export function wireLivePill(root, m) {
 // ---------------------------------------------------------------------------------------
 export function renderScans(ctx, { disposers, tableView, onView }) {
   const m = feed.meta();
-  const rows = feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
+  const rows = feed.forScope(ctx.scope, coverage.holdings());
   // Read once for the whole paint rather than per row — see rememberedMap() in data/deep-dive.js.
   const dived = deepDive.rememberedMap();
 
@@ -276,13 +277,13 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   });
   onView?.(table.view);
 
-  const scheduled = feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || [], feed.upcoming());
+  const scheduled = feed.forScope(ctx.scope, coverage.holdings(), feed.upcoming());
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Concall Scans',
       description: `Every earnings call held this quarter, newest first. Times are IST. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${scheduleButton(scheduled.length)}${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${scheduleButton(scheduled.length)}${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() })}</div>`,
     })}
     ${table.html}
   `;

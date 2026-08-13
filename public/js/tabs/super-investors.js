@@ -25,6 +25,7 @@ import * as investorDive from '../investors/deep-dive.js';
 import { renderFiled } from '../investors/filed.js';
 import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
+import * as coverage from '../data/coverage.js';
 
 export const meta = {
   id: 'super-investors',
@@ -442,8 +443,8 @@ function renderInstitutions(ctx) {
 }
 
 function renderHolderView(ctx, { pool, type, noun, description, exportName, extraHtml = '' }) {
-  const scoped = investors.holdersForScope(ctx.scope, ctx.data?.portfolio?.holdings || [], pool);
-  const allMoves = investors.moves(undefined, { type }).filter((m) => (ctx.scope === 'portfolio' ? (ctx.data?.portfolio?.holdings || []).some((h) => h.ticker === m.ticker) : true));
+  const scoped = investors.holdersForScope(ctx.scope, coverage.holdings(), pool);
+  const allMoves = investors.moves(undefined, { type }).filter((m) => (ctx.scope === 'portfolio' ? (coverage.holdings()).some((h) => h.ticker === m.ticker) : true));
   const bar = filterBar(MOVE_FILTERS, MOVE_DEFAULTS, allMoves, ctx.params, 'mv');
   const rows = allMoves.filter((r) => Object.entries(MOVE_FILTERS).every(([k, f]) => f.test(r, bar.state[k])));
 
@@ -483,7 +484,7 @@ function renderHolderView(ctx, { pool, type, noun, description, exportName, extr
   const table = movesTable(ctx, rows, exportName, () => runInvestorExport(ctx, type));
 
   ctx.root.innerHTML = `
-    ${sectionHead({ title: meta.title, description, meta: scopeSummary({ scope: ctx.scope, count: scoped.length, noun }) })}
+    ${sectionHead({ title: meta.title, description, meta: scopeSummary({ scope: ctx.scope, count: scoped.length, noun, book: coverage.meta() }) })}
     ${provenanceRibbon()}
     ${stats.html}
     <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${scoped.map(holderCard).join('')}</div>
@@ -549,7 +550,7 @@ function mandateStrip(funds) {
 
 function renderFlows(ctx) {
   const months = investors.flows();
-  const interest = investors.companyInterest().filter((r) => (ctx.scope === 'portfolio' ? (ctx.data?.portfolio?.holdings || []).some((h) => h.ticker === r.ticker) : true));
+  const interest = investors.companyInterest().filter((r) => (ctx.scope === 'portfolio' ? (coverage.holdings()).some((h) => h.ticker === r.ticker) : true));
   const latest = months.at(-1);
   const fiiYtd = months.slice(-12).reduce((s, m) => s + m.fiiNetCr, 0);
   const diiYtd = months.slice(-12).reduce((s, m) => s + m.diiNetCr, 0);
@@ -565,7 +566,7 @@ function renderFlows(ctx) {
     ${sectionHead({
       title: meta.title,
       description: 'The aggregate picture: who is buying the market, which fund categories are being fed, and where the tracked money is concentrated.',
-      meta: scopeSummary({ scope: ctx.scope, count: interest.length, noun: 'companies' }),
+      meta: scopeSummary({ scope: ctx.scope, count: interest.length, noun: 'companies', book: coverage.meta() }),
     })}
     ${provenanceRibbon()}
     ${stats.html}

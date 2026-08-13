@@ -22,6 +22,7 @@ the interface, and change the doc and the producer together.
 | `ctx.data` key | File |
 | --- | --- |
 | `portfolio` | `public/data/portfolio.json` |
+| `portfolioCompanies` | `public/data/portfolio-companies.json` |
 | `universe` | `public/data/universe.json` |
 | `earnings` | `public/data/mock/earnings.json` |
 | `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
@@ -292,6 +293,98 @@ Every price field is a number or `null`. A ticker whose quote failed is simply a
 **Errors** — `405` non-POST · `400` bad body or no tickers · **`502` when zero quotes came back**.
 That last one matters: a refresh that fetched nothing is a failure, not an empty "fresh" feed, so
 the UI keeps the prices already on screen instead of blanking the display.
+
+---
+
+## `public/data/portfolio-companies.json` — REAL, the book the Portfolio scope means
+
+Every company the family office holds directly, as at the statement date, resolved to NSE symbols.
+This is what the **Portfolio / Universe toggle filters by** on every research tab: Earnings Hub,
+Con-call, Breakouts, Public Chatter, Institutions and Superstar Investors all ask *"is this ticker
+one of ours?"* and this file is the answer. Loaded at bootstrap onto `ctx.data.portfolioCompanies`
+and primed into `js/data/coverage.js`.
+
+**It is NOT the ledger, and the two must not be merged.** `portfolio.json` holds twelve positions
+with quantities and costs and drives Portfolio Analytics, where a FIFO replay reconciles against it
+and `verify-ui.mjs` asserts two identities numerically. Widening that file to 142 lines would break
+both identities and invent quantities nobody supplied. The statement this file came from was given
+as names only — value and weight were explicitly out of scope — so it carries names only. Two
+different questions, two files:
+
+| | `portfolio-companies.json` | `portfolio.json` |
+| --- | --- | --- |
+| Answers | *is this company one of ours?* | *how much of it do we own, at what cost?* |
+| Lines | 142 | 12 |
+| Fields | name, ticker, sector | + qty, avgPrice, conviction tier |
+| Drives | the Portfolio scope on the research tabs | Portfolio Analytics, the FIFO replay, the equity curve |
+
+```jsonc
+{
+  "_provenance": "…",
+  "asOf": "2026-06-30",
+  "source": "family office direct-equity statement",
+  "count": 142, "resolved": 123, "unlisted": 11, "bseOnly": 5, "unresolved": 3,
+  "holdings": [
+    { "name": "Mangalore Petrochemicals and Refinery", "ticker": "MRPL", "sector": "Unclassified",
+      "listed": true, "matchedName": "MANGALORE REFINERY & PETROCHEMICALS", "matchedBy": "confirmed:yahoo" },
+    { "name": "Turtlemint Fintech Solutions", "ticker": null, "sector": "Financials",
+      "listed": false, "reason": "unlisted — private company, held directly" }
+  ]
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `asOf` | string | Statement date, `YYYY-MM-DD`. |
+| `count` / `resolved` / `unlisted` / `bseOnly` / `unresolved` | number | `resolved + unlisted + bseOnly + unresolved === count`, asserted by the suite. |
+| `holdings[].name` | string | **The statement's own wording**, never the exchange's. This is what the reader recognises. |
+| `holdings[].ticker` | string \| **null** | NSE symbol, or `null` — see below. |
+| `holdings[].sector` | string | From the statement; `Unclassified` where it gave none. |
+| `holdings[].listed` | boolean | Whether the company is listed at all, which is a different fact from whether we resolved it. |
+| `holdings[].matchedName` | string | The name on the feed the symbol came from — the audit trail for a fuzzy match. |
+| `holdings[].matchedBy` | string | How it resolved: `exact:` / `prefix:` + the source, `yahoo-search`, or `confirmed:yahoo` for one checked by hand. |
+| `holdings[].reason` | string | Present **only** when `ticker` is null. Why no symbol exists, in the words the UI prints. |
+
+### `ticker: null` is a real holding, and it is kept
+
+Nineteen of the 142 have no NSE symbol. They are still owned. Dropping them would make "Portfolio"
+quietly mean *"the 123 we happen to have a feed for"*, with nothing on screen saying so — the same
+class of error as rendering a missing value as zero. So they stay in the file with a `reason`, and
+the tabs surface them as **held but not covered**:
+
+| Why | Lines |
+| --- | --- |
+| Unlisted — private company, held directly | 5 · Turtlemint, OnEMI, Standard Engineering Technology, Finbud, AvenuesAI |
+| Demerged entity, not listed as at the book date | 4 · the Vedanta aluminium / power / iron & steel / oil & gas lines |
+| Warrants, not the equity line | 2 · Vikram Kamats, Alpex Solar |
+| BSE-only — every feed wired here is keyed by NSE symbol | 5 · Concord Control Systems, Ashika Credit Capital, Sanjivani Paranteral, Glittke Granites, Vikram Kamats |
+| No symbol found on either exchange | 3 · String Metaverse, Nisus Finance Services (SME), Future Supply Chain Solutions (delisted after insolvency) |
+
+`coverageNote()` in `js/data/coverage.js` is the one place that sentence is written, and
+`scopeSummary({ book })` prints the denominator in the pill beside every scoped table — *"Portfolio
+· 96 of 142 reported"*. A count with no denominator is the thing to avoid: 96 rows looks complete
+until you know the book is 142.
+
+### Resolution — `scripts/resolve-portfolio-companies.mjs`
+
+Run it to rebuild the file; `--net` lets it reach Yahoo's symbol search for the leftovers.
+
+It matches against the feeds already in the repo (StockScans' con-call index, the Moneycontrol
+ticker map, the screener export) before going out to the network, exact match first, then a
+`squash()`ed prefix match — Moneycontrol truncates names to about fifteen characters, so *"Mangalore
+Petrochemicals and Refinery"* has to reach *"MANGALORE REFINERY & PETRO…"* somehow. Ten symbols that
+prefix-matching would have got wrong or missed are pinned in a `CONFIRMED` table, each checked
+against Yahoo by hand, and the not-listed lines are pinned in `NOT_LISTED_EQUITY` so a future run
+cannot quietly "resolve" a private company to a same-named listed one.
+
+**A collision guard fails the run rather than shipping a silent merge.** Two book lines that resolve
+to one symbol means one of them is wrong, and the pair that proved it is *Allcargo Global* and
+*Allcargo Logistics* — genuinely two companies, `AGL` and `ALLCARGO`. Without the guard one would
+have inherited the other's rows and the reader would have seen a holding they do not own.
+
+**Refresh cadence** — when the statement changes; re-run the resolver and commit the diff.
+**Real source** — the family office's direct-equity statement.
+**Consumed by** — `js/data/coverage.js`, and through it every tab's `forScope()` and the header search.
 
 ---
 

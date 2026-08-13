@@ -33,6 +33,7 @@ import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/fo
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as feed from '../data/super-investors.js';
+import * as coverage from '../data/coverage.js';
 
 const SOURCE = 'Ticker Finology, read live through this dashboard’s Worker.';
 const FINOLOGY_INVESTOR = (slug) => `https://ticker.finology.in/investor/${encodeURIComponent(slug)}`;
@@ -94,7 +95,7 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
     ${sectionHead({
       title: 'Superstar Investors',
       description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors', book: coverage.meta() })}</div>`,
     })}
     ${stats.html}
     ${loadingStrip(m)}
@@ -166,7 +167,7 @@ function renderUnavailable(ctx, m) {
     ${sectionHead({
       title: 'Superstar Investors',
       description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
-      meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'investors' }),
+      meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'investors', book: coverage.meta() }),
     })}
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
       <div class="flex flex-wrap items-start gap-3">
@@ -582,7 +583,7 @@ function profilePanel() {
 function scopedHoldings(ctx) {
   const all = feed.allHoldings();
   if (ctx.scope !== 'portfolio') return all;
-  const held = (ctx.data?.portfolio?.holdings || []).map((h) => String(h.name || '').toLowerCase());
+  const held = (coverage.holdings()).map((h) => String(h.name || '').toLowerCase());
   if (!held.length) return [];
   return all.filter((r) => held.some((n) => n && r.company.toLowerCase().includes(n.slice(0, 12))));
 }

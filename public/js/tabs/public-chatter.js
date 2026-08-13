@@ -22,6 +22,7 @@ import * as chatter from '../data/chatter.js';
 import * as technicals from '../data/technicals.js';
 import { openTechnicalsDrillByTicker } from './breakouts-drill.js';
 import { riskPillClass, riskRowClass, THRESHOLDS } from '../chatter/pump-risk.js';
+import * as coverage from '../data/coverage.js';
 
 export const meta = {
   id: 'public-chatter',
@@ -181,10 +182,10 @@ function noChatterPanel(rows, noun) {
 }
 
 function scopedThreads(ctx) {
-  return chatter.forScope(chatter.threads(), ctx.scope, ctx.data?.portfolio?.holdings || []);
+  return chatter.forScope(chatter.threads(), ctx.scope, coverage.holdings());
 }
 function scopedGroups(ctx) {
-  return chatter.forScope(chatter.groups(), ctx.scope, ctx.data?.portfolio?.holdings || []);
+  return chatter.forScope(chatter.groups(), ctx.scope, coverage.holdings());
 }
 
 /** Subscribe the current view to the poller and repaint the counters it changes. */
@@ -265,7 +266,7 @@ function renderValuePickr(ctx) {
     ${sectionHead({
       title: meta.title,
       description: 'ValuePickr threads by how much they are actually moving, not by how big they already are.',
-      meta: scopeSummary({ scope: ctx.scope, count: live.length, noun: 'threads' }),
+      meta: scopeSummary({ scope: ctx.scope, count: live.length, noun: 'threads', book: coverage.meta() }),
     })}
     ${provenanceRibbon()}
     ${stats.html}
@@ -531,7 +532,7 @@ function renderTelegram(ctx) {
     ${sectionHead({
       title: meta.title,
       description: 'Public Telegram groups, with a transparent pump-risk flag — because message volume and genuine interest are different things.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'groups' }),
+      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'groups', book: coverage.meta() }),
     })}
     ${provenanceRibbon()}
     ${stats.html}
@@ -626,7 +627,7 @@ function openGroupDrill(group) {
  */
 function joinTrending(ctx) {
   const rows = chatter.trending();
-  const scopeRows = ctx.scope === 'portfolio' ? chatter.forScope(rows, ctx.scope, ctx.data?.portfolio?.holdings || []) : rows;
+  const scopeRows = ctx.scope === 'portfolio' ? chatter.forScope(rows, ctx.scope, coverage.holdings()) : rows;
 
   return scopeRows.map((row) => {
     if (row.noChatter) return row;
@@ -734,7 +735,7 @@ function renderTrending(ctx) {
     ${sectionHead({
       title: meta.title,
       description: 'Every company being discussed, across both sources, set against what the price has actually done.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies' }),
+      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies', book: coverage.meta() }),
     })}
     ${provenanceRibbon()}
     <div class="mb-5 rounded-2xl bg-white p-3 text-xs leading-relaxed text-slate-600 shadow-sm ring-1 ring-slate-100">

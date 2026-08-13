@@ -67,6 +67,8 @@ public/
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
       live.js                 the WHOLE Superstar Investors view — real filed books off Finology
     data/
+      coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
+                              19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter.js              forum + telegram feeds, momentum and pump risk derived here
@@ -85,8 +87,10 @@ public/
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
                               earnings-live.json, mc-ticker-map.json, result-returns.json,
-                              earnings-calendar.json, universe.json, portfolio.json, mock/*.json
+                              earnings-calendar.json, universe.json, portfolio.json,
+                              portfolio-companies.json, mock/*.json
 scripts/
+  resolve-portfolio-companies.mjs  book names -> NSE symbols, collision-guarded
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   gen-mock-chatter.mjs        seeded generator for the forum + telegram feeds
@@ -553,6 +557,40 @@ updating three things together**: the contract in `docs/DATA-CONTRACTS.md`, the 
 
 ---
 
+## What "Portfolio" means — `js/data/coverage.js`
+
+**The scope toggle filters by the book, not by the ledger.** `public/data/portfolio-companies.json`
+is the family office's direct-equity statement — 142 companies, names and sectors only, resolved to
+NSE symbols by `scripts/resolve-portfolio-companies.mjs`. `coverage.js` primes it at bootstrap and
+exposes `holdings() / tracked() / uncovered() / has(ticker) / meta() / coverageNote()`. **Every
+`forScope()` in every research tab reads it. Nothing reads `ctx.data.portfolio.holdings` for that
+purpose any more** — that path is the ledger's, and it lists twelve positions.
+
+Do not merge the two files. `portfolio.json` carries quantities and costs, the FIFO replay
+reconciles against it, and `verify-ui.mjs` asserts two identities numerically; widening it to 142
+lines would break both and invent quantities nobody supplied. The statement gave names only —
+value and weight were explicitly out of scope. See the table in `docs/DATA-CONTRACTS.md`.
+
+Three rules:
+
+1. **A line with no ticker is still a holding.** Nineteen of the 142 have no NSE symbol: five
+   unlisted private companies, the four Vedanta demerger entities, two warrant lines, five BSE-only
+   companies and three whose symbol could not be found. They stay in the file with a `reason` and
+   surface as *held but not covered*. Dropping them would silently redefine "Portfolio" as *"the
+   123 we happen to have a feed for"* — the same class of error as rendering a missing value as
+   zero.
+2. **Always print the denominator.** `scopeSummary({ scope, count, noun, book })` renders
+   *"Portfolio · 96 of 142 reported"*, and `coverageNote()` writes the long form. Ninety-six rows
+   look complete until you know the book is 142, and no feed covers all of it: Earnings Hub reaches
+   96, Con-call 80 (plus 11 scheduled), Breakouts 55, Public Chatter 4.
+3. **Resolve by script, never by hand, and let it fail on a collision.** Two book lines resolving to
+   one symbol means one is wrong — *Allcargo Global* and *Allcargo Logistics* are `AGL` and
+   `ALLCARGO`, and without the guard one would have inherited the other's rows. Names checked by
+   hand live in the script's `CONFIRMED` table; not-listed lines live in `NOT_LISTED_EQUITY` so a
+   later run cannot "resolve" a private company to a same-named listed one.
+
+---
+
 ## Portfolio Analytics — the FIFO engine and the two identities
 
 `js/portfolio/lots.js` replays the ledger once per page load; `js/data/portfolio.js` joins the
@@ -781,6 +819,8 @@ Rules:
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
+| Add or remove a company from the book | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
 | Change the portfolio provenance ribbon | `provenanceRibbon()` in `js/portfolio/chrome.js` — one function, four sub-views |
@@ -852,6 +892,10 @@ It covers, beyond the checklist below:
   reload, and leaves the current-period figure for a given company **identical** under both
 - its two filter dropdowns partition the set exactly (STD + CON = all) and combine rather than
   replace each other
+- **the book is whole**: every line from the statement is present, each carries a ticker or a stated
+  reason it has none, no two lines collapse onto one symbol, the counts add up, every Portfolio-
+  scoped row on Earnings Hub / Con-call / Breakouts resolves to a book ticker, and each of those
+  pills prints the denominator
 - **the two portfolio identities**, computed against the shipped data: open lots sum to position
   quantity on every ticker, and realised + unrealised + dividends equals total P&L per position
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both

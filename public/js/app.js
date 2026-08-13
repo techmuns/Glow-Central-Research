@@ -10,6 +10,7 @@ import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeInvestors } from './data/investors.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
+import { prime as primeCoverage } from './data/coverage.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -19,6 +20,10 @@ import { prime as primePortfolio } from './data/portfolio.js';
 // it is live off /api/concalls, cached on the device by js/core/store.js.
 const DATA_SOURCES = {
   portfolio: 'data/portfolio.json',
+  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols. This is
+  // what the Portfolio/Universe toggle filters the research tabs by. It is NOT the ledger:
+  // portfolio.json is, and the two are different questions. See js/data/coverage.js.
+  portfolioCompanies: 'data/portfolio-companies.json',
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
@@ -69,6 +74,7 @@ async function loadAll() {
   // when the workspace mounts — the live technicals feed (the mark) and portfolio-history.json
   // (the equity curve) — because eight of the nine tabs never need them.
   primePortfolio(data.portfolio, data.transactions);
+  primeCoverage(data.portfolioCompanies);
   return data;
 }
 

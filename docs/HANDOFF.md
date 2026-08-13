@@ -66,6 +66,7 @@ still feeds Fund Flows' category charts.
 | Feed | File | Notes |
 | --- | --- | --- |
 | The coverage universe | `public/data/universe.json` | The actual NSE-500 Screener export, 535 companies. Names, tickers, sectors and market caps everywhere else in the app come from here. |
+| **The book** — what the Portfolio toggle means | `public/data/portfolio-companies.json` | The family office's direct-equity statement as at 30 Jun 2026: **142 companies, names and sectors only**, resolved to NSE symbols by `scripts/resolve-portfolio-companies.mjs`. This is what every research tab's Portfolio scope filters by. It is **not** the ledger — see §5a. |
 
 ### Real, but produced only when the reader asks for it
 
@@ -145,6 +146,7 @@ public/js/
     export.js              exceljs-from-CDN "Export Excel"
     shell.js               header, rail, tab bar, the WORKSPACES registry
   data/                    one module per feed: load once, compute once, cache, expose accessors
+                           coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
                            "Upcoming Concalls" schedule overlay
@@ -167,6 +169,47 @@ is lost by dropping the rail.
 
 **To add a data source:** three files, together — `docs/DATA-CONTRACTS.md`, the loader in
 `js/app.js` (or a lazy `js/data/*.js`), and the entry in `js/ui/sources.js` with an honest `status`.
+
+---
+
+## 5a. Two portfolio files, and why they are not one file
+
+The word "portfolio" means two different things here and they are deliberately kept apart.
+
+| | `portfolio-companies.json` — **the book** | `portfolio.json` — **the ledger** |
+| --- | --- | --- |
+| Answers | *is this company one of ours?* | *how much of it, at what cost?* |
+| Lines | 142 | 12 |
+| Fields | name, ticker, sector | + qty, avgPrice, conviction tier |
+| Read by | `js/data/coverage.js` → every research tab's `forScope()` and the header search | `js/data/portfolio.js` → Portfolio Analytics, the FIFO replay, the equity curve |
+| Provenance | real, from the statement | holdings list real; qty/avgPrice derived from a synthetic ledger |
+
+Merging them would break something real. The FIFO replay reconciles against `portfolio.json` and the
+suite asserts two identities numerically; widening that file to 142 lines would break both and
+invent quantities nobody supplied — the statement was given as names only, with value and weight
+explicitly out of scope.
+
+**Nineteen of the 142 carry `ticker: null`, and they are kept.** Five unlisted private companies,
+the four Vedanta demerger entities, two warrant lines, five BSE-only companies (every feed wired
+here is keyed by NSE symbol) and three whose symbol could not be found at all — String Metaverse,
+Nisus Finance Services (an SME line) and Future Supply Chain Solutions (delisted after insolvency).
+Each carries the reason it has no symbol and the UI shows it as *held but not covered*. Dropping
+them would have made "Portfolio" quietly mean *"the 123 we happen to have a feed for"*, with nothing
+on screen saying so.
+
+**No feed covers the whole book, and every scoped pill says so** — *"Portfolio · 96 of 142
+reported"*. Measured against the shipped data: Earnings Hub 96, Con-call 80 held calls plus 11
+scheduled, Breakouts 55, Public Chatter 4. The gap is the feeds' coverage of Indian small- and
+mid-caps, not a wiring error; `coverageNote()` in `js/data/coverage.js` is the one place that
+sentence is written.
+
+To change the book: edit `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net`
+lets it reach Yahoo's symbol search for anything the in-repo feeds cannot match), and commit the
+regenerated JSON. It matches exact-then-prefix against feeds already in the repo before going out to
+the network, pins ten hand-checked symbols in `CONFIRMED`, pins the not-listed lines in
+`NOT_LISTED_EQUITY`, and **fails the run if two book lines resolve to one symbol** — which is how
+*Allcargo Global* (`AGL`) and *Allcargo Logistics* (`ALLCARGO`) were caught before one inherited the
+other's rows.
 
 ---
 
@@ -586,6 +629,15 @@ The ones that matter most:
   and it should land before that URL goes anywhere public.
 - **The transaction ledger is mock and CSV import does not persist.** Both need a server or a broker
   integration. `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" lists the six steps in order.
+  Note that the *book* (`portfolio-companies.json`, 142 real companies) and the *ledger*
+  (`portfolio.json`, 12 synthetic positions) are still different files — see §5a. Wiring the real
+  ledger is what would finally reconcile them.
+- **Nineteen book lines can never appear on a feed here**, and three of them are a genuine loose
+  end rather than a structural one: String Metaverse, Nisus Finance Services and Future Supply Chain
+  Solutions resolved to no symbol on either exchange. The first two most likely trade under a
+  changed name; the third was delisted after insolvency. The other sixteen are structural — unlisted
+  companies, warrant lines, the Vedanta demerger entities and five BSE-only listings, and only a
+  BSE-keyed feed would fix that last group.
 - **`TATAMOTORS` has no price data at all** — Yahoo 404s the symbol, almost certainly because of the
   demerger. It is recorded in `portfolio-history.json` `failures[]`, marked at cost, tagged in the
   table, named in the ribbon, and the Drawdown view reports 97.6% curve coverage rather than

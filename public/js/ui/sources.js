@@ -302,6 +302,18 @@ export const SOURCE_GROUPS = [
     tabs: 'Portfolio Analytics',
     items: [
       {
+        name: 'Direct-equity statement — the book',
+        url: null,
+        feeds:
+          'What the Portfolio toggle means on every research tab. 142 companies from the family office statement, ' +
+          'resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. Names and sectors only — no quantity, ' +
+          'no cost, no value. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger entities, ' +
+          'BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.',
+        cadence: 'When the statement changes · re-run the resolver and commit the diff',
+        status: 'static',
+        file: 'public/data/portfolio-companies.json',
+      },
+      {
         name: 'Holdings (user-maintained)',
         url: null,
         feeds:

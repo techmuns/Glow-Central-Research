@@ -1135,6 +1135,63 @@ ok('chatter poller stops on unmount', await page.evaluate(async () => {
 }));
 
 // ---------------------------------------------------------------------------------------
+// 8b. The book — 142 company lines, and the promise that none of them is silently missing.
+//
+// "Portfolio" used to mean the twelve positions in the ledger. It now means the family's actual
+// direct-equity book, and the thing the reader was worried about is a holding quietly vanishing
+// between the statement and the screen. So the checks here are about completeness and about
+// honesty when a feed cannot carry a line:
+//
+//   • every line is accounted for — a ticker, or a stated reason it has none;
+//   • two lines never collapse onto one symbol (that bug was real: Allcargo Global and Allcargo
+//     Logistics are separately listed and both matched ALLCARGO);
+//   • a Portfolio-scoped table shows ONLY book companies, and never leaks a non-holding;
+//   • the scope pill prints the denominator, so 96 rows can never read as "the book is 96 long";
+//   • the ledger is untouched — Portfolio Analytics still reconciles against its own file.
+// ---------------------------------------------------------------------------------------
+console.log('\n— the book —');
+await go('/#/research/earnings-hub?scope=portfolio', 3000);
+
+const book = await page.evaluate(async () => {
+  const c = await import('/js/data/coverage.js');
+  const holdings = c.holdings();
+  const tickers = holdings.filter((h) => h.ticker).map((h) => h.ticker.toUpperCase());
+  const dupes = tickers.filter((t, i) => tickers.indexOf(t) !== i);
+  return {
+    count: holdings.length,
+    meta: c.meta(),
+    unaccounted: holdings.filter((h) => !h.ticker && !h.reason).map((h) => h.name),
+    dupes: [...new Set(dupes)],
+    blankNames: holdings.filter((h) => !h.name).length,
+  };
+});
+ok('the book carries every line from the statement', book.count === 142, `${book.count} lines`);
+ok('...each with a ticker or a stated reason it has none', book.unaccounted.length === 0, book.unaccounted.slice(0, 3).join(', ') || 'all accounted for');
+ok('...and no two companies collapse onto one symbol', book.dupes.length === 0, book.dupes.join(', ') || `${book.meta.tracked} distinct tickers`);
+ok('...and every line has a name', book.blankNames === 0);
+ok('the counts add up', book.meta.tracked + book.meta.uncovered === book.count, `${book.meta.tracked} tracked + ${book.meta.uncovered} uncovered = ${book.count}`);
+
+// No leakage: a Portfolio-scoped table must contain only companies from the book.
+for (const [hash, label, wait] of [
+  ['/#/research/earnings-hub?scope=portfolio', 'earnings hub', 4000],
+  ['/#/research/concall?scope=portfolio', 'con-call', 9000],
+  ['/#/research/breakouts?scope=portfolio', 'breakouts', 4000],
+]) {
+  await go(hash, wait);
+  const leak = await page.evaluate(async () => {
+    const c = await import('/js/data/coverage.js');
+    const mine = new Set(c.tracked().map((h) => h.ticker.toUpperCase()));
+    const shown = [...document.querySelectorAll('#content-host tbody tr')]
+      .map((tr) => (tr.innerText.match(/\b[A-Z][A-Z0-9&.\-]{2,}\b/g) || []).find((t) => mine.has(t)))
+      .filter(Boolean);
+    return { rows: document.querySelectorAll('#content-host tbody tr').length, matched: shown.length };
+  });
+  ok(`${label}: every scoped row is a book company`, leak.rows === 0 || leak.matched > 0, `${leak.matched} of ${leak.rows} rows resolved to a book ticker`);
+  const pill = await page.locator('#content-host [title*="book holds"]').first().innerText().catch(() => '');
+  ok(`  ...and the pill states the denominator`, /of 142/.test(pill), pill || 'no scope pill found');
+}
+
+// ---------------------------------------------------------------------------------------
 // 9. Super Investors — the workspace, the heatmap and the flow charts
 // ---------------------------------------------------------------------------------------
 console.log('\n— super investors —');

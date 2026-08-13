@@ -69,8 +69,14 @@ applies to every tab in both workspaces.
   carried in the URL as `?scope=`.
 - Every tab module reads `ctx.scope` and must visibly reflect it — the scope chip in each
   panel header states which scope is active and how many rows it covers.
-- Portfolio holdings come from `public/data/portfolio.json`; the universe from
-  `public/data/universe.json`.
+- **Portfolio means the book**: `public/data/portfolio-companies.json`, the family office's
+  142-company direct-equity statement, read through `js/data/coverage.js`. The universe is
+  `public/data/universe.json`. `portfolio.json` is the *ledger* — twelve positions with quantities
+  and costs — and drives Portfolio Analytics only; the scope filter does not read it.
+- **The chip states the denominator, because no feed covers the whole book** — *"Portfolio · 96 of
+  142 reported"*. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger
+  entities, BSE-only, unresolved); they are kept with a stated reason and shown as held-but-not-
+  covered rather than dropped.
 - Changing scope never loses the current tab or sub-view.
 
 ---

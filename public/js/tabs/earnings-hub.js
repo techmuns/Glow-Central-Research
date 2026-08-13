@@ -48,6 +48,7 @@ import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativ
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 import * as calendar from '../data/earnings-calendar.js';
+import * as coverage from '../data/coverage.js';
 
 export const meta = {
   id: 'earnings-hub',
@@ -177,7 +178,7 @@ function wireViewToggle(root, ctx) {
   }
 }
 
-const rowsFor = (ctx) => feed.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
+const rowsFor = (ctx) => feed.forScope(ctx.scope, coverage.holdings());
 
 // ---------------------------------------------------------------------------------------
 // Cells
@@ -528,7 +529,7 @@ function renderLatest(ctx) {
     ${sectionHead({
       title: 'Latest Results',
       description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported', book: coverage.meta() })}</div>`,
     })}
     ${
       periodError
@@ -682,7 +683,7 @@ function renderCalendar(ctx) {
     ${sectionHead({
       title: 'Earnings Calendar',
       description: 'Companies scheduled to report, by date. Pick a date from the strip.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed', book: coverage.meta() })}</div>`,
     })}
     ${dateStrip(wanted, today)}
     ${
@@ -720,7 +721,7 @@ function renderCalendar(ctx) {
   if (table) disposers.push(table.wire(ctx.root));
 }
 
-const holdings = (ctx) => new Set((ctx.data?.portfolio?.holdings || []).map((h) => String(h.ticker).toUpperCase()));
+const holdings = (ctx) => new Set((coverage.holdings()).map((h) => String(h.ticker).toUpperCase()));
 
 /**
  * Three states, not two. The counts are always live; the LIST is live when the Worker can reach

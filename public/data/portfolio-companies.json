@@ -1,0 +1,1139 @@
+{
+  "_provenance": "The family office's direct-equity book as at 30 Jun 2026, supplied as company names and resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. This is the COVERAGE list that the Portfolio scope filters every research tab by — it is not a ledger: no quantity, no cost, no value. public/data/portfolio.json remains the Portfolio Analytics ledger and is a different thing. A line with ticker: null is still a real holding; it either is not an NSE-listed equity or could not be resolved, and the UI shows it as held-but-not-covered rather than dropping it.",
+  "asOf": "2026-06-30",
+  "source": "family office direct-equity statement",
+  "count": 142,
+  "resolved": 123,
+  "unlisted": 11,
+  "bseOnly": 5,
+  "unresolved": 3,
+  "holdings": [
+    {
+      "name": "IIFL Finance",
+      "ticker": "IIFL",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "IIFL Finance Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "HFCL Limited",
+      "ticker": "HFCL",
+      "sector": "Communication Services",
+      "listed": true,
+      "matchedName": "HFCL Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Jayaswal Neco Industries",
+      "ticker": "JAYNECOIND",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Jayaswal Neco",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Sky Gold Limited",
+      "ticker": "SKYGOLD",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Sky Gold",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Tata Capital Ltd",
+      "ticker": "TATACAP",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Tata Capital Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "LT Foods Limited",
+      "ticker": "LTFOODS",
+      "sector": "Consumer Staples",
+      "listed": true,
+      "matchedName": "LT Foods",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Aditya Birla Capital",
+      "ticker": "ABCAPITAL",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Aditya Birla Capital Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Jubilant Pharmova",
+      "ticker": "JUBLPHARMA",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Jubilant Pharmo",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Oracle Financial Services Software",
+      "ticker": "OFSS",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "ORACLE FIN SERV SOFT LTD.",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Turtlemint Fintech Solutions",
+      "ticker": null,
+      "sector": "Financials",
+      "listed": false,
+      "reason": "unlisted — private company, held directly"
+    },
+    {
+      "name": "PNB Housing Fin",
+      "ticker": "PNBHOUSING",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "PNB Housing Fin",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Biocon Ltd",
+      "ticker": "BIOCON",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Biocon Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Edelweiss Financial Services",
+      "ticker": "EDELWEISS",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Edelweiss Financial Services Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "OnEMI Technology Solutions",
+      "ticker": null,
+      "sector": "Financials",
+      "listed": false,
+      "reason": "unlisted — private company, held directly"
+    },
+    {
+      "name": "Concord Control Systems",
+      "ticker": null,
+      "sector": "Industrials",
+      "listed": true,
+      "exchange": "BSE",
+      "bseSymbol": "CNCRD",
+      "reason": "listed on the BSE only — every feed wired here is keyed by NSE symbol"
+    },
+    {
+      "name": "Man Industries (India)",
+      "ticker": "MANINDS",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Man Industries (India) Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Motilal Oswal Financial Services",
+      "ticker": "MOTILALOFS",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Motilal Oswal Financial Services Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Park Medi World",
+      "ticker": "PARKHOSPS",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Park Medi World Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Standard Engineering Technology",
+      "ticker": null,
+      "sector": "Industrials",
+      "listed": false,
+      "reason": "unlisted — private company, held directly"
+    },
+    {
+      "name": "Vedanta Aluminium Metal",
+      "ticker": null,
+      "sector": "Materials",
+      "listed": false,
+      "reason": "demerged entity — not listed as at the book date"
+    },
+    {
+      "name": "Prestige Estate Projects",
+      "ticker": "PRESTIGE",
+      "sector": "Real Estate",
+      "listed": true,
+      "matchedName": "Prestige Estate",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Sansera Engineering",
+      "ticker": "SANSERA",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Sansera Enginee.",
+      "matchedBy": "prefix:screener"
+    },
+    {
+      "name": "Hindustan Zinc",
+      "ticker": "HINDZINC",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Hindustan Zinc Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Sudarshan Chemical Industries",
+      "ticker": "SUDARSCHEM",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Sudarshan Chem",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Emmvee Photovoltaic Power",
+      "ticker": "EMMVEE",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Emmvee Photovoltaic Power Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Kopran Limited",
+      "ticker": "KOPRAN",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Kopran",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Siemens Energy India",
+      "ticker": "ENRIN",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "SIEMENS ENERGY INDIA LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Canara Bank",
+      "ticker": "CANBK",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Canara Bank",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Interarch Building Products",
+      "ticker": "INTERARCH",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Interarch Build",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Coforge Limited",
+      "ticker": "COFORGE",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "Coforge Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Garware Hi-Tech Film",
+      "ticker": "GRWRHITECH",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Garware Hi Tech",
+      "matchedBy": "prefix:screener"
+    },
+    {
+      "name": "Ashika Credit Capital",
+      "ticker": null,
+      "sector": "Financials",
+      "listed": true,
+      "exchange": "BSE",
+      "bseSymbol": null,
+      "reason": "listed on the BSE only — every feed wired here is keyed by NSE symbol"
+    },
+    {
+      "name": "Shriram Pistons & Rings",
+      "ticker": "SHRIPISTON",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "SPR AUTO TECHNOLOGIES LTD (renamed from Shriram Pistons & Rings)",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "PB Fintech Limited",
+      "ticker": "POLICYBZR",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "PB Fintech Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "GOCL Corporation",
+      "ticker": "GOCLCORP",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "GOCL CORPORATION LIMITED",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Vedanta Limited",
+      "ticker": "VEDL",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Vedanta Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Waaree Energies",
+      "ticker": "WAAREEENER",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Waaree Energies Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Titagarh Rail Systems",
+      "ticker": "TITAGARH",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "TITAGARH",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Pine Labs Limited",
+      "ticker": "PINELABS",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Pine Labs Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "ISGEC Heavy Engineering",
+      "ticker": "ISGEC",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "ISGEC Heavy Engineering  Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Shilchar Technologies",
+      "ticker": "SHILCTECH",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Shilchar Techno",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "J&K Bank",
+      "ticker": "J&KBANK",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "J & K Bank",
+      "matchedBy": "exact:screener"
+    },
+    {
+      "name": "Aditya Vision Limited",
+      "ticker": "AVL",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Aditya Vision Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Nilkamal",
+      "ticker": "NILKAMAL",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Nilkamal",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Jana Small Finance Bank",
+      "ticker": "JSFB",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Jana Small Finance Bank Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Eternal",
+      "ticker": "ETERNAL",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Eternal Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Shalby Limited",
+      "ticker": "SHALBY",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Shalby",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Mahindra & Mahindra",
+      "ticker": "M&M",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Mahindra & Mahindra Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Indo Farm Equipment",
+      "ticker": "INDOFARM",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Indo Farm Equipment Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Angel One Limited",
+      "ticker": "ANGELONE",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Angel One Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Bengal and Assam Company",
+      "ticker": "BENGALASM",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "BENGAL & ASSAM CO. LTD.",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Sammaan Capital",
+      "ticker": "SAMMAANCAP",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Sammaan Capital",
+      "matchedBy": "exact:screener"
+    },
+    {
+      "name": "Supriya Lifescience",
+      "ticker": "SUPRIYA",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "SUPRIYA LIFESCIENCE LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Alpex Solar",
+      "ticker": "ALPEXSOLAR-SM",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "ALPEX SOLAR LIMITED",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Embassy Developments",
+      "ticker": "EMBDL",
+      "sector": "Real Estate",
+      "listed": true,
+      "matchedName": "Embassy Develop",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Gujarat Ambuja Exports",
+      "ticker": "GAEL",
+      "sector": "Consumer Staples",
+      "listed": true,
+      "matchedName": "GUJARAT AMBUJA EXPORTS LT",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Adani Enterprises",
+      "ticker": "ADANIENT",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Adani Enterprises Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Stylam Industries",
+      "ticker": "STYLAMIND",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Stylam Industries Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Vishal Mega Mart",
+      "ticker": "VMM",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Vishal Mega Mart Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Central Depository Services",
+      "ticker": "CDSL",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Central Depository Services (India) Ltd",
+      "matchedBy": "prefix:stockscans"
+    },
+    {
+      "name": "Kotak Mahindra Bank",
+      "ticker": "KOTAKBANK",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Kotak Mahindra Bank Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Kross Limited",
+      "ticker": "KROSS",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Kross Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Sejal Glass Limited",
+      "ticker": "SEJALLTD",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Sejal Glass Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Carysil Limited",
+      "ticker": "CARYSIL",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Carysil Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Kaynes Technology India",
+      "ticker": "KAYNES",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "Kaynes Technology India Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Wockhardt",
+      "ticker": "WOCKPHARMA",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Wockhardt",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Shree Cements",
+      "ticker": "SHREECEM",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Shree Cements",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Ramkrishna Forgings",
+      "ticker": "RKFORGE",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Ramkrishna Forgings Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Oswal Pumps Limited",
+      "ticker": "OSWALPUMPS",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Oswal Pumps Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Persistent Systems",
+      "ticker": "PERSISTENT",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "Persistent Systems Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Valor Estate Limited",
+      "ticker": "DBREALTY",
+      "sector": "Real Estate",
+      "listed": true,
+      "matchedName": "VALOR ESTATE LIMITED",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Advait Energy Transitions",
+      "ticker": "ADVAIT",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "ADVAIT ENERGY",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Shipping Corporation of India",
+      "ticker": "SCI",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Shipping Corp",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "HDFC Bank",
+      "ticker": "HDFCBANK",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "HDFC Bank Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Finbud Financial Services",
+      "ticker": null,
+      "sector": "Financials",
+      "listed": false,
+      "reason": "unlisted — private company, held directly"
+    },
+    {
+      "name": "Voltamp Transformers",
+      "ticker": "VOLTAMP",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Voltamp Trans",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "JSW Steel",
+      "ticker": "JSWSTEEL",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "JSW Steel Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "RBL Bank",
+      "ticker": "RBLBANK",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "RBL Bank Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Jay Bee Laminations",
+      "ticker": "JAYBEE-SM",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "JAY BEE LAMINATIONS LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Happy Forgings",
+      "ticker": "HAPPYFORGE",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Happy Forgings Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Indian Hotels Company",
+      "ticker": "INDHOTEL",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Indian Hotels Co Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Meghmani Organics",
+      "ticker": "MOL",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Meghmani Organics Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Vedanta Power Limited",
+      "ticker": null,
+      "sector": "Energy",
+      "listed": false,
+      "reason": "demerged entity — not listed as at the book date"
+    },
+    {
+      "name": "Jio Financial Services",
+      "ticker": "JIOFIN",
+      "sector": "Financials",
+      "listed": true,
+      "matchedName": "Jio Financial Services Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Vedanta Iron and Steel",
+      "ticker": null,
+      "sector": "Materials",
+      "listed": false,
+      "reason": "demerged entity — not listed as at the book date"
+    },
+    {
+      "name": "Vedanta Oil and Gas",
+      "ticker": null,
+      "sector": "Energy",
+      "listed": false,
+      "reason": "demerged entity — not listed as at the book date"
+    },
+    {
+      "name": "Praxis Home Retails",
+      "ticker": "PRAXIS",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Praxis Home Ret",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Sanjivani Paranteral",
+      "ticker": null,
+      "sector": "Healthcare",
+      "listed": true,
+      "exchange": "BSE",
+      "bseSymbol": "SANJIVIN",
+      "reason": "listed on the BSE only — every feed wired here is keyed by NSE symbol"
+    },
+    {
+      "name": "Dalmia Bharat",
+      "ticker": "DALBHARAT",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "Dalmia Bharat Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Coal India",
+      "ticker": "COALINDIA",
+      "sector": "Energy",
+      "listed": true,
+      "matchedName": "Coal India",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "JSW Energy",
+      "ticker": "JSWENERGY",
+      "sector": "Energy",
+      "listed": true,
+      "matchedName": "JSW Energy Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Eveready",
+      "ticker": "EVEREADY",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Eveready Ind",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Restaurant Brands Asia",
+      "ticker": "RBA",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Restaurant Brands Asia Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Narayana Hrudayalaya",
+      "ticker": "NH",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Narayana Hrudayalaya Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Vintage Coffee and Beverages",
+      "ticker": "VINCOFE",
+      "sector": "Consumer Staples",
+      "listed": true,
+      "matchedName": "Vintage Coffee & Beverages Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Samhi Hotels Limited",
+      "ticker": "SAMHI",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Samhi Hotels Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Glittke Granites",
+      "ticker": null,
+      "sector": "Materials",
+      "listed": true,
+      "exchange": "BSE",
+      "bseSymbol": "GLITTEKG",
+      "reason": "listed on the BSE only — every feed wired here is keyed by NSE symbol"
+    },
+    {
+      "name": "Harsha",
+      "ticker": "HARSHA",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "HARSHA ENGINEERS INT LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Axiscades Technologies",
+      "ticker": "AXISCADES",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "AXISCADES TECH LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "ITC Ltd",
+      "ticker": "ITC",
+      "sector": "Consumer Staples",
+      "listed": true,
+      "matchedName": "ITC",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Protean eGov Technologies",
+      "ticker": "PROTEAN",
+      "sector": "Information Technology",
+      "listed": true,
+      "matchedName": "Protean eGov Technologies Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Fabtech Technologies",
+      "ticker": "FABTECH",
+      "sector": "Healthcare",
+      "listed": true,
+      "matchedName": "Fabtech Technologies Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Rashtriya Chemicals",
+      "ticker": "RCF",
+      "sector": "Materials",
+      "listed": true,
+      "matchedName": "RASHTRIYA CHEMICALS & FER",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Vikram Kamats Hospitality — warrants",
+      "ticker": null,
+      "sector": "Consumer Discretionary",
+      "listed": false,
+      "reason": "warrants, not the equity line"
+    },
+    {
+      "name": "Alpex Solar — warrants",
+      "ticker": null,
+      "sector": "Industrials",
+      "listed": false,
+      "reason": "warrants, not the equity line"
+    },
+    {
+      "name": "Virtuoso Optoelectronics",
+      "ticker": "VOEPL",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Virtuoso Optoel",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Urban Company",
+      "ticker": "URBANCO",
+      "sector": "Consumer Discretionary",
+      "listed": true,
+      "matchedName": "Urban Company Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Techno Electric & Engineering",
+      "ticker": "TECHNOE",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Techno Electric & Engineering Company Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Azad Engineering",
+      "ticker": "AZAD",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedName": "Azad Engineering Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Jay Bharat Maruti",
+      "ticker": "JAYBARMARU",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Jay BharatMarut",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "AvenuesAI Ltd",
+      "ticker": null,
+      "sector": "Unclassified",
+      "listed": false,
+      "reason": "unlisted — private company, held directly"
+    },
+    {
+      "name": "Eureka Forbes",
+      "ticker": "EUREKAFORB",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Eureka Forbes",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Sahana Systems",
+      "ticker": "SAHANA-SM",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "SAHANA SYSTEM LIMITED",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Ceinsys Tech",
+      "ticker": "CEINSYS",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Ceinsys Tech",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Pace Digitek",
+      "ticker": "PACEDIGITK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Pace Digitek Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Allcargo Global",
+      "ticker": "AGL",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "ALLCARGO GLOBAL LIMITED",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Allcargo Logistics",
+      "ticker": "ALLCARGO",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "ALLCARGO LOGISTICS LTD",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Macpower CNC Machines",
+      "ticker": "MACPOWER",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Macpower CNC Machines Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Tata Technologies",
+      "ticker": "TATATECH",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Tata Technologies Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Raymond Realty",
+      "ticker": "RAYMONDREL",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Raymond Realty Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Sanstar Ltd",
+      "ticker": "SANSTAR",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "SANSTAR LIMITED",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "RPSG Ventures",
+      "ticker": "RPSGVENT",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "RPSG VENTURES LIMITED",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Praveg Limited",
+      "ticker": "PRAVEG",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "PRAVEG LTD.",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Swan Corp",
+      "ticker": "SWANCORP",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "SWAN CORP LIMITED",
+      "matchedBy": "confirmed:yahoo"
+    },
+    {
+      "name": "Polyplex Corporation",
+      "ticker": "POLYPLEX",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Polyplex Corp",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Future Consumer",
+      "ticker": "FCONSUMER",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "FUTURE CONSUMER LIMITED",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Vikram Kamats Hospitality",
+      "ticker": null,
+      "sector": "Unclassified",
+      "listed": true,
+      "exchange": "BSE",
+      "bseSymbol": "KAMATS",
+      "reason": "listed on the BSE only — every feed wired here is keyed by NSE symbol"
+    },
+    {
+      "name": "String Metaverse",
+      "ticker": null,
+      "sector": "Unclassified",
+      "listed": true,
+      "reason": "no symbol found on either exchange — check the current name"
+    },
+    {
+      "name": "Thomas Cook (India)",
+      "ticker": "THOMASCOOK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Thomas Cook (India) Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Alankit Limited",
+      "ticker": "ALANKIT",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Alankit",
+      "matchedBy": "exact:moneycontrol"
+    },
+    {
+      "name": "Tejas Networks",
+      "ticker": "TEJASNET",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Tejas Networks Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Bafna Pharmaceuticals",
+      "ticker": "BAFNAPH",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "BAFNA PHARMACEUTICALS LTD",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Ellenbarrie Industrial Gases",
+      "ticker": "ELLEN",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Ellenbarrie Industrial Gases Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Nisus Finance Services",
+      "ticker": null,
+      "sector": "Unclassified",
+      "listed": true,
+      "reason": "no symbol found on either exchange — an SME line, check the current name"
+    },
+    {
+      "name": "Insolation Energy",
+      "ticker": "INA",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Insolation Ener",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Transformers and Rectifiers India",
+      "ticker": "TARIL",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Transformers & Rectifiers India Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Billionbrains Garage Ventures",
+      "ticker": "GROWW",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Billionbrains Garage Ventures Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Rain Industries",
+      "ticker": "RAIN",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "RAIN INDUSTRIES LIMITED",
+      "matchedBy": "yahoo-search"
+    },
+    {
+      "name": "Unimech Aerospace",
+      "ticker": "UNIMECH",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Unimech Aerospa",
+      "matchedBy": "prefix:moneycontrol"
+    },
+    {
+      "name": "Crizac Ltd",
+      "ticker": "CRIZAC",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "Crizac Ltd",
+      "matchedBy": "exact:stockscans"
+    },
+    {
+      "name": "Future Supply Chain Solutions",
+      "ticker": null,
+      "sector": "Unclassified",
+      "listed": true,
+      "reason": "no symbol found on either exchange — delisted after insolvency"
+    },
+    {
+      "name": "Mangalore Petrochemicals and Refinery",
+      "ticker": "MRPL",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedName": "MANGALORE REFINERY & PETROCHEMICALS",
+      "matchedBy": "confirmed:yahoo"
+    }
+  ]
+}

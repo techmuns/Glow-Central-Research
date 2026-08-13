@@ -18,6 +18,7 @@ import { exportRows, todayStamp } from '../ui/export.js';
 import * as technicals from '../data/technicals.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
+import * as coverage from '../data/coverage.js';
 
 export const meta = {
   id: 'breakouts',
@@ -77,7 +78,7 @@ function loadingHtml() {
 }
 
 function paint(ctx) {
-  const rows = technicals.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
+  const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const view = {
     'technical-scanner': renderScanner,
     'strong-breakouts': renderStrongBreakouts,
@@ -292,7 +293,7 @@ function renderScanner(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies' }),
+      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies', book: coverage.meta() }),
     })}
     ${refreshBar()}
     ${stats.html}
@@ -515,7 +516,7 @@ function renderStrongBreakouts(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Companies breaking out of a 6-week base, ranked by breakout quality then technical score.',
-      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates' }),
+      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() }),
     })}
     ${stats.html}
     ${chipBar(BREAKOUT_FILTERS, state, counts)}
@@ -658,7 +659,7 @@ function renderFiiAccumulation(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Institutional holding changes from the latest Screener shareholding export, joined to the live technical score.',
-      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'names' }),
+      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'names', book: coverage.meta() }),
     })}
     ${stats.html}
     ${chipBar(FII_FILTERS, state, counts)}
@@ -748,7 +749,7 @@ function renderEarningsSurprise(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Earnings surprise against the live technical score for the same company.',
-      meta: scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results' }),
+      meta: scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() }),
     })}
     <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
       <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
@@ -843,7 +844,7 @@ function wireRefreshBar(ctx) {
   const label = ctx.root.querySelector('[data-refresh-label]');
   if (!btn) return;
 
-  const rows = technicals.forScope(ctx.scope, ctx.data?.portfolio?.holdings || []);
+  const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const tickers = rows.filter((s) => !s.tickerError).slice(0, 60).map((s) => s.company.ticker);
 
   btn.disabled = false;

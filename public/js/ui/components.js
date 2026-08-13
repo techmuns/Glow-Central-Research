@@ -45,10 +45,33 @@ export function sectionHeader({ title, description = '', meta = '' }) {
 }
 
 // "Universe · 25 companies" / "Portfolio · 12 holdings" chip — reflects the global scope toggle.
-export function scopeSummary({ scope, count, noun = 'companies' }) {
+/**
+ * The scope pill — and, in Portfolio scope, HOW MUCH OF THE BOOK THIS FEED ACTUALLY COVERS.
+ *
+ * The book is 142 company lines. No feed here carries all of them: 19 have no NSE symbol at all
+ * (unlisted holdings, warrant lines, BSE-only companies), and of the 123 that do, each feed covers
+ * a different subset — a company only appears in the Earnings Hub if it has reported, in Con-call
+ * if it has held a call, in Breakouts if it is in the NSE 500.
+ *
+ * So a bare "Portfolio · 96 companies" is a half-truth: it invites the reading that the book is 96
+ * long. The pill now carries the denominator and a `title` explaining the gap, on every tab at
+ * once, because the alternative is a reader scanning for a holding, not finding it, and having no
+ * way to tell whether it is absent from the feed or absent from the book.
+ */
+export function scopeSummary({ scope, count, noun = 'companies', book = null }) {
   const label = scope === 'portfolio' ? 'Portfolio' : 'Universe';
   const tone = scope === 'portfolio' ? 'accent' : 'brand';
-  return pill({ label: `${label} · ${formatNumber(count)} ${noun}`, tone });
+  if (scope !== 'portfolio' || !book?.count) return pill({ label: `${label} · ${formatNumber(count)} ${noun}`, tone });
+
+  const gap = book.count - count;
+  const why = [
+    `The book holds ${formatNumber(book.count)} companies; ${formatNumber(count)} of them appear on this feed.`,
+    book.uncovered ? `${formatNumber(book.uncovered)} carry no NSE symbol — unlisted holdings, warrant lines and BSE-only companies — so no feed here can ever show them.` : '',
+    gap > (book.uncovered || 0) ? 'The rest are listed but not on this particular feed yet.' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return pill({ label: `${label} · ${formatNumber(count)} of ${formatNumber(book.count)} ${noun}`, tone, title: why });
 }
 
 // Horizontal top-level tabs with an animated underline indicator (scaleX-style slide via translateX + width).
@@ -272,9 +295,9 @@ export function dataTable({ columns, rows, sortable = true, initialSort = null, 
 }
 
 // Small rounded label — status/tone chips (positive, negative, caution, neutral, brand, accent).
-export function pill({ label, tone = 'neutral' }) {
+export function pill({ label, tone = 'neutral', title = '' }) {
   const c = toneClasses(tone);
-  return `<span class="inline-flex items-center gap-1 rounded-full ${c.bg} ${c.text} ring-1 ${c.ring} px-2.5 py-1 text-xs font-semibold">${escapeHtml(label)}</span>`;
+  return `<span class="inline-flex items-center gap-1 rounded-full ${c.bg} ${c.text} ring-1 ${c.ring} px-2.5 py-1 text-xs font-semibold"${title ? ` title="${escapeHtml(title)}"` : ''}>${escapeHtml(label)}</span>`;
 }
 
 // Compact numeric/status tag for inline table use (smaller than `pill`).

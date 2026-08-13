@@ -20,6 +20,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as filed from '../data/institution-holdings.js';
+import * as coverage from '../data/coverage.js';
 
 const ATTRIBUTION = 'Share counts and holding percentages are exchange filings; the ₹ value is Trendlyne’s own derivation.';
 
@@ -32,7 +33,7 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
   // FUNDS in the scraper should need no UI change at all.
   const wanted = ctx.params?.fund;
   const fund = funds.find((f) => f.investorId === wanted) || funds[0];
-  const rows = filed.holdingsForScope(ctx.scope, ctx.data?.portfolio?.holdings || [], fund.holdings);
+  const rows = filed.holdingsForScope(ctx.scope, coverage.holdings(), fund.holdings);
   const label0 = fund.quarterLabels[0];
 
   // THE COLUMN SET IS TRENDLYNE'S, IN TRENDLYNE'S ORDER.
@@ -146,7 +147,7 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
     ${sectionHead({
       title: 'Institutions',
       description: `Indian shareholdings as filed with the exchanges, quarter by quarter. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${filedPill(fund, m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings' })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${filedPill(fund, m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings', book: coverage.meta() })}</div>`,
     })}
     ${funds.length > 1 ? fundPicker(funds, fund) : ''}
     <div class="mb-4 flex flex-wrap items-center gap-3">

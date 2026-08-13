@@ -22,6 +22,7 @@ import * as overview from '../portfolio/overview.js';
 import * as positionBy from '../portfolio/position-by.js';
 import * as transactions from '../portfolio/transactions.js';
 import * as drawdown from '../portfolio/drawdown.js';
+import * as coverage from '../data/coverage.js';
 
 // The nav model in one place: two workspaces, each an ordered list of tab modules.
 // Every module's `meta.subviews` supplies the rail/rail-dropdown items — nothing here is
@@ -144,12 +145,24 @@ function openCompanyTechnicals(ticker) {
     .catch((err) => console.error('[shell] could not open technicals for', ticker, err));
 }
 
+/**
+ * The global search index: the coverage universe plus everything the family holds.
+ *
+ * NINETEEN BOOK LINES HAVE NO TICKER — unlisted holdings, warrant lines, BSE-only companies. They
+ * still belong in this list, because a reader typing "Turtlemint" should find out that it is held
+ * and why nothing else on the dashboard mentions it. They are keyed by name and sorted by whatever
+ * label they have; an earlier version keyed and sorted on `ticker` alone, and a single null there
+ * threw inside `Array.sort`, took out `wireStaticHeader` with it, and left every tab empty.
+ */
 function buildSearchOptions() {
   const data = state.data;
-  const byTicker = new Map();
-  for (const c of data?.universe || []) byTicker.set(c.ticker, { ticker: c.ticker, name: c.name });
-  for (const h of data?.portfolio?.holdings || []) byTicker.set(h.ticker, { ticker: h.ticker, name: h.name });
-  return Array.from(byTicker.values()).sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const byKey = new Map();
+  for (const c of data?.universe || []) if (c.ticker) byKey.set(c.ticker, { ticker: c.ticker, name: c.name });
+  for (const h of coverage.holdings()) {
+    const key = h.ticker || `name:${h.name}`;
+    byKey.set(key, { ticker: h.ticker || null, name: h.name, held: true, reason: h.reason || null });
+  }
+  return Array.from(byKey.values()).sort((a, b) => String(a.ticker || a.name).localeCompare(String(b.ticker || b.name)));
 }
 
 function updatedChipHtml() {

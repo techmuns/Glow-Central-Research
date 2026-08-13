@@ -85,10 +85,12 @@ public/
     ui/               components.js (primitives), shell.js (chrome + tab registry)
     concall/          keyword-engine.js (runtime scanner), keyword-editor, deep-dive
     data/             per-feed loaders: technicals, earnings, concalls, universe
+                      coverage.js — the 142-company book the Portfolio scope filters by
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
     tabs/             earnings-hub, concall, public-chatter, breakouts, super-investors
     portfolio/        overview, position-by, transactions, drawdown
-  data/               portfolio.json, universe.json, technicals.json, mock/*.json
+  data/               portfolio-companies.json (the book), portfolio.json (the ledger),
+                      universe.json, technicals.json, mock/*.json
 worker/index.js       asset serving + /api/* slot
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
 docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
