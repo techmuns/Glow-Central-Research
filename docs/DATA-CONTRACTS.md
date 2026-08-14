@@ -318,7 +318,13 @@ An empty list returns `400`.
 {
   "generated_at": "2026-08-10T10:12:00.000Z",
   "source": "Munshot quote API (on-demand refresh)",
-  "ticker_count": 2,
+  "upstream": "https://fastapi.muns.io/stock-data",
+  "requested": 60,          // after dedupe and the cap
+  "ticker_count": 52,       // how many quotes are actually in `prices`
+  "cached_count": 40,       // of those, how many came off the edge without an upstream read
+  "partial": true,          // ticker_count < requested
+  "elapsed_ms": 25000,
+  "missing": [{ "ticker": "AAA", "reason": "timeout" }],
   "prices": {
     "TITAN": {
       "current": 5100, "open": 4980, "prevClose": 4941,
@@ -331,12 +337,76 @@ An empty list returns `400`.
 }
 ```
 
-Every price field is a number or `null`. A ticker whose quote failed is simply absent from
-`prices` — one bad symbol never fails the batch.
+Every price field is a number or `null`. A ticker whose quote failed is absent from `prices` and
+present in `missing` — one bad symbol never fails the batch.
 
-**Errors** — `405` non-POST · `400` bad body or no tickers · **`502` when zero quotes came back**.
-That last one matters: a refresh that fetched nothing is a failure, not an empty "fresh" feed, so
-the UI keeps the prices already on screen instead of blanking the display.
+### The upstream is cache-backed, and every setting on this route follows from that
+
+Measured against the live service, the same twenty tickers three times in a row at identical
+concurrency and timeout: **8/20, then 20/20, then 20/20 in a quarter of the wall time.** A ticker
+the upstream holds warm answers in about a second; a cold one takes **8–15s** and sometimes longer.
+
+That one fact explains a failure this route produced *reliably* until August 2026 — the tab read
+"Live quote refresh failed" on every click, for every reader:
+
+| What was wrong | Why it was fatal |
+| --- | --- |
+| Per-request timeout of **8s** | Below the cold path. A cold read could not win. |
+| **Nothing cached here** | So every refresh was a cold refresh. The slow path was the only path. |
+| All 60 fired in one `Promise.all` | Each started its own `AbortSignal.timeout` while the runtime ran ~6 connections, so the queued 54 spent their whole budget waiting for a socket. Measured: 24 fired together → **0 of 24**, all aborting at exactly 8s; the same names walked a few at a time → 24 of 24. |
+
+So the fix is not a better timeout. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` /
+`QUOTE_BUDGET_MS` in `worker/index.js` are **one setting, not four**, and they have to stay
+consistent: a batch of `MAX_TICKERS` needs `ceil(60 / POOL)` waves and a wave can cost a full
+timeout, so a pool too small cannot reach the end of the batch before the budget expires however
+healthy the upstream is. A first draft ran `POOL 6` against a 22s budget and returned **6 of 60,
+with 48 never started** — worse than the bug it replaced. Measured on disjoint cold batches of 60
+at a 25s budget: **POOL 12 → 48/60, POOL 20 → 31/60, POOL 30 → 46/60.** Higher fan-out buys no
+throughput because the upstream slows under it. **Re-measure before changing any of the four.**
+
+A timeout also ends that ticker's turn rather than retrying it: asking the same cold question
+again costs another 15s of a 25s budget while a dozen names have not been started at all. The
+attempt is not wasted — it leaves the ticker warming upstream, which is what makes "click again" a
+real instruction. Successive clicks converge: **52/60 → 56/60 → 56/60**, the last two mostly off
+the edge cache, the residual four being symbols the quote API genuinely does not carry.
+
+### A partial is a success; only nothing at all is a failure
+
+Some cold reads will overrun any budget — that is the upstream's shape, not something to tune
+away. Failing all sixty because eight were slow discards fifty-two good quotes. So `missing[]`
+names every ticker that did not land **and why**, and the UI splits those reasons into the two
+kinds that must never read alike:
+
+| Reason | Kind | What the tab says |
+| --- | --- | --- |
+| `timeout` `deadline` `unreachable` `http-5xx` | transient | *"N still warming upstream — click again to fill them in"* |
+| `http-4xx` `shape` `unparseable` `over-cap` | permanent | *"N not carried by the quote API"* |
+
+Telling a reader to retry something that cannot succeed is the same class of error as rendering a
+missing value as a zero — one message for two different states.
+
+**Failures are never cached.** A `200` quote is stored per ticker for `QUOTE_TTL_S`; nothing that
+failed is. Same rule as the Finology route: replaying a stored failure would undo the recovery the
+short TTL exists to allow.
+
+**Errors** — `405` non-POST · `400` bad body or no tickers · **`502` only when zero quotes came
+back**. A refresh that fetched nothing is a failure, not an empty "fresh" feed, so the UI keeps the
+prices already on screen instead of blanking the display. The 502 body carries `upstream`,
+`requested`, `elapsed_ms` and a `reasons` tally, and **the tab renders all of it** — a bare status
+code is unfalsifiable, which is the lesson `/api/chatter` already charged us for once.
+
+### What a live quote may and may not change on screen
+
+The quote lands in `company.liveQuote` and **`company.cmp` is left alone.** All 16 technical rules
+are computed from the daily OHLCV series — a 50 EMA, an RSI, a 52-week position — so overwriting
+the close those rules were scored against would sit a 14:32 price underneath a score that never
+read it, and the drill panel would explain a rule using a number that is not the one it used.
+
+So a refresh moves **the CMP column and nothing else**: the cell shows the live price, an indigo
+dot marks it as live, the dot's title names the EOD date the score still belongs to, and the note
+under the button ends *"CMP only; the 16-rule score stays EOD."* The day change beside it is
+recomputed from the quote's **own** previous close, or rendered as an em dash — carrying this
+morning's EOD percentage next to an intraday price would render two measurements as one.
 
 ---
 

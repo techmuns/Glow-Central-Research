@@ -792,6 +792,137 @@ ok('drill carries per-rule provenance', /source|calculation/i.test(drill));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count()) > 0);
+
+// ---------------------------------------------------------------------------------------
+// 4c. The live-quote refresh — every branch, stubbed.
+//
+// This route used to fail for every reader, every time, and the tab said only "Live quote refresh
+// failed". Two separate defects sat behind that sentence, and both are asserted here:
+//
+//   1. The Worker's per-request timeout was 8s while the quote upstream's COLD path measures
+//      8-15s, and nothing was cached, so every refresh took the cold path. Sixty fetches were
+//      also fired at once, each starting its own timer while the runtime ran about six at a
+//      time, so the queued ones expired without ever being sent.
+//   2. Even a SUCCESSFUL refresh changed nothing on screen. The payload was fetched and dropped;
+//      only the note was rewritten. A button called "Refresh prices" moved no price.
+//
+// The upstream is stubbed rather than called: a verification run must not depend on somebody
+// else's live service, and half of what is checked here (a partial, a 502, an absent route) is
+// unreachable on demand against a healthy one.
+// ---------------------------------------------------------------------------------------
+console.log('\n— breakouts: live quotes —');
+let lpReply = null;
+const lpSeen = [];
+await page.route('**/api/live-prices', async (route) => {
+  lpSeen.push(JSON.parse(route.request().postData() || '{}'));
+  await route.fulfill({ status: lpReply.status, contentType: 'application/json', body: JSON.stringify(lpReply.body) });
+});
+// The stubs below deliberately answer 404 and 502, and Chromium logs both as console errors.
+// Remember where the log stood so exactly that noise can be dropped afterwards — the console
+// check at the end of this run has to keep meaning something.
+const lpErrMark = errors.length;
+
+const lpNote = () => page.locator('[data-refresh-note]').innerText();
+const lpCell = async (ticker) =>
+  page.evaluate((k) => {
+    const tr = document.querySelector(`tbody[data-table-body] tr[data-row-key="${k}"]`);
+    const td = [...(tr?.querySelectorAll('td') || [])].find((d) => d.innerText.includes('₹'));
+    return { text: td?.innerText.trim() || '', html: td?.innerHTML || '', score: tr?.querySelector('td:nth-child(3)')?.innerText.trim() || '' };
+  }, ticker);
+const lpRefresh = async () => {
+  await page.locator('[data-refresh-btn]').click();
+  await page.waitForFunction(() => !/Refreshing/.test(document.querySelector('[data-refresh-label]')?.textContent || ''), null, { timeout: 20000 });
+  await page.waitForTimeout(200);
+};
+
+await go('/#/research/breakouts/technical-scanner?scope=universe', 2500);
+const lpKey = await page.evaluate(() => document.querySelector('tbody[data-table-body] tr[data-row-key]')?.dataset.rowKey);
+const lpBefore = await lpCell(lpKey);
+
+// (a) a clean success has to reach the table
+lpReply = { status: 200, body: { generated_at: new Date().toISOString(), source: 'Munshot quote API (on-demand refresh)',
+  upstream: 'https://fastapi.muns.io/stock-data', requested: 2, ticker_count: 1, cached_count: 0, partial: false, missing: [],
+  prices: { [lpKey]: { current: 9999.5, prevClose: 9000 } } } };
+await lpRefresh();
+const lpAfter = await lpCell(lpKey);
+ok('the refresh asks for the tickers on screen', lpSeen[0]?.tickers?.includes(lpKey), `${lpSeen[0]?.tickers?.length} tickers`);
+ok('a live quote REACHES the CMP cell', lpAfter.text.includes('9,999.5'), `"${lpBefore.text}" -> "${lpAfter.text}"`);
+ok('...marked as live rather than silently swapped', /bg-indigo-500/.test(lpAfter.html));
+ok('...saying the score underneath is still EOD', /16-rule score is still EOD/.test(lpAfter.html));
+// The quote's own previous close, not this morning's EOD percentage carried over beside a
+// 14:32 price — that would be two measurements rendered as one.
+ok('...with the day change recomputed from the quote\'s own previous close', lpAfter.text.includes('11.11%'), lpAfter.text);
+// The 16 rules are computed from the daily OHLCV series. Rescoring them off one live print would
+// put a number under a score that never read it.
+ok('...and the 16-rule score NOT rescored from a live print', lpAfter.score === lpBefore.score, `${lpBefore.score} -> ${lpAfter.score}`);
+
+// (b) a partial is a success, and a name that can never arrive must not be sold as one that can
+lpReply = { status: 200, body: { generated_at: new Date().toISOString(), requested: 10, ticker_count: 1, partial: true,
+  missing: [{ ticker: 'AAA', reason: 'timeout' }, { ticker: 'BBB', reason: 'deadline' }, { ticker: 'CCC', reason: 'http-404' }],
+  prices: { [lpKey]: { current: 8888, prevClose: 8000 } } } };
+await lpRefresh();
+const lpPartial = await lpNote();
+ok('a partial refresh says how many of how many', /1 of 10 live quotes/.test(lpPartial), lpPartial);
+ok('...a transient miss invites another click', /2 still warming upstream — click again/.test(lpPartial), lpPartial);
+ok('...a permanent one does NOT, because no click will fix it', /1 not carried by the quote API/.test(lpPartial), lpPartial);
+ok('...and the missing names are on the control itself', /timeout: AAA/.test((await page.getAttribute('[data-refresh-btn]', 'title')) || ''));
+
+// A name we never asked for is a third outcome again — blaming the upstream for our own request
+// cap would send anyone diagnosing it to the wrong service.
+lpReply = { status: 200, body: { generated_at: new Date().toISOString(), requested: 62, ticker_count: 1, partial: true,
+  missing: [{ ticker: 'DDD', reason: 'over-cap' }, { ticker: 'EEE', reason: 'over-cap' }],
+  prices: { [lpKey]: { current: 7777, prevClose: 7000 } } } };
+await lpRefresh();
+ok('...and a name beyond the request cap is blamed on the cap, not on the upstream',
+  /2 beyond the 60-name request cap/.test(await lpNote()) && !/not carried/.test(await lpNote()), await lpNote());
+
+// (c) a real failure has to be diagnosable from its own artefact — the lesson the chatter feed
+//     already paid for. "Failed" naming neither the address asked nor the reason is unfalsifiable.
+lpReply = { status: 502, body: { error: 'no quotes retrieved', upstream: 'https://fastapi.muns.io/stock-data',
+  requested: 60, reasons: { timeout: 60 }, missing: [] } };
+await lpRefresh();
+const lpFail = await lpNote();
+ok('a failed refresh names the endpoint it asked', /\/api\/live-prices/.test(lpFail), lpFail);
+ok('...the status, the upstream and the upstream\'s own reason', /502/.test(lpFail) && /fastapi\.muns\.io/.test(lpFail) && /60× timeout/.test(lpFail), lpFail);
+ok('...and says the EOD data below is untouched', /EOD data below is unchanged/.test(lpFail), lpFail);
+ok('...and leaves the button usable', !(await page.locator('[data-refresh-btn]').isDisabled()));
+
+// (d) no Worker at all is a different state from a broken one, and says which command fixes it
+lpReply = { status: 404, body: { error: 'Not implemented' } };
+await lpRefresh();
+ok('an absent route says the Worker is missing, not that quotes failed', /need the Worker/.test(await lpNote()), await lpNote());
+ok('...and stops offering the button', await page.locator('[data-refresh-btn]').isDisabled());
+
+// (e) a live quote landing must not cost the reader the view they built
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2500);
+await page.locator('[data-table-search]').fill('bank');
+await page.waitForTimeout(400);
+await page.locator('thead[data-table-head] th[data-sort="CMP"]').click();
+await page.waitForTimeout(300);
+const lpViewBefore = await page.evaluate(() => ({ q: document.querySelector('[data-table-search]').value,
+  rows: [...document.querySelectorAll('tbody[data-table-body] tr[data-row-key]')].map((t) => t.dataset.rowKey) }));
+const lpTop = lpViewBefore.rows[0];
+lpReply = { status: 200, body: { generated_at: new Date().toISOString(), requested: 1, ticker_count: 1, partial: false, missing: [],
+  prices: { [lpTop]: { current: 12345.6, prevClose: 12000 } } } };
+await lpRefresh();
+const lpViewAfter = await page.evaluate(() => ({ q: document.querySelector('[data-table-search]').value,
+  rows: [...document.querySelectorAll('tbody[data-table-body] tr[data-row-key]')].map((t) => t.dataset.rowKey) }));
+ok('a refresh keeps the reader\'s search and filtered row set',
+  lpViewAfter.q === 'bank' && JSON.stringify(lpViewAfter.rows) === JSON.stringify(lpViewBefore.rows),
+  `${lpViewBefore.rows.length} -> ${lpViewAfter.rows.length} rows`);
+ok('...while still updating the cell inside it', (await lpCell(lpTop)).text.includes('12,345.6'));
+await page.locator('thead[data-table-head] th[data-sort="CMP"]').click();
+await page.waitForTimeout(200);
+await page.locator('thead[data-table-head] th[data-sort="CMP"]').click();
+await page.waitForTimeout(300);
+ok('...and a later sort orders by the LIVE price, not the stale close',
+  (await page.evaluate(() => document.querySelector('tbody[data-table-body] tr[data-row-key]')?.dataset.rowKey)) === lpTop);
+
+await page.unroute('**/api/live-prices');
+// Drop only the deliberate 404/502 the stubs above produced.
+errors.splice(lpErrMark, errors.length - lpErrMark, ...errors.slice(lpErrMark).filter((e) => !/status of (404|502)/.test(e)));
+
 await go('/#/research/earnings-hub?scope=universe', 1800);
 
 // ---------------------------------------------------------------------------------------

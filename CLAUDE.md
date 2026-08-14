@@ -219,6 +219,7 @@ Conventions:
 | `openDrill(config)` | right-slide detail panel (singleton), 480px. For one row's detail. |
 | `openWorkspace(config)` | full-screen overlay (singleton), `max-w-[1200px]`, with its own tab strip. For analysis that needs room — see below. |
 | `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
+| `table.updateRows(keys)` | rebuild named rows **in place** after their data changed, leaving the row set — and so the reader's search, filters, watchlist and sort — untouched. For data landing on a mounted table: a live quote arriving over an EOD column is the reference case. Not the same as a repaint: `repaint`'s fast path *moves* existing `<tr>` nodes, so invalidating the markup cache alone changes nothing on screen. |
 | `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. |
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
@@ -1045,6 +1046,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) — its universe is the NSE-500 export **plus the book**, deliberately; read *The universe is the index PLUS the book* in `docs/DATA-CONTRACTS.md` before narrowing it |
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
+| Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |

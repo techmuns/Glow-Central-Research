@@ -535,6 +535,10 @@ export function scoreTable(config) {
 
   const initialList = visibleRows();
 
+  // Installed by wire(). Until then `updateRows` is a no-op that reports nothing changed, which
+  // is the truth for an unmounted table.
+  let updateRows = () => 0;
+
   const html = `
     <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
@@ -621,6 +625,42 @@ export function scoreTable(config) {
       watchCount.textContent = String(watchlist.size());
     }
 
+    // Rebuild named rows in place, leaving the row SET — and so the reader's search, filters,
+    // watchlist and sort — completely untouched. For data that lands on top of a mounted table:
+    // a live quote arriving over an EOD column is the reference case.
+    //
+    // This cannot be done by dropping the markup cache and repainting. `repaint`'s fast path
+    // MOVES the existing <tr> nodes rather than rebuilding them (that is what makes a 535-row
+    // sort ~30ms), so an invalidated cache entry is never consulted and not one pixel changes.
+    // Rebuilding the row and swapping the node is both correct and cheaper than a full repaint.
+    updateRows = (keys) => {
+      const wanted = new Set([...keys].map(String));
+      if (!wanted.size) return 0;
+      const watched = loadWatchlist();
+      // Both indexes are built ONCE, not once per key. Sixty keys scanned against six hundred
+      // rows and six hundred <tr> nodes is the sort of quadratic that this table's whole design
+      // exists to avoid.
+      const byKey = new Map(rows.map((r) => [String(key(r)), r]));
+      const trByKey = new Map();
+      for (const node of body.children) if (node.dataset?.rowKey) trByKey.set(node.dataset.rowKey, node);
+      const scratch = document.createElement('tbody');
+      let touched = 0;
+      for (const slug of wanted) {
+        const row = byKey.get(slug);
+        if (!row) continue;
+        const markup = rowHtml(row, slug, watched.has(slug));
+        rowHtmlCache.set(slug, markup); // so a later sort reorders the NEW markup, not the old
+        const tr = trByKey.get(slug);
+        if (!tr) continue; // filtered out of view — the cache above still has it right
+        scratch.innerHTML = markup;
+        if (scratch.firstElementChild) {
+          tr.replaceWith(scratch.firstElementChild);
+          touched++;
+        }
+      }
+      return touched;
+    };
+
     // Delegated: header sort.
     head.addEventListener('click', (e) => {
       const th = e.target.closest('th[data-sort]');
@@ -688,7 +728,7 @@ export function scoreTable(config) {
     return () => {};
   }
 
-  return { html, wire, view };
+  return { html, wire, view, updateRows: (keys) => updateRows(keys) };
 }
 
 // ---------------------------------------------------------------------------------------

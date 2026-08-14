@@ -116,12 +116,24 @@ function atrCell(v) {
   if (v == null) return '—';
   return toneSpan(`${num(v, 2)}%`, v < 2.5 ? 'pos' : v < 4 ? 'warn' : 'neg');
 }
+// CMP is the one cell a live quote may replace, and it is marked when it has been.
+//
+// The live print is kept in `company.liveQuote` and the EOD `cmp` is left ALONE. Every one of the
+// 16 rules is computed from the daily OHLCV series — a 50 EMA, an RSI, a 52-week position — so
+// overwriting the close that those rules were scored against would put a 14:32 price underneath a
+// score that never saw it, and the drill panel would explain a rule using a number that is not the
+// one the rule read. The score stays EOD, says so, and only the price moves.
 function cmpCell(c) {
-  if (c.cmp == null) return '—';
-  const chg = c.pct_change_today;
-  return `<span class="font-semibold text-slate-800">₹${Number(c.cmp).toLocaleString('en-IN')}</span>${
-    chg == null ? '' : ` <span class="text-[11px] ${chg > 0 ? 'text-emerald-600' : chg < 0 ? 'text-rose-600' : 'text-slate-400'}">${chg > 0 ? '+' : ''}${chg}%</span>`
-  }`;
+  const live = c.liveQuote || null;
+  const price = live ? live.current : c.cmp;
+  if (price == null) return '—';
+  const chg = live ? live.changePct : c.pct_change_today;
+  const dot = live
+    ? ` <span class="inline-block h-1.5 w-1.5 rounded-full bg-indigo-500 align-middle" title="Live quote ${escapeHtml(live.atLabel)} — the 16-rule score is still EOD, from the close of ${escapeHtml(live.eodLabel)}"></span>`
+    : '';
+  return `<span class="font-semibold text-slate-800">₹${Number(price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>${
+    chg == null ? '' : ` <span class="text-[11px] ${chg > 0 ? 'text-emerald-600' : chg < 0 ? 'text-rose-600' : 'text-slate-400'}">${chg > 0 ? '+' : ''}${Number(chg).toFixed(2)}%</span>`
+  }${dot}`;
 }
 
 // Every scored row feeds the same score + signals shape into scoreTable.
@@ -257,7 +269,9 @@ function renderScanner(ctx, rows) {
     showSignals: true,
     signals: signalsOf,
     columns: [
-      { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => s.company.cmp ?? -1 },
+      // Sort on what the cell SHOWS. Once a live quote is on screen, sorting by the EOD close
+      // would order the column by numbers the reader can no longer see.
+      { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => s.company.liveQuote?.current ?? s.company.cmp ?? -1 },
       { label: 'RSI', get: (s) => rsiCell(s.company.rsi14), html: true, align: 'right', sortValue: (s) => s.company.rsi14 ?? -1 },
       { label: 'ADX', get: (s) => adxCell(s.company.adx14), html: true, align: 'right', sortValue: (s) => s.company.adx14 ?? -1 },
       { label: '6M RS', get: (s) => rsCell(s.company.relative_strength_6m), html: true, align: 'right', sortValue: (s) => s.company.relative_strength_6m ?? -99 },
@@ -306,7 +320,7 @@ function renderScanner(ctx, rows) {
   stats.wire(ctx.root);
   cards.wire(ctx.root);
   table.wire(ctx.root);
-  wireRefreshBar(ctx);
+  wireRefreshBar(ctx, table);
 
   // Replace the generic help handler with the full 16-rule modal.
   const helpBtn = ctx.root.querySelector('[data-stat-help]');
@@ -834,60 +848,218 @@ function refreshBar() {
     </div>`;
 }
 
+const LIVE_PRICES_ENDPOINT = '/api/live-prices';
+// The route is absent from a plain static preview, and that is a different thing from a broken one.
+const NO_ENDPOINT_STATUSES = new Set([404, 405, 501]);
+// Above the Worker's own 25s budget (QUOTE_BUDGET_MS), so a slow-but-working refresh is never cut
+// off from this end. The Worker returns a partial rather than hanging, so this only catches a
+// request that never lands at all — and if that budget is ever raised, raise this with it.
+const CLIENT_TIMEOUT_MS = 32000;
+
+// In flight, so a second click cannot race the first, and so navigating away cancels the request
+// instead of leaving it to resolve against a table that no longer exists.
+let inFlight = null;
+
 // The /api/live-prices route only exists when the site is served by the Cloudflare Worker.
 // We do NOT probe for it on mount — an unsolicited request that 404s in a static preview is
 // just console noise. The button starts enabled; if the first click finds no endpoint we
 // disable it and explain, so the failure is stated once and never repeated.
-function wireRefreshBar(ctx) {
+function wireRefreshBar(ctx, table) {
   const btn = ctx.root.querySelector('[data-refresh-btn]');
   const note = ctx.root.querySelector('[data-refresh-note]');
   const label = ctx.root.querySelector('[data-refresh-label]');
   if (!btn) return;
 
   const rows = technicals.forScope(ctx.scope, coverage.holdings());
-  const tickers = rows.filter((s) => !s.tickerError).slice(0, 60).map((s) => s.company.ticker);
+  const scored = rows.filter((s) => !s.tickerError);
+  const byTicker = new Map(scored.map((s) => [s.company.ticker, s.company]));
+  const tickers = scored.slice(0, 60).map((s) => s.company.ticker);
 
   btn.disabled = false;
   btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
   btn.title = `Fetch live quotes for the top ${tickers.length} names on screen`;
   note.textContent = `EOD data below. Live quotes for the top ${tickers.length} names on demand.`;
-  btn.addEventListener('click', () => doRefresh(btn, note, label, tickers));
+  btn.addEventListener('click', () => doRefresh({ btn, note, label, tickers, byTicker, table }));
 }
 
-const NO_ENDPOINT_STATUSES = new Set([404, 405, 501]);
-
-async function doRefresh(btn, note, label, tickers) {
+/**
+ * Fetch live quotes and PUT THEM ON THE TABLE.
+ *
+ * The previous version fetched them and dropped them on the floor — it rewrote the note and
+ * nothing else, so a button labelled "Refresh prices" left every price exactly where it was.
+ * A control that reports success without changing what it names is worse than one that fails.
+ */
+async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
+  if (inFlight) return; // a second click during a slow refresh is not a second request
+  const ctl = new AbortController();
+  inFlight = ctl;
+  const timer = setTimeout(() => ctl.abort(new Error('client timeout')), CLIENT_TIMEOUT_MS);
   btn.disabled = true;
   label.textContent = 'Refreshing…';
+
   try {
-    const res = await fetch('/api/live-prices', {
+    const res = await fetch(LIVE_PRICES_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ tickers }),
+      signal: ctl.signal,
     });
+
     if (NO_ENDPOINT_STATUSES.has(res.status)) {
       // Static preview — no Worker. Say so once and stop offering the button.
       btn.title = 'Live quotes need the Cloudflare Worker (npx wrangler dev). Not available in a static preview.';
       note.textContent = 'Live quotes need the Worker — run `npx wrangler dev`. The EOD data below is unaffected.';
-      label.textContent = 'Refresh prices';
       return; // stays disabled
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const payload = await res.json();
-    const n = payload?.ticker_count ?? Object.keys(payload?.prices || {}).length;
-    note.textContent = `${n} live quotes · ${payload?.source || 'quote API'} · ${formatRelativeTime(payload.generated_at)}`;
+
+    // Read the body BEFORE deciding this is a failure. The Worker puts the diagnosis in there —
+    // which upstream it asked and what each missing name did — and a bare status code throws all
+    // of it away. A failure state that cannot be diagnosed from its own artefact is half a
+    // failure state; that lesson has already been paid for once on the chatter feed.
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw httpError(res.status, payload);
+
+    const applied = applyQuotes(payload?.prices, byTicker, payload?.generated_at, table);
+    note.textContent = resultNote(payload, applied);
+    note.className = 'text-xs text-slate-500';
+    // The names, on the control itself. The summary line has to stay short, and "8 still warming"
+    // is not something a reader can check against the table without being told which eight.
+    btn.title = missingTitle(payload) || `Fetch live quotes for the top ${tickers.length} names on screen`;
     btn.disabled = false;
   } catch (err) {
+    if (ctl.signal.aborted && !isTimeout(err)) return; // we navigated away; the tab is gone
     console.warn('[breakouts] live price refresh failed', err);
-    note.textContent = 'Live quote refresh failed — the EOD data below is unchanged.';
+    note.textContent = failureNote(err);
+    note.className = 'text-xs text-amber-700';
     btn.disabled = false;
   } finally {
+    clearTimeout(timer);
+    if (inFlight === ctl) inFlight = null;
     label.textContent = 'Refresh prices';
   }
+}
+
+function isTimeout(err) {
+  return /timeout/i.test(String(err?.message || ''));
+}
+
+function httpError(status, payload) {
+  const err = new Error(payload?.error || `HTTP ${status}`);
+  err.status = status;
+  err.reasons = payload?.reasons || null;
+  err.upstream = payload?.upstream || null;
+  return err;
+}
+
+/**
+ * Fold the quotes into the rows and repaint just those cells.
+ *
+ * `company.cmp` is NOT touched — see cmpCell. The day change is recomputed from the quote's own
+ * previous close rather than carried over from the EOD row: pairing a 14:32 price with this
+ * morning's percentage would be two different measurements rendered as one.
+ */
+function applyQuotes(prices, byTicker, generatedAt, table) {
+  if (!prices || typeof prices !== 'object') return [];
+  const at = generatedAt ? new Date(generatedAt) : new Date();
+  const atLabel = Number.isNaN(at.getTime()) ? 'just now' : at.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const eodLabel = eodDateLabel();
+  const touched = [];
+
+  for (const [ticker, quote] of Object.entries(prices)) {
+    const company = byTicker.get(ticker);
+    if (!company || !quote || typeof quote.current !== 'number') continue;
+    const prev = typeof quote.prevClose === 'number' && quote.prevClose > 0 ? quote.prevClose : null;
+    company.liveQuote = {
+      current: quote.current,
+      // Null, not a stale carry-over, when there is no previous close to measure against. An
+      // em dash beside a live price is honest; this morning's percentage beside it is not.
+      changePct: prev == null ? null : ((quote.current - prev) / prev) * 100,
+      atLabel,
+      eodLabel,
+    };
+    touched.push(ticker);
+  }
+
+  if (touched.length && table?.updateRows) table.updateRows(touched);
+  return touched;
+}
+
+function eodDateLabel() {
+  const m = technicals.meta();
+  const d = m?.generated_at ? new Date(m.generated_at) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'the last EOD run';
+}
+
+// A name that timed out is warm upstream a moment later, so clicking again really does fetch it.
+// A name the quote API does not carry will 404 forever, and no number of clicks changes that.
+// Telling the reader to retry something that cannot succeed is the same failure as rendering a
+// missing value as a zero: two different states, one indistinguishable message.
+const TRANSIENT_MISS = /^(timeout|deadline|unreachable|http-5\d\d)$/;
+
+/**
+ * What the refresh actually achieved, including what it did not — and, for what it did not,
+ * whether that is worth waiting for.
+ */
+function resultNote(payload, applied) {
+  const requested = payload?.requested ?? applied.length;
+  const missing = Array.isArray(payload?.missing) ? payload.missing : [];
+  const when = payload?.generated_at ? formatRelativeTime(payload.generated_at) : 'just now';
+
+  if (!missing.length) return `${applied.length} live quotes · ${when} · CMP only; the 16-rule score stays EOD.`;
+
+  // Three outcomes, not two: a name that was never asked for is a third thing again, and saying
+  // it is "not carried by the quote API" would blame the upstream for our own cap.
+  const overCap = missing.filter((m) => m.reason === 'over-cap').length;
+  const asked = missing.filter((m) => m.reason !== 'over-cap');
+  const retryable = asked.filter((m) => TRANSIENT_MISS.test(m.reason)).length;
+  const permanent = asked.length - retryable;
+  const tail = [
+    retryable ? `${retryable} still warming upstream — click again to fill them in` : '',
+    permanent ? `${permanent} not carried by the quote API` : '',
+    overCap ? `${overCap} beyond the 60-name request cap` : '',
+  ].filter(Boolean);
+
+  return `${applied.length} of ${requested} live quotes · ${tail.join(' · ')} · CMP only; the 16-rule score stays EOD.`;
+}
+
+/** Which names did not land, and why, grouped by reason. Empty string when everything did. */
+function missingTitle(payload) {
+  const missing = Array.isArray(payload?.missing) ? payload.missing : [];
+  if (!missing.length) return '';
+  const byReason = new Map();
+  for (const m of missing) {
+    if (!byReason.has(m.reason)) byReason.set(m.reason, []);
+    byReason.get(m.reason).push(m.ticker);
+  }
+  return [...byReason.entries()].map(([reason, names]) => `${reason}: ${names.join(', ')}`).join('\n');
+}
+
+/** Name the endpoint, the status and the upstream's own reasons. "Failed" on its own is unusable. */
+function failureNote(err) {
+  if (isTimeout(err)) {
+    return `Live quotes timed out after ${CLIENT_TIMEOUT_MS / 1000}s (${LIVE_PRICES_ENDPOINT}) — the EOD data below is unchanged.`;
+  }
+  const bits = [];
+  if (err?.status) bits.push(`HTTP ${err.status}`);
+  if (err?.message && !/^HTTP /.test(err.message)) bits.push(err.message);
+  if (err?.upstream) bits.push(`upstream ${err.upstream}`);
+  if (err?.reasons && Object.keys(err.reasons).length) {
+    bits.push(
+      Object.entries(err.reasons)
+        .map(([reason, n]) => `${n}× ${reason}`)
+        .join(', ')
+    );
+  }
+  const detail = bits.length ? ` (${bits.join(' · ')})` : '';
+  return `Live quote refresh failed at ${LIVE_PRICES_ENDPOINT}${detail} — the EOD data below is unchanged.`;
 }
 
 export function destroy() {
   // Invalidate any in-flight load so it can't paint after we're gone. The parsed+scored
   // technicals cache is intentionally kept — that's what makes tab re-entry instant.
   renderToken++;
+  // A quote refresh can take twenty seconds. Abandoning one mid-flight would otherwise leave it
+  // to resolve against a table that has been torn down, and to write its note into detached DOM.
+  inFlight?.abort();
+  inFlight = null;
 }

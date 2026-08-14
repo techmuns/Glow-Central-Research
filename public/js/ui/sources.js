@@ -97,8 +97,8 @@ export const SOURCE_GROUPS = [
       {
         name: 'Munshot quote API — live prices',
         url: 'https://muns.io',
-        feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo.',
-        cadence: 'On demand · needs the Cloudflare Worker',
+        feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo. It moves the CMP column ONLY — the 16-rule technicals score stays as computed from the EOD series, and a live cell is marked with an indigo dot saying so. The upstream is cache-backed, so a cold name can overrun the request budget: the response names what did not land and whether another click would fetch it.',
+        cadence: 'On demand · quotes held 45s at the edge · needs the Cloudflare Worker',
         status: 'live',
         file: 'worker/index.js · POST /api/live-prices',
       },

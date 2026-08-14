@@ -30,8 +30,39 @@ import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mj
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
-const REQ_TIMEOUT_MS = 8000;
 const MAX_TICKERS = 60;
+
+// THE QUOTE UPSTREAM IS CACHE-BACKED, AND EVERY NUMBER BELOW COMES FROM MEASURING THAT.
+// The same twenty tickers, the same concurrency, the same timeout, three times in a row:
+// 8/20 with a p50 of 15s, then 20/20 with a p50 of 3.3s, then 20/20 with a p50 of 1.1s.
+// A ticker they have warm answers in about a second; a cold one takes 8-15s and sometimes
+// longer. That single fact explains the failure this route used to produce reliably:
+//
+//   - REQ_TIMEOUT_MS was 8000, which sits UNDER the cold path. Cold reads could not win.
+//   - Nothing was cached here, so every refresh was a cold refresh. The slow path was not
+//     the unlucky case, it was the only case.
+//   - All 60 fetches were fired in one Promise.all, each with its own AbortSignal.timeout.
+//     The runtime runs about six connections at a time, so the other fifty-four burned their
+//     entire budget waiting for a socket. Measured: 24 fired together returned 0 of 24, all
+//     aborting at exactly 8s, while the same tickers walked a few at a time returned 24 of 24.
+//
+// So the fix is not a better timeout. It is: cache each ticker here so the expensive read is
+// paid once for every reader rather than once per click, give the cold path room to finish,
+// bound the fan-out so a timer cannot expire in a queue, and — because some cold reads will
+// still overrun — return what landed and NAME what did not, instead of failing the batch.
+//
+// The four constants below are ONE SETTING, NOT FOUR, and they have to stay consistent: a batch of MAX_TICKERS
+// needs ceil(60 / POOL) waves, and a wave can cost a full TIMEOUT, so a POOL too small simply
+// cannot reach the end of the batch before the BUDGET expires however healthy the upstream is.
+// A first draft ran POOL 6 against a 22s budget and returned 6 of 60 with 48 never started —
+// worse than the bug it replaced. Measured on disjoint cold batches of 60, at a 25s budget:
+// POOL 12 -> 48/60, POOL 20 -> 31/60, POOL 30 -> 46/60. Higher fan-out does not buy throughput
+// because the upstream slows under it, so 12 is both the best result and the politest of the three.
+const QUOTE_TTL_S = 45; // one quote at the edge. Long enough to serve a burst, short enough to be a quote.
+const QUOTE_TIMEOUT_MS = 15000; // per attempt, above the measured cold path
+const QUOTE_POOL = 12; // in flight at once
+const QUOTE_BUDGET_MS = 25000; // whole-route deadline; whatever has landed by then is returned
+const QUOTE_ATTEMPTS = 2;
 
 // How long the edge holds one upstream response. This is the whole reason the browser polls us
 // rather than Moneycontrol directly: a thousand readers on the tab cost Moneycontrol ONE fetch
@@ -55,7 +86,7 @@ export default {
       return preflight();
     }
     if (url.pathname === '/api/live-prices') {
-      return handleLivePrices(request);
+      return handleLivePrices(request, env, ctx);
     }
     if (url.pathname === '/api/earnings') {
       return handleEarnings(request, env, ctx);
@@ -624,7 +655,22 @@ async function loadSnapshot(env, request) {
   }
 }
 
-async function handleLivePrices(request) {
+/**
+ * POST /api/live-prices — on-demand intraday quotes for the Breakouts tab.
+ *
+ * A PARTIAL RESULT IS A SUCCESS, AND IT SAYS WHICH NAMES IT IS MISSING.
+ * Some cold reads will overrun the budget however it is set — that is the upstream's shape, not
+ * a bug to tune away. Failing all sixty because eight were slow throws away fifty-two good quotes
+ * and tells the reader nothing. So the response carries `requested`, `ticker_count` and a
+ * `missing[]` naming every ticker that did not land AND why, and the caller renders that instead
+ * of a bare "failed". The names that did land are also now warm at the edge and upstream, so
+ * clicking again genuinely completes the set — which is a thing the UI can only offer honestly
+ * because the response says what is outstanding.
+ *
+ * Only a refresh that retrieved NOTHING is an error. That distinction is the same one the rest of
+ * this dashboard makes everywhere: an empty result and a failed read must never render alike.
+ */
+async function handleLivePrices(request, env, ctx) {
   if (request.method !== 'POST') return json({ error: 'POST only' }, 405);
 
   let tickers;
@@ -634,57 +680,205 @@ async function handleLivePrices(request) {
   } catch {
     return json({ error: 'bad request body' }, 400);
   }
-  tickers = [...new Set(tickers.map((t) => String(t || '').trim().toUpperCase()).filter(Boolean))].slice(0, MAX_TICKERS);
-  if (!tickers.length) return json({ error: 'no tickers' }, 400);
+  const requested = [...new Set(tickers.map((t) => String(t || '').trim().toUpperCase()).filter(Boolean))];
+  const capped = requested.slice(0, MAX_TICKERS);
+  if (!capped.length) return json({ error: 'no tickers' }, 400);
 
+  const started = Date.now();
+  const deadline = started + QUOTE_BUDGET_MS;
   const prices = {};
-  let ok = 0;
+  const missing = [];
+
+  // 1. The edge first. These are local lookups, not subrequests, so asking for all of them at
+  //    once costs nothing — and on a second click within the TTL this answers the whole batch
+  //    without touching the upstream at all.
+  const cache = await openCache();
+  const cold = [];
   await Promise.all(
-    tickers.map(async (t) => {
-      const q = await fetchQuote(t);
-      if (q) {
-        prices[t] = q;
-        ok++;
-      }
+    capped.map(async (t) => {
+      const hit = await cacheGetQuote(cache, t);
+      if (hit) prices[t] = hit;
+      else cold.push(t);
     })
   );
+  const fromCache = capped.length - cold.length;
 
-  // A refresh that fetched nothing is a failure, not an empty "fresh" feed — the caller keeps
-  // its last-known prices rather than blanking the display.
-  if (!ok) return json({ error: 'no quotes retrieved' }, 502);
+  // 2. Everything still cold, a few at a time, each timer starting when its request does.
+  await pooled(cold, QUOTE_POOL, async (ticker) => {
+    if (Date.now() >= deadline) {
+      missing.push({ ticker, reason: 'deadline' });
+      return;
+    }
+    const res = await fetchQuote(ticker, deadline);
+    if (res.quote) {
+      prices[ticker] = res.quote;
+      // Written back so the next reader — and the next click — gets it for free. `waitUntil`
+      // keeps the write off the response's critical path.
+      ctx?.waitUntil?.(cachePutQuote(cache, ticker, res.quote));
+    } else {
+      missing.push({ ticker, reason: res.reason });
+    }
+  });
+
+  for (const t of requested.slice(MAX_TICKERS)) missing.push({ ticker: t, reason: 'over-cap' });
+
+  const count = Object.keys(prices).length;
+  const elapsedMs = Date.now() - started;
+
+  // A refresh that fetched nothing is a failure, not an empty "fresh" feed — the caller keeps its
+  // last-known prices rather than blanking the display. It carries the upstream it asked and what
+  // went wrong: a bare status code is unfalsifiable, and diagnosing this route once already cost
+  // an investigation that a named reason would have ended immediately.
+  if (!count) {
+    return json(
+      {
+        error: 'no quotes retrieved',
+        upstream: MUNSHOT_API,
+        requested: capped.length,
+        elapsed_ms: elapsedMs,
+        reasons: tallyReasons(missing),
+        missing,
+      },
+      502
+    );
+  }
 
   return json(
     {
       generated_at: new Date().toISOString(),
       source: 'Munshot quote API (on-demand refresh)',
-      ticker_count: ok,
+      upstream: MUNSHOT_API,
+      // The FULL deduped ask, not the capped slice, so `ticker_count + missing.length` always
+      // reconciles against it. Reporting the cap as the ask would hide the over-cap names inside
+      // a total that never counted them — a silent truncation wearing an honest-looking number.
+      requested: requested.length,
+      ticker_count: count,
+      cached_count: fromCache,
+      partial: count < capped.length,
+      elapsed_ms: elapsedMs,
+      missing,
       prices,
     },
     200
   );
 }
 
-// One quote from Munshot. Returns null on any error so a single bad ticker never fails the
-// whole refresh.
-async function fetchQuote(ticker) {
-  for (let attempt = 0; attempt < 2; attempt++) {
+/**
+ * Run `job` over `items` with at most `limit` in flight.
+ *
+ * The point is not politeness. `Promise.all` over sixty fetches starts sixty
+ * `AbortSignal.timeout` clocks at once while the runtime runs about six connections, so the
+ * queued requests spend their whole budget waiting for a socket and abort before they are ever
+ * sent. Here a timer only starts when its request does. `job` is expected to absorb its own
+ * failures; one rejection must not cancel the pool.
+ */
+async function pooled(items, limit, job) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      try {
+        await job(item);
+      } catch {
+        /* job records its own failures */
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+/**
+ * One quote from Munshot. Never throws — returns `{ quote }` or `{ reason }`, because the caller
+ * needs to tell the reader WHY a name is missing, and "null" cannot.
+ *
+ * The per-attempt timeout is clamped to whatever is left of the route's budget, so a slow read
+ * cannot push the whole response past the deadline it is supposed to respect.
+ */
+async function fetchQuote(ticker, deadline) {
+  let reason = 'unreachable';
+  for (let attempt = 0; attempt < QUOTE_ATTEMPTS; attempt++) {
+    const budget = Math.min(QUOTE_TIMEOUT_MS, deadline - Date.now());
+    if (budget <= 0) return { reason: attempt ? reason : 'deadline' };
     try {
       const r = await fetch(MUNSHOT_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticker_symbol: ticker, type: 'stockquote', country: 'india' }),
-        signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+        signal: AbortSignal.timeout(budget),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const body = await r.json(); // API returns a quoted CSV-ish string
-      if (typeof body !== 'string') throw new Error('unexpected shape');
-      return parseQuote(body);
-    } catch {
-      if (attempt === 1) return null;
+      if (!r.ok) {
+        reason = `http-${r.status}`;
+        // A 4xx is an answer about this ticker — retrying just asks the same question again and
+        // spends budget a cold name behind it in the queue could have used.
+        if (r.status >= 400 && r.status < 500) return { reason };
+        throw new Error(reason);
+      }
+      const body = await r.json(); // the API returns a quoted CSV-ish string
+      if (typeof body !== 'string') return { reason: 'shape' };
+      const quote = parseQuote(body);
+      return quote ? { quote } : { reason: 'unparseable' };
+    } catch (e) {
+      if (!String(reason).startsWith('http-')) {
+        reason = /timeout|abort/i.test(String(e?.name || e?.message || '')) ? 'timeout' : 'unreachable';
+      }
+      // A timeout here means the upstream had this ticker cold, and a cold read costs 8-15s.
+      // Immediately asking the same cold question again spends another 15s of a 25s budget on
+      // one name while a dozen others have not been started at all — so a timeout ends this
+      // ticker's turn. The attempt was not wasted: it left the ticker warming upstream, which is
+      // exactly why the caller is told to click again rather than told it failed.
+      if (reason === 'timeout' || attempt === QUOTE_ATTEMPTS - 1) return { reason };
       await new Promise((res) => setTimeout(res, 300)); // brief pause before the single retry
     }
   }
-  return null;
+  return { reason };
+}
+
+function tallyReasons(missing) {
+  const out = {};
+  for (const m of missing) out[m.reason] = (out[m.reason] || 0) + 1;
+  return out;
+}
+
+// ---- the per-ticker quote cache -----------------------------------------------------------
+// One entry per ticker rather than one per batch: two readers looking at different scopes ask
+// for overlapping sets, and a batch-keyed entry would make each of them a full cold miss.
+
+async function openCache() {
+  try {
+    return caches.default;
+  } catch {
+    return null; // no Cache API (a plain Node stand-in) — everything is simply a miss
+  }
+}
+
+function quoteKey(ticker) {
+  return edgeKey(`quote/${encodeURIComponent(ticker)}`);
+}
+
+async function cacheGetQuote(cache, ticker) {
+  if (!cache) return null;
+  try {
+    const hit = await cache.match(quoteKey(ticker));
+    if (!hit) return null;
+    const q = await hit.json();
+    return q && typeof q.current === 'number' ? q : null;
+  } catch {
+    return null; // a store miss is never an error; it means "fetch it"
+  }
+}
+
+async function cachePutQuote(cache, ticker, quote) {
+  if (!cache) return;
+  try {
+    await cache.put(
+      quoteKey(ticker),
+      new Response(JSON.stringify(quote), {
+        headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${QUOTE_TTL_S}` },
+      })
+    );
+  } catch {
+    /* caching is an optimisation — never let it fail the request */
+  }
 }
 
 // "Current Price=1341.8,...,Day Range=1268.9 - 1359.0,..." -> structured quote.
