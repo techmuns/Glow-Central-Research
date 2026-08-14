@@ -2046,7 +2046,47 @@ reaches the browser, exactly as the Finology feed does on the same host.
 with the Worker) · `public/js/data/filings.js` (browser feed) · `public/js/tabs/filings-tab.js` (the
 one renderer) · `scripts/scrape-filings.mjs` (the scheduled walk).
 
-### THESE SHAPES ARE UNVERIFIED, AND THE CODE KNOWS IT
+### The shapes, now observed
+
+Wired blind (no working token locally), then corrected against the deployed Worker's own responses.
+Two things the written contract did not say, and both broke a whole tab:
+
+**Announcements is an array of GROUPS, not of records.**
+
+```jsonc
+[ { "source": "BSE",  "data": [ { "symbol": "500325", "title": "…", "desc": "…",
+                                  "date": "2026-08-13T19:40:26.91",
+                                  "attachment": "https://www.bseindia.com/…pdf" } ] },
+  { "source": "NSE",  "data": [ … ] },
+  { "source": "DRHP", "data": [ … ] } ]
+```
+
+`collectRecords` returned those two wrappers *as* the records, so the tab rendered one row per
+exchange reading "(no subject)" with no date — **a table that looked populated and contained
+nothing**, which is worse than an empty one. It now descends into a nested array under a known key
+when the wrapper has no more than a couple of fields beside it, and carries `source` down onto every
+record. RELIANCE went from 1 empty row to 38 complete ones. The PDF is under `attachment`.
+
+**News nests the outlet and dates it under `page_age`.**
+
+```jsonc
+{ "title": "…", "url": "…", "description": "…",
+  "age": "2 days ago", "page_age": "2026-08-12T20:56:32",
+  "profile": { "name": "The Economic Times", "url": "…" } }
+```
+
+There is no flat publisher field at all, so a top-level lookup found nothing and every row read as
+sourceless and undated. `profile.name` is the outlet; `page_age` is the timestamp. **`age` is tried
+last on purpose** — "2 days ago" parses to nothing, so it can only ever confirm there is no date
+rather than invent one.
+
+**Insider trades was right first time.** Fifteen columns, straight off the markdown table:
+`Company, Insider, Category, Security Type, Transaction, Trade Shares, Trade %, Trade Value,
+Post Holding Shares, Post Holding %, Mode, From Date, To Date, Broadcast Date, Source`. Rows that
+look duplicated in the visible columns are genuinely distinct filings — same day, same size,
+different insider, sometimes the opposite direction — which is why nothing here dedupes them.
+
+### THE PARSING STAYS LOOSE ANYWAY
 
 None of the three could be probed when they were wired: the only token available locally was a
 ten-character placeholder and all three answer 401/403 without a real one. The written contract

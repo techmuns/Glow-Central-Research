@@ -30,12 +30,17 @@
 // Worker named, and the pill says how many could not be read. Rendering them as zero rows would
 // report an outage as an absence of events.
 
-import { conditionalJson, readEntry, KEYS, isPersistent } from '../core/store.js';
+import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 
 // How many companies a live walk will ask about before it stops and says so. The upstreams allow
 // 60 requests a minute; forty keeps a cold start under a minute and well inside that budget.
 const LIVE_LIMIT = 40;
 const CONCURRENCY = 4;
+
+// How long a company's rows are reused without asking again. Matches the Worker's own edge window
+// per feed, deliberately rather than as a guess at tolerable staleness: inside it the server has
+// nothing else to tell us, so a request would be spent receiving bytes we already hold.
+const REVALIDATE_AFTER_MS = { news: 180_000, announcements: 900_000, insider: 900_000 };
 
 const SNAPSHOT = {
   news: 'data/news.json',
@@ -70,6 +75,9 @@ export function createFeed(kind) {
       rows: new Map(), // ticker -> rows[]
       failures: new Map(), // ticker -> { reason, message, requestedUrl }
       asked: new Set(),
+      // ticker -> when the SERVER last confirmed those rows. A company inside its window is not
+      // re-asked; one that has never been read always is.
+      confirmedAt: new Map(),
       snapshotCount: 0,
       capturedAt: null,
       checkedAt: null,
@@ -99,7 +107,9 @@ export function createFeed(kind) {
       rowCount: [...state.rows.values()].reduce((a, r) => a + r.length, 0),
       snapshotCount: state.snapshotCount,
       capturedAt: state.capturedAt,
-      checkedAt: state.checkedAt,
+      // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
+      // company would overstate the age of the forty beside it.
+      checkedAt: state.confirmedAt.size ? Math.min(...state.confirmedAt.values()) : state.checkedAt,
       origin: state.origin,
       headers: state.headers,
       persisted: isPersistent(),
@@ -127,21 +137,64 @@ export function createFeed(kind) {
   function load(tickers = []) {
     if (loading) return loading;
     loading = (async () => {
+      const wanted = [...new Set(tickers.map((t) => String(t || '').toUpperCase()).filter(Boolean))];
+
+      // PASS ONE — the committed snapshot and this device, with no network at all.
+      //
+      // A return visit paints the whole table before a single request is sent. The walk that used
+      // to run on every visit was the delay: forty companies, four at a time, is ten sequential
+      // waits for rows that were already on the device from last time.
       await seedFromSnapshot();
+      await seedFromDevice(wanted);
       state.loaded = true;
       emit();
 
-      const wanted = [...new Set(tickers.map((t) => String(t || '').toUpperCase()).filter(Boolean))];
-      const missing = wanted.filter((t) => !state.rows.has(t) && !state.failures.has(t));
+      // PASS TWO — only what is genuinely missing or genuinely old. A company confirmed inside the
+      // feed's own cache window is skipped, because the server cannot answer differently yet.
+      const now = Date.now();
+      const stale = (t) => {
+        const at = state.confirmedAt.get(t);
+        return at == null || now - at > REVALIDATE_AFTER_MS[kind];
+      };
+      const missing = wanted.filter((t) => !state.failures.has(t) && (!state.rows.has(t) || stale(t)));
       if (missing.length) {
         state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
         state.pending = Math.min(missing.length, LIVE_LIMIT);
-        // Not awaited: the snapshot is already on screen and the walk fills in behind it.
+        // Not awaited: whatever we already had is on screen and the walk fills in behind it.
         walk(missing.slice(0, LIVE_LIMIT));
       }
       return state;
     })();
     return loading;
+  }
+
+  /**
+   * Everything this device already holds for the wanted companies, in ONE store transaction.
+   *
+   * A miss is not an error — it means "fetch it", which pass two does. A stored FAILURE is never
+   * replayed: the Worker caches `ok: false` for fifteen seconds precisely so a corrected token
+   * takes effect at once, and painting one from disk would undo that.
+   */
+  async function seedFromDevice(tickers) {
+    if (!tickers.length) return;
+    let entries;
+    try {
+      entries = await readEntries(tickers.map((t) => KEYS.filingRow(kind, t)));
+    } catch {
+      return;
+    }
+    for (const t of tickers) {
+      const hit = entries.get(KEYS.filingRow(kind, t));
+      const body = hit?.value;
+      if (!body || body.ok === false) continue;
+      const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
+      if (!state.rows.has(t)) state.rows.set(t, list);
+      if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
+      // `savedAt` is when the SERVER's bytes were written here, so it is a real confirmation time
+      // rather than this tab vouching for itself.
+      if (hit.savedAt) state.confirmedAt.set(t, hit.savedAt);
+    }
+    if (state.rows.size && !state.origin) state.origin = 'store';
   }
 
   /** The committed snapshot. A miss is not an error — it means the scheduled run has not run yet. */
@@ -224,6 +277,7 @@ export function createFeed(kind) {
     const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
     state.rows.set(t, list);
     state.failures.delete(t);
+    state.confirmedAt.set(t, res?.checkedAt || Date.now());
     if (!state.capturedAt && body.fetchedAt) state.checkedAt = Date.parse(body.fetchedAt) || state.checkedAt;
     return list;
   }

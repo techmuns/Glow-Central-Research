@@ -142,11 +142,40 @@ export function parseMarkdownTable(md) {
  * group key travels with each row, because "which source said this" is information and losing it
  * would flatten BSE, NSE and DRHP into one undifferentiated list.
  */
+// The keys a group object hides its actual records under. `data` is what the announcements API
+// uses; the rest are what a service of this shape uses when it does not.
+const NESTED_KEYS = ['data', 'items', 'records', 'results', 'rows', 'announcements', 'articles', 'trades'];
+
+/**
+ * Is this a GROUP — a small wrapper whose real content is a nested array — rather than a record?
+ *
+ * The announcements API answers `[{ source: 'BSE', data: [ … ] }, { source: 'NSE', data: [ … ] }]`,
+ * and an earlier version of this function returned those two wrappers AS the records. Every field
+ * was then null except `source`, so the tab rendered one row per exchange reading "(no subject)"
+ * with no date — a table that looked populated and contained nothing. Descending is the fix, and
+ * the test is deliberately narrow: a nested array under a known key, and no more than a couple of
+ * other fields beside it, so a genuine record that merely happens to carry an array is not eaten.
+ */
+function nestedArrayIn(r) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+  const key = NESTED_KEYS.find((k) => Array.isArray(r[k]));
+  if (!key) return null;
+  return Object.keys(r).length <= 3 ? { key, rows: r[key] } : null;
+}
+
 export function collectRecords(body, { groupKey = 'source' } = {}) {
   const out = [];
   const push = (arr, group) => {
     for (const r of arr) {
-      if (r && typeof r === 'object' && !Array.isArray(r)) out.push(group ? { ...r, [groupKey]: r[groupKey] ?? group } : { ...r });
+      if (!r || typeof r !== 'object' || Array.isArray(r)) continue;
+      // A group carries its label down onto every record inside it. Losing that would flatten BSE,
+      // NSE and DRHP into one undifferentiated list.
+      const nested = nestedArrayIn(r);
+      if (nested) {
+        push(nested.rows, r[groupKey] ?? group);
+        continue;
+      }
+      out.push(group ? { ...r, [groupKey]: r[groupKey] ?? group } : { ...r });
     }
   };
 
@@ -189,23 +218,30 @@ export function normaliseAnnouncement(r, ticker = null) {
   return {
     ticker: str(pickField(r, ['ticker', 'symbol', 'scrip', 'scripCode'])) || ticker,
     date,
-    title: str(pickField(r, ['title', 'headline', 'subject', 'newsSub', 'desc', 'description', 'attachmentName', 'name'])),
+    title: str(pickField(r, ['title', 'headline', 'subject', 'newsSub', 'attachmentName', 'name'])),
     category: str(pickField(r, ['category', 'type', 'newsType', 'subcategory', 'purpose', 'attchmntText'])),
     source: str(pickField(r, ['source', 'exchange', 'group'])),
-    url: safeUrl(pickField(r, ['url', 'link', 'attachmentUrl', 'pdfUrl', 'fileUrl', 'attchmntFile', 'href'])),
-    summary: str(pickField(r, ['summary', 'body', 'text', 'details', 'more', 'newsBody'])),
+    // `attachment` is what BSE call the PDF. Learned from the live payload, not guessed.
+    url: safeUrl(pickField(r, ['url', 'link', 'attachment', 'attachmentUrl', 'pdfUrl', 'fileUrl', 'attchmntFile', 'href'])),
+    summary: str(pickField(r, ['desc', 'description', 'summary', 'body', 'text', 'details', 'more', 'newsBody'])),
     raw: r,
   };
 }
 
 /** One news article. Same rules as above; `query` records what was asked, not what was returned. */
 export function normaliseArticle(r, query = null) {
+  // The outlet is NESTED: the live payload carries `profile: { name, url }` and no flat publisher
+  // field at all, so a top-level lookup finds nothing and every row reads as sourceless.
+  const profile = r && typeof r.profile === 'object' && r.profile ? r.profile : null;
   return {
-    date: isoDate(pickField(r, ['date', 'publishedAt', 'published_at', 'published', 'pubDate', 'datetime', 'timestamp'])),
+    // `page_age` is the article's own timestamp. `age` beside it is a human string ("2 days ago"),
+    // which is deliberately LAST: it parses to nothing, so it only ever confirms there is no date
+    // rather than inventing one.
+    date: isoDate(pickField(r, ['page_age', 'pageAge', 'date', 'publishedAt', 'published_at', 'published', 'pubDate', 'datetime', 'timestamp'])),
     title: str(pickField(r, ['title', 'headline', 'name'])),
-    source: str(pickField(r, ['source', 'publisher', 'site', 'domain', 'provider'])),
+    source: str(pickField(profile, ['name', 'title'])) || str(pickField(r, ['source', 'publisher', 'site', 'domain', 'provider'])),
     url: safeUrl(pickField(r, ['url', 'link', 'href', 'articleUrl'])),
-    summary: str(pickField(r, ['summary', 'description', 'snippet', 'content', 'text', 'excerpt'])),
+    summary: str(pickField(r, ['description', 'summary', 'snippet', 'content', 'text', 'excerpt'])),
     query,
     raw: r,
   };
