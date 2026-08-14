@@ -215,7 +215,7 @@ function buildStats(ctx, m, covered) {
       help: {
         title: "SentimentDash's sentiment, reproduced",
         body:
-          'Keyword-scored by them, not by us, and not re-banded here — the same rule the Con-call tab follows with StockScans\' result score. ' +
+          'Keyword-scored by them, not by us, and not re-banded here — the same rule the Con-call tab follows with its result score. ' +
           'A typical run is around 80% neutral, so treat it as a coarse signal: it separates loud enthusiasm from loud complaint, not much finer than that.',
       },
     },

@@ -63,9 +63,11 @@ The three Super Investors files load at bootstrap and seed `js/data/investors.js
 > **Portfolio Analytics is the one workspace that mixes the two inside a single number.** The
 > ledger is synthetic — which trades were made, and when. Every price in it is real: execution
 > prices are actual Yahoo closes on real trading days, positions are marked to market from the
-> live technicals feed, and the equity curve is built from `portfolio-history.json`. The split
-> ribbon on all four sub-views states both halves, because a flat "mock data" badge would
-> understate the numbers and a "live" badge would overstate them.
+> live technicals feed, and the equity curve is built from `portfolio-history.json`. A pill in
+> every sub-view's section head states both halves — *Illustrative ledger · live marks* — because a
+> flat "mock data" badge would understate the numbers and a "live" badge would overstate them, and
+> the modal behind it carries the detail. It replaced a four-line amber ribbon that was the loudest
+> thing on the workspace; the claim stayed on screen and the paragraph moved one click away.
 
 ---
 
@@ -878,6 +880,32 @@ the client stamps its own `checkedAt` on every poll, 304s included.
 `public/js/data/stockscans-shared.js` — 80 Excellent / 60 Strong / 40 Average / 20 Weak / Poor,
 and 4 Bullish → 0 Bearish — are lifted from their own client so a label we print is a label they
 print. See *Reproducing someone else's analysis* in CLAUDE.md before touching any of it.
+
+**The UI does not print their brand, and that is not the same as not attributing it.** Every
+customer-facing surface — the sub-view description, the Live pill's modal, the drill's Provenance
+group, the alert stack and row 1 of the exported sheet — says the scores are a *third-party research
+provider's* and that this dashboard adds no scoring of its own; none of them names the provider. The
+name lives in the code, in this file, and in the link every row carries to their own page for that
+call. The honesty obligation is the disclaimer, which is stated in full; the trade name is a
+commercial choice. Do not drop the first while dropping the second.
+
+### `ssUrl` is a document key, and only one of their two routes accepts it alone
+
+`ssUrl` / `pptSsUrl` are pointers into their reader, not files we can serve. There are two ways in
+and **they are not interchangeable**:
+
+| Route | Needs | Use it? |
+| --- | --- | --- |
+| `/company/<companyId>/<type>/<period>/<file>` | companyId **and a period** | **No.** The payload has no period. |
+| `/document/<file>` | the document key alone | **Yes** — `docUrl()` builds this. |
+
+`docUrl()` used to build the first with the period segment treated as optional, and no caller ever
+had a period to pass, because the scan payload does not carry one. So every row's link was one
+segment short and **every "open the full summary" click landed on a 404** — for the whole life of
+the tab. It looked like a link and behaved like a link and had never resolved. The failure surfaced
+as *their* 404 page, which reads as "their document is gone" rather than "our URL was wrong", so the
+artefact pointed away from the bug. Verify a constructed deep link against the upstream —
+`curl -o /dev/null -w '%{http_code}'` on one real row — before shipping it.
 
 ### Two caches on one route, because the feed is newest-first
 
@@ -2243,8 +2271,8 @@ write the file — and the UI says so rather than letting the work vanish silent
 3. Run `node scripts/scrape-portfolio-history.mjs` so the curve covers every ticker the new ledger
    touches; anything Yahoo will not serve lands in `failures[]` and the UI names it.
 4. Update the two `mock` rows in `js/ui/sources.js` to `static` or `live`.
-5. Replace the split ribbon's ledger clause in `js/portfolio/chrome.js` — it is one function, and
-   all four sub-views read it.
+5. Replace the ledger clause in `provenancePill()` / `provenanceModalHtml()` in
+   `js/portfolio/chrome.js` — one function each, and all four sub-views read them.
 6. Re-run `node scripts/verify-ui.mjs`; the reconciliation identities must still hold.
 
 ---

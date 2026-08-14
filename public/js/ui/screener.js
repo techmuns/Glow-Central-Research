@@ -463,9 +463,14 @@ export function scoreTable(config) {
 
   // Per-row markup is CACHED by row key. Rows are position-independent — the rank number is
   // drawn by a CSS counter and the click target carries the row's key, not its index — so a
-  // sort is just "reorder cached strings and re-join", not "rebuild 535 rows". The cache is
-  // dropped whenever the watchlist changes (that's the only per-row state in the markup).
+  // sort is just "reorder cached strings and re-join", not "rebuild 535 rows".
   const rowHtmlCache = new Map();
+
+  // Keys whose cached markup no longer describes the row — today only the watchlist star.
+  // Invalidating the cache alone is NOT enough: the repaint fast path moves existing <tr>
+  // nodes and never re-parses HTML, so a starred row kept its hollow ☆ until some unrelated
+  // change forced a full rebuild. A stale key has to be replaced in the DOM explicitly.
+  const staleKeys = new Set();
 
   function bodyHtml(list) {
     if (!list.length) {
@@ -617,8 +622,10 @@ export function scoreTable(config) {
         const frag = document.createDocumentFragment();
         for (const k of nextKeys) frag.appendChild(existing.get(k)); // moves, doesn't clone
         body.appendChild(frag);
+        replaceStaleRows();
       } else {
-        body.innerHTML = bodyHtml(current);
+        body.innerHTML = bodyHtml(current); // rebuilt from source, so nothing is stale any more
+        staleKeys.clear();
       }
 
       countEl.textContent = `${current.length} of ${totalCount}`;
@@ -661,6 +668,17 @@ export function scoreTable(config) {
       return touched;
     };
 
+    // The watchlist star rides the SAME mechanism, on the repaint path rather than on a data
+    // arrival. Starring a row leaves the row SET unchanged, so `repaint` above takes its fast
+    // path and re-parses nothing — which is why dropping the row's cached markup did not change
+    // one pixel and a watchlisted row kept its hollow ☆ while the filter counted it. `staleKeys`
+    // names the rows whose markup no longer describes them; this drains it after the reorder.
+    function replaceStaleRows() {
+      if (!staleKeys.size) return;
+      updateRows(staleKeys);
+      staleKeys.clear();
+    }
+
     // Delegated: header sort.
     head.addEventListener('click', (e) => {
       const th = e.target.closest('th[data-sort]');
@@ -679,6 +697,7 @@ export function scoreTable(config) {
         const slug = star.dataset.watch;
         watchlist.toggle(slug);
         rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
         repaint();
         return;
       }
@@ -1092,17 +1111,32 @@ export function closeModal() {
 // ---------------------------------------------------------------------------------------
 
 /**
- * sectionHead({ title, description, meta }) — the title block above every tab's stat strip.
- * `meta` is trusted markup (usually a scope pill).
+ * sectionHead({ title, description, meta, controls }) — the title block above every tab's stat
+ * strip. `meta` and `controls` are both trusted markup.
+ *
+ * `meta` is the right-aligned block beside the title — right for one small pill that does not
+ * change between sub-views.
+ *
+ * `controls` is a LEFT-aligned row of its own, under the heading block. Use it whenever the set
+ * of chips differs between sub-views. In `meta` they sit in a `justify-between` row, so whether
+ * they render beside the title or wrap under it depends on how wide the chips and the
+ * description happen to be — and that flips as you switch sub-view. On the Earnings Hub the
+ * controls jumped from left-under-the-title to right-of-the-title on the way from Latest Results
+ * to Earnings Calendar, because the second view drops the YoY/QoQ toggle and has a shorter
+ * description. Controls that move when you use them read as a different page, not a different
+ * view of one. Its own row cannot wrap, so it cannot move.
  */
-export function sectionHead({ title, description = '', meta = '' }) {
+export function sectionHead({ title, description = '', meta = '', controls = '' }) {
   return `
-    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
-        ${description ? `<p class="mt-1 max-w-2xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
+    <div class="mb-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
+          ${description ? `<p class="mt-1 max-w-2xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
+        </div>
+        ${meta ? `<div class="flex-shrink-0">${meta}</div>` : ''}
       </div>
-      ${meta ? `<div class="flex-shrink-0">${meta}</div>` : ''}
+      ${controls ? `<div data-section-controls class="mt-3 flex flex-wrap items-center gap-2">${controls}</div>` : ''}
     </div>`;
 }
 

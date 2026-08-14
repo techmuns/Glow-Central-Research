@@ -535,7 +535,7 @@ function renderLatest(ctx) {
     ${sectionHead({
       title: 'Latest Results',
       description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported', book: coverage.meta() })}</div>`,
+      controls: `${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported', book: coverage.meta() })}`,
     })}
     ${
       periodError
@@ -689,7 +689,7 @@ function renderCalendar(ctx) {
     ${sectionHead({
       title: 'Earnings Calendar',
       description: 'Companies scheduled to report, by date. Pick a date from the strip.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed', book: coverage.meta() })}</div>`,
+      controls: `${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed', book: coverage.meta() })}`,
     })}
     ${dateStrip(wanted, today)}
     ${

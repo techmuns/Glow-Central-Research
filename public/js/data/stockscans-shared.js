@@ -88,12 +88,30 @@ export function normaliseScheduleRow(r) {
   };
 }
 
-/** Deep link to StockScans' own reader for a summary document. */
-export function docUrl({ companyId, ssUrl, type = 'concall', period }) {
-  if (!companyId || !ssUrl) return null;
+/**
+ * Deep link to the provider's own reader for a summary document.
+ *
+ * THE PERIOD SEGMENT IS NOT OPTIONAL, WHICH IS WHY THIS IS NOT THE COMPANY ROUTE
+ *   Their company route is `/company/<companyId>/<type>/<period>/<file>` and every segment is
+ *   required — their own builder returns an empty string rather than a URL when one is missing.
+ *   This function used to treat `period` as optional and no caller ever had one to pass, because
+ *   the scan payload does not carry a period at all. So every row's link was built one segment
+ *   short and EVERY "open the transcript" click landed on their 404 page. It looked like a link
+ *   and behaved like a link; it had simply never resolved.
+ *
+ *   Their reader has a second entrance that takes nothing but the document key —
+ *   `/document/<file>` — and it is the one their own transcript button uses. It needs only what
+ *   the payload actually contains, so it cannot be built short. Verified 200 against their live
+ *   site for both a con-call key and a slide-deck key; the old shape returns 404 for the same
+ *   document.
+ *
+ * A link that 404s is worse than no link: it reads as "their page is gone" when the page is fine
+ * and the URL was ours. Check a constructed deep link against the upstream before shipping it.
+ */
+export function docUrl({ ssUrl }) {
+  if (!ssUrl) return null;
   const file = ssUrl.endsWith('.pdf') ? ssUrl : `${ssUrl}.pdf`;
-  const seg = period ? `/${encodeURIComponent(period)}` : '';
-  return `${SS_BASE}/company/${encodeURIComponent(companyId)}/${type}${seg}/${encodeURIComponent(file)}`;
+  return `${SS_BASE}/document/${encodeURIComponent(file)}`;
 }
 
 /**

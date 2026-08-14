@@ -8,7 +8,7 @@
 //
 // THREE THINGS THIS VIEW REFUSES TO DO
 //   1. Quietly shorten the curve. TATAMOTORS is not on Yahoo, so it is carried at running cost,
-//      named in the ribbon and in the coverage line, and the headline says what fraction of the
+//      named in the provenance modal and in the coverage line, and the headline says what fraction of the
 //      book is actually priced.
 //   2. Report one drawdown as if it were the drawdown. Retained cash dampens the portfolio
 //      figure — correctly, the cash is really there — but "how far did the stocks fall" is the
@@ -22,7 +22,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatRupee, formatPct, formatNumber, formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as portfolio from '../data/portfolio.js';
-import { provenanceRibbon, createLoader, moneyCell, pctCell, freshnessCard, exportBanner, RETURN_HELP } from './chrome.js';
+import { headMeta, wireProvenancePill, createLoader, moneyCell, pctCell, freshnessCard, exportBanner, RETURN_HELP } from './chrome.js';
 
 export const meta = {
   id: 'drawdown',
@@ -72,8 +72,7 @@ function paint(ctx) {
  */
 function renderNoHistory(ctx, m) {
   ctx.root.innerHTML = `
-    ${sectionHead({ title: meta.title, description: meta.subtitle })}
-    ${provenanceRibbon(m)}
+    ${sectionHead({ title: meta.title, description: meta.subtitle, controls: headMeta(m) })}
     <div class="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-100">
       <div class="text-3xl">📉</div>
       <h3 class="font-display mt-2 text-base font-bold text-slate-900">No price history, so no drawdown</h3>
@@ -88,6 +87,7 @@ function renderNoHistory(ctx, m) {
       </p>
     </div>
     ${roadmapStrip(FEATURES)}`;
+  wireProvenancePill(ctx.root, m);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -137,9 +137,8 @@ function renderCurve(ctx, curve, m) {
     ${sectionHead({
       title: 'Equity curve',
       description: `Portfolio value on every one of ${formatNumber(curve.tradingDays)} trading days, valued at real closing prices.`,
-      meta: scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${curveChart(curve)}
     <div class="mb-6 grid gap-4 lg:grid-cols-3">
@@ -151,6 +150,7 @@ function renderCurve(ctx, curve, m) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   wireChartHover(ctx.root, curve);
 }
 
@@ -333,9 +333,8 @@ function renderUnderwater(ctx, curve, m) {
     ${sectionHead({
       title: 'Underwater plot',
       description: 'Every day’s distance below the previous peak. The area is time spent in drawdown, which is the part investors actually experience.',
-      meta: scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${underwaterChart(curve, 'drawdown', 'Total portfolio', '#e11d48')}
     ${underwaterChart(curve, 'holdingsDrawdown', 'Holdings only (excludes retained cash)', '#a855f7')}
@@ -352,6 +351,7 @@ function renderUnderwater(ctx, curve, m) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
 }
 
 function underwaterChart(curve, seriesKey, title, colour) {
@@ -413,9 +413,8 @@ function renderEpisodes(ctx, curve, m) {
     ${sectionHead({
       title: 'Drawdown episodes',
       description: 'Every peak-to-trough fall deeper than 2%, with how long it took to go down and how long to come back.',
-      meta: scopeSummary({ scope: ctx.scope, count: episodes.length, noun: 'episodes' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: episodes.length, noun: 'episodes' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${table.html}
     <p class="mb-6 text-[11px] leading-relaxed text-slate-500">
@@ -426,6 +425,7 @@ function renderEpisodes(ctx, curve, m) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   disposers.push(table.wire(ctx.root));
 }
 

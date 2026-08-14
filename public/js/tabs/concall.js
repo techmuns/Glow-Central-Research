@@ -30,7 +30,7 @@ import * as feed from '../data/concall-scans.js';
 export const meta = {
   id: 'concall',
   title: 'Con-call',
-  subtitle: 'Every earnings call held this quarter, with StockScans’ own analysis — and what is scheduled next.',
+  subtitle: 'Every earnings call held this quarter, with independent third-party analysis — and what is scheduled next.',
   // No sub-views: the shell hides the rail entirely when this is empty and the table spans the
   // full width. The schedule is an overlay, not a second page.
   subviews: [],

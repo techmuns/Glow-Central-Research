@@ -48,7 +48,7 @@ import * as deepDive from '../data/deep-dive.js';
 import { openDeepDive } from './deep-dive.js';
 import * as coverage from '../data/coverage.js';
 
-const ATTRIBUTION = 'Scores, sentiment and highlights are StockScans’ own analysis, shown unchanged.';
+const ATTRIBUTION = 'Scores, sentiment and highlights are the research provider’s own analysis, shown unchanged.';
 
 // StockScans' tone vocabulary -> our semantic palette. Emerald/amber/rose are pass/partial/fail
 // here, which is exactly what these tiers mean, so the mapping is honest rather than decorative.
@@ -61,7 +61,7 @@ const TONE = {
 };
 
 const pendingPill = (what) =>
-  `<span class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-400 ring-1 ring-slate-200" title="StockScans has not published ${escapeHtml(what)} for this call yet. Not zero — not yet analysed.">pending</span>`;
+  `<span class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-400 ring-1 ring-slate-200" title="The research provider has not published ${escapeHtml(what)} for this call yet. Not zero — not yet analysed.">pending</span>`;
 
 function tierPill(tier, title) {
   if (!tier) return pendingPill(title || 'an assessment');
@@ -136,8 +136,8 @@ export function wireLivePill(root, m) {
             m.degraded
               ? `<p class="rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">${escapeHtml(m.degraded)}
                    The rows below were correct when captured, but they are not live right now.</p>`
-              : `<p><strong>Real, live</strong> from <a class="font-semibold text-indigo-600 hover:underline" href="https://www.stockscans.in/concall-scans" target="_blank" rel="noopener">StockScans &rarr; Concall Scans</a>,
-                   polled every ${feed.POLL_MS / 1000} seconds.</p>`
+              : `<p><strong>Real, live</strong> from an independent con-call research provider, polled every
+                   ${feed.POLL_MS / 1000} seconds.</p>`
           }
           <p class="mt-2"><strong>${escapeHtml(formatNumber(m.count || 0))}</strong> calls this quarter ·
              <strong>${escapeHtml(formatNumber(m.analysed || 0))}</strong> analysed ·
@@ -145,9 +145,9 @@ export function wireLivePill(root, m) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Whose numbers these are</h3>
           <p class="mt-1 text-xs"><strong>Not ours.</strong> The result score, the sentiment tier and the highlight bullets are
-             StockScans' analysis of each call, reproduced unchanged. Even the tier labels — Excellent / Strong / Average /
-             Weak / Poor, and Bullish through Bearish — use their published cut-points, so a label here means what it means
-             there. This dashboard adds no scoring of its own to this view, deliberately: a band of our invention under
+             a third-party research provider's analysis of each call, reproduced unchanged. Even the tier labels — Excellent /
+             Strong / Average / Weak / Poor, and Bullish through Bearish — use their published cut-points, so a label here
+             means what it means there. This dashboard adds no scoring of its own to this view, deliberately: a band of our invention under
              their score would read as their judgement and be ours.</p>
           <p class="mt-2 text-xs">Their bands, quoted rather than restated: <strong>80+ Excellent, 60+ Strong, 40+ Average,
              20+ Weak, below that Poor</strong>. <strong>This dashboard does not re-band or recompute</strong> any of it, and
@@ -157,7 +157,7 @@ export function wireLivePill(root, m) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How fresh it is</h3>
           <p class="mt-1 text-xs">A call joins the feed when it is <em>held</em> and gains its score some minutes later, once
-             StockScans has processed it. The poller watches for both, so a row can arrive twice over: once listed, once
+             the provider has processed it. The poller watches for both, so a row can arrive twice over: once listed, once
              analysed. ${pending ? `<strong>${escapeHtml(formatNumber(pending))}</strong> calls are listed but not yet analysed — they read <em>pending</em>, never zero.` : ''}</p>
 
           ${deliveryNote(m, { poll: feed.POLL_MS / 1000 })}
@@ -177,7 +177,7 @@ export function wireLivePill(root, m) {
                  <p class="mt-1 text-[11px] text-slate-500">A tick means the call was already listed and has just been analysed.</p>`
               : ''
           }
-          <p class="mt-4 text-xs text-slate-500">Full summaries and transcripts live on StockScans; each row links straight to theirs.</p>
+          <p class="mt-4 text-xs text-slate-500">Full summaries and transcripts live with the provider; each row links straight to theirs.</p>
         </div>
       </div>`,
       { size: 'default' }
@@ -276,9 +276,11 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
       },
     ],
     searchable: (r) => `${r.name} ${r.ticker || ''} ${r.industry || ''} ${r.tags.join(' ')}`,
-    // The way out to StockScans, which is the one thing the removed drill panel carried that was
-    // not already on the row. Their reader is where the summary and the transcript live; this tab
-    // is their index and links to it rather than reproducing it.
+    // The way out to the provider's reader, which is the one thing the removed drill panel carried
+    // that was not already on the row. Their reader is where the summary and the transcript live;
+    // this tab is their index and links to it rather than reproducing it. `docUrl` builds their
+    // DOCUMENT route — the company route needs a period this payload does not carry, and building
+    // it short is what made every one of these links 404.
     link: (r) => r.transcriptUrl,
     initialSort: { key: 'Call', dir: 'desc' },
     exportName: 'sattva-concall-scans',
@@ -515,7 +517,7 @@ function scheduleBodyHtml(rows, scope) {
       <p class="mt-1 text-xs text-slate-500">${
         q
           ? 'Only companies with a call already on the schedule appear here.'
-          : 'A call joins this list when StockScans lists it, and moves to the scan table once it has been held and analysed.'
+          : 'A call joins this list when the provider lists it, and moves to the scan table once it has been held and analysed.'
       }</p>
     </div>`;
   }
@@ -635,9 +637,9 @@ const dayMonthOf = (date) => {
 async function exportScans(rows, m) {
   const banner = {
     __banner:
-      `REAL DATA, NOT OURS. Con-call scans via StockScans (stockscans.in/concall-scans) — quarter ${m?.quarter || ''}, ` +
+      `REAL DATA, NOT OURS. Con-call scans from a third-party research provider — quarter ${m?.quarter || ''}, ` +
       `captured ${new Date().toISOString()}. The result score (0-100), the sentiment tier (0-4) and the highlight bullets are ` +
-      `StockScans' own analysis, reproduced unchanged; this dashboard adds no scoring of its own. Tier labels use StockScans' ` +
+      `that provider's own analysis, reproduced unchanged; this dashboard adds no scoring of its own. Tier labels use their ` +
       `published bands. "pending" means the call is listed but not yet analysed — it is not a zero.`,
   };
   await exportRows({
@@ -648,11 +650,11 @@ async function exportScans(rows, m) {
       { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
       { header: 'Company', key: 'c', width: 34, get: (r) => (r.__banner ? '' : r.name) },
       { header: 'Industry', key: 'i', width: 28, get: (r) => (r.__banner ? '' : r.industry || '') },
-      { header: 'Result Score (StockScans)', key: 's', width: 24, get: (r) => (r.__banner ? '' : (r.resultScore ?? 'pending')) },
-      { header: 'Result Tier (StockScans)', key: 'rt', width: 22, get: (r) => (r.__banner ? '' : r.resultTier?.label || 'pending') },
-      { header: 'Sentiment (StockScans)', key: 'st', width: 22, get: (r) => (r.__banner ? '' : r.sentiment?.label || 'pending') },
-      { header: 'Highlights (StockScans)', key: 'h', width: 70, get: (r) => (r.__banner ? '' : r.tags.join(' | ')) },
-      { header: 'StockScans Link', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.transcriptUrl || '') },
+      { header: 'Result Score (third-party)', key: 's', width: 24, get: (r) => (r.__banner ? '' : (r.resultScore ?? 'pending')) },
+      { header: 'Result Tier (third-party)', key: 'rt', width: 22, get: (r) => (r.__banner ? '' : r.resultTier?.label || 'pending') },
+      { header: 'Sentiment (third-party)', key: 'st', width: 22, get: (r) => (r.__banner ? '' : r.sentiment?.label || 'pending') },
+      { header: 'Highlights (third-party)', key: 'h', width: 70, get: (r) => (r.__banner ? '' : r.tags.join(' | ')) },
+      { header: 'Summary Link', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.transcriptUrl || '') },
     ],
     rows: [banner, ...rows],
   });

@@ -115,8 +115,16 @@ priced in it is real:
 - the equity curve is 735 trading days of real closes, and the drawdown is computed from it.
 
 A flat "mock data" ribbon would understate those numbers and a "live" badge would overstate them,
-so the ribbon is split — amber for the ledger, emerald for the mark — and every sub-view carries it.
-The one function that renders it is `provenanceRibbon()` in `js/portfolio/chrome.js`.
+so the disclosure is split — the ledger is illustrative, the marks are live — and every sub-view
+carries it as a pill in its section head reading *Illustrative ledger · live marks*, amber, with the
+full explanation in the modal one click behind. With no mark the same pill turns rose and reads
+*Marks unavailable · shown at cost*, because a P&L of zero for want of a price must not look like a
+P&L of zero for want of a move. `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` render
+it; `exportBanner()` still puts the whole disclosure in row 1 of every workbook.
+
+This replaced a four-line amber ribbon at the top of all four sub-views. It was accurate and it was
+the first thing anyone saw on the workspace, above the money, every view — at which size a caveat
+stops qualifying the content and starts warning about it.
 
 ---
 
@@ -699,9 +707,11 @@ These are why the dashboard can be trusted, and they are not style preferences.
 3. **Label derived figures as derived.** Super Investors' holding value is `holding % × market cap`
    and the drill says so — filings disclose a percentage, never a rupee amount.
 4. **Every `?` modal states what is mock and what is live.**
-5. **Synthetic numbers are unmistakable wherever they surface** — ribbon, freshness card, drill note,
-   Sources row, **and row 1 of every exported workbook**. A number that leaves the dashboard carries
-   its provenance with it; a spreadsheet is the one artefact nobody can see a ribbon on.
+5. **Synthetic numbers are unmistakable wherever they surface** — ribbon or pill, freshness card,
+   drill note, Sources row, **and row 1 of every exported workbook**. A number that leaves the
+   dashboard carries its provenance with it; a spreadsheet is the one artefact nobody can see a
+   ribbon on. Decluttering may move the *explanation* behind a control; it may never move the
+   *claim*, which stays on the face of whatever replaced the ribbon.
 6. **Attribution.** Synthetic *numbers* about real subjects are fine when labelled. Synthetic
    *speech, views or rationale* attributed to a named real person never are, at any labelling level.
    So: con-call speakers, sell-side analysts and forum/Telegram handles are **fictional**; super
@@ -854,7 +864,7 @@ The ones that matter most:
   BSE-keyed feed would fix that last group.
 - **`TATAMOTORS` has no price data at all** — Yahoo 404s the symbol, almost certainly because of the
   demerger. It is recorded in `portfolio-history.json` `failures[]`, marked at cost, tagged in the
-  table, named in the ribbon, and the Drawdown view reports 97.6% curve coverage rather than
+  table, named in the provenance modal, and the Drawdown view reports 97.6% curve coverage rather than
   pretending to 100%. Fixing it means finding the right symbol, not hiding the position.
 - **No test runner.** `scripts/verify-ui.mjs` is the suite: ~180 Playwright assertions including the
   two reconciliation identities, an independent max-drawdown recompute, the CSV round trip and the

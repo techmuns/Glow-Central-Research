@@ -160,11 +160,11 @@ export function concallDetail(r) {
   // `reason` is set by the feed: 'listed' means the call joined the index, 'analysed' means
   // StockScans' read of it landed. They are different events and read as different sentences.
   if (r.reason === 'analysed') {
-    const score = r.resultScore != null ? `Result score ${Math.round(r.resultScore)}/100 (StockScans)` : 'Analysis ready (StockScans)';
+    const score = r.resultScore != null ? `Result score ${Math.round(r.resultScore)}/100 (third-party)` : 'Analysis ready (third-party)';
     return r.resultTier?.label ? `${score} · ${r.resultTier.label}` : score;
   }
   if (r.resultScore == null) return 'Call held — analysis pending';
-  return `Result score ${Math.round(r.resultScore)}/100 (StockScans)`;
+  return `Result score ${Math.round(r.resultScore)}/100 (third-party)`;
 }
 
 /**

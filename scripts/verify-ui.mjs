@@ -43,12 +43,54 @@ const skip = (label, why) => {
   console.log(`SKIP  ${label}  — ${why}`);
 };
 
+// The two CDN scripts the page loads at runtime. Where there is no egress neither arrives, and a
+// check that needs one is measuring the sandbox rather than the page — so it reports SKIP. These
+// read `errors`, which is populated as the run goes, so call them AFTER the navigation concerned.
+const cdnBlocked = (re) => errors.some((e) => re.test(e));
+const exceljsBlocked = () => cdnBlocked(/exceljs/i);
+const tailwindBlocked = () => cdnBlocked(/tailwind|cdn\.tailwindcss\.com/i);
+// Errors that belong to the environment rather than the page. Two families, both of which this
+// suite already reports as SKIPs elsewhere, so counting them again as console errors would make
+// the one unambiguous check in the run unreadable:
+//   • the three CDNs the page loads at runtime, unreachable without egress;
+//   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
+//     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
+// Everything else counts, and the number filtered is always printed rather than swallowed.
+const ENV_ERROR = /tailwind|cdn\.tailwindcss\.com|exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+// A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
+// failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
+// URL answers 404, not ERR_CONNECTION_RESET, so those still count.
+const NO_EGRESS = (e) => /net::ERR_/.test(e) && /\[https?:\/\//.test(e) && !e.includes(`[${BASE}`);
+// Requests a CHECK deliberately provokes. The deleted-module probe fetches four URLs precisely to
+// prove they 404 — the failure is the pass condition — so the check that causes them registers
+// the pattern here rather than leaving the final console assertion to guess at it.
+const expectedErrors = [];
+const expectError = (re) => expectedErrors.push(re);
+const ownError = (e) =>
+  !ENV_ERROR.test(e) &&
+  !NO_EGRESS(e) &&
+  !expectedErrors.some((re) => re.test(e)) &&
+  !(/\/api\//.test(e) && /404|Failed to load resource/i.test(e));
+const downloadOrSkip = async (label, file) => {
+  if (file) return ok(label, true, file.suggestedFilename());
+  if (exceljsBlocked()) return skip(label, 'exceljs CDN unreachable from here');
+  return ok(label, false, 'no download fired');
+};
+
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-type'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
 const page = await context.newPage();
 
 const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
+// Record the RESOURCE URL alongside the message. "Failed to load resource: net::ERR_CONNECTION_
+// RESET" names nothing, so without the URL there is no way to tell the Tailwind CDN this sandbox
+// cannot reach from a script the page genuinely lost — and a console check that cannot distinguish
+// those is a check nobody can act on.
+page.on('console', (m) => {
+  if (m.type() !== 'error') return;
+  const url = (() => { try { return m.location()?.url || ''; } catch { return ''; } })();
+  errors.push(`${m.text().slice(0, 260)}${url ? `  [${url}]` : ''}`);
+});
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${String(e.stack || e).slice(0, 400)}`));
 
 // THE DEEP DIVE DASHBOARD IS STUBBED FOR THE WHOLE RUN — see section 6d for what is checked.
@@ -760,6 +802,83 @@ await page.locator('#content-host select').nth(1).selectOption('all');
 await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
+// 3b. The watchlist star must FILL when it is clicked
+//
+// It did not, and the cause was the repaint fast path rather than the watchlist. Starring a row
+// leaves the row SET unchanged, so `repaint()` took the reorder branch, moved the existing <tr>
+// nodes and re-parsed no HTML at all. Dropping the row's cached markup was not enough — nothing
+// rebuilt the node. The row stayed a hollow ☆ while the watchlist filter counted it, which is the
+// worst shape this bug could take: the state was real and only the control you clicked disagreed.
+// ---------------------------------------------------------------------------------------
+console.log('\n— watchlist —');
+await go('/#/research/breakouts?scope=universe', 2500);
+{
+  const key0 = await page.locator('#content-host tbody tr').first().getAttribute('data-row-key');
+  const star = () => page.locator(`#content-host tr[data-row-key="${key0}"] [data-watch]`).first();
+  const glyph = async () => (await star().innerText()).trim();
+
+  const before = await glyph();
+  await star().click();
+  await page.waitForTimeout(400);
+  const after = await glyph();
+  ok('clicking the watchlist star fills it', before === '☆' && after === '★', `${before} → ${after}`);
+  ok('...and the stored watchlist agrees with the glyph',
+    await page.evaluate((k) => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').includes(k), key0));
+
+  // Watchlist-only is a different repaint path — the row set narrows — and it left the same stale
+  // markup behind, so the filtered view showed hollow stars on the very rows it had filtered TO.
+  await page.locator('#content-host [data-watch-toggle]').click();
+  await page.waitForTimeout(600);
+  const filtered = await rowCount();
+  ok('watchlist-only narrows to the starred rows', filtered >= 1, `${filtered} rows`);
+  ok('...and they are still drawn as starred', (await glyph()) === '★', await glyph());
+  await page.locator('#content-host [data-watch-toggle]').click();
+  await page.waitForTimeout(400);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2600);
+  ok('the star survives a reload', (await glyph()) === '★', await glyph());
+  await star().click();
+  await page.waitForTimeout(400);
+  ok('...and clicking it again empties it', (await glyph()) === '☆', await glyph());
+  ok('...and empties the stored watchlist with it',
+    await page.evaluate((k) => !JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').includes(k), key0));
+}
+
+// ---------------------------------------------------------------------------------------
+// 3c. A sub-view's controls must not MOVE when you change sub-view
+//
+// They did: the Earnings Hub's chip row lived in sectionHead's `meta` slot, which is one half of
+// a `justify-between` row. Whether it rendered beside the title or wrapped under it depended on
+// how wide the chips and the description happened to be — and both change with the sub-view. So
+// Latest Results drew them left, under the title, and Earnings Calendar drew them right, beside
+// it. Controls that jump when you use them read as a different page rather than another view of
+// one. They now have a row of their own, which cannot wrap and so cannot move.
+// ---------------------------------------------------------------------------------------
+console.log('\n— section head —');
+{
+  const controlsBox = async () => {
+    const row = page.locator('#content-host [data-section-controls]').first();
+    await row.waitFor({ timeout: 10000 });
+    const b = await row.boundingBox();
+    const t = await page.locator('#content-host h2').first().boundingBox();
+    return { x: Math.round(b.x), y: Math.round(b.y), titleX: Math.round(t.x), titleBottom: Math.round(t.y + t.height) };
+  };
+  // `?view=`, NOT a route segment — this tab has `subviews: []` and switches on a query param.
+  // A path segment is discarded by the router, so `/earnings-hub/calendar` renders Latest Results
+  // and the comparison below would be measuring one view against itself.
+  await go('/#/research/earnings-hub?scope=universe&view=reported', 3200);
+  const a = await controlsBox();
+  ok('...on Latest Results', /Latest Results/.test(await hostText()));
+  await go('/#/research/earnings-hub?scope=universe&view=calendar', 4500);
+  const b = await controlsBox();
+  ok('...and on Earnings Calendar, which is a different view', /Earnings Calendar/.test(await page.locator('#content-host h2').first().innerText()));
+  ok('the sub-view controls sit in the same place on both sub-views', a.x === b.x, `x ${a.x} vs ${b.x}`);
+  ok('...aligned to the title, not floated to the right', a.x === a.titleX && b.x === b.titleX, `${a.x}/${a.titleX} and ${b.x}/${b.titleX}`);
+  ok('...and below it rather than beside it', a.y >= a.titleBottom && b.y >= b.titleBottom, `${a.y} vs ${a.titleBottom}, ${b.y} vs ${b.titleBottom}`);
+}
+
+// ---------------------------------------------------------------------------------------
 // 4. Drill panel
 //
 // The Earnings Hub deliberately has none: once both reported periods became columns, the drill
@@ -767,6 +886,11 @@ await page.waitForTimeout(400);
 // clicking a row must do NOTHING, and the row must not advertise itself as clickable.
 // ---------------------------------------------------------------------------------------
 console.log('\n— drill —');
+// Navigate explicitly rather than inheriting whatever the previous section left on screen. This
+// block used to run on whichever route the section above it happened to end on, so inserting a
+// section that finishes somewhere else — the calendar, which has no table on a static origin —
+// hung it on a locator that could never resolve. A check should state the page it is about.
+await go('/#/research/earnings-hub?scope=universe&view=reported', 3000);
 const ehRow = page.locator('tr[data-row-key]').first();
 ok('earnings rows are not styled as clickable', !((await ehRow.getAttribute('class')) || '').includes('cursor-pointer'));
 await ehRow.click();
@@ -954,13 +1078,9 @@ await go('/#/research/earnings-hub?scope=universe');
 const download = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
 await page.locator('#content-host button:has-text("Export")').first().click();
 const file = await download;
-if (file) {
-  ok('Export Excel downloads a workbook', true, file.suggestedFilename());
-} else {
-  // The CDN is unreachable in some sandboxes; that is a environment limit, not a regression.
-  const blocked = errors.some((e) => /exceljs/i.test(e));
-  ok('Export Excel downloads a workbook', false, blocked ? 'exceljs CDN unreachable from here' : 'no download fired');
-}
+// SKIP, not FAIL, when the CDN is unreachable: asserting a download that needs an unreachable
+// script reports the sandbox's network as a regression in the page.
+await downloadOrSkip('Export Excel downloads a workbook', file);
 
 // ---------------------------------------------------------------------------------------
 // 6b. Con-call — the LIVE half, off StockScans.
@@ -989,7 +1109,11 @@ for (const c of ['CALL', 'COMPANY', 'RESULT SCORE', 'RESULT', 'SENTIMENT', 'HIGH
   ok(`con-call column: ${c}`, csHeads.some((h) => h.startsWith(c)), csHeads.join(' | '));
 }
 const csText = await hostText();
-ok('the panel says whose analysis this is', /StockScans/.test(csText) && /own analysis/i.test(csText));
+ok('the panel says whose analysis this is', /own analysis/i.test(csText) && /provider/i.test(csText));
+// The provider's BRAND is deliberately absent from every customer-facing surface — see the note
+// in js/ui/sources.js. What may never go with it is the claim that the analysis is not ours, so
+// this pair is asserted together: no brand anywhere, and the disclaimer everywhere.
+ok('...without printing the provider\'s brand', !/stockscans/i.test(csText), csText.match(/StockScans/i)?.[0] || '');
 // One view, no rail. The tab used to carry six sub-views, four of them on a synthetic transcript
 // corpus with fictional speakers; they are gone, and with them the amber ribbon that had to sit
 // next to a live green pill explaining which half you were looking at.
@@ -1022,10 +1146,10 @@ const csBands = await page.evaluate(async () => {
   const m = await import('/js/data/stockscans-shared.js');
   return [85, 61, 45, 21, 3].map((v) => m.resultTierOf(v).label).join(',') + '|' + (m.resultTierOf(null) === null);
 });
-ok('result tiers use StockScans’ published bands', csBands === 'Excellent,Strong,Average,Weak,Poor|true', csBands);
+ok('result tiers use the provider’s published bands', csBands === 'Excellent,Strong,Average,Weak,Poor|true', csBands);
 
 // CON-CALL ROWS ARE INERT, like the Earnings Hub's. The drill they used to open restated the score,
-// the tier and the highlights already in the columns beside it — all of it StockScans' — so the
+// the tier and the highlights already in the columns beside it — all of it the provider's — so the
 // only thing it uniquely carried was the link out, which is now a column. Removing a per-company
 // panel about somebody else's analysis is also the right side of "link, do not reproduce".
 const ccRow = page.locator('tr[data-row-key]').first();
@@ -1038,12 +1162,29 @@ ok('...and clicking one opens no drill', !(await page.evaluate(() => {
 })));
 ok('...while the way out to their reader survives as a column', (await page.locator('#content-host tbody a[href*="stockscans"]').count()) > 0);
 
+// THE LINK IN THAT COLUMN HAS TO RESOLVE. It was built one path segment short of the provider's
+// company route — which requires a period the scan payload does not carry — so every link 404'd
+// while looking exactly like a working one. The only signal the reader got was the provider's own
+// 404 page, which reads as "their page is gone" when the page is fine and the URL was ours. Their
+// document route needs nothing but the document key, so it cannot be built short.
+const csLink = await page.evaluate(async () => {
+  const mod = await import('/js/data/concall-scans.js');
+  const withDoc = mod.all().filter((r) => r.transcriptUrl);
+  return { n: withDoc.length, sample: withDoc[0]?.transcriptUrl || '' };
+});
+ok('analysed rows carry a summary link', csLink.n > 100, `${csLink.n} links`);
+ok('...on the document route, which needs no period', /\/document\/[^/]+\.pdf$/.test(csLink.sample), csLink.sample);
+ok('...never on the company route, which does', !/\/company\//.test(csLink.sample), csLink.sample);
+
 // The attribution the drill used to carry has to still be reachable, or this is just deletion.
-// It lives behind the Live pill — the same resolution the Earnings Hub took.
+// It lives behind the Live pill — the same resolution the Earnings Hub took. The provider's BRAND
+// is deliberately absent from every customer-facing surface, so the pair is asserted together:
+// the disclaimer everywhere, the trade name nowhere.
 await page.locator('[data-cs-info]').first().click();
 await page.waitForTimeout(600);
 const csProv = await page.locator('#modal-content').innerText();
-ok('the Live pill attributes the score to StockScans', /StockScans/.test(csProv) && /not this dashboard/i.test(csProv));
+ok('the Live pill attributes the score to a third party', /third-party|provider/i.test(csProv) && /not this dashboard/i.test(csProv));
+ok('...without printing the provider\'s brand', !/stockscans/i.test(csProv), csProv.match(/StockScans/i)?.[0] || '');
 ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csProv));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
@@ -1111,7 +1252,7 @@ if (hidden) {
 }
 
 // Times are IST here too, and in StockScans' own 12-hour form.
-ok('schedule times are 12-hour IST, as StockScans print them', /\b\d{1,2}:\d{2}\s?(AM|PM)\b/.test(await calModal().innerText()));
+ok('schedule times are 12-hour IST, as the provider prints them', /\b\d{1,2}:\d{2}\s?(AM|PM)\b/.test(await calModal().innerText()));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the schedule overlay', (await page.locator('#modal-overlay.is-open').count()) === 0);
@@ -1615,6 +1756,8 @@ ok('the tab offers exactly two sub-views, both real', await page.evaluate(async 
   const m = await import('/js/tabs/super-investors.js');
   return m.meta.subviews.length === 2 && !m.meta.subviews.some((s) => s.id === 'fund-flows');
 }));
+// These four 404s are the point of the check, not a symptom — see `expectError` at the top.
+expectError(/js\/data\/investors\.js|js\/investors\/deep-dive\.js|mock\/superinvestors\.json|mock\/fund-flows\.json/);
 ok('...and the synthetic investor modules are gone from the served site', await page.evaluate(async () => {
   for (const f of ['js/data/investors.js', 'js/investors/deep-dive.js', 'data/mock/superinvestors.json', 'data/mock/fund-flows.json']) {
     const res = await fetch(f, { cache: 'no-cache' }).catch(() => null);
@@ -2248,12 +2391,30 @@ if (await page.locator('#modal-overlay.is-open').count()) {
 // 10. Scope and exports on both new tabs
 // ---------------------------------------------------------------------------------------
 console.log('\n— scope and exports —');
-await go('/#/research/public-chatter?scope=portfolio', 5000);
+await go('/#/research/public-chatter?scope=portfolio', 1500);
 {
-  const t = await hostText();
+  // WAIT FOR THE PANEL TO SETTLE, don't sample it at a fixed moment. This tab calls its upstream
+  // straight from the browser, so where there is no egress the fetch does not fail fast — it sits
+  // in "Loading chatter…" for the best part of half a minute before the honest failure panel
+  // replaces it. A fixed 5s sample caught the spinner and reported it as a missing scope label,
+  // which blames the page for the network.
+  const settled = await (async () => {
+    const until = Date.now() + 45000;
+    while (Date.now() < until) {
+      const t = await hostText();
+      if (!/Loading chatter/i.test(t)) return t;
+      await page.waitForTimeout(500);
+    }
+    return await hostText();
+  })();
   // Either the scope pill, or the named reason the feed is unavailable on this origin. An empty
   // panel that explains neither is the one outcome that must not happen.
-  ok('chatter portfolio scope narrows and labels', /Portfolio/.test(t) || /not configured|unreachable|no chatter route/i.test(t), t.slice(0, 80).replace(/\s+/g, ' '));
+  ok('chatter portfolio scope narrows and labels',
+    /Portfolio/.test(settled) || /could not be reached|not configured|unreachable|no chatter route/i.test(settled),
+    settled.slice(0, 80).replace(/\s+/g, ' '));
+  // And whichever it is, the failure has to carry the address it asked for — a bare status code
+  // is unfalsifiable, which is the whole lesson of the same-zone Worker refusal.
+  if (!/Portfolio/.test(settled)) ok('...and a failure names the URL it asked for', /https?:\/\//.test(settled));
 }
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
 ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
@@ -2280,7 +2441,7 @@ for (const [hash, label] of [
   const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
   await btn.click();
   const file = await dl;
-  ok(`${label} export downloads`, !!file, file?.suggestedFilename() || 'no download (CDN blocked?)');
+  await downloadOrSkip(`${label} export downloads`, file);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -2432,6 +2593,44 @@ ok('excluded tickers are named, and coverage is reported', curveChecks.coverage 
    `${curveChecks.coverage.toFixed(1)}% priced, excludes ${curveChecks.excluded.join(', ') || 'nothing'}`);
 
 // ---------------------------------------------------------------------------------------
+// 12b. Provenance on this workspace, without the ribbon
+//
+// A four-line amber block used to head all four sub-views: two pills, a paragraph naming the
+// generator script, the mark's age, the curve's window and the excluded tickers. It was the
+// first thing anyone saw here, above the money, on every view. The Earnings Hub rule applies —
+// decluttering a page is fine, deleting its accountability is not — so what is asserted is the
+// pair: the paragraph is gone from the body, and the CLAIM is still on the face of a pill on
+// every sub-view with the whole paragraph one click behind it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— portfolio: provenance —');
+for (const [route, label] of [
+  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
+  ['/#/portfolio/overview/allocation?scope=universe', 'allocation'],
+  ['/#/portfolio/position-by/sector?scope=universe', 'position-by'],
+  ['/#/portfolio/transactions/trades?scope=universe', 'trades'],
+  ['/#/portfolio/drawdown/curve?scope=universe', 'drawdown'],
+]) {
+  await go(route, 2000);
+  const pills = await page.locator('#content-host [data-pf-info]').count();
+  const txt = await hostText();
+  ok(`${label}: carries exactly one provenance pill`, pills === 1, `${pills} pills`);
+  ok(`${label}: ...saying the ledger is illustrative on its face`, /Illustrative ledger/i.test(txt));
+  ok(`${label}: ...and no longer spends four lines saying it`, !/Which trades were made/.test(txt));
+}
+{
+  await page.locator('#content-host [data-pf-info]').first().click();
+  await page.waitForTimeout(600);
+  const pfModal = await page.locator('#modal-content').innerText();
+  ok('the pill opens the provenance in full', /gen-mock-transactions/.test(pfModal) && /synthetic/i.test(pfModal));
+  ok('...still separating the invented trades from the real prices', /Every price in it is real/i.test(pfModal));
+  const pfExcluded = await page.evaluate(async () => (await import('/js/data/portfolio.js')).meta()?.excluded?.length || 0);
+  if (pfExcluded) ok('...and still names what the equity curve cannot value', /Excluded from the equity curve/i.test(pfModal));
+  else skip('...and still names what the equity curve cannot value', 'nothing is excluded in this data');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+}
+
+// ---------------------------------------------------------------------------------------
 // 13. The no-live-price fallback must be loud, not silent
 // ---------------------------------------------------------------------------------------
 console.log('\n— portfolio: no-live-price fallback —');
@@ -2440,18 +2639,28 @@ console.log('\n— portfolio: no-live-price fallback —');
   const fbErrors = [];
   fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
   await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'networkidle' });
-  await fb.waitForTimeout(1600);
+  // `domcontentloaded`, not `networkidle`, for the same reason `go()` uses it: the Tailwind CDN
+  // request never settles in a sandbox with no egress, so networkidle waits out its full timeout
+  // and takes the run with it. The explicit settle below is what this check actually needs.
+  await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
+  await fb.waitForTimeout(2200);
   const t = await fb.locator('#content-host').innerText();
+  // The pill's FACE changes in this state, not just the modal behind it: a position shown at
+  // cost reports a P&L of exactly zero, and a zero meaning "no price" must not look like a zero
+  // meaning "flat". A caveat one click away would not be read in time to stop that.
   ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
+  ok('...on the face of the pill, not only inside it', /Marks unavailable/.test(await fb.locator('[data-pf-info]').first().innerText()));
   ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
-  ok('...without throwing', fbErrors.length === 0, fbErrors.join(' | '));
+  // Ours only. A sandbox with no egress logs "tailwind is not defined" on every page it opens,
+  // and counting that as this fallback throwing would blame the page for the network.
+  const fbOwn = fbErrors.filter(ownError);
+  ok('...without throwing', fbOwn.length === 0, fbOwn.join(' | ') || `${fbErrors.length - fbOwn.length} CDN error(s) ignored`);
   await fb.close();
 
   const nh = await context.newPage();
   await nh.route('**/data/portfolio-history.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  await nh.goto(`${BASE}/#/portfolio/drawdown/curve?scope=universe`, { waitUntil: 'networkidle' });
-  await nh.waitForTimeout(1600);
+  await nh.goto(`${BASE}/#/portfolio/drawdown/curve?scope=universe`, { waitUntil: 'domcontentloaded' });
+  await nh.waitForTimeout(2200);
   const dt = await nh.locator('#content-host').innerText();
   ok('a missing price history refuses to show a drawdown', /No price history, so no drawdown/.test(dt));
   ok('...and names how to produce it', /scrape-portfolio-history/.test(dt));
@@ -2519,7 +2728,7 @@ for (const [hash, label] of [
   const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
   await page.locator('#content-host button:has-text("Export")').first().click();
   const file = await dl;
-  ok(`${label} export downloads`, !!file, file?.suggestedFilename() || 'no download (CDN blocked?)');
+  await downloadOrSkip(`${label} export downloads`, file);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -2588,11 +2797,22 @@ console.log('\n— header status and live alerts —');
     tickHonesty.data ? `data ${tickHonesty.global - tickHonesty.data}ms behind the heartbeat` : 'no data tick yet');
 
   // Refresh must say what it found. "Up to date" is the common answer and a real one — a spinner
-  // that simply vanishes leaves the reader unsure anything was checked.
+  // that simply vanishes leaves the reader unsure anything was checked. "Couldn't check" is the
+  // third real answer, for a poller that never settled: the wait is bounded so the button cannot
+  // sit on "Checking…" for ever, and a check that did not complete must never print "Up to date".
   await page.locator('[data-header-refresh]').click();
-  await page.waitForTimeout(3600);
-  const label = await page.locator('[data-header-refresh-label]').innerText();
-  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh/.test(label), label);
+  const label = await (async () => {
+    const until = Date.now() + 20000;
+    let l = '';
+    while (Date.now() < until) {
+      l = await page.locator('[data-header-refresh-label]').innerText();
+      if (!/Checking/i.test(l)) return l;
+      await page.waitForTimeout(400);
+    }
+    return l;
+  })();
+  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh|Couldn/i.test(label), label);
+  ok('...and never re-enables itself still claiming to be checking', !(await page.locator('[data-header-refresh]').isDisabled()));
 
   // The alert stack.
   const alerts = await evalSafe(async () => {
@@ -2671,7 +2891,7 @@ console.log('\n— header status and live alerts —');
   ok('...but does show a real percentage where one exists', /\+25\.0%/.test(wording.normal), wording.normal);
   ok('a result with no parsed figures says so, rather than showing zeros', /not yet parsed/.test(wording.noFigures) && !/0/.test(wording.noFigures.replace(/2026-08-12/, '')), wording.noFigures);
   ok('an unanalysed con-call is "pending", never a score of nil', /analysis pending/i.test(wording.pending) && !/0\/100/.test(wording.pending), wording.pending);
-  ok('...and an analysed one credits StockScans', /StockScans/.test(wording.analysed) && /76\/100/.test(wording.analysed), wording.analysed);
+  ok('...and an analysed one marks the score as a third party’s', /third-party/i.test(wording.analysed) && /76\/100/.test(wording.analysed), wording.analysed);
 
   // The whole point of the watcher: alerts must keep arriving on a tab that owns neither feed.
   const watching = await evalSafe(async () => {
@@ -2817,21 +3037,42 @@ if (ccStore.has) {
 
 // The committed snapshots and lookup tables are static files. Fetching them with `no-store` — as
 // every loader did — forbids reuse outright and made each visit pay ~800KB again.
+// A MISSING FILE MUST FAIL THIS CHECK, NOT PASS IT. The list still named `js/data/chatter.js`,
+// which was renamed to chatter-live.js — so the fetch 404'd, `.text()` handed back the server's
+// error page, the regex found no `no-store` in it and the loader was reported clean without ever
+// having been read. A check whose subject can vanish silently is a check that stops checking.
 const noStore = await page.evaluate(async () => {
-  const files = ['js/app.js', 'js/data/technicals.js', 'js/data/portfolio.js', 'js/data/earnings.js', 'js/data/chatter.js'];
+  const files = [
+    'js/app.js',
+    'js/data/technicals.js',
+    'js/data/portfolio.js',
+    'js/data/earnings.js',
+    'js/data/chatter-live.js',
+    'js/data/earnings-live.js',
+    'js/data/concall-scans.js',
+    'js/data/super-investors.js',
+    'js/data/institution-holdings.js',
+    'js/data/coverage.js',
+  ];
   const out = [];
+  const missing = [];
   for (const f of files) {
-    const src = await (await fetch(f, { cache: 'no-cache' })).text();
-    if (/cache:\s*'no-store'/.test(src)) out.push(f);
+    const res = await fetch(f, { cache: 'no-cache' });
+    if (!res.ok) { missing.push(f); continue; }
+    if (/cache:\s*'no-store'/.test(await res.text())) out.push(f);
   }
-  return out;
+  return { out, missing };
 });
-ok('no static-file loader still uses cache: no-store', noStore.length === 0, noStore.join(', '));
+ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${10} read`);
+ok('no static-file loader still uses cache: no-store', noStore.out.length === 0, noStore.out.join(', '));
 
 // ---------------------------------------------------------------------------------------
 console.log('\n— console —');
 const unique = [...new Set(errors)];
-ok('zero console errors', unique.length === 0, unique.slice(0, 3).join(' | '));
+// The bar is zero errors OF OURS — see ENV_ERROR above for what that excludes and why.
+const ourErrors = unique.filter(ownError);
+ok('zero console errors', ourErrors.length === 0, ourErrors.slice(0, 3).join(' | ') || `${unique.length - ourErrors.length} environment error(s) filtered`);
+if (unique.length !== ourErrors.length) skip('...and none from the CDNs or /api either', `${unique.length - ourErrors.length} filtered — no egress, and no Worker on this origin`);
 
 await browser.close();
 await new Promise((r) => ddStub.close(r));

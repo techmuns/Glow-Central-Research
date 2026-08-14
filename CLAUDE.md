@@ -219,8 +219,8 @@ Conventions:
 | `openDrill(config)` | right-slide detail panel (singleton), 480px. For one row's detail. |
 | `openWorkspace(config)` | full-screen overlay (singleton), `max-w-[1200px]`, with its own tab strip. For analysis that needs room — see below. |
 | `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
-| `table.updateRows(keys)` | rebuild named rows **in place** after their data changed, leaving the row set — and so the reader's search, filters, watchlist and sort — untouched. For data landing on a mounted table: a live quote arriving over an EOD column is the reference case. Not the same as a repaint: `repaint`'s fast path *moves* existing `<tr>` nodes, so invalidating the markup cache alone changes nothing on screen. |
-| `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. |
+| `table.updateRows(keys)` | rebuild named rows **in place** after their data changed, leaving the row set — and so the reader's search, filters, watchlist and sort — untouched. For data landing on a mounted table: a live quote arriving over an EOD column is the reference case, and the watchlist star is the second. Not the same as a repaint: `repaint`'s fast path *moves* existing `<tr>` nodes, so invalidating the markup cache alone changes nothing on screen. |
+| `sectionHead`, `roadmapStrip`, `pendingPanel` | title block, the dashed roadmap card, and the honest "no data yet" panel. `sectionHead` takes **`meta`** (right of the title) and **`controls`** (a left-aligned row of its own beneath it) — see below. |
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
 and nothing else: no stat cards, no ribbon, no rail. The rule that survives is not "every tab has a
@@ -270,6 +270,26 @@ the only consumer that changes all four, because it carries ten numeric columns:
 Reach for these only when the alternative is a horizontal scrollbar at 1440px. Measure before and
 after — `[data-table-scroll]`'s `scrollWidth` vs `clientWidth` is the number that matters, and
 `verify-ui.mjs` asserts it for the Earnings Hub (ten columns) and for Institutions (thirteen).
+
+### `meta` versus `controls` — where a tab's chips go
+
+`sectionHead` has two slots and they are not interchangeable.
+
+- **`meta`** is the right-aligned block beside the title. Right for one small pill that is the
+  same on every sub-view — a Live pill, a scope summary, both.
+- **`controls`** is a **left-aligned row of its own**, under the heading block. Use it the moment
+  the set of chips **differs between sub-views**.
+
+The reason is that `meta` lives in a `justify-between` row, so whether it renders beside the title
+or wraps under it depends on how wide the chips and the description happen to be — and both of
+those change with the sub-view. On the Earnings Hub the chip row sat left, under the title, on
+Latest Results and jumped right, beside the title, on Earnings Calendar, because the second view
+drops the YoY/QoQ toggle and has a shorter description. Nothing was conditional; the wrap point
+simply moved.
+
+**Controls that move when you use them read as a different page rather than another view of one.**
+A row of its own cannot wrap, so it cannot move. `verify-ui.mjs` measures the controls row's `x`
+on both Earnings Hub sub-views and asserts they are equal and aligned to the title.
 
 ### Honesty rules for the kit
 
@@ -409,19 +429,40 @@ What makes it honest is that the boundary never blurs:
 1. **Do not re-band, re-scale or recompute.** `resultTierOf()` in `js/data/stockscans-shared.js`
    uses StockScans' own cut-points (80 / 60 / 40 / 20), lifted from their client. A band of our
    invention under their score would read as their judgement and be ours.
-2. **Say whose it is on every surface.** The sub-view description, the Live pill's modal, the
-   drill's Provenance group and row 1 of the exported sheet all say the scores are StockScans'.
+2. **Say it is not ours on every surface — the claim, not the brand.** The sub-view description,
+   the Live pill's modal, the drill's Provenance group and row 1 of the exported sheet all say the
+   scores are a third-party research provider's and that this dashboard adds no scoring of its own.
    The export banner matters most — a workbook leaves the page without its chrome.
+
+   **The provider's brand is deliberately not printed on any customer-facing surface.** It is named
+   in the code, in `docs/DATA-CONTRACTS.md` and in the module names, and every row links straight to
+   their own page for that call — but the UI says "the research provider", not the trade name. These
+   are two different obligations and only one of them is about honesty: the reader is owed the fact
+   that the judgement on screen is not this dashboard's, which is stated in full everywhere. Which
+   supplier produced it is a commercial matter and the owner's call. **Never trade the first away
+   for the second** — dropping the name is fine, dropping "not ours" is not, and `verify-ui.mjs`
+   asserts the pair together on the panel and in the drill: no brand anywhere, the disclaimer
+   everywhere.
 3. **`pending` is not zero.** A call joins the feed when it is *held* and gains its analysis some
    minutes later. Until then the score is null and renders `pending`, exactly as it does upstream.
    A zero would claim they assessed it and found it worthless.
-4. **Link, do not reproduce.** Full summaries and transcripts stay on StockScans; rows deep-link
-   to their reader. We surface their index, not their content. **This is also why the con-call rows
-   are inert.** They used to open a drill panel restating the score, the tier and the highlights
-   already in the columns beside them — all of it theirs — so its only unique content was the link
-   out, which is now a column. A per-company panel about somebody else's analysis, under our
-   chrome, is the one place that line blurs. The attribution it carried moved to the Live pill,
-   which is the same resolution the Earnings Hub took.
+4. **Link, do not reproduce — and check that the link resolves.** Full summaries and transcripts
+   stay on StockScans; rows deep-link to their reader. We surface their index, not their content.
+   **This is also why the con-call rows are inert.** They used to open a drill panel restating the
+   score, the tier and the highlights already in the columns beside them — all of it theirs — so its
+   only unique content was the link out, which is now a column. A per-company panel about somebody
+   else's analysis, under our chrome, is the one place that line blurs. The attribution it carried
+   moved to the Live pill, which is the same resolution the Earnings Hub took.
+
+   **A constructed deep link must be verified against the upstream before it ships.** `docUrl()`
+   built their *company* route, `/company/<id>/<type>/<period>/<file>`, in which every segment is
+   required — and the scan payload carries no period at all, so the segment was always missing and
+   **every link on the tab 404'd**. It looked like a link, it behaved like a link, and it had never
+   once resolved. Worse, the artefact of the failure was *their* 404 page, which reads as "their
+   document is gone" when the document was fine and the URL was ours. Their reader has a second
+   entrance that takes only the document key — `/document/<file>` — which is what their own
+   transcript button uses and what we use now, because it cannot be built short. `curl -o /dev/null
+   -w '%{http_code}'` on one real row is the whole test; the suite asserts the route shape.
 5. **One definition of the vocabulary.** `public/js/data/stockscans-shared.js` is pure and is
    imported by `worker/stockscans.mjs`, so the browser and the Worker cannot drift about what
    "Strong" means.
@@ -705,6 +746,18 @@ wired as if it were live. The pattern for any feed in that state:
 - a repaint whose row set the DOM already contains **moves existing `<tr>` nodes** instead of
   re-parsing HTML. That is what keeps a 535-row sort at ~30ms instead of ~150ms.
 
+**The third one has a trap, and it cost the watchlist star.** Invalidating a row's cached markup
+does nothing on the fast path, because the fast path re-parses no HTML at all — it moves nodes
+that are already there. Starring a row leaves the row *set* unchanged, so `rowHtmlCache.delete()`
+dropped the string and the `<tr>` in the DOM kept its hollow `☆` for ever. The state was real —
+the watchlist filter counted the row, the export carried it, a reload drew it starred — and the
+only thing that disagreed was the control you had just clicked.
+
+So **per-row state now goes through `staleKeys`**, and `replaceStaleRows()` swaps those `<tr>`
+nodes in place on the reorder branch (the full-rebuild branch clears the set, since it reads the
+watchlist fresh). If you add any other per-row state to the markup, mark it stale the same way —
+dropping the cache entry is only half of it.
+
 ### Data sources
 
 The header "Sources" modal is generated from `js/ui/sources.js`. **Adding a data source means
@@ -808,12 +861,38 @@ Likewise: the headline drawdown is the total portfolio (retained cash dampens it
 second holdings-only figure answers "how far did the stocks fall". Both are labelled; neither is
 presented as *the* drawdown.
 
-### The split provenance ribbon
+### The split provenance, and why it is a pill rather than a ribbon
 
-Portfolio Analytics is the one workspace where mock and real meet inside a single number, so it
-does not use the plain amber ribbon. `provenanceRibbon()` in `js/portfolio/chrome.js` renders both
-halves — amber for the ledger, emerald for the mark — and adapts when a feed is missing. All four
-sub-views call that one function; change it there, not four times.
+Portfolio Analytics is the one workspace where mock and real meet inside a single number: the
+ledger is invented, every price in it is real. A flat "mock data" ribbon understates it and a
+"live" badge overstates it.
+
+That used to be a four-line amber block at the top of all four sub-views — two pills, a paragraph
+naming the generator script, the mark's age, the curve's window and the excluded tickers. Correct,
+and the loudest thing on the page: the first object anyone saw on this workspace, above the money,
+every single view. A caveat that big stops reading as a note about one input and starts reading as
+a warning about the page.
+
+So it went the way the Earnings Hub's ribbon went. `provenancePill(meta)` + `wireProvenancePill()`
+in `js/portfolio/chrome.js` put it in the section head, and the modal behind it carries every word
+that used to be in the block. `headMeta(meta, scopeHtml)` is the one function that lays the head's
+right-hand side out, so the pill and the scope summary are in the same order and the same place on
+all four sub-views.
+
+Three things that make the trade honest rather than a deletion:
+
+1. **The claim stays on the face of the pill.** It reads *Illustrative ledger · live marks*, in
+   amber, on every sub-view. What moved behind a click is the explanation, never the claim.
+2. **The failure state gets the face instead.** With no mark the pill turns rose and reads *Marks
+   unavailable · shown at cost*, because every P&L on screen is then exactly zero for want of a
+   price. That is a thing to know before you read the numbers, not after.
+3. **The other four markers are untouched** — the freshness card, the per-row "at cost" tag, the
+   drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
+   the page without its chrome, and it is the one artefact nobody can see a pill on.
+
+**Prefer this shape whenever a caveat is competing with the content it qualifies.** Twice now the
+right answer to "this ribbon is too loud" has been to move the explanation behind a control that
+still states the claim — and never to delete the claim, and never to write a smaller ribbon.
 
 ---
 
@@ -1124,7 +1203,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
-| Change the portfolio provenance ribbon | `provenanceRibbon()` in `js/portfolio/chrome.js` — one function, four sub-views |
+| Change the portfolio provenance pill | `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` — one function, four sub-views |
 | Regenerate the mock ledger | `node scripts/gen-mock-transactions.mjs` — seeded; also rewrites `portfolio.json`'s derived fields |
 | Wire the real ledger | `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" (6 steps) |
 | Hand the project over | `docs/HANDOFF.md` |
@@ -1162,7 +1241,7 @@ nothing — which is exactly why the con-call route has no projection either.
 python3 -m http.server 8080 -d public
 ```
 
-Then run the suite — ~190 Playwright assertions, exits non-zero on the first failure
+Then run the suite — ~330 Playwright assertions, exits non-zero at the end if any failed
 (Chromium is preinstalled — never run `playwright install`):
 
 ```bash
@@ -1184,6 +1263,17 @@ It covers, beyond the checklist below:
   (the Earnings Hub has no drill by design — its rows are inert and the suite asserts that)
 - scoreTable search, header sort, filter select and watchlist toggle all work, and the
   watchlist survives a reload
+- **the watchlist star fills when it is clicked** — on the click itself, under the watchlist-only
+  filter, and after a reload — and the glyph agrees with what is stored
+- **a sub-view's controls do not move when you change sub-view**: measured on both Earnings Hub
+  views, same `x`, aligned to the title, below it rather than beside it
+- Portfolio Analytics carries **one provenance pill per sub-view** saying the ledger is
+  illustrative, the four-line ribbon is gone from the body, and the pill's modal still names the
+  generator script, the real prices and what the equity curve excludes
+- every con-call row's summary link is built on the **document** route, never the company route
+  that needs a period we do not have — the shape every link 404'd with
+- the con-call panel and drill say the analysis is a third party's and **never print the
+  provider's brand**
 - the Sources modal opens off the status pill and lists every documented source
 - the header carries no search box and no Sources button, exactly one status pill reading
   "Live · updated <when>", and a refresh button that reports a result
@@ -1226,6 +1316,11 @@ It covers, beyond the checklist below:
   with a real `checkedAt` rather than claiming to be live; and on a cold device, where books
   actually arrive one at a time, the panel is rebuilt **fewer times than there are books**
 
+> A **SKIP** is the honest answer where the sandbox, not the page, is the reason a check cannot
+> run — no egress to the Tailwind/exceljs CDNs, no Worker on a static origin. The final
+> `zero console errors` check filters exactly those two families and **prints how many it dropped**,
+> so a run that hid a real error behind the filter still shows the count.
+>
 > The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
 > `/api/*`, so they report **SKIP** — which is itself worth seeing, because it exercises the
 > snapshot fallback. Verify a caching change against `npx wrangler dev`:

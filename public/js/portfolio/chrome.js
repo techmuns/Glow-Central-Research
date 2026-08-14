@@ -1,62 +1,126 @@
 // portfolio/chrome.js — the shared furniture for the four Portfolio Analytics sub-views.
 //
 // All four load the same data module and all four must tell the same story about what is live
-// and what is mock, so the ribbon, the loading skeleton, the error panel and the money cells
+// and what is mock, so the provenance pill, the loading skeleton, the error panel and the money cells
 // live here rather than being copy-pasted four times and drifting.
 //
-// THE PROVENANCE SPLIT ON THIS WORKSPACE IS UNUSUAL AND THE RIBBON SAYS SO
+// THE PROVENANCE SPLIT ON THIS WORKSPACE IS UNUSUAL, AND IT USED TO TAKE A WHOLE RIBBON TO SAY SO
 //   Every other mock surface in the dashboard is mock end to end, so an amber ribbon covers it.
 //   Here the ledger is synthetic but the marks and the price history are real, and a flat "mock
-//   data" ribbon would understate the numbers while a "live" badge would overstate them. So the
-//   ribbon is split: amber for the ledger, emerald for the mark, with the timestamp of each.
+//   data" ribbon would understate the numbers while a "live" badge would overstate them.
+//
+//   That used to be a four-line amber block at the top of all four sub-views — two pills, a
+//   paragraph naming the generator script, the mark's age, the curve's window, and the list of
+//   tickers the curve excludes. It was the first thing anyone saw on this workspace, above the
+//   money, on every view, every time. Correct, and far too loud: a caveat that big reads as a
+//   warning about the page rather than a note about one input to it.
+//
+//   So it went the way the Earnings Hub's ribbon went — behind a pill in the section head, which
+//   opens a modal carrying every word of it. The Earnings Hub rule applies verbatim: decluttering
+//   a page is fine, deleting its accountability is not. What may NOT move behind a click is the
+//   claim itself, so the pill still says "illustrative ledger" on its face, in amber, on every
+//   sub-view — and when the mark is missing it says THAT on its face instead, because a position
+//   shown at cost reads as a position that has not moved.
+//
+//   The other four markers are untouched: the freshness card, the "at cost" row tag, the drill
+//   note, and row 1 of every exported sheet. The export banner matters most — a workbook leaves
+//   the page without its chrome, and it is the one artefact nobody can see a pill on.
 
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatPct, formatRupee, formatRelativeTime, toneForValue } from '../core/format.js';
-import { sectionHead } from '../ui/screener.js';
+import { sectionHead, openModal } from '../ui/screener.js';
 
 /**
- * The split provenance ribbon. Every sub-view renders this directly under its section head.
+ * The provenance pill. Every sub-view renders this in its section head, beside the scope summary.
+ * Pair it with `wireProvenancePill(root, meta)`.
  */
-export function provenanceRibbon(meta) {
+export function provenancePill(meta) {
   if (!meta) return '';
-  const marks = meta.marksAreLive
-    ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-         <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>
-         Marks are live
-       </span>`
-    : `<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Marks unavailable — positions shown at cost</span>`;
+  // Two faces, because the two states are not equally urgent. Normally the one thing the reader
+  // must know is that the trades are invented; if the mark is missing, the one thing they must
+  // know is that every P&L on screen is zero for want of a price, not for want of a move.
+  const cls = meta.marksAreLive
+    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
+    : 'bg-rose-50 text-rose-800 ring-rose-300 hover:bg-rose-100';
+  const face = meta.marksAreLive
+    ? 'Illustrative ledger · live marks'
+    : 'Marks unavailable · shown at cost';
+  return `
+    <button type="button" data-pf-info title="What is real on this page, and what is not"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+      <span class="h-1.5 w-1.5 rounded-full ${meta.marksAreLive ? 'bg-amber-500' : 'bg-rose-500'}"></span>
+      <span>${escapeHtml(face)}</span>
+    </button>`;
+}
 
-  const excluded = meta.excluded?.length
-    ? `<div class="mt-2 text-xs text-amber-900/80">
-         <span class="font-semibold">Excluded from the equity curve:</span>
-         ${meta.excluded.map((e) => `${escapeHtml(e.ticker)} (${escapeHtml(e.reason)}${e.qty ? `, ${e.qty} shares held` : ''})`).join(' · ')}
-       </div>`
-    : '';
+/**
+ * The chips under every sub-view's heading: the provenance pill, then the scope summary.
+ *
+ * This goes in `sectionHead`'s `controls` slot, NOT its `meta` slot, for the reason set out
+ * beside `sectionHead` — `meta` shares a `justify-between` row with the title, so whether it
+ * renders beside the heading or wraps under it depends on how long that sub-view's description
+ * happens to be. Overview's is two lines and Allocation's is one, so the same two chips would sit
+ * in two different places on two views of the same book. `controls` is a row of its own.
+ */
+export function headMeta(meta, scopeHtml = '') {
+  return `${provenancePill(meta)}${scopeHtml}`;
+}
 
-  // The ribbon must not describe a curve that does not exist. Without the history file the
+export function wireProvenancePill(root, meta) {
+  const btn = root.querySelector('[data-pf-info]');
+  if (!btn || !meta) return;
+  btn.addEventListener('click', () => openModal(provenanceModalHtml(meta), { size: 'default' }));
+}
+
+function provenanceModalHtml(meta) {
+  // The modal must not describe a curve that does not exist. Without the history file the
   // positions and P&L on this page are still perfectly good — only the curve is gone — and
   // saying so beats either claiming the curve is there or blanking a page that still works.
   const curveClause = meta.historyError
-    ? `<strong>the equity curve is unavailable</strong> — <code class="rounded bg-amber-100 px-1">data/portfolio-history.json</code> could not be loaded (${escapeHtml(meta.historyError)}), so Drawdown shows nothing rather than an estimate`
-    : `the equity curve is built from ${meta.tradingDays ? `${meta.tradingDays} trading days of ` : ''}real closing prices${meta.historyFrom ? `, ${escapeHtml(formatDate(meta.historyFrom))} → ${escapeHtml(formatDate(meta.historyTo))}` : ''}`;
+    ? `<strong>The equity curve is unavailable.</strong> <code class="rounded bg-slate-100 px-1">data/portfolio-history.json</code>
+       could not be loaded (${escapeHtml(meta.historyError)}), so Drawdown shows nothing rather than an estimate.`
+    : `<strong>The equity curve</strong> is built from ${meta.tradingDays ? `${escapeHtml(String(meta.tradingDays))} trading days of ` : ''}real
+       closing prices${meta.historyFrom ? `, ${escapeHtml(formatDate(meta.historyFrom))} → ${escapeHtml(formatDate(meta.historyTo))}` : ''}.`;
+
+  const excluded = meta.excluded?.length
+    ? `<p class="mt-2 text-xs text-slate-500"><strong>Excluded from the equity curve:</strong>
+         ${meta.excluded.map((e) => `${escapeHtml(e.ticker)} (${escapeHtml(e.reason)}${e.qty ? `, ${e.qty} shares held` : ''})`).join(' · ')}
+         — carried at running cost rather than dropped, so the curve does not silently shrink the book.</p>`
+    : '';
 
   return `
-    <div class="mb-5 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300">
-          <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Ledger is illustrative
-        </span>
-        ${marks}
+    <div class="px-7 py-6">
+      <div class="mb-3 flex items-start justify-between gap-4">
+        <h2 class="font-display text-xl font-bold text-slate-900">What is real on this page, and what is not</h2>
+        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
       </div>
-      <p class="mt-2 text-xs leading-relaxed text-amber-900/90">
-        <strong>Which trades were made, and when, is synthetic</strong> — generated by
-        <code class="rounded bg-amber-100 px-1">scripts/gen-mock-transactions.mjs</code>.
-        <strong>Every price in it is real</strong>: execution prices are actual Yahoo closes on actual
-        trading days, ${meta.marksAreLive ? `positions are marked to market from the live technicals feed${meta.pricedAt ? ` (${escapeHtml(formatRelativeTime(meta.pricedAt))})` : ''}` : '<strong>but the live mark is unavailable, so positions are shown at cost</strong>'},
-        and ${curveClause}.
-        A drawdown computed from an invented price series is the one number here nobody could check.
-      </p>
-      ${excluded}
+      <div class="text-sm leading-relaxed text-slate-600">
+        <p class="rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">
+          <strong>Which trades were made, and when, is synthetic</strong> — generated by
+          <code class="rounded bg-amber-100 px-1">scripts/gen-mock-transactions.mjs</code>. Quantities, dates and the
+          sequence of buys and sells are invented. Nothing here is a record of a real transaction.
+        </p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Every price in it is real</h3>
+        <p class="mt-1 text-xs">Execution prices are actual Yahoo closes on actual trading days, so a cost basis is what those
+          shares would genuinely have cost on that date.
+          ${
+            meta.marksAreLive
+              ? `Positions are marked to market from the live technicals feed${meta.pricedAt ? `, read ${escapeHtml(formatRelativeTime(meta.pricedAt))}` : ''}.`
+              : '<strong class="text-rose-700">The live mark is unavailable right now, so positions are shown at cost</strong> — every unrealised P&L on screen is zero because no price could be read, not because nothing moved. Each affected row carries an "at cost" tag.'
+          }
+        </p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The drawdown, and why it is the number to watch</h3>
+        <p class="mt-1 text-xs">${curveClause}
+          A drawdown computed from an invented price series is the one figure on this workspace nobody could check, which is
+          exactly why the series behind it is real.</p>
+        ${excluded}
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where this shows up again</h3>
+        <p class="mt-1 text-xs text-slate-500">Row 1 of every workbook exported from this workspace repeats all of the above. A
+          spreadsheet leaves the page without its chrome, and a number that travels has to carry its provenance with it.</p>
+      </div>
     </div>`;
 }
 
@@ -113,7 +177,6 @@ export function createLoader(tabTitle, tabSubtitle) {
 export function loadingHtml(title, subtitle) {
   return `
     ${sectionHead({ title, description: subtitle })}
-    <div class="mb-5 skeleton-shimmer h-20 rounded-2xl bg-amber-50"></div>
     <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
       ${Array.from({ length: 4 }).map(() => '<div class="skeleton-shimmer h-24 rounded-2xl bg-slate-100"></div>').join('')}
     </div>

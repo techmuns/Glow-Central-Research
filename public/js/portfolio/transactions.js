@@ -22,7 +22,7 @@ import { formatRupee, formatNumber, formatDate, formatPct } from '../core/format
 import { exportRows } from '../ui/export.js';
 import * as portfolio from '../data/portfolio.js';
 import { replay } from './lots.js';
-import { provenanceRibbon, createLoader, moneyCell, pctCell, termPill, freshnessCard, exportBanner } from './chrome.js';
+import { headMeta, wireProvenancePill, createLoader, moneyCell, pctCell, termPill, freshnessCard, exportBanner } from './chrome.js';
 
 export const meta = {
   id: 'transactions',
@@ -184,15 +184,15 @@ function renderTrades(ctx) {
     ${sectionHead({
       title: 'Trades',
       description: 'Every buy and sell. Click a sell to see exactly which lots it consumed — that is the FIFO working, not a summary of it.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'trades' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'trades' })),
     })}
-    ${provenanceRibbon(m)}
     ${sessionBanner()}
     ${stats.html}
     ${table.html}
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   disposers.push(table.wire(ctx.root));
 }
 
@@ -363,9 +363,8 @@ function renderIncome(ctx) {
     ${sectionHead({
       title: 'Dividends & corporate actions',
       description: 'Income and share-count changes. Neither touches the cost basis the way a trade does, and the reasons differ.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'events' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'events' })),
     })}
-    ${provenanceRibbon(m)}
     ${sessionBanner()}
     ${stats.html}
     ${actionsPanel(actions)}
@@ -373,6 +372,7 @@ function renderIncome(ctx) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   if (rows.length) disposers.push(table.wire(ctx.root));
 }
 
@@ -548,9 +548,8 @@ function renderImport(ctx) {
     ${sectionHead({
       title: 'Import / Export',
       description: 'Round-trip the ledger as CSV. Import previews first and names every row it rejects.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'ledger rows' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'ledger rows' })),
     })}
-    ${provenanceRibbon(m)}
     ${sessionBanner()}
     ${stats.html}
 
@@ -626,6 +625,7 @@ function renderImport(ctx) {
   `;
 
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   wireImport(ctx);
 }
 

@@ -165,8 +165,8 @@ function decorate(r) {
     ...r,
     resultTier: resultTierOf(r.resultScore),
     sentiment: sentimentTierOf(r.sentimentTier),
-    transcriptUrl: docUrl({ companyId: r.companyId, ssUrl: r.ssUrl, type: 'concall' }),
-    pptUrl: docUrl({ companyId: r.companyId, ssUrl: r.pptSsUrl, type: 'ppt' }),
+    transcriptUrl: docUrl({ ssUrl: r.ssUrl }),
+    pptUrl: docUrl({ ssUrl: r.pptSsUrl }),
   };
 }
 

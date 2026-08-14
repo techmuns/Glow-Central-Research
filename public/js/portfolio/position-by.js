@@ -16,7 +16,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatRupee, formatPct, formatNumber, formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as portfolio from '../data/portfolio.js';
-import { provenanceRibbon, createLoader, moneyCell, pctCell, convictionPill, unpricedTag, freshnessCard, exportBanner, PNL_HELP } from './chrome.js';
+import { headMeta, wireProvenancePill, createLoader, moneyCell, pctCell, convictionPill, unpricedTag, freshnessCard, exportBanner, PNL_HELP } from './chrome.js';
 
 export const meta = {
   id: 'position-by',
@@ -169,9 +169,8 @@ function paint(ctx) {
     ${sectionHead({
       title: cut.title,
       description: cut.blurb,
-      meta: scopeSummary({ scope: ctx.scope, count: groups.length, noun: 'groups' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: groups.length, noun: 'groups' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${stackedBar(groups, total)}
     ${table.html}
@@ -179,6 +178,7 @@ function paint(ctx) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   disposers.push(table.wire(ctx.root));
   wireDetail(ctx.root);
 }

@@ -15,7 +15,8 @@ import { formatRupee, formatPct, formatNumber, formatDate } from '../core/format
 import { exportRows } from '../ui/export.js';
 import * as portfolio from '../data/portfolio.js';
 import {
-  provenanceRibbon,
+  headMeta,
+  wireProvenancePill,
   createLoader,
   moneyCell,
   pctCell,
@@ -183,9 +184,8 @@ function renderPositions(ctx) {
     ${sectionHead({
       title: meta.title,
       description: 'Every open position marked to market from the live technicals feed, with cost basis from a FIFO replay of the ledger.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: ctx.scope === 'portfolio' ? 'open positions' : 'positions incl. exited' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: ctx.scope === 'portfolio' ? 'open positions' : 'positions incl. exited' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${reconciliationStrip()}
     ${cards.html}
@@ -194,6 +194,7 @@ function renderPositions(ctx) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   cards.wire(ctx.root);
   const off = table.wire(ctx.root);
   disposers.push(off);
@@ -257,9 +258,8 @@ function renderAllocation(ctx) {
     ${sectionHead({
       title: 'Allocation',
       description: 'Where the money actually sits, by sector and by conviction tier.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'open positions' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'open positions' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     <div class="mb-6 grid gap-4 lg:grid-cols-2">
       ${allocationPanel('By sector', bySector, total)}
@@ -285,6 +285,7 @@ function renderAllocation(ctx) {
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
 }
 
 function groupBy(rows, keyFn, total) {
@@ -395,14 +396,14 @@ function renderRealised(ctx) {
     ${sectionHead({
       title: 'Realised P&L',
       description: 'One row per FIFO lot match. A single sell that consumed three lots appears three times — that is the working, not a duplicate.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'lot matches' }),
+      controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'lot matches' })),
     })}
-    ${provenanceRibbon(m)}
     ${stats.html}
     ${rows.length ? table.html : '<div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-100">No sells in the ledger yet — nothing has been realised.</div>'}
     ${roadmapStrip(FEATURES)}
   `;
   stats.wire(ctx.root);
+  wireProvenancePill(ctx.root, m);
   if (rows.length) disposers.push(table.wire(ctx.root));
 }
 

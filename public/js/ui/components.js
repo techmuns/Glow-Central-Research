@@ -515,6 +515,19 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
     const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
     pill.addEventListener('click', () => onOpenSources?.());
 
+    // A REFRESH THAT NEVER RETURNS IS THE EXACT FAILURE THIS BUTTON EXISTS TO PREVENT.
+    //
+    // `refreshAll()` awaits every running poller's fetcher, and an upstream that accepts the
+    // connection without answering leaves that promise pending for ever. The button was then
+    // stuck on "Checking…" AND disabled — no result, no retry, and the one control on the page
+    // whose whole job is to say whether the data was confirmed saying nothing at all.
+    //
+    // So the wait is bounded, and both failure modes report themselves. "Couldn't check" is a
+    // result; a spinner is not. What must never happen is the third option the old code took on
+    // the error path: printing "Up to date" after a check that did not complete, which claims a
+    // freshness nothing confirmed — the same rule that governs `meta.checkedAt`.
+    const REFRESH_TIMEOUT_MS = 15000;
+    const TIMED_OUT = Symbol('timeout');
     let resetTimer = null;
     async function doRefresh() {
       if (btn.disabled) return;
@@ -523,15 +536,25 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
       icon.classList.add('spin-slow');
       label.textContent = 'Checking…';
       let announced = 0;
+      let failed = false;
+      let timer = null;
       try {
-        ({ announced = 0 } = (await onRefresh?.()) || {});
+        const outcome = await Promise.race([
+          Promise.resolve(onRefresh?.()),
+          new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), REFRESH_TIMEOUT_MS); }),
+        ]);
+        if (outcome === TIMED_OUT) failed = true;
+        else ({ announced = 0 } = outcome || {});
       } catch (err) {
         console.error('[status] refresh failed', err);
+        failed = true;
+      } finally {
+        clearTimeout(timer);
       }
       icon.classList.remove('spin-slow');
       // Say what happened. "Up to date" is a real answer and the common one — a spinner that
       // vanishes leaves the reader unsure whether anything was checked at all.
-      label.textContent = announced ? `${announced} new` : 'Up to date';
+      label.textContent = failed ? 'Couldn’t check' : announced ? `${announced} new` : 'Up to date';
       refresh();
       btn.disabled = false;
       resetTimer = setTimeout(() => { label.textContent = 'Refresh'; }, 4000);

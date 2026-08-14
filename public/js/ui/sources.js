@@ -196,13 +196,16 @@ export const SOURCE_GROUPS = [
     tabs: 'Con-call',
     items: [
       {
-        name: 'StockScans — Concall Scans',
-        url: 'https://www.stockscans.in/concall-scans',
+        // The provider is named in the code and in docs/DATA-CONTRACTS.md, and every row links
+        // straight to their own page for that call — but their brand is deliberately not printed
+        // on any customer-facing surface. What the reader is owed is that the analysis is NOT
+        // this dashboard's, and that claim is made in full here and on every other surface.
+        name: 'Con-call scans — third-party research provider',
         feeds:
-          'The whole Con-call tab: every earnings call held this quarter (877 in the current pull) with StockScans\' own <strong>result score</strong> (0–100), <strong>management sentiment tier</strong> (Bullish → Bearish) and three highlight bullets per call, plus the schedule of calls not yet held, behind the <strong>Upcoming Concalls</strong> button. <strong>These are StockScans\' numbers, not ours</strong> — reproduced unchanged, with their published tier bands, and this dashboard adds no scoring of its own on top. Full summaries and transcripts stay on StockScans; every row links to theirs.',
+          'The whole Con-call tab: every earnings call held this quarter (877 in the current pull) with the provider\'s own <strong>result score</strong> (0–100), <strong>management sentiment tier</strong> (Bullish → Bearish) and three highlight bullets per call, plus the schedule of calls not yet held, behind the <strong>Upcoming Concalls</strong> button. <strong>These are their numbers, not ours</strong> — reproduced unchanged, with their published tier bands, and this dashboard adds no scoring of its own on top. Full summaries and transcripts stay with them; every row links to theirs.',
         cadence: 'Live — 30s edge cache on the newest page, 30s client poll. A call analysed at 14:32 is on screen by ~14:33.',
         status: 'live',
-        file: 'worker/index.js → /api/concalls · worker/stockscans.mjs · public/data/concall-scans.json · scripts/scrape-concalls.mjs',
+        file: 'worker/index.js → /api/concalls · public/data/concall-scans.json',
       },
       {
         name: 'Concall Deep Dive — per-company report',
