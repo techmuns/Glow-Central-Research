@@ -1536,13 +1536,61 @@ fund picker as soon as there is more than one.
 
 ---
 
-## `GET /api/chatter` — LIVE, retail chatter (SentimentDash)
+## SentimentDash — LIVE, retail chatter, called STRAIGHT FROM THE BROWSER
 
-A read-through proxy onto the SentimentDash API: companies and topics trending across ValuePickr,
-TradingQnA and Google News over a rolling 30 days, ranked by mention count and keyword-scored for
-sentiment. Public, unauthenticated, CORS-open. Re-scraped twice daily at **01:30 and 13:30 UTC**,
-so the edge holds 30 minutes and polling faster than hourly asks a question whose answer cannot
-have changed.
+Companies and topics trending across ValuePickr, TradingQnA and Google News over a rolling 30 days,
+ranked by mention count and keyword-scored for sentiment. Public, unauthenticated, CORS-open.
+Re-scraped twice daily at **01:30 and 13:30 UTC**, so polling faster than hourly asks a question
+whose answer cannot have changed.
+
+`GET {base}/dashboard?limit=all` + `GET {base}/health`, where `base` is
+`window.SATTVA_CHATTER_URL` in `public/index.html`, overridable with
+`localStorage['sattva:chatter-base']`. Consumed by `js/data/chatter-live.js`.
+
+### THERE IS NO `/api/chatter`, AND THERE CANNOT BE
+
+This upstream *was* proxied through our Worker, like every other one, for the same two reasons: one
+fetch per cache window instead of one per reader, and somewhere to name a failure. That route was
+written, deployed, and **returned 404 in production while `curl` returned 200 from the identical
+URL**.
+
+The cause is a platform rule, not our code. The upstream is another Cloudflare Worker on the *same
+account*, and **Cloudflare refuses a subrequest from one Worker to another Worker's
+`*.workers.dev` hostname within one zone** — error 1042, *"Worker tried to fetch from another
+Worker on the same zone, which is not allowed"* — surfacing it as a **404**, which is
+indistinguishable from the route being absent. That is exactly how it was first misdiagnosed: the
+tab said "check that the API is deployed", and the API was deployed and healthy the whole time.
+
+Two pieces of evidence pin it, and the second is the one that settles it:
+
+- **The natural experiment already in the routes.** Every other upstream is off-zone —
+  moneycontrol.com, stockscans.in, devde.muns.io — and every one works. The only `*.workers.dev`
+  upstream was the only failure.
+- **`wrangler dev` succeeds where the deployment fails.** The identical code, the identical
+  `SENTIMENT_BASE`, the identical URL: run locally it returned `ok: true` with all 219 entries;
+  deployed to the edge it returned `not-found`. That rules out URL construction, a wrong variable
+  and the upstream itself — everything except where the request is made from. Run that comparison
+  first the next time an upstream behaves differently in production.
+
+If it ever *must* be proxied (to hold a credential, say), the supported options are a Cloudflare
+**service binding** (`"services"` in `wrangler.jsonc`) or giving that Worker a **custom domain** so
+it leaves the workers.dev zone. Another `fetch()` will not work, whatever the URL.
+
+**Nothing was lost by moving it to the browser**, which is why this is the fix rather than a
+retreat. Verified against the live endpoint with `curl -D-`:
+
+| Header | Value |
+| --- | --- |
+| `access-control-allow-origin` | `*` |
+| `access-control-allow-headers` | `Content-Type, If-None-Match` |
+| `access-control-expose-headers` | `ETag, X-Data-Generated-At` |
+| `cache-control` | `public, max-age=60, stale-while-revalidate=300` |
+
+So `conditionalJson` revalidates against **their** ETag exactly as it did against ours — a repeat
+fetch answers **304 with no body** — and the device store still means a return visit costs headers.
+Their own `max-age` does the politeness work the edge cache was there for, over data that moves
+twice a day. A side-benefit: Public Chatter is now the one live feed that works when the site is
+served as **plain static files**, with no Worker at all.
 
 ### Four traps, and what this repo does about each
 
@@ -1611,26 +1659,35 @@ their `generatedAt` and ours.
 
 ### Failure is reported by kind, and a failed read is never an empty one
 
-`entries: []` only ever travels with `ok: false` and a `reason`. Upstream failures return **200
-with `ok: false`** — the request to *our* Worker succeeded — cached 15 seconds rather than 30
-minutes, so a corrected configuration takes effect at once.
+`entries: []` only ever travels with `ok: false` and a `reason`, and the tab renders a named panel
+rather than an empty table.
 
-| `reason` | Means | Fix |
+| `reason` | Means | What to do |
 | --- | --- | --- |
-| `no-base` | `env.SENTIMENT_BASE` is unset | set it — see below |
-| `bad-base` | set, but not an http(s) URL | correct the value |
-| `not-found` | 404 — wrong base, or the route moved | check the base ends in `/v1` |
-| `unreachable` / `timeout` | could not reach it | wait; retried 3× with backoff |
-| `upstream` | it answered with an error status | wait; 502/503/504 are retried |
+| `no-url` | no base configured | set `window.SATTVA_CHATTER_URL` in `public/index.html` |
+| `not-found` | 404 from the host | check the base ends in `/v1` — **and see the 1042 note above if the caller is a Worker** |
+| `unreachable` | the request never completed — DNS, offline, or a refused CORS preflight | wait; the poll retries |
+| `upstream` | it answered with an error status | wait; the poll retries |
 | `shape` | answered, but not in the documented shape | their contract changed |
 
-### The base URL is configuration, and its absence is a state
+The `not-found` wording is the one that had to be rewritten. It used to read *"check that it ends
+in /v1 and that the API is deployed"*, which pointed at the one thing that was fine. **A named
+state that names the wrong thing is worse than an unnamed one.**
 
-`env.SENTIMENT_BASE`, e.g. `https://sentimentdash-api.<subdomain>.workers.dev/v1`. A plain `var`
-in `wrangler.jsonc`, not a secret — the endpoint is public and unauthenticated, so there is
-nothing to leak. **There is no default and no guess**: a wrong base 404s in a way indistinguishable
-from an outage and sends diagnosis in the wrong direction. Override per run with
-`npx wrangler dev --var SENTIMENT_BASE:https://…/v1`.
+### Verifying without egress — `scripts/stub-chatter.mjs`
+
+Because the browser calls this feed directly, a verification run would otherwise depend on the
+machine's outbound network and would hit somebody else's API on every execution. So:
+
+```bash
+node scripts/stub-chatter.mjs 8903 &
+CHATTER_STUB=http://127.0.0.1:8903/v1 node scripts/verify-ui.mjs
+```
+
+It replays `scripts/fixtures/chatter-dashboard.json` — a **verbatim capture** of
+`/v1/dashboard?limit=all`, 219 real entries — with the live API's exact header set, so the
+conditional-fetch path is exercised for real rather than stubbed out. It also nests `ageSeconds`
+under `data` the way the real API does, so *that* bug cannot come back unnoticed.
 
 ### What the tab does with it
 

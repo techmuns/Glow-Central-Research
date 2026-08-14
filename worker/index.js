@@ -27,7 +27,6 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchDashboard as fetchChatter, fetchHealth as fetchChatterHealth } from './sentiment.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -66,9 +65,6 @@ export default {
     }
     if (url.pathname === '/api/concalls') {
       return handleConcalls(request, env, ctx);
-    }
-    if (url.pathname === '/api/chatter') {
-      return handleChatter(request, env, ctx);
     }
     if (url.pathname === '/api/super-investors') {
       return handleInvestorList(request, env, ctx);
@@ -453,65 +449,28 @@ async function handleConcalls(request, env, ctx) {
 }
 
 // ---------------------------------------------------------------------------------------
-// GET /api/chatter — retail chatter across ValuePickr, TradingQnA and Google News
+// THERE IS NO /api/chatter, AND THERE CANNOT BE. Read this before adding one.
 //
-// A read-through proxy onto the SentimentDash API. That upstream is public and CORS-open, so the
-// browser could call it directly; going through here buys the same two things /api/concalls buys.
-// One fetch per cache window instead of one per reader, and a place to turn a failure into a
-// named state rather than an empty table.
+// The retail-chatter upstream is another Cloudflare Worker on this same account,
+// `sentimentdash-api.<subdomain>.workers.dev`. A route here that proxied it was written, deployed,
+// and returned 404 in production while `curl` got 200 from the identical URL.
 //
-// THE CACHE WINDOW IS THIRTY MINUTES, WHICH IS ALREADY GENEROUS. The upstream re-scrapes twice a
-// day, at 01:30 and 13:30 UTC. A shorter window would ask a question whose answer cannot have
-// changed; a much longer one would delay the two moments a day when it has.
+// The cause is a platform rule: **Cloudflare refuses a subrequest from one Worker to another
+// Worker's `*.workers.dev` hostname on the same zone** — error 1042, "Worker tried to fetch from
+// another Worker on the same zone, which is not allowed" — and surfaces it as a 404. That is
+// indistinguishable from the upstream being absent, which is exactly how it was first misread.
 //
-// THE BASE URL IS CONFIGURATION AND ITS ABSENCE IS A STATE. `env.SENTIMENT_BASE` — there is no
-// default, because a guessed base 404s in a way that looks exactly like an outage and sends
-// diagnosis in the wrong direction. `no-base` comes back named, and the view says which command
-// fixes it. Same rule as `no-token` on the super-investor routes.
+// Every other upstream here is off-zone (moneycontrol.com, stockscans.in, devde.muns.io), so this
+// is the only route that could ever have hit it, and no amount of fixing the client would help.
 //
-// A FAILED READ IS NOT AN EMPTY ONE. `entries: []` only ever travels with `ok: false` and a
-// reason, and failures are cached for 15 seconds rather than the full window, so a corrected
-// configuration takes effect at once instead of after half an hour.
+// The browser calls that API directly instead — see js/data/chatter-live.js. It is public,
+// CORS-open, exposes its ETag and answers `If-None-Match` with a 304, so nothing is lost. The
+// Concall Deep Dive Worker is called from the browser for the same reason.
+//
+// If it ever needs to be proxied — to hold a credential, say — the options are a Cloudflare
+// SERVICE BINDING (`"services"` in wrangler.jsonc, which is the supported same-account path) or
+// giving that Worker a custom domain so it leaves the workers.dev zone. Not another fetch.
 // ---------------------------------------------------------------------------------------
-const CHATTER_TTL_S = 30 * 60;
-const CHATTER_FAIL_TTL_S = 15;
-
-async function handleChatter(request, env, ctx) {
-  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
-
-  const base = env.SENTIMENT_BASE || '';
-  const cacheKey = edgeKey('chatter/dashboard');
-  const cache = caches.default;
-
-  const hit = await cache.match(cacheKey);
-  const payload = hit
-    ? await hit.json()
-    : await (async () => {
-        // Their /health hands back `ageSeconds` directly — how stale the scrape is, according to
-        // the only party whose clock is authoritative about it. Asked alongside, never instead:
-        // a healthy /health with an unreadable /dashboard is still a failure.
-        const [feed, health] = await Promise.all([fetchChatter(fetch, base), fetchChatterHealth(fetch, base)]);
-        const out = feed.ok
-          ? {
-              ok: true,
-              reason: null,
-              generatedAt: feed.generatedAt,
-              window: feed.window,
-              overview: feed.overview,
-              total: feed.total,
-              entries: feed.entries,
-              health: health.ok ? { status: health.status, ageSeconds: health.ageSeconds } : null,
-            }
-          : { ok: false, reason: feed.reason, status: feed.status ?? null, entries: [], overview: null, health: null };
-        ctx?.waitUntil?.(
-          cache.put(cacheKey, tagged(JSON.stringify(out), contentTag(out), out.ok ? CHATTER_TTL_S : CHATTER_FAIL_TTL_S)),
-        );
-        return out;
-      })();
-
-  const { body, tag } = withTag(payload);
-  return revalidate(request, tagged(body, tag, payload.ok ? CHATTER_TTL_S : CHATTER_FAIL_TTL_S), hit ? 'hit' : 'miss');
-}
 
 // ---------------------------------------------------------------------------------------
 // GET /api/super-investors  and  GET /api/super-investors/{slug}

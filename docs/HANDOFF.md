@@ -37,7 +37,7 @@ This is the first thing to check before quoting any number off a screen.
 | **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 IST |
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
 | **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
-| **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | `GET /api/chatter` | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), 30-min edge cache, hourly client poll** |
+| **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | called direct from the browser, **not** proxied — see §5e | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), hourly client poll** |
 | scID → NSE ticker, industry, share count | `public/data/mc-ticker-map.json` (190 KB) | Moneycontrol price feed | Incremental, daily |
 | Close on each result date | `public/data/result-returns.json` (80 KB) | Yahoo Finance | Incremental, daily |
 
@@ -263,9 +263,28 @@ it is in git history at `ce2aa18..`.
 which announce every arrival. Chatter would otherwise fill the stack with brokers and themes and
 teach the reader to dismiss the component, results alerts included.
 
-`SENTIMENT_BASE` in `wrangler.jsonc` is the upstream. It is a plain var, not a secret — the API is
-public and unauthenticated. Unset is reported as `no-base` and the tab prints the command that
-fixes it; a guessed base would 404 in a way indistinguishable from an outage.
+**IT IS NOT PROXIED, AND IT CANNOT BE — this is the thing to know before touching it.** A
+`/api/chatter` route on our Worker was written, deployed, and returned 404 in production while
+`curl` returned 200 from the identical URL. The upstream is another Cloudflare Worker on the same
+account, and **Cloudflare refuses a Worker-to-Worker subrequest inside one zone** (error 1042,
+*"Worker tried to fetch from another Worker on the same zone, which is not allowed"*), reporting it
+as a 404 — indistinguishable from the route being absent, which is how it was first misread.
+
+The tell was already in the routes: moneycontrol.com, stockscans.in and devde.muns.io are all
+off-zone and all work; the one `*.workers.dev` upstream was the one failure.
+
+So the browser calls it, exactly as it already calls the Concall Deep Dive Worker. `base` is
+`window.SATTVA_CHATTER_URL` in `public/index.html`; `localStorage['sattva:chatter-base']` overrides
+it. Nothing is lost: the API sends `access-control-allow-origin: *`, exposes its `ETag`, and
+answers `If-None-Match` with a bodyless 304, so the conditional fetch and the device store work
+unchanged. Public Chatter is now the one live feed that also works on a **plain static server**.
+
+If a future upstream on this account must be proxied — to hold a credential — use a **service
+binding** or a **custom domain**, not another `fetch()`.
+
+To verify without egress: `node scripts/stub-chatter.mjs 8903 &` then
+`CHATTER_STUB=http://127.0.0.1:8903/v1 node scripts/verify-ui.mjs`. It replays a verbatim 219-entry
+capture with the live API's exact headers.
 
 ---
 

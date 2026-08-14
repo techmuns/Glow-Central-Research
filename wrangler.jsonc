@@ -7,16 +7,5 @@
   "name": "sattva-central-research",
   "compatibility_date": "2026-05-23",
   "main": "worker/index.js",
-  "assets": { "directory": "./public", "binding": "ASSETS" },
-
-  // The chatter upstream's base URL, e.g. https://sentimentdash-api.<subdomain>.workers.dev/v1.
-  // A plain var rather than a secret: it is a public, unauthenticated, CORS-open endpoint, so
-  // there is nothing here to leak — unlike MUNS_TOKEN, which is a secret and is set with
-  // `npx wrangler secret put MUNS_TOKEN`.
-  //
-  // NEVER GUESSED. /api/chatter reports an unset base as `no-base`, which is a thing an operator
-  // fixes in one command; a wrong base would 404 in a way indistinguishable from an outage and
-  // would send diagnosis in the wrong direction. Override per run with
-  // `npx wrangler dev --var SENTIMENT_BASE:https://…/v1`.
-  "vars": { "SENTIMENT_BASE": "https://sentimentdash-api.tech-441.workers.dev/v1" }
+  "assets": { "directory": "./public", "binding": "ASSETS" }
 }

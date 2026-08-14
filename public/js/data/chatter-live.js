@@ -28,16 +28,52 @@
 //
 // THE POLL IS HOURLY, AND THAT IS ALREADY GENEROUS
 //   The upstream re-scrapes twice a day, at 01:30 and 13:30 UTC. Anything faster asks a question
-//   whose answer cannot have changed. The Worker caches 30 minutes on top.
+//   whose answer cannot have changed, and an unchanged poll is a bodyless 304 against their ETag.
 
 import { conditionalJson, KEYS } from '../core/store.js';
-import { buildResolverIndex, resolveAll, fingerprint, SOURCE_LABEL } from './sentiment-shared.js';
+import { buildResolverIndex, resolveAll, fingerprint, normaliseDashboard, SOURCE_LABEL } from './sentiment-shared.js';
 import * as coverage from './coverage.js';
 
 export const LIVE_ID = 'chatter-live';
-const ENDPOINT = '/api/chatter';
 const POLL_MS = 60 * 60 * 1000; // hourly — see the header
 const STORE_KEY = KEYS.chatter;
+
+/**
+ * THE BROWSER CALLS THIS API DIRECTLY. IT IS NOT PROXIED, AND IT CANNOT BE.
+ *
+ * It was, through `/api/chatter` on our own Worker, for the reasons every other upstream is: one
+ * fetch per cache window instead of one per reader, and somewhere to turn a failure into a named
+ * state. That shipped and returned 404 in production while `curl` got 200 from the same URL.
+ *
+ * The cause is a platform rule, not our code. **Cloudflare refuses a subrequest from one Worker to
+ * another Worker's `*.workers.dev` hostname on the same account** — error 1042, "Worker tried to
+ * fetch from another Worker on the same zone, which is not allowed" — and surfaces the refusal as
+ * a 404, which is indistinguishable from the upstream not being there. Our other three upstreams
+ * (moneycontrol.com, stockscans.in, devde.muns.io) are all off-zone, so this is the only one that
+ * could ever have hit it. The relaxation Cloudflare offers applies to custom domains, not to
+ * workers.dev.
+ *
+ * So the browser calls it, exactly as it already calls the Concall Deep Dive Worker — also on
+ * workers.dev, also direct, and working for precisely this reason.
+ *
+ * NOTHING IS LOST BY DOING SO, WHICH IS WHY THIS IS A FIX AND NOT A RETREAT. Verified against the
+ * live endpoint: `access-control-allow-origin: *`, `access-control-expose-headers: ETag`, and
+ * `If-None-Match` answered with a bodyless 304. So `conditionalJson` revalidates against their tag
+ * exactly as it did against ours, and the device store still means a repeat visit costs headers.
+ * Their own `cache-control: public, max-age=60, stale-while-revalidate=300` does the politeness
+ * work the edge cache was there for, over data that only moves twice a day.
+ */
+const DEFAULT_BASE = 'https://sentimentdash-api.tech-441.workers.dev/v1';
+
+/** `localStorage` first so a verification run can point the whole feed at a stub. */
+function baseUrl() {
+  try {
+    const override = localStorage.getItem('sattva:chatter-base');
+    if (override) return override.replace(/\/+$/, '');
+  } catch { /* storage disabled — fall through */ }
+  const configured = typeof window !== 'undefined' ? window.SATTVA_CHATTER_URL : null;
+  return String(configured || DEFAULT_BASE).replace(/\/+$/, '');
+}
 
 let loadPromise = null;
 let cache = null;
@@ -58,9 +94,76 @@ export function load() {
 
 async function build() {
   await buildIndex();
-  const out = await conditionalJson(ENDPOINT, { key: STORE_KEY, optional: true });
-  ingest(out.value, { origin: out.status === 304 ? 'store' : 'live', checkedAt: out.checkedAt });
+  ingest(await fetchFeed(), { origin: 'live' });
   return cache;
+}
+
+/**
+ * One read of the feed, with every failure mode NAMED rather than thrown.
+ *
+ * Returns the normalised payload with `ok: true`, or `{ ok: false, reason }`. The reasons matter
+ * because the fixes differ: `no-url` and `not-found` are things somebody corrects, `unreachable`,
+ * `upstream` and `timeout` are things to wait for, and `shape` means their contract moved.
+ *
+ * A FAILED READ IS NEVER AN EMPTY ONE. `entries: []` only ever travels with `ok: false` beside it.
+ */
+async function fetchFeed() {
+  const base = baseUrl();
+  if (!/^https?:\/\//i.test(base)) return { ok: false, reason: 'no-url' };
+
+  let out;
+  try {
+    out = await conditionalJson(`${base}/dashboard?limit=all`, { key: STORE_KEY, optional: true });
+  } catch {
+    return { ok: false, reason: 'unreachable' };
+  }
+
+  if (!out.value) {
+    // THE URL TRAVELS WITH THE FAILURE. The first version of this recorded only a status code, and
+    // a bare "404" cost a long investigation: the upstream was healthy and answering 200 to curl
+    // the whole time, and nothing on screen or in the payload said which address had actually been
+    // requested. A failure that cannot be diagnosed from its own artefact is half a failure state.
+    const url = `${base}/dashboard`;
+    // `status: 0` from the store means the request never completed at all — DNS, TLS, a blocked
+    // CORS preflight, or an offline device. Anything else is what the server actually said.
+    if (out.status === 0) return { ok: false, reason: 'unreachable', url };
+    if (out.status === 404) return { ok: false, reason: 'not-found', status: 404, url };
+    return { ok: false, reason: 'upstream', status: out.status, url };
+  }
+
+  const shaped = normaliseDashboard(out.value);
+  if (!shaped.entries.length && !shaped.overview) return { ok: false, reason: 'shape' };
+
+  // Their /health carries `ageSeconds` — how stale the scrape is on the clock that is authoritative
+  // about it, rather than a subtraction between their timestamp and ours. Asked alongside and never
+  // instead: a healthy /health with an unreadable /dashboard is still a failure, so this one is
+  // allowed to fail quietly.
+  const health = await fetchHealth(base);
+
+  return {
+    ok: true,
+    reason: null,
+    ...shaped,
+    health,
+    checkedAt: out.checkedAt,
+    fromStore: out.status === 304,
+  };
+}
+
+async function fetchHealth(base) {
+  try {
+    const res = await fetch(`${base}/health`, { headers: { accept: 'application/json' }, cache: 'no-cache' });
+    if (!res.ok) return null;
+    const body = await res.json();
+    // `ageSeconds` is nested under `data`, not at the top level — the integration spec describes it
+    // as available "directly" and reading it that way silently produced null. Found against the
+    // real endpoint; the flat fallback stays in case they hoist it later.
+    const d = body?.data || {};
+    const age = Number(d.ageSeconds ?? body?.ageSeconds);
+    return { status: body?.status ?? null, ageSeconds: Number.isFinite(age) ? age : null };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -93,7 +196,7 @@ async function buildIndex() {
   return resolverIndex;
 }
 
-function ingest(payload, { origin, checkedAt }) {
+function ingest(payload, { origin, checkedAt } = {}) {
   const ok = !!payload?.ok;
   const entries = ok ? resolveAll(payload.entries || [], resolverIndex) : [];
 
@@ -125,6 +228,7 @@ function ingest(payload, { origin, checkedAt }) {
     meta: {
       ok,
       reason: payload?.reason || null,
+      url: payload?.url || null,
       // Their scrape time, and their own view of how stale it is. `ageSeconds` comes from their
       // /health route — the only clock authoritative about their data — rather than a subtraction
       // between their timestamp and ours, which are two different clocks.
@@ -136,8 +240,8 @@ function ingest(payload, { origin, checkedAt }) {
       uncovered: uncovered.length,
       totalPosts: payload?.overview?.totalPosts ?? null,
       sourceTotals: payload?.overview?.sourceTotals || null,
-      origin,
-      checkedAt: checkedAt || Date.now(),
+      origin: payload?.fromStore ? 'store' : origin || 'live',
+      checkedAt: payload?.checkedAt || checkedAt || Date.now(),
     },
   };
 }
@@ -179,14 +283,19 @@ export function startLive(live) {
   live.register(LIVE_ID, {
     intervalMs: POLL_MS,
     fetcher: async () => {
-      const out = await conditionalJson(ENDPOINT, { key: STORE_KEY, optional: true });
-      if (!out.value) return null;
-      if (out.status === 304) {
-        if (cache) cache.meta.checkedAt = out.checkedAt || Date.now();
+      const feed = await fetchFeed();
+      // A tick that fails leaves whatever is on screen alone. The tab reported the failure the
+      // first time it happened; replacing a good table with an error because one poll missed
+      // would be worse than saying nothing.
+      if (!feed.ok) return null;
+      if (feed.fromStore) {
+        // Revalidated, unchanged. Move "last checked" and nothing else — that is a different fact
+        // from "last scraped", and conflating them would age the data backwards.
+        if (cache) cache.meta.checkedAt = feed.checkedAt || Date.now();
         return null;
       }
       const before = cache ? fingerprint(cache.entries) : null;
-      ingest(out.value, { origin: 'live', checkedAt: out.checkedAt });
+      ingest(feed);
       // Repaint only on a real change, so a tick that carried nothing new never throws away the
       // reader's sort and search.
       return before !== fingerprint(cache.entries) ? cache : null;

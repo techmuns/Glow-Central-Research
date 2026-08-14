@@ -177,13 +177,16 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
     // and put the whole payload back on the wire every single tick.
     res = await fetch(path, { headers: { accept: 'application/json' }, cache: 'no-cache', signal });
   } catch (err) {
-    if (optional) return miss();
+    if (optional) return miss(0);
     throw err;
   }
 
   const checkedAt = Date.now();
   if (!res.ok) {
-    if (optional) return miss();
+    // The status travels with the miss. An optional fetch that fails is not always the same event:
+    // a 404 is a route that is not there and a 503 is one to wait for, and a caller that wants to
+    // NAME the failure on screen cannot do it from `value === null` alone.
+    if (optional) return miss(res.status);
     throw new Error(`${path} (${res.status})`);
   }
 
@@ -198,7 +201,7 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
   try {
     value = await res.json();
   } catch (err) {
-    if (optional) return miss();
+    if (optional) return miss(res.status);
     throw err;
   }
 
@@ -212,8 +215,10 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
   if (key) writeEntry(key, { tag, value, savedAt: checkedAt });
   return { status: 200, value, tag, savedAt: checkedAt, checkedAt, fromStore: false };
 
-  function miss() {
-    return { status: 0, value: null, tag: null, savedAt: null, checkedAt: Date.now(), fromStore: false };
+  // `status: 0` means the request never completed (network, CORS, abort); any other value is what
+  // the server actually said.
+  function miss(status = 0) {
+    return { status, value: null, tag: null, savedAt: null, checkedAt: Date.now(), fromStore: false, missed: true };
   }
 }
 

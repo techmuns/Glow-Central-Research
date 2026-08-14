@@ -1081,7 +1081,25 @@ await page.evaluate(() => localStorage.removeItem('sattva:deepdive-slugs'));
 // ---------------------------------------------------------------------------------------
 console.log('\n— public chatter —');
 
-await go('/#/research/public-chatter?scope=universe', 6000);
+// The feed is external. If a stub is running (see scripts/stub-chatter.mjs), point the tab at it
+// so the checks below exercise real data without depending on this machine's egress — the same
+// arrangement `sattva:deepdive-base` gives the Deep Dive checks.
+await page.evaluate((base) => {
+  if (base) localStorage.setItem('sattva:chatter-base', base);
+}, process.env.CHATTER_STUB || '');
+await go('/#/research/public-chatter?scope=universe', 800);
+// Wait for the DATA LAYER to settle, not for a fixed number of seconds. This feed is fetched from
+// another origin, so how long it takes is a property of the network rather than of the page, and a
+// sleep long enough today is a race lost tomorrow — the same reason `waitForPanel` exists.
+{
+  const until = Date.now() + 30000;
+  // eslint-disable-next-line no-constant-condition
+  while (Date.now() < until) {
+    const settled = await evalSafe(async () => !!(await import('/js/data/chatter-live.js')).meta());
+    if (settled) break;
+    await page.waitForTimeout(500);
+  }
+}
 await waitForPanel();
 
 const chatterState = await evalSafe(async () => {
@@ -1104,11 +1122,12 @@ const chatterState = await evalSafe(async () => {
 });
 
 if (!chatterState.ok) {
-  // No Worker on this origin means no /api/chatter. That is a legitimate configuration, and the
-  // tab is required to say WHICH one — so the skip still checks the failure is named.
+  // The chatter API is EXTERNAL and called straight from the browser, so unlike every other feed
+  // this one does not need a Worker — it needs egress. A sandbox with no outbound network reports
+  // `unreachable`, which is the correct answer and still has to be NAMED on screen.
   const named = await hostText();
-  skip('the chatter feed is live', `reason=${chatterState.reason} — no Worker on this origin`);
-  ok('...and the tab names the state rather than showing an empty table', /not configured|unreachable|no chatter route|404|misconfigured/i.test(named), named.slice(0, 90));
+  skip('the chatter feed is live', `reason=${chatterState.reason} — no egress to the upstream from here`);
+  ok('...and the tab names the state rather than showing an empty table', /could not be reached|no address|404|unexpected|error/i.test(named), named.slice(0, 90));
 } else {
   ok('the chatter feed is live', chatterState.total > 0, `${chatterState.total} entries`);
   ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,

@@ -76,8 +76,7 @@ public/
       investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
       institution-holdings.js real filed shareholdings, by institution (Trendlyne)
       finology-shared.js      pure shape guards + deriveMoves — imported by worker/finology.mjs
-      sentiment-shared.js     pure shape guards + the slug->NSE resolver — imported by
-                              worker/sentiment.mjs
+      sentiment-shared.js     pure shape guards + the slug->NSE resolver for the chatter feed
       super-investors.js      the live super-investor feed: list, then every book, four at a time
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
@@ -99,17 +98,17 @@ scripts/
   gen-mock-investors.mjs      seeded generator for holdings + fund flows
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
+  stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
-                              + /api/super-investors (+ /{slug}) + /api/chatter
+                              + /api/super-investors (+ /{slug})
 worker/http.mjs               content ETags, 304s and CORS — shared with any local stand-in
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
-worker/sentiment.mjs          the SentimentDash chatter client (base URL is env.SENTIMENT_BASE)
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -424,6 +423,45 @@ column of it. See below.
 the ₹ value beside each one is Ticker Finology's derivation from a percentage and a market cap —
 headed *Value (Finology)*, reproduced, never recomputed. The single figure this dashboard computes
 on that feed is the quarter-over-quarter change, and it is headed *Change (derived)*.
+
+### An upstream you CANNOT proxy — the same-zone Worker rule
+
+Every other upstream here is proxied through our Worker, for politeness and for somewhere to stand
+when it fails. The chatter API is not, and the reason is a platform rule rather than a preference.
+
+**Cloudflare refuses a subrequest from one Worker to another Worker's `*.workers.dev` hostname on
+the same account** — error 1042, *"Worker tried to fetch from another Worker on the same zone,
+which is not allowed"* — and surfaces the refusal as a **404**. A `/api/chatter` route was written,
+deployed, and returned 404 in production while `curl` returned 200 from the identical URL.
+
+Three things to take from it:
+
+1. **A 404 from an upstream is not proof the upstream is missing.** The tab said *"check that the
+   API is deployed"* and the API was deployed, healthy, and answering. Diagnosis went to the one
+   place with nothing wrong. When a named failure state can be produced by two very different
+   causes, the message has to admit both — see `unavailablePanel` in `js/tabs/public-chatter.js`.
+2. **`wrangler dev` versus the deployment is the test that settles it.** Identical code, variable
+   and URL: locally it returned all 219 entries, deployed it returned a 404. That eliminates path
+   construction, configuration and the upstream in one comparison, and leaves only *where the
+   request is made from*. Run it first whenever an upstream behaves differently in production.
+   The natural experiment was in the code too — moneycontrol.com, stockscans.in and devde.muns.io
+   all worked, and the single `*.workers.dev` upstream was the single failure.
+3. **The fix is where the call is made from, not what it sends.** The browser calls it directly, as
+   it already does the Concall Deep Dive Worker. If a future upstream on this account genuinely
+   needs proxying — to hold a credential — use a **service binding** (`"services"` in
+   `wrangler.jsonc`) or give it a **custom domain**. Another `fetch()` cannot work.
+
+**Carry the requested URL into the failure.** The first version recorded only a status code, and a
+bare "404" is unfalsifiable: it cost a long investigation during which the upstream was healthy and
+answering 200 to `curl` the whole time, while nothing on screen said which address had been asked
+for. A failure state that cannot be diagnosed from its own artefact is half a failure state.
+
+Calling from the browser cost nothing here, and that is a fact that was checked rather than
+assumed: the API sends `access-control-allow-origin: *`, exposes `ETag` via
+`access-control-expose-headers`, and answers `If-None-Match` with a bodyless 304 — so
+`conditionalJson` and the device store behave exactly as they did against our own route. **Verify
+those three headers with `curl -D-` before moving any feed to the browser**; without an exposed
+ETag the client cannot revalidate and every poll becomes a full download.
 
 ### An upstream that needs a credential — the Finology rule
 
@@ -872,7 +910,7 @@ Rules:
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
-| Change the chatter feed | `worker/sentiment.mjs` + `public/js/data/sentiment-shared.js`, then `/api/chatter` — read *`GET /api/chatter`* in `docs/DATA-CONTRACTS.md` first; `changePct` there is mention volume, not price |
+| Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |

@@ -6,9 +6,11 @@
 //   buildResolverIndex(sources)   the lookup the resolver reads
 //   fingerprint(entries)          order-independent change signal
 //
-// PURE, AND IMPORTED BY `worker/sentiment.mjs`. Same arrangement as stockscans-shared.js and
-// finology-shared.js: one definition of what an entry is, so the Worker and the browser cannot
-// disagree about whether a row is a company.
+// PURE, AND BROWSER-ONLY IN PRACTICE. It was written to be shared with a Worker client the way
+// stockscans-shared.js and finology-shared.js are, and that client is gone: this upstream cannot be
+// proxied at all (see js/data/chatter-live.js). Keeping the module free of `fetch`, the DOM and any
+// global is still worth it — it is what makes the resolver testable offline, which is how the
+// `value` -> VALUEIND false positive was caught.
 //
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // THE COUNTS AND THE SENTIMENT ARE THEIRS. THE NSE SYMBOL IS OURS.

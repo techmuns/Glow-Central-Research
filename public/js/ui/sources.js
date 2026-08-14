@@ -225,11 +225,11 @@ export const SOURCE_GROUPS = [
         url: 'https://sentimentdash-api.tech-441.workers.dev/v1',
         feeds:
           'Mentions of companies and topics across <strong>ValuePickr</strong>, <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling 30 days, with a keyword-scored sentiment split per entry. ' +
-          'The counts and the sentiment are <strong>theirs</strong> and are reproduced unchanged, never re-banded. Read through this site\'s Worker at <code class="rounded bg-slate-100 px-1">/api/chatter</code> for politeness and a 30-minute edge cache. ' +
+          'The counts and the sentiment are <strong>theirs</strong> and are reproduced unchanged, never re-banded. Called <strong>directly from your browser</strong>, not through this site\'s Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy here returned 404 while the API was healthy. Their ETag and a 304 keep it cheap. ' +
           '<strong>"Mentions Δ" is a change in mention volume, not a price move</strong> — there is no price anywhere in this feed.',
         cadence: 'Re-scraped twice daily, 01:30 and 13:30 UTC · this page polls hourly',
         status: 'live',
-        file: 'worker/sentiment.mjs · public/js/data/chatter-live.js',
+        file: 'public/js/data/chatter-live.js · window.SATTVA_CHATTER_URL in index.html',
       },
       {
         name: 'Slug → NSE symbol (computed)',

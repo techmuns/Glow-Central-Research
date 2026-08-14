@@ -58,16 +58,27 @@ export function render(ctx) {
   cleanup();
   ctx.root.innerHTML = loadingHtml();
 
-  Promise.all([chatter.load().catch(() => null), technicals.load().catch(() => null)]).then(() => {
-    if (token !== renderToken) return;
-    paint(ctx);
-    disposers.push(chatter.startLive(ctx.live));
-    disposers.push(
-      chatter.onChange(() => {
-        if (token === renderToken) paint(ctx);
-      }),
-    );
-  });
+  // PAINT ON THE CHATTER FEED ALONE. This used to await the technicals feed as well, which the tab
+  // never reads — it is needed only when somebody clicks a row and opens the drill. That made first
+  // paint wait on 800KB of prices to show a table of mention counts, and on a slow link the reader
+  // sat on "Loading chatter…" for as long as the larger, irrelevant feed took.
+  chatter
+    .load()
+    .catch(() => null)
+    .then(() => {
+      if (token !== renderToken) return;
+      paint(ctx);
+      disposers.push(chatter.startLive(ctx.live));
+      disposers.push(
+        chatter.onChange(() => {
+          if (token === renderToken) paint(ctx);
+        }),
+      );
+    });
+
+  // Warmed in the background so a click a few seconds from now opens instantly. Nothing waits on
+  // it, and `openRow` below covers the case where somebody is faster than the network.
+  technicals.load().catch(() => null);
 }
 
 export function destroy() {
@@ -86,7 +97,21 @@ function cleanup() {
   tableViews = { covered: null, other: null };
 }
 
+/**
+ * The first paint, before the feed has answered.
+ *
+ * It carries the section head, not just a spinner. This tab is the one whose data comes from
+ * ANOTHER ORIGIN, so its first paint waits on a cross-origin round trip rather than a local file —
+ * long enough that a bare "Loading…" is what a reader actually sees on arrival, and long enough
+ * that a route check with a short settle found an all-but-empty panel. Every other tab renders its
+ * chrome immediately; this one now does too, and only the body arrives late.
+ */
 const loadingHtml = () => `
+  ${sectionHead({
+    title: 'Public Chatter',
+    description:
+      'Mention counts and sentiment across ValuePickr, TradingQnA and Google News, computed by SentimentDash over a rolling 30 days. The counts and the sentiment are theirs; the NSE symbol is ours.',
+  })}
   <div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">
     Loading chatter…
   </div>`;
@@ -104,7 +129,7 @@ function paint(ctx) {
   if (!m?.ok) {
     ctx.root.innerHTML = `
       ${sectionHead({ title: 'Public Chatter', description: meta.subtitle })}
-      ${unavailablePanel(m?.reason)}
+      ${unavailablePanel(m?.reason, m?.url)}
       ${roadmapStrip(FEATURES)}`;
     return;
   }
@@ -138,6 +163,23 @@ function paint(ctx) {
   if (coveredTable) disposers.push(coveredTable.wire(ctx.root));
   disposers.push(otherTable.wire(ctx.root));
   wireLivePill(ctx.root, m);
+}
+
+/**
+ * Open a company's technicals drill from a chatter row.
+ *
+ * `openTechnicalsDrillByTicker` reads the technicals cache synchronously and returns false when it
+ * is not there yet. Since this tab no longer blocks its paint on that feed, a fast click can land
+ * before it arrives — so the miss triggers the load and retries, rather than being a click that
+ * silently does nothing. A ticker with no technicals row at all (a scrape failure, a company
+ * outside the scraped universe) still opens nothing, which is correct: there is no panel to show.
+ */
+function openRow(ticker) {
+  if (openTechnicalsDrillByTicker(ticker)) return;
+  technicals
+    .load()
+    .then(() => openTechnicalsDrillByTicker(ticker))
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------------------
@@ -207,7 +249,7 @@ function buildTopCards(rows) {
       tone: 'neutral',
     })),
     valueFormat: 'metric',
-    onSelect: (key) => openTechnicalsDrillByTicker(key),
+    onSelect: (key) => openRow(key),
   });
 }
 
@@ -226,9 +268,11 @@ function wireLivePill(root, m) {
       `<div class="p-6 sm:p-8">
         <h3 class="font-display text-xl font-bold text-slate-900">Where this comes from</h3>
         <p class="mt-2 text-sm leading-relaxed text-slate-600">
-          Live from the <strong>SentimentDash</strong> API, read through this site's Worker at <code>/api/chatter</code>.
-          It counts mentions across <strong>ValuePickr</strong>, <strong>TradingQnA</strong> and <strong>Google News</strong>
-          over a rolling ${escapeHtml(m.window)} and scores each post's sentiment by keyword.
+          Live from the <strong>SentimentDash</strong> API, called <strong>directly from your browser</strong> rather than
+          through this site's Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy
+          returned 404 while the API was perfectly healthy. It counts mentions across <strong>ValuePickr</strong>,
+          <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling ${escapeHtml(m.window)} and scores each
+          post's sentiment by keyword.
         </p>
         <dl class="mt-5 space-y-3 text-sm">
           <div><dt class="font-semibold text-slate-800">Theirs, reproduced unchanged</dt>
@@ -290,7 +334,7 @@ function buildCoveredTable(ctx, rows) {
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.covered,
     exportName: 'chatter-companies',
-    onRowClick: (r) => openTechnicalsDrillByTicker(r.ticker),
+    onRowClick: (r) => openRow(r.ticker),
     filters: [
       {
         label: 'Sentiment',
@@ -386,32 +430,43 @@ function buildOtherTable(rows) {
   });
 }
 
-function unavailablePanel(reason) {
+function unavailablePanel(reason, url) {
+  // Every message here has to point at the thing that is actually wrong. The first version of this
+  // map said, for `not-found`, "check that it ends in /v1 and that the API is deployed" — and the
+  // API was deployed, reachable, and answering 200 to curl. The 404 came from Cloudflare refusing a
+  // Worker-to-Worker subrequest, so that wording sent diagnosis to the one place with no problem.
+  // A named state that names the wrong thing is worse than an unnamed one.
   const REASONS = {
-    'no-base': {
-      title: 'The chatter feed is not configured',
-      body: 'The Worker has no upstream to call. Set it and redeploy:',
-      fix: 'npx wrangler deploy   # after setting SENTIMENT_BASE in wrangler.jsonc',
-    },
-    'bad-base': {
-      title: 'The chatter upstream is misconfigured',
-      body: 'SENTIMENT_BASE is set but is not an http(s) URL. It should end in <code>/v1</code>.',
+    'no-url': {
+      title: 'The chatter feed has no address',
+      body: 'No upstream is configured. Set <code>window.SATTVA_CHATTER_URL</code> in <code>public/index.html</code> — it should end in <code>/v1</code>.',
       fix: null,
     },
     'not-found': {
       title: 'The chatter upstream answered 404',
-      body: 'The base URL is reachable but the route is not there. Check that it ends in <code>/v1</code> and that the API is deployed.',
+      body:
+        'The host resolved but the route was not there. Check the URL ends in <code>/v1</code>. ' +
+        'If this page is being served BY a Cloudflare Worker and the upstream is another Worker on ' +
+        'the same account, a 404 here may not be the upstream at all — Cloudflare blocks ' +
+        'Worker-to-Worker fetches within one zone and reports it as a 404. This feed is called ' +
+        'straight from the browser for that reason.',
       fix: null,
     },
-    'no-route': {
-      title: 'This build has no chatter route',
-      body: 'The page is being served without the Worker, so <code>/api/chatter</code> does not exist. Run it with <code>npx wrangler dev</code>.',
+    unreachable: {
+      title: 'The chatter upstream could not be reached',
+      body: 'The request never completed — the host is down, the network is offline, or a CORS preflight was refused. This page will retry on its own.',
       fix: null,
     },
-    timeout: { title: 'The chatter upstream timed out', body: 'It did not answer in time. This page will retry on its own.', fix: null },
-    unreachable: { title: 'The chatter upstream is unreachable', body: 'We could not reach it at all. This page will retry on its own.', fix: null },
-    upstream: { title: 'The chatter upstream returned an error', body: 'It answered, but with an error status. This page will retry on its own.', fix: null },
-    shape: { title: 'The chatter upstream returned something unexpected', body: 'It answered, but not in the documented shape — their contract may have changed.', fix: null },
+    upstream: {
+      title: 'The chatter upstream returned an error',
+      body: 'It answered, but with an error status. This page will retry on its own.',
+      fix: null,
+    },
+    shape: {
+      title: 'The chatter upstream returned something unexpected',
+      body: 'It answered, but not in the documented shape — their contract may have changed.',
+      fix: null,
+    },
   };
   const r = REASONS[reason] || {
     title: 'The chatter feed could not be read',
@@ -428,6 +483,7 @@ function unavailablePanel(reason) {
           <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
           <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
           ${r.fix ? `<pre class="mt-3 overflow-x-auto rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200">${escapeHtml(r.fix)}</pre>` : ''}
+          ${url ? `<p class="mt-3 text-xs text-slate-500">Requested <code class="rounded bg-slate-100 px-1">${escapeHtml(url)}</code> — the exact address, so this can be diagnosed without guessing at it.</p>` : ''}
           <p class="mt-3 text-xs text-slate-400">Nothing is shown rather than a zero: an empty list and a list we could not read must never look the same.</p>
         </div>
       </div>

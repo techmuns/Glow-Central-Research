@@ -36,6 +36,18 @@
       // That endpoint is unauthenticated, so this line makes it reachable by anyone who loads the
       // page. Putting auth on `POST /api/analyze` belongs on that Worker — see docs/HANDOFF.md §9.
       window.SATTVA_DEEPDIVE_URL = 'https://concall-sattva.tech-441.workers.dev';
+
+      // The retail-chatter API, read by the Public Chatter tab. ALSO CALLED FROM THE BROWSER, and
+      // for a harder reason than the one above: it is another Worker on this same Cloudflare
+      // account, and Cloudflare REFUSES a Worker-to-Worker subrequest inside one zone (error 1042,
+      // surfaced as a 404). A `/api/chatter` proxy was written and deployed and failed exactly that
+      // way, while curl got 200 from the identical URL. See js/data/chatter-live.js.
+      //
+      // Safe to publish: the endpoint is public, unauthenticated, read-only and CORS-open, so there
+      // is no credential here to leak and nothing a reader can spend.
+      // `localStorage['sattva:chatter-base']` overrides it, which is how verify-ui.mjs points the
+      // feed at a stub.
+      window.SATTVA_CHATTER_URL = 'https://sentimentdash-api.tech-441.workers.dev/v1';
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
