@@ -2030,6 +2030,85 @@ exactly where it would be read as a price move.
 
 ---
 
+## News, Corporate Announcements and Insider Trades — LIVE, behind a credential
+
+Three feeds from the Muns API, behind three Worker routes, feeding three tabs. All need
+`Authorization: Bearer …`, so all three are proxied — the token lives in `env.MUNS_TOKEN` and never
+reaches the browser, exactly as the Finology feed does on the same host.
+
+| Route | Upstream | Cache | Window |
+| --- | --- | --- | --- |
+| `GET /api/news?q=&from=&to=&country=` | `POST fastapi.muns.io/tools/news-search` | 180s | 30 days |
+| `GET /api/announcements/{ticker}?from=&to=` | `GET devde.muns.io/filings/corp/announcements/{ticker}` | 900s | 365 days |
+| `GET /api/insider-trades/{ticker}?from=&to=` | `POST devde.muns.io/filings/data/insider_trades` | 900s | 365 days |
+
+**Modules** — `worker/muns.mjs` (clients) · `public/js/data/filings-shared.js` (pure parsers, shared
+with the Worker) · `public/js/data/filings.js` (browser feed) · `public/js/tabs/filings-tab.js` (the
+one renderer) · `scripts/scrape-filings.mjs` (the scheduled walk).
+
+### THESE SHAPES ARE UNVERIFIED, AND THE CODE KNOWS IT
+
+None of the three could be probed when they were wired: the only token available locally was a
+ten-character placeholder and all three answer 401/403 without a real one. The written contract
+gives field *names* for almost nothing — announcements is documented as "results grouped by source"
+and insider trades as "returns markdown table string".
+
+So nothing reads a guessed field name directly. `filings-shared.js` tries a list of candidate keys
+per field, keeps the untouched record beside the normalised one, and leaves anything it cannot find
+as `null` — which renders as an em dash saying the source did not carry it. **A date that will not
+parse stays blank and sorts last**; it is never given today's.
+
+**Insider trades is markdown, not JSON.** Its columns are unknown until a response arrives, so the
+table is built from `headers` at render time, in the source's order, under the source's headings.
+Nothing is renamed. Nothing is summed — a quantity written `1,20,000 (pledged)` is not a number.
+
+### Snapshot first, live walk second
+
+The two per-ticker upstreams are capped at ~60 requests a minute and the universe is 603 companies,
+so "the whole universe, live" is ten minutes of somebody else's service on every page load.
+
+```
+public/data/news.json · corp-announcements.json · insider-trades.json
+{
+  "kind": "announcements",
+  "capturedAt": "2026-08-14T…Z", "from": "2025-08-14", "to": "2026-08-14", "windowDays": 365,
+  "scope": "universe", "asked": 603, "covered": 561, "rowCount": 18422, "failedCount": 42,
+  "headers": [],                       // insider trades only: the source's own column headings
+  "byTicker": { "RELIANCE": [ … ] },   // absent = nothing in the window, OR unread — see `failed`
+  "failed":   { "XYZ": { "reason": "timeout", "message": "…" } }
+}
+```
+
+`js/data/filings.js` reads the snapshot, paints, then walks live for whatever it is missing, bounded
+at 40 companies and 4 at a time. **The shortfall is printed on screen** rather than left to look
+like completeness.
+
+**A company absent from `byTicker` is not a company with nothing.** `failed` is what distinguishes
+"no announcements in this window" from "we could not read it", the pill counts them separately, and
+the two must never be conflated — the same error class as a count of zero from a failing endpoint.
+
+### Refreshing it
+
+```bash
+MUNS_TOKEN=…  node scripts/scrape-filings.mjs                 # all three, 603 companies
+MUNS_TOKEN=…  node scripts/scrape-filings.mjs announcements   # one feed
+FILINGS_LIMIT=20 FILINGS_SCOPE=book node scripts/scrape-filings.mjs   # a smoke run
+```
+
+It walks **the book first**, so a run cut short by the rate limit or an expiring token has covered
+the holdings rather than whatever starts with A. It stops the whole feed on `no-token` /
+`unauthorised` rather than collecting six hundred identical 401s.
+
+### The credential expires
+
+The registry types this `bearer_jwt`. Unlike a static API key, **a deployment that worked yesterday
+can 401 today with no change on our side**, so `unauthorised` is a named state all the way to the
+screen and says so in those words. Renew with `npx wrangler secret put MUNS_TOKEN`. If
+`fastapi.muns.io` ever needs its own credential, set `MUNS_NEWS_TOKEN`; it falls back to
+`MUNS_TOKEN` so one secret works when one is enough.
+
+---
+
 ## `GET /api/super-investors` and `/api/super-investors/{slug}` — LIVE, filed holdings (Finology)
 
 The whole **Superstar Investors** view. Two routes on this Worker, proxying the Ticker Finology

@@ -27,6 +27,7 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -102,6 +103,15 @@ export default {
     }
     if (url.pathname.startsWith('/api/super-investors/')) {
       return handleInvestorPortfolio(request, env, ctx, url.pathname.slice('/api/super-investors/'.length));
+    }
+    if (url.pathname === '/api/news') {
+      return handleMuns(request, env, ctx, 'news');
+    }
+    if (url.pathname.startsWith('/api/announcements/')) {
+      return handleMuns(request, env, ctx, 'announcements', url.pathname.slice('/api/announcements/'.length));
+    }
+    if (url.pathname.startsWith('/api/insider-trades/')) {
+      return handleMuns(request, env, ctx, 'insider', url.pathname.slice('/api/insider-trades/'.length));
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -410,6 +420,77 @@ async function handleCalendar(request, env, ctx) {
   const extra = { 'x-sattva-list-source': listSource || 'none' };
   ctx?.waitUntil?.(cache.put(cacheKey, tagged(body, tag, CALENDAR_TTL_S, extra)));
   return revalidate(request, tagged(body, tag, CALENDAR_TTL_S, extra), 'miss');
+}
+
+// ---------------------------------------------------------------------------------------
+// GET /api/news · /api/announcements/{ticker} · /api/insider-trades/{ticker}
+//
+// The three Muns feeds behind the News, Corporate Announcements and Insider Trades tabs. All three
+// need `Authorization: Bearer …`, which is the whole reason they are routes here rather than fetches
+// from the browser — see the header of worker/muns.mjs.
+//
+// ONE HANDLER, THREE UPSTREAMS, because everything that differs between them is already inside
+// muns.mjs. What is shared is what belongs here: the edge cache, the content ETag, and the rule
+// that a failure arrives as a 200 carrying `ok: false` and a NAMED reason.
+//
+// WHY A FAILURE IS A 200. The request to *us* succeeded; it is the upstream that did not answer.
+// Returning 502 would make the browser's fetch throw, and a thrown fetch cannot carry the one thing
+// the reader needs — which of `no-token`, `unauthorised`, `rate-limited`, `timeout`, `unreachable`
+// or `shape` it was. The first two are things an operator fixes and the rest are things to wait
+// for, and collapsing them into "could not load" throws away the only actionable information.
+// Same pattern, and same reasoning, as /api/super-investors.
+//
+// A FAILURE IS CACHED FOR SECONDS, NOT MINUTES. These are session JWTs and they expire, so a
+// corrected token has to take effect at once rather than after the success TTL.
+// ---------------------------------------------------------------------------------------
+const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900 };
+const MUNS_FAIL_TTL_S = 15;
+
+async function handleMuns(request, env, ctx, kind, rawTicker = '') {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+
+  const url = new URL(request.url);
+  const iso = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
+  const from = iso(url.searchParams.get('from'));
+  const to = iso(url.searchParams.get('to'));
+
+  // A ticker is a path segment on two of these routes, so it is validated rather than passed
+  // through: this must not become an open proxy to arbitrary upstream paths.
+  const ticker = decodeURIComponent(rawTicker).trim().toUpperCase();
+  if (kind !== 'news' && !/^[A-Z0-9&.\-]{1,20}$/.test(ticker)) {
+    return json({ ok: false, reason: 'shape', message: 'That is not a ticker this route will ask about.' }, 400);
+  }
+
+  const query = kind === 'news' ? (url.searchParams.get('q') || '').trim().slice(0, 200) : null;
+  if (kind === 'news' && !query) {
+    return json({ ok: false, reason: 'shape', message: 'A news search needs ?q=.' }, 400);
+  }
+
+  const cacheKey = edgeKey(`muns-${kind}?t=${ticker}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}`);
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return revalidate(request, hit, 'hit');
+
+  let payload;
+  let ttl = MUNS_TTL_S[kind];
+  try {
+    if (kind === 'news') payload = { ok: true, kind, ...(await fetchNews({ query, country: url.searchParams.get('country') || 'IN', fromDate: from, toDate: to }, env)) };
+    else if (kind === 'announcements') payload = { ok: true, kind, ...(await fetchAnnouncements({ ticker, fromDate: from, toDate: to }, env)) };
+    else payload = { ok: true, kind, ...(await fetchInsiderTrades({ ticker, country: 'india', fromDate: from, toDate: to }, env)) };
+  } catch (err) {
+    const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
+    // THE REQUESTED URL TRAVELS WITH THE FAILURE. A bare status code is unfalsifiable — the last
+    // time that rule was broken here it cost a long investigation during which the upstream was
+    // healthy the whole time. See "an upstream you CANNOT proxy" in CLAUDE.md.
+    payload = { ok: false, kind, reason: e.reason, message: e.message, status: e.status, requestedUrl: e.url, ticker: ticker || null, query };
+    ttl = MUNS_FAIL_TTL_S;
+  }
+
+  payload.fetchedAt = new Date().toISOString();
+  const { body, tag } = withTag(payload);
+  const res = tagged(body, tag, ttl);
+  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+  return revalidate(request, res, 'miss');
 }
 
 // ---------------------------------------------------------------------------------------

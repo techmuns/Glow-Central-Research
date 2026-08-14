@@ -255,7 +255,16 @@ await go('/#/', 1300);
 
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
-    research: ['tabs/earnings-hub.js', 'tabs/concall.js', 'tabs/public-chatter.js', 'tabs/breakouts.js', 'tabs/super-investors.js'],
+    research: [
+      'tabs/earnings-hub.js',
+      'tabs/concall.js',
+      'tabs/public-chatter.js',
+      'tabs/breakouts.js',
+      'tabs/super-investors.js',
+      'tabs/news.js',
+      'tabs/corp-announcements.js',
+      'tabs/insider-trades.js',
+    ],
     portfolio: ['portfolio/overview.js', 'portfolio/position-by.js', 'portfolio/transactions.js', 'portfolio/drawdown.js'],
   };
   const out = [];

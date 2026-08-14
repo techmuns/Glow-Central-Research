@@ -48,6 +48,10 @@ export const KEYS = {
   // keep it is different too — not bytes, but the fact that a report costs a metered LLM run to
   // produce, so losing our copy of one is the one cache miss the reader pays for in money.
   deepDiveReport: (slug) => `deepdive:${slug}`,
+  // News, announcements and insider trades. One entry per committed snapshot and one per company
+  // walked live, so a quarter landing for one company cannot invalidate the other six hundred.
+  filings: (kind) => `filings:${kind}`,
+  filingRow: (kind, ticker) => `filings:${kind}:${ticker}`,
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

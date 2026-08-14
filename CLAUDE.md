@@ -84,11 +84,17 @@ public/
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
       universe.js             screener-export -> legacy universe shape adapter
+      filings.js              the News / Announcements / Insider feed: snapshot first, then a
+                              bounded live walk for whatever it is missing
+      filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
+                              worker/muns.mjs
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors
+    tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors,
+                              news, corp-announcements, insider-trades
+      filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
                               earnings-live.json, mc-ticker-map.json, result-returns.json,
@@ -101,6 +107,7 @@ scripts/
   import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
   lib/xlsx-read.mjs           .xlsx reader built on node:zlib alone, no npm dependency
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
+  scrape-filings.mjs          walks the universe for news, announcements and insider trades
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -114,6 +121,7 @@ worker/http.mjs               content ETags, 304s and CORS — shared with any l
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
+worker/muns.mjs               the AUTHENTICATED news / announcements / insider clients — same token
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -559,6 +567,49 @@ assumed: the API sends `access-control-allow-origin: *`, exposes `ETag` via
 `conditionalJson` and the device store behave exactly as they did against our own route. **Verify
 those three headers with `curl -D-` before moving any feed to the browser**; without an exposed
 ETag the client cannot revalidate and every poll becomes a full download.
+
+### Three feeds whose SHAPE is not ours to pin — the filings rule
+
+News, Corporate Announcements and Insider Trades all come from the Muns API, and when they were
+wired **not one of them could be probed**: the only token available locally was a ten-character
+placeholder, and all three answer 401/403 without a real one. So they were built against a written
+contract rather than an observed response, and everything about them assumes that contract is
+approximately right rather than exactly right.
+
+That is survivable, and this is what makes it survivable:
+
+1. **Read by shape and by candidate key, never by one guessed field name.**
+   `js/data/filings-shared.js` tries a list of plausible keys for each field and keeps the untouched
+   record beside the normalised one. A rename upstream costs one column, not the tab. This is the
+   Deep Dive rule (*render by shape, not by field name*) applied to a payload nobody has seen.
+2. **A field that is absent stays null.** It renders as an em dash with a title saying the source
+   did not carry it. Nothing is defaulted, and a date that cannot be parsed is **not** today's — it
+   is blank, and the row sorts last rather than first.
+3. **Insider trades answers with MARKDOWN, not JSON** — the only upstream here that does. Its
+   columns are therefore *unknown at build time*, so the table is built from whatever headers the
+   markdown declared, in their order, under **their headings**. Renaming "Acq/Disp" to "Action"
+   would put our word on their data and would hide a column the day they add one.
+4. **Nothing is summed and nothing is scored.** No total quantity, no total value, no sentiment, no
+   materiality flag. A quantity written `1,20,000 (pledged)` is not a number; adding those up either
+   throws or, worse, quietly produces one. These tabs have no model behind them, so `showScore` and
+   `showSignals` stay off rather than rendering empty score furniture.
+5. **The credential is a session JWT, so it EXPIRES.** Unlike a static key, a working deployment
+   starts returning 401 on a day nobody changed anything. `unauthorised` is its own named state all
+   the way to the screen and says so in those words, because the first instinct on a sudden 401 is
+   to look for a bug in the request.
+
+**The universe is served from a committed snapshot, not from a live fan-out.** Two of the three are
+per-ticker and all three are capped at ~60 requests a minute, so 603 companies live is ten minutes
+of somebody else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule
+and commits the result; the live routes remain for companies the snapshot misses and for refreshing
+one on demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape walks **the
+book first**, so a run cut short by the rate limit or an expiring token has covered the holdings
+rather than whatever starts with A.
+
+**A company that could not be read is not a company with nothing.** Failures are kept per ticker,
+counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
+report an outage as an absence of events — the same error class as a count of zero from a failing
+endpoint (see *And a count of zero is not always a count*).
 
 ### An upstream that needs a credential — the Finology rule
 
@@ -1206,6 +1257,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
+| Change News / Announcements / Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
+| Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
+| Refresh the filings snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the two passes, the revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |

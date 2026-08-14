@@ -16,6 +16,9 @@ import * as concall from '../tabs/concall.js';
 import * as publicChatter from '../tabs/public-chatter.js';
 import * as breakouts from '../tabs/breakouts.js';
 import * as superInvestors from '../tabs/super-investors.js';
+import * as news from '../tabs/news.js';
+import * as corpAnnouncements from '../tabs/corp-announcements.js';
+import * as insiderTrades from '../tabs/insider-trades.js';
 import * as overview from '../portfolio/overview.js';
 import * as positionBy from '../portfolio/position-by.js';
 import * as transactions from '../portfolio/transactions.js';
@@ -33,7 +36,7 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [earningsHub, concall, publicChatter, breakouts, superInvestors] },
+  { id: 'research', label: 'Research Central', tabs: [earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
