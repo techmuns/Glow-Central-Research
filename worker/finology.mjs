@@ -25,12 +25,25 @@ export { isSlug };
 
 export const BASE = 'https://devde.muns.io';
 
-// Per attempt, not per call. The service answers in about a second when healthy and fails fast
-// when it is not, so a short ceiling plus retries beats one long wait: the common bad case costs
-// a couple of seconds rather than twenty.
-export const REQ_TIMEOUT_MS = 15000;
-export const ATTEMPTS = 3;
-const BACKOFF_MS = [400, 1200];
+// THE CEILING HAS TO MATCH THE RATIONALE, AND FOR A LONG TIME IT DID NOT.
+//
+// The comment here said "a short ceiling plus retries beats one long wait: the common bad case
+// costs a couple of seconds rather than twenty" — and then set fifteen seconds across three
+// attempts. With the backoff that is 15 + 0.4 + 15 + 1.2 + 15 = **46.6 seconds** of blank screen
+// before the panel could say the upstream had not answered. That is not a couple of seconds, and
+// it is the single slowest thing this dashboard was capable of doing.
+//
+// The service answers in about a second when healthy, so six seconds is six times the healthy
+// latency and two attempts is enough to ride out a restart. `DEADLINE_MS` is the guarantee that
+// matters: no call to this module can take longer than that, whatever the retry arithmetic says,
+// so a route built on it always answers a reader inside a window they will wait through.
+//
+// Retrying hard into a struggling upstream also makes the struggle worse, and ninety books each
+// retrying three times is ninety times the harm.
+export const REQ_TIMEOUT_MS = 6000;
+export const ATTEMPTS = 2;
+export const DEADLINE_MS = 13000;
+const BACKOFF_MS = [400];
 
 function fail(message, code) {
   const err = new Error(message);
@@ -55,29 +68,40 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * that verified this integration against the real service would be scraping somebody else's
  * production on every push, and would need a live credential to do it.
  */
-export async function call(fetchImpl, token, path, base = BASE, { missing = 'not-found' } = {}) {
+export async function call(fetchImpl, token, path, base = BASE, { missing = 'not-found', now = Date.now } = {}) {
   if (!token) throw fail('No API token is configured for the super-investor feed.', 'no-token');
+
+  // The deadline is absolute and is the promise this function makes to its caller. Each attempt
+  // gets whatever is left of it, so a slow first attempt shortens the second rather than being
+  // added to it — which is how the old arithmetic reached forty-seven seconds.
+  const startedAt = now();
+  const left = () => DEADLINE_MS - (now() - startedAt);
 
   let last;
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const budget = Math.min(REQ_TIMEOUT_MS, left());
+    if (budget <= 0) throw last || fail(`${base}${path} did not answer within ${DEADLINE_MS}ms.`, 'timeout');
     try {
-      return await attemptCall(fetchImpl, token, path, base, missing);
+      return await attemptCall(fetchImpl, token, path, base, missing, budget);
     } catch (e) {
       last = e;
       const retryable = TRANSIENT.has(e.code) || (e.code === 'upstream' && TRANSIENT_STATUS.has(e.status));
       if (!retryable || attempt === ATTEMPTS - 1) throw e;
-      await sleep(BACKOFF_MS[attempt] ?? 1200);
+      const backoff = BACKOFF_MS[attempt] ?? 400;
+      // No point sleeping into a deadline that will have passed by the time we wake.
+      if (left() - backoff <= 0) throw e;
+      await sleep(backoff);
     }
   }
   throw last;
 }
 
-async function attemptCall(fetchImpl, token, path, base, missing) {
+async function attemptCall(fetchImpl, token, path, base, missing, timeoutMs = REQ_TIMEOUT_MS) {
   let res;
   try {
     res = await fetchImpl(`${base}${path}`, {
       headers: { accept: 'application/json', authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
     const timedOut = /timeout|abort/i.test(String(e?.name || e?.message || ''));

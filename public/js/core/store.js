@@ -121,6 +121,61 @@ export async function readEntry(key) {
 }
 
 /**
+ * Read many entries at once, in ONE transaction, resolving to a Map of key -> entry.
+ *
+ * `readEntry` in a loop is correct and slow in a specific way: each call opens its own IndexedDB
+ * transaction, and a transaction is a round trip to the storage thread. The super-investor feed
+ * reads ninety-one keys before it can paint anything, and ninety-one transactions is ninety-one
+ * of those round trips on the critical path of the first paint. One transaction serving ninety-one
+ * `get`s is a single round trip.
+ *
+ * Missing keys are simply absent from the Map — a miss is never an error here either.
+ */
+export async function readEntries(keys) {
+  const out = new Map();
+  const wanted = [];
+  for (const key of keys) {
+    const mem = memory.get(key);
+    if (mem) out.set(key, mem);
+    else wanted.push(key);
+  }
+  if (!wanted.length) return out;
+
+  const db = await openDb();
+  if (!db) return out;
+
+  // Not `tx()`: that helper resolves with one request's `.result`, and this needs every request's.
+  // The transaction stays open across all of them and completes when the last one settles.
+  await new Promise((resolve) => {
+    let t;
+    try {
+      t = db.transaction(STORE, 'readonly');
+    } catch {
+      return resolve();
+    }
+    const s = t.objectStore(STORE);
+    for (const key of wanted) {
+      let req;
+      try {
+        req = s.get(key);
+      } catch {
+        continue;
+      }
+      req.onsuccess = () => {
+        const row = req.result;
+        if (!row || !row.value) return;
+        memory.set(key, row);
+        out.set(key, row);
+      };
+    }
+    t.oncomplete = resolve;
+    t.onerror = resolve;
+    t.onabort = resolve;
+  });
+  return out;
+}
+
+/**
  * Write one entry. NOT awaited by callers on the paint path: a 1.1MB structured clone costs a few
  * milliseconds and there is nothing to do with the result. The in-memory tier is updated
  * synchronously so a read that follows immediately sees the new value either way.

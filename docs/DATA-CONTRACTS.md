@@ -2072,13 +2072,48 @@ those carrying a value, and says how many of each. Summing all history produced 
 ### Caching, and why the fan-out is on the client
 
 Each upstream call is a live scrape of finology.in, and shareholding data moves once a quarter. So
-the edge holds each response for **six hours** and the browser revalidates against our ETag for a
-bodyless 304. Each book is stored on the device under its own key (`investor:<slug>`), so a quarter
-landing for one investor does not invalidate the other fifty.
+the edge holds each response for **six hours** — `caches.default`, keyed through `edgeKey()`, the
+same mechanism `/api/earnings` and `/api/concalls` use — and the browser revalidates against our
+ETag for a bodyless 304. Each book is stored on the device under its own key (`investor:<slug>`),
+so a quarter landing for one investor does not invalidate the other fifty.
+
+`x-sattva-cache` on the response says which happened: `live` (read upstream), `hit` (edge),
+`stale` (last-good copy), or the failure reason. **Check it after touching either route** — the
+edge cache was documented here for months while nothing implemented it, and the only visible symptom
+was that the view took a long time to fill.
 
 The list is one request and each book is another; the client walks them **four at a time**,
 painting as they land. There is deliberately no `?full=1` that would fetch every book in one
 request — a cold cache would become sixty simultaneous page reads on their service.
+
+**The client does not re-ask for a book the server confirmed less than six hours ago.** That is the
+edge window, so the same bytes would come back; `REVALIDATE_AFTER_MS` in
+`public/js/data/super-investors.js` is set from `INVESTOR_TTL_S` for that reason and not as a
+judgement about tolerable staleness. A book never read, and a book carrying `stale: true`, are
+always asked for. `meta().origin` stays `store` while any painted book is unconfirmed and
+`meta().checkedAt` reports the **oldest** confirmation on screen, so the skip cannot be mistaken for
+freshness; `refresh()` (the *Re-read everything now* control in the Live pill's modal) discards
+every confirmation.
+
+### `stale: true` — the last good read, when the upstream is down
+
+Both routes keep a long-lived `last-good` entry beside the six-hour one. When a live read fails and
+such an entry exists, the route answers **200 with the previous payload plus**:
+
+| Field | Meaning |
+| --- | --- |
+| `stale` | `true`. Absent or `false` on every healthy response. |
+| `fetchedAt` | **The original read time, unchanged.** Restamping it would be the cache claiming a freshness it does not have. |
+| `staleReason` | The failure that caused the fallback, verbatim. |
+| `reason` | The failure's code, as in the `ok: false` shape below. |
+
+Cached for **30 seconds**, not six hours, so recovery reaches the screen quickly. The view renders
+an amber strip reading *"Showing the last good read, from &lt;when&gt;"* — real filed holdings of a
+stated age. **This is not the mock ribbon and must not be worded like one**: nothing here is
+invented, and the only thing wrong with it is that it is not this moment's figure.
+
+A hard failure (no last-good copy) is cached for **15 seconds**. Caching failures at all matters
+because ninety-one requests sit behind one outage: uncached, every book pays its own full timeout.
 
 ### Failure is reported by kind
 
@@ -2095,11 +2130,18 @@ deployed on the host being called** — which is exactly what happened in produc
 correct, and `devde.muns.io` returned 404 because it has no such route. Conflating the two made the
 panel say *"No such investor"* about a missing deployment.
 
-**Transient failures are retried.** The upstream is a live scrape and visibly flaps — observed
-returning 502, then timing out, then 200, within a minute. `call()` makes up to `ATTEMPTS` (3)
-attempts with a 15s ceiling each and 400ms/1200ms backoff, retrying only `unreachable`, `timeout`
-and 502/503/504. A 401 or a 404 is an answer, not a blip, and is never retried. Error responses are cached for **15 seconds**, not six
-hours, so pasting a working token takes effect immediately.
+**Transient failures are retried, under an absolute deadline.** The upstream is a live scrape and
+visibly flaps — observed returning 502, then timing out, then 200, within a minute. `call()` makes
+up to `ATTEMPTS` (2) attempts with a `REQ_TIMEOUT_MS` (6s) ceiling each and 400ms backoff, retrying
+only `unreachable`, `timeout` and 502/503/504. A 401 or a 404 is an answer, not a blip, and is never
+retried.
+
+`DEADLINE_MS` (13s) bounds the whole call, and each attempt gets whatever is **left** of it rather
+than a fresh ceiling. That is the guarantee the route rests on. The previous settings — 15s across
+three attempts — added up to **46.6 seconds** before the panel could say the upstream had not
+answered, under a comment claiming "the common bad case costs a couple of seconds rather than
+twenty". Measured after the change: 12.4s for the first request into a hung upstream, 15ms for the
+next, because the failure is cached.
 
 `holdings: []` never travels without `ok: false` beside it — a book that failed to load must not be
 able to read as an investor who holds nothing. The card says "could not be read" instead.

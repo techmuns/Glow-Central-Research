@@ -546,6 +546,35 @@ And two that come from the upstream being a live scrape rather than an API over 
   and each book is another, walked **four at a time** with the view painting as they land. A
   `?full=1` that fetched every book in one request would turn a cold cache into sixty simultaneous
   page reads on their service.
+
+  **"The edge holds six hours" was a comment and not a mechanism for a long time, and that is the
+  most expensive kind of bug in this file.** `caches.default` was consulted by `/api/earnings`,
+  `/api/earnings-calendar` and `/api/concalls` and by neither investor route; all they carried was
+  a `cache-control: max-age=21600` header, and the client fetches with `cache: 'no-cache'`, which
+  revalidates unconditionally and so never reuses it. Every reader with a cold device store made
+  the upstream scrape finology.in ninety-one times. **A caching claim in a comment is worth
+  nothing — check that a route actually reads and writes the cache**, and `x-sattva-cache` on the
+  response is how you check it: `live` on the first request and `hit` on the second, or it is not
+  cached.
+- **An outage is not a reason to show nothing.** Every other upstream here degrades to a snapshot
+  and says so; this one had no fallback at all, so a restarting API replaced a perfectly good
+  twenty-minute-old copy with a wall of prose. Each success is now also written to a long-lived
+  `last-good` entry, and a failure serves that as a **200 with `stale: true`**, its **original**
+  `fetchedAt` (restamping it would be the cache claiming freshness it does not have), a
+  `staleReason` naming the failure, and a 30-second TTL so recovery reaches the screen quickly.
+  The view carries an amber strip saying exactly that — *real filed holdings of this age*, which is
+  a different statement from the mock ribbon and must not be worded like one.
+- **Cache the failure too, briefly.** With ninety-one requests behind one outage, a failure that is
+  not cached costs every one of them its own full timeout. Both the stale answer and the hard
+  failure go into the fresh key for a few seconds, so one reader pays the timeout once instead of
+  ninety-one times. Measured: 12.4s for the first, 15ms for the next.
+- **A retry ceiling has to match its own rationale.** The comment in `worker/finology.mjs` said "a
+  short ceiling plus retries beats one long wait: the common bad case costs a couple of seconds
+  rather than twenty" — above `REQ_TIMEOUT_MS = 15000` and `ATTEMPTS = 3`, which with the backoff is
+  **46.6 seconds** of blank screen. It is now 6s × 2 under an absolute `DEADLINE_MS`, and the
+  deadline is the guarantee that matters: each attempt gets what is *left* of it, so a slow first
+  attempt shortens the second instead of being added to it. Retrying hard into a struggling
+  upstream also makes the struggle worse, ninety-one times over.
 - **A blank quarter is not a zero.** Below the disclosure threshold a real holding is invisible in
   the filing, so `null` travels to the cell, renders as an em dash, and is excluded from totals. A
   position disappearing is *"no longer disclosed"*, not *"sold"* — and neither `new` nor `exited`
@@ -1023,14 +1052,40 @@ So `js/data/super-investors.js` reads **the device before it asks the network an
 Three rules make that safe, and they are the same ones the store rests on generally:
 
 - **`meta().origin` may never claim a freshness that has not been confirmed.** It reads `store`
-  while any painted book is still unconfirmed and flips to `live` only when the pass finishes.
+  while any painted book is still unconfirmed and flips to `live` only when every one of them has
+  been. A book the second pass deliberately skipped is *unconfirmed*, not confirmed — see below.
 - **A failed revalidation must not delete a book you already have.** The cached copy is a real read
   of a real filing; replacing it with "could not be read" because a later request timed out throws
   away good data to report a transient network event. Only a book with no cached copy becomes a
-  failure.
+  failure. It must not be recorded as *confirmed* either: nothing vouched for those bytes.
 - **Never replay a stored failure.** `ok: false` is cached for fifteen seconds upstream precisely so
   a corrected token takes effect at once; painting one from disk would undo that. Pass one refuses
   to seed from anything carrying `ok: false`.
+
+**And pass two must not ask for what the server cannot answer differently.** It used to walk all
+ninety-one books unconditionally, so a reader who opened the tab twice in a minute paid ninety-one
+round trips to be told nothing had changed. The Worker's own edge window is six hours; asking again
+inside it *cannot* learn anything new, because the identical bytes come back. So a book the server
+confirmed within `REVALIDATE_AFTER_MS` — which is that same six hours, deliberately, not a guess at
+tolerable staleness — is left alone, and a return visit costs **one request instead of ninety-one**.
+
+Three things keep that from being a freshness claim bought on credit, and all three are asserted:
+
+- a book **never read**, and a book carrying the server's `stale` flag, are always asked for;
+- `origin` stays `store` and `checkedAt` reports the **oldest** confirmation behind what is on
+  screen, not the newest — otherwise the list's own check would overstate every book beneath it;
+- `refresh()` discards every confirmation and asks again, wired to a re-read control in the Live
+  pill's modal. A cache that decides on the reader's behalf that a question is not worth asking
+  needs a way for them to ask it anyway.
+
+**A repaint is not free either, and per-arrival repainting is the other half of "slow".** The tab
+rebuilds its whole panel — stat strip, ninety cards, a table of every disclosed position — from one
+`onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most one
+repaint per `EMIT_COALESCE_MS` (a trailing throttle, **not** a debounce — a debounce would keep
+deferring while books kept landing and the grid would sit still until the walk finished), and the
+derived views are memoised behind a version counter so they are built once per change rather than
+once per paint. The walk's final emit is immediate, so the settled state never waits on a timer.
+Measured against a twelve-investor stand-in: 14 rebuilds → 2 cold, 13 requests → 1 on return.
 
 Reach for this shape when a feed is **many small requests rather than one large one**. For a single
 payload the conditional GET already does the whole job, and a second pass would be complexity for
@@ -1053,6 +1108,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
+| Make the Superstar Investors view load faster | `js/data/super-investors.js` (the two passes, the revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
@@ -1163,11 +1219,24 @@ It covers, beyond the checklist below:
   free to open, the report still renders off the device, no confirm step appears, nothing is
   dispatched, the panel never shows the run screen on the way, and the ribbon says both that the
   copy is this device's and that theirs is gone
+- **the super-investor feed does not re-ask for what it has**: the list route reports
+  `x-sattva-cache: hit` on a repeat request, a genuine second visit (a real `reload()`, not a hash
+  navigation — that would leave the module's memory intact and prove nothing) makes **fewer
+  requests than there are investors** while still painting every book, and says `origin: store`
+  with a real `checkedAt` rather than claiming to be live; and on a cold device, where books
+  actually arrive one at a time, the panel is rebuilt **fewer times than there are books**
 
 > The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
 > `/api/*`, so they report **SKIP** — which is itself worth seeing, because it exercises the
 > snapshot fallback. Verify a caching change against `npx wrangler dev`:
 > `node scripts/verify-ui.mjs http://127.0.0.1:8787`. A SKIP there is not a pass.
+>
+> The super-investor checks additionally need a reachable upstream, and pointing them at the real
+> one would scrape somebody else's production on every push. Put a stand-in behind `MUNS_BASE` in
+> `.dev.vars` — the two routes it must speak are in `docs/DATA-CONTRACTS.md` — and the block runs
+> instead of skipping. That is how the edge cache, the stale fallback and the timeout budget were
+> measured, and a stand-in that can be told to 503 or hang is what makes the failure paths testable
+> at all.
 
 > Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach
 > `cdn.tailwindcss.com` or Google Fonts. To screenshot with real styling, copy `public/` to a

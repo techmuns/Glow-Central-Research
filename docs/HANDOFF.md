@@ -667,6 +667,25 @@ suite asserts the two can never diverge again.
 and the panel prints the command that fixes them; `unreachable` / `upstream` are a service's. A
 failed book shows "could not be read", never an empty one — those must never look the same.
 
+**And a second caught bug, this one about speed.** The view is ninety-one requests: the list, then
+one page per book. Four things were wrong at once, and the reader felt all of them as "this is
+slow", or — when the upstream flapped — as a wall of prose where the grid should be:
+
+| What | Was | Now |
+| --- | --- | --- |
+| Edge cache on the two routes | documented, never implemented — `caches.default` was untouched, so every reader made the upstream scrape finology.in 91 times | `investorRoute` in `worker/index.js` reads and writes it, 6h; `x-sattva-cache` reports which |
+| Upstream down | nothing shown at all | a `last-good` copy served as `stale: true` with its original `fetchedAt`, under an amber strip that says so |
+| Retry budget | 15s × 3 attempts = **46.6s** before the panel could speak, under a comment claiming "a couple of seconds" | 6s × 2 under an absolute 13s `DEADLINE_MS`; the failure is cached for 15s so the other 90 books do not each pay it |
+| Return visit | re-asked all 91 books inside a 6h window in which the server had nothing new to say, and rebuilt the whole panel once per arriving book | asks only for books unconfirmed for 6h (**1 request**), repaints on a trailing throttle (**2 rebuilds, not 14**, on a 12-investor stand-in) |
+
+The last row is the one to be careful with: speed there is bought by *not asking*, so it is only
+honest because `meta().origin` keeps saying `store`, `meta().checkedAt` reports the **oldest**
+confirmation on screen rather than the newest, and *Re-read everything now* in the Live pill's modal
+discards every confirmation. `verify-ui.mjs` asserts all four.
+
+Reproducing any of this needs a stand-in behind `MUNS_BASE` that can be told to 503 or hang —
+without one the whole block skips, which is exactly why the missing edge cache survived so long.
+
 ---
 
 ## 6. The honesty rules

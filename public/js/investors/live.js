@@ -25,11 +25,11 @@
 // A BLANK QUARTER IS AN EM DASH, NEVER A ZERO. Finology print "-" where a holder was not on the
 // shareholding pattern, which below the disclosure threshold means "not disclosed", not "sold".
 
-import { statStrip, scoreTable, sectionHead, openWorkspace, openModal, roadmapStrip } from '../ui/screener.js';
+import { statStrip, scoreTable, sectionHead, openWorkspace, openModal, closeModal, roadmapStrip } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatNumber, formatCroreCompact } from '../core/format.js';
+import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as feed from '../data/super-investors.js';
@@ -99,6 +99,7 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors', book: coverage.meta() })}</div>`,
     })}
     ${stats.html}
+    ${staleStrip(m)}
     ${loadingStrip(m)}
     <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>
     <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -191,6 +192,38 @@ function renderUnavailable(ctx, m) {
     ${roadmapStrip(FEATURES)}`;
 }
 
+/**
+ * The upstream could not be reached and the Worker served its last good read instead.
+ *
+ * THIS IS NOT THE MOCK RIBBON AND IT MUST NOT READ AS ONE. Every figure below it is a real filing,
+ * read from the real source; what is wrong with it is its AGE, and the strip says exactly that and
+ * gives the age. The alternative this replaced was showing nothing at all — a reader with a
+ * twenty-minute-old copy of a quarterly disclosure got a page of prose about a restarting service.
+ *
+ * It sits above the grid rather than inside the provenance modal because a caveat that has to be
+ * clicked for is a caveat most readers never see, and this one changes what the numbers mean.
+ */
+function staleStrip(m) {
+  if (!m.stale) return '';
+  const age = m.fetchedAt ? formatRelativeTime(Date.parse(m.fetchedAt)) : null;
+  const which =
+    m.staleReason || !m.staleBooks
+      ? 'The source did not answer just now'
+      : `${formatNumber(m.staleBooks)} of these books could not be re-read just now`;
+  return `
+    <div class="mb-5 flex items-start gap-3 rounded-2xl bg-amber-50 p-3 ring-1 ring-amber-200">
+      <span class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700" aria-hidden="true">
+        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      </span>
+      <p class="text-xs leading-relaxed text-amber-900">
+        <strong>Showing the last good read${age ? `, from ${escapeHtml(age)}` : ''}.</strong>
+        ${escapeHtml(which)}, so the Worker served the copy it already had rather than nothing at all.
+        These are real filed holdings of that age — not estimates, and not this moment's figures.
+        ${m.staleReason ? `<span class="mt-1 block font-mono text-[11px] text-amber-800/80">${escapeHtml(m.staleReason)}</span>` : ''}
+      </p>
+    </div>`;
+}
+
 /** While the books are still arriving, say so — a half-filled grid should explain itself. */
 function loadingStrip(m) {
   if (!m.pending && !m.inFlight) return '';
@@ -249,13 +282,30 @@ function wireLivePill(root, m) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How often it is read</h3>
           <p class="mt-1 text-xs">Once per visit, never polled: shareholding data moves when a company files, which is four times a year.</p>
-          <p class="mt-2 text-xs">Every book is stored on this device under the server's own fingerprint, and a return visit <strong>paints from that store before asking the network anything</strong> — ninety-one confirmations, four at a time, is the wait, not the bytes. Each is then revalidated in the background and only a book that actually changed is redrawn.</p>
+          <p class="mt-2 text-xs">Every book is stored on this device under the server's own fingerprint, and a return visit <strong>paints from that store before asking the network anything</strong> — ninety-one confirmations, four at a time, was the wait, not the bytes.</p>
+          <p class="mt-2 text-xs">Those confirmations are now skipped for any book the server vouched for <strong>within the last six hours</strong>, which is the window the Worker's own edge cache holds. Asking again inside it cannot learn anything new — the same bytes come back — so a quick return visit costs one request rather than ninety-one. A book that has never been read, or that arrived as a last-good copy during an outage, is always asked for.</p>
           ${deliveryNote({ origin: m.origin, checkedAt: m.checkedAt, fetchedAt: m.fetchedAt, persisted: m.persisted })}
+          <p class="mt-3">
+            <button type="button" data-si-reread
+              class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+              Re-read everything now
+            </button>
+            <span class="ml-2 text-[11px] text-slate-400">Discards every confirmation and asks the source again.</span>
+          </p>
           ${m.dropped ? `<p class="mt-3 text-xs text-amber-700">${escapeHtml(formatNumber(m.dropped))} investor${m.dropped === 1 ? '' : 's'} in their list carried no usable id and could not be opened, so ${m.dropped === 1 ? 'it is' : 'they are'} not shown.</p>` : ''}
         </div>
       </div>`,
       { size: 'default' }
     );
+
+    // The escape hatch for the six-hour revalidation skip. It is what keeps that skip honest: a
+    // reader who wants to know whether anything has moved since the last confirmation has a control
+    // that asks, rather than a cache deciding on their behalf that the question is not worth a
+    // request. Nothing calls this on a timer, and it is the only thing that clears a confirmation.
+    document.getElementById('modal-content')?.querySelector('[data-si-reread]')?.addEventListener('click', () => {
+      closeModal();
+      feed.refresh();
+    });
   });
 }
 

@@ -2091,16 +2091,125 @@ if (siProbe.state === 'no-route') {
   await page.waitForSelector('#workspace-panel', { timeout: 15000 });
   await page.waitForTimeout(400);
   ok('an investor card opens the book workspace', (await page.locator('#workspace-overlay.is-open').count()) === 1);
-  for (const [tab, expect] of [['holdings', /Value \(Finology\)/i], ['moves', /Derived|only one quarter/i], ['profile', /Finology id/i]]) {
+  // THE ATTRIBUTION MOVED, IT DID NOT GO. This block asserted `Value (Finology)` as visible text
+  // and had done since before the heading was deliberately shortened to `Value` with the source
+  // named on the heading's tooltip instead. It never caught the drift because the whole block
+  // skips without a reachable upstream. What has to hold is that the column still says whose
+  // derivation the figure is, wherever the design puts it — so that is what is checked.
+  let valueHeadTitle = '';
+  for (const [tab, expect] of [['holdings', /Value/i], ['moves', /Derived|only one quarter/i], ['profile', /Finology id/i]]) {
     await page.locator(`[data-ws-tab="${tab}"]`).click();
     await page.waitForTimeout(500);
     const txt = await page.locator('#workspace-panel').innerText();
     ok(`workspace panel renders: ${tab}`, expect.test(txt) && !/hit a snag/i.test(txt));
+    // Captured in place rather than by clicking back afterwards: the assertion below this loop
+    // reads whichever panel is showing, and re-selecting Holdings at the end would hand it the
+    // wrong one — which is exactly the bug an earlier draft of this check introduced.
+    if (tab === 'holdings') {
+      valueHeadTitle = await page.evaluate(
+        () => [...document.querySelectorAll('#workspace-panel th')].find((th) => /^value$/i.test(th.textContent.trim()))?.title || ''
+      );
+    }
   }
+  ok('...and the holdings panel still attributes the ₹ value to Finology', /finology/i.test(valueHeadTitle), valueHeadTitle.slice(0, 60) || 'no title on the Value heading');
   ok('the profile panel reaches the scalar fields the API returns', /Net worth|Active stocks|Total stocks/i.test(await page.locator('#workspace-panel').innerText()));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
   ok('ESC closes the book workspace', (await page.locator('#workspace-overlay.is-open').count()) === 0);
+}
+
+// ---------------------------------------------------------------------------------------
+// The feed must not re-fetch what it already has confirmed, and must not repaint per arrival.
+//
+// Three claims, all of which were false and all of which a reader felt as "this is slow":
+//   1. The routes are edge-cached. The comment in worker/index.js said the edge held each response
+//      for hours; `caches.default` was never consulted, so every reader made the upstream scrape
+//      finology.in ninety-one times.
+//   2. A return visit does not re-ask for every book. The revalidation pass walked all of them
+//      unconditionally, inside a six-hour window in which the server had nothing new to say.
+//   3. A book landing does not rebuild the whole panel. Ninety arrivals meant ninety rebuilds of
+//      a table of every disclosed position across every book.
+// ---------------------------------------------------------------------------------------
+if (siProbe.state === 'live') {
+  const edge = await page.evaluate(async () => {
+    const read = async () => {
+      const res = await fetch('api/super-investors', { cache: 'no-store' });
+      await res.arrayBuffer();
+      return res.headers.get('x-sattva-cache');
+    };
+    await read();
+    return { second: await read() };
+  });
+  ok('the investor list route is served from the edge on a repeat request', /hit/.test(edge.second || ''), `x-sattva-cache: ${edge.second}`);
+
+  // A GENUINE SECOND VISIT, which means a genuine document load. A hash navigation would leave
+  // this module's in-memory state intact and the count would be zero for a reason that has nothing
+  // to do with the store — proving nothing. `reload()` re-executes everything and keeps IndexedDB,
+  // which is exactly the reader coming back to the tab.
+  const seen = [];
+  const countApi = (r) => {
+    if (/\/api\/super-investors/.test(r.url())) seen.push(r.url());
+  };
+  await page.addInitScript(() => {
+    window.__siPaints = 0;
+    const attach = () => {
+      const host = document.querySelector('#content-host');
+      if (!host) return setTimeout(attach, 30);
+      new MutationObserver(() => window.__siPaints++).observe(host, { childList: true });
+    };
+    attach();
+  });
+  page.on('request', countApi);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  await page
+    .waitForFunction(async () => (await import('/js/data/super-investors.js')).meta().confirming === false, null, { timeout: 30000 })
+    .catch(() => {});
+  await page.waitForTimeout(600);
+  page.off('request', countApi);
+
+  const after = await page.evaluate(async () => {
+    const f = await import('/js/data/super-investors.js');
+    const m = f.meta();
+    return { total: m.total, loadedBooks: m.loadedBooks, origin: m.origin, checkedAt: m.checkedAt };
+  });
+
+  ok('a return visit does not re-ask for every book it already holds', seen.length < after.total, `${seen.length} requests for ${after.total} investors`);
+  ok('...and still paints the whole grid from the device', after.loadedBooks === after.total, `${after.loadedBooks} of ${after.total} books`);
+  // The speed may not be bought with a freshness claim: books nobody re-confirmed keep the paint
+  // labelled as this device's copy, and `checkedAt` reports when the server last vouched for it.
+  ok('...and says the paint came from the store rather than claiming it is live', after.origin === 'store', `origin=${after.origin}`);
+  ok('...with a real confirmation time behind it, not a blank', Number.isFinite(after.checkedAt), String(after.checkedAt));
+
+  // COLD DEVICE, which is the only state in which books actually ARRIVE one at a time — and so the
+  // only one in which the per-arrival repaint could be measured at all. Clearing the store and
+  // reloading reproduces a reader who has never opened this tab.
+  await page.evaluate(async () => (await import('/js/core/store.js')).clearAll());
+  const cold = [];
+  const countCold = (r) => {
+    if (/\/api\/super-investors/.test(r.url())) cold.push(r.url());
+  };
+  page.on('request', countCold);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  await page
+    .waitForFunction(async () => (await import('/js/data/super-investors.js')).meta().pending === 0, null, { timeout: 45000 })
+    .catch(() => {});
+  await page.waitForTimeout(700);
+  page.off('request', countCold);
+  const coldState = await page.evaluate(async () => {
+    const m = (await import('/js/data/super-investors.js')).meta();
+    return { total: m.total, loadedBooks: m.loadedBooks, paints: window.__siPaints ?? -1 };
+  });
+
+  ok('a cold device does fetch every book', cold.length >= coldState.total, `${cold.length} requests for ${coldState.total} investors`);
+  ok('...and a book landing does not rebuild the whole panel once per book',
+    coldState.paints >= 0 && coldState.paints < coldState.total,
+    `${coldState.paints} rebuilds for ${coldState.loadedBooks} books`);
+} else {
+  skip('the investor list route is served from the edge on a repeat request', `the upstream is ${siProbe.state}`);
+  skip('a return visit does not re-ask for every book it already holds', `the upstream is ${siProbe.state}`);
+  skip('...and a book landing does not rebuild the whole panel once per book', `the upstream is ${siProbe.state}`);
 }
 
 // The provenance modal has to say whose numbers these are, on any state.
@@ -2110,6 +2219,25 @@ if (await page.locator('#modal-overlay.is-open').count()) {
   const t = await page.locator('#modal-content').innerText();
   ok('the Live pill says the percentages are filings and the value is theirs', /Not ours/i.test(t) && /Finology's own derivation/i.test(t));
   ok('...and explains that a blank quarter is not a zero', /not disclosed/i.test(t) && /not zero/i.test(t));
+
+  // THE ESCAPE HATCH FOR THE REVALIDATION SKIP. Not asking is only defensible if the reader can
+  // ask; and because a re-read discards the state while ninety-one requests are still in flight,
+  // what it must not do is leave a failure state on screen for something that has not failed.
+  if (siProbe.state === 'live') {
+    ok('...and offers a re-read, so the six-hour skip is the reader’s to override', /re-read everything now/i.test(t));
+    await page.locator('#modal-content [data-si-reread]').click();
+    await page.waitForTimeout(1200);
+    await page
+      .waitForFunction(async () => (await import('/js/data/super-investors.js')).meta().pending === 0, null, { timeout: 45000 })
+      .catch(() => {});
+    await page.waitForTimeout(600);
+    const afterReread = await hostText();
+    ok('...and a re-read repaints the books rather than an error panel',
+      !/returned an error|could not be reached|No positions are shown/i.test(afterReread) && (await page.locator('[data-open-investor]').count()) > 0,
+      afterReread.slice(0, 70).replace(/\s+/g, ' '));
+  } else {
+    skip('...and offers a re-read, so the six-hour skip is the reader’s to override', `the upstream is ${siProbe.state}`);
+  }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 } else {

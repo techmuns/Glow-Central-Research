@@ -115,6 +115,14 @@ function renderIndividuals(ctx) {
     const token = renderToken;
     liveUnsub = liveInvestors.onChange(() => {
       if (token !== renderToken || ctxRef?.subview !== 'superstar-investors') return;
+      // A re-read from the Live pill discards the whole feed and starts again, so for a moment
+      // there is no list. Rendering the panel then would put "the API returned an error" on screen
+      // for something the reader just asked for and which has not failed. The skeleton is the
+      // honest state: this is loading.
+      if (!liveInvestors.isLoaded()) {
+        ctxRef.root.innerHTML = loadingHtml();
+        return;
+      }
       renderLive(ctxRef, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
     });
   }

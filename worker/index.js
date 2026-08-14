@@ -550,59 +550,142 @@ async function handleConcalls(request, env, ctx) {
 //
 // FAILURE IS REPORTED BY KIND, because the fixes differ. A missing or expired token is a
 // credential to renew; an unreachable host is a service to wait for. The UI says which.
+//
+// THE EDGE CACHE IS THE POINT, AND FOR A LONG TIME IT WAS ONLY A COMMENT.
+//   The paragraph above claimed "the edge holds each response for hours" and nothing implemented
+//   it. `caches.default` was consulted by /api/earnings, /api/earnings-calendar and /api/concalls
+//   and by neither of these two routes, so a `cache-control: max-age=21600` header was the whole
+//   mechanism — and the client fetches with `cache: 'no-cache'`, which revalidates unconditionally
+//   and therefore never reuses it. Every reader with a cold device store made the upstream scrape
+//   finology.in ninety-one times, at about a second apiece.
+//
+//   That is the wait the reader was seeing, and it was pure waste: ninety-one readers asked for
+//   the same ninety-one pages and every one of them was fetched afresh. The routes now go through
+//   `investorRoute`, which reads the edge first and writes it on the way out, exactly as the other
+//   three do. Warm, a book costs a cache read instead of somebody else's page load.
+//
+// AND A LAST-GOOD COPY, BECAUSE AN OUTAGE IS NOT A REASON TO SHOW NOTHING.
+//   Every other upstream here degrades to a snapshot and says so. This one had no fallback at all:
+//   when the API restarted, a reader who had a perfectly good copy at the edge from twenty minutes
+//   earlier got a wall of prose instead. Successes are now also written to a long-lived `last-good`
+//   entry, and a failure serves that — marked `stale: true`, carrying its ORIGINAL `fetchedAt`, and
+//   never for longer than INVESTOR_STALE_TTL_S so recovery is quick. It is labelled, not laundered.
 // ---------------------------------------------------------------------------------------
 
 // Six hours. Quarterly data with a generous margin: even at the very end of a window the figure
 // on screen is the same figure the source would give.
 const INVESTOR_TTL_S = 6 * 60 * 60;
+// How long a successful read is kept as the fallback. Long, because a fortnight-old shareholding
+// pattern under a "last read on <date>" label is worth incomparably more than an empty panel, and
+// this entry is only ever reached when a live read has just failed.
+const INVESTOR_LAST_GOOD_TTL_S = 14 * 24 * 60 * 60;
+// How long a STALE answer may be reused before the upstream is tried again. Short: the whole point
+// is that recovery reaches the screen quickly.
+const INVESTOR_STALE_TTL_S = 30;
+// An error must not be cached for the length of a success, or pasting the right token would appear
+// not to have worked until the afternoon. It IS cached briefly, though — see investorRoute.
+const ERROR_TTL_S = 15;
 
-async function handleInvestorList(request, env) {
-  try {
-    const list = await fetchInvestorList(fetch, env.MUNS_TOKEN, env.MUNS_BASE);
-    const { body, tag } = withTag({ ok: true, source: 'Ticker Finology, via devde.muns.io', fetchedAt: new Date().toISOString(), ...list });
-    return revalidate(request, tagged(body, tag, INVESTOR_TTL_S), 'live');
-  } catch (err) {
-    return investorError(request, err, { count: 0, investors: [] });
-  }
+const INVESTOR_SOURCE = 'Ticker Finology, via devde.muns.io';
+
+function handleInvestorList(request, env, ctx) {
+  return investorRoute(request, ctx, 'super-investors', () => fetchInvestorList(fetch, env.MUNS_TOKEN, env.MUNS_BASE), {
+    count: 0,
+    investors: [],
+  });
 }
 
-async function handleInvestorPortfolio(request, env, ctx, slug) {
+function handleInvestorPortfolio(request, env, ctx, slug) {
   if (!isSlug(slug)) {
     return json({ ok: false, error: 'bad-slug', message: 'An investor slug may only contain a-z, 0-9 and hyphens.' }, 400);
   }
+  return investorRoute(request, ctx, `super-investors/${slug}`, () => fetchInvestorPortfolio(fetch, env.MUNS_TOKEN, slug, env.MUNS_BASE), {
+    slug,
+    quarters: [],
+    holdings: [],
+  });
+}
+
+/**
+ * Both investor routes, which differ only in what they load and what an empty one looks like.
+ *
+ * Order of preference, and each step exists because the one below it is worse:
+ *   1. the edge copy, if it is inside its six-hour window          — no upstream call at all
+ *   2. a live read                                                 — one scrape, then cached
+ *   3. the last-good copy, marked `stale`                          — labelled, never laundered
+ *   4. a named failure                                             — a 200 with `ok: false`
+ *
+ * That last shape is the one /api/concalls uses for its degraded case, and it is a 200 on purpose:
+ * the request to THIS Worker succeeded, and what failed was the upstream. The body says which by
+ * name, so the panel can tell a reader whose problem it is — `no-token` and `unauthorised` are a
+ * credential for the operator to fix, everything else is a service to wait for. A bare 502 would
+ * collapse those into one unreadable state, and the store layer would discard the body explaining
+ * it. `holdings: []` never travels without `ok: false` beside it, so a book that failed to load
+ * can never read as an investor who holds nothing.
+ *
+ * Steps 3 and 4 are BOTH written to the fresh key for a few seconds. Without that, an upstream
+ * outage costs every one of the ninety-one requests its own full timeout, so the failure a reader
+ * waits through is ninety-one times longer than the one failure that actually happened.
+ */
+async function investorRoute(request, ctx, key, load, empty) {
+  const cache = caches.default;
+  const freshKey = edgeKey(key);
+  const lastGoodKey = edgeKey(`${key}::last-good`);
+
+  const hit = await cache.match(freshKey);
+  if (hit) return revalidate(request, hit, 'hit');
+
   try {
-    const portfolio = await fetchInvestorPortfolio(fetch, env.MUNS_TOKEN, slug, env.MUNS_BASE);
-    const { body, tag } = withTag({ ok: true, source: 'Ticker Finology, via devde.muns.io', fetchedAt: new Date().toISOString(), ...portfolio });
+    const data = await load();
+    const { body, tag } = withTag({ ok: true, stale: false, source: INVESTOR_SOURCE, fetchedAt: new Date().toISOString(), ...data });
+    // Two independent Responses, not one cloned: `tagged` builds from the serialised string, so
+    // each call produces a fresh unread body and neither put can consume the one being returned.
+    ctx?.waitUntil?.(cache.put(freshKey, tagged(body, tag, INVESTOR_TTL_S)));
+    ctx?.waitUntil?.(cache.put(lastGoodKey, tagged(body, tag, INVESTOR_LAST_GOOD_TTL_S)));
     return revalidate(request, tagged(body, tag, INVESTOR_TTL_S), 'live');
   } catch (err) {
-    return investorError(request, err, { slug, quarters: [], holdings: [] });
+    const reason = err?.code || 'upstream';
+    // A bad slug is the caller's mistake and an unknown investor genuinely does not exist. Neither
+    // is a service condition, so neither may serve a stale copy or be cached as one.
+    if (reason === 'not-found') return json({ ok: false, reason, message: String(err?.message || err), ...empty }, 404);
+
+    const stale = await readLastGood(cache, lastGoodKey);
+    const { body, tag } = stale
+      ? withTag({
+          ...stale,
+          ok: true,
+          stale: true,
+          // `fetchedAt` KEEPS THE ORIGINAL READ TIME. It means "when the upstream was read", and
+          // restamping it with now() would be the cache claiming a freshness it does not have —
+          // the one thing the whole store layer is built not to do. The client stamps its own
+          // `checkedAt` on every response, which is the other, different fact.
+          staleReason: String(err?.message || err),
+          reason,
+        })
+      : withTag({ ok: false, stale: false, reason, message: String(err?.message || err), fetchedAt: new Date().toISOString(), ...empty });
+
+    const ttl = stale ? INVESTOR_STALE_TTL_S : ERROR_TTL_S;
+    ctx?.waitUntil?.(cache.put(freshKey, tagged(body, tag, ttl)));
+    return revalidate(request, tagged(body, tag, ttl), stale ? 'stale' : reason);
   }
 }
 
 /**
- * One shape for every failure, carrying the REASON rather than an empty success.
+ * The last successful read of one key, or null.
  *
- * A 200 with `ok: false`, the same shape `/api/concalls` uses for its degraded case. The request
- * to THIS Worker succeeded; what failed was the upstream, and the body says so by name so the
- * panel can tell a reader whose problem it is: `no-token` and `unauthorised` are a credential for
- * the operator to fix, everything else is a service to wait for. A bare 502 would collapse those
- * into one unreadable state, and the store layer would discard the body that explains it.
- *
- * `holdings: []` never travels without `ok: false` beside it — a book that failed to load must
- * not be able to read as an investor who holds nothing.
- *
- * FIFTEEN SECONDS, not six hours. An error must not be cached for the length of a success, or
- * pasting the right token would appear not to have worked until the afternoon.
+ * Never throws and never blocks the failure path for long: this runs only after a live read has
+ * already failed, and a fallback that could itself hang would turn one outage into two.
  */
-function investorError(request, err, extra = {}) {
-  const reason = err?.code || 'upstream';
-  // A bad slug is the caller's mistake and an unknown investor genuinely does not exist. Those
-  // stay real HTTP errors; only upstream and credential conditions become a readable 200.
-  if (reason === 'not-found') return json({ ok: false, reason, message: String(err?.message || err), ...extra }, 404);
-  const { body, tag } = withTag({ ok: false, reason, message: String(err?.message || err), fetchedAt: new Date().toISOString(), ...extra });
-  return revalidate(request, tagged(body, tag, ERROR_TTL_S), reason);
+async function readLastGood(cache, key) {
+  try {
+    const res = await cache.match(key);
+    if (!res) return null;
+    const body = await res.json();
+    return body && body.ok !== false ? body : null;
+  } catch {
+    return null;
+  }
 }
-const ERROR_TTL_S = 15;
 
 /** The committed con-call snapshot, read through the ASSETS binding. */
 async function loadConcallSnapshot(env, request) {
