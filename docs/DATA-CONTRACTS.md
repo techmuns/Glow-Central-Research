@@ -2079,6 +2079,13 @@ public/data/news.json · corp-announcements.json · insider-trades.json
 }
 ```
 
+**The three files are committed as empty placeholders** until the first scheduled run. They carry
+`capturedAt: null`, `covered: 0` and an empty `byTicker`, and they exist for two reasons: the shape
+is then documented in the repo, and the tabs fetch a 200 rather than a 404 — which otherwise breaks
+the zero-console-errors bar on every page load. **An empty placeholder is not a claim that these
+companies have no news**: with no rows the feed falls back to the bounded live walk and the pill
+says where the paint came from.
+
 `js/data/filings.js` reads the snapshot, paints, then walks live for whatever it is missing, bounded
 at 40 companies and 4 at a time. **The shortfall is printed on screen** rather than left to look
 like completeness.

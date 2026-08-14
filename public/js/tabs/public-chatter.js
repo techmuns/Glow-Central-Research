@@ -382,7 +382,11 @@ function buildCoveredTable(ctx, rows) {
     wire: (root) => {
       const off = table.wire(root);
       return () => {
-        tableViews.covered = table.view?.() ?? tableViews.covered;
+        // `scoreTable` returns `view` as a live OBJECT, not a getter. Calling it threw a
+        // TypeError on every teardown, so the reader's search and sort were silently discarded on
+        // each live tick — the exact thing this disposer exists to prevent. It went unseen because
+        // the console was already noisy with the Tailwind CDN failing in the sandbox.
+        tableViews.covered = table.view ?? tableViews.covered;
         off?.();
       };
     },

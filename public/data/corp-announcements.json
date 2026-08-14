@@ -1,0 +1,18 @@
+{
+  "_provenance": "PLACEHOLDER — THE SCHEDULED WALK HAS NOT RUN YET. This file exists so the three tabs fetch something that is a 200 rather than a 404, and so the shape is documented in the repo. It contains NO ROWS and claims none: capturedAt is null and covered is 0. It is NOT a claim that these companies have no announcements — until the scrape runs the tabs fall back to a bounded live walk and say so on screen. Populate it with: MUNS_TOKEN=... node scripts/scrape-filings.mjs",
+  "kind": "announcements",
+  "source": "Muns filings/news API",
+  "generator": "scripts/scrape-filings.mjs",
+  "capturedAt": null,
+  "from": null,
+  "to": null,
+  "windowDays": 365,
+  "scope": null,
+  "asked": 0,
+  "covered": 0,
+  "rowCount": 0,
+  "failedCount": 0,
+  "headers": [],
+  "byTicker": {},
+  "failed": {}
+}
