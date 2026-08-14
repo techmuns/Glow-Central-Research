@@ -156,7 +156,7 @@ matches. No count is stored in any file.
 ## Regenerate the mock investor set
 
 ```bash
-node scripts/gen-mock-investors.mjs   # 8 investors + 8 funds x 4 quarters, 24 months of flows
+node scripts/import-amc-portfolio.mjs # Bandhan Focused + Small Cap monthly portfolios, from scripts/fixtures/
 ```
 
 Seeded, so output is byte-stable.

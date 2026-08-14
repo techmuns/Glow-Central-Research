@@ -12,6 +12,11 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
    Vanilla ES modules, served as static files. If you find yourself adding a `package.json`
    for the front-end, stop — that's out of contract.
    (Node 22 scripts under `scripts/` that refresh data are fine and expected.)
+   **This binds `scripts/` too**: there is no `package.json` anywhere and no `node_modules`. When a
+   script needs a capability, build the small version of it in `scripts/lib/` rather than reaching
+   for a package — `xlsx-read.mjs` reads .xlsx workbooks with `node:zlib` and a tag scanner, because
+   a one-off data import is not the thing that should introduce a dependency tree. `npx wrangler`
+   and `npx playwright` are invoked on demand and installed nowhere.
 3. **Everything must run by opening the static site.** Verify before pushing:
    `python3 -m http.server 8080 -d public`, then drive it with Playwright.
    Zero console errors is the bar.
@@ -63,7 +68,6 @@ public/
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
     investors/
-      deep-dive.js            the four-tab per-investor workspace (synthetic set; Fund Flows only)
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
       live.js                 the WHOLE Superstar Investors view — real filed books off Finology
     data/
@@ -73,7 +77,6 @@ public/
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter-live.js         the live chatter feed: mention counts + sentiment, split by
                               whether the slug resolved to a symbol we cover
-      investors.js            holders, overlap matrix, company interest, fund flows (synthetic)
       institution-holdings.js real filed shareholdings, by institution (Trendlyne)
       finology-shared.js      pure shape guards + deriveMoves — imported by worker/finology.mjs
       sentiment-shared.js     pure shape guards + the slug->NSE resolver for the chatter feed
@@ -95,7 +98,9 @@ scripts/
   resolve-portfolio-companies.mjs  book names -> NSE symbols, collision-guarded
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
-  gen-mock-investors.mjs      seeded generator for holdings + fund flows
+  import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
+  lib/xlsx-read.mjs           .xlsx reader built on node:zlib alone, no npm dependency
+  lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -424,6 +429,44 @@ the ₹ value beside each one is Ticker Finology's derivation from a percentage 
 headed *Value (Finology)*, reproduced, never recomputed. The single figure this dashboard computes
 on that feed is the quarter-over-quarter change, and it is headed *Change (derived)*.
 
+### Two disclosures that look identical — the Institutions rule
+
+Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
+about *what it measures*. Two kinds of fund sit behind one picker:
+
+| `disclosure` | Who discloses | The percentage is | The ₹ value is |
+| --- | --- | --- | --- |
+| `shareholding` | the **company**, quarterly, to the exchanges | how much **of the company** the fund owns | Trendlyne's **derivation** |
+| `portfolio` | the **fund**, monthly, by the AMC | **% to NAV** — how much **of the fund** is in the company | the AMC's **own published figure** |
+
+Both render as "2.5" against a company name. One is a large stake in a business; the other is a
+small slice of a fund. **They are inverse measurements and there is no arithmetic that relates
+them** — so nothing sums, averages or ranks across the two, and the view has no combined-book
+figure at all. The suite asserts that no number on the page equals the sum across both.
+
+What makes this survivable is that the difference is stated on every surface a figure reaches:
+the column heading (`% to NAV` versus `Holding %`), the pill (*Disclosed* versus *Filed*), the
+provenance modal, the drill's Provenance group, and row 1 of the exported sheet — which matters
+most, because a workbook leaves the page without its chrome and a reader who merges two exports in
+Excel has nothing else to go on.
+
+Two things follow that are easy to get wrong the other way:
+
+- **Do not give one kind the other's furniture.** A monthly portfolio disclosure states a weight and
+  a value and no share count, so the AMC funds have **no Qty column** rather than one holding 258
+  em dashes. A column of dashes says "we asked and were refused"; the honest statement is that this
+  disclosure does not answer that question.
+- **A blank means different things and must say which.** In a filing it is *not filed yet* — the
+  company files weeks after the quarter closes and the position is still held. In a portfolio it is
+  *not held* — the fund was out of the line that month. Same em dash, two tooltips, and `former[]`
+  keeps a line that left the book out of the table rather than showing it at nil.
+
+`js/data/institution-holdings.js` aliases both shapes into one vocabulary (`periods`,
+`periodLabels`, `periodNoun`, `pctByPeriod`, `pct`) so the screener kit consumes them unchanged.
+**Those shared names describe the shape, not the meaning** — `columnsFor()` in `js/investors/filed.js`
+is the single place that decides what a percentage is called, and every consumer must branch on
+`disclosure` before writing a heading.
+
 ### An upstream you CANNOT proxy — the same-zone Worker rule
 
 Every other upstream here is proxied through our Worker, for politeness and for somewhere to stand
@@ -561,8 +604,20 @@ a tab acquires two provenances** — not a better ribbon. If the real transcript
 (BSE publishes filed transcript PDFs), the keyword engine and the Deep Dive workspace are in git
 history at `8e31eec..` and would come back pointed at real text.
 
+**The Super Investors tab is the second application, and it went the same way.** Fund Flows ran on
+`superinvestors.json` / `institutions.json` — real investor and fund names against generated
+positions, under an amber ribbon — and that was defensible while nothing else on the tab was real.
+Once Superstar Investors went live off Finology and Institutions went live off Trendlyne and the AMC
+workbooks, the tab had one synthetic surface sharing a rail with two genuine ones. So the sub-view
+went, and with it `js/data/investors.js`, `js/investors/deep-dive.js`, `gen-mock-investors.mjs` and
+three mock payloads. Every number under Super Investors is now somebody's disclosure, the tab has no
+ribbon anywhere, and the suite asserts the deleted modules 404 on the served site so a stale import
+cannot quietly come back. AMFI publish the real monthly flow figures if that view is ever wanted
+back.
+
 The rule that survives: **never put a live number and a synthetic one in the same panel**, and
-prefer removing the synthetic one to labelling it.
+prefer removing the synthetic one to labelling it. Twice now the right move has been deletion, and
+both times the tab got simpler rather than poorer.
 
 ### Mock data that has to behave like real data
 
@@ -897,6 +952,38 @@ Rules:
   existed. Private windows and disabled storage fall back to an in-memory Map, and
   `isPersistent()` reports it so the UI can say so.
 
+### When the wait is latency, not bandwidth — the Superstar Investors case
+
+The layer above solves *bytes*. It does not solve *round trips*, and one feed here is bound by the
+second: Superstar Investors is **ninety-one separate requests** — the list, then one page per book,
+because each is a separate scrape upstream. Conditional fetching already made a return visit nearly
+free in bytes (every unchanged book is a bodyless 304), and the view still took seconds to fill,
+because ninety-one confirmations four at a time is twenty-three sequential waits.
+
+So `js/data/super-investors.js` reads **the device before it asks the network anything**:
+
+1. **Pass one** rebuilds the whole view out of IndexedDB, with zero requests, and paints. `load()`
+   resolves here — the caller's `then` should fire on the paint it can already make.
+2. **Pass two** revalidates in the background and repaints **only** the books whose bytes actually
+   changed. `conditionalJson` reports a 304 as `fromStore`, so an unchanged book emits nothing at
+   all — otherwise the grid would rebuild ninety times to display what was already on it.
+
+Three rules make that safe, and they are the same ones the store rests on generally:
+
+- **`meta().origin` may never claim a freshness that has not been confirmed.** It reads `store`
+  while any painted book is still unconfirmed and flips to `live` only when the pass finishes.
+- **A failed revalidation must not delete a book you already have.** The cached copy is a real read
+  of a real filing; replacing it with "could not be read" because a later request timed out throws
+  away good data to report a transient network event. Only a book with no cached copy becomes a
+  failure.
+- **Never replay a stored failure.** `ok: false` is cached for fifteen seconds upstream precisely so
+  a corrected token takes effect at once; painting one from disk would undo that. Pass one refuses
+  to seed from anything carrying `ok: false`.
+
+Reach for this shape when a feed is **many small requests rather than one large one**. For a single
+payload the conditional GET already does the whole job, and a second pass would be complexity for
+nothing — which is exactly why the con-call route has no projection either.
+
 ---
 
 ## Where to look for what
@@ -913,6 +1000,8 @@ Rules:
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
+| Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
+| Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
 | Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
@@ -932,7 +1021,7 @@ Rules:
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
 | Add or change a result scan | `js/tabs/earnings-scans.js` — the definition string and the predicate live in the same object |
-| Regenerate the mock investors | `node scripts/gen-mock-investors.mjs` |
+| Add or refresh an AMC fund's portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it |
 | Wire another fund's real holdings | one entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs`, then re-run it |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
 | Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |

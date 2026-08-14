@@ -64,8 +64,43 @@ export function normaliseList(body) {
  * where it renders as an em dash. Coercing it to 0 would invent a position size of zero, which is
  * a claim, and would turn every gap in disclosure into a fabricated exit in `deriveMoves`.
  */
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+/** "Jun 2025" / "Jun 25" / "2025-06" -> 202506, or null when the label is not a date at all. */
+export function quarterOrder(label) {
+  const s = String(label || '').trim();
+  const iso = /^(\d{4})-(\d{1,2})$/.exec(s);
+  if (iso) return Number(iso[1]) * 100 + Number(iso[2]);
+  const named = /^([A-Za-z]{3})[a-z]*[\s-]*(\d{2,4})$/.exec(s);
+  if (!named) return null;
+  const m = MONTHS[named[1].toLowerCase()];
+  if (!m) return null;
+  const y = named[2].length <= 2 ? 2000 + Number(named[2]) : Number(named[2]);
+  return y * 100 + m;
+}
+
+/**
+ * The source's quarters, newest first.
+ *
+ * EVERY CONSUMER ALREADY ASSUMES `quarters[0]` IS THE LATEST — `deriveMoves` compares [0] against
+ * [1], `summarise` counts what is disclosed in [0], and the investor card prints "as of quarters[0]".
+ * That assumption was never checked. If the upstream ever hands back ascending order, all three
+ * silently describe the OLDEST quarter as the current book, which is not a rendering glitch but a
+ * wrong answer stated confidently.
+ *
+ * So the order is now established from the labels rather than assumed from the array. Labels that
+ * do not parse as dates are left exactly where they were — reordering something we cannot read
+ * would be worse than trusting it — and a mixed set keeps the source's order for the same reason.
+ */
+function orderedQuarters(quarters) {
+  const keyed = quarters.map((q) => ({ q, n: quarterOrder(q) }));
+  if (keyed.some((k) => k.n == null)) return quarters;
+  return keyed.sort((a, b) => b.n - a.n).map((k) => k.q);
+}
+
 export function normalisePortfolio(body, slug) {
-  const quarters = Array.isArray(body?.quarters) ? body.quarters.filter((q) => typeof q === 'string' && q.trim()) : [];
+  const raw = Array.isArray(body?.quarters) ? body.quarters.filter((q) => typeof q === 'string' && q.trim()) : [];
+  const quarters = orderedQuarters(raw);
   const holdings = (Array.isArray(body?.holdings) ? body.holdings : [])
     .map((h) => {
       const byQuarter = {};

@@ -1,17 +1,29 @@
 // investors/filed.js — the REAL half of the Institutions view.
 //
-//   renderFiled(ctx, { disposers })   the filed-holdings panel: fund picker, stats, table
+//   renderFiled(ctx, { disposers })   the fund picker, the identity block and the holdings table
 //
-// EVERY NUMBER IN HERE COMES FROM AN EXCHANGE FILING, except one that is labelled.
-//   Share count and holding percentage are what the company filed. The rupee value is Trendlyne's
-//   derivation (holding % × market cap) — reproduced unchanged, attributed on every surface it
-//   reaches, and never recomputed here. Same rule as the StockScans con-call scores.
+// EVERY NUMBER IN HERE IS SOMEBODY'S DISCLOSURE. There are two kinds of them and the entire file is
+// organised around not letting them blur, because they are both "a percentage against a company"
+// and they measure opposite things:
 //
-// NOT ONE FIGURE ON THIS PANEL IS AVERAGED WITH A SYNTHETIC ONE.
-//   The Institutions view still lists funds we have not wired yet, and those are synthetic. They
-//   live in their own section below, under their own ribbon, and are excluded from every headline
-//   number here. A "combined book" that added a real ₹35,818 Cr to an invented ₹2.7 L Cr would be
-//   the single most misleading number the dashboard could print.
+//   `shareholding`  Trendlyne, quarterly. The COMPANY files who owns it. The percentage is HOW MUCH
+//                   OF THE COMPANY this fund holds. Only holders above 1% are named at all, so the
+//                   list is the fund's large positions and nothing else. The rupee value is
+//                   Trendlyne's derivation — a filing never states one.
+//
+//   `portfolio`     the AMC, monthly. The FUND publishes its own book. The percentage is % TO NAV,
+//                   HOW MUCH OF THE FUND is in that company. Every line appears however small, and
+//                   the rupee value is the AMC's own published figure.
+//
+// A 2.5 in one is a large stake in a company; a 2.5 in the other is a small slice of a fund. So the
+// column headings differ, the pill differs, the provenance modal differs, the drill differs and the
+// export banner differs — and `columnsFor()` is the one place that decides which. What does NOT
+// differ is the furniture: same table, same sorting, same watchlist, same layout knobs, because the
+// reader is doing the same job in both.
+//
+// NOT ONE FIGURE ON THIS PANEL IS AVERAGED WITH A SYNTHETIC ONE, and no headline number is summed
+// across the two kinds. A "combined book" adding a stake in a company to a slice of a fund would be
+// arithmetic on two different units.
 
 import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
@@ -22,154 +34,82 @@ import { exportRows } from '../ui/export.js';
 import * as filed from '../data/institution-holdings.js';
 import * as coverage from '../data/coverage.js';
 
-const ATTRIBUTION = 'Share counts and holding percentages are exchange filings; the ₹ value is Trendlyne’s own derivation.';
+const isFiling = (fund) => fund.disclosure !== 'portfolio';
+
+/** The one-line description under the title, which has to say which measurement is on screen. */
+const DESCRIPTION = {
+  shareholding:
+    'Indian shareholdings as filed with the exchanges, quarter by quarter. The percentage is how much of each company the fund owns. Share counts and holding percentages are the filings; the ₹ value is Trendlyne’s own derivation.',
+  portfolio:
+    'The fund’s own portfolio as the AMC discloses it, month by month. The percentage is % to NAV — how much of the fund sits in each company, not how much of the company it owns. Weights and values are the AMC’s published figures.',
+};
 
 export function renderFiled(ctx, { disposers = [] } = {}) {
   const funds = filed.all();
   const m = filed.meta();
   if (!funds.length) return { html: '', wire: () => {} };
 
-  // One fund today. The picker is here because the file is a list and the next fund added to
-  // FUNDS in the scraper should need no UI change at all.
   const wanted = ctx.params?.fund;
   const fund = funds.find((f) => f.investorId === wanted) || funds[0];
   const rows = filed.holdingsForScope(ctx.scope, coverage.holdings(), fund.holdings);
-  const label0 = fund.quarterLabels[0];
-
-  // THE COLUMN SET IS TRENDLYNE'S, IN TRENDLYNE'S ORDER.
-  //   Stock · Holding Value · Qty Held · <latest> Change % · <latest> Holding % · then the eight
-  //   prior quarters. Every one sortable, which `scoreTable` gives by default — a column opts OUT
-  //   with `sortable: false`, and none of these do.
-  //
-  // Quarter labels are shortened to "Mar 26" in the header. Thirteen columns is a lot to fit at
-  // 1440px, and "MAR 2026 %" spelled out costs ~30px eight times over; the full label lives in
-  // each cell's title attribute. `verify-ui.mjs` asserts the table does not overflow.
-  const shortQ = (label) => label.replace(/\s(\d{2})(\d{2})$/, ' $2');
-
-  const historyColumns = fund.quarters.slice(1).map((q, i) => {
-    const label = fund.quarterLabels[i + 1];
-    const prev = fund.quarters[i + 2] || null; // the quarter BEFORE this one, for the shading
-    return {
-      label: `${shortQ(label)} %`,
-      get: (r) => pctCell(r.pctByQuarter?.[q], prev ? r.pctByQuarter?.[prev] : null, label),
-      html: true,
-      align: 'right',
-      sortValue: (r) => r.pctByQuarter?.[q] ?? -1,
-    };
-  });
+  const label0 = fund.periodLabels[0];
+  const filing = isFiling(fund);
 
   const table = scoreTable({
     rows,
-    key: (r) => r.ticker,
+    // An AMC line that resolved to no NSE symbol still needs a stable id for the watchlist, so the
+    // instrument name stands in. It is unique within a fund — the importer merges a company's
+    // repeat spells into one row and fails the run on two companies sharing a symbol.
+    key: (r) => r.ticker || r.name,
     name: (r) => r.name,
-    nameLabel: 'Stock',
-    // Trendlyne's Stock column is the company name alone. The ticker earns its place as the
-    // sub-line because it is the join key everywhere else in the dashboard; the sector does not,
-    // and dropping it is what buys the thirteen columns their headroom. It is still searchable.
-    sub: (r) => r.ticker,
+    nameLabel: filing ? 'Stock' : 'Instrument',
+    // The ticker earns the sub-line because it is the join key everywhere else in the dashboard.
+    // Where an AMC line has none, saying so beats a blank: the row is still a real holding, it is
+    // simply one this dashboard cannot cross-reference. The drill gives the reason.
+    sub: (r) => r.ticker || (filing ? '' : 'no NSE symbol'),
     // No rank column: this is a portfolio, and "#7" against a value-sorted list is a position in
     // the current sort rather than a ranking of anything. The watchlist star moves into the
     // identity cell, which is what `showRank: false` does.
     showRank: false,
     dense: true,
     wrapHeads: true,
-    // No gradient mark: Trendlyne's Stock column is text, and the ~46px it costs is exactly what
-    // thirteen columns need to stop truncating company names.
+    // No gradient mark: the identity column is text, and the ~46px it costs is exactly what a
+    // ten-to-thirteen column table needs to stop truncating company names.
     showAvatar: false,
-    nameMaxPx: 165,
+    nameMaxPx: filing ? 165 : 210,
     stickyHead: 'max(320px, calc(100vh - 300px))',
-    columns: [
-      {
-        label: 'Holding Value',
-        get: (r) => (r.valueCr == null ? dash('no value published') : `<span class="tabular-nums" title="Trendlyne&rsquo;s derivation: holding % × market cap">${escapeHtml(formatCrore(r.valueCr))}</span>`),
-        html: true,
-        align: 'right',
-        sortValue: (r) => r.valueCr ?? -1,
-      },
-      {
-        label: 'Qty Held',
-        get: (r) => (r.qty == null ? dash('no share count filed') : `<span class="tabular-nums" title="Shares held, as filed">${escapeHtml(groupInt(r.qty))}</span>`),
-        html: true,
-        align: 'right',
-        sortValue: (r) => r.qty ?? -1,
-      },
-      {
-        label: `${shortQ(label0)} Change %`,
-        get: (r) => changeCell(r),
-        html: true,
-        align: 'right',
-        // A label sorts below every number but above a blank, so "New" rows group together at the
-        // bottom of a descending sort instead of scattering.
-        sortValue: (r) => (r.changePp != null ? r.changePp : r.changeNote ? -998 : -999),
-      },
-      {
-        label: `${shortQ(label0)} Holding %`,
-        get: (r) => pctCell(r.holdingPct, r.pctByQuarter?.[fund.quarters[1]], label0, { bold: true }),
-        html: true,
-        align: 'right',
-        sortValue: (r) => r.holdingPct ?? -1,
-      },
-      ...historyColumns,
-    ],
-    filters: [
-      {
-        label: 'Position',
-        options: [
-          { value: 'all', label: 'All positions' },
-          { value: 'up', label: 'Increased' },
-          { value: 'down', label: 'Trimmed' },
-          { value: 'new', label: 'Newly disclosed' },
-          { value: 'pending', label: 'Awaiting filing' },
-        ],
-        match: (r, v) => {
-          if (v === 'up') return r.pctDelta != null && r.pctDelta > 0;
-          if (v === 'down') return r.pctDelta != null && r.pctDelta < 0;
-          if (v === 'new') return r.changeNote === 'New';
-          if (v === 'pending') return r.holdingPct == null;
-          return true;
-        },
-      },
-    ],
-    searchable: (r) => `${r.name} ${r.ticker} ${r.sector || ''} ${r.industry || ''}`,
-    initialSort: { key: 'Holding Value', dir: 'desc' },
+    columns: columnsFor(fund),
+    filters: filtersFor(fund),
+    searchable: (r) => `${r.name} ${r.ticker || ''} ${r.sector || ''} ${r.industry || ''}`,
+    initialSort: { key: filing ? 'Holding Value' : 'Value (AMC)', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
     exportName: `sattva-${fund.investorId}-holdings`,
-    onExport: (visible) => exportFiled(visible, fund),
+    onExport: (visible) => exportFund(visible, fund),
     emptyMessage: ctx.scope === 'portfolio' ? 'This fund holds none of your positions.' : 'No holding matches your filters.',
   });
 
   // ONE TABLE AND NOTHING ELSE, the way the Earnings Hub is built. No stat strip, no ranking grid:
   // this is a portfolio listing and the reader came for the rows. The provenance did not go away —
-  // it moved behind the Filed pill, which is one click from anywhere on the page. See the
-  // "honesty rules for the kit" section of CLAUDE.md: decluttering is fine, deleting the
-  // accountability is not.
+  // it moved behind the pill, which is one click from anywhere on the page. See the "honesty rules
+  // for the kit" section of CLAUDE.md: decluttering is fine, deleting the accountability is not.
   const html = `
     ${sectionHead({
       title: 'Institutions',
-      description: `Indian shareholdings as filed with the exchanges, quarter by quarter. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${filedPill(fund, m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings', book: coverage.meta() })}</div>`,
+      description: DESCRIPTION[filing ? 'shareholding' : 'portfolio'],
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${disclosurePill(fund)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings', book: coverage.meta() })}</div>`,
     })}
     ${funds.length > 1 ? fundPicker(funds, fund) : ''}
     <div class="mb-4 flex flex-wrap items-center gap-3">
       ${avatarBlock(fund)}
       <div class="min-w-0 flex-1">
         <div class="font-display text-base font-bold text-slate-900">${escapeHtml(fund.name)}</div>
-        <div class="text-xs text-slate-500">${escapeHtml(fund.house || '')}${fund.category ? ` · ${escapeHtml(fund.category)}` : ''} · ${escapeHtml(formatNumber(fund.stocksHeld))} holdings worth ${escapeHtml(formatCrore(fund.portfolioValueCr))} as of ${escapeHtml(label0)}${fund.former.length ? ` · ${escapeHtml(formatNumber(fund.former.length))} previously held` : ''}</div>
+        <div class="text-xs text-slate-500">${escapeHtml(identityLine(fund, label0))}</div>
       </div>
       <a href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener"
-         class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">Trendlyne source ↗</a>
+         class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">${escapeHtml(filing ? 'Trendlyne source ↗' : 'Bandhan source ↗')}</a>
     </div>
     ${table.html}
-    <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
-      Every heading sorts. Share counts and percentages are the filings themselves;
-      <strong>Holding Value is Trendlyne's own derivation</strong> (holding % × market cap) — a filing never discloses a
-      rupee amount. Companies file within weeks of a quarter closing and not all at once, so
-      <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))}
-      have filed for ${escapeHtml(label0)}; a dash there means <em>not filed</em>, never sold — the share count and value
-      are still present, and the Change column says <em>Filing Awaited</em>.
-      A holder is only named above 1%, so crossing that line either way is a disclosure event rather than necessarily a trade.
-      ${filed.all().length === 1 ? 'One fund is wired to filings so far; the rest need one entry each in the scraper.' : ''}
-    </p>`;
+    ${filing ? filingFootnote(fund) : portfolioFootnote(fund)}`;
 
   return {
     html,
@@ -184,6 +124,137 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------------------
+// Columns — the one place that decides what each percentage is called
+// ---------------------------------------------------------------------------------------
+
+// "Jun 2026" -> "Jun 26". Thirteen columns is a lot to fit at 1440px and the year spelled out costs
+// ~30px eight times over; the full label lives in each cell's title attribute.
+const shortLabel = (label) => label.replace(/\s(\d{2})(\d{2})$/, ' $2');
+
+function columnsFor(fund) {
+  const filing = isFiling(fund);
+  const [latest] = fund.periodLabels;
+  const suffix = filing ? 'Holding %' : '% to NAV';
+
+  // Every prior period, tinted against the one before it.
+  const history = fund.periods.slice(1).map((p, i) => {
+    const label = fund.periodLabels[i + 1];
+    const prev = fund.periods[i + 2] || null;
+    return {
+      label: `${shortLabel(label)} %`,
+      get: (r) => pctCell(r.pctByPeriod?.[p], prev ? r.pctByPeriod?.[prev] : null, label, fund),
+      html: true,
+      align: 'right',
+      sortValue: (r) => r.pctByPeriod?.[p] ?? -1,
+    };
+  });
+
+  const value = filing
+    ? {
+        label: 'Holding Value',
+        get: (r) => (r.valueCr == null ? dash('no value published') : crCell(r.valueCr, 'Trendlyne’s derivation: holding % × market cap')),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.valueCr ?? -1,
+      }
+    : {
+        // Headed as the AMC's, not because it is a derivation — it is not, they publish it — but
+        // because it is theirs. Naming the source is the same discipline either way.
+        label: 'Value (AMC)',
+        get: (r) => (r.valueCr == null ? dash('the AMC published no value for this line') : crCell(r.valueCr, 'The market value of the position, as the AMC published it')),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.valueCr ?? -1,
+      };
+
+  const change = {
+    label: `${shortLabel(latest)} Change ${filing ? '%' : '(pp)'}`,
+    get: (r) => changeCell(r, fund),
+    html: true,
+    align: 'right',
+    // A label sorts below every number but above a blank, so "New" rows group together at the
+    // bottom of a descending sort instead of scattering.
+    sortValue: (r) => (r.changePp != null ? r.changePp : r.changeNote ? -998 : -999),
+  };
+
+  const current = {
+    label: `${shortLabel(latest)} ${suffix}`,
+    get: (r) => pctCell(r.pct, r.pctByPeriod?.[fund.periods[1]], latest, fund, { bold: true }),
+    html: true,
+    align: 'right',
+    sortValue: (r) => r.pct ?? -1,
+  };
+
+  if (filing) {
+    return [
+      value,
+      {
+        label: 'Qty Held',
+        get: (r) => (r.qty == null ? dash('no share count filed') : `<span class="tabular-nums" title="Shares held, as filed">${escapeHtml(groupInt(r.qty))}</span>`),
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.qty ?? -1,
+      },
+      change,
+      current,
+      ...history,
+    ];
+  }
+
+  // NO QUANTITY COLUMN for an AMC portfolio, rather than a column of dashes. A monthly portfolio
+  // disclosure states a weight and a value and does not state a share count — so the column is not
+  // missing data, it is a question this disclosure does not answer, and rendering 258 em dashes
+  // would imply we expected an answer and did not get one.
+  return [value, change, current, ...history];
+}
+
+function filtersFor(fund) {
+  const filing = isFiling(fund);
+  const position = {
+    label: 'Position',
+    options: filing
+      ? [
+          { value: 'all', label: 'All positions' },
+          { value: 'up', label: 'Increased' },
+          { value: 'down', label: 'Trimmed' },
+          { value: 'new', label: 'Newly disclosed' },
+          { value: 'pending', label: 'Awaiting filing' },
+        ]
+      : [
+          { value: 'all', label: 'All positions' },
+          { value: 'up', label: 'Weight up' },
+          { value: 'down', label: 'Weight down' },
+          { value: 'new', label: 'New this month' },
+        ],
+    match: (r, v) => {
+      if (v === 'up') return r.changePp != null && r.changePp > 0;
+      if (v === 'down') return r.changePp != null && r.changePp < 0;
+      if (v === 'new') return r.changeNote === 'New';
+      if (v === 'pending') return r.pct == null;
+      return true;
+    },
+  };
+  if (filing) return [position];
+
+  // A small fund is all equity and a class dropdown with one option is noise; the Small Cap fund
+  // holds gold and a debt line as well, and those are genuinely different instruments.
+  const classes = [...new Set(fund.holdings.map((h) => h.assetClass).filter(Boolean))];
+  if (classes.length < 2) return [position];
+  return [
+    position,
+    {
+      label: 'Asset class',
+      options: [{ value: 'all', label: 'All asset classes' }, ...classes.map((c) => ({ value: c, label: c }))],
+      match: (r, v) => v === 'all' || r.assetClass === v,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------------------
+// Cells
+// ---------------------------------------------------------------------------------------
+
 // Trendlyne group share counts internationally — 14,947,573, not the Indian 1,49,47,573 — and
 // matching them keeps the column both faithful and two characters narrower.
 const groupInt = (n) => n.toLocaleString('en-US');
@@ -191,44 +262,72 @@ const groupInt = (n) => n.toLocaleString('en-US');
 /** A dash that says why it is a dash. Never a zero — see the header of this file. */
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
-/** "1,104.2 Cr" — Trendlyne's own unit, so the column reads the same as their page. */
+const crCell = (v, why) => `<span class="tabular-nums" title="${escapeHtml(why)}">${escapeHtml(formatCrore(v))}</span>`;
+
+/** "1,104.2 Cr" — the source's own unit, so the column reads the same as their page. */
 function formatCrore(v) {
   if (v == null) return '—';
   return `${v.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Cr`;
 }
 
+/** What a blank cell means, which is not the same thing in the two disclosures. */
+const blankMeans = (fund, label) => (isFiling(fund) ? `${label}: not filed` : `${label}: not held`);
+
 /**
- * One quarter's filed percentage, tinted against the quarter before it.
+ * One period's percentage, tinted against the period before it.
  *
- * The tint is arithmetic on two filed numbers, not a judgement: higher than last quarter is
- * emerald, lower is rose. Trendlyne shade their grid the same way and it is what makes a
+ * The tint is arithmetic on two of the source's own numbers, not a judgement: higher than last
+ * period is emerald, lower is rose. Trendlyne shade their grid the same way and it is what makes a
  * two-year row readable at a glance instead of nine numbers to diff by eye.
+ *
+ * TWO DECIMALS FOR A FUND WEIGHT, ONE FOR A SHAREHOLDING. An AMC publishes weights to two places
+ * and the small end of a 258-line book lives there — rounding 0.04% and 0.02% both to "0.0%" would
+ * erase the difference between the fund's smallest positions. A shareholding percentage is
+ * published to one place, and printing a second would invent precision.
  */
-function pctCell(v, prev, label, { bold = false } = {}) {
-  if (v == null) return dash(`${label}: not filed`);
+function pctCell(v, prev, label, fund, { bold = false } = {}) {
+  if (v == null) return dash(blankMeans(fund, label));
+  const dp = isFiling(fund) ? 1 : 2;
   const tint = prev == null ? '' : v > prev ? 'bg-emerald-50' : v < prev ? 'bg-rose-50' : '';
-  return `<span class="-mx-1 inline-block rounded px-1 tabular-nums ${tint} ${bold ? 'font-semibold text-slate-900' : 'text-slate-700'}" title="${escapeHtml(label)}${prev == null ? '' : ` · was ${prev}% the quarter before`}">${v.toFixed(1)}%</span>`;
+  const was = prev == null ? '' : ` · was ${prev}% the ${fund.periodNoun} before`;
+  return `<span class="-mx-1 inline-block rounded px-1 tabular-nums ${tint} ${bold ? 'font-semibold text-slate-900' : 'text-slate-700'}" title="${escapeHtml(label)}${escapeHtml(was)}">${v.toFixed(dp)}%</span>`;
 }
 
 /**
- * The change column, as Trendlyne print it: a signed number, or their own label where no number
- * applies. "New" and "Below 1% first time" are disclosure events, not measurements, so they stay
- * words — turning them into a percentage would invent a figure the filing does not contain.
+ * The change column.
+ *
+ * "New", "Below 1% first time" and "Filing Awaited" are the source's own labels for a disclosure
+ * event, not a measurement, so they stay words — turning them into a percentage would invent a
+ * figure no disclosure contains. The same applies to an AMC line bought this month: the weight did
+ * not rise from zero, the position did not exist.
  */
-function changeCell(r) {
+function changeCell(r, fund) {
   if (r.changePp == null) {
     if (!r.changeNote) return dash('no change published');
     const tone = r.changeNote === 'New' ? 'text-emerald-700' : r.changeNote === 'Filing Awaited' ? 'text-amber-700' : 'text-slate-500';
-    return `<span class="whitespace-nowrap font-medium ${tone}" title="Trendlyne&rsquo;s own label for this row">${escapeHtml(r.changeNote)}</span>`;
+    const why = isFiling(fund) ? 'Trendlyne’s own label for this row' : 'the fund did not hold this line in the previous month, so there is no change to state';
+    return `<span class="whitespace-nowrap font-medium ${tone}" title="${escapeHtml(why)}">${escapeHtml(r.changeNote)}</span>`;
   }
-  if (r.changePp === 0) return '<span class="tabular-nums text-slate-400">0.0</span>';
+  const dp = isFiling(fund) ? 1 : 2;
+  if (r.changePp === 0) return `<span class="tabular-nums text-slate-400">${(0).toFixed(dp)}</span>`;
   const cls = r.changePp > 0 ? 'text-emerald-700' : 'text-rose-700';
-  return `<span class="font-semibold tabular-nums ${cls}" title="Change in percentage points against the previous quarter">${r.changePp > 0 ? '' : ''}${r.changePp.toFixed(1)}</span>`;
+  return `<span class="font-semibold tabular-nums ${cls}" title="Change in percentage points against the previous ${escapeHtml(fund.periodNoun)}">${r.changePp.toFixed(dp)}</span>`;
 }
+
+// ---------------------------------------------------------------------------------------
+// Chrome
+// ---------------------------------------------------------------------------------------
 
 function avatarBlock(fund) {
   const { color, initials } = avatarFor(fund.name);
   return `<span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-sm font-bold text-white">${escapeHtml(initials)}</span>`;
+}
+
+function identityLine(fund, label0) {
+  const bits = [fund.house, fund.category].filter(Boolean);
+  const held = `${formatNumber(fund.stocksHeld)} holdings worth ${formatCrore(fund.portfolioValueCr)} as of ${label0}`;
+  const prior = fund.former?.length ? `${formatNumber(fund.former.length)} previously held` : null;
+  return [bits.join(' · '), held, prior].filter(Boolean).join(' · ');
 }
 
 function fundPicker(funds, active) {
@@ -237,6 +336,7 @@ function fundPicker(funds, active) {
       ${funds
         .map(
           (f) => `<button type="button" data-fund="${escapeHtml(f.investorId)}" aria-pressed="${f.investorId === active.investorId}"
+            title="${escapeHtml(isFiling(f) ? 'Shareholding filings — how much of each company this fund owns' : 'The AMC’s own monthly portfolio — how much of this fund is in each company')}"
             class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors ${
               f.investorId === active.investorId ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-indigo-50'
             }">${escapeHtml(f.name)}</button>`
@@ -245,19 +345,69 @@ function fundPicker(funds, active) {
     </div>`;
 }
 
-function filedPill(fund, m) {
+/**
+ * The pill, which is the only always-visible statement of WHICH disclosure is on screen.
+ *
+ * Both are real and both are green; what differs is the word. "Filed" means the company filed who
+ * owns it; "Disclosed" means the fund published what it owns. A reader who reads nothing else
+ * should still not confuse the two percentages.
+ */
+function disclosurePill(fund) {
+  const filing = isFiling(fund);
   return `
-    <button type="button" data-filed-info title="Where these figures come from, and which of them are filings"
+    <button type="button" data-filed-info title="Where these figures come from, and what the percentage measures"
       class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
       <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-      <span>Filed</span>
-      <span class="font-normal opacity-70">${escapeHtml(fund.quarterLabels[0])} · exchange filings</span>
+      <span>${filing ? 'Filed' : 'Disclosed'}</span>
+      <span class="font-normal opacity-70">${escapeHtml(fund.periodLabels[0])} · ${filing ? 'exchange filings' : '% to NAV, AMC portfolio'}</span>
     </button>`;
 }
 
+function filingFootnote(fund) {
+  return `
+    <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
+      Every heading sorts. Share counts and percentages are the filings themselves;
+      <strong>Holding Value is Trendlyne's own derivation</strong> (holding % × market cap) — a filing never discloses a
+      rupee amount. Companies file within weeks of a quarter closing and not all at once, so
+      <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))}
+      have filed for ${escapeHtml(fund.periodLabels[0])}; a dash there means <em>not filed</em>, never sold — the share count and value
+      are still present, and the Change column says <em>Filing Awaited</em>.
+      A holder is only named above 1%, so crossing that line either way is a disclosure event rather than necessarily a trade.
+    </p>`;
+}
+
+function portfolioFootnote(fund) {
+  const unresolved = fund.holdings.filter((h) => !h.ticker).length;
+  return `
+    <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
+      Every heading sorts. <strong>The percentage is % to NAV</strong> — how much of this fund sits in the company, not how much of
+      the company the fund owns. It is not comparable with the holding percentages on the shareholding funds above, and nothing
+      here is summed across the two.
+      Weights and values are ${escapeHtml(fund.house || 'the AMC')}'s own published figures; the only figure computed here is the
+      month-on-month change, headed <em>(pp)</em>. A blank month means the fund <em>did not hold the line</em> then, never a weight of zero.
+      ${
+        fund.former?.length
+          ? `${escapeHtml(formatNumber(fund.former.length))} ${fund.former.length === 1 ? 'line is' : 'lines are'} in the ${escapeHtml(String(fund.periods.length))}-month history but out of the book at ${escapeHtml(fund.periodLabels[0])}, and ${fund.former.length === 1 ? 'is' : 'are'} not listed above.`
+          : ''
+      }
+      ${
+        unresolved
+          ? `${escapeHtml(formatNumber(unresolved))} of ${escapeHtml(formatNumber(fund.stocksHeld))} ${unresolved === 1 ? 'line' : 'lines'} could not be matched to an NSE symbol and so ${unresolved === 1 ? 'does' : 'do'} not appear under the Portfolio scope — ${unresolved === 1 ? 'it is' : 'they are'} still a real holding, and the row says which.`
+          : ''
+      }
+    </p>`;
+}
+
+// ---------------------------------------------------------------------------------------
+// Provenance
+// ---------------------------------------------------------------------------------------
+
 function openProvenance(fund, m) {
-  openModal(
-    `<div class="px-7 py-6">
+  openModal(isFiling(fund) ? filingProvenance(fund, m) : portfolioProvenance(fund, m), { size: 'default' });
+}
+
+function filingProvenance(fund, m) {
+  return `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
         <h2 class="font-display text-xl font-bold text-slate-900">Filed shareholdings</h2>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
@@ -268,6 +418,11 @@ function openProvenance(fund, m) {
            <a class="font-semibold text-indigo-600 hover:underline" href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener">Trendlyne</a>
            aggregate those filings by holder, which is how one page can list every Indian company
            <strong>${escapeHtml(fund.name)}</strong> appears in.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the percentage measures</h3>
+        <p class="mt-1 text-xs"><strong>How much of the company this fund owns.</strong> That is the opposite of the % to NAV
+           on this view's AMC portfolios, which say how much of the fund is in a company. The two are never summed, averaged or
+           ranked against each other.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Which numbers are filings, and which is not</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
@@ -285,7 +440,7 @@ function openProvenance(fund, m) {
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why a percentage can be missing</h3>
         <p class="mt-1 text-xs">Companies file within weeks of a quarter closing, not on the same day.
            <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))}
-           have filed for ${escapeHtml(fund.quarterLabels[0])}${fund.awaitingFiling.length ? `; ${fund.awaitingFiling.map((t) => `<strong>${escapeHtml(t)}</strong>`).join(', ')} ${fund.awaitingFiling.length === 1 ? 'has' : 'have'} not` : ''}.
+           have filed for ${escapeHtml(fund.periodLabels[0])}${fund.awaitingFiling?.length ? `; ${fund.awaitingFiling.map((t) => `<strong>${escapeHtml(t)}</strong>`).join(', ')} ${fund.awaitingFiling.length === 1 ? 'has' : 'have'} not` : ''}.
            Those rows read <em>not filed yet</em> and keep their share count and value. A zero there would report a position
            that is still held as sold.</p>
 
@@ -297,71 +452,218 @@ function openProvenance(fund, m) {
 
         <p class="mt-4 text-xs text-slate-500">A dash means <em>not disclosed</em> — never zero.</p>
       </div>
-    </div>`,
-    { size: 'default' }
-  );
+    </div>`;
 }
 
+function portfolioProvenance(fund) {
+  const unresolved = fund.holdings.filter((h) => !h.ticker);
+  return `<div class="px-7 py-6">
+      <div class="mb-3 flex items-start justify-between gap-4">
+        <h2 class="font-display text-xl font-bold text-slate-900">The fund's own portfolio</h2>
+        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+      </div>
+      <div class="text-sm leading-relaxed text-slate-600">
+        <p><strong>Real data.</strong> Indian AMCs publish the full portfolio of every scheme each month.
+           <a class="font-semibold text-indigo-600 hover:underline" href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(fund.house || 'The AMC')}</a>
+           disclose each instrument with its weight and its market value, and this is
+           <strong>${escapeHtml(fund.name)}</strong>'s book across ${escapeHtml(String(fund.periods.length))} months to
+           ${escapeHtml(fund.periodLabels[0])}.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the percentage measures — and what it does not</h3>
+        <p class="mt-1 text-xs"><strong>% to NAV: how much of this fund sits in the company.</strong> It is <em>not</em> how much
+           of the company the fund owns, which is what the holding percentages on this view's shareholding funds mean.
+           A 3% here is a slice of a fund; a 3% there is a stake in a business. Nothing on this page adds the two together.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Whose numbers these are</h3>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
+          <li><strong>Weight, value, asset class and industry</strong> — the AMC's own disclosure, reproduced unchanged.
+              Unlike a shareholding filing, a portfolio disclosure <em>does</em> state a rupee amount, so the value column is
+              published rather than derived.</li>
+          <li><strong>Change (pp)</strong> — <strong>the one figure computed here</strong>: this month's weight minus last
+              month's, in percentage points.</li>
+          <li><strong>The NSE symbol</strong> — also ours. The disclosure names instruments the way the AMC writes them, so a
+              symbol is resolved from the feeds this dashboard already carries.
+              ${
+                unresolved.length
+                  ? `<strong>${escapeHtml(formatNumber(unresolved.length))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))} could not be matched and are shown without one rather than guessed at — a wrong symbol would hand one company another's weights.`
+                  : 'Every line in this book resolved.'
+              }</li>
+        </ul>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Totals, and why they do not tie to the stated AUM</h3>
+        <p class="mt-1 text-xs">The ${escapeHtml(formatNumber(fund.stocksHeld))} lines held at ${escapeHtml(fund.periodLabels[0])}
+           sum to <strong>${escapeHtml(formatCrore(fund.portfolioValueCr))}</strong> and to
+           <strong>${escapeHtml(sumWeights(fund))}%</strong> of NAV — the rest is cash and equivalents, which the disclosure
+           reports as an asset-mix line rather than a holding${fund.assetMix?.length ? ` (${escapeHtml(fund.assetMix.map((a) => `${a.label} ${a.pct}%`).join(', '))})` : ''}.
+           ${fund.summaryLine ? `The AMC's own summary line reads: <em>${escapeHtml(fund.summaryLine)}</em>.` : ''}</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What a blank month means</h3>
+        <p class="mt-1 text-xs">The fund <strong>did not hold that line</strong> that month — not a weight of zero. A company
+           the fund sold and later bought back is disclosed on two separate lines, and those are folded into one row here
+           <em>only</em> because their months do not overlap; nothing is summed to produce a figure the AMC did not publish.
+           ${fund.reboughtCount ? `<strong>${escapeHtml(formatNumber(fund.reboughtCount))}</strong> ${fund.reboughtCount === 1 ? 'company was' : 'companies were'} re-entered after an exit in this window.` : ''}</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How fresh it is</h3>
+        <p class="mt-1 text-xs">Monthly, and imported rather than scraped: the workbook is committed at
+           <code class="rounded bg-slate-100 px-1">${escapeHtml(fund.sourceFile || 'scripts/fixtures/')}</code> and read by
+           <code class="rounded bg-slate-100 px-1">${escapeHtml(fund.generator || 'scripts/import-amc-portfolio.mjs')}</code>,
+           so the import reproduces from the same bytes. A new month means a new workbook and one re-run.</p>
+      </div>
+    </div>`;
+}
+
+const sumWeights = (fund) => fund.holdings.reduce((a, h) => a + (h.pct || 0), 0).toFixed(2);
+
+// ---------------------------------------------------------------------------------------
+// Drill
+// ---------------------------------------------------------------------------------------
+
 function drillHolding(h, fund) {
-  const rows = fund.quarters.map((q, i) => ({ q, label: fund.quarterLabels[i], pct: h.pctByQuarter?.[q] ?? null }));
+  const filing = isFiling(fund);
+  const dp = filing ? 1 : 2;
+  const rows = fund.periods.map((p, i) => ({ label: fund.periodLabels[i], pct: h.pctByPeriod?.[p] ?? null, value: h.valueByPeriod?.[p] ?? null }));
+
   openDrill({
     name: h.name,
-    sub: `${h.ticker}${h.sector ? ` · ${h.sector}` : ''}`,
+    sub: [h.ticker, h.sector || h.industry].filter(Boolean).join(' · ') || 'no NSE symbol',
     link: h.url,
-    linkLabel: 'Shareholding on Trendlyne ↗',
+    linkLabel: filing ? 'Shareholding on Trendlyne ↗' : null,
     headerStats: [
-      { label: `${fund.quarterLabels[0]} holding`, value: h.holdingPct == null ? 'not filed' : `${h.holdingPct.toFixed(1)}%`, caption: h.holdingPct == null ? 'the company has not filed yet' : 'of the company, as filed', tone: 'neutral' },
-      { label: 'Shares held', value: h.qty == null ? '—' : formatNumber(h.qty), caption: 'as filed', tone: 'neutral' },
-      { label: 'Value', value: h.valueCr == null ? '—' : formatCroreCompact(h.valueCr), caption: 'Trendlyne’s derivation', tone: 'neutral' },
+      {
+        label: `${fund.periodLabels[0]} ${filing ? 'holding' : 'weight'}`,
+        value: h.pct == null ? (filing ? 'not filed' : 'not held') : `${h.pct.toFixed(dp)}%`,
+        caption: filing ? (h.pct == null ? 'the company has not filed yet' : 'of the company, as filed') : 'of the fund’s NAV, as disclosed',
+        tone: 'neutral',
+      },
+      filing
+        ? { label: 'Shares held', value: h.qty == null ? '—' : formatNumber(h.qty), caption: 'as filed', tone: 'neutral' }
+        : { label: 'Asset class', value: h.assetClass || '—', caption: h.industry || 'as classified by the AMC', tone: 'neutral' },
+      {
+        label: 'Value',
+        value: h.valueCr == null ? '—' : formatCroreCompact(h.valueCr),
+        caption: filing ? 'Trendlyne’s derivation' : 'the AMC’s own figure',
+        tone: 'neutral',
+      },
     ],
     groups: [
       {
-        category: `Filed holding · ${fund.quarterLabels[fund.quarterLabels.length - 1]} to ${fund.quarterLabels[0]}`,
+        category: `${filing ? 'Filed holding' : 'Weight in the fund'} · ${fund.periodLabels[fund.periodLabels.length - 1]} to ${fund.periodLabels[0]}`,
         items: rows.map((r, i) => ({
           label: r.label,
-          value: r.pct == null ? 'not filed' : `${r.pct.toFixed(1)}% of the company`,
-          // `na` rather than a zero: the company has not filed, which is not the same as a holder
-          // who sold. The drill is the one place that distinction has room to be spelled out.
+          value:
+            r.pct == null
+              ? filing
+                ? 'not filed'
+                : 'not held'
+              : `${r.pct.toFixed(dp)}% ${filing ? 'of the company' : 'of NAV'}${r.value == null ? '' : ` · ${formatCrore(r.value)}`}`,
+          // `na` rather than a zero. For a filing the company simply has not filed; for a portfolio
+          // the fund was out of the line. Neither is a position of nothing, and the drill is the one
+          // place that distinction has room to be spelled out.
           status: r.pct == null ? 'na' : 'pass',
-          note: r.pct == null ? 'the company had not filed for this quarter when this was read' : i === 0 ? 'most recent filing' : null,
+          note:
+            r.pct == null
+              ? filing
+                ? 'the company had not filed for this quarter when this was read'
+                : 'the fund did not hold this line in this month'
+              : i === 0
+                ? filing
+                  ? 'most recent filing'
+                  : 'most recent disclosure'
+                : null,
         })),
       },
       {
         category: 'Provenance',
-        items: [
-          { label: 'Shares held and holding %', value: 'exchange filing, as submitted by the company', status: 'pass' },
-          { label: 'Rupee value', value: 'Trendlyne’s derivation: holding % × market cap', status: 'partial', note: 'a filing never discloses a rupee amount; this is reproduced, not recomputed' },
-          { label: 'Change in pp', value: 'the difference between two filed percentages', status: 'pass' },
-          { label: 'Sector', value: h.sector || 'not in the NSE-500 export', status: h.sector ? 'pass' : 'na' },
-          { label: 'Holder', value: fund.name, status: 'pass' },
-        ],
+        items: filing
+          ? [
+              { label: 'Shares held and holding %', value: 'exchange filing, as submitted by the company', status: 'pass' },
+              { label: 'Rupee value', value: 'Trendlyne’s derivation: holding % × market cap', status: 'partial', note: 'a filing never discloses a rupee amount; this is reproduced, not recomputed' },
+              { label: 'Change in pp', value: 'the difference between two filed percentages', status: 'pass' },
+              { label: 'Sector', value: h.sector || 'not in the NSE-500 export', status: h.sector ? 'pass' : 'na' },
+              { label: 'Holder', value: fund.name, status: 'pass' },
+            ]
+          : [
+              { label: 'What the percentage is', value: '% to NAV — how much of the fund is in this company', status: 'pass', note: 'not how much of the company the fund owns' },
+              { label: 'Weight and value', value: `${fund.house || 'The AMC'}’s own monthly disclosure`, status: 'pass', note: 'a portfolio disclosure states a rupee value, so this one is published rather than derived' },
+              { label: 'Change in pp', value: 'the difference between two of their own weights', status: 'partial', note: 'the only figure computed here' },
+              { label: 'Industry', value: h.industry || 'not classified in the disclosure', status: h.industry ? 'pass' : 'na' },
+              {
+                label: 'NSE symbol',
+                value: h.ticker ? `${h.ticker} — matched ${h.resolvedBy ? `via ${h.resolvedBy}` : 'from our feeds'}` : 'none',
+                status: h.ticker ? 'pass' : 'na',
+                note: h.ticker ? 'ours, not the AMC’s — the disclosure names instruments, not symbols' : h.unresolvedReason || 'no symbol could be matched, so none is shown',
+              },
+              ...(h.spells > 1
+                ? [{ label: 'Held across', value: `${h.spells} separate spells`, status: 'pass', note: 'the AMC discloses a re-entered position on a new line; the months do not overlap, so they are shown as one row' }]
+                : []),
+              { label: 'Holder', value: fund.name, status: 'pass' },
+            ],
       },
     ],
   });
 }
 
-async function exportFiled(visible, fund) {
+// ---------------------------------------------------------------------------------------
+// Export — the one artefact that leaves without the page's chrome, so the banner carries it
+// ---------------------------------------------------------------------------------------
+
+async function exportFund(visible, fund) {
+  const filing = isFiling(fund);
   const banner = {
-    __banner:
-      `REAL DATA. ${fund.name} — Indian shareholdings as filed with the exchanges, quarter ending ${fund.quarterLabels[0]}. ` +
-      `Share counts and holding percentages are the filings. THE RUPEE VALUE IS TRENDLYNE'S OWN DERIVATION (holding % x market cap), ` +
-      `reproduced unchanged, not recomputed — a filing never discloses a rupee amount. ` +
-      `${fund.filedThisQuarter} of ${fund.stocksHeld} holdings have filed for ${fund.quarterLabels[0]}; a blank percentage means NOT YET FILED, not sold. ` +
-      `Source: ${fund.sourceUrl}. Exported ${new Date().toISOString()}.`,
+    __banner: filing
+      ? `REAL DATA. ${fund.name} — Indian shareholdings as filed with the exchanges, quarter ending ${fund.periodLabels[0]}. ` +
+        `THE PERCENTAGE IS HOW MUCH OF EACH COMPANY THE FUND OWNS. ` +
+        `Share counts and holding percentages are the filings. THE RUPEE VALUE IS TRENDLYNE'S OWN DERIVATION (holding % x market cap), ` +
+        `reproduced unchanged, not recomputed — a filing never discloses a rupee amount. ` +
+        `${fund.filedThisQuarter} of ${fund.stocksHeld} holdings have filed for ${fund.periodLabels[0]}; a blank percentage means NOT YET FILED, not sold. ` +
+        `Source: ${fund.sourceUrl}. Exported ${new Date().toISOString()}.`
+      : `REAL DATA. ${fund.name} — the fund's own portfolio as ${fund.house || 'the AMC'} disclose it, month ending ${fund.periodLabels[0]}. ` +
+        `THE PERCENTAGE IS % TO NAV: HOW MUCH OF THE FUND IS IN EACH COMPANY, NOT HOW MUCH OF THE COMPANY THE FUND OWNS. ` +
+        `It is NOT comparable with the holding percentages in a shareholding-filing export and must not be summed with them. ` +
+        `Weights, values, asset class and industry are the AMC's own published figures; the value is disclosed, not derived. ` +
+        `THE ONLY COMPUTED COLUMN IS Change (pp), this month's weight minus last month's. ` +
+        `A blank month means the fund DID NOT HOLD that line then, not a weight of zero. ` +
+        `The NSE symbol is ours, resolved from other feeds; ${fund.stocksHeld - fund.resolvedCount} of ${fund.stocksHeld} lines could not be matched and carry none. ` +
+        `Source: ${fund.sourceUrl} via ${fund.sourceFile}. Exported ${new Date().toISOString()}.`,
   };
+
+  const shared = [
+    { header: 'Ticker (ours)', key: 't', width: 16, get: (r) => (r.__banner ? r.__banner : r.ticker || '') },
+    { header: filing ? 'Company' : 'Instrument', key: 'c', width: 40, get: (r) => (r.__banner ? '' : r.name) },
+  ];
+
+  const columns = filing
+    ? [
+        ...shared,
+        { header: 'Sector', key: 's', width: 26, get: (r) => (r.__banner ? '' : r.sector || '') },
+        { header: 'Shares held (filed)', key: 'q', width: 20, get: (r) => (r.__banner ? '' : r.qty ?? '') },
+        { header: `${fund.periodLabels[0]} holding % of company (filed)`, key: 'p', width: 34, get: (r) => (r.__banner ? '' : r.pct ?? '') },
+        { header: 'Change (pp)', key: 'd', width: 14, get: (r) => (r.__banner ? '' : r.changePp ?? '') },
+        { header: 'Trendlyne label', key: 'n', width: 20, get: (r) => (r.__banner ? '' : r.changeNote || '') },
+        { header: 'Value Rs Cr (Trendlyne derived)', key: 'v', width: 30, get: (r) => (r.__banner ? '' : r.valueCr ?? '') },
+      ]
+    : [
+        ...shared,
+        { header: 'Asset class', key: 'a', width: 14, get: (r) => (r.__banner ? '' : r.assetClass || '') },
+        { header: 'Industry', key: 's', width: 30, get: (r) => (r.__banner ? '' : r.industry || '') },
+        { header: `${fund.periodLabels[0]} % to NAV (AMC disclosed)`, key: 'p', width: 32, get: (r) => (r.__banner ? '' : r.pct ?? '') },
+        { header: 'Change (pp, computed here)', key: 'd', width: 26, get: (r) => (r.__banner ? '' : r.changePp ?? '') },
+        { header: 'Label', key: 'n', width: 14, get: (r) => (r.__banner ? '' : r.changeNote || '') },
+        { header: 'Value Rs Cr (AMC disclosed)', key: 'v', width: 28, get: (r) => (r.__banner ? '' : r.valueCr ?? '') },
+        { header: 'Why no ticker', key: 'u', width: 40, get: (r) => (r.__banner ? '' : r.ticker ? '' : r.unresolvedReason || '') },
+      ];
+
   await exportRows({
     filename: `sattva-${fund.investorId}-holdings`,
-    sheetName: 'Filed holdings',
+    sheetName: filing ? 'Filed holdings' : 'Fund portfolio',
     columns: [
-      { header: 'Ticker', key: 't', width: 16, get: (r) => (r.__banner ? r.__banner : r.ticker) },
-      { header: 'Company', key: 'c', width: 34, get: (r) => (r.__banner ? '' : r.name) },
-      { header: 'Sector', key: 's', width: 26, get: (r) => (r.__banner ? '' : r.sector || '') },
-      { header: 'Shares held (filed)', key: 'q', width: 20, get: (r) => (r.__banner ? '' : r.qty ?? '') },
-      { header: `${fund.quarterLabels[0]} holding % (filed)`, key: 'p', width: 24, get: (r) => (r.__banner ? '' : r.holdingPct ?? '') },
-      { header: 'Change (pp)', key: 'd', width: 14, get: (r) => (r.__banner ? '' : r.pctDelta ?? '') },
-      { header: 'Trendlyne label', key: 'n', width: 20, get: (r) => (r.__banner ? '' : r.changeNote || '') },
-      { header: 'Value Rs Cr (Trendlyne derived)', key: 'v', width: 30, get: (r) => (r.__banner ? '' : r.valueCr ?? '') },
-      ...fund.quarters.map((q, i) => ({ header: `${fund.quarterLabels[i]} %`, key: `h${i}`, width: 12, get: (r) => (r.__banner ? '' : r.pctByQuarter?.[q] ?? '') })),
+      ...columns,
+      ...fund.periods.map((p, i) => ({
+        header: `${fund.periodLabels[i]} %`,
+        key: `h${i}`,
+        width: 12,
+        get: (r) => (r.__banner ? '' : r.pctByPeriod?.[p] ?? ''),
+      })),
     ],
     rows: [banner, ...visible],
   });

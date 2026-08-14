@@ -1,26 +1,36 @@
-// data/institution-holdings.js — REAL filed shareholdings, by institution.
+// data/institution-holdings.js — REAL institutional holdings, from TWO different disclosures.
 //
 //   prime(payload)            // seeded from app.js at bootstrap
-//   all()                     // the institutions we have real filings for
+//   all()                     // every fund, both kinds
 //   byId(investorId)
-//   meta()                    // quarter, source, when it was scraped
+//   meta()                    // source, when it was read
 //   holdingsForScope(scope, holdings, fund)
 //
-// WHAT IS REAL HERE AND WHAT IS NOT
-//   Indian companies file their shareholding pattern with the exchanges each quarter, naming every
-//   holder above 1% with a share count and a percentage of the company. Those two numbers are the
-//   filing itself. Trendlyne aggregate them by holder — one page per institution — and that is what
-//   scripts/scrape-institution-holdings.mjs reads.
+// TWO DISCLOSURES, AND KEEPING THEM APART IS THE WHOLE POINT OF THIS MODULE.
 //
-//   The RUPEE VALUE is Trendlyne's own derivation: holding % × market cap. It is reproduced
-//   unchanged and attributed to them, never recomputed here, for the same reason the con-call
-//   scores are StockScans' — a number of our own under their label would read as theirs.
+//   `disclosure: 'shareholding'` — Trendlyne. Indian companies file their shareholding pattern with
+//     the exchanges each quarter, naming every holder above 1% with a share count and a percentage
+//     OF THE COMPANY. Those two numbers are the filing itself. Only positions above the naming
+//     threshold appear at all. The RUPEE VALUE is Trendlyne's own derivation, holding % × market
+//     cap — reproduced unchanged and attributed, never recomputed, for the same reason the con-call
+//     scores stay StockScans'.
 //
-// A MISSING PERCENTAGE IS NOT AN EXIT
-//   Filings trickle in for weeks after a quarter closes. A holding can carry a share count and a
-//   value while its percentage for the newest quarter is still outstanding — Trendlyne label that
-//   row "Filing Awaited", and one of the 37 Jun-2026 holdings is in exactly that state. Rendering
-//   it as 0% would report a position that is still held as sold.
+//   `disclosure: 'portfolio'` — an AMC's own monthly portfolio. The percentage is % TO NAV, how
+//     much OF THE FUND sits in that company. Every position appears however small, and the rupee
+//     value is the AMC's OWN published figure, because a portfolio disclosure does state one.
+//
+//   So 2.5 under one and 2.5 under the other are not the same measurement, and this module never
+//   puts them in the same field under the same name. What it does do is give both a shared
+//   VOCABULARY — `periods`, `pctByPeriod`, `pct` — so the view can lay them out with one set of
+//   components while labelling each with what it actually means. The shared names describe the
+//   SHAPE (a series of percentages over time); `disclosure` is what says what they measure, and
+//   every consumer must branch on it before writing a heading.
+//
+// A MISSING PERCENTAGE IS NEVER A ZERO, in either kind, but it means something different in each.
+//   Shareholding: filings trickle in for weeks after a quarter closes, so a holding can carry a
+//   share count and a value while its newest percentage is still outstanding — Trendlyne label that
+//   "Filing Awaited". Portfolio: a blank month is a month the fund did not hold the line at all.
+//   Rendering either as 0% would report something that is not so.
 
 const PATH = 'data/institution-holdings.json';
 
@@ -50,13 +60,41 @@ export function load() {
   return loadPromise;
 }
 
-function ingest(payload) {
-  const institutions = (payload.institutions || []).map((f) => ({
+/**
+ * One fund, in the shared vocabulary.
+ *
+ * The scraper writes `quarters` / `quarterLabels` / `pctByQuarter` and the importer writes
+ * `periods` / `periodLabels` / `pctByPeriod`. Aliasing here rather than rewriting either producer
+ * keeps scrape-institution-holdings.mjs untouched — it runs on its own schedule against a live
+ * upstream and is the last thing that should need editing to add a fund of a different kind.
+ */
+function normalise(f) {
+  const shareholding = (f.disclosure || 'shareholding') === 'shareholding';
+  const periods = f.periods || f.quarters || [];
+  const periodLabels = f.periodLabels || f.quarterLabels || [];
+  const row = (h) => ({
+    ...h,
+    pctByPeriod: h.pctByPeriod || h.pctByQuarter || {},
+    // `pct` is the latest period's percentage. What it MEANS is `disclosure`'s job to say.
+    pct: h.pct ?? h.weightPct ?? h.holdingPct ?? null,
+  });
+
+  return {
     ...f,
-    // Newest first by book size, which is the order a reader scans for.
-    holdings: [...(f.holdings || [])].sort((a, b) => (b.valueCr ?? 0) - (a.valueCr ?? 0)),
-    former: [...(f.former || [])],
-  }));
+    disclosure: shareholding ? 'shareholding' : 'portfolio',
+    periods,
+    periodLabels,
+    periodNoun: f.periodNoun || 'quarter',
+    latestPeriod: f.latestPeriod || f.latestQuarter || periods[0] || null,
+    latestPeriodLabel: f.latestPeriodLabel || f.latestQuarterLabel || periodLabels[0] || null,
+    // Newest first by position size, which is the order a reader scans for.
+    holdings: (f.holdings || []).map(row).sort((a, b) => (b.valueCr ?? 0) - (a.valueCr ?? 0)),
+    former: (f.former || []).map(row),
+  };
+}
+
+function ingest(payload) {
+  const institutions = (payload.institutions || []).map(normalise);
   cache = {
     institutions,
     byId: new Map(institutions.map((f) => [f.investorId, f])),
@@ -93,5 +131,9 @@ export function holdersOf(ticker) {
 export function holdingsForScope(scope, portfolioHoldings = [], rows = []) {
   if (scope !== 'portfolio') return rows;
   const held = new Set(portfolioHoldings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((h) => held.has(String(h.ticker).toUpperCase()));
+  // A row with no ticker cannot be matched against the book, so it drops out of Portfolio scope.
+  // That is a limit of the join and not a claim the fund does not hold it — the row is still there
+  // under Universe, and it says why it carries no symbol. Tested explicitly rather than left to
+  // String(null) happening not to collide with a real symbol.
+  return rows.filter((h) => h.ticker && held.has(String(h.ticker).toUpperCase()));
 }

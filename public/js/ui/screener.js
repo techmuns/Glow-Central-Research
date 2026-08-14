@@ -133,8 +133,12 @@ export const watchlist = {
 export function statStrip(cards = []) {
   const helpRegistry = [];
 
+  // The grid is as wide as the strip, not always four. A three-card strip in a four-column grid
+  // leaves a quarter of the row empty and reads as a card that failed to render.
+  const cols = cards.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-4';
+
   const html = `
-    <section class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+    <section class="mb-6 grid grid-cols-2 gap-3 ${cols}">
       ${cards
         .map((card, i) => {
           if (card.hero) {

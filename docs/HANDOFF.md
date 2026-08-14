@@ -53,14 +53,29 @@ one upstream that needs `Authorization: Bearer …`, so the Worker holds the tok
 **Finology's** derivation and is headed as such. The only computed figure is the
 quarter-over-quarter change, headed *Change (derived)*. See §5d.
 
-**Filed shareholdings — Smallcap World Fund Inc.** Every Indian company the fund appears in, with
-the share count and percentage the company filed with the exchanges, nine quarters deep, scraped
-from Trendlyne. 37 holdings, ₹35,818 Cr as of Jun 2026, cross-checked to the rupee against
-Trendlyne's own stated total before the file is written. The rupee value is *their* derivation and
-says so everywhere. The view is that one table and nothing else — the columns, their order and the
-sortable headings mirror Trendlyne's own page. The seven synthetic institutions that used to fill
-it are gone from the page rather than parked under a ribbon below the real data; `institutions.json`
-still feeds Fund Flows' category charts.
+**Institutions — three funds, and TWO DIFFERENT DISCLOSURES behind a fund picker.** This is the one
+view where the same-looking number means two different things, so read the header of
+`js/investors/filed.js` before touching it.
+
+*Filed shareholdings (`disclosure: 'shareholding'`).* **Smallcap World Fund Inc** — every Indian
+company the fund appears in, with the share count and percentage the **company** filed with the
+exchanges, nine quarters deep, scraped from Trendlyne. 37 holdings, ₹35,818 Cr as of Jun 2026,
+cross-checked to the rupee against Trendlyne's own stated total before the file is written. The
+percentage is **how much of the company the fund owns**; only holders above 1% are named at all.
+The rupee value is *their* derivation and says so everywhere.
+
+*AMC portfolios (`disclosure: 'portfolio'`).* **Bandhan Focused Fund** (27 holdings, ₹2,008 Cr) and
+**Bandhan Small Cap Fund** (258 holdings, ₹28,017 Cr), seven months deep to Jul 2026, imported from
+the AMC's own monthly disclosure workbooks by `scripts/import-amc-portfolio.mjs`. The percentage is
+**% to NAV — how much of the fund is in the company**, the opposite measurement; every position
+appears however small, and the rupee value is the AMC's **own published figure** rather than a
+derivation. The columns say `% to NAV`, the pill says *Disclosed*, and nothing on the page sums
+across the two kinds. The NSE symbol is *ours*, resolved by `scripts/lib/company-index.mjs`; 37 of
+the Small Cap fund's 255 equity lines do not resolve and keep their row with a stated reason.
+
+**The synthetic institutions and Fund Flows are gone**, along with `js/data/investors.js`,
+`js/investors/deep-dive.js` and `gen-mock-investors.mjs` — see *The synthetic investor set* in
+`docs/DATA-CONTRACTS.md`. Every number on the Super Investors tab is now somebody's disclosure.
 
 ### Real, but refreshed by hand
 
@@ -110,9 +125,11 @@ node scripts/verify-ui.mjs                      # ~180 checks, exits non-zero on
 node scripts/scrape-technicals.mjs              # TECH_LIMIT=15 for a smoke run
 node scripts/scrape-portfolio-history.mjs       # HISTORY_YEARS=5 to widen the window
 
+# re-import the AMC portfolio workbooks (committed under scripts/fixtures/)
+node scripts/import-amc-portfolio.mjs           # merges in; leaves the Trendlyne funds alone
+
 # regenerate the seeded mock sets (all deterministic)
 node scripts/gen-mock-earnings.mjs
-node scripts/gen-mock-investors.mjs
 node scripts/gen-mock-transactions.mjs          # also rewrites portfolio.json's derived fields
 ```
 

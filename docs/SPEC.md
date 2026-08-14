@@ -50,7 +50,7 @@ optional right-aligned count badge.
 | Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
 | Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
-| Super Investors | Superstar Investors · Institutions · Fund Flows |
+| Super Investors | Superstar Investors · Institutions |
 | Overview | Positions · Allocation |
 | Position By | Sector · Market Cap · Conviction |
 | Transaction History | All · Buys · Sells |

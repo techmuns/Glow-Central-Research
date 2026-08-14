@@ -268,13 +268,13 @@ export const SOURCE_GROUPS = [
         file: 'worker/index.js · .dev.vars for local development',
       },
       {
-        name: 'AMFI — monthly portfolio disclosures',
-        url: 'https://www.amfiindia.com/',
+        name: 'Bandhan Mutual Fund — monthly portfolio disclosures',
+        url: 'https://bandhanmutual.com/',
         feeds:
-          'Mutual fund scheme holdings and monthly category flows (equity, large / mid / small cap). Feeds the category small-multiples and the not-yet-wired fund cards. <strong class="text-amber-700">Synthetic today</strong>, including the AUM and scheme counts shown against each real fund name.',
-        cadence: 'Monthly — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/institutions.json · public/data/mock/fund-flows.json',
+          "<strong>Real disclosures.</strong> Indian AMCs publish the full portfolio of every scheme each month, naming each instrument with its weight and its market value. Wired for <strong>Bandhan Focused Fund</strong> (27 holdings, ₹2,008 Cr) and <strong>Bandhan Small Cap Fund</strong> (258 holdings, ₹28,017 Cr), each with seven months of history to Jul 2026. <strong>The percentage is % to NAV — how much of the FUND is in each company</strong>, which is the opposite measurement from the shareholding filings below and is never summed with them. Weights and values are the AMC's own published figures; the only figure computed here is the month-on-month change. The NSE symbol is ours, resolved from the dashboard's other feeds, and a line that could not be matched says so rather than guessing.",
+        cadence: 'Monthly · drop the new workbook in scripts/fixtures/ and re-run the importer',
+        status: 'live',
+        file: 'public/data/institution-holdings.json · scripts/import-amc-portfolio.mjs · scripts/lib/xlsx-read.mjs · scripts/lib/company-index.mjs',
       },
       {
         name: 'Trendlyne — superstar shareholdings (filed)',
@@ -284,15 +284,6 @@ export const SOURCE_GROUPS = [
         cadence: 'Quarterly, as filings arrive over the weeks after a quarter closes · re-run the scraper',
         status: 'live',
         file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
-      },
-      {
-        name: 'Trendlyne / BSE — the funds not yet wired',
-        url: 'https://trendlyne.com/',
-        feeds:
-          'Seven more institutions and the FII/DII monthly net flow series. <strong class="text-amber-700">Synthetic today</strong>: real fund names, invented positions. They are <strong>not shown on the Institutions view</strong> — that page is the filed table above and nothing else — and now feed only Fund Flows\u2019 category charts. Wiring one for real is a single entry in <code class="rounded bg-slate-100 px-1">FUNDS</code> in the scraper above. Note the real FII/DII holding <em>changes</em> already reach the dashboard through the technicals scrape — Fund Flows joins to those and labels which columns are which.',
-        cadence: 'Quarterly with the shareholding filings — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/institutions.json · public/data/mock/fund-flows.json',
       },
     ],
   },

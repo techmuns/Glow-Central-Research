@@ -26,10 +26,7 @@ the interface, and change the doc and the producer together.
 | `universe` | `public/data/universe.json` |
 | `earnings` | `public/data/mock/earnings.json` |
 | `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
-| `superinvestors` | `public/data/mock/superinvestors.json` |
-| `institutions` | `public/data/mock/institutions.json` |
 | `filedHoldings` | `public/data/institution-holdings.json` |
-| `fundFlows` | `public/data/mock/fund-flows.json` |
 | `transactions` | `public/data/mock/transactions.json` |
 
 `universe.json` is loaded twice over: the raw screener rows stay on `ctx.data.universeRaw`, and
@@ -1449,10 +1446,27 @@ beside the quoted post text would simply disagree with it.
 
 ---
 
-## `public/data/institution-holdings.json` — REAL, filed shareholdings
+## `public/data/institution-holdings.json` — REAL, and TWO DIFFERENT DISCLOSURES
 
-Every Indian company a tracked institution appears in, with what the company **filed** with the
-exchanges. Written by `scripts/scrape-institution-holdings.mjs` off Trendlyne's superstar pages.
+Fund holdings, from two sources that measure opposite things. Every entry carries a `disclosure`
+tag, and **every consumer must branch on it before writing a heading.**
+
+| `disclosure` | Written by | Who discloses | The percentage means | The ₹ value is |
+| --- | --- | --- | --- | --- |
+| `shareholding` | `scripts/scrape-institution-holdings.mjs` (Trendlyne) | the **company**, quarterly | how much **of the company** the fund owns | Trendlyne's **derivation** (pct × mcap) |
+| `portfolio` | `scripts/import-amc-portfolio.mjs` (AMC workbook) | the **fund**, monthly | **% to NAV** — how much **of the fund** is in the company | the AMC's **own published** figure |
+
+A 2.5 under one is a large stake in a business; a 2.5 under the other is a small slice of a fund.
+They are never summed, averaged or ranked against each other, and there is no combined-book figure
+anywhere on the Institutions view. A shareholding filing only names holders **above 1%**, so that
+list is the fund's large positions; an AMC portfolio lists **everything**, down to 0.01%.
+
+What the two DO share is a shape — a series of percentages over time — so `js/data/institution-
+holdings.js` aliases both into one vocabulary (`periods`, `periodLabels`, `periodNoun`,
+`pctByPeriod`, `pct`) and the view lays them out with one set of components. The shared names
+describe the shape; `disclosure` is what says what they measure.
+
+### `disclosure: 'shareholding'` — filed with the exchanges
 
 ```jsonc
 {
@@ -1533,6 +1547,90 @@ Two traps the parser is built around, both of which produce a *plausible* wrong 
 One entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs` — the `id` and `slug` come
 straight out of the Trendlyne URL — then re-run it. No UI change: the Institutions view renders a
 fund picker as soon as there is more than one.
+
+### `disclosure: 'portfolio'` — the AMC's own monthly book
+
+```jsonc
+{
+  "investorId": "bandhan-small-cap-fund",
+  "name": "Bandhan Small Cap Fund", "house": "Bandhan Mutual Fund", "category": "Equity : Small Cap",
+  "disclosure": "portfolio",
+  "source": "Bandhan Mutual Fund — monthly portfolio disclosure",
+  "sourceFile": "scripts/fixtures/bandhan-small-cap-fund.xlsx",
+  "generator": "scripts/import-amc-portfolio.mjs",
+  "periods":      ["2026-07", "2026-06", … 7 deep],
+  "periodLabels": ["Jul 26", "Jun 26", …],
+  "periodNoun": "month",
+  "latestPeriod": "2026-07", "latestPeriodLabel": "Jul 26",
+  "statedAumCr": 28019,           // the AMC's own summary line — NOT the sum below
+  "navAsOf": "03-Aug-2026",
+  "summaryLine": "AUM ₹28,019 Cr   ·   NAV as of 03-Aug-2026   ·   …",
+  "assetMix": [{ "label": "Equity", "pct": 88.4 }, … ],
+  "stocksHeld": 258,              // lines held in the latest month
+  "equityCount": 255,             // the rest are gold / debt lines
+  "resolvedCount": 218,           // lines we could match to an NSE symbol
+  "reboughtCount": 4,             // companies re-entered after an exit in this window
+  "portfolioValueCr": 28016.99,   // the sum of the AMC's own position values
+  "valuedCount": 258,
+  "holdings": [{
+    "name": "REC Limited",        // AMC DISCLOSED
+    "ticker": "RECLTD",           // OURS — resolved, and nullable; see below
+    "resolvedBy": "moneycontrol", // which feed matched it, or "checked by hand"
+    "unresolvedReason": null,     // why there is no ticker, when there is none
+    "assetClass": "Equity",       // AMC DISCLOSED
+    "industry": "Finance",        // AMC DISCLOSED
+    "weightPct": 3.03,            // AMC DISCLOSED — % TO NAV, not % of the company
+    "valueCr": 942.49,            // AMC DISCLOSED — a portfolio disclosure DOES state a value
+    "changePp": -0.16,            // OURS — this month's weight minus last month's
+    "changeNote": null,           // "New" where there is no previous month to subtract
+    "spells": 1,                  // how many separate lines were folded into this row
+    "pctByPeriod":   { "2026-07": 3.03, "2026-06": 3.19, … },
+    "valueByPeriod": { "2026-07": 942.49, "2026-06": 908.73, … }
+  }],
+  "former": [ … same shape, lines in the history but out of the book this month … ]
+}
+```
+
+**The totals do not tie to `statedAumCr`, and that is correct.** The 258 held lines sum to
+₹28,017 Cr and to 88.4% of NAV — the rest is cash, which the disclosure reports as an asset-mix
+line rather than a holding. `statedAumCr` is the AMC's own headline figure and is carried verbatim
+rather than reconciled; the implied NAV from `valueCr ÷ weightPct` is a third number again. Nothing
+here computes one from another.
+
+**A blank month means the fund did not hold the line**, never a weight of zero — the same rule as
+everywhere else in this dashboard. Lines with no weight in the latest month move to `former` and
+are not listed in the table.
+
+**One company can arrive on several lines.** The export starts a new line each time the fund exits
+a position and later buys it back — Angel One is on two lines in both funds. Those lines are
+**disjoint in time**, so they are folded into one row and `spells` records how many; a pair whose
+months **overlapped** would have to be summed or chosen between, so the importer refuses to merge
+those, keeps them apart and prints them at the end of the run.
+
+**The ticker is ours and is nullable.** The disclosure names instruments the way the AMC writes
+them, so a symbol is resolved by `scripts/lib/company-index.mjs` from `mc-ticker-map.json`,
+`technicals.json` and the book. 37 of the Small Cap fund's 255 equity lines do not resolve; they
+keep their row with an `unresolvedReason` and are simply absent under the Portfolio scope, which
+joins on ticker. A wrong symbol would hand one company another's weights, so a name that fits two
+companies equally well is left unresolved rather than guessed.
+
+The matcher is token-wise, because Moneycontrol truncate names at about sixteen characters
+("Prestige Estate") and Screener abbreviate them ("Grasim Inds"). Each index token must prefix the
+query token in the same position, or be a tight abbreviation of it. An index name with **fewer**
+tokens than the query needs evidence that it was truncated — otherwise "Arvind" would match
+"Arvind Fashions Limited", which is a different listed company. Names no rule should reach live in
+`CONFIRMED` in the importer, checked by hand.
+
+### Adding an AMC fund
+
+Drop the workbook in `scripts/fixtures/`, add one entry to `FUNDS` in
+`scripts/import-amc-portfolio.mjs`, and re-run it. It merges into the JSON without touching the
+Trendlyne funds, which are scraped on their own schedule. A new month is the same: replace the
+workbook, re-run. The workbooks are committed so the import reproduces from the same bytes.
+
+`scripts/lib/xlsx-read.mjs` reads them with nothing but the Node standard library — an .xlsx is a
+ZIP of XML, both of which `node:zlib` and a tag scanner already handle. This repo has no
+`package.json` and a one-off data import is not the thing that should introduce one.
 
 ---
 
@@ -1819,180 +1917,28 @@ able to read as an investor who holds nothing. The card says "could not be read"
 
 ---
 
-## `public/data/mock/superinvestors.json` and `institutions.json` — MOCK
+## The synthetic investor set — REMOVED
 
-> **`superinvestors.json` no longer reaches the Superstar Investors view.** That view is live off
-> Finology (above). The file is still loaded because Fund Flows reads the institution side of it;
-> the individual half is now unused by any panel.
+`public/data/mock/superinvestors.json`, `institutions.json` and `fund-flows.json` are gone, with
+`scripts/gen-mock-investors.mjs`, `public/js/data/investors.js` and
+`public/js/investors/deep-dive.js`. So is the **Fund Flows** sub-view they backed.
 
-Eight named individual investors and eight fund houses, each with four quarters of positions.
-Identical shape; institutions add `house`, `manager`, `category`, `aumCr`, `schemeCount` and
-`topSectors`.
+They held real investor and fund names against generated positions, under an amber ribbon. That was
+defensible while the Super Investors tab had nothing real on it. It stopped being defensible once
+both other sub-views went live: the tab then had one synthetic surface sharing a rail with two
+genuine ones, which is exactly the situation the Con-call tab already resolved — see *One tab, one
+provenance* in `CLAUDE.md`. **The preferred resolution is removing the synthetic half, not writing a
+better ribbon**, so that is what happened rather than a deprecation.
 
-> ### Attribution — read this before wiring anything
->
-> **The names are real. The positions are not.**
->
-> Ashish Kacholia, Dolly Khanna, Vijay Kedia, Mukul Agrawal, Akash Bhanshali, Anil Kumar Goel,
-> Sunil Singhania and Porinju Veliyath are real public investors. Small Cap World Fund, Bandhan,
-> LIC and the rest are real funds. Their **actual** shareholdings are disclosed in quarterly
-> exchange filings and aggregated by Trendlyne, Ticker Finology and AMFI.
->
-> Every ticker, quantity and holding percentage in these files is **synthetic**, from
-> `scripts/gen-mock-investors.mjs` (`SEED = 20260813`). "Dolly Khanna holds 2.4% of X" here is a
-> false statement about a real person's finances. It is only defensible because the dashboard
-> says so on every surface that renders it: the tab ribbon, the workspace banner on all four
-> tabs, and row 1 of every exported sheet. **If you add a surface, add the marker.**
->
-> These files contain **numbers and positions only.** There is deliberately no `rationale`,
-> `commentary`, `quote`, `thesis` or `why` field, and none may be added while the data is
-> synthetic. Inventing a position is bounded and labelled; inventing a sentence a named person
-> supposedly said is putting words in a real mouth, and no ribbon fixes that. This is the same
-> rule that makes every speaker in the con-call transcripts fictional.
+Every number under Super Investors is now somebody's disclosure. The tab has two sub-views, no
+ribbon anywhere, and `verify-ui.mjs` asserts both — including that the deleted modules 404 on the
+served site, so a stale import cannot quietly come back.
 
-```jsonc
-{
-  "_provenance": "ILLUSTRATIVE DATA. The investor and fund names here are REAL public figures …",
-  "generated_at": "2026-08-11T04:10:00.000Z",
-  "generator": "scripts/gen-mock-investors.mjs",
-  "seed": 20260813,
-  "source": "Mock data",
-  "as_of": "2026-06-30",              // the shareholding cut-off the latest quarter reflects
-  "quarter": "Q1FY27",
-  "quarters": ["Q1FY27", "Q4FY26", "Q3FY26", "Q2FY26"],   // NEWEST FIRST
-  "investor_count": 8,
-  "investors": [
-    {
-      "investorId": "dolly-khanna", "name": "Dolly Khanna", "type": "individual",
-      "since": "2008",
-      "quarters": ["Q1FY27", "Q4FY26", "Q3FY26", "Q2FY26"],
-      "stocksHeld": 14, "portfolioValueCr": 3052.4,
-      "prevPortfolioValueCr": 2894.1, "valueChangePct": 5.5,
-      "topHolding": "Some Company Ltd",
-      "holdings": [
-        {
-          "ticker": "XYZ", "name": "Some Company Ltd", "sector": "Chemicals",
-          "quarter": "Q1FY27",
-          "qty": 1840000, "holdingPct": 2.31, "valueCr": 336.2,
-          "qtyDelta": 240000, "holdingPctDelta": 0.3, "action": "Buy"
-        }
-      ]
-    }
-  ]
-}
-```
+**If aggregate flow data is wanted later**, AMFI publish the real monthly FII/DII and category
+figures and it comes back pointed at those. The real FII/DII holding *changes* already reach the
+dashboard through the technicals scrape (`chg_fii_hold`, `chg_dii_hold`) and are used on Breakouts.
+The removed view is in git history at `HEAD~1`.
 
-### `investors[]` / `institutions[]`
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `investorId` | string | Slug. Used in `?holder=` and as the workspace key. |
-| `name` | string | **Real person or fund.** |
-| `type` | string | `individual` \| `institution`. |
-| `since` | string \| null | Year first tracked. `null` for institutions. |
-| `quarters[]` | string[] | Newest first — the order the UI reads them in. |
-| `stocksHeld` / `portfolioValueCr` | number | Latest quarter, positions with `holdingPct > 0`. |
-| `prevPortfolioValueCr` / `valueChangePct` | number \| null | Against the previous quarter. |
-| `topHolding` | string \| null | Largest position by derived value. |
-| `house` / `manager` / `category` | string \| null | **Institutions only.** `category` is `FII` \| `DII` \| `Domestic MF`. |
-| `aumCr` / `schemeCount` | number | **Institutions only.** |
-| `topSectors[]` | array | **Institutions only.** `{ sector, sharePct }` — the mandate view. |
-
-### `holdings[]` — one row per company **per quarter**
-
-| Field | Type | Unit | Notes |
-| --- | --- | --- | --- |
-| `ticker` / `name` / `sector` | string | — | Real company. |
-| `quarter` | string | `Q<n>FY<yy>` | |
-| `qty` | number | shares | **Synthetic.** Derived from `holdingPct` against a fixed share count per company, so the series is internally consistent: `qtyDelta` equals this quarter's `qty` minus last quarter's, exactly. |
-| `holdingPct` | number | percent of the company | **Synthetic.** Sized by position *value* first and then converted, because drawing the percentage directly produces "3% of a ₹6.7 lakh crore bank" — a ₹20,000 crore position for one individual. |
-| `valueCr` | number | ₹ crore | **DERIVED, not disclosed.** `holdingPct × marketCap`. A filing gives a percentage and never a rupee amount, so this moves with the market as well as with the position. Every view that shows it says so. |
-| `qtyDelta` | number | shares | Signed, vs the previous quarter. `0` in the oldest quarter. |
-| `holdingPctDelta` | number | percentage points | Signed. |
-| `action` | string | see below | **Derived from `holdingPctDelta`, not drawn independently** — a reader checking the arithmetic finds it holds. |
-
-`action` is `New` (0% → >0%), `Exit` (>0% → 0%), `Buy` (Δ > +0.01pp), `Sell` (Δ < −0.01pp) or
-`Hold`. A row with `holdingPct: 0` only appears when it is the `Exit` itself.
-
-### How a real quarterly shareholding scrape maps in
-
-Exchange filings publish, per company per quarter, a shareholder table listing every holder above
-1% with their share count and percentage. That is **company-major**; these files are
-**holder-major**. The transform is a pivot plus two derivations:
-
-1. **Scrape company-major.** For each company and quarter, pull the shareholder rows: holder name,
-   share count, percentage. Ticker Finology and Trendlyne already aggregate this; the raw source is
-   the BSE/NSE shareholding-pattern filing.
-2. **Match holder names to `investorId`.** This is the only genuinely hard step — filings render the
-   same person inconsistently (`DOLLY KHANNA`, `Dolly Khanna .`, jointly-held variants) and funds
-   appear scheme by scheme. Keep an alias table keyed by `investorId`; do not fuzzy-match silently,
-   because a wrong match attributes a real position to the wrong real person.
-3. **Pivot to holder-major** and sort each holder's rows newest-quarter first.
-4. **Derive `qtyDelta`, `holdingPctDelta` and `action`** by walking each `(holder, ticker)` series —
-   never take an `action` field from the source, so the label and the numbers cannot disagree.
-5. **Derive `valueCr`** as `holdingPct × marketCap` at the reporting date, and keep saying it is
-   derived.
-6. Set `source` to something that does not contain "mock", drop `generator` and `seed`, and every
-   illustrative marker disappears on its own.
-
-**Refresh cadence** — quarterly, 3–6 weeks after quarter end.
-**Real source** — Ticker Finology / Trendlyne / BSE shareholding patterns; AMFI for MF schemes.
-**Consumed by** — Super Investors → Superstar Investors, Institutions, Fund Flows, and the
-per-investor workspace.
-
----
-
-## `public/data/mock/fund-flows.json` — MOCK
-
-24 months of net flows, ₹ crore.
-
-```jsonc
-{
-  "_provenance": "ILLUSTRATIVE DATA. Every flow figure is synthetic …",
-  "generator": "scripts/gen-mock-investors.mjs",
-  "seed": 20260813,
-  "source": "Mock data",
-  "unit": "INR crore, net",
-  "month_count": 24,
-  "months": [
-    {
-      "month": "2026-08",
-      "fiiNetCr": -18420,
-      "diiNetCr": 24310,
-      "mf": { "equityCr": 31200, "smallCapCr": 4180, "midCapCr": 5640, "largeCapCr": 8390 }
-    }
-  ]
-}
-```
-
-| Field | Type | Unit | Notes |
-| --- | --- | --- | --- |
-| `month` | string | `YYYY-MM` | Ascending. |
-| `fiiNetCr` | number | ₹ crore, **signed** | Negative is net selling. The chart's zero line is load-bearing. |
-| `diiNetCr` | number | ₹ crore, signed | Generated anti-correlated with FII, which is how the two usually behave. |
-| `mf.*` | number | ₹ crore | Category net inflows. Non-negative in the shipped set. |
-
-**Refresh cadence** — monthly. **Real source** — NSE/BSE publish FII/DII net flows; AMFI publishes
-category flows. **Consumed by** — Super Investors → Fund Flows.
-
----
-
-## What the Trending and Fund Flows views join
-
-Both views put synthetic data beside **real** data from the technicals scrape, and both label
-which is which in the sub-header. The join key is always the ticker.
-
-| View | Synthetic columns | Real columns (from `technicals.json`) |
-| --- | --- | --- |
-| Public Chatter → Trending | mentions, momentum, sentiment, source split, first mention | technical score /24, `pct_change_today`, 52-week proximity, `relative_strength_6m` |
-| Super Investors → Fund Flows | tracked holders, their stakes, net action | `chg_fii_hold`, `chg_dii_hold`, combined, `delivery_trend_diff`, technical score /24 |
-
-A company with chatter or a tracked holder but no row in the NSE-500 universe shows `—` in the
-real columns rather than a zero. The chatter-vs-price quadrant therefore has one invented axis and
-one measured one; the view says so, because that is exactly the kind of chart that gets
-screenshotted without its caption.
-
----
 
 ## `public/data/mock/transactions.json` — MOCK ledger, REAL prices
 

@@ -29,7 +29,7 @@ import { statStrip, scoreTable, sectionHead, openWorkspace, openModal, roadmapSt
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
+import { formatNumber, formatCroreCompact } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as feed from '../data/super-investors.js';
@@ -75,7 +75,9 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
       },
     },
     {
-      label: `This quarter${moves.length ? ` · ${escapeHtml(moves[0].latest)}` : ''}`,
+      // The newest quarter across the WHOLE feed, not whichever book answered first. Different
+      // investors publish to different quarters, so `moves[0]` was a fact about arrival order.
+      label: `This quarter${feed.latestQuarter() ? ` · ${escapeHtml(feed.latestQuarter())}` : ''}`,
       value: `${count(moves, 'new')} new · ${count(moves, 'exited')} exits`,
       note: `${count(moves, 'added')} added, ${count(moves, 'trimmed')} trimmed · derived`,
       help: {
@@ -85,7 +87,6 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
                <p class="mt-3">An investor whose book has only one published quarter is not comparable, and contributes nothing here rather than counting as entirely new.</p>`,
       },
     },
-    freshnessCard(m),
   ]);
 
   const table = holdingsTable(ctx, rows, quarters, tableView);
@@ -247,7 +248,8 @@ function wireLivePill(root, m) {
           <p class="mt-1 text-xs">Finology print "-" where a holder does not appear on that quarter's shareholding pattern. Below the disclosure threshold a real holding is invisible, so a blank means <strong>not disclosed</strong> — not zero, and not necessarily sold. Every blank renders as an em dash and is excluded from totals rather than counted as nil.</p>
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How often it is read</h3>
-          <p class="mt-1 text-xs">Once per visit, never polled: shareholding data moves when a company files, which is four times a year. Each book is cached on this device under its own fingerprint, so a return visit re-reads nothing that has not changed.</p>
+          <p class="mt-1 text-xs">Once per visit, never polled: shareholding data moves when a company files, which is four times a year.</p>
+          <p class="mt-2 text-xs">Every book is stored on this device under the server's own fingerprint, and a return visit <strong>paints from that store before asking the network anything</strong> — ninety-one confirmations, four at a time, is the wait, not the bytes. Each is then revalidated in the background and only a book that actually changed is redrawn.</p>
           ${deliveryNote({ origin: m.origin, checkedAt: m.checkedAt, fetchedAt: m.fetchedAt, persisted: m.persisted })}
           ${m.dropped ? `<p class="mt-3 text-xs text-amber-700">${escapeHtml(formatNumber(m.dropped))} investor${m.dropped === 1 ? '' : 's'} in their list carried no usable id and could not be opened, so ${m.dropped === 1 ? 'it is' : 'they are'} not shown.</p>` : ''}
         </div>
@@ -257,14 +259,18 @@ function wireLivePill(root, m) {
   });
 }
 
-function freshnessCard(m) {
-  return {
-    hero: true,
-    label: 'Last read',
-    value: m.fetchedAt ? formatRelativeTime(m.fetchedAt) : 'just now',
-    note: `Ticker Finology · ${m.origin === 'store' ? 'from this device’s cache, revalidated' : 'read live'} · filings, not a market clock`,
-  };
-}
+// THERE IS NO FRESHNESS HERO ON THIS VIEW, deliberately.
+//
+// It used to carry a fourth, gradient "Last read · 6 minutes ago" card. Shareholding data moves
+// when a company files — four times a year — so a relative clock ticking beside it invited the
+// reader to read staleness into a number that had not changed and could not have. It was also the
+// third thing on screen claiming to describe freshness, after the header's status pill and this
+// view's own Live pill.
+//
+// The provenance did not go away: `deliveryNote()` inside the Live pill's modal still reports where
+// the paint came from and when the server last confirmed it, which is the same fact stated once
+// rather than three times. See "the header, and the alert stack" in CLAUDE.md — a freshness control
+// that cannot be wrong is worth more than one that is merely present.
 
 // ---------------------------------------------------------------------------------------
 // The investor cards

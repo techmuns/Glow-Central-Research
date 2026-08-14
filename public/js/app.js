@@ -7,7 +7,6 @@ import { setData, setDataError } from './core/state.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
-import { prime as primeInvestors } from './data/investors.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeCoverage } from './data/coverage.js';
@@ -27,12 +26,9 @@ const DATA_SOURCES = {
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
-  superinvestors: 'data/mock/superinvestors.json',
-  institutions: 'data/mock/institutions.json',
   // REAL: filed shareholdings scraped from Trendlyne. Small (46KB) and needed by the Institutions
   // sub-view on first paint, so it loads at bootstrap rather than lazily.
   filedHoldings: 'data/institution-holdings.json',
-  fundFlows: 'data/mock/fund-flows.json',
   transactions: 'data/mock/transactions.json',
 };
 
@@ -63,10 +59,9 @@ async function loadAll() {
   primeEarnings(data.earningsRaw, data.earningsCalendar);
   data.earnings = adaptLegacySummary(data.earningsRaw);
 
-  // Super Investors: three small files, all needed together for the investor grid, so they
-  // load at bootstrap and seed the module. The chatter feeds are fetched lazily by
-  // js/data/chatter.js when that tab mounts.
-  primeInvestors(data.superinvestors, data.institutions, data.fundFlows);
+  // Institutions: filed shareholdings and AMC portfolios, one small file, needed on that
+  // sub-view's first paint. The Superstar half of that tab loads nothing from here — it is live
+  // off /api/super-investors and cached on the device by js/core/store.js.
   primeFiled(data.filedHoldings);
 
   // Portfolio Analytics: the holdings config and the ledger are both small and already fetched
