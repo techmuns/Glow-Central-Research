@@ -707,7 +707,7 @@ function renderCalendar(ctx) {
                  <strong>Counts only for this date.</strong> ${escapeHtml(payload.degraded)}
                </div>`
             : table
-              ? `${table.html}${calendarNote(payload, scoped.length, ctx)}`
+              ? table.html
               : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
                    <div class="text-3xl">🗓️</div>
                    <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings is scheduled on this date' : 'Nothing scheduled on this date'}</div>
@@ -735,9 +735,12 @@ const holdings = (ctx) => new Set((coverage.holdings()).map((h) => String(h.tick
  * "Captured" are both fine — what would not be fine is showing captured rows under a Live badge.
  */
 function calendarPill(payload, err) {
-  const src = payload?.listSource || null;
   const bad = !!err || !!payload?.degraded;
-  const captured = src === 'snapshot';
+  // Either half can be a capture and either makes the pill say so. The list and the counts fail
+  // independently — the calendar page is bot-walled while the count API is not, and on 14 Aug 2026
+  // the count API went flat while the list capture was fine — so "Live" may only be claimed when
+  // BOTH were read live.
+  const captured = payload?.listSource === 'snapshot' || payload?.countSource === 'snapshot';
   const cls = bad
     ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
     : captured
@@ -749,9 +752,8 @@ function calendarPill(payload, err) {
       ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
       : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
   // A count of zero on a date that has named companies is the count endpoint failing, not a quiet
-  // day — see `countsAreReadable`. Say "schedule" rather than assert a number we do not believe.
-  const raw = payload?.scheduledCount;
-  const count = raw != null && (raw > 0 || !(payload?.rows?.length > 0)) ? raw : null;
+  // day. Say "schedule" rather than assert a number we do not believe.
+  const count = believableCount(payload);
   return `
     <button type="button" data-cal-info title="Where this calendar comes from, and what it does not show"
       class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
@@ -760,35 +762,29 @@ function calendarPill(payload, err) {
     </button>`;
 }
 
-// The two sentences that keep this table honest: how many report versus how many are named, and
-// how old the naming is. The count is always live, so if the schedule has moved since a capture,
-// the count and the list disagree on screen — which is the point of not freezing both together.
-function calendarNote(payload, shown, ctx) {
-  // A count below the number of companies actually named cannot be the number reporting. That is
-  // what the count endpoint returns when it goes flat — zero for every date in the window — and
-  // printing it would put "0 companies report" directly above twenty of them.
+// THE PARAGRAPH THAT USED TO SIT UNDER THIS TABLE IS GONE, AND ITS CONTENT IS NOT.
+//
+// It carried four caveats at once — the count, the 20-row cap, whether the names were captured, and
+// what a dash means — in amber, under every date, whether or not any of them applied. That is a lot
+// of prose to read past on a day when nothing is wrong.
+//
+// Each caveat now surfaces where it is actually about something: the count and its provenance are
+// in the pill and its modal, the cap and the captured-list age are in the modal, and a dash still
+// carries its own title attribute. Row 1 of the exported sheet is unchanged and still spells out
+// all of it, because a workbook leaves the page without any of this chrome. Decluttering is fine;
+// deleting the accountability is not — see the honesty rules in CLAUDE.md.
+
+/**
+ * The count Moneycontrol give for this date, or null when we do not believe it.
+ *
+ * A count BELOW the number of companies actually named cannot be the number reporting — that is
+ * what the endpoint returns when it goes flat, and printing it would put "0 companies report"
+ * directly above twenty of them. The Worker now substitutes the committed capture's counts when the
+ * live strip is flat, so this mostly guards the case where neither is available.
+ */
+function believableCount(payload, shown = payload?.rows?.length || 0) {
   const raw = payload?.scheduledCount;
-  const total = raw != null && raw >= shown ? raw : null;
-  const unreadable = raw != null && total == null;
-  const partial = total != null && payload.capped && shown < total;
-  const captured = payload?.listSource === 'snapshot';
-  return `
-    <p class="mb-6 text-[11px] leading-relaxed ${partial || captured || unreadable ? 'text-amber-700' : 'text-slate-500'}">
-      ${total != null ? `<strong>${formatNumber(total)}</strong> companies report on this date — that count is live.` : ''}
-      ${
-        unreadable
-          ? `<strong>How many report on this date is not known right now</strong> — Moneycontrol's count endpoint is answering zero for every date in this window, which it does when it fails rather than when nobody reports. ${formatNumber(shown)} ${shown === 1 ? 'company is' : 'are'} named below, and its list is capped at the ${formatNumber(payload?.listCap ?? 20)} largest by market cap, so treat this as a floor and not a total.`
-          : partial
-            ? `Moneycontrol's calendar publishes the <strong>${formatNumber(payload.listCap)} largest by market cap</strong> per date and cannot be paged past, so ${formatNumber(shown)} are named here${ctx.scope === 'portfolio' ? ' before your scope filter' : ''}.`
-            : `All ${formatNumber(shown)} are listed.`
-      }
-      ${
-        captured
-          ? `<strong>The names below are a capture</strong>, not a live read — Moneycontrol's calendar page refuses the server this runs on. Captured ${payload.listCapturedAt ? escapeHtml(formatRelativeTime(Date.parse(payload.listCapturedAt))) : 'at an unknown time'}; prices are as of then, not now.`
-          : 'Prices are live;'
-      }
-      a dash means not known, never zero.
-    </p>`;
+  return raw != null && raw >= shown ? raw : null;
 }
 
 function wireCalendarPill(root, payload, date) {
@@ -808,8 +804,12 @@ function wireCalendarPill(root, payload, date) {
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Two numbers, two sources</h3>
           <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete, unpaginated, and
-                always fetched live.</li>
+            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete and unpaginated.
+                ${
+                  payload?.countSource === 'snapshot'
+                    ? `<strong class="text-amber-700">These counts are a capture</strong>, taken ${payload.countsCapturedAt ? escapeHtml(formatRelativeTime(Date.parse(payload.countsCapturedAt))) : 'at an unknown time'}: the API is currently answering <strong>zero for every date</strong> in this window, which is its failure mode rather than a quiet fortnight — the capture holds real counts for the same dates, and names companies on them. A live zero the capture contradicts is a broken read, so the capture is shown instead of turning the strip into dashes.`
+                    : 'Fetched live.'
+                }</li>
             <li><strong>The company list</strong> — from the calendar page itself, which publishes the
                 <strong>${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap</strong> for a date and
                 offers no way to page past that. So on a busy day this table names a fraction of the count beside it,
@@ -831,6 +831,12 @@ function wireCalendarPill(root, payload, date) {
              would be worse than none — it would look exactly like a live read. That is why the pill says
              <em>Captured</em> rather than <em>Live</em>, the age is printed under the table, and the count beside it
              stays live: if the schedule has moved since the capture, the two disagree in front of you.</p>
+          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What this table is not</h3>
+          <p class="mt-1 text-xs">It is <strong>not the full list</strong> on a busy date.
+             ${escapeHtml(formatNumber(payload?.rows?.length || 0))} ${(payload?.rows?.length || 0) === 1 ? 'company is' : 'companies are'} named here
+             ${believableCount(payload) != null ? `against <strong>${escapeHtml(formatNumber(believableCount(payload)))}</strong> reporting` : ''} — Moneycontrol cap
+             the page at the ${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap and offer no way to page past it,
+             so treat the rows as a floor and the count as the total.</p>
           <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not known</em> — never zero.</p>
         </div>
       </div>`,

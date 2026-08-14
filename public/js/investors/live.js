@@ -375,9 +375,16 @@ function holdingsTable(ctx, rows, quarters, initialView) {
         sortValue: (r) => changeOf(r)?.deltaPp ?? -999,
       },
       {
-        // Theirs, and headed as such — a filing never states a rupee amount.
-        label: 'Value (Finology)',
-        get: (r) => cr(r.valueCr),
+        // STILL THEIRS, though the heading no longer says so. A filing states a percentage and
+        // never a rupee amount, so this figure is Finology's derivation from that percentage and a
+        // market cap — reproduced, not recomputed. The attribution moved off the column head and
+        // onto the cell, into the Live pill's modal and into row 1 of the export, which is the one
+        // place it cannot be skipped: a workbook travels without any of this page around it.
+        label: 'Value',
+        get: (r) =>
+          r.valueCr == null
+            ? dash
+            : `<span title="Ticker Finology's own derivation from the holding percentage and a market cap — a filing never states a rupee amount">${cr(r.valueCr)}</span>`,
         html: true,
         align: 'right',
         sortValue: (r) => r.valueCr ?? -1,
@@ -403,7 +410,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
       },
     ],
     searchable: (r) => `${r.company} ${r.investor} ${r.companySlug || ''}`,
-    initialSort: { key: 'Value (Finology)', dir: 'desc' },
+    initialSort: { key: 'Value', dir: 'desc' },
     onRowClick: (r) => openInvestor(r.slug),
     exportName: `sattva-superinvestors-${todayStamp()}`,
     onExport: () => runExport(),
@@ -482,19 +489,19 @@ function holdingsPanel() {
   const b = open?.b;
   if (!b) return `<p class="py-10 text-center text-sm text-slate-500">This investor's book has not been read yet.</p>`;
   if (!b.holdings.length) return `<p class="py-10 text-center text-sm text-slate-500">Finology publish no positions for this investor.</p>`;
+  // NO EXPLANATORY PARAGRAPH ABOVE THE TABLE. It said three things — the quarters are theirs, a
+  // dash is "not disclosed" rather than zero, and the ₹ value is their derivation — on every visit
+  // to every investor, above a table where the same facts are one hover away and already spelled
+  // out in the Live pill's modal and in row 1 of the export. The disclosure did not go anywhere;
+  // the repetition did.
   return `
-    <p class="mb-3 text-xs leading-relaxed text-slate-500">
-      Every quarter Finology publish for ${escapeHtml(b.name)}, in their own order. A dash is a quarter in which this holder was
-      <strong>not on the shareholding pattern</strong> — below the disclosure threshold a real position is invisible, so it is not a zero.
-      The ₹ value is <strong>Finology's derivation</strong> from the percentage and a market cap; a filing never states one.
-    </p>
     <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
       <table class="w-full text-sm">
         <thead class="bg-slate-50">
           <tr>
             <th scope="col" class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600">Company</th>
             ${b.quarters.map((q) => `<th scope="col" class="whitespace-nowrap px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600">${escapeHtml(q)}</th>`).join('')}
-            <th scope="col" class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600">Value (Finology)</th>
+            <th scope="col" title="Ticker Finology's own derivation from the holding percentage and a market cap — a filing never states a rupee amount" class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600">Value</th>
           </tr>
         </thead>
         <tbody>
@@ -636,7 +643,7 @@ async function runExport() {
     filename: `sattva-superinvestors-${todayStamp()}`,
     banner:
       `REAL FILED HOLDINGS, NOT OURS. Superstar investor shareholdings via Ticker Finology (ticker.finology.in), read ${new Date().toISOString()}. ` +
-      `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value (Finology)" column is THEIR derivation ` +
+      `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value Cr (Finology)" column is THEIR derivation ` +
       `from that percentage and a market cap — a shareholding filing never states a rupee amount. A BLANK QUARTER MEANS NOT DISCLOSED, NOT ZERO: below the ` +
       `disclosure threshold a real holding is invisible, so it is neither a nil position nor necessarily a sale. The only figure computed by this dashboard is ` +
       `"Change (derived)", the latest disclosed percentage minus the prior one.`,

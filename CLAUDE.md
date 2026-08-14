@@ -804,6 +804,26 @@ So `classifyChange()` tags every metric with a `kind`, `pct` is null wherever no
 exists, and the UI renders a labelled pill instead of a number. This is the same failure mode as
 the `op_vs_pat` rule in the earnings model — **check every growth figure for it.**
 
+### And a count of zero is not always a count
+
+The same trap wearing different clothes. On 14 Aug 2026 Moneycontrol's results-calendar endpoint
+began answering `0` for every date in a 25-day window — HTTP 200, `success: 1`, right columns,
+twenty-five rows, every count zero. The date strip rendered as em dashes on a day 235 companies
+were reporting, because zero is a value a count can legitimately take and nothing distinguished
+"none report" from "we could not read it".
+
+**An upstream that returns zero on failure makes every zero ambiguous**, so the resolution has to
+come from evidence rather than from the number: the committed capture holds real counts for those
+dates *and names twenty companies on each*, and a count of zero above twenty named companies is
+self-contradictory. `handleCalendar` in `worker/index.js` substitutes the capture's counts when the
+live strip carries no non-zero count anywhere and an overlapping capture does, and says so with
+`countSource`. A genuinely empty window fails that test, which is the point.
+
+What it does **not** do is fall back to `indexId=B`, which was healthy and returning 451 where NSE
+returned 258 — that is the BSE universe, a different measurement, and serving it under the previous
+label would be answering a question nobody asked. **Check every counter, total and length for this
+before rendering it.**
+
 ### Market cap is computed, not stored
 
 `mc-ticker-map.json` holds the **share count**, not the market cap. The browser multiplies it by

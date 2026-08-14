@@ -598,24 +598,27 @@ if (calReady.failed) {
   }
 
   // THE CHECK THIS VIEW EXISTS TO PASS.
+  //
+  // The count now lives in the pill rather than in a paragraph under the table, so it is read from
+  // there: "235 scheduled" when there is a believable number, the bare word "schedule" when there
+  // is not.
   const calHonesty = await page.evaluate(() => {
-    const txt = document.querySelector('#content-host').innerText;
-    const m = /([\d,]+)\s+companies report on this date/.exec(txt);
+    const pill = document.querySelector('[data-cal-info]')?.innerText || '';
+    const m = /([\d,]+)\s+scheduled/.exec(pill);
     return {
       total: m ? Number(m[1].replace(/,/g, '')) : null,
       rows: document.querySelectorAll('tr[data-row-key]').length,
-      saysCap: /largest by market cap/i.test(txt),
-      saysUnknown: /how many report on this date is not known/i.test(txt),
+      pill: pill.replace(/\s+/g, ' ').trim(),
     };
   });
-  // Moneycontrol serves the counts and the lists from two different endpoints, and the count one
-  // goes flat — zero for every date in the window — while the lists keep working. The page must
-  // never print "0 companies report" above twenty of them: with no believable count it has to say
-  // the count is unknown. Either state is acceptable; asserting a number that is not there is not.
+  // Moneycontrol serve the counts and the lists from two different endpoints and they fail
+  // independently. The page must never print "0 companies report" above twenty of them: with no
+  // believable count it says "schedule" and asserts no number. Either state is acceptable;
+  // asserting a number that is not there is not.
   if (calHonesty.total != null) {
     ok('the calendar states the complete count for the date', calHonesty.total >= calHonesty.rows, `${calHonesty.total} scheduled, ${calHonesty.rows} named`);
   } else {
-    ok('...and says so plainly when the count endpoint is not answering', calHonesty.saysUnknown, 'no count printed and no explanation either');
+    ok('...and asserts no number when the count endpoint is not answering', /schedule\s*$/i.test(calHonesty.pill), `pill reads "${calHonesty.pill}"`);
   }
 
   // The list is read live where the calendar page answers this server and comes from the committed
@@ -628,20 +631,48 @@ if (calReady.failed) {
     const shown = mod.strip().map((d) => d.date).find((d) => mod.forDate(d));
     const payload = shown ? mod.forDate(shown) : null;
     const txt = document.querySelector('#content-host').innerText;
-    return { src: payload?.listSource ?? null, pill: /\b(Live|Captured|Partial)\b/.exec(txt)?.[1] || null, saysCapture: /names below are a capture/i.test(txt) };
+    return {
+      src: payload?.listSource ?? null,
+      countSrc: payload?.countSource ?? null,
+      count: payload?.scheduledCount ?? null,
+      rows: payload?.rows?.length ?? 0,
+      days: (payload?.days || []).map((d) => d.count),
+      pill: /\b(Live|Captured|Partial)\b/.exec(txt)?.[1] || null,
+    };
   });
-  if (calSource.src === 'snapshot') {
-    ok('a captured list is labelled Captured, not Live', calSource.pill === 'Captured' && calSource.saysCapture);
-  } else if (calSource.src === 'live') {
-    ok('a live list is labelled Live and claims no capture', calSource.pill === 'Live' && !calSource.saysCapture);
+  // The pill may claim Live only when BOTH halves were read live. They fail independently — the
+  // calendar page is bot-walled while the count API is not — so either being a capture makes it
+  // "Captured".
+  const anyCapture = calSource.src === 'snapshot' || calSource.countSrc === 'snapshot';
+  if (calSource.src || calSource.countSrc) {
+    ok('a captured half is labelled Captured, never Live', anyCapture ? calSource.pill === 'Captured' : calSource.pill === 'Live', `list=${calSource.src} counts=${calSource.countSrc} pill=${calSource.pill}`);
   } else {
     ok('the payload names where the list came from', false, `listSource=${calSource.src}`);
   }
-  ok(
-    '...and says the list is a top-N when it is one',
-    calHonesty.total == null || calHonesty.rows >= calHonesty.total || calHonesty.saysCap,
-    `${calHonesty.rows} named of ${calHonesty.total}`
-  );
+
+  // A COUNT OF ZERO ABOVE TWENTY NAMED COMPANIES IS SELF-CONTRADICTORY, and on 14 Aug 2026 the
+  // upstream produced exactly that — HTTP 200, success:1, zero for every date in the window — which
+  // turned the whole strip into em dashes on a day 235 companies reported. Whatever the count says,
+  // it may never be below the number of companies the same payload names.
+  ok('the count for a date is never below the companies named on it', calSource.count == null || calSource.count >= calSource.rows, `${calSource.count} scheduled vs ${calSource.rows} named`);
+  // The strip going uniformly flat is the endpoint failing, not a quiet fortnight. The Worker
+  // substitutes the committed capture's counts; if it ever stops, this catches the dashes.
+  ok('...and the whole strip is not zero at once', calSource.days.some((c) => c > 0), `${calSource.days.filter((c) => c > 0).length} of ${calSource.days.length} dates carry a count`);
+  if (calSource.countSrc === 'snapshot') ok('...with the substituted counts named as a capture', calSource.pill === 'Captured');
+  else skip('...with the substituted counts named as a capture', 'the count endpoint is answering live');
+  // The 20-row cap used to be spelled out in a paragraph under the table; that paragraph is gone
+  // and the caveat moved into the pill's modal, which is where "what does this not show" belongs.
+  // The check follows it rather than the prose.
+  if (calHonesty.total != null && calHonesty.rows < calHonesty.total) {
+    await page.locator('[data-cal-info]').first().click();
+    await page.waitForTimeout(500);
+    const modal = await page.locator('#modal-content').innerText();
+    ok('...and the modal says the list is a top-N when it is one', /not the full list/i.test(modal) && /largest by market cap/i.test(modal), `${calHonesty.rows} named of ${calHonesty.total}`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  } else {
+    skip('...and the modal says the list is a top-N when it is one', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
+  }
 
   // Clicking another date must change both the data and the URL. A date with a zero count is
   // disabled — but when NO count is readable, none may be disabled, or the reader is locked out of
@@ -1380,7 +1411,15 @@ if (filedData) {
   // A row awaiting its filing shows a dash for the percentage and says WHY in the change column —
   // Trendlyne's own label. A zero there would report a live position as sold.
   ok('...and a holding awaiting its filing says so rather than showing zero', filedData.awaiting === 0 || /Filing Awaited/i.test(inst));
-  ok('...and the note explains what the dash means', /dash there means/i.test(inst) && /never sold/i.test(inst));
+  // The paragraph that used to spell this out under the table is gone; the explanation moved into
+  // the pill's modal, where "what does this number mean" already lived. The check follows it —
+  // asserting the prose is still on screen would be asserting the layout, not the disclosure.
+  await page.locator('[data-filed-info]').first().click();
+  await page.waitForTimeout(500);
+  const dashProv = await page.locator('#modal-content').innerText();
+  ok('...and the provenance modal explains what the dash means', /not filed/i.test(dashProv) && /(never sold|as sold|still held)/i.test(dashProv));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 
   // THE COLUMN SET IS TRENDLYNE'S: Stock, Holding Value, Qty Held, the latest quarter's change and
   // holding percentage, then the eight prior quarters. Thirteen columns, every one sortable.
@@ -1714,7 +1753,15 @@ if (siProbe.state === 'no-route') {
   const heads = await page.$$eval('#content-host thead th', (t) => t.map((x) => x.innerText.trim()));
   const qCols = await page.evaluate(async () => (await import('/js/data/super-investors.js')).quarterLabels());
   ok('every published quarter gets its own column', qCols.every((q) => heads.includes(q.toUpperCase()) || heads.includes(q)), `${qCols.length} quarters`);
-  ok('...and the two attributed columns are headed as such', heads.some((h) => /CHANGE \(DERIVED\)/i.test(h)) && heads.some((h) => /VALUE \(FINOLOGY\)/i.test(h)), heads.join(' | '));
+  // The derived column stays labelled on its head, because a change WE computed under an
+  // otherwise-theirs table is the thing most easily mistaken for theirs. The value column's
+  // heading is now plain "Value" at the reader's request, so the attribution is checked where it
+  // actually lives — on the cell, and in row 1 of the export, which travels without this page.
+  ok('the one figure we compute is headed as derived', heads.some((h) => /CHANGE \(DERIVED\)/i.test(h)), heads.join(' | '));
+  ok('...and the value column still attributes itself to Finology on the cell', await page.evaluate(() => {
+    const cell = document.querySelector('#content-host tbody tr [title*="Finology"]');
+    return !!cell && /derivation/i.test(cell.getAttribute('title'));
+  }));
 
   // A quarter the source omits must arrive as null — that is OUR transformation, and it is what
   // the whole "a blank is not a zero" rule rests on. Note what is deliberately NOT asserted: that

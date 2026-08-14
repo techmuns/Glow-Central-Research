@@ -1007,16 +1007,45 @@ So the list has two possible origins, and the payload names which one it used:
 | `listSource` | Where from | UI |
 | --- | --- | --- |
 | `live` | the calendar page, read at request time | green **Live** pill |
-| `snapshot` | `public/data/earnings-calendar.json`, captured by the scheduled job | sky **Captured** pill + the capture's age under the table |
+| `snapshot` | `public/data/earnings-calendar.json`, captured by the scheduled job | sky **Captured** pill; the age is in the pill's modal |
 
 `fetchCalendarDay()` throws a typed `CalendarPageBlocked` for "200 but no app payload" and a plain
 `Error` for "Next.js payload present but `resultCalendarData` missing" — the first falls back, the
 second is a genuine shape change and should be fixed rather than papered over.
 
-**The counts stay live in both cases.** That is the safeguard: if the schedule has moved since the
-capture, the live count and the captured list disagree in front of the reader instead of agreeing
-with each other and being wrong together. Cached 5 minutes at the edge — a schedule moves in hours,
-not ticks.
+**The counts and the list fail independently, so each names its own origin** — `countSource`
+alongside `listSource`. Where the counts are live and the list is a capture (the usual state), a
+schedule that has moved since the capture shows up as the two disagreeing in front of the reader,
+rather than as two figures agreeing with each other and being wrong together. Cached 5 minutes at
+the edge — a schedule moves in hours, not ticks.
+
+### When the count endpoint goes flat — a zero that is not a measurement
+
+On **14 Aug 2026** `api.moneycontrol.com/.../result-calendar?indexId=N` began answering `0` for
+every date in a 25-day window. Nothing errored: HTTP 200, `success: 1`, the right columns, twenty-
+five rows, every count zero. The strip rendered as em dashes on a day 235 companies were reporting.
+
+It is the endpoint's failure mode, not a quiet fortnight, and two pieces of evidence say so:
+
+- the same request with **`indexId=B`** returned 239 / 342 / 451 / 417 for the same four dates, so
+  the service is healthy and only the NSE index is empty;
+- the capture taken hours earlier holds **171 / 225 / 258 / 235** for those dates, *and names
+  twenty companies on each of them*. A count of zero above twenty named companies is
+  self-contradictory.
+
+So the Worker substitutes the capture's counts when **the live strip carries no non-zero count
+anywhere and an overlapping capture does**, and sets `countSource: 'snapshot'`. The test is
+evidence, not a threshold: a genuinely empty window fails it, because the capture would be empty
+too.
+
+**What is deliberately not done is switching to `indexId=B`.** BSE is a different universe — 451
+against 258 on the same date — so quietly serving it would answer a question nobody asked, under
+the previous question's label. Same rule as everywhere else here: reproduce the measurement that
+was requested, or say you could not.
+
+This is the `classifyChange()` failure mode in another costume. **A count is a measurement and zero
+is a value it can take, so an upstream that returns zero on failure makes every zero ambiguous.**
+Check any counter for it before rendering the number.
 
 > An earlier version of this file said there was deliberately no snapshot, on the grounds that a
 > stale schedule looks exactly like a fresh one. That was right about the danger and wrong about the

@@ -53,6 +53,14 @@ one upstream that needs `Authorization: Bearer …`, so the Worker holds the tok
 **Finology's** derivation and is headed as such. The only computed figure is the
 quarter-over-quarter change, headed *Change (derived)*. See §5d.
 
+**Known upstream fault, live now.** Moneycontrol's results-calendar count endpoint
+(`indexId=N`) started answering `0` for every date on 14 Aug 2026 — a 200 with `success: 1` and
+zeros throughout, not an error. The Worker now falls back to the committed capture's counts and
+labels them, so the strip reads 171 / 225 / 258 / 235 rather than a row of em dashes. `indexId=B`
+(BSE) is unaffected and is deliberately **not** substituted: it is a different universe. If the NSE
+index recovers, the fallback stops firing on its own — nothing needs undoing. See *When the count
+endpoint goes flat* in `docs/DATA-CONTRACTS.md`.
+
 **Institutions — three funds, and TWO DIFFERENT DISCLOSURES behind a fund picker.** This is the one
 view where the same-looking number means two different things, so read the header of
 `js/investors/filed.js` before touching it.

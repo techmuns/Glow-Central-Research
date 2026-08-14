@@ -109,7 +109,7 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
          class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">${escapeHtml(filing ? 'Trendlyne source ↗' : 'Bandhan source ↗')}</a>
     </div>
     ${table.html}
-    ${filing ? filingFootnote(fund) : portfolioFootnote(fund)}`;
+  `;
 
   return {
     html,
@@ -363,40 +363,21 @@ function disclosurePill(fund) {
     </button>`;
 }
 
-function filingFootnote(fund) {
-  return `
-    <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
-      Every heading sorts. Share counts and percentages are the filings themselves;
-      <strong>Holding Value is Trendlyne's own derivation</strong> (holding % × market cap) — a filing never discloses a
-      rupee amount. Companies file within weeks of a quarter closing and not all at once, so
-      <strong>${escapeHtml(formatNumber(fund.filedThisQuarter))}</strong> of ${escapeHtml(formatNumber(fund.stocksHeld))}
-      have filed for ${escapeHtml(fund.periodLabels[0])}; a dash there means <em>not filed</em>, never sold — the share count and value
-      are still present, and the Change column says <em>Filing Awaited</em>.
-      A holder is only named above 1%, so crossing that line either way is a disclosure event rather than necessarily a trade.
-    </p>`;
-}
-
-function portfolioFootnote(fund) {
-  const unresolved = fund.holdings.filter((h) => !h.ticker).length;
-  return `
-    <p class="mb-6 mt-3 text-[11px] leading-relaxed text-slate-500">
-      Every heading sorts. <strong>The percentage is % to NAV</strong> — how much of this fund sits in the company, not how much of
-      the company the fund owns. It is not comparable with the holding percentages on the shareholding funds above, and nothing
-      here is summed across the two.
-      Weights and values are ${escapeHtml(fund.house || 'the AMC')}'s own published figures; the only figure computed here is the
-      month-on-month change, headed <em>(pp)</em>. A blank month means the fund <em>did not hold the line</em> then, never a weight of zero.
-      ${
-        fund.former?.length
-          ? `${escapeHtml(formatNumber(fund.former.length))} ${fund.former.length === 1 ? 'line is' : 'lines are'} in the ${escapeHtml(String(fund.periods.length))}-month history but out of the book at ${escapeHtml(fund.periodLabels[0])}, and ${fund.former.length === 1 ? 'is' : 'are'} not listed above.`
-          : ''
-      }
-      ${
-        unresolved
-          ? `${escapeHtml(formatNumber(unresolved))} of ${escapeHtml(formatNumber(fund.stocksHeld))} ${unresolved === 1 ? 'line' : 'lines'} could not be matched to an NSE symbol and so ${unresolved === 1 ? 'does' : 'do'} not appear under the Portfolio scope — ${unresolved === 1 ? 'it is' : 'they are'} still a real holding, and the row says which.`
-          : ''
-      }
-    </p>`;
-}
+// THERE IS NO FOOTNOTE UNDER THIS TABLE, AND THAT IS A DELIBERATE MOVE, NOT A LOSS.
+//
+// Both kinds used to carry a dense paragraph: what the percentage measures, whose the value is,
+// what a blank means, how many lines have no ticker, how many are no longer held. All of it true,
+// all of it under every table on every visit, and by the fifth reading none of it read at all.
+//
+// Every one of those facts is still one click away in the pill's modal — which is the right home,
+// because "what does this number mean" and "where did it come from" are the same question — and
+// each cell that could mislead carries its own title attribute: a dash says whether it means *not
+// filed* or *not held*, the value column says whose figure it is, an unresolved row says why it has
+// no symbol. Row 1 of the exported sheet still spells out all of it, because a workbook is the one
+// artefact that travels without any of this chrome.
+//
+// The rule this respects is the one in CLAUDE.md: decluttering a page is fine, deleting its
+// accountability is not. What was removed is the repetition, not the disclosure.
 
 // ---------------------------------------------------------------------------------------
 // Provenance

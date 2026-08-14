@@ -278,30 +278,57 @@ async function handleCalendar(request, env, ctx) {
   ]);
 
 
-  const days = stripOut.status === 'fulfilled' ? stripOut.value : [];
+  let days = stripOut.status === 'fulfilled' ? stripOut.value : [];
 
   // The list has two possible origins and the payload must say which. Live is preferred; the
   // committed capture is the fallback, because Akamai answers a Cloudflare Worker's request for
-  // the calendar page with a 200 carrying no app payload. Counts stay live either way, so a
-  // schedule that has moved since the capture shows up as the count and the list disagreeing.
+  // the calendar page with a 200 carrying no app payload.
   let day = dayOut.status === 'fulfilled' ? dayOut.value : null;
   let listSource = day ? 'live' : null;
   let listCapturedAt = null;
   let listNote = null;
+  const snapshot = await loadCalendarSnapshot(env, request);
 
   if (!day) {
-    const snap = await loadCalendarSnapshot(env, request);
-    const hit = snap?.byDate?.[date];
+    const hit = snapshot?.byDate?.[date];
     if (hit) {
       day = { rows: hit.rows || [], asOnDate: hit.asOnDate || null, capped: !!hit.capped };
       listSource = 'snapshot';
-      listCapturedAt = snap.capturedAt || null;
+      listCapturedAt = snapshot.capturedAt || null;
     } else {
       day = { rows: [], asOnDate: null, capped: false };
-      listNote = snap
-        ? `The committed capture covers ${snap.from} to ${snap.to} and does not include this date.`
+      listNote = snapshot
+        ? `The committed capture covers ${snapshot.from} to ${snapshot.to} and does not include this date.`
         : 'No committed capture is available.';
     }
+  }
+
+  // A COUNT OF ZERO ON A DATE WE CAN NAME TWENTY COMPANIES FOR IS NOT A MEASUREMENT.
+  //
+  // `indexId=N` — the NSE index this route asks for — went flat on 14 Aug 2026 and began answering
+  // 0 for every date in a 25-day window. It is the endpoint's failure mode, not a quiet fortnight:
+  // the same request with `indexId=B` returned 239/342/451/417 for the same four dates, and the
+  // capture taken hours earlier holds 171/225/258/235 plus twenty named companies per date. A live
+  // zero that the committed capture contradicts is a broken read, and rendering it turned the whole
+  // strip into em dashes on a day 235 companies were reporting.
+  //
+  // The test is EVIDENCE, not a threshold: the live strip carries no non-zero count anywhere, and
+  // the capture — which overlaps it — does. A genuinely empty window fails that test, because the
+  // capture would be empty too. What is deliberately NOT done is switching to `indexId=B`: BSE is a
+  // different universe (451 against 258 on the same date), so quietly serving it would answer a
+  // question nobody asked, under the previous question's label.
+  let countSource = days.length ? 'live' : null;
+  let countsCapturedAt = null;
+  const liveHasCounts = days.some((d) => d.count > 0);
+  const snapDays = snapshot?.days || [];
+  const overlap = snapDays.filter((d) => d.date >= from && d.date <= to);
+
+  if (!liveHasCounts && overlap.some((d) => d.count > 0)) {
+    // Keep the live strip's dates so the window is unchanged, and take the counts from the capture.
+    const captured = new Map(overlap.map((d) => [d.date, d.count]));
+    days = (days.length ? days : overlap).map((d) => ({ ...d, count: captured.get(d.date) ?? d.count }));
+    countSource = 'snapshot';
+    countsCapturedAt = snapshot.capturedAt || null;
   }
   // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
   // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
@@ -329,6 +356,10 @@ async function handleCalendar(request, env, ctx) {
     listNote,
     // The two numbers that must never be conflated: how many report, and how many we can name.
     scheduledCount: days.find((d) => d.date === date)?.count ?? null,
+    // Counts and the company list fail independently, so they carry their provenance separately.
+    // Freezing them together would hide a schedule that has moved since the capture.
+    countSource,
+    countsCapturedAt,
     listCap: CALENDAR_LIST_CAP,
     capped: day.capped,
     days,
