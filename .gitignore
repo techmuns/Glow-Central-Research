@@ -6,3 +6,9 @@
 # `npx wrangler dev` reads this for local secrets. It holds a real API token in normal use,
 # so it is machine-local and never committed. Production values go in `wrangler secret put`.
 .dev.vars
+
+# `npx wrangler dev` also drops a Miniflare cache here (node_modules/.mf/cf.json) on every start.
+# THIS REPO HAS NO node_modules — see hard rule 2 in CLAUDE.md: no package.json, no dependency
+# tree, wrangler and playwright are invoked through npx and installed nowhere. The directory is
+# wrangler's scratch space, not ours, so it is ignored rather than committed.
+node_modules/
