@@ -36,7 +36,7 @@
 //       and every finished report links to their own rendering of it — same rule as the
 //       StockScans scores above and the Trendlyne holding values on Institutions.
 
-import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { deliveryNote } from '../ui/sources.js';
@@ -149,6 +149,11 @@ export function wireLivePill(root, m) {
              Weak / Poor, and Bullish through Bearish — use their published cut-points, so a label here means what it means
              there. This dashboard adds no scoring of its own to this view, deliberately: a band of our invention under
              their score would read as their judgement and be ours.</p>
+          <p class="mt-2 text-xs">Their bands, quoted rather than restated: <strong>80+ Excellent, 60+ Strong, 40+ Average,
+             20+ Weak, below that Poor</strong>. <strong>This dashboard does not re-band or recompute</strong> any of it, and
+             it is <strong>not this dashboard's assessment</strong> of the company.</p>
+          <p class="mt-2 text-xs">Rows are not clickable, on purpose. The summary and the transcript live on their reader, so
+             each row links out to it rather than opening a page of ours restating their analysis under our chrome.</p>
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">How fresh it is</h3>
           <p class="mt-1 text-xs">A call joins the feed when it is <em>held</em> and gains its score some minutes later, once
@@ -268,8 +273,11 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
       },
     ],
     searchable: (r) => `${r.name} ${r.ticker || ''} ${r.industry || ''} ${r.tags.join(' ')}`,
+    // The way out to StockScans, which is the one thing the removed drill panel carried that was
+    // not already on the row. Their reader is where the summary and the transcript live; this tab
+    // is their index and links to it rather than reproducing it.
+    link: (r) => r.transcriptUrl,
     initialSort: { key: 'Call', dir: 'desc' },
-    onRowClick: (r) => drillCall(r, m),
     exportName: 'sattva-concall-scans',
     onExport: (visible) => exportScans(visible, m),
     emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has held a call this quarter.' : 'No calls match your filters.',
@@ -582,81 +590,22 @@ const dayMonthOf = (date) => {
 };
 
 // ---------------------------------------------------------------------------------------
-// Drill
+// THERE IS NO DRILL PANEL ON THIS TAB, AND THE ROWS ARE INERT.
+//
+// A row used to open a 480px panel restating the score, the sentiment tier and the highlight
+// bullets already in the columns beside it, plus a link out. Everything in it was StockScans' and
+// everything in it was already on the row, so the panel's only unique content was the link — which
+// the identity cell now carries directly.
+//
+// That also removes a per-company surface for an analysis that is not ours to re-present. The rule
+// in CLAUDE.md is link, do not reproduce: full summaries and transcripts stay on StockScans, and
+// this tab surfaces their index. A panel that looked like our page about their company was the one
+// place that line blurred.
+//
+// The Earnings Hub is the precedent — its rows are inert too, and the suite asserts it. This tab
+// keeps the Deep Dive button, which is a different thing entirely: it dispatches a run on a
+// separate dashboard rather than re-rendering what is already on screen.
 // ---------------------------------------------------------------------------------------
-function drillCall(row, m) {
-  openDrill({
-    name: row.name,
-    sub: `${row.ticker || 'no ticker'} · ${row.industry || '—'}`,
-    link: row.transcriptUrl,
-    linkLabel: 'Open on StockScans ↗',
-    headerStats: [
-      {
-        label: 'Result score',
-        value: row.resultScore == null ? 'pending' : `${row.resultScore.toFixed(1)}`,
-        caption: row.resultTier ? row.resultTier.label : 'not yet analysed',
-        tone: row.resultScore == null ? 'neutral' : row.resultScore >= 60 ? 'positive' : row.resultScore < 40 ? 'negative' : 'neutral',
-      },
-      {
-        label: 'Sentiment',
-        value: row.sentiment ? row.sentiment.label : 'pending',
-        caption: row.sentimentTier == null ? 'not yet analysed' : `tier ${row.sentimentTier} of 4`,
-        tone: (row.sentimentTier ?? 2) >= 3 ? 'positive' : (row.sentimentTier ?? 2) <= 1 ? 'negative' : 'neutral',
-      },
-    ],
-    beforeGroupsHtml: `
-      <div class="mb-4 rounded-xl bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-900 ring-1 ring-emerald-200">
-        <strong>Call held ${escapeHtml(IST_FULL.format(new Date(row.when)))} IST</strong>
-        ${m?.quarter ? ` · quarter ${escapeHtml(String(m.quarter))}` : ''}.
-        ${escapeHtml(ATTRIBUTION)}
-      </div>
-      ${
-        row.tags.length
-          ? `<div class="mb-4 space-y-1.5 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed ring-1 ring-slate-200">
-               <div class="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Highlights</div>
-               ${row.tags.map(highlight).join('')}
-             </div>`
-          : ''
-      }`,
-    groups: [
-      {
-        category: 'StockScans’ assessment',
-        items: [
-          {
-            label: 'Result score',
-            criteria: 'StockScans’ own 0–100 index for the reported quarter',
-            status: row.resultScore == null ? 'na' : row.resultScore >= 60 ? 'pass' : row.resultScore >= 40 ? 'partial' : 'fail',
-            value: row.resultScore == null ? 'pending' : `${row.resultScore.toFixed(1)} / 100 — ${row.resultTier?.label}`,
-            note: 'Bands are StockScans’: 80+ Excellent, 60+ Strong, 40+ Average, 20+ Weak, below that Poor. This dashboard does not re-band or recompute it.',
-          },
-          {
-            label: 'Management sentiment',
-            criteria: 'StockScans’ 0–4 reading of management tone on the call',
-            status: row.sentimentTier == null ? 'na' : row.sentimentTier >= 3 ? 'pass' : row.sentimentTier === 2 ? 'partial' : 'fail',
-            value: row.sentiment ? `${row.sentiment.label} (${row.sentimentTier}/4)` : 'pending',
-            note: '4 Bullish · 3 Optimistic · 2 Neutral · 1 Cautious · 0 Bearish.',
-          },
-          {
-            label: 'Summary published',
-            status: row.notesReady ? 'pass' : 'na',
-            value: row.notesReady ? 'yes' : 'not yet',
-            note: row.notesReady
-              ? 'The full call summary is on StockScans — use the link above.'
-              : 'The call is listed but StockScans has not published its summary yet. Not an absence of news; an absence of analysis so far.',
-          },
-        ],
-      },
-      {
-        category: 'Provenance',
-        items: [
-          { label: 'Source', status: 'pass', value: 'StockScans', note: 'stockscans.in/concall-scans, polled every 30 seconds through this dashboard’s Worker. Scores and highlights are reproduced unchanged and are not this dashboard’s analysis.' },
-          { label: 'Ticker', status: row.ticker ? 'pass' : 'na', value: row.companyId || '—', note: 'StockScans’ own exchange-qualified identifier; the NSE symbol is taken from it directly rather than name-matched.' },
-          { label: 'Full transcript', status: row.transcriptUrl ? 'pass' : 'na', value: row.transcriptUrl ? 'on StockScans' : 'not published', note: 'Transcripts and full summaries stay on StockScans — this dashboard links to them rather than reproducing them.' },
-        ],
-      },
-    ],
-  });
-}
 
 async function exportScans(rows, m) {
   const banner = {

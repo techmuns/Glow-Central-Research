@@ -51,6 +51,9 @@ optional right-aligned count badge.
 | Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
+
+Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
+removed from the chrome, so Research Central's five tabs are the whole navigation for now.
 | Overview | Positions · Allocation |
 | Position By | Sector · Market Cap · Conviction |
 | Transaction History | All · Buys · Sells |

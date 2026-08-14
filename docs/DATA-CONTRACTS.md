@@ -1019,6 +1019,48 @@ schedule that has moved since the capture shows up as the two disagreeing in fro
 rather than as two figures agreeing with each other and being wrong together. Cached 5 minutes at
 the edge — a schedule moves in hours, not ticks.
 
+### The 20-row cap, and what a full-list source would cost — PROBED, NOT ADOPTED
+
+Moneycontrol name only the twenty largest by market cap per date, so on 14 Aug 2026 the table showed
+20 of 235. **BSE publishes the complete list and is reachable from here**, probed 14 Aug 2026:
+
+```
+GET https://api.bseindia.com/BseIndiaAPI/api/Corpforthresults/w
+      ?scripcode=&fromdate=20260814&todate=20260814&Purposecode=
+  -> 200, 147 KB, 712 rows for 14 Aug
+     [{ scrip_Code, short_name, Long_Name, meeting_date, URL }]
+```
+
+Measured against what we have today:
+
+| | Moneycontrol | BSE `Corpforthresults` |
+| --- | --- | --- |
+| Named per date | **20** (hard cap, unpageable) | **712** — the whole list |
+| Count per date | 235 (NSE) / 417 (BSE) | implicit in the row count |
+| History | counts yes, list via capture | **none** — past dates return `[]` |
+| Forward visibility | ~4 days | ~11 days, and only 3/2/1/1 rows on them |
+| Fields | price, change, market cap, time, quarter | name, BSE code, date, URL — **nothing else** |
+| Identity | Moneycontrol scID → NSE symbol | BSE scrip code; NSE symbol must be resolved |
+| CORS | open | **`access-control-allow-origin: https://www.bseindia.com`** — must be proxied |
+
+Two things that decide whether it is worth doing:
+
+- **19 of Moneycontrol's 20 named companies are in BSE's list** (FACT is the exception), so BSE is a
+  superset for the large caps, not a different population.
+- **Of our 603-company universe, 21 report on 14 Aug**, against the 20 Moneycontrol happened to
+  name. The cap barely bites for companies this dashboard covers — the other ~690 rows are BSE
+  micro-caps (7Seas Entertainment, Aanchal Ispat, Aastha Spintex). The gain is the long tail, not
+  the coverage of anything already tracked.
+
+So it is a real answer to "show all the companies", and the cost is losing price, market cap, time
+and history, plus a name→NSE-symbol resolution step for 712 rows a day.
+
+**One thing must be tested before any switch**, and this repo has been bitten by it twice:
+`www.bseindia.com` redirected to an error page from here, and only `api.bseindia.com` answered.
+Whether a **Cloudflare Worker** gets the same answer is unknown — Moneycontrol's calendar page
+gives a Worker a 200 with no payload, and `*.workers.dev` upstreams fail with error 1042. Run
+`npx wrangler dev` and curl the route through it before believing any of the above in production.
+
 ### When the count endpoint goes flat — a zero that is not a measurement
 
 On **14 Aug 2026** `api.moneycontrol.com/.../result-calendar?indexId=N` began answering `0` for

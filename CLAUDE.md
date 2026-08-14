@@ -151,6 +151,13 @@ export function destroy() {}     // detach listeners/pollers; called on nav away
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
+**There is no workspace switcher.** Research Central's five tabs are the whole nav. Portfolio
+Analytics still exists — four modules, four routes — but its `WORKSPACES` entry is marked
+`hidden: true`, so it is reachable by URL and not by clicking. Hidden rather than deleted on
+purpose: dropping the entry would make every saved `#/portfolio/…` link fall through to Research
+Central and show the reader a different page from the one they bookmarked. Bringing it back is
+deleting one flag and re-adding a control that calls `goWorkspace()`.
+
 ---
 
 ## Design tokens
@@ -408,7 +415,12 @@ What makes it honest is that the boundary never blurs:
    minutes later. Until then the score is null and renders `pending`, exactly as it does upstream.
    A zero would claim they assessed it and found it worthless.
 4. **Link, do not reproduce.** Full summaries and transcripts stay on StockScans; rows deep-link
-   to their reader. We surface their index, not their content.
+   to their reader. We surface their index, not their content. **This is also why the con-call rows
+   are inert.** They used to open a drill panel restating the score, the tier and the highlights
+   already in the columns beside them — all of it theirs — so its only unique content was the link
+   out, which is now a column. A per-company panel about somebody else's analysis, under our
+   chrome, is the one place that line blurs. The attribution it carried moved to the Live pill,
+   which is the same resolution the Earnings Hub took.
 5. **One definition of the vocabulary.** `public/js/data/stockscans-shared.js` is pure and is
    imported by `worker/stockscans.mjs`, so the browser and the Worker cannot drift about what
    "Strong" means.

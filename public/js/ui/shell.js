@@ -21,12 +21,20 @@ import * as positionBy from '../portfolio/position-by.js';
 import * as transactions from '../portfolio/transactions.js';
 import * as drawdown from '../portfolio/drawdown.js';
 
-// The nav model in one place: two workspaces, each an ordered list of tab modules.
-// Every module's `meta.subviews` supplies the rail/rail-dropdown items — nothing here is
-// duplicated per module.
+// The nav model in one place: each workspace an ordered list of tab modules. Every module's
+// `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
+//
+// PORTFOLIO ANALYTICS IS BUILT BUT NOT OFFERED. It is `hidden`, which keeps its four tabs routable
+// — a saved `#/portfolio/overview` link still resolves and renders — while removing the switcher
+// that was the only way to reach it by clicking. That is the whole change: nothing was deleted, so
+// bringing it back is deleting one flag.
+//
+// Hidden rather than removed from the array on purpose. Dropping the entry would make every
+// `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
+// page from the one they bookmarked, and would break the four modules' route contract for no gain.
 const WORKSPACES = [
   { id: 'research', label: 'Research Central', tabs: [earningsHub, concall, publicChatter, breakouts, superInvestors] },
-  { id: 'portfolio', label: 'Portfolio Analytics', tabs: [overview, positionBy, transactions, drawdown] },
+  { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
 let contentHost = null;
@@ -77,10 +85,7 @@ function shellTemplate() {
     </header>
 
     <nav class="mx-auto max-w-[1400px] px-6">
-      <div class="flex items-end gap-3">
-        <div id="workspace-mount" class="mb-1 w-48 flex-shrink-0 rounded-xl bg-white shadow-sm ring-1 ring-slate-100"></div>
-        <div id="tabbar-mount" class="min-w-0 flex-1"></div>
-      </div>
+      <div id="tabbar-mount" class="min-w-0"></div>
     </nav>
 
     <div class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-6 lg:flex-row">
@@ -164,22 +169,14 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
 
-  // NOT the same control as the scope toggle, though the word "Portfolio" appears in both and
-  // that has caused a genuine double-take. The workspace switcher picks WHICH TABS exist —
-  // Research Central's five, or Portfolio Analytics' four. The scope toggle picks WHOSE DATA the
-  // open tab shows. Removing either strands the other: with no workspace switcher the four
-  // Portfolio Analytics tabs are unreachable, and with no scope toggle no research tab can be
-  // narrowed to holdings. Both now say what they do on hover, and the toggle carries a kicker so
-  // it reads as a labelled control rather than two bare words.
-  const wsDropdown = dropdownMenu({
-    key: 'workspace',
-    kicker: 'Workspace',
-    valueLabel: ws.label,
-    title: 'Which set of tabs to show. Research Central is the five research tabs; Portfolio Analytics is four tabs about your own holdings. Separate from the Universe / Portfolio scope toggle in the header.',
-    items: WORKSPACES.map((w) => ({ id: w.id, label: w.label })),
-    activeId: ws.id,
-    onSelect: goWorkspace,
-  });
+  // THE WORKSPACE SWITCHER IS GONE FROM THE CHROME.
+  //
+  // It picked which set of tabs existed — Research Central's five, or Portfolio Analytics' four —
+  // and sat next to a scope toggle whose second option is also called "Portfolio". Two controls,
+  // one word, and a genuine double-take every time. With only one workspace offered there is
+  // nothing left to pick, so the control goes and the tab bar takes the full width.
+  //
+  // Portfolio Analytics itself is untouched and still routes; see WORKSPACES above.
 
   const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
   const activeSubviewLabel = subviewItems.find((s) => s.id === resolved.subview)?.label || '';
@@ -192,13 +189,6 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     activeId: resolved.subview,
     onSelect: goSubview,
   });
-
-  // The workspace switcher lives in the tab-bar row, not in the rail. That is what lets the rail
-  // disappear completely on a single-view tab: the content then spans the full width, and no
-  // navigation is lost — Portfolio Analytics is still one click away from every page.
-  const wsEl = $('#workspace-mount', root);
-  wsEl.innerHTML = wsDropdown.html;
-  chromeDisposers.push(wsDropdown.wire(wsEl));
 
   const hasSubviews = subviewItems.length > 0;
   const asideEl = $('#aside-content', root);
@@ -303,6 +293,14 @@ function mountTab(tabModule, resolved) {
 
 // ---- Navigation intents (all funnel through router.navigate so the URL stays canonical) -----
 
+/**
+ * Jump to a workspace's first tab.
+ *
+ * Nothing in the chrome calls this now that the switcher is gone, and it stays because it is the
+ * one place that knows how to enter a workspace correctly — first tab, first sub-view, scope
+ * preserved. Whatever brings Portfolio Analytics back calls this rather than reinventing it.
+ */
+// eslint-disable-next-line no-unused-vars
 function goWorkspace(id) {
   const ws = WORKSPACES.find((w) => w.id === id);
   if (!ws) return;

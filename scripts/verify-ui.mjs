@@ -254,9 +254,23 @@ ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapsho
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
 ok('a single small Live button instead', (await page.locator('[data-live-info]').count()) === 1);
 ok('the sub-view rail is hidden for this single-view tab', !/Latest Results|Movers|By Industry/.test(await page.locator('#aside-content').innerText()));
-// The switcher moved out of the rail and into the tab-bar row, which is what lets the rail
-// disappear entirely without stranding the Portfolio Analytics workspace.
-ok('...but the workspace switcher survives, in the header', /Research Central/.test(await page.locator('#workspace-mount').innerText()));
+// THE WORKSPACE SWITCHER IS GONE FROM THE CHROME. Only Research Central is offered, so there was
+// nothing left to pick — and it sat beside a scope toggle whose second option is also called
+// "Portfolio", which invited a genuine double-take.
+//
+// Portfolio Analytics is hidden, not deleted: the four modules still route, so a saved
+// #/portfolio/... link resolves to the page it names rather than silently landing somewhere else.
+// That is checked below, because it is the half of this change that can quietly rot.
+ok('the workspace switcher is gone from the chrome', (await page.locator('#workspace-mount').count()) === 0);
+{
+  // A hidden workspace still has to route. Deleting the entry instead of hiding it would make every
+  // saved link fall through to Research Central and show the reader a page they did not ask for.
+  await go('/#/portfolio/overview/positions?scope=universe', 2200);
+  const kept = await hostText();
+  ok('...but a saved Portfolio Analytics link still resolves to that page', /position|holding|P&L|drawdown/i.test(kept) && !/hit a snag/i.test(kept), kept.slice(0, 60));
+  ok('...and the URL is not rewritten to research', page.url().includes('/portfolio/'), page.url());
+  await go('/#/research/earnings-hub?scope=universe', 2200);
+}
 ok('...and the content spans the full width', (await page.locator('#content-host').boundingBox()).width > 1200);
 
 // The column set: date first, then the three metrics with BOTH reported periods beside each
@@ -872,13 +886,27 @@ const csBands = await page.evaluate(async () => {
 });
 ok('result tiers use StockScans’ published bands', csBands === 'Excellent,Strong,Average,Weak,Poor|true', csBands);
 
-// The drill has to carry the attribution too — and so does the export banner, which is the one
-// artefact that leaves the page without any chrome around it.
-await page.locator('tr[data-row-key]').first().click();
-await page.waitForTimeout(700);
-const csDrill = await page.locator('#drill-content').innerText();
-ok('the drill attributes the score to StockScans', /StockScans/.test(csDrill) && /not this dashboard/i.test(csDrill));
-ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csDrill));
+// CON-CALL ROWS ARE INERT, like the Earnings Hub's. The drill they used to open restated the score,
+// the tier and the highlights already in the columns beside it — all of it StockScans' — so the
+// only thing it uniquely carried was the link out, which is now a column. Removing a per-company
+// panel about somebody else's analysis is also the right side of "link, do not reproduce".
+const ccRow = page.locator('tr[data-row-key]').first();
+ok('con-call rows are not styled as clickable', !((await ccRow.getAttribute('class')) || '').includes('cursor-pointer'));
+await ccRow.click();
+await page.waitForTimeout(600);
+ok('...and clicking one opens no drill', !(await page.evaluate(() => {
+  const d = document.getElementById('drill-panel');
+  return !!d && d.classList.contains('translate-x-0');
+})));
+ok('...while the way out to their reader survives as a column', (await page.locator('#content-host tbody a[href*="stockscans"]').count()) > 0);
+
+// The attribution the drill used to carry has to still be reachable, or this is just deletion.
+// It lives behind the Live pill — the same resolution the Earnings Hub took.
+await page.locator('[data-cs-info]').first().click();
+await page.waitForTimeout(600);
+const csProv = await page.locator('#modal-content').innerText();
+ok('the Live pill attributes the score to StockScans', /StockScans/.test(csProv) && /not this dashboard/i.test(csProv));
+ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csProv));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 
@@ -1081,10 +1109,25 @@ await page.waitForTimeout(1000);
 await waitForPanel();
 await page.waitForSelector('[data-dd-ready]', { timeout: 20000 }).catch(() => {});
 ok('a fresh page load re-reads their index, exactly once', ddHits.summary === ddSummaryBeforeReload + 1, `${ddHits.summary - ddSummaryBeforeReload} fetches on this load`);
-ok('a company they already hold a report for is marked ready', (await page.locator('[data-dd-ready]').count()) === 1, `ticker ${ddRow.ticker}`);
-ok('...and the mark says the click starts no run', /Opens without starting a run/i.test((await page.getAttribute('[data-dd-ready]', 'title')) || ''));
+// EVERY row for that company, not exactly one. Their index is keyed by company, and four tickers
+// in this feed hold two calls in the window (AMAGI, HINDALCO, GMMPFAUDLR, GVPIL) — a company that
+// reported twice this quarter is two rows and one report. An earlier `=== 1` here passed only
+// because the newest row happened not to be one of those four, and failed the day it was.
+const ddReadyMarks = await page.evaluate((t) => {
+  const rows = [...document.querySelectorAll('tr[data-row-key]')];
+  const forTicker = rows.filter((r) => new RegExp(`\\b${t}\\b`).test(r.innerText));
+  return {
+    rowsForTicker: forTicker.length,
+    markedForTicker: forTicker.filter((r) => r.querySelector('[data-dd-ready]')).length,
+    markedTotal: document.querySelectorAll('[data-dd-ready]').length,
+  };
+}, ddRow.ticker);
+ok('a company they already hold a report for is marked ready', ddReadyMarks.markedForTicker === ddReadyMarks.rowsForTicker && ddReadyMarks.rowsForTicker > 0, `${ddRow.ticker}: ${ddReadyMarks.markedForTicker} of ${ddReadyMarks.rowsForTicker} rows marked`);
+ok('...and no other company is', ddReadyMarks.markedTotal === ddReadyMarks.markedForTicker, `${ddReadyMarks.markedTotal} marked in total`);
+ok('...and the mark says the click starts no run', /Opens without starting a run/i.test((await page.locator('[data-dd-ready]').first().getAttribute('title')) || ''));
 
-await page.locator('[data-dd-ready]').click();
+// `.first()`, because a company with two calls in the window has two marked buttons — see above.
+await page.locator('[data-dd-ready]').first().click();
 await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
 const ddReadyPanel = await page.locator('#workspace-panel').innerText();
 ok('...clicking it opens their report with no confirm step', /Key Takeaways/i.test(ddReadyPanel));
