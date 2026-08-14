@@ -147,8 +147,8 @@ export const RETURN_HELP = {
          timing of contributions included.</p>
        <p class="mt-2"><strong>TWR</strong> is time-weighted: daily returns chained together with the day's contributions removed first.
          It measures what the <em>strategy</em> returned, and it is the only one of the two that may be compared to an index.</p>
-       <p class="mt-3 text-slate-500">The raw equity curve rises from roughly ₹92,000 to ₹42 lakh. That is not a 4,500% return — most
-         of it is money paid in over three years, which is exactly what TWR exists to strip out.</p>`,
+       <p class="mt-3 text-slate-500">Most of the equity curve's rise is money paid in, not return earned — which is exactly what
+         TWR exists to strip out.</p>`,
 };
 
 /**

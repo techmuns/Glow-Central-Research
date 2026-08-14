@@ -12,7 +12,48 @@
 //   'pending' — nothing exists yet; named so the gap is visible rather than hidden
 
 import { escapeHtml } from '../core/dom.js';
-import { formatRelativeTime } from '../core/format.js';
+import { formatRelativeTime, formatNumber } from '../core/format.js';
+import * as coverage from '../data/coverage.js';
+import * as concalls from '../data/concall-scans.js';
+import * as earningsLive from '../data/earnings-live.js';
+import * as chatter from '../data/chatter-live.js';
+import * as institutions from '../data/institution-holdings.js';
+import * as technicals from '../data/technicals.js';
+
+// ---------------------------------------------------------------------------------------
+// NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
+//
+// This registry used to describe each feed with the numbers that were true the day it was
+// written: "1,319 companies in the current pull", "877 in the current pull", "37 Indian holdings
+// worth ₹35,818 Cr as of Jun 2026", "142 companies from the family office statement". Every one
+// of those is a measurement with a date on it, printed as though it were a property of the feed.
+// They were already drifting, and in a year they would be describing a dashboard nobody is
+// looking at — while reading, to anyone who did not know, exactly like the live counts beside
+// them. A stale number is worse than no number, because it cannot be told apart from a fresh one.
+//
+// So every quantity below is READ WHEN THE MODAL OPENS, from the same module the tab reads.
+// `num()` returns null rather than a zero when a feed has not loaded, and each sentence is
+// written to lose the clause rather than print a wrong figure — "every earnings call held this
+// quarter" is true forever; "877 of them" is true for about a day.
+// ---------------------------------------------------------------------------------------
+
+/** A live count, or null if the feed has not loaded. Never 0-as-unknown — see the header. */
+function num(fn) {
+  try {
+    const v = fn();
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+/** `clause(n, '(<n> in the current pull)')` — drops the whole clause when the count is unknown. */
+function clause(v, template) {
+  return v == null ? '' : template.replace('<n>', formatNumber(v));
+}
+/** ₹ crore, rounded the way a headline figure should be: no false precision on a big number. */
+function cr(v) {
+  return v == null ? null : `₹${formatNumber(Math.round(v))} Cr`;
+}
 
 /**
  * "How this reached you" — the line every polled feed's provenance modal carries.
@@ -59,287 +100,325 @@ export function deliveryNote(meta, { poll } = {}) {
     </p>`;
 }
 
-export const SOURCE_GROUPS = [
-  {
-    title: 'Market data',
-    icon: '💹',
-    tabs: 'Breakouts / Technical · Portfolio Analytics',
-    items: [
-      {
-        name: 'Yahoo Finance — EOD OHLCV',
-        url: 'https://finance.yahoo.com',
-        feeds:
-          'Daily close and volume for the NSE 500, every listed company in the book, and the Nifty 500 index (^CRSLDX). ' +
-          'Every technical indicator on the Breakouts tab — EMA/SMA, RSI, MACD, ADX, ATR, beta, relative strength, breakout ' +
-          'and base patterns — is computed from this. The 68 holdings that are not index constituents are scraped because they ' +
-          'are held; having no screener row behind them they carry no market cap and no FII/DII change, and the institutional ' +
-          'rule scores those N/A rather than zero.',
-        cadence: 'Weekdays 07:00 IST · GitHub Actions',
-        status: 'live',
-        file: 'public/data/technicals.json',
-      },
-      {
-        name: 'NSE bhavcopy — delivery %',
-        url: 'https://www.nseindia.com/all-reports',
-        feeds: 'Daily DELIV_PER from sec_bhavdata_full over the last ~30 trading days, folded into the Delivery Percentage rule as a recent-half vs older-half trend.',
-        cadence: 'Weekdays 07:00 IST, alongside the technicals scrape',
-        status: 'live',
-        file: 'public/data/technicals.json',
-      },
-      {
-        name: 'ATR trend accumulator',
-        url: null,
-        feeds: 'A rolling 30-day history of each ticker\'s ATR%, appended one snapshot per scrape. The ATR Stability rule needs ≥10 days before it can call the trend declining, stable or rising.',
-        cadence: 'One snapshot per technicals run',
-        status: 'live',
-        file: 'public/data/atr-history.json',
-      },
-      {
-        name: 'Munshot quote API — live prices',
-        url: 'https://muns.io',
-        feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo. It moves the CMP column ONLY — the 16-rule technicals score stays as computed from the EOD series, and a live cell is marked with an indigo dot saying so. The upstream is cache-backed, so a cold name can overrun the request budget: the response names what did not land and whether another click would fetch it.',
-        cadence: 'On demand · quotes held 45s at the edge · needs the Cloudflare Worker',
-        status: 'live',
-        file: 'worker/index.js · POST /api/live-prices',
-      },
-      {
-        name: 'NSE 500 constituent list (Screener export)',
-        url: 'https://www.screener.in/',
-        feeds: 'The coverage universe — 535 companies with name, Screener URL, market cap, sector/industry and the FII/DII holding changes the Institutional Activity rule scores.',
-        cadence: 'Manual re-export; constituents change quarterly',
-        status: 'static',
-        file: 'public/data/universe.json',
-      },
-      {
-        name: 'TradingView — indicator overlay',
-        url: 'https://in.tradingview.com/',
-        feeds: 'Optional. When a scrape is wired up it overwrites RSI, ADX, EMA-50, SMA-50 and SMA-200 with the values an analyst sees on TradingView, and the drill panel re-points those rules\' Source chip accordingly. The file ships empty today.',
-        cadence: 'Not yet scheduled',
-        status: 'pending',
-        file: 'public/data/technicals-source.json',
-      },
-    ],
-  },
-  {
-    title: 'Earnings & filings',
-    icon: '📊',
-    tabs: 'Earnings Hub · Breakouts → Earnings Surprise',
-    items: [
-      {
-        name: 'Moneycontrol — Rapid Results',
-        url: 'https://www.moneycontrol.com/markets/earnings/latest-results/',
-        feeds:
-          'The Earnings Hub, live. Revenue, gross profit and net profit for every listed company that has reported this quarter, with the prior-year comparison — 1,319 companies in the current pull. Proxied through <code class="rounded bg-slate-100 px-1">/api/earnings</code> behind a 30-second edge cache and polled by the browser, so a company that files appears within about a minute without a rebuild or a page reload.',
-        cadence: 'Live — 30s edge cache, 30s client poll. A daily snapshot is committed as the first paint and the offline fallback.',
-        status: 'live',
-        file: 'worker/index.js → /api/earnings · public/data/earnings-live.json · scripts/scrape-earnings.mjs',
-      },
-      {
-        name: 'Moneycontrol price feed — identity and share count',
-        url: 'https://www.moneycontrol.com/',
-        feeds:
-          'Resolves Moneycontrol\'s internal company code to an NSE ticker, and carries the industry and shares outstanding. This is the join that makes the results feed usable: upstream names are truncated to 15 characters, so the code is the only safe key. The share count is what lets market cap be computed live (shares × current price) rather than going stale between refreshes.',
-        cadence: 'Incremental — only companies never seen before are resolved; refreshed in full weekly',
-        status: 'live',
-        file: 'public/data/mc-ticker-map.json · scripts/scrape-earnings.mjs',
-      },
-      {
-        name: 'Yahoo Finance — result-day closes',
-        url: 'https://finance.yahoo.com/',
-        feeds:
-          'The base price for the <strong>Return since result</strong> column: the close on the date each company reported. A past close never changes, so each is fetched once and cached forever; the current price arrives live with every poll, which is what makes the column move without refetching any history.',
-        cadence: 'Incremental — one call per newly-reported company, on the daily refresh',
-        status: 'live',
-        file: 'public/data/result-returns.json · scripts/scrape-result-returns.mjs',
-      },
-      {
-        name: 'BSE / NSE corporate filings',
-        url: 'https://www.nseindia.com/companies-listing/corporate-filings-financial-results',
-        feeds:
-          'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it is live off Moneycontrol above.',
-        cadence: 'Event-driven during results season — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
-      },
-      {
-        name: 'Screener.in / Trendlyne — consensus',
-        url: 'https://www.screener.in/',
-        feeds:
-          'Street EPS and revenue estimates behind the two Surprise rules and the beat/miss tag in Breakouts. <strong class="text-amber-700">Synthetic today:</strong> generated alongside the actuals, so a beat is an artefact of the generator, not of the street.',
-        cadence: 'Refreshed alongside each result — not yet connected',
-        status: 'mock',
-        file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
-      },
-      {
-        name: 'Moneycontrol — Results Calendar (counts)',
-        url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
-        feeds:
-          'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date. Complete and unpaginated — this is the authoritative count behind every chip in the date strip.',
-        cadence: 'Live — 5-minute edge cache. A schedule moves in hours, not ticks.',
-        status: 'live',
-        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarStrip()',
-      },
-      {
-        name: 'Moneycontrol — Results Calendar (company list)',
-        url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
-        feeds:
-          'The named companies for the selected date, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one.',
-        cadence: 'Live when the page answers; otherwise the daily capture, labelled with its age',
-        status: 'live',
-        file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay() · public/data/earnings-calendar.json · scripts/scrape-calendar.mjs',
-      },
-    ],
-  },
-  {
-    title: 'Con-call scans',
-    icon: '🎙️',
-    tabs: 'Con-call',
-    items: [
-      {
-        // The provider is named in the code and in docs/DATA-CONTRACTS.md, and every row links
-        // straight to their own page for that call — but their brand is deliberately not printed
-        // on any customer-facing surface. What the reader is owed is that the analysis is NOT
-        // this dashboard's, and that claim is made in full here and on every other surface.
-        name: 'Con-call scans — third-party research provider',
-        feeds:
-          'The whole Con-call tab: every earnings call held this quarter (877 in the current pull) with the provider\'s own <strong>result score</strong> (0–100), <strong>management sentiment tier</strong> (Bullish → Bearish) and three highlight bullets per call, plus the schedule of calls not yet held, behind the <strong>Upcoming Concalls</strong> button. <strong>These are their numbers, not ours</strong> — reproduced unchanged, with their published tier bands, and this dashboard adds no scoring of its own on top. Full summaries and transcripts stay with them; every row links to theirs.',
-        cadence: 'Live — 30s edge cache on the newest page, 30s client poll. A call analysed at 14:32 is on screen by ~14:33.',
-        status: 'live',
-        file: 'worker/index.js → /api/concalls · public/data/concall-scans.json',
-      },
-      {
-        name: 'Concall Deep Dive — per-company report',
-        url: 'https://concall-sattva.tech-441.workers.dev',
-        feeds:
-          'The <strong>Deep Dive</strong> button on every scan row. A separate dashboard runs its own LLM pipeline over that company\'s call and returns a report — provenance, guidance, themes, the analyst Q&amp;A with transcript quotes, thesis and anti-thesis, financials, valuation. <strong>The whole report is theirs</strong>; this page lays it out, computes nothing on top, and links back to their own rendering. Their index of finished reports is read once per visit, which is free, and the rows it names get a filled <strong>Deep Dive ✓</strong> button that opens the report without starting anything. Every other row <strong>starts a real run that costs real compute</strong>, so it confirms first and nothing ever dispatches on its own. <strong>A report you have seen is kept on this device</strong>, so reopening it needs no run and no request at all — including after their own store drops it, which it does after about a fortnight.',
-        cadence: 'On demand — a report already on this device opens with no network; one they hold opens with one request; a new run is polled every 4s and takes minutes. A report under a fortnight old is reused from their cache.',
-        status: 'ondemand',
-        file: 'public/js/data/deep-dive.js · public/js/concall/deep-dive.js · public/js/core/store.js',
-      },
-    ],
-  },
-  {
-    title: 'Public chatter',
-    icon: '💬',
-    tabs: 'Public Chatter',
-    items: [
-      {
-        name: 'SentimentDash — mention counts and sentiment',
-        url: 'https://sentimentdash-api.tech-441.workers.dev/v1',
-        feeds:
-          'Mentions of companies and topics across <strong>ValuePickr</strong>, <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling 30 days, with a keyword-scored sentiment split per entry. ' +
-          'The counts and the sentiment are <strong>theirs</strong> and are reproduced unchanged, never re-banded. Called <strong>directly from your browser</strong>, not through this site\'s Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy here returned 404 while the API was healthy. Their ETag and a 304 keep it cheap. ' +
-          '<strong>"Mentions Δ" is a change in mention volume, not a price move</strong> — there is no price anywhere in this feed.',
-        cadence: 'Re-scraped twice daily, 01:30 and 13:30 UTC · this page polls hourly',
-        status: 'live',
-        file: 'public/js/data/chatter-live.js · window.SATTVA_CHATTER_URL in index.html',
-      },
-      {
-        name: 'Slug → NSE symbol (computed)',
-        url: null,
-        feeds:
-          '<strong>Not a feed — derived here.</strong> The chatter API has no exchange symbol: its key is a forum-topic slug like <code class="rounded bg-slate-100 px-1">tata-motors</code>, and entries are discovered bottom-up so the list also carries brokers, themes and bare words. ' +
-          'Each slug is matched, exactly and never by prefix, against universe.json, the book and the Moneycontrol ticker map. On a recent 219-entry run 45 resolved. ' +
-          'The rest are shown in their own section with the reason rather than dropped — a mis-resolved slug would file someone else\'s forum posts under a company you hold.',
-        cadence: 'Recomputed on every load',
-        status: 'static',
-        file: 'public/js/data/sentiment-shared.js',
-      },
-    ],
-  },
-  {
-    title: 'Shareholding & flows',
-    icon: '🤝',
-    tabs: 'Super Investors · Breakouts → FII Accumulation',
-    items: [
-      {
-        name: 'Ticker Finology — superstar investors',
-        url: 'https://ticker.finology.in/superstar-portfolios',
-        feeds:
-          '<strong>Real filings.</strong> The whole Superstar Investors view: every tracked investor Finology carry, and for each one the full book they publish — company by company, one column per quarter of disclosed holding percentage, with their net worth, active and total stock counts and any biography. <strong>Percentages are what the company filed with the exchanges; the ₹ value beside each holding is Finology\'s own derivation</strong> from that percentage and a market cap, reproduced unchanged rather than recomputed. A blank quarter means <strong>not disclosed</strong> — below the threshold a real holding is invisible — so it renders as a dash and is excluded from totals, never counted as zero. The one figure this dashboard computes is the quarter-over-quarter change, headed <em>Change (derived)</em>.',
-        cadence: 'Quarterly, as filings arrive · read once per visit through the Worker, then cached on the device',
-        status: 'live',
-        file: 'worker/index.js → /api/super-investors · worker/finology.mjs · public/js/data/finology-shared.js',
-      },
-      {
-        name: 'Ticker Finology — the credential',
-        url: null,
-        feeds:
-          'That API requires <code class="rounded bg-slate-100 px-1">Authorization: Bearer …</code>, so unlike every other upstream here the browser cannot call it. The Worker holds the token in <code class="rounded bg-slate-100 px-1">env.MUNS_TOKEN</code> and adds the header server-side; <strong>nothing in <code class="rounded bg-slate-100 px-1">public/</code> has ever seen it</strong>, the same arrangement as the Munshot quote route. Set or renew it with <code class="rounded bg-slate-100 px-1">npx wrangler secret put MUNS_TOKEN</code>. With no token the view says so by name instead of showing an empty grid.',
-        cadence: 'Set once per deployment · renewed if the token expires',
-        status: 'ondemand',
-        file: 'worker/index.js · .dev.vars for local development',
-      },
-      {
-        name: 'Bandhan Mutual Fund — monthly portfolio disclosures',
-        url: 'https://bandhanmutual.com/',
-        feeds:
-          "<strong>Real disclosures.</strong> Indian AMCs publish the full portfolio of every scheme each month, naming each instrument with its weight and its market value. Wired for <strong>Bandhan Focused Fund</strong> (27 holdings, ₹2,008 Cr) and <strong>Bandhan Small Cap Fund</strong> (258 holdings, ₹28,017 Cr), each with seven months of history to Jul 2026. <strong>The percentage is % to NAV — how much of the FUND is in each company</strong>, which is the opposite measurement from the shareholding filings below and is never summed with them. Weights and values are the AMC's own published figures; the only figure computed here is the month-on-month change. The NSE symbol is ours, resolved from the dashboard's other feeds, and a line that could not be matched says so rather than guessing.",
-        cadence: 'Monthly · drop the new workbook in scripts/fixtures/ and re-run the importer',
-        status: 'live',
-        file: 'public/data/institution-holdings.json · scripts/import-amc-portfolio.mjs · scripts/lib/xlsx-read.mjs · scripts/lib/company-index.mjs',
-      },
-      {
-        name: 'Trendlyne — superstar shareholdings (filed)',
-        url: 'https://trendlyne.com/portfolio/superstar-shareholders/54015/latest/smallcap-world-fund-inc/',
-        feeds:
-          '<strong>Real filings.</strong> Indian companies file their shareholding pattern with the exchanges every quarter, naming each holder above 1% with a share count and a percentage of the company; Trendlyne aggregate those filings by holder. Wired for <strong>Smallcap World Fund Inc</strong> (Capital Group) — 37 Indian holdings worth ₹35,818 Cr as of Jun 2026, with nine quarters of filed history each, plus 35 companies it previously held. <strong>Share counts and percentages are the filings; the ₹ value is Trendlyne\'s own derivation</strong> (holding % × market cap), reproduced unchanged and attributed rather than recomputed. A blank percentage means the company has not filed yet, not that the position was sold.',
-        cadence: 'Quarterly, as filings arrive over the weeks after a quarter closes · re-run the scraper',
-        status: 'live',
-        file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
-      },
-    ],
-  },
-  {
-    title: 'Portfolio',
-    icon: '💼',
-    tabs: 'Portfolio Analytics',
-    items: [
-      {
-        name: 'Direct-equity statement — the book',
-        url: null,
-        feeds:
-          'What the Portfolio toggle means on every research tab. 142 companies from the family office statement, ' +
-          'resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. Names and sectors only — no quantity, ' +
-          'no cost, no value. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger entities, ' +
-          'BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.',
-        cadence: 'When the statement changes · re-run the resolver and commit the diff',
-        status: 'static',
-        file: 'public/data/portfolio-companies.json',
-      },
-      {
-        name: 'Holdings (user-maintained)',
-        url: null,
-        feeds:
-          'The holdings list — tickers, names, sectors, conviction tiers. Quantity and average cost are NOT edited here: ' +
-          'they are derived from a FIFO replay of the ledger below, so the position table and the ledger cannot disagree.',
-        cadence: 'User-edited; qty/avgPrice regenerated with the ledger',
-        status: 'mock',
-        file: 'public/data/portfolio.json',
-      },
-      {
-        name: 'Broker contract notes',
-        url: null,
-        feeds:
-          'The buy/sell/dividend/corporate-action ledger behind the book. Which trades were made and when is synthetic; ' +
-          'every execution price in it is a real Yahoo close on a real trading day. CSV import parses in-browser and lasts until reload.',
-        cadence: 'Event-driven, per trade · regenerate with scripts/gen-mock-transactions.mjs',
-        status: 'mock',
-        file: 'public/data/mock/transactions.json',
-      },
-      {
-        name: 'Yahoo Finance — daily closes, 3 years',
-        url: 'https://query1.finance.yahoo.com/v8/finance/chart/',
-        feeds:
-          'The equity curve and every drawdown figure. Daily closes for each ticker the ledger touches plus the Nifty 500 ' +
-          '(^CRSLDX) benchmark. Tickers Yahoo will not serve are recorded in failures[] and named in the UI, never dropped.',
-        cadence: 'Weekdays 07:00 IST via GitHub Actions, alongside the technicals refresh',
-        status: 'live',
-        file: 'public/data/portfolio-history.json',
-      },
-    ],
-  },
-];
+/**
+ * Built fresh on every open, so every figure in it is the one the tabs are showing right now.
+ * Call it — do not hoist the result into a module-level const, which is how the numbers went
+ * stale in the first place.
+ */
+export function sourceGroups() {
+  const uni = num(() => technicals.all().length);
+  const reported = num(() => earningsLive.all().length);
+  const calls = num(() => concalls.all().length);
+  const book = coverage.isLoaded?.() ? coverage.meta() : null;
+  const chat = num(() => chatter.all().length);
+  const chatResolved = num(() => chatter.companies().length);
+  const funds = (() => {
+    try {
+      return institutions.isLoaded() ? institutions.all() : [];
+    } catch {
+      return [  ];
+      }
+    })();
+    const fundBlurb = (disclosure, noun) =>
+      funds
+        .filter((f) => f.disclosure === disclosure)
+        .map((f) => `<strong>${escapeHtml(f.name)}</strong> (${formatNumber(f.holdings?.length || 0)} ${noun}${
+          f.portfolioValueCr ? `, ${cr(f.portfolioValueCr)}` : ''
+        }${f.periodLabels?.length ? `, ${formatNumber(f.periodLabels.length)} ${f.periodNoun || 'period'}s to ${escapeHtml(f.periodLabels[0])}` : ''})`)
+        .join(' and ');
+
+    return [
+    {
+      title: 'Market data',
+      icon: '💹',
+      tabs: 'Breakouts / Technical · Portfolio Analytics',
+      items: [
+        {
+          name: 'Yahoo Finance — EOD OHLCV',
+          url: 'https://finance.yahoo.com',
+          feeds:
+            'Daily close and volume for the NSE 500, every listed company in the book, and the Nifty 500 index (^CRSLDX). ' +
+            'Every technical indicator on the Breakouts tab — EMA/SMA, RSI, MACD, ADX, ATR, beta, relative strength, breakout ' +
+            'and base patterns — is computed from this. The holdings that are not index constituents are scraped because they ' +
+            'are held; having no screener row behind them they carry no market cap and no FII/DII change, and the institutional ' +
+            'rule scores those N/A rather than zero.',
+          cadence: 'Weekdays 07:00 IST · GitHub Actions',
+          status: 'live',
+          file: 'public/data/technicals.json',
+        },
+        {
+          name: 'NSE bhavcopy — delivery %',
+          url: 'https://www.nseindia.com/all-reports',
+          feeds: 'Daily DELIV_PER from sec_bhavdata_full over the last ~30 trading days, folded into the Delivery Percentage rule as a recent-half vs older-half trend.',
+          cadence: 'Weekdays 07:00 IST, alongside the technicals scrape',
+          status: 'live',
+          file: 'public/data/technicals.json',
+        },
+        {
+          name: 'ATR trend accumulator',
+          url: null,
+          feeds: 'A rolling 30-day history of each ticker\'s ATR%, appended one snapshot per scrape. The ATR Stability rule needs ≥10 days before it can call the trend declining, stable or rising.',
+          cadence: 'One snapshot per technicals run',
+          status: 'live',
+          file: 'public/data/atr-history.json',
+        },
+        {
+          name: 'Munshot quote API — live prices',
+          url: 'https://muns.io',
+          feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo. It moves the CMP column ONLY — the 16-rule technicals score stays as computed from the EOD series, and a live cell is marked with an indigo dot saying so. The upstream is cache-backed, so a cold name can overrun the request budget: the response names what did not land and whether another click would fetch it.',
+          cadence: 'On demand · quotes held 45s at the edge · needs the Cloudflare Worker',
+          status: 'live',
+          file: 'worker/index.js · POST /api/live-prices',
+        },
+        {
+          name: 'NSE 500 constituent list (Screener export)',
+          url: 'https://www.screener.in/',
+          // The count rides at the END of a complete sentence, deliberately. The Sources modal opens
+          // from every screen and the technicals feed loads only when Breakouts mounts, so this
+          // figure is genuinely unknown about half the time — and a sentence built around a number
+          // that may not arrive reads as broken prose when it does not.
+          feeds: `The coverage universe: every NSE 500 constituent, with name, Screener URL, market cap, sector/industry and the FII/DII holding changes the Institutional Activity rule scores.${clause(uni, ' <n> companies in the current file.')}`,
+          cadence: 'Manual re-export; constituents change quarterly',
+          status: 'static',
+          file: 'public/data/universe.json',
+        },
+        {
+          name: 'TradingView — indicator overlay',
+          url: 'https://in.tradingview.com/',
+          feeds: 'Optional. When a scrape is wired up it overwrites RSI, ADX, EMA-50, SMA-50 and SMA-200 with the values an analyst sees on TradingView, and the drill panel re-points those rules\' Source chip accordingly. The file ships empty today.',
+          cadence: 'Not yet scheduled',
+          status: 'pending',
+          file: 'public/data/technicals-source.json',
+        },
+      ],
+    },
+    {
+      title: 'Earnings & filings',
+      icon: '📊',
+      tabs: 'Earnings Hub · Breakouts → Earnings Surprise',
+      items: [
+        {
+          name: 'Moneycontrol — Rapid Results',
+          url: 'https://www.moneycontrol.com/markets/earnings/latest-results/',
+          feeds:
+            `The Earnings Hub, live. Revenue, gross profit and net profit for every listed company that has reported this quarter, with the prior-year comparison${clause(reported, ' — <n> in the current pull')}. Proxied through <code class="rounded bg-slate-100 px-1">/api/earnings</code> behind a 30-second edge cache and polled by the browser, so a company that files appears within about a minute without a rebuild or a page reload.`,
+          cadence: 'Live — 30s edge cache, 30s client poll. A daily snapshot is committed as the first paint and the offline fallback.',
+          status: 'live',
+          file: 'worker/index.js → /api/earnings · public/data/earnings-live.json · scripts/scrape-earnings.mjs',
+        },
+        {
+          name: 'Moneycontrol price feed — identity and share count',
+          url: 'https://www.moneycontrol.com/',
+          feeds:
+            'Resolves Moneycontrol\'s internal company code to an NSE ticker, and carries the industry and shares outstanding. This is the join that makes the results feed usable: upstream names are truncated to 15 characters, so the code is the only safe key. The share count is what lets market cap be computed live (shares × current price) rather than going stale between refreshes.',
+          cadence: 'Incremental — only companies never seen before are resolved; refreshed in full weekly',
+          status: 'live',
+          file: 'public/data/mc-ticker-map.json · scripts/scrape-earnings.mjs',
+        },
+        {
+          name: 'Yahoo Finance — result-day closes',
+          url: 'https://finance.yahoo.com/',
+          feeds:
+            'The base price for the <strong>Return since result</strong> column: the close on the date each company reported. A past close never changes, so each is fetched once and cached forever; the current price arrives live with every poll, which is what makes the column move without refetching any history.',
+          cadence: 'Incremental — one call per newly-reported company, on the daily refresh',
+          status: 'live',
+          file: 'public/data/result-returns.json · scripts/scrape-result-returns.mjs',
+        },
+        {
+          name: 'BSE / NSE corporate filings',
+          url: 'https://www.nseindia.com/companies-listing/corporate-filings-financial-results',
+          feeds:
+            'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it is live off Moneycontrol above.',
+          cadence: 'Event-driven during results season — not yet connected',
+          status: 'mock',
+          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
+        },
+        {
+          name: 'Screener.in / Trendlyne — consensus',
+          url: 'https://www.screener.in/',
+          feeds:
+            'Street EPS and revenue estimates behind the two Surprise rules and the beat/miss tag in Breakouts. <strong class="text-amber-700">Synthetic today:</strong> generated alongside the actuals, so a beat is an artefact of the generator, not of the street.',
+          cadence: 'Refreshed alongside each result — not yet connected',
+          status: 'mock',
+          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
+        },
+        {
+          name: 'Moneycontrol — Results Calendar (counts)',
+          url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
+          feeds:
+            'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date. Complete and unpaginated — this is the authoritative count behind every chip in the date strip.',
+          cadence: 'Live — 5-minute edge cache. A schedule moves in hours, not ticks.',
+          status: 'live',
+          file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarStrip()',
+        },
+        {
+          name: 'Moneycontrol — Results Calendar (company list)',
+          url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
+          feeds:
+            'The named companies for the selected date, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one.',
+          cadence: 'Live when the page answers; otherwise the daily capture, labelled with its age',
+          status: 'live',
+          file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay() · public/data/earnings-calendar.json · scripts/scrape-calendar.mjs',
+        },
+      ],
+    },
+    {
+      title: 'Con-call scans',
+      icon: '🎙️',
+      tabs: 'Con-call',
+      items: [
+        {
+          // The provider is named in the code and in docs/DATA-CONTRACTS.md, and every row links
+          // straight to their own page for that call — but their brand is deliberately not printed
+          // on any customer-facing surface. What the reader is owed is that the analysis is NOT
+          // this dashboard's, and that claim is made in full here and on every other surface.
+          name: 'Con-call scans — third-party research provider',
+          feeds:
+            `The whole Con-call tab: every earnings call held this quarter${clause(calls, ' (<n> in the current pull)')} with the provider's own <strong>result score</strong> (0–100), <strong>management sentiment tier</strong> (Bullish → Bearish) and three highlight bullets per call, plus the schedule of calls not yet held, behind the <strong>Upcoming Concalls</strong> button. <strong>These are their numbers, not ours</strong> — reproduced unchanged, with their published tier bands, and this dashboard adds no scoring of its own on top. Full summaries and transcripts stay with them; every row links to theirs.`,
+          cadence: 'Live — 30s edge cache on the newest page, 30s client poll. A call analysed at 14:32 is on screen by ~14:33.',
+          status: 'live',
+          file: 'worker/index.js → /api/concalls · public/data/concall-scans.json',
+        },
+        {
+          name: 'Concall Deep Dive — per-company report',
+          url: 'https://concall-sattva.tech-441.workers.dev',
+          feeds:
+            'The <strong>Deep Dive</strong> button on every scan row. A separate dashboard runs its own LLM pipeline over that company\'s call and returns a report — provenance, guidance, themes, the analyst Q&amp;A with transcript quotes, thesis and anti-thesis, financials, valuation. <strong>The whole report is theirs</strong>; this page lays it out, computes nothing on top, and links back to their own rendering. Their index of finished reports is read once per visit, which is free, and the rows it names get a filled <strong>Deep Dive ✓</strong> button that opens the report without starting anything. Every other row <strong>starts a real run that costs real compute</strong>, so it confirms first and nothing ever dispatches on its own. <strong>A report you have seen is kept on this device</strong>, so reopening it needs no run and no request at all — including after their own store drops it, which it does after about a fortnight.',
+          cadence: 'On demand — a report already on this device opens with no network; one they hold opens with one request; a new run is polled every 4s and takes minutes. A report under a fortnight old is reused from their cache.',
+          status: 'ondemand',
+          file: 'public/js/data/deep-dive.js · public/js/concall/deep-dive.js · public/js/core/store.js',
+        },
+      ],
+    },
+    {
+      title: 'Public chatter',
+      icon: '💬',
+      tabs: 'Public Chatter',
+      items: [
+        {
+          name: 'SentimentDash — mention counts and sentiment',
+          url: 'https://sentimentdash-api.tech-441.workers.dev/v1',
+          feeds:
+            'Mentions of companies and topics across <strong>ValuePickr</strong>, <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling 30 days, with a keyword-scored sentiment split per entry. ' +
+            'The counts and the sentiment are <strong>theirs</strong> and are reproduced unchanged, never re-banded. Called <strong>directly from your browser</strong>, not through this site\'s Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy here returned 404 while the API was healthy. Their ETag and a 304 keep it cheap. ' +
+            '<strong>"Mentions Δ" is a change in mention volume, not a price move</strong> — there is no price anywhere in this feed.',
+          cadence: 'Re-scraped twice daily, 01:30 and 13:30 UTC · this page polls hourly',
+          status: 'live',
+          file: 'public/js/data/chatter-live.js · window.SATTVA_CHATTER_URL in index.html',
+        },
+        {
+          name: 'Slug → NSE symbol (computed)',
+          url: null,
+          feeds:
+            '<strong>Not a feed — derived here.</strong> The chatter API has no exchange symbol: its key is a forum-topic slug like <code class="rounded bg-slate-100 px-1">tata-motors</code>, and entries are discovered bottom-up so the list also carries brokers, themes and bare words. ' +
+            `Each slug is matched, exactly and never by prefix, against universe.json, the book and the Moneycontrol ticker map.${
+            chat != null && chatResolved != null ? ` On the current pull, ${formatNumber(chatResolved)} of ${formatNumber(chat)} resolved.` : ''
+          } ` +
+            'The rest are shown in their own section with the reason rather than dropped — a mis-resolved slug would file someone else\'s forum posts under a company you hold.',
+          cadence: 'Recomputed on every load',
+          status: 'static',
+          file: 'public/js/data/sentiment-shared.js',
+        },
+      ],
+    },
+    {
+      title: 'Shareholding & flows',
+      icon: '🤝',
+      tabs: 'Super Investors · Breakouts → FII Accumulation',
+      items: [
+        {
+          name: 'Ticker Finology — superstar investors',
+          url: 'https://ticker.finology.in/superstar-portfolios',
+          feeds:
+            '<strong>Real filings.</strong> The whole Superstar Investors view: every tracked investor Finology carry, and for each one the full book they publish — company by company, one column per quarter of disclosed holding percentage, with their net worth, active and total stock counts and any biography. <strong>Percentages are what the company filed with the exchanges; the ₹ value beside each holding is Finology\'s own derivation</strong> from that percentage and a market cap, reproduced unchanged rather than recomputed. A blank quarter means <strong>not disclosed</strong> — below the threshold a real holding is invisible — so it renders as a dash and is excluded from totals, never counted as zero. The one figure this dashboard computes is the quarter-over-quarter change, headed <em>Change (derived)</em>.',
+          cadence: 'Quarterly, as filings arrive · read once per visit through the Worker, then cached on the device',
+          status: 'live',
+          file: 'worker/index.js → /api/super-investors · worker/finology.mjs · public/js/data/finology-shared.js',
+        },
+        {
+          name: 'Ticker Finology — the credential',
+          url: null,
+          feeds:
+            'That API requires <code class="rounded bg-slate-100 px-1">Authorization: Bearer …</code>, so unlike every other upstream here the browser cannot call it. The Worker holds the token in <code class="rounded bg-slate-100 px-1">env.MUNS_TOKEN</code> and adds the header server-side; <strong>nothing in <code class="rounded bg-slate-100 px-1">public/</code> has ever seen it</strong>, the same arrangement as the Munshot quote route. Set or renew it with <code class="rounded bg-slate-100 px-1">npx wrangler secret put MUNS_TOKEN</code>. With no token the view says so by name instead of showing an empty grid.',
+          cadence: 'Set once per deployment · renewed if the token expires',
+          status: 'ondemand',
+          file: 'worker/index.js · .dev.vars for local development',
+        },
+        {
+          name: 'Bandhan Mutual Fund — monthly portfolio disclosures',
+          url: 'https://bandhanmutual.com/',
+          feeds:
+            `<strong>Real disclosures.</strong> Indian AMCs publish the full portfolio of every scheme each month, naming each instrument with its weight and its market value.${
+              fundBlurb('portfolio', 'holdings') ? ` Wired for ${fundBlurb('portfolio', 'holdings')}.` : ''
+            } <strong>The percentage is % to NAV — how much of the FUND is in each company</strong>, which is the opposite measurement from the shareholding filings below and is never summed with them. Weights and values are the AMC's own published figures; the only figure computed here is the month-on-month change. The NSE symbol is ours, resolved from the dashboard's other feeds, and a line that could not be matched says so rather than guessing.`,
+          cadence: 'Monthly · drop the new workbook in scripts/fixtures/ and re-run the importer',
+          status: 'live',
+          file: 'public/data/institution-holdings.json · scripts/import-amc-portfolio.mjs · scripts/lib/xlsx-read.mjs · scripts/lib/company-index.mjs',
+        },
+        {
+          name: 'Trendlyne — superstar shareholdings (filed)',
+          url: 'https://trendlyne.com/portfolio/superstar-shareholders/54015/latest/smallcap-world-fund-inc/',
+          feeds:
+            `<strong>Real filings.</strong> Indian companies file their shareholding pattern with the exchanges every quarter, naming each holder above 1% with a share count and a percentage of the company; Trendlyne aggregate those filings by holder.${
+              fundBlurb('shareholding', 'Indian holdings') ? ` Wired for ${fundBlurb('shareholding', 'Indian holdings')}.` : ''
+            } <strong>Share counts and percentages are the filings; the ₹ value is Trendlyne's own derivation</strong> (holding % × market cap), reproduced unchanged and attributed rather than recomputed. A blank percentage means the company has not filed yet, not that the position was sold.`,
+          cadence: 'Quarterly, as filings arrive over the weeks after a quarter closes · re-run the scraper',
+          status: 'live',
+          file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
+        },
+      ],
+    },
+    {
+      title: 'Portfolio',
+      icon: '💼',
+      tabs: 'Portfolio Analytics',
+      items: [
+        {
+          name: 'Direct-equity statement — the book',
+          url: null,
+          feeds:
+            `What the Portfolio toggle means on every research tab.${clause(book?.count, ' <n> companies')} from the family office statement, ` +
+            `resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. Names and sectors only — no quantity, ` +
+            `no cost, no value.${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
+            `BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.`,
+          cadence: 'When the statement changes · re-run the resolver and commit the diff',
+          status: 'static',
+          file: 'public/data/portfolio-companies.json',
+        },
+        {
+          name: 'Holdings (user-maintained)',
+          url: null,
+          feeds:
+            'The holdings list — tickers, names, sectors, conviction tiers. Quantity and average cost are NOT edited here: ' +
+            'they are derived from a FIFO replay of the ledger below, so the position table and the ledger cannot disagree.',
+          cadence: 'User-edited; qty/avgPrice regenerated with the ledger',
+          status: 'mock',
+          file: 'public/data/portfolio.json',
+        },
+        {
+          name: 'Broker contract notes',
+          url: null,
+          feeds:
+            'The buy/sell/dividend/corporate-action ledger behind the book. Which trades were made and when is synthetic; ' +
+            'every execution price in it is a real Yahoo close on a real trading day. CSV import parses in-browser and lasts until reload.',
+          cadence: 'Event-driven, per trade · regenerate with scripts/gen-mock-transactions.mjs',
+          status: 'mock',
+          file: 'public/data/mock/transactions.json',
+        },
+        {
+          name: 'Yahoo Finance — daily closes, 3 years',
+          url: 'https://query1.finance.yahoo.com/v8/finance/chart/',
+          feeds:
+            'The equity curve and every drawdown figure. Daily closes for each ticker the ledger touches plus the Nifty 500 ' +
+            '(^CRSLDX) benchmark. Tickers Yahoo will not serve are recorded in failures[] and named in the UI, never dropped.',
+          cadence: 'Weekdays 07:00 IST via GitHub Actions, alongside the technicals refresh',
+          status: 'live',
+          file: 'public/data/portfolio-history.json',
+        },
+      ],
+    },
+  ];
+}
 
 const STATUS_CHIP = {
   live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -355,7 +434,8 @@ const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data'
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
 export function sourcesModalHtml() {
-  const items = SOURCE_GROUPS.flatMap((g) => g.items);
+  const groups = sourceGroups();
+  const items = groups.flatMap((g) => g.items);
   const total = items.length;
   const live = items.filter((i) => i.status === 'live').length;
   const realStatic = items.filter((i) => i.status === 'static').length;
@@ -377,7 +457,7 @@ export function sourcesModalHtml() {
       </div>
 
       <div class="space-y-5">
-        ${SOURCE_GROUPS.map(
+        ${groups.map(
           (g) => `
           <div>
             <div class="mb-2 flex flex-wrap items-center gap-2">

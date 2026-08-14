@@ -1068,6 +1068,26 @@ await page.waitForTimeout(600);
 const sources = await page.locator('#modal-content').innerText();
 ok('Sources modal lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
 ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
+
+// NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
+// that was true the day the sentence was written — "1,319 companies in the current pull", "877 in
+// the current pull", "142 companies from the family office statement" — printed as though it were
+// a property of the feed. They read exactly like the live figures beside them, which is what makes
+// a stale number worse than no number. Each is now read when the modal opens, so the frozen ones
+// must NOT appear, and the live ones must agree with what the tabs are showing.
+const srcLive = await page.evaluate(async () => {
+  const [cov, ec] = [await import('/js/data/coverage.js'), await import('/js/data/earnings-live.js')];
+  return { book: cov.meta().count, uncovered: cov.meta().uncovered, reported: ec.all().length };
+});
+ok('the book count in Sources is read live, not typed', new RegExp(`\\b${srcLive.book} companies from the family office`).test(sources), `${srcLive.book} expected`);
+ok('...as is the count of lines with no NSE symbol', new RegExp(`\\b${srcLive.uncovered} lines carry no NSE symbol`).test(sources), `${srcLive.uncovered} expected`);
+if (srcLive.reported > 0) {
+  ok('...and the reported-companies count matches the feed', sources.includes(`${srcLive.reported.toLocaleString('en-US')} in the current pull`), `${srcLive.reported} expected`);
+} else {
+  skip('...and the reported-companies count matches the feed', 'the results feed has not loaded on this origin');
+}
+// A count that cannot be read must LOSE ITS CLAUSE, not print a zero or a leftover fragment.
+ok('no source describes itself with a zero count', !/\b0 (companies|holdings|lines|in the current pull)/.test(sources), (sources.match(/\b0 \w+/) || [''])[0]);
 await page.keyboard.press('Escape');
 
 // ---------------------------------------------------------------------------------------

@@ -765,6 +765,27 @@ updating three things together**: the contract in `docs/DATA-CONTRACTS.md`, the 
 `js/app.js`, and the entry in `sources.js` (including its honest `status`: `live` / `mock` /
 `pending`).
 
+**No figure in that registry may be typed by hand.** It is `sourceGroups()` — a function, called
+when the modal opens — precisely so every count is read from the same module the tab reads. It
+used to be a const array describing each feed with the numbers that were true the day the sentence
+was written: *"1,319 companies in the current pull"*, *"877 in the current pull"*, *"142 companies
+from the family office statement"*. Those are measurements with a date on them, printed as though
+they were properties of the feed, and they read exactly like the live figures beside them — which
+is what makes a stale number worse than no number.
+
+Two rules follow, and the suite asserts both:
+
+1. **Put the figure at the end of a sentence that survives without it.** `clause(n, '…<n>…')`
+   drops the whole clause when a count is unknown, and half these feeds legitimately are — the
+   Sources modal opens from every screen and most feeds load only when their tab mounts. A
+   sentence built *around* a number reads as broken prose the moment it does not arrive.
+2. **`num()` returns null, never 0.** A feed that has not loaded and a feed that is genuinely
+   empty are different claims — the same rule as everywhere else in this codebase.
+
+The same applies anywhere else prose meets data. The Transaction History financial-year filter had
+its options typed out too, so a trade in a later year had no filter to find it; they are derived
+from the ledger now.
+
 ---
 
 ## What "Portfolio" means — `js/data/coverage.js`
@@ -1274,6 +1295,9 @@ It covers, beyond the checklist below:
   that needs a period we do not have — the shape every link 404'd with
 - the con-call panel and drill say the analysis is a third party's and **never print the
   provider's brand**
+- **the Sources modal contains no hand-typed figure**: the book count, the uncovered-lines count
+  and the reported-companies count each match what the modules report, and no source describes
+  itself with a zero
 - the Sources modal opens off the status pill and lists every documented source
 - the header carries no search box and no Sources button, exactly one status pill reading
   "Live · updated <when>", and a refresh button that reports a result

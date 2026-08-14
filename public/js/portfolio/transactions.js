@@ -166,10 +166,7 @@ function renderTrades(ctx) {
         { value: 'all', label: 'All trades' },
         { value: 'Buy', label: 'Buys only' },
         { value: 'Sell', label: 'Sells only' },
-        { value: 'fy27', label: 'FY27 (Apr 2026–)' },
-        { value: 'fy26', label: 'FY26 (Apr 2025–Mar 2026)' },
-        { value: 'fy25', label: 'FY25 (Apr 2024–Mar 2025)' },
-        { value: 'fy24', label: 'FY24 (–Mar 2024)' },
+        ...financialYearOptions(rows),
       ],
       match: (r, v) => (v.startsWith('fy') ? financialYear(r.date) === v : String(r.type) === v),
     },
@@ -194,6 +191,24 @@ function renderTrades(ctx) {
   stats.wire(ctx.root);
   wireProvenancePill(ctx.root, m);
   disposers.push(table.wire(ctx.root));
+}
+
+/**
+ * The financial years actually present in the ledger, newest first.
+ *
+ * This list used to be typed out — FY27, FY26, FY25, FY24, with FY24 labelled "(–Mar 2024)" as
+ * though it were the beginning of time. Both halves of that go stale: a trade in FY28 would have
+ * had no filter to find it, and the open-ended label would still be claiming FY24 was the
+ * earliest year on file long after it was not. A filter whose options are a snapshot of the data
+ * at the moment somebody wrote it silently stops offering the data added since.
+ */
+function financialYearOptions(rows) {
+  const years = [...new Set(rows.map((r) => financialYear(r.date)).filter((v) => /^fy\d\d$/.test(v)))];
+  years.sort().reverse();
+  return years.map((value) => {
+    const end = 2000 + Number(value.slice(2));
+    return { value, label: `FY${value.slice(2)} (Apr ${end - 1}–Mar ${end})` };
+  });
 }
 
 function financialYear(date) {

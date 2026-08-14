@@ -1117,6 +1117,11 @@ export function closeModal() {
  * `meta` is the right-aligned block beside the title — right for one small pill that does not
  * change between sub-views.
  *
+ * The description is capped at `max-w-5xl` rather than the old `max-w-2xl`. A subtitle is one
+ * sentence and 42rem was breaking it onto a second line with half the content column empty to
+ * its right — which reads as a layout fault, not as a measure. 64rem holds every subtitle in the
+ * app on one line at 1440 and still stops a long one running the full 1400px.
+ *
  * `controls` is a LEFT-aligned row of its own, under the heading block. Use it whenever the set
  * of chips differs between sub-views. In `meta` they sit in a `justify-between` row, so whether
  * they render beside the title or wrap under it depends on how wide the chips and the
@@ -1132,7 +1137,7 @@ export function sectionHead({ title, description = '', meta = '', controls = '' 
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
-          ${description ? `<p class="mt-1 max-w-2xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
+          ${description ? `<p class="mt-1 max-w-5xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
         </div>
         ${meta ? `<div class="flex-shrink-0">${meta}</div>` : ''}
       </div>
