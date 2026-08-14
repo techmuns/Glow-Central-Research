@@ -246,7 +246,7 @@ export function sourceGroups() {
           name: 'Moneycontrol — Results Calendar (counts)',
           url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
           feeds:
-            'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date. Complete and unpaginated — this is the authoritative count behind every chip in the date strip.',
+            'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date — the number on every chip in the date strip. Complete and unpaginated for the <strong>NSE</strong>, which is the index it is asked for. The company list beside it is asked for <em>every</em> exchange, so on a quiet date the count can be smaller than the number of companies named; where that happens the pill prints no total, and says why.',
           cadence: 'Live — 5-minute edge cache. A schedule moves in hours, not ticks.',
           status: 'live',
           file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarStrip()',
@@ -255,10 +255,19 @@ export function sourceGroups() {
           name: 'Moneycontrol — Results Calendar (company list)',
           url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
           feeds:
-            'The named companies for the selected date, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one.',
+            'The named companies for a date <strong>still to come</strong>, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one. <strong>A date that has already happened is not answered from here at all</strong> — see the row below.',
           cadence: 'Live when the page answers; otherwise the daily capture, labelled with its age',
           status: 'live',
           file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay() · public/data/earnings-calendar.json · scripts/scrape-calendar.mjs',
+        },
+        {
+          name: 'Moneycontrol — Rapid Results (calendar, past dates)',
+          url: 'https://www.moneycontrol.com/markets/earnings/',
+          feeds:
+            'A date in the Earnings Calendar that has <strong>already happened</strong> is answered by the live results feed rather than by the schedule: every company that <em>filed</em> on that date, with its reported revenue and net profit. Not a top-20 and not a claim about the future — these are published results, the same rows as the Earnings Reported table, narrowed to one date. It needs no request of its own, which is why walking back through a reporting season is instant. The schedule\'s count for the date is still shown alongside, from the separate feed above, and the two are never differenced: companies file a day either side of their announced date, so the gap between "due" and "filed" is not a list of anybody.',
+          cadence: 'Live — the same 30-second feed as Earnings Reported',
+          status: 'live',
+          file: 'public/js/tabs/earnings-hub.js → renderCalendar() · public/js/data/earnings-live.js → reportedOn()',
         },
       ],
     },

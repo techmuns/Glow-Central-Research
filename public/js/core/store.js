@@ -36,7 +36,10 @@ const STORE = 'payloads';
 export const KEYS = {
   earnings: (subType) => `earnings:${subType}`,
   concalls: 'concalls',
-  calendar: (date) => `calendar:${date}`,
+  // The `list` half is keyed separately from the strip-only request: they are different
+  // representations of the same date and storing them under one key would let a strip-only
+  // response answer for a request that wanted the company list, or the reverse.
+  calendar: (date, list = 'full') => (list === 'full' ? `calendar:${date}` : `calendar:${date}:${list}`),
   // One entry per investor rather than one blob for all of them. Each book has its own ETag
   // upstream, so a quarter landing for one investor must not invalidate the other fifty.
   investorList: 'investors:list',
@@ -292,14 +295,28 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
  * `data/`. Those are static assets served with an ETag, so `no-cache` means "revalidate, do not
  * re-download" — a 304 on a 1.1MB file costs a couple of hundred bytes. They were being fetched
  * with `no-store`, which forbids reuse entirely and made every reload pay full price.
+ *
+ * IN-FLIGHT REQUESTS ARE SHARED, AND THAT IS NOT THE SAME AS BEING CACHED.
+ * Two modules ask for `universe.json` on the same page load and two ask for `mc-ticker-map.json`.
+ * The browser's cache cannot help there: both requests are issued in the same tick, so neither has
+ * anything to revalidate against and both download in full — 163KB and 249KB, twice. Keying the
+ * promise by path collapses each pair into one request. It is deliberately only the promise that
+ * is shared, not the parsed value: a later, separate call still revalidates, so this cannot serve
+ * a stale file — it can only stop the same file being fetched twice at once.
  */
-export async function revalidatedJson(path, { optional = false } = {}) {
-  try {
-    const res = await fetch(path, { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`${path} (${res.status})`);
-    return await res.json();
-  } catch (err) {
-    if (optional) return null;
-    throw err;
-  }
+const inFlightJson = new Map();
+
+export function revalidatedJson(path, { optional = false } = {}) {
+  const existing = inFlightJson.get(path);
+  if (existing) return optional ? existing.catch(() => null) : existing;
+
+  const p = fetch(path, { cache: 'no-cache' })
+    .then((res) => {
+      if (!res.ok) throw new Error(`${path} (${res.status})`);
+      return res.json();
+    })
+    .finally(() => inFlightJson.delete(path));
+
+  inFlightJson.set(path, p);
+  return optional ? p.catch(() => null) : p;
 }

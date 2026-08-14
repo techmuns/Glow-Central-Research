@@ -30,7 +30,7 @@
 //   The upstream re-scrapes twice a day, at 01:30 and 13:30 UTC. Anything faster asks a question
 //   whose answer cannot have changed, and an unchanged poll is a bodyless 304 against their ETag.
 
-import { conditionalJson, KEYS } from '../core/store.js';
+import { conditionalJson, revalidatedJson, KEYS } from '../core/store.js';
 import { buildResolverIndex, resolveAll, fingerprint, normaliseDashboard, SOURCE_LABEL } from './sentiment-shared.js';
 import * as coverage from './coverage.js';
 
@@ -181,10 +181,10 @@ async function buildIndex() {
 
   for (const h of coverage.holdings()) if (h.ticker) sources.push({ ticker: h.ticker, name: h.name });
 
-  const [uni, mc] = await Promise.all([
-    fetch('data/universe.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    fetch('data/mc-ticker-map.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-  ]);
+  // Through `revalidatedJson`, not a bare fetch: the Earnings Hub reads these same two files, and
+  // when both tabs are visited in one session the in-flight sharing there turns two downloads of
+  // 163KB and 249KB into one each. Same headers, same revalidation — only the duplication goes.
+  const [uni, mc] = await Promise.all([revalidatedJson('data/universe.json', { optional: true }), revalidatedJson('data/mc-ticker-map.json', { optional: true })]);
 
   for (const row of Array.isArray(uni) ? uni : []) {
     const t = String(row['Screener URL'] || '').match(/\/company\/([^/]+)/)?.[1];

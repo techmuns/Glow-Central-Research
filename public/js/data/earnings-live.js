@@ -269,9 +269,29 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   const byTicker = new Map();
   for (const r of rows) if (r.ticker) byTicker.set(r.ticker, r);
 
+  // Indexed by result date, because the calendar half of the tab asks "who filed on this day?"
+  // on every date click. Scanning 1,722 rows per click is affordable and building the index once
+  // per ingest is free, and it also gives us the window the feed actually covers — which is the
+  // difference between "nobody reported" and "we do not carry that date".
+  const byDate = new Map();
+  for (const r of rows) {
+    if (!r.resultDate) continue;
+    const list = byDate.get(r.resultDate);
+    if (list) list.push(r);
+    else byDate.set(r.resultDate, [r]);
+  }
+  let firstDate = null;
+  let lastDate = null;
+  for (const d of byDate.keys()) {
+    if (!firstDate || d < firstDate) firstDate = d;
+    if (!lastDate || d > lastDate) lastDate = d;
+  }
+
   cache = {
     rows,
     byTicker,
+    byDate,
+    dateRange: { first: firstDate, last: lastDate },
     meta: {
       ...(payload?.meta || {}),
       latestResultDate: payload?.latestResultDate ?? null,
@@ -530,6 +550,34 @@ export function newArrivals() {
 }
 export function clearArrivals() {
   arrivals = [];
+}
+
+/**
+ * Every company that FILED on one date, in the upstream's own order within the day.
+ *
+ * This is a measurement, not a schedule: these companies have published. The calendar half of the
+ * Earnings Hub uses it for any date that has already happened, because for a past date "who was
+ * due" is the weaker question and Moneycontrol only answer it twenty companies at a time — where
+ * this is every one of them, already on the device, with the reported figures attached.
+ */
+export function reportedOn(iso) {
+  return (cache?.byDate?.get(iso) || []).slice();
+}
+
+/** How many filed on one date. The date strip asks this once per chip, so it must not copy. */
+export function reportedCount(iso) {
+  return cache?.byDate?.get(iso)?.length || 0;
+}
+
+/**
+ * The span of result dates this feed carries, as `{ first, last }` (nulls before first load).
+ *
+ * Needed to tell two very different empty answers apart: a date inside the window with nothing on
+ * it means nobody filed that day, and a date before `first` means this feed does not reach back
+ * that far. Rendering both as an empty table would state the first while meaning the second.
+ */
+export function dateRange() {
+  return cache?.dateRange || { first: null, last: null };
 }
 
 /**

@@ -7,6 +7,7 @@
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
 //   GET  /api/earnings?fields=prices           ->  just the traded prices, for the poll
 //   GET  /api/earnings-calendar                ->  who is SCHEDULED to report, and when
+//   GET  /api/earnings-calendar?list=none      ->  the date strip alone, no per-date company list
 //   GET  /api/concalls                         ->  the live StockScans con-call scan
 //   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
@@ -281,7 +282,7 @@ function structureTagOf(rows, salt) {
 }
 
 // ---------------------------------------------------------------------------------------
-// GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
+// GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=none]
 //
 // The forward-looking half of the Earnings Hub. Two upstreams, because Moneycontrol splits it:
 // a clean JSON date strip with the COMPLETE count per date, and the calendar page itself for the
@@ -306,7 +307,18 @@ async function handleCalendar(request, env, ctx) {
   const from = iso(url.searchParams.get('from')) || shiftDays(date, -7);
   const to = iso(url.searchParams.get('to')) || shiftDays(date, 14);
 
-  const cacheKey = edgeKey(`earnings-calendar?date=${date}&from=${from}&to=${to}`);
+  // `list=none` — the strip only. The Earnings Hub asks for this on any date that has already
+  // reported, because the results feed already names every company that filed on it, completely,
+  // where this route could only offer the twenty largest. Serving that request costs ONE JSON call
+  // instead of a bot-walled page fetch plus up to 25 identity look-ups, and the saving is per cache
+  // window rather than per reader.
+  //
+  // It is a different representation, not a cheaper version of the same one, so it gets its own
+  // cache key and says `listRequested: false` — an empty `rows` that did not say why would read as
+  // "nobody reports on this date", which is the one thing this route must never imply.
+  const wantsList = url.searchParams.get('list') !== 'none';
+
+  const cacheKey = edgeKey(`earnings-calendar?date=${date}&from=${from}&to=${to}&list=${wantsList ? 'full' : 'none'}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -315,7 +327,7 @@ async function handleCalendar(request, env, ctx) {
   // always available, and losing it because the page 403'd would be the wrong trade.
   const [stripOut, dayOut] = await Promise.allSettled([
     fetchCalendarStrip({ fromDate: from, toDate: to }),
-    fetchCalendarDay({ date }),
+    wantsList ? fetchCalendarDay({ date }) : Promise.resolve(null),
   ]);
 
 
@@ -330,7 +342,11 @@ async function handleCalendar(request, env, ctx) {
   let listNote = null;
   const snapshot = await loadCalendarSnapshot(env, request);
 
-  if (!day) {
+  if (!wantsList) {
+    // Not asked for, so not looked for. `listSource` stays null and `listRequested: false` travels
+    // in the payload; nothing here may pretend to have checked.
+    day = { rows: [], asOnDate: null, capped: false };
+  } else if (!day) {
     const hit = snapshot?.byDate?.[date];
     if (hit) {
       day = { rows: hit.rows || [], asOnDate: hit.asOnDate || null, capped: !!hit.capped };
@@ -373,17 +389,21 @@ async function handleCalendar(request, env, ctx) {
   }
   // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
   // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
-  // industry. Resolving them here is bounded by the page's own 20-row cap.
-  const known = (await loadTickerMap(env, request)) || {};
-  const { resolved, attempted, failed } = await resolveMissing(day.rows, known, { limit: 25 });
+  // industry. Resolving them here is bounded by the page's own 20-row cap. Skipped wholesale when
+  // no list was asked for — including the ticker map, which is a 255KB asset read and a parse.
+  const known = wantsList ? (await loadTickerMap(env, request)) || {} : {};
+  const { resolved, attempted, failed } = wantsList ? await resolveMissing(day.rows, known, { limit: 25 }) : { resolved: {}, attempted: 0, failed: 0 };
   const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
 
   const payload = {
     ok: true,
     resolvedOnTheFly: attempted,
     unresolved: failed,
-    degraded:
-      listSource === 'live'
+    degraded: !wantsList
+      ? // Nothing is degraded: the list was not requested. Saying otherwise would report a failure
+        // that did not happen, and the caller in this mode has a better list than this route's.
+        null
+      : listSource === 'live'
         ? null
         : listSource === 'snapshot'
           ? null // not degraded — a labelled capture, and the UI prints how old it is
@@ -392,6 +412,9 @@ async function handleCalendar(request, env, ctx) {
     from,
     to,
     asOnDate: day.asOnDate,
+    // `false` means the caller did not ask for the company list, so `rows: []` here is not a claim
+    // that nobody reports on this date. Any consumer reading `rows` must check this first.
+    listRequested: wantsList,
     listSource,
     listCapturedAt,
     listNote,
@@ -417,7 +440,7 @@ async function handleCalendar(request, env, ctx) {
   }
 
   const { body, tag } = withTag(payload);
-  const extra = { 'x-sattva-list-source': listSource || 'none' };
+  const extra = { 'x-sattva-list-source': wantsList ? listSource || 'none' : 'not-requested' };
   ctx?.waitUntil?.(cache.put(cacheKey, tagged(body, tag, CALENDAR_TTL_S, extra)));
   return revalidate(request, tagged(body, tag, CALENDAR_TTL_S, extra), 'miss');
 }

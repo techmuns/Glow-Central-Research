@@ -146,7 +146,23 @@ const setHidden = (hidden) =>
     Object.defineProperty(document, 'visibilityState', { value: h ? 'hidden' : 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   }, hidden);
-const rowCount = () => page.locator('tr[data-row-key]').count();
+/**
+ * Wait for every table on screen to have finished streaming its rows in.
+ *
+ * `scoreTable` paints a screenful and appends the rest while the browser is idle, which is what
+ * took a tab switch from ~900ms of blocked main thread to ~60ms. It marks the section
+ * `data-rows-pending="N"` while rows are outstanding and drops the attribute when none are — so a
+ * check that counts rows waits for that rather than racing it. Every assertion here is about the
+ * settled table; the streaming itself is asserted separately in section 11.
+ */
+const settleTables = () =>
+  page
+    .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]'), null, { timeout: 20000 })
+    .catch(() => {});
+const rowCount = async () => {
+  await settleTables();
+  return page.locator('tr[data-row-key]').count();
+};
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
 
 /**
@@ -624,12 +640,20 @@ if (!hasLiveRoute) {
 }
 
 // ---------------------------------------------------------------------------------------
-// 2c. Earnings Calendar — the forward-looking half of the tab.
+// 2c. Earnings Calendar — one date, two questions, and never both in the same table.
 //
-// The honesty check here is the one that matters: the per-date COUNT is complete (a clean JSON
-// API) while the company LIST is the twenty largest by market cap (the page cannot be paged past).
-// Twenty rows under a bare heading would assert that twenty companies report. The table must name
-// both numbers.
+// A date that has already happened is answered by the RESULTS FEED: every company that filed on
+// it, complete, already in memory. A date still to come is answered by Moneycontrol's SCHEDULE,
+// where the per-date count is complete (a clean JSON API) but the company list is the twenty
+// largest by market cap, because the page cannot be paged past.
+//
+// So there are two honesty checks, not one:
+//   · a reported date must be labelled as filings, not as a schedule, and must not wear the
+//     schedule's top-20 caveats — it has no cap;
+//   · a scheduled date must still name both numbers, because twenty rows under a bare heading
+//     would assert that twenty companies report.
+// And the count of what was due may never be presented as arithmetic against what was filed:
+// companies file a day either side, so the difference is not a list of anybody.
 // ---------------------------------------------------------------------------------------
 console.log('\n— earnings calendar —');
 await go('/#/research/earnings-hub?scope=universe', 800);
@@ -637,8 +661,9 @@ await waitForPanel();
 ok('the tab offers Reported / Calendar', (await page.locator('[data-view]').count()) === 2);
 
 await page.locator('[data-view="calendar"]').click();
-// The calendar is a live round trip with no snapshot fallback, so wait for the strip or the
-// failure panel rather than a fixed sleep.
+// The calendar opens on the newest date anything actually filed, which is answered from memory —
+// so the table is there before any round trip. Wait for the strip and the rows, or for the
+// failure panel a future-dated URL with no Worker would produce.
 const calReady = await (async () => {
   const started = Date.now();
   while (Date.now() - started < 30000) {
@@ -653,10 +678,55 @@ const calReady = await (async () => {
   return { chips: 0, failed: false, rows: 0 };
 })();
 
+// THE FIX THIS SECTION WAS EXTENDED FOR. Walking back through the strip used to show either a
+// twenty-row capture or an amber "counts only for this date" note, depending on whether the
+// committed capture happened to reach that far — on dates where the results feed knows exactly who
+// filed. A past date must now render filings, with no network needed and no cap.
+const past = await page.evaluate(async () => {
+  const feed = await import('/js/data/earnings-live.js');
+  const { first, last } = feed.dateRange();
+  if (!first || !last) return null;
+  // The busiest date the feed covers, which is the one with the most to lose by being blank.
+  const dates = [...new Set(feed.all().map((r) => r.resultDate).filter(Boolean))];
+  const busiest = dates.sort((a, b) => feed.reportedCount(b) - feed.reportedCount(a))[0];
+  return { busiest, filed: feed.reportedCount(busiest), first, last };
+});
+if (past?.busiest) {
+  await page.evaluate((d) => document.querySelector(`[data-date="${d}"]`)?.click(), past.busiest);
+  await page.waitForTimeout(600);
+  const shown = await page.evaluate(() => ({
+    rows: document.querySelectorAll('tr[data-row-key]').length,
+    pill: (document.querySelector('[data-cal-info]')?.innerText || '').replace(/\s+/g, ' ').trim(),
+    text: document.querySelector('#content-host').innerText,
+    heads: [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase()),
+  }));
+  await settleTables();
+  const settled = await rowCount();
+  ok('a date that has already reported lists every company that filed', settled === past.filed, `${settled} rows for ${past.busiest}, feed holds ${past.filed}`);
+  ok('...which is more than the schedule page could ever name', past.filed > 20, `${past.filed} filed vs a 20-row cap`);
+  ok('...and it is labelled as filings, not as a schedule', /\bReported\b/.test(shown.pill) && /filed/i.test(shown.pill), `pill reads "${shown.pill}"`);
+  ok('...with the reported figures on the row, not a schedule time', shown.heads.some((h) => h.startsWith('NET PROFIT')) && !shown.heads.includes('TIME'), shown.heads.join(' | '));
+  ok('...and says so above the table rather than leaving the source to be guessed', /filed on/i.test(shown.text) && /results feed/i.test(shown.text));
+  // The two counts come from different upstreams measuring different things. Printing a
+  // difference between them would name a set of companies that does not exist.
+  ok('...and never differences "due" against "filed"', !/\d+\s+(did not|failed to|yet to|missing|outstanding)/i.test(shown.text), 'no subtraction of the two counts');
+
+  // The modal behind the pill must answer for THIS table. The schedule's caveats are about a cap
+  // this one does not have, so reusing them would warn about something that is not happening.
+  await page.locator('[data-cal-info]').first().click();
+  await page.waitForTimeout(400);
+  const repModal = await page.locator('#modal-content').innerText();
+  ok('...and its provenance modal describes filings, not the schedule', /have filed/i.test(repModal) && /not a top-20|no such cap/i.test(repModal));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+} else {
+  skip('a date that has already reported lists every company that filed', 'the results feed carries no dated rows');
+}
+
 if (calReady.failed) {
   // No Worker on this origin. The view must say so, not draw an empty calendar.
   ok('without the live route, the calendar says so', /could not be loaded/i.test(await hostText()));
-  ok('...and explains why there is no offline copy', /claim about the future|stale/i.test(await hostText()));
+  ok('...and explains what still works without it', /already happened|results feed/i.test(await hostText()));
   console.log('      (calendar round trip not exercised — no /api/earnings-calendar on this origin)');
   // Everything after this section reads the results table, so go back to it either way.
   await page.locator('[data-view="reported"]').click();
@@ -664,10 +734,50 @@ if (calReady.failed) {
 } else {
   ok('the calendar renders a date strip with counts', calReady.chips > 5, `${calReady.chips} dates`);
   ok('...and the URL records the view', page.url().includes('view=calendar'));
-  const calHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
-  for (const c of ['DATE', 'COMPANY', 'QUARTER', 'TIME', 'PRICE', 'MARKET CAP']) {
-    ok(`calendar column: ${c}`, calHeads.some((h) => h.startsWith(c)), calHeads.join(' | '));
-  }
+
+  // Walk forward to a date still to come, which is where the schedule half — and every caveat
+  // about it — actually applies. Without a Worker there may be none, in which case the rest of
+  // this block is skipped rather than asserted against the wrong mode.
+  // The busiest future date, not merely the nearest: the nearest is often a weekend or a date with
+  // a count of one, and the caveats this block checks are about a date that HAS a list.
+  const futureDate = await page.evaluate(async () => {
+    const mod = await import('/js/data/earnings-calendar.js');
+    const today = new Date().toISOString().slice(0, 10);
+    const enabled = new Set([...document.querySelectorAll('[data-date]:not([disabled])')].map((b) => b.dataset.date));
+    const ahead = mod
+      .strip()
+      .filter((d) => d.date > today && enabled.has(d.date) && d.count > 0)
+      .sort((a, b) => b.count - a.count);
+    return ahead[0]?.date || [...enabled].filter((d) => d > today).sort()[0] || null;
+  });
+  if (!futureDate) {
+    skip('the schedule half of the calendar', 'no future-dated chip in the strip — the count API is not answering on this origin');
+  } else {
+    await page.evaluate((d) => document.querySelector(`[data-date="${d}"]`)?.click(), futureDate);
+    // WAIT FOR THE SCHEDULE, DO NOT SLEEP AT IT. A cold `list=full` costs the Worker the Akamai
+    // page fetch plus up to 25 identity look-ups, so a fixed pause passes on a warm edge cache and
+    // reads a shimmer on a cold one — which is a flaky check, not a finding. Settle on any
+    // determinate end state: a table, an honest empty panel, or the degraded note.
+    await page
+      .waitForFunction(
+        () => {
+          const host = document.querySelector('#content-host');
+          if (!host || host.querySelector('.skeleton-shimmer')) return false;
+          return !!host.querySelector('thead th') || /Nothing scheduled|Counts only for this date|could not be loaded/i.test(host.innerText);
+        },
+        null,
+        { timeout: 45000 }
+      )
+      .catch(() => {});
+    const calHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()));
+    // A future date with no readable list is a real and honest state (the page is bot-walled and
+    // the capture may not reach that far) — but it is not a table, so there are no columns to
+    // check. Say which it is rather than failing six assertions on an empty panel.
+    const calState = calHeads.length ? 'table' : (await hostText()).slice(0, 90).replace(/\s+/g, ' ');
+    for (const c of ['DATE', 'COMPANY', 'QUARTER', 'TIME', 'PRICE', 'MARKET CAP']) {
+      if (calHeads.length) ok(`calendar column: ${c}`, calHeads.some((h) => h.startsWith(c)), calHeads.join(' | '));
+      else skip(`calendar column: ${c}`, `${futureDate} has no readable list — "${calState}"`);
+    }
 
   // THE CHECK THIS VIEW EXISTS TO PASS.
   //
@@ -700,10 +810,14 @@ if (calReady.failed) {
   // chance of asking about a different date than the one on screen.
   const calSource = await page.evaluate(async () => {
     const mod = await import('/js/data/earnings-calendar.js');
-    const shown = mod.strip().map((d) => d.date).find((d) => mod.forDate(d));
+    // Only a `full` request carries a list to have a source, which is exactly the request a
+    // future-dated chip makes. A `none` payload has `listRequested: false` and is not a claim
+    // about anything, so it is not what this check is about.
+    const shown = mod.strip().map((d) => d.date).find((d) => mod.forDate(d)?.listRequested);
     const payload = shown ? mod.forDate(shown) : null;
     const txt = document.querySelector('#content-host').innerText;
     return {
+      found: !!payload,
       src: payload?.listSource ?? null,
       countSrc: payload?.countSource ?? null,
       count: payload?.scheduledCount ?? null,
@@ -718,18 +832,45 @@ if (calReady.failed) {
   const anyCapture = calSource.src === 'snapshot' || calSource.countSrc === 'snapshot';
   if (calSource.src || calSource.countSrc) {
     ok('a captured half is labelled Captured, never Live', anyCapture ? calSource.pill === 'Captured' : calSource.pill === 'Live', `list=${calSource.src} counts=${calSource.countSrc} pill=${calSource.pill}`);
-  } else {
+  } else if (calSource.found) {
     ok('the payload names where the list came from', false, `listSource=${calSource.src}`);
+  } else {
+    // Neither upstream answered for any date in the strip, which the panel already reports in
+    // words. Asserting provenance on a payload that does not exist would be checking nothing.
+    skip('the payload names where the list came from', 'no full-list payload was fetched on this origin');
   }
 
-  // A COUNT OF ZERO ABOVE TWENTY NAMED COMPANIES IS SELF-CONTRADICTORY, and on 14 Aug 2026 the
-  // upstream produced exactly that — HTTP 200, success:1, zero for every date in the window — which
-  // turned the whole strip into em dashes on a day 235 companies reported. Whatever the count says,
-  // it may never be below the number of companies the same payload names.
-  ok('the count for a date is never below the companies named on it', calSource.count == null || calSource.count >= calSource.rows, `${calSource.count} scheduled vs ${calSource.rows} named`);
+  // A COUNT BELOW THE COMPANIES NAMED UNDER IT MAY NEVER BE PRINTED AS A TOTAL.
+  //
+  // Two upstream conditions produce that, and the check is about the RENDERED claim rather than the
+  // raw payload, because only one of them is a fault:
+  //   · the count endpoint goes flat and answers 0 for every date — that is broken, and on
+  //     14 Aug 2026 it turned the strip into em dashes on a day 235 companies reported;
+  //   · the count is NSE (`indexId=N`) and the list is every exchange (`indexId=All`), so a date
+  //     with one NSE filer and two BSE-only ones legitimately reads 1 above three rows.
+  // Asserting `count >= rows` on the payload would fail the second, which is correct data. What
+  // must hold either way is that the pill declines to print a number it cannot stand behind.
+  ok(
+    'a count below the companies named on the date is never printed as a total',
+    calSource.count == null || calSource.count >= calSource.rows || calHonesty.total == null,
+    `payload: ${calSource.count} scheduled vs ${calSource.rows} named — pill reads "${calHonesty.pill}"`
+  );
+  if (calSource.count != null && calSource.count < calSource.rows) {
+    // ...and the reader is told why the number is missing, rather than left with a bare word.
+    await page.locator('[data-cal-info]').first().click();
+    await page.waitForTimeout(400);
+    const why = await page.locator('#modal-content').innerText();
+    ok('...and the modal explains the two exchanges behind it', /same exchanges/i.test(why) && /NSE/.test(why));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  }
   // The strip going uniformly flat is the endpoint failing, not a quiet fortnight. The Worker
   // substitutes the committed capture's counts; if it ever stops, this catches the dashes.
-  ok('...and the whole strip is not zero at once', calSource.days.some((c) => c > 0), `${calSource.days.filter((c) => c > 0).length} of ${calSource.days.length} dates carry a count`);
+  if (calSource.found) {
+    ok('...and the whole strip is not zero at once', calSource.days.some((c) => c > 0), `${calSource.days.filter((c) => c > 0).length} of ${calSource.days.length} dates carry a count`);
+  } else {
+    skip('...and the whole strip is not zero at once', 'no full-list payload was fetched on this origin');
+  }
   if (calSource.countSrc === 'snapshot') ok('...with the substituted counts named as a capture', calSource.pill === 'Captured');
   else skip('...with the substituted counts named as a capture', 'the count endpoint is answering live');
   // The 20-row cap used to be spelled out in a paragraph under the table; that paragraph is gone
@@ -745,10 +886,12 @@ if (calReady.failed) {
   } else {
     skip('...and the modal says the list is a top-N when it is one', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
   }
+  } // end of the future-dated (schedule) branch
 
   // Clicking another date must change both the data and the URL. A date with a zero count is
   // disabled — but when NO count is readable, none may be disabled, or the reader is locked out of
-  // a calendar whose lists are working fine.
+  // a calendar whose lists are working fine. A date the RESULTS FEED covers is never disabled
+  // either, whatever the schedule says: companies demonstrably filed on it.
   const strip = await page.evaluate(() => ({
     all: [...document.querySelectorAll('[data-date]')].map((b) => b.dataset.date),
     enabled: [...document.querySelectorAll('[data-date]:not([disabled])')].map((b) => b.dataset.date),
@@ -763,6 +906,38 @@ if (calReady.failed) {
     ok('picking a date reloads that day and records it in the URL', page.url().includes(`date=${otherDate}`), otherDate);
   } else {
     ok('picking a date reloads that day and records it in the URL', false, 'no clickable date in the strip');
+  }
+
+  // THE STRIP MUST NOT WALK OFF WITH THE DATE YOU JUST PICKED.
+  //
+  // Two separate causes, both real. The window used to be anchored on the SELECTED date, so every
+  // click merged new chips in and slid the existing ones along; and the panel rebuild reset the
+  // scroll container to zero, which is its oldest date. Between them, clicking a date near the
+  // right-hand end left the reader looking at a fortnight ago with the selection off-screen.
+  //
+  // So: the chip set is stable across clicks, and the selected chip is inside the visible box.
+  const stripState = async () =>
+    page.evaluate(() => {
+      const box = document.querySelector('[data-date-strip]');
+      const active = box?.querySelector('[data-date][aria-current="date"]');
+      if (!box || !active) return null;
+      const left = active.offsetLeft - box.scrollLeft;
+      return {
+        date: active.dataset.date,
+        chips: [...box.querySelectorAll('[data-date]')].map((b) => b.dataset.date).join(','),
+        visible: left >= -1 && left + active.offsetWidth <= box.clientWidth + 1,
+      };
+    });
+  const beforeClick = await stripState();
+  const walkTo = strip.enabled.filter((d) => d !== beforeClick?.date)[0];
+  if (beforeClick && walkTo) {
+    await page.evaluate((d) => document.querySelector(`[data-date="${d}"]`)?.click(), walkTo);
+    await page.waitForTimeout(1500);
+    const afterClick = await stripState();
+    ok('the selected date stays in view after picking it', afterClick?.visible === true, `${afterClick?.date} visible=${afterClick?.visible}`);
+    ok('...and the strip does not reshuffle around the click', afterClick?.chips === beforeClick.chips, `${beforeClick.chips.split(',').length} → ${afterClick?.chips.split(',').length} chips`);
+  } else {
+    skip('the selected date stays in view after picking it', 'fewer than two clickable dates in the strip');
   }
 
   // Back to reported, which is where the rest of the suite expects to be.
@@ -3094,6 +3269,91 @@ const noStore = await page.evaluate(async () => {
 });
 ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${10} read`);
 ok('no static-file loader still uses cache: no-store', noStore.out.length === 0, noStore.out.join(', '));
+
+// ---------------------------------------------------------------------------------------
+// 18. Moving between tabs — the table streams instead of blocking, and still ends up complete
+//
+// Building and laying out 1,722 rows cost ~900ms of blocked main thread on every mount of the
+// Earnings Hub, for a viewport that shows about thirteen. A CPU profile blamed the scope toggle,
+// because reading `offsetLeft` for its sliding thumb is what forced the layout — the cost was the
+// table's all along.
+//
+// So `scoreTable` paints a screenful and appends the rest while the browser is idle. Both halves
+// of that need asserting: the switch has to be fast, AND the table has to end up whole. A fast
+// switch that quietly dropped 1,600 rows would pass the first check and be a far worse bug than
+// the one it fixed.
+// ---------------------------------------------------------------------------------------
+console.log('\n— tab switching —');
+await go('/#/research/earnings-hub?scope=universe', 1200);
+await waitForPanel();
+await settleTables();
+const fullRows = await rowCount();
+
+const switchCost = await page.evaluate(async () => {
+  const times = [];
+  for (const tab of ['breakouts', 'earnings-hub', 'concall', 'earnings-hub']) {
+    const t = performance.now();
+    location.hash = `#/research/${tab}`;
+    // One macrotask is enough to have run the hashchange handler, the chrome rebuild, the tab's
+    // render() and — since every feed is cached by now — its microtask paint. Anything still on
+    // the clock here is work that blocked the switch.
+    await new Promise((r) => setTimeout(r, 0));
+    times.push(Math.round(performance.now() - t));
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return times;
+});
+// Generous on purpose: this runs on shared CI hardware and the point is the order of magnitude,
+// not a stopwatch. Before streaming, the two Earnings Hub entries alone measured 866ms and 1,536ms.
+ok('switching tabs does not block on building the whole table', Math.max(...switchCost) < 400, `${switchCost.join('ms, ')}ms`);
+
+// Asserted on the markup `scoreTable` returns rather than by racing the fill on screen: the whole
+// point of the change is that the rest arrives quickly, so "catch it mid-fill" is a check that
+// gets flakier the better the code works. This asks the component directly what it hands the DOM.
+await go('/#/research/earnings-hub?scope=universe', 1200);
+await waitForPanel();
+const streamed = await page.evaluate(async () => {
+  const { scoreTable } = await import('/js/ui/screener.js');
+  const feed = await import('/js/data/earnings-live.js');
+  const rows = feed.all();
+  const t = scoreTable({ rows, key: (r) => r.scId, name: (r) => r.company, columns: [{ label: 'Date', get: (r) => r.resultDate || '' }] });
+  return {
+    total: rows.length,
+    inFirstPaint: (t.html.match(/<tr data-row-key=/g) || []).length,
+    pending: Number(/data-rows-pending="(\d+)"/.exec(t.html)?.[1] || 0),
+  };
+});
+ok('the first paint carries a screenful, not the whole feed', streamed.inFirstPaint > 0 && streamed.inFirstPaint <= 120 && streamed.inFirstPaint < streamed.total, `${streamed.inFirstPaint} of ${streamed.total} rows in the initial markup`);
+ok('...and says how many are still to come rather than hiding them', streamed.pending === streamed.total - streamed.inFirstPaint, `${streamed.pending} pending`);
+await settleTables();
+const afterStream = await page.locator('tr[data-row-key]').count();
+ok('...and every row arrives in the end', afterStream === fullRows && afterStream > 1000, `${afterStream} rows`);
+ok('...leaving nothing marked pending', (await page.locator('[data-score-table][data-rows-pending]').count()) === 0);
+
+// The export reads the row DATA, not the DOM, so a fill still in flight can never truncate a
+// workbook. Asserted on the count the toolbar reports, which is the same list the exporter gets.
+const countShown = await page.evaluate(() => document.querySelector('[data-row-count]')?.innerText || '');
+ok('the row count reports the whole visible set, not what has been painted', new RegExp(`^${afterStream} of `).test(countShown.trim()), countShown.trim());
+
+// ---------------------------------------------------------------------------------------
+// 18b. The bootstrap only blocks on what the first paint needs
+//
+// It used to block on seven files, ~825KB, including a 347KB shareholdings file read by one
+// sub-view and a 232KB mock corpus read by one other. Only the book is needed to render anything.
+// ---------------------------------------------------------------------------------------
+const bootBlocking = await page.evaluate(async () => {
+  const src = await (await fetch('js/app.js', { cache: 'no-cache' })).text();
+  const block = /const CRITICAL_SOURCES = \{([\s\S]*?)\n\};/.exec(src)?.[1] || '';
+  return (block.match(/'data\/[^']+'/g) || []).map((s) => s.replace(/'/g, ''));
+});
+ok('the shell blocks on one file, not seven', bootBlocking.length === 1, bootBlocking.join(', '));
+ok('...and it is the book, which every scope filter reads synchronously', bootBlocking[0] === 'data/portfolio-companies.json', bootBlocking[0]);
+// The deferred files still have to arrive, and the views that read them have to wait rather than
+// render an empty answer. Institutions is the one that would fail loudest: an unprimed book is an
+// empty book, and an empty book on screen is a claim that nobody holds anything.
+await go('/#/research/super-investors/institutions?scope=universe', 2500);
+await waitForPanel();
+ok('a deferred feed still reaches the view that needs it', !/No holdings file loaded/i.test(await hostText()) && (await rowCount()) > 0, `${await rowCount()} holdings`);
 
 // ---------------------------------------------------------------------------------------
 console.log('\n— console —');

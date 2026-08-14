@@ -142,6 +142,24 @@ function renderInstitutions(ctx) {
   disposers.forEach((d) => d && d());
   disposers = [];
 
+  // The holdings file is 347KB and this is the only view that reads it, so it is no longer in
+  // front of the shell's first paint (see js/app.js). `filed.load()` is idempotent and resolves at
+  // once when the bootstrap pass has already primed it — so on any visit but a cold one this is a
+  // resolved promise and the shimmer never renders. It must be awaited rather than raced: an
+  // unprimed `filed.all()` is empty, and an empty book on screen is a claim that nobody holds
+  // anything, which is exactly the failure the panel below is written to avoid.
+  if (!filed.all().length) {
+    const token = renderToken;
+    ctx.root.innerHTML = loadingHtml();
+    filed.load().then(() => {
+      if (token === renderToken) paintInstitutions(ctx);
+    });
+    return;
+  }
+  paintInstitutions(ctx);
+}
+
+function paintInstitutions(ctx) {
   const panel = renderFiled(ctx, { disposers });
   if (!panel.html) {
     // No holdings file on disk. Say so rather than rendering an empty table, which would read as a

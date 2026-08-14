@@ -1102,7 +1102,7 @@ rendering the gaps as if complete.
 ## `GET /api/earnings-calendar` — LIVE, who is *scheduled* to report
 
 ```
-GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
+GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=none]
 ```
 
 ```jsonc
@@ -1112,6 +1112,7 @@ GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
   "from": "2026-08-06", "to": "2026-08-27",   // strip window; defaults to date-7 .. date+14
   "asOnDate": "11/08/2026",                    // Moneycontrol's own "schedule as on"
   "scheduledCount": 206,                       // COMPLETE count for `date`
+  "listRequested": true,                       // false => `rows` is empty because nobody asked
   "listCap": 20, "capped": true,               // …and how many of them we can name
   "days": [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 206 }],
   "rows": [{ "scId": "SE20", "name": "Solar Industries India", "ticker": "SOLARINDS",
@@ -1120,6 +1121,22 @@ GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD
              "marketCap": 169849.83, "mcUrl": "https://…" }]
 }
 ```
+
+### `list=none` — the strip without the company list
+
+A date that has **already happened** is not answered by this route's company list at all; it is
+answered by the results feed, which knows every company that filed on it (see *Two questions, one
+date* below). All the calendar can add for such a date is the strip, so the Earnings Hub asks for
+`list=none` and the Worker skips the bot-walled page fetch, the ticker-map asset read and up to 25
+identity look-ups. One JSON call instead.
+
+It is a **different representation, not a cheaper one**, and it is treated as such throughout: its
+own edge-cache key, its own device-store key (`calendar:<date>:none`), `x-sattva-list-source:
+not-requested`, and `listRequested: false` in the body. An empty `rows` that did not say why would
+read as *"nobody reports on this date"* — the one thing this route must never imply. Any consumer
+reading `rows` must check `listRequested` first.
+
+`degraded` is null in this mode. Nothing failed; nothing was asked.
 
 **Two upstreams, and the asymmetry between them is the whole story.**
 
@@ -1138,6 +1155,50 @@ would assert that twenty companies report when two hundred do.
 **Identity is resolved live, always.** A company that has not reported yet is by definition absent
 from a map built from companies that have, so almost every calendar row would arrive with no ticker.
 The Worker resolves them per cache window, bounded by the page's own 20-row cap.
+
+### …and they do not cover the same exchanges, so the count can be *smaller*
+
+The strip is fetched with **`indexId=N`** (NSE); the page with **`indexId=All`**. On 17 Aug 2026 the
+count said **1** and the page named **three**: Indo-MIM on the NSE, plus Cressanda Railway Solution
+and Indrayani Biotech, both BSE-only. Every number there is correct. They are answers to two
+different questions, and neither is a total for the other.
+
+This looks exactly like the flat-zero failure below and is not it, so **do not "fix" it by aligning
+the two `indexId` values**. Moving the strip to `indexId=All` would restate every count in the strip
+as a different universe under the same label — precisely the move the flat-zero section refuses for
+`indexId=B`.
+
+What the UI does instead is decline to print a total it cannot stand behind: `believableCount()` in
+`js/tabs/earnings-hub.js` returns null whenever the count is below the number of companies named,
+the pill then reads *"schedule"* rather than a number, and the pill's modal says which exchanges are
+behind each figure. `verify-ui.mjs` asserts the rendered claim, not payload equality — the payload
+disagreeing is upstream fact, the page printing "1 scheduled" above three companies would be ours.
+
+### Two questions, one date — and only one of them is a schedule
+
+The Earnings Calendar picks its source from the date:
+
+| The date is | Answered by | Complete? | Costs a request? |
+| --- | --- | --- | --- |
+| today or earlier, inside the results feed's window | `feed.reportedOn(date)` — every company that **filed** | **Yes**, no cap | No — already in memory |
+| later, or before the feed's first date | this route's `rows` — who is **scheduled** | No — the 20 largest | Yes |
+
+Before this split, a past date showed either a twenty-row capture or an amber *"counts only for this
+date"* note, depending on whether `earnings-calendar.json`'s window happened to reach it — while the
+results feed two modules away held every filing on that date with its figures attached. Walking back
+through a reporting season now costs nothing and shows everything.
+
+The two are **never in the same table and never differenced**. A schedule is a claim about the
+future and a filing is a measurement; companies file a day either side of their announced date, so
+"234 due, 210 filed" is not "24 missing" and nothing on screen, in the drill or in the export
+subtracts one from the other. Each mode has its own heading, its own pill (*Reported* vs
+*Scheduled* / *Captured*), its own provenance modal and its own export banner — the export most of
+all, because a workbook leaves the page without any of the chrome that says which question it
+answers.
+
+`feed.dateRange()` is what keeps the third case honest: a date **before** the feed's first is not
+"nobody filed", it is "this feed does not reach back that far", and it falls through to the
+schedule rather than rendering an empty table under a *Reported* heading.
 
 ### The Akamai wall — why the list is usually a capture
 

@@ -40,8 +40,16 @@ let raw = null; // { portfolio, transactions }
 let loadPromise = null;
 let cache = null;
 
-/** Seed from app.js's bootstrap fetch so this module never refetches those two files. */
+/**
+ * Seed from app.js's background pass so this module never refetches those two files.
+ *
+ * Idempotent, and that matters now the pass is a background one: the workspace can be mounted from
+ * a shared link before it lands, in which case `build()` has already fetched the same two files.
+ * Clobbering `raw` there would discard a replayed ledger and rebuild it from identical bytes —
+ * once at bootstrap, and again mid-render if the timing were unkind.
+ */
 export function prime(portfolio, transactions) {
+  if (raw) return;
   raw = {
     portfolio: portfolio || { holdings: [] },
     transactions: Array.isArray(transactions) ? transactions : transactions?.transactions || [],
@@ -69,8 +77,24 @@ async function fetchJson(path) {
   return res.json();
 }
 
+const PORTFOLIO_PATH = 'data/portfolio.json';
+const TRANSACTIONS_PATH = 'data/mock/transactions.json';
+
 async function build() {
-  if (!raw) throw new Error('portfolio data not primed — call prime() from app.js first');
+  // Normally primed by app.js's background pass. Not always: the four Portfolio Analytics tabs can
+  // be the first thing a shared link opens, and the shell no longer waits for those two files
+  // before mounting. Fetching them here is the same two requests app.js would have made — and it
+  // keeps `prime()` an optimisation rather than a precondition, which is what stops a mount order
+  // this module cannot see from turning into a thrown error on screen.
+  if (!raw) {
+    const [portfolio, transactions] = await Promise.all([fetchJson(PORTFOLIO_PATH), fetchJson(TRANSACTIONS_PATH)]);
+    // Assigned directly rather than through `prime()`: that resets `loadPromise`, and we are
+    // inside the promise it holds.
+    raw = {
+      portfolio: portfolio || { holdings: [] },
+      transactions: Array.isArray(transactions) ? transactions : transactions?.transactions || [],
+    };
+  }
 
   // The technicals feed is the mark. If it cannot be reached the workspace still works: every
   // position falls back to cost, `meta().priced` says none are marked, and the UI shows the

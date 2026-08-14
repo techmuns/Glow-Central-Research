@@ -16,7 +16,8 @@ export const state = {
   subview: null,
   scope: loadScope(),
   lastTick: null,
-  data: null, // populated once by app.js after the initial fetch of public/data/*.json
+  data: null, // populated by app.js: the critical file first, the deferred ones mutated in later
+  deferredData: null, // Promise for the bootstrap files the shell does not block on
   dataLoading: true,
   dataError: null,
   dataLoadedAt: null, // Date.now() when setData() ran — feeds the header "Updated" chip
@@ -91,6 +92,26 @@ export function setData(data) {
   state.dataError = null;
   state.dataLoadedAt = Date.now();
   notify('data');
+}
+
+/**
+ * The promise for the bootstrap files the shell does NOT wait for.
+ *
+ * Two tabs read `ctx.data` directly — Breakouts → Earnings Surprise and Super Investors →
+ * Institutions — and their inputs are in that deferred set. Handing them the same promise is what
+ * keeps them from either racing it (rendering an empty view a beat before the data lands) or
+ * firing a second fetch for a file already on the wire. It resolves rather than rejects: a
+ * consumer checks what arrived, because "the corpus failed to load" is a thing to say on the panel
+ * that needed it, not a reason to take down the app.
+ */
+export function setDeferredData(promise) {
+  state.deferredData = promise;
+  promise.then(() => notify('data'));
+}
+
+/** Await the deferred bootstrap files. Resolves immediately once they have landed. */
+export function whenDeferredData() {
+  return state.deferredData || Promise.resolve(state.data);
 }
 
 export function setDataError(err) {

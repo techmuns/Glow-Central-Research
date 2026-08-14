@@ -306,6 +306,20 @@ export function freshnessOf(rows) {
 // So the count is complete and the list is a top-20. That asymmetry is DATA, not a bug to paper
 // over: `listCap` and `earningCount` both travel in the payload so the UI can say "170 reporting ·
 // the 20 largest shown" instead of implying twenty is all there are.
+//
+// AND THEY DO NOT COVER THE SAME EXCHANGES, WHICH IS WHY THE COUNT CAN BE *SMALLER*.
+//   The strip is fetched with `indexId=N` — NSE — and the page with `indexId=All`. On 17 Aug 2026
+//   the count said 1 and the page named three: Indo-MIM (NSE) plus Cressanda Railway Solution and
+//   Indrayani Biotech, both BSE-only. Every number there is correct; they are answers to two
+//   different questions.
+//
+//   This looks exactly like the flat-zero failure mode described in worker/index.js and it is not
+//   one, so do not "fix" it by aligning the two parameters. Moving the strip to `indexId=All` would
+//   restate every count in the strip as a different universe under the same label, which is the
+//   move that section of worker/index.js explicitly refuses for `indexId=B`. What the UI does
+//   instead is decline to print a count it cannot stand behind — `believableCount()` in
+//   js/tabs/earnings-hub.js — and say why in the pill's modal. A number that would contradict the
+//   rows beneath it is worse than no number.
 // ---------------------------------------------------------------------------------------
 
 export const CALENDAR_STRIP_URL = 'https://api.moneycontrol.com/mcapi/v1/earnings/result-calendar';

@@ -3,6 +3,7 @@
 //   await loadDate('2026-08-13');   // strip + that date's companies
 //   strip()                         // [{ date, displayDate, count }], newest date first
 //   forDate(iso)                    // { rows, scheduledCount, capped, degraded, ... } or null
+//   stripHas(iso) / scheduledCountFor(iso)
 //   defaultDate()                   // the nearest date that actually has companies on it
 //
 // TWO UPSTREAMS, ONE HONEST PAYLOAD
@@ -15,18 +16,31 @@
 //   say both. Rendering twenty rows under a bare "Companies reporting" heading would assert that
 //   twenty is all there are, on a day when a hundred and seventy report.
 //
-// WHY THERE IS NO SNAPSHOT FALLBACK
-//   A schedule is a claim about the future. A committed file would keep saying "Tata Motors
-//   reports on the 13th" long after the 13th, and there is no way to tell a stale schedule from a
-//   live one by looking at it. If the route is unreachable the tab says so.
+// WHAT THIS MODULE IS *NOT* ASKED FOR ANY MORE
+//   A date that has already happened is answered by the results feed instead — every company that
+//   filed, with its figures, already in memory. So the Earnings Hub asks this module for the
+//   company list only for dates still to come, and for a past date takes nothing but the strip.
+//   That is what `list: 'none'` is for; see `loadDate`. The forward-looking half is unchanged.
+//
+// THE SNAPSHOT FALLBACK IS THE WORKER'S, NOT THIS MODULE'S
+//   There is a committed capture (public/data/earnings-calendar.json) and the Worker serves from it
+//   when Akamai blocks the live page — but it arrives stamped, with `listSource: 'snapshot'` and
+//   `listCapturedAt`, and the pill says *Captured* rather than *Live*. The original objection still
+//   holds — a stale schedule looks exactly like a fresh one — and the answer to it is the stamp,
+//   not the absence of a fallback. Nothing in this module invents a schedule of its own.
 
 import { KEYS, conditionalJson } from '../core/store.js';
 
 const ENDPOINT = 'api/earnings-calendar';
 
+// Keyed by date AND by which representation was asked for: a strip-only answer must never be
+// handed to a caller that wanted the company list, or the empty `rows` would read as "nobody
+// reports that day" — the exact confusion this file's header is about.
+const cacheKey = (iso, list = 'full') => `${iso}|${list}`;
+
 let stripCache = []; // [{ date, displayDate, count }]
-const byDate = new Map(); // iso -> payload
-const inflight = new Map(); // iso -> promise, so a double-click is one fetch
+const byDate = new Map(); // "iso|list" -> payload
+const inflight = new Map(); // "iso|list" -> promise, so a double-click is one fetch
 // Per-date, NOT global. The caller repaints when a load settles, and a repaint asks for the date
 // again — so without remembering which date failed, a failure becomes an infinite fetch loop.
 // Per-date also means one bad date does not stop the reader trying another.
@@ -36,8 +50,8 @@ let lastError = null;
 export function strip() {
   return stripCache;
 }
-export function forDate(iso) {
-  return byDate.get(iso) || null;
+export function forDate(iso, list = 'full') {
+  return byDate.get(cacheKey(iso, list)) || null;
 }
 export function error() {
   return lastError;
@@ -51,24 +65,52 @@ export function errorFor(iso) {
  * an empty calendar, because "nothing is scheduled" and "we could not ask" look identical once
  * you have drawn an empty table.
  */
-export function loadDate(iso, { from, to } = {}) {
-  if (byDate.has(iso)) return Promise.resolve(byDate.get(iso));
-  if (inflight.has(iso)) return inflight.get(iso);
+/**
+ * Is the date strip already carrying this date?
+ *
+ * A date that has already reported is rendered from the results feed, so the only thing the
+ * calendar route can add for it is the strip — and the strip covers a window, not one date. Asking
+ * again for a date the window already contains would spend a request to be told what is on screen.
+ */
+export function stripHas(iso) {
+  return stripCache.some((d) => d.date === iso);
+}
+
+/** The number Moneycontrol's calendar gives for one date, or null if the strip has not got it. */
+export function scheduledCountFor(iso) {
+  const hit = stripCache.find((d) => d.date === iso);
+  return hit && hit.count > 0 ? hit.count : null;
+}
+
+/**
+ * @param {object} opts
+ * @param {string} [opts.from] / [opts.to]  the strip window to ask for
+ * @param {'full'|'none'} [opts.list]  whether the per-date COMPANY LIST is wanted. `none` is for a
+ *   date already answered by the results feed: it saves the Worker a bot-walled page fetch and up
+ *   to 25 identity look-ups, and it is a genuinely different representation — hence its own store
+ *   key and its own `listRequested: false` in the payload, so nothing can read the empty `rows` as
+ *   "no companies".
+ */
+export function loadDate(iso, { from, to, list = 'full' } = {}) {
+  const ck = cacheKey(iso, list);
+  if (byDate.has(ck)) return Promise.resolve(byDate.get(ck));
+  if (inflight.has(ck)) return inflight.get(ck);
 
   const qs = new URLSearchParams({ date: iso });
   if (from) qs.set('from', from);
   if (to) qs.set('to', to);
+  if (list !== 'full') qs.set('list', list);
 
   // Conditional, and persisted per date: a schedule changes on the order of hours, so revisiting a
   // date already seen on this device costs a 304 rather than the whole day's list again.
-  const p = conditionalJson(`${ENDPOINT}?${qs}`, { key: KEYS.calendar(iso) })
+  const p = conditionalJson(`${ENDPOINT}?${qs}`, { key: KEYS.calendar(iso, list) })
     .then((out) => {
       const payload = out.value;
       if (!payload?.ok) throw new Error(payload?.degraded || 'calendar feed returned no data');
       // The strip covers a window around whichever date was asked for, so later loads widen it
       // rather than replacing it — clicking around the strip must not make dates disappear.
       mergeStrip(payload.days || []);
-      byDate.set(iso, payload);
+      byDate.set(ck, payload);
       failures.delete(iso);
       lastError = null;
       return payload;
@@ -78,9 +120,9 @@ export function loadDate(iso, { from, to } = {}) {
       failures.set(iso, lastError);
       throw err;
     })
-    .finally(() => inflight.delete(iso));
+    .finally(() => inflight.delete(ck));
 
-  inflight.set(iso, p);
+  inflight.set(ck, p);
   return p;
 }
 

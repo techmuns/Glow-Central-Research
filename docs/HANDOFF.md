@@ -548,8 +548,33 @@ a schedule that has moved since the capture makes the count and the list disagre
 publishes the per-date COUNT through a clean JSON API (complete) and the company LIST through the
 calendar page (the 20 largest by market cap, un-pageable — the route its own "load more" uses is
 Akamai-blocked to non-browser clients). Both numbers travel in the payload and both are printed:
-"170 companies report on this date… 20 are named here". There is no committed calendar file, because
-a stale schedule looks exactly like a fresh one. Full rules in `docs/DATA-CONTRACTS.md`.
+"170 companies report on this date… 20 are named here". Full rules in `docs/DATA-CONTRACTS.md`.
+
+**But only for a date still to come.** All of the above is about a *schedule*, and it was being used
+to answer questions about the past as well — so walking back through the strip showed twenty names
+on the handful of dates the capture reached and an amber "counts only for this date" note on every
+other, while the results feed in the very same tab held every filing on those dates with its figures
+attached. A date that has already happened is now read from `feed.reportedOn()`: every company that
+filed, no cap, no capture age, and no request at all. `modeFor()` picks by the date, bounded by
+`feed.dateRange()` so a date *before* the feed's window falls back to the schedule rather than
+rendering an empty table that would read as "nobody filed".
+
+The two are never mixed and never subtracted. Companies file a day either side of their announced
+date, so "234 due, 210 filed" is not "24 missing", and the pill, the note, the modal and the export
+banner each say which of the two questions the rows under them answer.
+
+**A count SMALLER than the rows beneath it is not always a fault.** The strip is `indexId=N` (NSE);
+the list is `indexId=All`. On 17 Aug 2026 the count read 1 above three named companies — one NSE and
+two BSE-only — and every number was right. The UI declines to print a total it cannot stand behind
+(`believableCount()`), prints "schedule" instead, and explains the two exchanges in the modal. Do not
+"fix" this by aligning the two `indexId` values: that restates every count in the strip as a
+different universe under the same label, which is the move we already refuse for `indexId=B`.
+
+**The date strip is anchored on today, and restores its own scroll.** It used to request a window
+around the *selected* date, so each click merged in new chips and slid the rest along; then the panel
+rebuild reset the scroll container to its oldest date, leaving the selection off-screen to the right.
+`stripWindowFor()` fixes the cause and `keepActiveVisible()` the symptom. If you rebuild a scrolling
+container's `innerHTML`, you own restoring its scroll position.
 
 **YoY / QoQ is one toggle over two payloads that look identical.** Both carry the same
 current-period figures; only the comparison moves. That makes a mis-served payload the one error
@@ -781,16 +806,60 @@ Measured with Playwright on the vendored local copy, medians of 7 runs.
 Also: header sort on 535 rows **30 ms**; search repaint **3 ms**; JS heap after visiting six tabs
 **23 MB**.
 
-Three things keep `scoreTable` fast at 500+ rows — keep them if you touch it:
+Four things keep `scoreTable` fast at 500+ rows — keep them if you touch it:
 
 - listeners are **delegated** on `<thead>` / `<tbody>`, never per row;
 - row markup is **position-independent** (rank comes from a CSS counter) and cached by key;
 - a repaint whose row set the DOM already contains **moves existing `<tr>` nodes** instead of
-  re-parsing HTML.
+  re-parsing HTML;
+- the first paint carries a **screenful**, and the rest streams in while the browser is idle.
+
+### Switching tabs, and a profile that pointed at the wrong thing
+
+The table above is the *warm render of a 535-row tab*. The Earnings Hub is 1,722 rows and it was a
+different story: **866–1,536 ms of blocked main thread on every mount**, on a table the reader had
+already seen. A CPU profile attributed 606 ms of it to `segmentedToggle`'s `position()` — the scope
+toggle in the header — which reads `offsetLeft` to place a sliding thumb.
+
+That is not where the cost was. Reading `offsetLeft` forces a **synchronous layout**, and the layout
+it forced was the 1,722-row table that had just been written into the document. The toggle was
+simply the first thing to touch the DOM afterwards. Add ~350 ms of string building for ten formatted
+columns and the entire mount cost was the table, charged to an innocent bystander.
+
+**When a profile blames a component that plainly cannot be doing that much work, look for what it
+forced.** Layout, `getBoundingClientRect`, `offsetWidth`, `scrollHeight` and `getComputedStyle` all
+flush pending work and get billed for it.
+
+The fix is that `scoreTable` now paints 80 rows and appends the rest in adaptive slices under
+`requestIdleCallback`. Nothing is unmounted — every visible row still reaches the DOM, so Ctrl-F,
+screenshots and the accessibility tree are unaffected — and the section carries `data-rows-pending`
+until the fill completes, which is what `verify-ui.mjs` waits on instead of racing it.
+
+| Tab-to-tab switch | Before | After |
+| --- | --- | --- |
+| Earnings Hub (1,722 rows) | 866–1,536 ms | **36–90 ms** |
+| Con-call (1,018 rows) | 393–950 ms | **69–126 ms** |
+| Breakouts (603 rows) | 299–652 ms | **56–83 ms** |
+| Longest task during a switch | 425 ms | **75 ms** |
 
 The heavy feeds are **lazy**: technicals, the con-call corpus, the chatter files and the price
 history load when their tab first mounts, not at bootstrap, so eight tabs never pay for data they
 do not read.
+
+### And the bootstrap only blocks on what the first paint needs
+
+`app.js` used to await seven files — **~825 KB** — before the shell rendered anything, including a
+347 KB shareholdings file read by one sub-view and a 232 KB mock corpus read by one other. It now
+blocks on **one**: `portfolio-companies.json` (31 KB), the book, because `coverage` backs the scope
+toggle and every research tab reads it synchronously. The rest start at the same moment and are
+awaited by their own consumers — `whenDeferredData()` in Breakouts → Earnings Surprise,
+`filed.load()` in Institutions, and `portfolio.js`'s `build()`, which now fetches its two files
+itself if nothing primed it.
+
+A related duplicate: `universe.json` and `mc-ticker-map.json` were each fetched twice per session by
+two different modules. Concurrent requests cannot revalidate against each other, so both downloaded
+in full — 163 KB and 249 KB, twice. `revalidatedJson` now shares the in-flight promise per path.
+Measured on a cold visit: **3,605 KB → 3,035 KB**, and the blocking set went from 825 KB to 31 KB.
 
 ### Bytes, which were the real problem
 

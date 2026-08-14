@@ -19,6 +19,7 @@ import * as technicals from '../data/technicals.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
+import { whenDeferredData } from '../core/state.js';
 
 export const meta = {
   id: 'breakouts',
@@ -85,6 +86,18 @@ function paint(ctx) {
     'fii-accumulation': renderFiiAccumulation,
     'earnings-surprise': renderEarningsSurprise,
   }[ctx.subview] || renderScanner;
+
+  // Earnings Surprise is the one sub-view here whose left-hand columns come off `ctx.data`, and
+  // that corpus is no longer in front of the shell's first paint (see js/app.js). Waiting for it
+  // costs this sub-view alone and only on a cold visit — the other three render at once, as they
+  // did. Rendering it early instead would show "0 results joined", which is a claim, not a wait.
+  if (view === renderEarningsSurprise && !ctx.data?.earnings) {
+    const token = renderToken;
+    whenDeferredData().then(() => {
+      if (token === renderToken) renderEarningsSurprise(ctx, rows);
+    });
+    return;
+  }
   view(ctx, rows);
 }
 

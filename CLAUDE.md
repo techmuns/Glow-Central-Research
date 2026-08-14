@@ -790,12 +790,42 @@ wired as if it were live. The pattern for any feed in that state:
 
 ### Performance on large tables
 
-`scoreTable` handles 500+ rows because of three things — keep them if you touch it:
+`scoreTable` handles 1,700+ rows because of four things — keep them if you touch it:
 - listeners are **delegated** on `<thead>` / `<tbody>`, never per row;
 - row markup is **position-independent** (rank comes from a CSS counter, the click target carries
   the row key) and cached by key, so it is built once;
 - a repaint whose row set the DOM already contains **moves existing `<tr>` nodes** instead of
-  re-parsing HTML. That is what keeps a 535-row sort at ~30ms instead of ~150ms.
+  re-parsing HTML. That is what keeps a 535-row sort at ~30ms instead of ~150ms;
+- **the first paint carries a screenful and the rest streams in.**
+
+That last one is the big one, and the profile that found it is worth repeating. Mounting the
+Earnings Hub blocked the main thread for **866–1,536ms** on every visit. A CPU profile blamed
+`segmentedToggle`'s `position()` — the scope toggle — for 606ms of it, which is nonsense on its
+face: it reads `offsetLeft` for a sliding thumb. That read is a **forced synchronous layout**, and
+the layout it forced was the 1,722-row table underneath. Add ~350ms of string building and the
+whole cost was the table, charged to whoever touched the DOM next. Every millisecond of it was
+spent on rows nobody could see; the viewport holds about thirteen.
+
+So `bodyHtml(list, from, to)` takes a range, the initial markup carries `FIRST_PAINT_ROWS` (80), and
+`wire()` appends the rest in adaptive slices under `requestIdleCallback` (with a timeout, so a
+backgrounded tab still finishes). Measured tab-to-tab: **~900ms of blocked main thread → 36–75ms.**
+
+Four rules if you touch it:
+
+1. **This is not virtualisation and must not become it by accident.** Every visible row ends up in
+   the DOM. Ctrl-F, screenshots, `scrollHeight` and the accessibility tree all behave as before.
+2. **Anything that reads the row set reads `current`, the array — never the DOM.** The export does,
+   which is why a fill still in flight cannot truncate a workbook. A row count taken off `<tbody>`
+   would be a lie for a few hundred milliseconds.
+3. **`data-rows-pending` on the section is the honest signal that rows are outstanding**, and it is
+   removed when none are. `verify-ui.mjs` waits on it rather than racing the fill. If you add a
+   consumer that needs the settled table, wait for that attribute — do not sleep.
+4. **The reorder fast path needs every row present**, so it only engages once the fill has
+   finished; mid-fill a repaint rebuilds. That is fine, because a rebuild is now a screenful.
+
+The scroll listener that flushes the remainder when the reader reaches the end of the painted rows
+attaches only while a fill is outstanding and removes itself when it finishes — so a caller that
+drops `wire()`'s disposer still leaks nothing.
 
 **The third one has a trap, and it cost the watchlist star.** Invalidating a row's cached markup
 does nothing on the fast path, because the fast path re-parses no HTML at all — it moves nodes
@@ -1048,6 +1078,46 @@ scID → ticker (1,319/1,319), ticker → market cap and industry, and (ticker, 
 result-day close (1,312/1,319). Every miss renders as an em dash and the coverage note under the
 table counts them. **A dash means "not joined"; it never means zero.**
 
+### The calendar answers two questions, and picks by the date
+
+The Earnings Hub's Calendar half asks **who is due** — and for a date that has already happened
+that is the weaker question, badly answered: Moneycontrol cap their schedule page at the twenty
+largest, and the committed capture only reaches a few weeks. So a past date used to show twenty
+names on a good day and an amber *"counts only for this date"* note on every date outside the
+capture's window, while the results feed two modules away held every filing on that date with its
+figures attached.
+
+So the source is chosen from the date, in `modeFor()`:
+
+| The date is | Source | Complete? | Requests |
+| --- | --- | --- | --- |
+| today or earlier, inside `feed.dateRange()` | `feed.reportedOn(date)` — who **filed** | yes, no cap | none — it is in memory |
+| later, or before the feed's first date | `/api/earnings-calendar` — who is **scheduled** | no — the top 20 | one, and `list=none` is not it |
+
+Four rules hold it together:
+
+1. **Never both in one table, and never differenced.** A filing is a measurement; a schedule is a
+   claim about the future. Companies file a day either side of their announced date, so *"234 due,
+   210 filed"* is not *"24 missing"* — the two are printed side by side and nothing subtracts them.
+2. **Every surface says which question it answered**: the pill (*Reported · 210 filed* vs
+   *Scheduled* / *Captured*), the note above the table, the provenance modal, and row 1 of the
+   export. The export most of all — a workbook leaves the page without any of the chrome.
+3. **A date before the feed's first date is not "nobody filed".** That is why `modeFor` checks the
+   range and falls through to the schedule rather than rendering an empty *Reported* table. Same
+   rule as everywhere: a missing value is not a measured zero.
+4. **A reported date makes no request for a company list.** It asks `list=none`, which is a
+   different representation with its own cache key and `listRequested: false` — see
+   `docs/DATA-CONTRACTS.md`. And when the strip already covers the date it asks for nothing at all.
+
+The date strip has its own trap, and it is a UI one. It used to request a window around the
+**selected** date, so every click merged new chips in and slid the existing ones along; then the
+panel rebuild reset the scroll container to zero, its oldest date. Between them, picking a date near
+the right-hand end left the reader staring at a fortnight ago with their selection off-screen. The
+window is now anchored on **today** (`stripWindowFor`) and only ever grows to reach a date actually
+asked for, and `keepActiveVisible()` restores the scroll offset — keeping the reader's own if the
+selection is still visible in it, centring the selection otherwise. **If you rebuild a scrolling
+container's innerHTML, you own restoring its scroll position.**
+
 ---
 
 ## The header, and the alert stack — `js/ui/notifications.js` + `js/core/watch.js`
@@ -1175,6 +1245,23 @@ Rules:
   skips the parse.
 - **`no-cache` for committed static files, never `no-store`.** `no-store` forbids reuse; `no-cache`
   revalidates and reuses. That one word was ~800KB per visit.
+- **Fetch committed files through `revalidatedJson`, never a bare `fetch`.** It shares the promise
+  per path, and that is a different saving from the HTTP cache: two modules asking for
+  `universe.json` in the same tick have nothing to revalidate against, so both download in full.
+  Measured, twice each: 163KB for `universe.json`, 249KB for `mc-ticker-map.json`. Only the promise
+  is shared, never the parsed value — a later call still revalidates, so this can never serve a
+  stale file, only stop the same one being fetched twice at once.
+- **The shell blocks on what the first paint needs and nothing else.** `app.js` splits
+  `CRITICAL_SOURCES` (the book — `coverage` backs the scope toggle and every research tab reads it
+  synchronously) from `DEFERRED_SOURCES`, which start immediately and are awaited by nobody. It was
+  seven files and ~825KB in front of the first pixel, including a 347KB shareholdings file read by
+  one sub-view and a 232KB mock corpus read by one other. Two rules if you add a file:
+  **the deferred object is mutated in place**, because `ctx.data` is the same reference every
+  mounted tab holds — replacing it would leave them all with the empty one; and **the consumer
+  waits, rather than rendering early.** Breakouts → Earnings Surprise and Super Investors →
+  Institutions both do, via `whenDeferredData()` and `filed.load()` respectively. An unprimed
+  Institutions renders an empty book, and an empty book on screen is a claim that nobody holds
+  anything.
 - **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
   `meta.origin` says where this paint came from (`live` / `store` / `snapshot`) and
   `meta.checkedAt` when the server last confirmed it — a different fact from `meta.fetchedAt`,
@@ -1301,6 +1388,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
 | Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
+| Make tab switching faster | `scoreTable`'s streaming body in `js/ui/screener.js` — read *Performance on large tables* first; profile before changing it, the cost is rarely where a profile first points |
+| Change what the shell waits for at boot | `CRITICAL_SOURCES` / `DEFERRED_SOURCES` in `js/app.js` — a deferred file needs a consumer that awaits it |
+| Change what the Earnings Calendar shows for a date | `modeFor()` + `renderCalendar()` in `js/tabs/earnings-hub.js` — read *The calendar answers two questions* first |
 | Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
 | Add a cached feed to the device store | give it a key in `KEYS` (`js/core/store.js`) and fetch it with `conditionalJson` — unless the upstream sends no ETag, as the Deep Dive reports do, in which case `readEntry` / `writeEntry` directly and say why in a comment |
 | Add a new JSON file | drop it in `public/data/`, add to `DATA_SOURCES` in `js/app.js`, document it in `docs/DATA-CONTRACTS.md` |
@@ -1316,7 +1406,7 @@ nothing — which is exactly why the con-call route has no projection either.
 python3 -m http.server 8080 -d public
 ```
 
-Then run the suite — ~330 Playwright assertions, exits non-zero at the end if any failed
+Then run the suite — ~410 Playwright assertions, exits non-zero at the end if any failed
 (Chromium is preinstalled — never run `playwright install`):
 
 ```bash
@@ -1393,6 +1483,18 @@ It covers, beyond the checklist below:
   requests than there are investors** while still painting every book, and says `origin: store`
   with a real `checkedAt` rather than claiming to be live; and on a cold device, where books
   actually arrive one at a time, the panel is rebuilt **fewer times than there are books**
+- **switching tabs does not block on building a table**: the initial markup carries a screenful and
+  says how many rows are outstanding, every row still arrives, the row count reports the whole
+  visible set rather than what has been painted, and no switch blocks the main thread past 400ms
+- **the shell blocks on one bootstrap file**, the book — and a deferred feed still reaches the view
+  that needs it rather than that view rendering an empty answer
+- **the Earnings Calendar answers a past date from the filings**: every company that filed, more
+  than the schedule page could name, labelled as filings and not as a schedule, with the reported
+  figures on the row and no arithmetic between "due" and "filed"
+- **the date strip holds still**: the selected chip is in view after a click, and the chip set does
+  not reshuffle around it
+- **a count below the companies named under it is never printed as a total** — the NSE count and
+  the all-exchange list are different universes, and the pill says so instead of asserting a number
 
 > A **SKIP** is the honest answer where the sandbox, not the page, is the reason a check cannot
 > run — no egress to the Tailwind/exceljs CDNs, no Worker on a static origin. The final

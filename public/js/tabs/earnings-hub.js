@@ -69,6 +69,16 @@ let disposers = [];
 let renderToken = 0;
 let calendarDate = null; // the selected date in the calendar view
 let calendarBusy = false;
+// The date strip's horizontal scroll offset, carried across the panel rebuilds that a date click,
+// a schedule arriving or a scope change all cause. Without it every rebuild put the strip back at
+// its oldest date with the selection off-screen — see `keepActiveVisible`.
+let stripScrollLeft = null;
+// The calendar table's own view state, carried across repaints for the same reason `tableView` is:
+// a filing landing on the date being read must not throw away the reader's search and sort. Keyed
+// by mode, because the two modes have different columns — restoring a sort on "Net Profit Growth"
+// into a schedule table that has no such column would leave a sort arrow pointing at nothing.
+let calendarTableView = null;
+let calendarViewMode = null;
 // The table is rebuilt whenever a company files. Carrying its view forward means the reader's
 // search, filters, watchlist toggle and sort survive that rebuild instead of resetting under them.
 let tableView = null;
@@ -101,9 +111,13 @@ export function render(ctx) {
       disposers.push(
         feed.onChange(() => {
           if (token !== renderToken) return;
-          // A results tick must not repaint the calendar out from under the reader. Different
-          // half of the tab, different upstream, different refresh cadence.
+          // A results tick used to be barred from the calendar half entirely — different upstream,
+          // different cadence. It is not, now: for a date that has already happened the calendar's
+          // table IS this feed, so a company filing on the date being looked at has to appear
+          // there too. Both halves carry their table view across the repaint, so a repaint costs
+          // the reader nothing; a SCHEDULED date is still left alone, because nothing on it moved.
           if (viewOf(ctx) === 'reported') paint(ctx);
+          else if (modeFor(calendarDate || isoToday()) === 'reported') renderCalendar(ctx);
         })
       );
       disposers.push(feed.startLive(ctx.live));
@@ -130,6 +144,9 @@ export function destroy() {
   tableView = null;
   periodError = null;
   calendarDate = null;
+  stripScrollLeft = null;
+  calendarTableView = null;
+  calendarViewMode = null;
   calendar.reset();
 }
 
@@ -554,7 +571,7 @@ function renderLatest(ctx) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Earnings Calendar — who is SCHEDULED to report, and when.
+// Earnings Calendar — what happens, or happened, on one date.
 //
 // TWO NUMBERS THAT MUST NEVER BE CONFLATED
 //   `scheduledCount` is complete: Moneycontrol's calendar API gives the true number reporting on
@@ -562,7 +579,84 @@ function renderLatest(ctx) {
 //   past and the route its own "load more" uses is blocked to non-browser clients (see the header
 //   of worker/mc.mjs). So on a busy day this table shows 20 of 206, and it says exactly that.
 //   Rendering twenty rows under a plain heading would assert that twenty is all there are.
+//
+// A PAST DATE IS A DIFFERENT QUESTION, AND WE HAVE A BETTER ANSWER TO IT
+//   For a date that has already happened, "who was due to report" is the weaker question — and it
+//   was the only one this view asked, which is why walking back through the strip used to show
+//   twenty names on a good day and an amber "counts only for this date" note on every date outside
+//   the committed capture's window. Meanwhile the results feed sitting in memory two functions up
+//   knows exactly who FILED on every one of those dates, complete, with the figures attached.
+//
+//   So the view picks its source from the date:
+//     · date ≤ today, inside the results feed's window  ->  REPORTED. Every company that filed,
+//       from `feed.reportedOn()`. No network, no cap, no capture age.
+//     · anything else                                    ->  SCHEDULED. Moneycontrol's calendar,
+//       exactly as before, top-20 and all.
+//
+//   The two are never mixed in one table and never summed. A filing is a measurement; a schedule
+//   is a claim about the future, and they are labelled as such on the heading, the pill, the pill's
+//   modal and row 1 of the export. `MODES` below is the single definition of that vocabulary — if
+//   you add a surface, read it from there rather than writing "scheduled" into a template again.
 // ---------------------------------------------------------------------------------------
+
+const MODES = {
+  reported: {
+    noun: 'reported',
+    heading: 'Reported on this date',
+    description: 'Companies that filed their results on this date. Pick a date from the strip.',
+    // What the count beside the table means in this mode.
+    countLabel: 'filed',
+  },
+  scheduled: {
+    noun: 'listed',
+    heading: 'Scheduled to report',
+    description: 'Companies scheduled to report, by date. Pick a date from the strip.',
+    countLabel: 'scheduled',
+  },
+};
+
+const isoToday = () => new Date().toISOString().slice(0, 10);
+const shiftIso = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Which half of the calendar answers for this date.
+ *
+ * `reported` needs BOTH that the date has happened and that the results feed reaches it. Before
+ * the feed's first date we genuinely do not know who filed, and an empty table there would say
+ * "nobody" — see `dateRange()` in js/data/earnings-live.js.
+ */
+function modeFor(iso, today = isoToday()) {
+  if (iso > today) return 'scheduled';
+  const { first } = feed.dateRange();
+  return first && iso >= first ? 'reported' : 'scheduled';
+}
+
+// THE STRIP'S WINDOW IS ANCHORED ON TODAY, NOT ON THE SELECTED DATE.
+//
+// It used to be the latter, and that is what made the strip lurch on every click: each date asked
+// the Worker for its own ±window, the answers were merged, and so clicking a date both added chips
+// and moved every existing one along — after which the panel was rebuilt from scratch and the
+// scroll container went back to zero, leaving the date you had just chosen off the right edge.
+//
+// One window for the whole visit fixes the cause; `keepActiveVisible` below fixes the symptom that
+// remains (a rebuild still resets scrollLeft). The window only ever grows, and only to reach a date
+// the reader has actually asked for.
+const STRIP_BACK = 35;
+const STRIP_AHEAD = 21;
+
+function stripWindowFor(iso, today = isoToday()) {
+  const from = shiftIso(today, -STRIP_BACK);
+  const to = shiftIso(today, STRIP_AHEAD);
+  return {
+    from: iso < from ? shiftIso(iso, -7) : from,
+    to: iso > to ? shiftIso(iso, 7) : to,
+  };
+}
 
 // "2026-08-13" -> "Thu 13 Aug". The strip needs the weekday: results cluster on weekdays and a
 // gap that turns out to be a Sunday is not the same information as a quiet Wednesday.
@@ -588,12 +682,63 @@ function countsAreReadable(days = calendar.strip()) {
   return days.some((d) => d.count > 0);
 }
 
-function dateStrip(active, today) {
+/**
+ * A date the strip does not carry is still a date the reader asked for.
+ *
+ * The strip is Moneycontrol's window and the results feed's is its own; they overlap but neither
+ * contains the other, and a date only the feed knows about (or one restored from a shared URL)
+ * must still appear, selected, rather than vanishing because the other upstream never mentioned
+ * it. It joins with a null count — which renders as a dash, meaning "not known", never zero.
+ */
+function stripDays(active) {
   const days = calendar.strip();
-  if (!days.length) return '';
-  const readable = countsAreReadable(days);
-  // Oldest first reads like a calendar; the API hands them back newest first.
-  const ordered = [...days].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const seen = new Set(days.map((d) => d.date));
+  const extra = [];
+  const { first, last } = feed.dateRange();
+  // Dates the results feed covers: they have a table behind them, so they are worth walking to.
+  if (first && last) {
+    for (const r of feed.all()) {
+      if (r.resultDate && !seen.has(r.resultDate)) {
+        seen.add(r.resultDate);
+        extra.push({ date: r.resultDate, count: null });
+      }
+    }
+  }
+  if (active && !seen.has(active)) extra.push({ date: active, count: null });
+  return [...days, ...extra].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+/**
+ * The number on a chip, and what it is a number OF.
+ *
+ * THE TWO ARE DIFFERENT MEASUREMENTS AND THE CHIP HAS TO SAY WHICH. A filing is a fact and a
+ * schedule is a claim about the future; a row of chips reading 76 · 24 · 2 · 65 with some of them
+ * one thing and some the other, distinguishable only by hovering, is the Institutions trap in
+ * miniature — two disclosures that render identically. So each chip carries a one-word kicker.
+ *
+ * Which one it shows follows `modeFor()`, so **the chip previews what clicking it will produce**:
+ * a past date shows what was filed, because that is what its table will list, and a future date
+ * shows what is due, because that is all anyone can know about it.
+ */
+function chipCount(iso, today) {
+  const co = (n) => (n === 1 ? 'company' : 'companies');
+  const scheduled = calendar.scheduledCountFor(iso);
+  if (modeFor(iso, today) === 'reported') {
+    const filed = feed.reportedCount(iso);
+    if (filed) return { n: filed, kicker: 'filed', noun: `${co(filed)} filed` };
+    // Nothing filed, but the schedule may still know something about the date — a Sunday with
+    // nothing due reads differently from a weekday where nobody reported.
+    if (scheduled != null) return { n: scheduled, kicker: 'due', noun: `${co(scheduled)} ${scheduled === 1 ? 'was' : 'were'} due` };
+    return { n: null, kicker: '', noun: null };
+  }
+  if (scheduled != null) return { n: scheduled, kicker: 'due', noun: `${co(scheduled)} due` };
+  return { n: null, kicker: '', noun: null };
+}
+
+function dateStrip(active, today) {
+  const ordered = stripDays(active);
+  if (!ordered.length) return '';
+  const readable = countsAreReadable(calendar.strip());
   return `
     <div class="scrollbar-thin mb-4 flex gap-2 overflow-x-auto pb-2" data-date-strip>
       ${ordered
@@ -601,10 +746,15 @@ function dateStrip(active, today) {
           const on = d.date === active;
           // With no readable counts, no date can be called empty — so none is disabled, and each
           // shows a dash. A dash means "not known", which is what it is.
-          const empty = readable && !d.count;
+          //
+          // A date the results feed covers is never disabled whatever the schedule says: companies
+          // demonstrably filed on it, so "nothing scheduled" would be contradicted by the table
+          // one click away. That was the state every past date used to be in.
+          const { n, kicker, noun } = chipCount(d.date, today);
+          const empty = readable && !d.count && !feed.reportedCount(d.date);
           const isToday = d.date === today;
-          return `<button type="button" data-date="${escapeHtml(d.date)}" ${empty ? 'disabled' : ''}
-            title="${escapeHtml(stripLabel(d.date))}${empty ? ' — nothing scheduled' : ` — ${formatNumber(d.count)} companies`}"
+          return `<button type="button" data-date="${escapeHtml(d.date)}" ${empty ? 'disabled' : ''} ${on ? 'aria-current="date"' : ''}
+            title="${escapeHtml(stripLabel(d.date))}${empty ? ' — nothing scheduled' : n != null ? ` — ${formatNumber(n)} ${noun}` : ' — not known'}"
             class="flex min-w-[92px] flex-shrink-0 flex-col items-center rounded-xl px-3 py-2 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
               on
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -613,27 +763,89 @@ function dateStrip(active, today) {
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
             }">
             <span class="font-semibold ${on ? '' : isToday ? 'text-indigo-600' : ''}">${escapeHtml(stripLabel(d.date))}${isToday ? ' ·' : ''}</span>
-            <span class="mt-0.5 font-bold tabular-nums ${on ? 'text-white' : empty ? '' : 'text-slate-900'}">${d.count ? formatNumber(d.count) : '—'}</span>
+            <span class="mt-0.5 font-bold tabular-nums ${on ? 'text-white' : empty ? '' : 'text-slate-900'}">${n != null ? formatNumber(n) : '—'}</span>
+            <span class="text-[9px] font-semibold uppercase tracking-wide ${on ? 'text-indigo-100' : 'text-slate-400'}">${escapeHtml(kicker || ' ')}</span>
           </button>`;
         })
         .join('')}
     </div>`;
 }
 
-function renderCalendar(ctx) {
-  const today = new Date().toISOString().slice(0, 10);
-  const wanted = /^\d{4}-\d{2}-\d{2}$/.test(ctx.params?.date || '') ? ctx.params.date : calendarDate || today;
-  calendarDate = wanted;
-  const payload = calendar.forDate(wanted);
+/**
+ * Put the selected date back where the reader can see it after a rebuild.
+ *
+ * `innerHTML` on the panel destroys the strip and its scroll offset with it, so the container came
+ * back at scrollLeft 0 — the far past — with the date just clicked somewhere off the right edge.
+ * Anchoring the window on today (see `stripWindowFor`) stops the chips MOVING; this stops them
+ * being scrolled away.
+ *
+ * Remembered offsets win where they still show the selection, so a reader who has scrolled the
+ * strip to compare two weeks does not get snapped back on every repaint. Otherwise the active chip
+ * is centred, which is what a fresh selection wants.
+ */
+function keepActiveVisible(root) {
+  const strip = root.querySelector('[data-date-strip]');
+  const active = strip?.querySelector('[data-date][aria-current="date"]');
+  if (!strip || !active) return;
 
-  // Not loaded yet: fetch, then repaint. Guarded three ways — `calendarBusy` stops a rapid walk
-  // along the strip stacking paints, and `errorFor` stops the retry loop that a failure would
-  // otherwise create, because the repaint that follows a failed load asks for the same date again.
-  if (!payload && !calendarBusy && !calendar.errorFor(wanted)) {
+  const centre = () => {
+    const wanted = active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2;
+    strip.scrollLeft = Math.max(0, wanted);
+  };
+
+  if (stripScrollLeft != null) {
+    strip.scrollLeft = stripScrollLeft;
+    // Fully visible at the remembered offset? Keep it. Otherwise centre the selection.
+    const left = active.offsetLeft - strip.scrollLeft;
+    if (left < 0 || left + active.offsetWidth > strip.clientWidth) centre();
+  } else {
+    centre();
+  }
+  stripScrollLeft = strip.scrollLeft;
+  strip.addEventListener('scroll', () => {
+    stripScrollLeft = strip.scrollLeft;
+  });
+}
+
+/**
+ * The date to open on.
+ *
+ * The newest date anything actually filed, because that is a date with a full table behind it and
+ * no network at all. `today` is the fallback for a first paint before the feed has landed — the
+ * strip's own `defaultDate()` cannot help until the schedule has been fetched, and waiting for it
+ * is what made this view open on a shimmer.
+ */
+function defaultCalendarDate(today) {
+  return feed.meta()?.latestResultDate || today;
+}
+
+function renderCalendar(ctx) {
+  const today = isoToday();
+  const wanted = /^\d{4}-\d{2}-\d{2}$/.test(ctx.params?.date || '') ? ctx.params.date : calendarDate || defaultCalendarDate(today);
+  calendarDate = wanted;
+  const mode = modeFor(wanted, today);
+  const spec = MODES[mode];
+  // `list: 'none'` for a date already answered by the results feed — all that is wanted from the
+  // route then is the strip, and asking for the company list costs the Worker a bot-walled page
+  // fetch plus up to 25 identity look-ups for rows nothing will render.
+  const listWanted = mode === 'reported' ? 'none' : 'full';
+  const payload = calendar.forDate(wanted, listWanted);
+
+  // Not loaded yet: fetch, then repaint. Guarded four ways — `calendarBusy` stops a rapid walk
+  // along the strip stacking paints, `errorFor` stops the retry loop that a failure would
+  // otherwise create (the repaint after a failed load asks for the same date again), and in
+  // `reported` mode a date the strip ALREADY covers needs no request at all: the table comes from
+  // memory and the count is in the strip. So walking back through a reporting season is free.
+  //
+  // The consequence that matters: in `reported` mode nothing on screen waits on this. A slow or
+  // failed schedule no longer blanks a past date — which is what it used to do, first as a shimmer
+  // and then as an amber note saying the capture did not reach that far.
+  const needsFetch = !payload && (mode === 'scheduled' || !calendar.stripHas(wanted));
+  if (needsFetch && !calendarBusy && !calendar.errorFor(wanted)) {
     calendarBusy = true;
     const token = renderToken;
     calendar
-      .loadDate(wanted)
+      .loadDate(wanted, { ...stripWindowFor(wanted, today), list: listWanted })
       .catch(() => {})
       .finally(() => {
         calendarBusy = false;
@@ -641,82 +853,81 @@ function renderCalendar(ctx) {
       });
   }
 
-  const rows = payload?.rows || [];
+  const rows = mode === 'reported' ? feed.reportedOn(wanted) : payload?.rows || [];
   const scoped = ctx.scope === 'portfolio' ? rows.filter((r) => holdings(ctx).has(String(r.ticker || '').toUpperCase())) : rows;
   const err = calendar.errorFor(wanted);
+  // A schedule failure is only fatal to the SCHEDULE half. With filings on screen it is a missing
+  // strip, not a missing answer, so it must not take the table down with it.
+  const fatal = err && mode === 'scheduled';
+  const m = feed.meta();
 
   const table = scoped.length
     ? scoreTable({
         rows: scoped,
         key: (r) => r.scId,
-        name: (r) => r.name,
+        name: (r) => (mode === 'reported' ? r.company : r.name),
         nameLabel: 'Company',
-        sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || '—'}`,
+        sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || r.sectorSlug || '—'}`,
         showRank: false,
-        nameAfter: 1,
         dense: true,
+        wrapHeads: mode === 'reported',
         nameMaxPx: 300,
         stickyHead: 'max(280px, calc(100vh - 420px))',
-        columns: [
-          { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
-          { label: 'Quarter', get: (r) => escapeHtml(r.quarter || '—'), html: true, sortValue: (r) => r.quarter || '' },
-          // Moneycontrol says "Time Not Available" for almost every row; the normaliser turns that
-          // into null so this reads as a dash rather than a sentence where a clock belongs.
-          { label: 'Time', get: (r) => (r.time ? escapeHtml(r.time) : '<span class="text-slate-300">—</span>'), html: true, sortValue: (r) => r.time || 'zzz' },
-          { label: 'Price', get: (r) => (r.ltp == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatRupee(r.ltp))), html: true, align: 'right', sortValue: (r) => r.ltp ?? -Infinity },
-          {
-            label: 'Change',
-            get: (r) => {
-              if (r.changePct == null) return '<span class="text-slate-300">—</span>';
-              const cls = r.changePct > 0 ? 'text-emerald-600' : r.changePct < 0 ? 'text-rose-600' : 'text-slate-500';
-              return `<span class="font-semibold ${cls}">${escapeHtml(pctText(r.changePct))}</span>`;
-            },
-            html: true,
-            align: 'right',
-            sortValue: (r) => r.changePct ?? -Infinity,
-          },
-          { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
-        ],
-        searchable: (r) => `${r.name} ${r.ticker || ''} ${r.industry || ''}`,
+        columns: mode === 'reported' ? reportedColumns(m) : scheduledColumns(),
+        // In `reported` mode the date column is gone — every row on the page is that one date — so
+        // the identity column leads, which is why `nameAfter` is only set for the schedule.
+        nameAfter: mode === 'reported' ? 0 : 1,
+        searchable: (r) => `${mode === 'reported' ? r.company : r.name} ${r.ticker || ''} ${r.industry || ''}`,
         initialSort: { key: 'Market Cap', dir: 'desc' },
-        exportName: 'sattva-earnings-calendar',
-        onExport: (visible) => exportCalendar(visible, payload),
+        exportName: mode === 'reported' ? 'sattva-earnings-reported' : 'sattva-earnings-calendar',
+        onExport: (visible) => exportCalendar(visible, payload, { mode, date: wanted, meta: m, due: calendar.scheduledCountFor(wanted) }),
         emptyMessage: 'No companies match your filters.',
+        initialView: calendarViewMode === mode ? calendarTableView : null,
       })
     : null;
+  if (table) {
+    calendarTableView = table.view;
+    calendarViewMode = mode;
+  }
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Earnings Calendar',
-      description: 'Companies scheduled to report, by date. Pick a date from the strip.',
-      controls: `${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'listed', book: coverage.meta() })}`,
+      description: spec.description,
+      controls: `${viewToggle('calendar')}${calendarPill(payload, err, { mode, filed: rows.length })}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: spec.noun, book: coverage.meta() })}`,
     })}
     ${dateStrip(wanted, today)}
     ${
-      err
+      fatal
         ? `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
              <div class="text-3xl">📅</div>
              <div class="mt-2 text-sm font-semibold text-slate-700">The results calendar could not be loaded</div>
              <div class="mt-1 text-xs text-slate-500">${escapeHtml(err)}</div>
-             <div class="mx-auto mt-3 max-w-lg text-xs text-slate-400">This view needs the live route. There is no committed calendar file on purpose — a schedule is a claim about the future, and a stale one looks exactly like a fresh one.</div>
+             <div class="mx-auto mt-3 max-w-lg text-xs text-slate-400">This date is in the future, so only the schedule can answer for it — and the schedule needs the live route. Dates that have already happened are read from the results feed instead and do not depend on it.</div>
            </div>`
-        : !payload
-          ? '<div class="skeleton-shimmer h-80 rounded-2xl bg-slate-100"></div>'
-          : payload.degraded
-            ? `<div class="rounded-2xl bg-amber-50 p-5 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
-                 <strong>Counts only for this date.</strong> ${escapeHtml(payload.degraded)}
+        : table
+          ? `${mode === 'reported' ? reportedNote(wanted, rows.length) : ''}${table.html}`
+          : mode === 'reported'
+            ? `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
+                 <div class="text-3xl">🗓️</div>
+                 <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings filed on this date' : 'No results were filed on this date'}</div>
+                 <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${rows.length ? ` · ${formatNumber(rows.length)} companies filed, none in this scope` : ''}</div>
                </div>`
-            : table
-              ? table.html
-              : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
-                   <div class="text-3xl">🗓️</div>
-                   <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings is scheduled on this date' : 'Nothing scheduled on this date'}</div>
-                   <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${payload.scheduledCount ? ` · ${formatNumber(payload.scheduledCount)} companies report, none in this scope` : ''}</div>
-                 </div>`
+            : !payload
+              ? '<div class="skeleton-shimmer h-80 rounded-2xl bg-slate-100"></div>'
+              : payload.degraded
+                ? `<div class="rounded-2xl bg-amber-50 p-5 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                     <strong>Counts only for this date.</strong> ${escapeHtml(payload.degraded)}
+                   </div>`
+                : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
+                     <div class="text-3xl">🗓️</div>
+                     <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings is scheduled on this date' : 'Nothing scheduled on this date'}</div>
+                     <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${payload.scheduledCount ? ` · ${formatNumber(payload.scheduledCount)} companies report, none in this scope` : ''}</div>
+                   </div>`
     }
   `;
   wireViewToggle(ctx.root, ctx);
-  wireCalendarPill(ctx.root, payload, wanted);
+  wireCalendarPill(ctx.root, payload, wanted, mode);
   for (const btn of ctx.root.querySelectorAll('[data-date]')) {
     btn.addEventListener('click', () => {
       calendarDate = btn.dataset.date;
@@ -724,7 +935,68 @@ function renderCalendar(ctx) {
       renderCalendar(ctx);
     });
   }
+  keepActiveVisible(ctx.root);
   if (table) disposers.push(table.wire(ctx.root));
+}
+
+/**
+ * Columns for a date that has happened: what the companies actually reported.
+ *
+ * The same cells the Latest Results table uses, so a figure means the same thing on both — and
+ * `changeCell` in particular, because 13% of these rows have a sign change between periods and a
+ * plain percentage across zero is not a growth rate.
+ */
+function reportedColumns(m) {
+  const cur = m?.currentPeriod || 'Current';
+  return [
+    { label: `Revenue ${cur}`, get: (r) => figureCell(r.revenue?.current), html: true, align: 'right', sortValue: (r) => r.revenue?.current ?? -Infinity },
+    { label: 'Revenue Growth', get: (r) => changeCell(r.revenue), html: true, align: 'right', sortValue: (r) => changeSortValue(r.revenue) },
+    { label: `Net Profit ${cur}`, get: (r) => figureCell(r.netProfit?.current), html: true, align: 'right', sortValue: (r) => r.netProfit?.current ?? -Infinity },
+    { label: 'Net Profit Growth', get: (r) => changeCell(r.netProfit), html: true, align: 'right', sortValue: (r) => changeSortValue(r.netProfit) },
+    { label: 'Price', get: (r) => (r.ltp == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatRupee(r.ltp))), html: true, align: 'right', sortValue: (r) => r.ltp ?? -Infinity },
+    { label: 'Change', get: (r) => priceChangeCell(r.changePct), html: true, align: 'right', sortValue: (r) => r.changePct ?? -Infinity },
+    { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
+    { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
+  ];
+}
+
+/** Columns for a date still to come: Moneycontrol's schedule, which carries no figures yet. */
+function scheduledColumns() {
+  return [
+    { label: 'Date', get: (r) => shortDate(r.resultDate), align: 'left', sortValue: (r) => r.resultDate || '' },
+    { label: 'Quarter', get: (r) => escapeHtml(r.quarter || '—'), html: true, sortValue: (r) => r.quarter || '' },
+    // Moneycontrol says "Time Not Available" for almost every row; the normaliser turns that into
+    // null so this reads as a dash rather than a sentence where a clock belongs.
+    { label: 'Time', get: (r) => (r.time ? escapeHtml(r.time) : '<span class="text-slate-300">—</span>'), html: true, sortValue: (r) => r.time || 'zzz' },
+    { label: 'Price', get: (r) => (r.ltp == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatRupee(r.ltp))), html: true, align: 'right', sortValue: (r) => r.ltp ?? -Infinity },
+    { label: 'Change', get: (r) => priceChangeCell(r.changePct), html: true, align: 'right', sortValue: (r) => r.changePct ?? -Infinity },
+    { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
+  ];
+}
+
+/** The day's price move. A share price cannot flip sign, so this one really is a percentage. */
+function priceChangeCell(pct) {
+  if (pct == null) return '<span class="text-slate-300">—</span>';
+  const cls = pct > 0 ? 'text-emerald-600' : pct < 0 ? 'text-rose-600' : 'text-slate-500';
+  return `<span class="font-semibold ${cls}">${escapeHtml(pctText(pct))}</span>`;
+}
+
+/**
+ * The one line a reported date needs above its table: how many filed, and — where the schedule
+ * also answered — how that sits against how many were expected.
+ *
+ * The two numbers are from different upstreams measuring different things, so they are printed
+ * side by side and never subtracted. A company can file a day late or a day early, so "234 due,
+ * 210 filed" is not "24 missing" and must not be phrased as if it were.
+ */
+function reportedNote(iso, filed) {
+  const due = calendar.scheduledCountFor(iso);
+  const sched = due != null && due > 0 ? ` Moneycontrol's calendar listed <strong>${escapeHtml(formatNumber(due))}</strong> as due on this date — a separate feed, and companies do file a day either side, so the two are shown side by side rather than differenced.` : '';
+  return `
+    <div class="mb-3 rounded-xl bg-slate-50 px-4 py-2.5 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-100">
+      <strong class="text-slate-800">${escapeHtml(formatNumber(filed))} ${filed === 1 ? 'company' : 'companies'} filed on ${escapeHtml(stripLabel(iso))}.</strong>
+      Read from the live results feed, so this is every one of them, not a top-20.${sched}
+    </div>`;
 }
 
 const holdings = (ctx) => new Set((coverage.holdings()).map((h) => String(h.ticker).toUpperCase()));
@@ -733,8 +1005,22 @@ const holdings = (ctx) => new Set((coverage.holdings()).map((h) => String(h.tick
  * Three states, not two. The counts are always live; the LIST is live when the Worker can reach
  * Moneycontrol's calendar page and comes from the committed capture when it cannot. "Live" and
  * "Captured" are both fine — what would not be fine is showing captured rows under a Live badge.
+ *
+ * A fourth, for a date already reported: the table is then the results feed, which is live per
+ * request and has no cap and no capture — so the pill says *Reported*, and it says so whatever the
+ * schedule half is doing. Wearing "Captured" over a table of filings would attribute the wrong
+ * provenance to every number under it.
  */
-function calendarPill(payload, err) {
+function calendarPill(payload, err, { mode = 'scheduled', filed = 0 } = {}) {
+  if (mode === 'reported') {
+    return `
+      <button type="button" data-cal-info title="Where these companies come from, and what the count beside them means"
+        class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>
+        <span>Reported</span>
+        <span class="font-normal opacity-70">${escapeHtml(formatNumber(filed))} filed</span>
+      </button>`;
+  }
   const bad = !!err || !!payload?.degraded;
   // Either half can be a capture and either makes the pill say so. The list and the counts fail
   // independently — the calendar page is bot-walled while the count API is not, and on 14 Aug 2026
@@ -775,21 +1061,32 @@ function calendarPill(payload, err) {
 // deleting the accountability is not — see the honesty rules in CLAUDE.md.
 
 /**
- * The count Moneycontrol give for this date, or null when we do not believe it.
+ * The count Moneycontrol give for this date, or null when we cannot stand behind it as a total.
  *
- * A count BELOW the number of companies actually named cannot be the number reporting — that is
- * what the endpoint returns when it goes flat, and printing it would put "0 companies report"
- * directly above twenty of them. The Worker now substitutes the committed capture's counts when the
- * live strip is flat, so this mostly guards the case where neither is available.
+ * A count BELOW the number of companies named beneath it may not be printed as "how many report".
+ * There are two quite different reasons it can happen and the same rule covers both:
+ *
+ *   · the count endpoint goes flat and answers 0 for every date — printing that would put
+ *     "0 companies report" directly above twenty of them (see worker/index.js);
+ *   · the two halves cover different exchanges. The count is `indexId=N` (NSE) and the list is
+ *     `indexId=All`, so on 17 Aug 2026 the count said 1 above three named companies — one NSE and
+ *     two BSE-only. Both numbers are correct answers to different questions.
+ *
+ * The second is not an error and must not be reported as one; it is simply not a total for what is
+ * on screen. `calendarPill` prints the word "schedule" instead, and the modal says why.
  */
 function believableCount(payload, shown = payload?.rows?.length || 0) {
   const raw = payload?.scheduledCount;
   return raw != null && raw >= shown ? raw : null;
 }
 
-function wireCalendarPill(root, payload, date) {
+function wireCalendarPill(root, payload, date, mode = 'scheduled') {
   const btn = root.querySelector('[data-cal-info]');
   if (!btn) return;
+  if (mode === 'reported') {
+    btn.addEventListener('click', () => openModal(reportedModalHtml(payload, date), { size: 'default' }));
+    return;
+  }
   btn.addEventListener('click', () => {
     openModal(
       `<div class="px-7 py-6">
@@ -814,6 +1111,12 @@ function wireCalendarPill(root, payload, date) {
                 <strong>${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap</strong> for a date and
                 offers no way to page past that. So on a busy day this table names a fraction of the count beside it,
                 and says so under the table rather than letting twenty rows imply twenty companies.</li>
+            <li><strong>They do not cover the same exchanges.</strong> The count is NSE; the list is every exchange. So
+                on a quiet date the count can be <em>smaller</em> than the number of companies named — one NSE company
+                and two BSE-only ones is a count of 1 above three rows. Both numbers are right; neither is a total for
+                the other. Where that happens ${believableCount(payload) == null ? '<strong>— as it does on this date —</strong> ' : ''}the
+                pill says <em>schedule</em> and prints no number, because a total that contradicts the rows under it is
+                worse than none.</li>
             <li><strong>Ticker and industry</strong> — resolved from Moneycontrol's company code, live, because a
                 company that has not reported yet is not in a map built from companies that have.</li>
           </ul>
@@ -845,11 +1148,97 @@ function wireCalendarPill(root, payload, date) {
   });
 }
 
-async function exportCalendar(rows, payload) {
+/**
+ * The provenance behind a date that has already reported.
+ *
+ * Deliberately a different modal from the schedule's: every caveat there is about a top-20 capture
+ * of a claim about the future, and none of them applies to a list of filings. Reusing it would
+ * warn the reader about a cap this table does not have.
+ */
+function reportedModalHtml(payload, date) {
+  const m = feed.meta();
+  const filed = feed.reportedCount(date);
+  const due = calendar.scheduledCountFor(date);
+  return `<div class="px-7 py-6">
+    <div class="mb-3 flex items-start justify-between gap-4">
+      <h2 class="font-display text-xl font-bold text-slate-900">Reported on ${escapeHtml(stripLabel(date))}</h2>
+      <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+    </div>
+    <div class="text-sm leading-relaxed text-slate-600">
+      <p><strong>These companies have filed.</strong> This is not the schedule — it is the live results feed
+         (Moneycontrol Rapid Results), the same source as the Earnings Reported table, narrowed to the one date.
+         A row here is a published result, not an expectation.</p>
+      <p class="mt-2">${escapeHtml(formatNumber(filed))} ${filed === 1 ? 'company' : 'companies'} on this date${m?.quarter ? `, ${escapeHtml(m.quarter)}` : ''}${m?.currentPeriod ? ` — ${escapeHtml(m.currentPeriod)} against ${escapeHtml(m.priorPeriod || '')}` : ''}.</p>
+
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this is not a top-20</h3>
+      <p class="mt-1 text-xs">The schedule half of this view can only name the twenty largest companies for a date —
+         Moneycontrol's calendar page caps it there and offers no way to page past. The results feed has no such cap,
+         so for a date that has happened every filing is here.</p>
+
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The count beside it</h3>
+      <p class="mt-1 text-xs">${
+        due != null && due > 0
+          ? `Moneycontrol's calendar listed <strong>${escapeHtml(formatNumber(due))}</strong> companies as due on this date. That is a different feed answering a different question, and companies file a day either side of their announced date, so the two figures are shown side by side and never subtracted. The gap between them is not a list of companies that failed to report.`
+          : 'The schedule feed has no count for this date, so only the number of filings is shown. A missing count is not a zero.'
+      }</p>
+
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The figures</h3>
+      <p class="mt-1 text-xs">Revenue and net profit are as filed, in ₹ crore. Where the sign flips between periods the
+         growth column reads <em>To profit</em> / <em>To loss</em> / <em>Loss narrowed</em> instead of a percentage,
+         because a percentage change across zero is not a growth rate. Market cap is the share count times the price on
+         this tick. Price and the day's change are live.</p>
+      <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not known</em> — never zero.</p>
+    </div>
+  </div>`;
+}
+
+async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', meta: m = null, due = null } = {}) {
+  if (mode === 'reported') {
+    // A workbook leaves the page without any of the chrome above, so row 1 has to carry which of
+    // the two questions this sheet answers. Getting that wrong would put filings under a heading
+    // that says "scheduled", which is the one confusion this whole view exists to prevent.
+    const banner = {
+      __banner:
+        `REAL DATA. Results AS FILED on ${date}, via Moneycontrol Rapid Results — the live results feed, not the schedule. ` +
+        `${m?.quarter ? `${m.quarter}, ` : ''}${m?.currentPeriod ? `${m.currentPeriod} against ${m.priorPeriod}. ` : ''}` +
+        `Every company that filed on this date is included; there is no cap. ` +
+        `${due ? `Moneycontrol's separate calendar feed listed ${due} companies as due on this date — a different measurement, do not subtract the two. ` : ''}` +
+        `Exported ${new Date().toISOString()}. Figures in Rs. crore. Where the sign flips between periods the growth column reads ` +
+        `"To profit" / "To loss" / "Loss narrowed" instead of a percentage, because a percentage change across zero is not a growth rate. ` +
+        `Blank cells mean not known, not zero.`,
+    };
+    const pct = (mm) => (mm?.kind === 'normal' ? mm.pct : mm?.kind === 'turnaround' ? 'To profit' : mm?.kind === 'slipped-to-loss' ? 'To loss' : mm?.kind === 'loss-narrowed' ? `Loss narrowed ${mm.pct}%` : mm?.kind === 'loss-widened' ? `Loss widened ${mm.pct}%` : '');
+    const cur = m?.currentPeriod || 'Current';
+    const pri = m?.priorPeriod || 'Prior';
+    await exportRows({
+      filename: 'sattva-earnings-reported',
+      sheetName: 'Reported',
+      columns: [
+        { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
+        { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
+        { header: 'Company', key: 'c', width: 36, get: (r) => (r.__banner ? '' : r.company) },
+        { header: 'Industry', key: 'i', width: 26, get: (r) => (r.__banner ? '' : r.industry || '') },
+        { header: `Revenue ${cur} (Cr)`, key: 'rv', width: 18, get: (r) => (r.__banner ? '' : (r.revenue?.current ?? '')) },
+        { header: `Revenue ${pri} (Cr)`, key: 'rvp', width: 18, get: (r) => (r.__banner ? '' : (r.revenue?.prior ?? '')) },
+        { header: 'Revenue Change', key: 'rg', width: 18, get: (r) => (r.__banner ? '' : pct(r.revenue)) },
+        { header: `Net Profit ${cur} (Cr)`, key: 'np', width: 18, get: (r) => (r.__banner ? '' : (r.netProfit?.current ?? '')) },
+        { header: `Net Profit ${pri} (Cr)`, key: 'npp', width: 18, get: (r) => (r.__banner ? '' : (r.netProfit?.prior ?? '')) },
+        { header: 'Net Profit Change', key: 'pg', width: 18, get: (r) => (r.__banner ? '' : pct(r.netProfit)) },
+        { header: 'Price', key: 'p', width: 14, get: (r) => (r.__banner ? '' : (r.ltp ?? '')) },
+        { header: 'Change %', key: 'ch', width: 12, get: (r) => (r.__banner ? '' : (r.changePct ?? '')) },
+        { header: 'MCap (Cr)', key: 'mc', width: 16, get: (r) => (r.__banner ? '' : (r.marketCap ?? '')) },
+        { header: 'Basis', key: 'b', width: 14, get: (r) => (r.__banner ? '' : r.basis || '') },
+      ],
+      rows: [banner, ...rows],
+    });
+    return;
+  }
+
   const banner = {
     __banner:
-      `REAL DATA. Results calendar via Moneycontrol — companies scheduled to report on ${payload?.date || ''}` +
+      `REAL DATA. Results calendar via Moneycontrol — companies SCHEDULED to report on ${payload?.date || date || ''}` +
       `${payload?.asOnDate ? ` (schedule as on ${payload.asOnDate})` : ''}, captured ${new Date().toISOString()}. ` +
+      `These companies have NOT reported yet — this is a schedule, not a set of filings. ` +
       // Same rule as the on-screen note, and it matters more here: a workbook leaves the page
       // without its chrome, so a count we do not believe must not travel with it as a fact.
       `${payload?.scheduledCount != null && payload.scheduledCount >= (payload?.rows?.length || 0) ? `${payload.scheduledCount} companies report on this date; ` : 'HOW MANY REPORT ON THIS DATE IS NOT KNOWN — the count endpoint was not answering when this was exported; '}` +
