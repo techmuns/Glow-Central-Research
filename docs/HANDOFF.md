@@ -593,7 +593,7 @@ its own LLM pipeline over that call. We dispatch, mirror its progress in its own
 out the report it returns. `js/data/deep-dive.js` is the transport, `js/concall/deep-dive.js` the
 panel; full contract in `docs/DATA-CONTRACTS.md`.
 
-Four things to know before touching it:
+Five things to know before touching it:
 
 - **The URL is `window.SATTVA_DEEPDIVE_URL` in `public/index.html`**
   (`https://concall-sattva.tech-441.workers.dev`). That Worker has no custom domain, so the
@@ -609,12 +609,22 @@ Four things to know before touching it:
   hold; it is fetched once per page load and the rows it names get a filled *Deep Dive ✓* button
   that opens the report at no cost. Making a reader pay to discover an answer already exists would
   be the other half of getting this wrong.
+- **A finished report is kept on this device, and that is about money rather than bytes.** Their
+  store drops a report after about a fortnight; ours does not. Every finished report goes to
+  IndexedDB under their slug (`KEYS.deepDiveReport`), with a small localStorage index so the table
+  can mark the free rows synchronously. Reopening paints from there with **no request at all** and
+  re-checks behind it, and a re-check that fails — including `unknown`, which is their expiry —
+  leaves our copy exactly where it is. Before this, that expiry sent the reader to the confirm step,
+  so the only way back to an analysis already read was to pay for it again. The ribbon says which
+  copy is on screen and when it was last confirmed, because a stored paint may not claim a freshness
+  it has not got.
 - **The report is theirs end to end.** Nothing on that panel is computed or re-scored here; it
   renders sections in their own key order, lays each out by its shape rather than by a hard-coded
   field list, and links to their own rendering. It also carries real transcript quotes from named
   people — real speech, lifted by their pipeline, with the filed transcript linked in the
   provenance strip. And it checks that the report it received is about the company whose row was
-  clicked, rather than assuming.
+  clicked, rather than assuming — a check that now also gates what may be written to the store, so
+  a contradicting report can never be served from disk under our ticker.
 
 ---
 

@@ -890,8 +890,53 @@ than blanking the panel.
 
 **Reopening reattaches by itself.** `resume(slug)` polls and never dispatches, so it is safe to run
 unprompted: closing the panel leaves the run alone upstream, and opening it again lands on live
-progress, or on the finished report, or — if the slug has aged out of their store — quietly on the
-confirm step.
+progress, or on the finished report, or on this device's copy of it.
+
+**A reattach must not look like a run.** The panel opens on an `opening` state — one line saying no
+run is being started — and only a status their API actually reports as in flight promotes it to the
+stage checklist. It used to open on the run screen for both, so returning to a report finished an
+hour ago showed *"Starting the analysis… 5%"* and the seven steps while a free GET was in flight.
+Nothing was being spent, and the screen said otherwise; a reader has no way to tell that screen from
+the metered one. `run()` derives both the screen and the request branch from a single resolved
+`resumeSlug`, so the sentence and the behaviour cannot drift apart.
+
+### Finished reports are kept on this device
+
+A report is the output of a **metered LLM run**, and their store drops one after about a fortnight.
+Once it is gone the only way back to an analysis already read was to pay for it again — so every
+finished report is written to IndexedDB and reopening paints from there before any request is made.
+
+| Where | What |
+| --- | --- |
+| IndexedDB, `deepdive:<slug>` (`KEYS.deepDiveReport`) | the report **body**, exactly as they returned it |
+| `localStorage['sattva:deepdive-reports']` | a small index — `slug -> { ticker, company, quarter, savedAt }` — read synchronously on every table paint so the rows that open for free are marked without an async read. Capped at `MAX_SAVED` (60), oldest out, body and index together |
+
+This is the only entry in `KEYS` that is **not** fetched through `conditionalJson`: their
+`GET /api/report` sends no ETag and wraps the body in a status envelope, so there is no validator to
+send and nothing to 304. The reason to keep it is different too — not bytes, but money.
+
+Opening a slug we already have is device-first, the same shape as the Superstar Investors books:
+
+1. **Pass one** paints the stored report with **zero requests**, and `load` resolves there.
+2. **Pass two** re-checks against them in the background. Unchanged — the common case — repaints
+   nothing but the ribbon, so a reader mid-paragraph is not sent back to the top. A newer report
+   replaces it in place. A failure changes nothing.
+
+Three rules make that safe, and they are the store's usual ones:
+
+- **What is kept is their bytes under their slug.** Nothing is patched, trimmed or recomputed.
+- **A failed re-check never deletes a report we hold.** `unknown` means their store has dropped it,
+  which is precisely when this device's copy is the only one left; a network error means we could
+  not ask. Neither is a reason to show a confirm step that asks the reader to buy back an analysis
+  they have already read. Only a slug with **no** saved copy falls through to that step.
+- **A stored paint may not claim a freshness it has not confirmed.** `origin` (`store` / `live`) is
+  where the bytes on screen came from and `checkedAt` is when the dashboard last confirmed them —
+  the same two facts `deliveryNote()` prints for the polled feeds. A re-check moves the second, not
+  the first, so an unchanged report still reads *"shown from the copy saved on this device"*. When
+  their copy is gone the ribbon says so outright.
+- **A report that contradicts the row is never filed under that row's ticker.** It still renders,
+  under the rose banner below, but writing it to the store would make every later open of that row
+  serve another company's analysis from disk with no upstream left to correct it.
 
 `slug` is **always theirs**, derived server-side. Never construct one here. It is remembered per
 ticker in `localStorage` under `sattva:deepdive-slugs` so closing the panel and reopening
@@ -913,7 +958,10 @@ compute run. The reads are plain GETs with no pipeline behind them. So:
 - Reopening a panel uses `resume(slug)` too. Their API would dedup a second `POST` anyway, but not
   asking at all is the version that cannot cost a run through a bug of ours.
 - The dot on an outlined button means *this browser* has dispatched a run for that ticker; the
-  filled button means *they* hold a finished report. Different facts, different marks.
+  filled button means a finished report opens for free. Different facts, different marks. The
+  filled state is reached two ways — their index says they hold a report, or this device does — and
+  the second is stronger, because it needs no network at all and is known synchronously, so those
+  rows are filled on first paint rather than upgraded when `/api/summary` lands.
 
 ### The report is theirs, and the renderer never pretends otherwise
 

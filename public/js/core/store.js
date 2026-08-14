@@ -42,6 +42,12 @@ export const KEYS = {
   investorList: 'investors:list',
   investorBook: (slug) => `investor:${slug}`,
   chatter: 'chatter',
+  // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
+  // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the
+  // body in a status envelope, so there is no validator to send and nothing to 304. The reason to
+  // keep it is different too — not bytes, but the fact that a report costs a metered LLM run to
+  // produce, so losing our copy of one is the one cache miss the reader pays for in money.
+  deepDiveReport: (slug) => `deepdive:${slug}`,
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

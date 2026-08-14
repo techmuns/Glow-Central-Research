@@ -25,6 +25,23 @@
 //   spinner would be inventing reassurance; "extract · pulling the transcript" is what is
 //   actually happening.
 //
+//   WHICH IS EXACTLY WHY REOPENING MUST NOT SHOW IT. That screen used to paint the moment the panel
+//   opened, for a reattach as much as for a dispatch — so returning to a report finished an hour ago
+//   showed "Starting the analysis… 5%" and the seven-step checklist while a free GET was in flight.
+//   Nothing was being run and nothing was being charged, but the panel said otherwise, and a reader
+//   has no way to tell a screen that means "we are spending your money" from one that means "we are
+//   asking a question we already know the answer to". So a reattach opens on `opening` — one quiet
+//   line that says no run is being started — and only a status their API actually reports as in
+//   flight promotes it to the pipeline screen.
+//
+// A REPORT ALREADY READ SHOULD NEVER HAVE TO BE PAID FOR TWICE.
+//   Finished reports are kept on this device (see js/data/deep-dive.js). Reopening one paints from
+//   there with no request at all, then re-checks them in the background: unchanged is the common
+//   case and repaints nothing, a newer report replaces it, and a failure — including their store
+//   having dropped the report after its fortnight — leaves our copy exactly where it is. Dropping
+//   to the confirm step in that last case, which is what this did before, asked the reader to spend
+//   a fresh run to get back something we were holding the whole time.
+//
 // WHY THE REPORT RENDERER IS SHAPE-DRIVEN AND NOT FIELD-DRIVEN
 //   `report.schema.json` lives in that repo, not this one, and the payload is expected to grow.
 //   So this renders sections IN THEIR OWN KEY ORDER and decides how to draw each one from its
@@ -62,27 +79,42 @@ let live = null;
  * going for ten minutes. There is also little to link to: the report's canonical address is on the
  * Deep Dive dashboard itself, and every finished panel carries that link.
  */
-export function openDeepDive(row, { onRecorded = null, ready = null } = {}) {
+export function openDeepDive(row, { onRecorded = null, onSaved = null, ready = null } = {}) {
   stop();
   const ticker = row.ticker || null;
   const company = row.name || ticker || '';
   const known = api.remembered(ticker);
+  const saved = api.savedFor(ticker);
 
-  // A run this browser started, or a report their index says exists. Either way there is a slug to
-  // poll, and polling is free — so the panel reattaches instead of asking a question whose answer
-  // it already has.
-  const attachSlug = ready?.slug || known?.slug || null;
+  // A report this device holds, a run this browser started, or a report their index says exists.
+  // Any of the three means there is a slug to open, and opening one is free — so the panel goes
+  // straight there instead of asking a question whose answer it already has.
+  //
+  // Their index wins the RE-CHECK, because it names the newest report they hold and ours may be a
+  // quarter behind. It does not win the PAINT: the saved copy goes up immediately either way, and
+  // is replaced in place if the check turns up something newer.
+  const attachSlug = ready?.slug || known?.slug || saved?.slug || null;
 
   live = {
     ticker,
     company,
     onRecorded,
+    onSaved,
     ready,
-    phase: !api.configured() ? 'connect' : attachSlug ? 'running' : 'confirm',
+    phase: !api.configured() ? 'connect' : attachSlug ? 'opening' : 'confirm',
     progress: null,
     displayPct: 0,
     report: null,
     slug: attachSlug,
+    savedSlug: saved?.slug || null,
+    savedAt: null,
+    // Where THIS PAINT came from ('store' | 'live') and when the dashboard last confirmed it —
+    // two different facts, and the ribbon prints both. A re-check moves the second, not the first.
+    origin: null,
+    checkedAt: null,
+    revalidating: false,
+    upstreamGone: false,
+    checkFailed: null,
     partial: false,
     cached: false,
     error: null,
@@ -106,10 +138,38 @@ export function openDeepDive(row, { onRecorded = null, ready = null } = {}) {
   // `resume()` only ever polls `GET /api/report`, which is free, so doing it unprompted breaks no
   // rule: the one thing that must never fire on its own is a dispatch. If the run is still going
   // the reader lands straight on its live progress; if it finished while the panel was closed they
-  // land on the report; if the slug has aged out upstream, `run()` drops quietly to the confirm
-  // step. Before this, reopening showed a confirm panel with a "Reattach to it" link — the run was
-  // never lost, but you had to know to ask for it.
-  if (attachSlug && api.configured()) run({ resume: true, slug: attachSlug, auto: true });
+  // land on the report; if the slug has aged out upstream, the copy on this device is what they
+  // land on. Before this, reopening showed a confirm panel with a "Reattach to it" link — the run
+  // was never lost, but you had to know to ask for it.
+  if (attachSlug && api.configured()) reopen(attachSlug);
+}
+
+/**
+ * Open a slug we already have: this device's copy first, then a re-check against them.
+ *
+ * The order is the whole point. The stored report is painted before any request is made, so the
+ * common case — reopening something already read — is instant and silent. The re-check that follows
+ * is free, and can only ever improve what is on screen: replace it with a newer report, or leave it
+ * alone. It cannot take it away.
+ */
+async function reopen(attachSlug) {
+  const owner = live;
+  const saved = owner.savedSlug ? await api.savedReport(owner.savedSlug) : null;
+  if (live !== owner) return; // the reader closed it while the store was being read
+
+  if (saved?.report) {
+    live.report = saved.report;
+    live.partial = saved.partial;
+    live.slug = saved.slug;
+    live.savedAt = saved.savedAt;
+    live.origin = 'store';
+    live.revalidating = true;
+    live.phase = 'done';
+    refreshWorkspace();
+  }
+  // `background` keeps the paint that is already up — a report on screen is not replaced by a
+  // progress screen just because we are asking whether there is a newer one.
+  run({ resume: true, slug: attachSlug, auto: true, background: !!saved?.report });
 }
 
 /**
@@ -138,6 +198,8 @@ function renderPanel() {
       return connectPanel();
     case 'confirm':
       return confirmPanel();
+    case 'opening':
+      return openingPanel();
     case 'running':
       return runningPanel();
     case 'error':
@@ -203,6 +265,28 @@ function confirmPanel() {
         ${rerun && live.report ? '<button data-dd-back class="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Back to the report</button>' : ''}
       </div>
       <p class="mt-6 text-xs text-slate-500">Connected to <code class="rounded bg-slate-100 px-1">${escapeHtml(api.baseUrl())}</code> · <button data-dd-reconnect class="font-semibold text-indigo-600 hover:underline">change</button></p>
+    </div>`;
+}
+
+/**
+ * Opening something that already exists — NOT the pipeline screen.
+ *
+ * This is a free `GET /api/report` on a slug we already have. It usually resolves in a few hundred
+ * milliseconds, and what it is waiting on is a lookup, not an analysis. Showing the run screen here
+ * — stage labels, a checklist, a percentage climbing from 5% — describes work that is not happening
+ * and reads exactly like the metered thing the reader was careful not to start. One line, and it
+ * says so outright.
+ */
+function openingPanel() {
+  return `
+    <div class="mx-auto max-w-2xl px-6 py-16 text-center">
+      <div class="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+        <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500"></span>
+        Opening the report for ${escapeHtml(live.company)}…
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-slate-400">
+        No run is being started — this only reads the analysis Concall Deep Dive already holds.
+      </p>
     </div>`;
 }
 
@@ -293,16 +377,18 @@ function errorPanel() {
 /**
  * The panel is titled with OUR row's company; the report is titled with THEIRS. Those must agree.
  *
- * A slug is derived on their side, and this dashboard resolves one from a ticker in two places —
- * their summary index and this browser's memory of a dispatch. If either ever pointed at the
- * wrong report, the result would be one company's analysis rendered under another's name, which
- * is the worst thing this panel could do. So it checks, and says so loudly rather than quietly
- * presenting it. Missing identity on their side is not a mismatch — only a contradiction is.
+ * A slug is derived on their side, and this dashboard resolves one from a ticker in three places —
+ * their summary index, this browser's memory of a dispatch, and this device's saved reports. If any
+ * of them ever pointed at the wrong report, the result would be one company's analysis rendered
+ * under another's name, which is the worst thing this panel could do. So it checks, and says so
+ * loudly rather than quietly presenting it. Missing identity on their side is not a mismatch — only
+ * a contradiction is. The third source cannot produce one: `run()` refuses to file a report under a
+ * ticker it contradicts, so nothing that fails this check is ever written to the store.
  */
 function identityMismatch(report) {
+  if (!api.conflictsWith(report, live.ticker)) return '';
   const theirs = String(report?.meta?.ticker || '').toUpperCase();
   const ours = String(live.ticker || '').toUpperCase();
-  if (!theirs || !ours || theirs === ours) return '';
   return `
     <div class="mb-5 rounded-2xl bg-rose-50 p-4 text-xs leading-relaxed text-rose-900 ring-1 ring-rose-200">
       <strong>This report is for a different company.</strong> The row opened was
@@ -312,6 +398,36 @@ function identityMismatch(report) {
     </div>`;
 }
 
+/**
+ * Where THIS paint came from, in the ribbon's own words.
+ *
+ * `origin` is where the bytes on screen came from and `checkedAt` is when the dashboard last
+ * confirmed them — the same two facts `deliveryNote()` prints for the polled feeds, and they are
+ * deliberately separate. A stored report that has not been re-checked yet says so; one that has
+ * says when. Neither is allowed to read as "fresh from Concall Deep Dive" unless it is.
+ */
+function deliveryLine() {
+  const when = live.savedAt ? ` ${escapeHtml(formatRelativeTime(live.savedAt))}` : '';
+  if (live.origin === 'store') {
+    const check = live.rebuilding
+      ? 'Concall Deep Dive is running a fresh analysis of this call right now — it will replace this when it lands.'
+      : live.revalidating
+        ? 'Checking Concall Deep Dive for a newer one…'
+        : live.upstreamGone
+          ? '<span class="text-amber-800">Concall Deep Dive no longer holds this report — their store keeps one for about a fortnight — so this device’s copy is the one there is.</span>'
+          : live.checkFailed
+            ? `<span class="text-amber-800">Concall Deep Dive could not be reached to check for a newer one (${escapeHtml(live.checkFailed)}), so this has not been re-checked.</span>`
+            : 'Confirmed unchanged with Concall Deep Dive just now.';
+    return `Shown from the copy saved on this device${when} — no run, and nothing downloaded to open it. ${check}`;
+  }
+  const kept = live.saved ? ' It is now saved on this device, so opening it again costs nothing at all.' : '';
+  if (live.replacedStored) return `Concall Deep Dive had a newer report than the one saved here, and this is it.${kept}`;
+  if (live.ready)
+    return `A report they already held${live.ready.generated_at ? `, generated ${escapeHtml(formatRelativeTime(live.ready.generated_at))}` : ''} — opening it started no run.${kept}`;
+  if (live.cached) return `Served from their cache rather than a fresh run.${kept}`;
+  return `Produced by a run started from this page.${kept}`;
+}
+
 function reportPanel() {
   const url = api.reportUrl(live.slug);
   const report = live.report;
@@ -319,18 +435,7 @@ function reportPanel() {
     <div class="px-6 py-6">
       ${identityMismatch(report)}
       <div class="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-indigo-50/60 p-4 ring-1 ring-indigo-100">
-        <div class="min-w-0 flex-1 text-xs leading-relaxed text-slate-700">
-          <strong>This analysis is Concall Deep Dive's, reproduced here unchanged.</strong>
-          Nothing on this panel is computed or re-scored by Sattva Central Research.
-          ${
-            live.ready
-              ? `A report they already held${live.ready.generated_at ? `, generated ${escapeHtml(formatRelativeTime(live.ready.generated_at))}` : ''} — opening it started no run.`
-              : live.cached
-                ? 'Served from their cache rather than a fresh run.'
-                : 'Produced by a run started from this page.'
-          }
-          ${live.partial ? '<span class="text-amber-800"> Some fields were unavailable, so the report is incomplete in places — they flagged it <code class="rounded bg-amber-100 px-1">partial</code>.</span>' : ''}
-        </div>
+        <div data-dd-ribbon class="min-w-0 flex-1 text-xs leading-relaxed text-slate-700">${ribbonText()}</div>
         ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="flex-shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:opacity-90">Open on Concall Deep Dive ↗</a>` : ''}
       </div>
       ${report ? renderReport(report) : '<p class="text-sm text-slate-500">The run finished but returned no report body. Their own page above will have it.</p>'}
@@ -340,6 +445,27 @@ function reportPanel() {
         <span class="text-[11px] text-slate-400">Re-running starts a fresh pipeline run and asks first.</span>
       </div>
     </div>`;
+}
+
+const ribbonText = () => `
+  <strong>This analysis is Concall Deep Dive's, reproduced here unchanged.</strong>
+  Nothing on this panel is computed or re-scored by Sattva Central Research.
+  ${deliveryLine()}
+  ${live.partial ? '<span class="text-amber-800"> Some fields were unavailable, so the report is incomplete in places — they flagged it <code class="rounded bg-amber-100 px-1">partial</code>.</span>' : ''}`;
+
+/**
+ * Repaint the ribbon alone, for when the re-check changed the delivery and nothing else.
+ *
+ * A full `refreshWorkspace()` re-renders the report and sends the reader back to the top of it,
+ * which is a rude thing to do to someone mid-paragraph in order to announce that nothing changed.
+ * Every caller has already set `phase` to `done`, so a missing ribbon means the report is not on
+ * screen yet — a reattach that failed back onto the saved copy, say — and that needs a full render.
+ */
+function updateRibbon() {
+  if (!live || live.phase !== 'done') return;
+  const node = document.querySelector('#workspace-panel [data-dd-ribbon]');
+  if (node) node.innerHTML = ribbonText();
+  else refreshWorkspace();
 }
 
 // ---------------------------------------------------------------------------------------
@@ -683,16 +809,30 @@ function wirePanel(panel) {
   }
 }
 
-async function run({ force = false, resume = false, slug = null, auto = false } = {}) {
+async function run({ force = false, resume = false, slug = null, auto = false, background = false } = {}) {
   if (!live) return;
   const controller = new AbortController();
   live.controller?.abort();
   live.controller = controller;
-  live.phase = 'running';
   live.error = null;
-  live.progress = { status: 'queued', stage: null };
-  live.displayPct = api.stageInfo(null).pct;
-  refreshWorkspace();
+  live.checkFailed = null;
+  live.upstreamGone = false;
+  live.rebuilding = false;
+
+  // Resolved ONCE, and both the screen and the request branch off it. `opening` tells the reader in
+  // as many words that no run is being started, so the flag that decides which screen to show has
+  // to be the same one that decides whether a dispatch happens — not a separate reading of the same
+  // intent that could drift into showing that sentence over a `POST /api/analyze`.
+  const resumeSlug = resume ? slug || api.remembered(live.ticker)?.slug : null;
+
+  // A dispatch opens on the pipeline screen because a pipeline is what it starts. A reattach opens
+  // on `opening`, and a re-check behind a report we already have changes nothing on screen at all.
+  if (!background) {
+    live.phase = resumeSlug ? 'opening' : 'running';
+    live.progress = { status: 'queued', stage: null };
+    live.displayPct = api.stageInfo(null).pct;
+    refreshWorkspace();
+  }
 
   const onProgress = (p) => {
     if (!live || live.controller !== controller) return;
@@ -704,28 +844,92 @@ async function run({ force = false, resume = false, slug = null, auto = false } 
       live.onRecorded?.(p.slug);
     }
     live.displayPct = creep(live.displayPct, p.stage);
-    refreshWorkspace();
+    // THE PIPELINE SCREEN IS FOR A PIPELINE THAT IS ACTUALLY RUNNING. A reattach only earns it
+    // once their API says a run is in flight; until then "opening" stands, and a report already on
+    // screen is never traded for a progress bar.
+    const inFlight = !p.transientError && (p.status === 'running' || p.status === 'queued' || p.status === 'dispatching');
+    if (live.phase === 'opening' && inFlight) live.phase = 'running';
+    if (live.phase === 'running' || live.phase === 'opening') refreshWorkspace();
+    // A check behind a saved report that finds a run genuinely in flight: the report stays put —
+    // it is what the reader came for — but the ribbon stops saying we are merely looking.
+    else if (background && inFlight && !live.rebuilding) {
+      live.rebuilding = true;
+      updateRibbon();
+    }
   };
 
   try {
-    // Resume takes the slug it was handed, or the one this browser remembers. Either way it only
-    // ever polls — `api.start` is the single path in this file that can dispatch a run.
-    const resumeSlug = slug || api.remembered(live.ticker)?.slug;
-    const out =
-      resume && resumeSlug
-        ? await api.resume(resumeSlug, { onProgress, signal: controller.signal })
-        : await api.start({ company: live.company, ticker: live.ticker, force }, { onProgress, signal: controller.signal });
+    // `resumeSlug` only ever polls; `api.start` is the single path in this file that can dispatch.
+    const out = resumeSlug
+      ? await api.resume(resumeSlug, { onProgress, signal: controller.signal })
+      : await api.start({ company: live.company, ticker: live.ticker, force }, { onProgress, signal: controller.signal });
     if (!live || live.controller !== controller) return;
+
+    const wasStored = live.origin === 'store';
+    const changed = !live.report || JSON.stringify(live.report) !== JSON.stringify(out.report);
     live.report = out.report;
     live.slug = out.slug;
     live.partial = out.partial;
     live.cached = out.cached;
+    live.checkedAt = Date.now();
+    live.revalidating = false;
+    live.replacedStored = wasStored && changed;
+    // A stored paint that came back unchanged is still a stored paint — what moved is when it was
+    // last confirmed, not where it came from. Only bytes that actually arrived make the origin live.
+    live.origin = wasStored && !changed ? 'store' : 'live';
     live.phase = 'done';
+
+    // KEEP IT. A report costs a metered run to produce and their store forgets one after a
+    // fortnight, so this is the difference between reopening it next month and paying for it again.
+    // Never filed under our ticker when the report contradicts it — see `conflictsWith`. Only
+    // written when the bytes are actually new: re-storing an identical report would restamp
+    // "saved on this device <when>" with a time nothing happened at.
+    if (changed && out.report && !api.conflictsWith(out.report, live.ticker)) {
+      const onSaved = live.onSaved;
+      const savedSlug = out.slug;
+      live.savedSlug = savedSlug;
+      api.saveReport({
+        slug: savedSlug,
+        ticker: live.ticker,
+        company: live.company,
+        quarter: live.ready?.quarter || out.report?.meta?.quarter || null,
+        report: out.report,
+        partial: out.partial,
+      }).then((stored) => {
+        if (!stored) return;
+        if (live?.slug === savedSlug) {
+          live.saved = true;
+          live.savedAt = Date.now();
+          if (live.phase === 'done') updateRibbon();
+        }
+        onSaved?.(savedSlug);
+      });
+    }
+
+    // Unchanged, behind a report the reader is already looking at: say so in the ribbon and leave
+    // the rest of the panel — and their scroll position — exactly where they were.
+    if (background && !changed) {
+      updateRibbon();
+      return;
+    }
   } catch (err) {
     if (err?.name === 'AbortError') return; // the reader closed the panel; the run continues
     if (!live || live.controller !== controller) return;
-    // An auto-resume that finds nothing on record is not an error to show anybody: the slug this
-    // browser remembered has simply aged out upstream. Offer to start a run instead of a red card.
+
+    // A REPORT WE ALREADY HOLD IS NEVER THROWN AWAY BECAUSE A LATER REQUEST FAILED. `unknown` here
+    // means their store has dropped it, which is precisely when this device's copy is the only one
+    // left; a network failure means we could not ask. Neither is a reason to show the reader a
+    // confirm step that asks them to buy back an analysis they have already read.
+    if (live.report) {
+      live.revalidating = false;
+      live.upstreamGone = err?.code === 'unknown';
+      live.checkFailed = err?.code === 'unknown' ? null : String(err.message || err);
+      live.phase = 'done';
+      updateRibbon();
+      return;
+    }
+    // An auto-resume that finds nothing on record and nothing saved here is not an error to show
+    // anybody: the slug this browser remembered has aged out upstream. Offer to start a run.
     if (auto && err?.code === 'unknown') {
       live.slug = null;
       live.phase = 'confirm';

@@ -59,7 +59,7 @@ page.on('pageerror', (e) => errors.push(`PAGEERROR ${String(e.stack || e).slice(
 // localStorage ahead of the baked-in URL, so seeding that key before the first navigation points
 // every con-call render at this stub instead. It stays up until the browser closes.
 const ddHits = { analyze: 0, report: 0, forced: 0, summary: 0 };
-const { server: ddStub, origin: ddOrigin, setReady: ddSetReady } = await startDeepDiveStub(ddHits);
+const { server: ddStub, origin: ddOrigin, setReady: ddSetReady, forget: ddForget } = await startDeepDiveStub(ddHits);
 await context.addInitScript((origin) => localStorage.setItem('sattva:deepdive-base', JSON.stringify(origin)), ddOrigin);
 
 // Scope persists to localStorage by design, so any check that assumes the full universe
@@ -195,7 +195,14 @@ async function startDeepDiveStub(hits) {
     identities.set(slug, { company, ticker });
     runs.set(slug, 9); // already finished on their side, so the first poll returns the report
   };
-  return { server, origin, setReady };
+  // Their store keeps a report for about a fortnight and then drops it. `forget` is that expiry:
+  // the slug goes back to answering `unknown` and the index stops naming it, which is the state the
+  // saved-report checks below exist for — the point at which their copy is gone and ours is not.
+  const forget = (slug) => {
+    runs.delete(slug);
+    ready = ready.filter((r) => r.slug !== slug);
+  };
+  return { server, origin, setReady, forget };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1137,9 +1144,86 @@ ok('...with no mismatch warning, because this one is about the right company', !
 
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
-// The stub stays up for the rest of the run — see the note beside its construction. Only the
-// remembered slugs are cleared, so a later con-call render starts from the shipped state.
+
+// ---------------------------------------------------------------------------------------
+// A REPORT ALREADY PRODUCED IS KEPT ON THIS DEVICE — the checks that matter most here.
+//
+// Every other cache on this dashboard saves bytes. This one saves money: a report is the output of
+// a metered LLM run, and their store drops one after about a fortnight. Before this, that expiry
+// took the report with it — reopening a company analysed last month showed the confirm step, and
+// the only way back to an analysis already read was to pay for it again.
+//
+// So the assertions are about what happens with the upstream copy GONE, which is exactly when a
+// cache that merely mirrors a healthy server would be worthless.
+// ---------------------------------------------------------------------------------------
+const DD_HELD = 'already-held-q1fy27';
+ok(
+  'a finished report is written to the device, body and all',
+  await page.evaluate(async (slug) => {
+    const s = await import('/js/core/store.js');
+    const hit = await s.readEntry(s.KEYS.deepDiveReport(slug));
+    return !!hit?.value?.report?.key_takeaways;
+  }, DD_HELD)
+);
+// The dispatched run returned a TATAMOTORS report against a row that is not TATAMOTORS. It is
+// rendered — under a banner saying whose it is — but filing it under our ticker would make every
+// later open of that row show another company's analysis, from disk, with no upstream to correct it.
+const ddDispatched = String(ddLink || '').split('/report/')[1] || '';
+ok(
+  '...but a report that contradicts the row is never filed under that row’s ticker',
+  !!ddDispatched &&
+    (await page.evaluate((slug) => !(slug in JSON.parse(localStorage.getItem('sattva:deepdive-reports') || '{}')), ddDispatched)),
+  ddDispatched || 'no dispatched slug'
+);
+
+// THEIR COPY IS NOW GONE — both slugs answer `unknown` and their index names nothing. This browser's
+// memory of the dispatch is cleared too, so the ONLY route left to that analysis is the device. That
+// is the state a reader lands in a month later, and the whole point of keeping the report.
+ddForget(DD_HELD);
+if (ddDispatched) ddForget(ddDispatched);
 await page.evaluate(() => localStorage.removeItem('sattva:deepdive-slugs'));
+const ddBeforeGone = { analyze: ddHits.analyze, forced: ddHits.forced };
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1000);
+await waitForPanel();
+await page.waitForSelector('[data-dd-saved]', { timeout: 20000 }).catch(() => {});
+ok('the row is still marked free to open, off the device alone', (await page.locator('[data-dd-saved]').count()) >= 1, 'their index now names nothing');
+ok('...and says so before it is clicked', /saved on this device/i.test((await page.locator('[data-dd-saved]').first().getAttribute('title')) || ''));
+
+// Record every state the panel passes through, so "it never showed the run screen" is measured
+// rather than sampled. A reattach is a free GET; painting the pipeline checklist over it describes
+// work that is not happening and reads exactly like the metered thing the reader avoided.
+await page.evaluate(() => {
+  window.__ddSeen = [];
+  const root = document.getElementById('workspace-overlay');
+  const push = () => window.__ddSeen.push(document.getElementById('workspace-panel')?.innerText || '');
+  new MutationObserver(push).observe(root, { subtree: true, childList: true, characterData: true });
+});
+await page.locator('[data-dd-saved]').first().click();
+await page.waitForSelector('[data-dd-raw]', { timeout: 20000 });
+const ddGone = await page.locator('#workspace-panel').innerText();
+ok('A REPORT THEY HAVE DROPPED STILL OPENS, FROM THIS DEVICE', /Key Takeaways/i.test(ddGone) && /JLR EBIT margin/i.test(ddGone));
+ok('...AND IT COST NOTHING TO GET IT BACK', ddHits.analyze === ddBeforeGone.analyze && ddHits.forced === ddBeforeGone.forced, `${ddHits.analyze} dispatches total`);
+ok('...never landing on a confirm step that asks the reader to buy it again', (await page.locator('[data-dd-start]').count()) === 0);
+ok('...saying it came from this device, not from them', /saved on this device/i.test(ddGone));
+ok('...and saying plainly that their copy is gone', /no longer holds this report/i.test(ddGone));
+const ddStates = await page.evaluate(() => window.__ddSeen);
+ok(
+  '...and it NEVER shows the run screen on the way — nothing was being run',
+  ddStates.length > 0 && !ddStates.some((t) => /Starting the analysis|Fact-checking every claim/i.test(t)),
+  `${ddStates.length} states observed`
+);
+
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+// The stub stays up for the rest of the run — see the note beside its construction. The remembered
+// slugs and the saved reports are cleared, so a later con-call render starts from the shipped state.
+await page.evaluate(async () => {
+  localStorage.removeItem('sattva:deepdive-slugs');
+  localStorage.removeItem('sattva:deepdive-reports');
+  const s = await import('/js/core/store.js');
+  await s.deleteEntry(s.KEYS.deepDiveReport('already-held-q1fy27'));
+});
 
 // ---------------------------------------------------------------------------------------
 // 8. Public Chatter — one live feed, two sections, and the numbers that are not what they look like

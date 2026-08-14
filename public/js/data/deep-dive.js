@@ -7,6 +7,9 @@
 //   resume(slug, { onProgress })    reattach to an existing run or open a finished report
 //   reportUrl(slug)                 deep link into THEIR rendering of the report
 //   remembered(ticker)              a slug we already have for this company
+//   savedReport(slug)               a finished report KEPT ON THIS DEVICE — no network at all
+//   saveReport({ slug, report })    keep one, so the next open costs nothing
+//   savedByTicker() / savedFor()    which companies this device already holds a report for
 //
 // TWO KINDS OF CALL, AND ONLY ONE OF THEM COSTS ANYTHING.
 //   Reading — `GET /api/summary` (their index of finished reports) and `GET /api/report` — is
@@ -33,9 +36,25 @@
 //   because it is deployment-specific and nobody in this repo can know it. Set it once in the UI
 //   (stored in localStorage) or bake it in by setting `window.SATTVA_DEEPDIVE_URL` in index.html.
 //   Until it is set, the column renders a "connect" state rather than a broken button.
+//
+// A FINISHED REPORT IS KEPT ON THE DEVICE, AND THAT IS NOT AN OPTIMISATION.
+//   Everywhere else on this dashboard a cache miss costs bytes and a moment. Here it can cost a
+//   metered LLM run: their store drops a report after about a fortnight, and once it is gone the
+//   only way back to an analysis the reader has already read is to pay for it again. So every
+//   finished report is written to IndexedDB under their slug, and reopening paints from there with
+//   no request at all — the same device-first shape as the Superstar Investors books, for a
+//   sharper reason. Three rules come with it, and they are the store's usual ones:
+//     - What is kept is THEIR bytes under THEIR slug. Nothing is patched, trimmed or recomputed.
+//     - A failed re-check never deletes a report we hold. A copy of a real run is worth more than
+//       a fresh "could not be read", and their forgetting it is exactly when ours matters most.
+//     - A stored paint may not claim a freshness it has not confirmed, so the panel says it came
+//       from this device and when it was last checked against them.
+
+import { KEYS, readEntry, writeEntry, deleteEntry, isPersistent } from '../core/store.js';
 
 const LS_BASE = 'sattva:deepdive-base';
 const LS_SLUGS = 'sattva:deepdive-slugs';
+const LS_REPORTS = 'sattva:deepdive-reports';
 
 // Their frontend polls every 3-5s and gives up around the pipeline's own ~20 minute ceiling.
 export const POLL_MS = 4000;
@@ -136,6 +155,126 @@ function remember(ticker, slug) {
   const all = read(LS_SLUGS, {});
   all[String(ticker).toUpperCase()] = { slug, at: Date.now() };
   write(LS_SLUGS, all);
+}
+
+// ---------------------------------------------------------------------------------------
+// Reports kept on this device — see the header
+//
+// Two stores, on purpose:
+//   IndexedDB  the report BODY, under their slug. Prose-carrying and tens of KB, so it does not
+//              belong in localStorage beside the watchlist and the keyword sets.
+//   localStorage  a small INDEX of what the body store holds — slug -> { ticker, company, quarter,
+//              savedAt }. It is read synchronously on every table paint to mark the rows that open
+//              for free, which an async IndexedDB read could not do.
+//
+// The index is written only after the body write lands on a working IndexedDB. In a private window
+// the mark never appears and the panel still gets the in-memory copy for the session — better than
+// a table promising a saved report that a reload has already lost.
+// ---------------------------------------------------------------------------------------
+
+/** How many finished reports this device keeps. Oldest beyond this are dropped, body and all. */
+export const MAX_SAVED = 60;
+
+/** slug -> { ticker, company, quarter, savedAt }. One read, for a whole table paint. */
+export const savedMap = () => read(LS_REPORTS, {});
+
+/** ticker (upper-case) -> the newest saved entry, with its slug. Built once per paint. */
+export function savedByTicker() {
+  const out = {};
+  for (const [slug, e] of Object.entries(savedMap())) {
+    const t = String(e?.ticker || '').toUpperCase();
+    if (!t) continue;
+    if (!out[t] || (e.savedAt || 0) > (out[t].savedAt || 0)) out[t] = { ...e, slug };
+  }
+  return out;
+}
+
+/** The newest report this device holds for one company, or null. Index only — no body read. */
+export const savedFor = (ticker) => (ticker ? savedByTicker()[String(ticker).toUpperCase()] || null : null);
+
+/**
+ * The stored body for one slug, or null.
+ *
+ * Null means "fetch it", never an error — same contract as every other read through the store. An
+ * index entry whose body has gone (a cleared store, a different browser profile) is dropped here
+ * rather than left to promise something that is not there.
+ */
+export async function savedReport(slug) {
+  if (!slug) return null;
+  const entry = savedMap()[slug];
+  if (!entry) return null;
+  const hit = await readEntry(KEYS.deepDiveReport(slug));
+  if (!hit?.value?.report) {
+    forgetReport(slug);
+    return null;
+  }
+  return {
+    slug,
+    report: hit.value.report,
+    partial: !!hit.value.partial,
+    savedAt: hit.savedAt || entry.savedAt || null,
+    ticker: entry.ticker || null,
+    company: entry.company || null,
+    quarter: entry.quarter || null,
+  };
+}
+
+/**
+ * Keep one finished report.
+ *
+ * Stores THEIR object exactly as it arrived — the whole point of holding it is that it is a copy of
+ * what that pipeline produced, and a locally reshaped one would be worth less than no copy at all.
+ * Resolves once the index is durable, so a caller can mark the row only when the claim is true.
+ */
+export function saveReport({ slug, ticker, company, quarter, report, partial = false }) {
+  if (!slug || !report) return Promise.resolve(false);
+  const savedAt = Date.now();
+  return writeEntry(KEYS.deepDiveReport(slug), { value: { report, partial, slug, ticker: ticker || null }, savedAt })
+    .then(() => {
+      if (!isPersistent()) return false;
+      const all = savedMap();
+      all[slug] = {
+        ticker: ticker ? String(ticker).toUpperCase() : null,
+        company: company || null,
+        quarter: quarter || null,
+        savedAt,
+      };
+      // Oldest first out, body and index together, so the two can never disagree about what is here.
+      for (const stale of Object.keys(all)
+        .sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
+        .slice(MAX_SAVED)) {
+        delete all[stale];
+        deleteEntry(KEYS.deepDiveReport(stale));
+      }
+      write(LS_REPORTS, all);
+      return true;
+    })
+    .catch(() => false);
+}
+
+/** Drop one saved report, body and index entry. */
+export function forgetReport(slug) {
+  if (!slug) return;
+  const all = savedMap();
+  if (slug in all) {
+    delete all[slug];
+    write(LS_REPORTS, all);
+  }
+  deleteEntry(KEYS.deepDiveReport(slug));
+}
+
+/**
+ * Does a report contradict the ticker we opened it for?
+ *
+ * One company's analysis under another's name is the worst thing this feature could do, and a slug
+ * is now resolved from three places — their index, this browser's memory of a dispatch, and this
+ * device's saved reports. So the check is shared: the panel says so in a banner, and nothing that
+ * fails it is ever filed under our ticker. Missing identity on their side is not a contradiction.
+ */
+export function conflictsWith(report, ticker) {
+  const theirs = String(report?.meta?.ticker || '').toUpperCase();
+  const ours = String(ticker || '').toUpperCase();
+  return !!theirs && !!ours && theirs !== ours;
 }
 
 async function call(path, init) {

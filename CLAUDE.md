@@ -595,8 +595,27 @@ three that only arise when you can make another service *do work*:
    anchor from an `http(s)` value — this is external content and none of it may reach the DOM as
    markup.
 4. **Never show one company's report under another's name.** The panel is titled from our row and
-   the report from theirs; a slug is resolved from two places, so if `report.meta.ticker`
-   contradicts the row, say so loudly rather than retitling it.
+   the report from theirs; a slug is resolved from three places — their index, this browser's memory
+   of a dispatch, this device's saved reports — so if `report.meta.ticker` contradicts the row, say
+   so loudly rather than retitling it. Nothing that fails that check is ever written to the store:
+   rendering it under a banner is recoverable, filing it under our ticker would serve another
+   company's analysis from disk with no upstream left to correct it.
+5. **What cost money to produce is kept, and a failed re-check never deletes it.** Everywhere else
+   here a cache saves bytes; this one saves a metered run. Their store drops a report after about a
+   fortnight, and before this that expiry took ours with it — reopening a company analysed last
+   month landed on the confirm step, so the only way back to an analysis already read was to pay for
+   it again. Now every finished report goes to IndexedDB under their slug, reopening paints from
+   there with **no request at all**, and the re-check happens behind it. `unknown` from that check
+   means their copy is gone, which is exactly when ours is the only one left; a network error means
+   we could not ask. Neither may drop the reader onto a confirm step — only a slug with **no** saved
+   copy falls through to one.
+6. **A free read must not wear a metered read's clothes.** Reattaching used to open on the run
+   screen — *"Starting the analysis… 5%"* and the seven-step checklist — over a plain GET on a
+   report finished an hour earlier. Nothing was being spent and the screen said otherwise, and a
+   reader cannot tell those two apart by looking. So a reattach opens on a state that says no run is
+   being started, and only a status their API reports as in flight promotes it. Derive the screen
+   and the request branch from **one** resolved value, so the sentence and the behaviour cannot
+   drift apart.
 
 The base URL is `window.SATTVA_DEEPDIVE_URL` in `index.html`; `localStorage['sattva:deepdive-base']`
 overrides it, which is how `verify-ui.mjs` points the whole run at a stub so a verification never
@@ -1037,6 +1056,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
 | Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
+| Change what a Deep Dive report keeps on the device | the saved-report block in `js/data/deep-dive.js` + `KEYS.deepDiveReport` — a report costs a metered run, so read rule 5 there before shortening anything |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
@@ -1070,7 +1090,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
 | Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
 | Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
-| Add a cached feed to the device store | give it a key in `KEYS` (`js/core/store.js`) and fetch it with `conditionalJson` |
+| Add a cached feed to the device store | give it a key in `KEYS` (`js/core/store.js`) and fetch it with `conditionalJson` — unless the upstream sends no ETag, as the Deep Dive reports do, in which case `readEntry` / `writeEntry` directly and say why in a comment |
 | Add a new JSON file | drop it in `public/data/`, add to `DATA_SOURCES` in `js/app.js`, document it in `docs/DATA-CONTRACTS.md` |
 | Add a server route | the marked `/api/*` block in `worker/index.js` |
 | Understand a JSON shape / unit / source | `docs/DATA-CONTRACTS.md` |
@@ -1136,6 +1156,11 @@ It covers, beyond the checklist below:
   a tag that describes it, a repeat fetch of either transfers headers and no body, the prices
   projection is a fraction of the full feed, the Live pill says where the paint came from, and no
   static-file loader is still using `cache: 'no-store'`
+- **a Deep Dive report survives the upstream forgetting it**: with the slug answering `unknown`,
+  their index naming nothing and this browser's dispatch record cleared, the row is still marked
+  free to open, the report still renders off the device, no confirm step appears, nothing is
+  dispatched, the panel never shows the run screen on the way, and the ribbon says both that the
+  copy is this device's and that theirs is gone
 
 > The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
 > `/api/*`, so they report **SKIP** — which is itself worth seeing, because it exercises the

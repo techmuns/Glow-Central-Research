@@ -191,8 +191,11 @@ export function wireLivePill(root, m) {
 export function renderScans(ctx, { disposers, tableView, onView }) {
   const m = feed.meta();
   const rows = feed.forScope(ctx.scope, coverage.holdings());
-  // Read once for the whole paint rather than per row — see rememberedMap() in data/deep-dive.js.
+  // Both read once for the whole paint rather than per row — see rememberedMap() in
+  // data/deep-dive.js. `saved` is the stronger fact of the two: a report already on this device
+  // opens with no run AND no request, so those rows are marked before their index has even landed.
   const dived = deepDive.rememberedMap();
+  const saved = deepDive.savedByTicker();
 
   const table = scoreTable({
     rows,
@@ -234,7 +237,7 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
         // An action, not a reading — so it does not sort, and it is not in the export either: a
         // workbook of "click here" cells would be a column of nothing.
         label: 'Deep Dive',
-        get: (r) => deepDiveButton(r, dived),
+        get: (r) => deepDiveButton(r, dived, saved),
         html: true,
         align: 'right',
         sortable: false,
@@ -307,9 +310,16 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     if (!btn) return;
     const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
     if (!row) return;
-    // A report they already hold opens directly; anything else goes through the confirm step.
+    // A report they already hold — or one this device has kept — opens directly; anything else
+    // goes through the confirm step.
     const ready = row.ticker ? readyReports[String(row.ticker).toUpperCase()] : null;
-    openDeepDive(row, { ready, onRecorded: () => markDived(btn) });
+    openDeepDive(row, {
+      ready,
+      onRecorded: () => markDived(btn),
+      // The moment a report is durably on this device, the row says so: the next click on it is
+      // free and instant, and the reader should not have to click to discover that.
+      onSaved: () => markReady(btn, null, deepDive.savedFor(row.ticker)),
+    });
   };
   ctx.root.addEventListener('click', onDeepDive);
   disposers.push(() => ctx.root.removeEventListener('click', onDeepDive));
@@ -352,16 +362,23 @@ const rowKey = (r) => `${r.companyKey}|${r.when}`;
  * The Deep Dive cell.
  *
  * A button and nothing more — no run is dispatched until the reader confirms one inside the panel,
- * because that is a real LLM run on an unauthenticated endpoint. The dot marks a company this
- * browser has already run; `markReady` upgrades the button once their index says a finished report
- * exists, which is the state worth distinguishing: that one opens for free.
+ * because that is a real LLM run on an unauthenticated endpoint. Three different facts, three
+ * different marks, and the distinction is the most useful thing this column can carry:
+ *
+ *   dot on an outlined button   this browser has dispatched a run for that ticker
+ *   filled button               a finished report opens for free — no run
+ *
+ * The filled state is reached two ways: their index says they hold a report, or this device does.
+ * The second is stronger — it needs no network at all — and it is known synchronously, so those
+ * rows are already filled on first paint rather than upgraded when `/api/summary` lands.
  */
-function deepDiveButton(r, dived) {
+function deepDiveButton(r, dived, saved) {
   const t = r.ticker ? String(r.ticker).toUpperCase() : '';
   // Once their index has resolved, later paints render the Ready state directly instead of
   // painting the plain button and upgrading it a frame later.
   const hit = t ? readyReports[t] : null;
-  if (hit) return readyButtonHtml(r, hit);
+  const kept = t ? saved[t] : null;
+  if (hit || kept) return readyButtonHtml(r, hit, kept);
   const seen = t ? dived[t] : null;
   return `
     <button type="button" data-norow data-deep-dive="${escapeHtml(rowKey(r))}"
@@ -385,27 +402,35 @@ function markDived(btn) {
 }
 
 /**
- * Upgrade a button to "Ready": Concall Deep Dive already holds a report for this company, so the
- * click is free. Filled rather than outlined, because the difference between "opens a report" and
- * "starts a metered run" is the most important thing this column can tell a reader.
+ * Upgrade a button to "Ready": a finished report opens for free, either because Concall Deep Dive
+ * holds one or because this device does. Filled rather than outlined, because the difference
+ * between "opens a report" and "starts a metered run" is the most important thing this column can
+ * tell a reader.
+ *
+ * The title is refreshed even on a button already marked ready — a row that was free because THEY
+ * hold the report becomes free-and-instant once we do, and that is worth saying.
  */
-function markReady(btn, hit) {
-  if (btn.dataset.ddReady) return;
+function markReady(btn, hit, kept = null) {
+  if (btn.dataset.ddReady && !kept) return;
   btn.dataset.ddReady = '1';
+  if (kept) btn.dataset.ddSaved = '1';
   btn.className = READY_CLASS;
   btn.innerHTML = READY_INNER;
-  btn.title = readyTitle(hit);
+  btn.title = readyTitle(hit, kept);
 }
 
 const READY_CLASS =
   'inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-indigo-600 px-2 py-1 text-[11px] font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
 const READY_INNER =
   '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Deep Dive</span>';
-const readyTitle = (hit) =>
-  `Report ready${hit.quarter ? ` for ${hit.quarter}` : ''}${hit.generated_at ? ` — Concall Deep Dive generated it ${formatRelativeTime(hit.generated_at)}` : ''}. Opens without starting a run.`;
+const readyTitle = (hit, kept = null) => {
+  if (kept)
+    return `Report saved on this device${kept.quarter ? ` for ${kept.quarter}` : ''}${kept.savedAt ? ` ${formatRelativeTime(kept.savedAt)}` : ''}. Opens straight away — no run, and nothing to download.`;
+  return `Report ready${hit.quarter ? ` for ${hit.quarter}` : ''}${hit.generated_at ? ` — Concall Deep Dive generated it ${formatRelativeTime(hit.generated_at)}` : ''}. Opens without starting a run.`;
+};
 
-const readyButtonHtml = (r, hit) =>
-  `<button type="button" data-norow data-dd-ready="1" data-deep-dive="${escapeHtml(rowKey(r))}" title="${escapeHtml(readyTitle(hit))}" class="${READY_CLASS}">${READY_INNER}</button>`;
+const readyButtonHtml = (r, hit, kept = null) =>
+  `<button type="button" data-norow data-dd-ready="1"${kept ? ' data-dd-saved="1"' : ''} data-deep-dive="${escapeHtml(rowKey(r))}" title="${escapeHtml(readyTitle(hit, kept))}" class="${READY_CLASS}">${READY_INNER}</button>`;
 
 /** The one way into the schedule now that it is not a sub-view. Carries its own count. */
 function scheduleButton(count) {
