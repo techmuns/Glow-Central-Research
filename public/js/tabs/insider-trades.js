@@ -54,7 +54,10 @@ const tab = makeFilingsTab({
   },
   rowSub: (r) => r.ticker || '',
   searchable: (r) => `${r.ticker || ''} ${Object.values(r.cells || {}).join(' ')}`,
-  keyFor: (r, i) => `${r.ticker || ''}-${r.date || ''}-${i}`,
+  // The whole row, because these rows have no id of their own: no URL, no headline, and two filings
+  // on one day by two people are a legitimate pair. NEVER the row's index — see the note beside the
+  // key builder in filings-tab.js for what that cost the News tab.
+  keyFor: (r) => `${r.ticker || ''}|${r.date || ''}|${Object.values(r.cells || {}).join('|')}`,
   // THE COLUMN SET IS THE SOURCE'S. Built from the headers the markdown table declared, minus the
   // two already shown in the identity cell. A source that adds a column gets a column.
   columns: (m) => {

@@ -1,7 +1,8 @@
 // data/filings.js — the feed behind News, Corporate Announcements and Insider Trades.
 //
 //   const feed = createFeed('announcements');
-//   feed.load(tickers)      snapshot first, then a bounded live walk for whatever it is missing
+//   feed.load(items)        snapshot first, then a bounded live walk for whatever it is missing
+//                           (items are tickers, or { ticker, name } — the name is what news searches)
 //   feed.rows()             every row that has landed, newest first
 //   feed.meta()             what loaded, what failed, where the paint came from, and when
 //   feed.onChange(fn)       fires as rows arrive, so the table fills in progressively
@@ -22,9 +23,15 @@
 //      first scheduled run, and what refreshes one company on demand.
 //
 // A SNAPSHOT IS NOT STALE DATA PRETENDING TO BE LIVE. `meta().origin` says which of `snapshot`,
-// `live` or `mixed` produced what is on screen and `meta().capturedAt` when the snapshot was taken,
-// and both reach the Live pill. An announcement is an event with its own date; the risk here is not
-// that a row is old, it is that the READER cannot tell how recently we looked.
+// `store`, `mixed` or `live` produced what is on screen and `meta().capturedAt` when the snapshot
+// was taken, and both reach the pill. An announcement is an event with its own date; the risk here
+// is not that a row is old, it is that the READER cannot tell how recently we looked. It is derived
+// rather than assigned — see `originNow` — because as a field it kept reading `null` mid-walk, and
+// the pill renders that as "Live".
+//
+// NEWS IS SEARCHED BY COMPANY NAME, NOT BY SYMBOL. `?q=JAYNECOIND` returns three results, most of
+// them quote pages; `?q=Jayaswal Neco Industries` returns twenty, about the company. The ticker is
+// still what a row is filed under and what the store is keyed by — only the search term changes.
 //
 // A FAILED COMPANY IS NOT A COMPANY WITH NO NEWS. Failures are kept per ticker with the reason the
 // Worker named, and the pill says how many could not be read. Rendering them as zero rows would
@@ -48,10 +55,16 @@ const SNAPSHOT = {
   insider: 'data/insider-trades.json',
 };
 
+// EACH ROUTE APPENDS THE DATE RANGE ITSELF, because only the route knows whether it already has a
+// query string. The previous version built one `qs` string and patched a `?` onto the front of it,
+// which is right for the two path-parameter routes and WRONG for news — `api/news?q=X` + `?from=…`
+// produced a URL with two question marks, so the Worker read `q` as `"RELIANCE?from=2026-07-18"`
+// and `from` as absent. The upstream then searched for that literal string, which is why every
+// company came back with the same generic market news instead of its own.
 const ROUTE = {
-  news: (key, qs) => `api/news?q=${encodeURIComponent(key)}${qs}`,
-  announcements: (key, qs) => `api/announcements/${encodeURIComponent(key)}${qs}`,
-  insider: (key, qs) => `api/insider-trades/${encodeURIComponent(key)}${qs}`,
+  news: (query, range) => `api/news?q=${encodeURIComponent(query)}&${range}`,
+  announcements: (ticker, range) => `api/announcements/${encodeURIComponent(ticker)}?${range}`,
+  insider: (ticker, range) => `api/insider-trades/${encodeURIComponent(ticker)}?${range}`,
 };
 
 // Which array each payload carries its rows in, and what a row's company is called.
@@ -62,6 +75,56 @@ export const WINDOW_DAYS = { news: 30, announcements: 365, insider: 365 };
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
 const daysAgo = (n) => iso(Date.now() - n * 86400000);
+
+/**
+ * One story at two addresses is one story.
+ *
+ * `moneycontrol.com/news/…-13990522.html` and `…/amp` are the same article, as are
+ * `economictimes.com/…` and `m.economictimes.com/…`. A search engine returns both, and a table that
+ * lists them twice reads as broken even though the payload is faithful. So the comparison is on
+ * host-without-its-mobile-prefix plus path-without-`/amp`.
+ *
+ * WHAT IT DELIBERATELY DOES NOT MERGE:
+ *   • the query string, which on some sites is the whole identity of the page;
+ *   • the same story from two DIFFERENT publishers — Hindustan Times and the Economic Times both ran
+ *     "Prestige Group launches 3 housing projects in Q1", and those are two outlets reporting, not
+ *     one row duplicated;
+ *   • the same story under two companies. A story that genuinely mentions two of the companies in
+ *     scope appears under each, because the ticker a row is filed under is OUR search term — which
+ *     is what the provenance modal says — and dropping one would hide it from whichever reader was
+ *     looking at that company. Hence: within a company, never across.
+ */
+const canonicalUrl = (raw) => {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^(www|m|amp|mobile)\./, '');
+    const path = u.pathname.replace(/\/amp\/?$/i, '').replace(/\/+$/, '');
+    return `${host}${path}${u.search}`;
+  } catch {
+    return String(raw);
+  }
+};
+
+const dedupeArticles = (list) => {
+  const seenUrl = new Set();
+  const seenStory = new Set();
+  return list.filter((r) => {
+    const u = r?.url ? canonicalUrl(r.url) : null;
+    // No URL is not the same as the same URL — an article with none is kept.
+    if (u) {
+      if (seenUrl.has(u)) return false;
+      seenUrl.add(u);
+    }
+    // Same publisher, same headline, twice. Unambiguous, and the only title comparison made: two
+    // headlines that merely share a long prefix are two stories, and the table shows the prefix.
+    const story = r?.title && r?.source ? `${r.source} :: ${String(r.title).trim().toLowerCase()}` : null;
+    if (story) {
+      if (seenStory.has(story)) return false;
+      seenStory.add(story);
+    }
+    return true;
+  });
+};
 
 export function createFeed(kind) {
   let state = fresh();
@@ -75,13 +138,23 @@ export function createFeed(kind) {
       rows: new Map(), // ticker -> rows[]
       failures: new Map(), // ticker -> { reason, message, requestedUrl }
       asked: new Set(),
-      // ticker -> when the SERVER last confirmed those rows. A company inside its window is not
-      // re-asked; one that has never been read always is.
+      // ticker -> company name, so the news search asks about the COMPANY rather than the symbol.
+      names: new Map(),
+      // Companies the committed snapshot covers. They are not re-walked: the snapshot is the bulk
+      // source and is refreshed on a schedule, and its age is reported as `capturedAt` rather than
+      // hidden by 603 live requests.
+      fromSnapshot: new Set(),
+      // ticker -> when the SERVER last confirmed those rows, whether that was this session or an
+      // earlier one. A company inside its window is not re-asked; one never read always is.
       confirmedAt: new Map(),
+      // The subset the server confirmed IN THIS SESSION. Kept apart from `confirmedAt` because they
+      // answer different questions: that one is "how old are these bytes", this one is "did we
+      // check". A device-cached company has a real confirmation time and has not been checked, and
+      // only the second of those may be allowed to spell "Live".
+      confirmedHere: new Set(),
       snapshotCount: 0,
       capturedAt: null,
       checkedAt: null,
-      origin: null, // 'snapshot' | 'live' | 'mixed'
       reason: null,
       message: null,
       inFlight: 0,
@@ -89,6 +162,34 @@ export function createFeed(kind) {
       truncated: 0,
       headers: [], // insider trades keeps the upstream's own column headings
     };
+  }
+
+  /**
+   * Where what is on screen came from — DERIVED, never asserted.
+   *
+   * It was a field that four different places wrote to, and it spent the whole of a live walk
+   * reading `null`, which the pill renders as "Live" over rows that had come off the device. A
+   * freshness control that can claim a freshness it has not confirmed is worse than none. Computing
+   * it from the two facts that decide it — what is painted, and what the server has confirmed in
+   * this session — means it cannot drift from them.
+   *
+   *   live      every painted company was confirmed by the server this session
+   *   mixed     some were
+   *   snapshot  none were, and every painted company came from the committed file
+   *   store     none were, and at least one came off this device's cache
+   */
+  function originNow() {
+    const covered = state.rows.size;
+    if (!covered) return null;
+    let confirmed = 0;
+    let snapshot = 0;
+    for (const t of state.rows.keys()) {
+      if (state.confirmedHere.has(t)) confirmed++;
+      else if (state.fromSnapshot.has(t)) snapshot++;
+    }
+    if (confirmed === covered) return 'live';
+    if (confirmed) return 'mixed';
+    return snapshot === covered ? 'snapshot' : 'store';
   }
 
   function meta() {
@@ -110,7 +211,7 @@ export function createFeed(kind) {
       // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
       // company would overstate the age of the forty beside it.
       checkedAt: state.confirmedAt.size ? Math.min(...state.confirmedAt.values()) : state.checkedAt,
-      origin: state.origin,
+      origin: originNow(),
       headers: state.headers,
       persisted: isPersistent(),
       windowDays: WINDOW_DAYS[kind],
@@ -128,16 +229,42 @@ export function createFeed(kind) {
   const failureFor = (t) => state.failures.get(String(t || '').toUpperCase()) || null;
 
   /**
+   * Does this company still need asking about?
+   *
+   * ONE definition, used by the queue AND by the request, because they were two and they disagreed:
+   * `load()` queued every company whose rows were old, and `loadOne()` then returned early for any
+   * company that had rows at all. So the walk counted down through forty companies without sending
+   * a single request, the strip said "reading 40 more companies" the whole time, and nothing was
+   * ever revalidated after its window expired.
+   */
+  const stale = (t) => {
+    const at = state.confirmedAt.get(t);
+    return at == null || Date.now() - at > REVALIDATE_AFTER_MS[kind];
+  };
+
+  // The news search asks about the COMPANY, not the symbol — see the header. A ticker whose name
+  // the caller did not supply falls back to the ticker, which is a worse search and still a search.
+  const queryFor = (t) => state.names.get(t) || t;
+
+  /**
    * Fill from the committed snapshot, then walk live for what is still missing.
    *
    * Resolves once there is something to paint, not once every company has answered — the same rule
    * the super-investor feed follows. The walk continues in the background and `onChange` fires as
    * rows land.
+   *
+   * `items` may be tickers or `{ ticker, name }`. The name is what the news search uses.
    */
-  function load(tickers = []) {
+  function load(items = []) {
     if (loading) return loading;
     loading = (async () => {
-      const wanted = [...new Set(tickers.map((t) => String(t || '').toUpperCase()).filter(Boolean))];
+      const wanted = [];
+      for (const item of items) {
+        const t = String(item?.ticker ?? item ?? '').toUpperCase();
+        if (!t || wanted.includes(t)) continue;
+        wanted.push(t);
+        if (item?.name) state.names.set(t, String(item.name));
+      }
 
       // PASS ONE — the committed snapshot and this device, with no network at all.
       //
@@ -150,13 +277,9 @@ export function createFeed(kind) {
       emit();
 
       // PASS TWO — only what is genuinely missing or genuinely old. A company confirmed inside the
-      // feed's own cache window is skipped, because the server cannot answer differently yet.
-      const now = Date.now();
-      const stale = (t) => {
-        const at = state.confirmedAt.get(t);
-        return at == null || now - at > REVALIDATE_AFTER_MS[kind];
-      };
-      const missing = wanted.filter((t) => !state.failures.has(t) && (!state.rows.has(t) || stale(t)));
+      // feed's own cache window is skipped, because the server cannot answer differently yet, and
+      // a company the committed snapshot covers is skipped outright.
+      const missing = wanted.filter((t) => !state.failures.has(t) && !state.fromSnapshot.has(t) && stale(t));
       if (missing.length) {
         state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
         state.pending = Math.min(missing.length, LIVE_LIMIT);
@@ -187,14 +310,13 @@ export function createFeed(kind) {
       const hit = entries.get(KEYS.filingRow(kind, t));
       const body = hit?.value;
       if (!body || body.ok === false) continue;
-      const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
+      const list = rowsIn(body);
       if (!state.rows.has(t)) state.rows.set(t, list);
       if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
       // `savedAt` is when the SERVER's bytes were written here, so it is a real confirmation time
       // rather than this tab vouching for itself.
       if (hit.savedAt) state.confirmedAt.set(t, hit.savedAt);
     }
-    if (state.rows.size && !state.origin) state.origin = 'store';
   }
 
   /** The committed snapshot. A miss is not an error — it means the scheduled run has not run yet. */
@@ -213,11 +335,19 @@ export function createFeed(kind) {
     state.headers = Array.isArray(body.headers) ? body.headers : [];
     const byTicker = body.byTicker || {};
     for (const [ticker, list] of Object.entries(byTicker)) {
-      if (Array.isArray(list) && list.length) state.rows.set(ticker.toUpperCase(), list);
+      if (!Array.isArray(list) || !list.length) continue;
+      const t = ticker.toUpperCase();
+      state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
+      state.fromSnapshot.add(t);
     }
     state.snapshotCount = state.rows.size;
-    state.origin = state.rows.size ? 'snapshot' : null;
     return state.rows.size > 0;
+  }
+
+  /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
+  function rowsIn(body) {
+    const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
+    return kind === 'news' ? dedupeArticles(list) : list;
   }
 
   async function walk(queue) {
@@ -234,20 +364,20 @@ export function createFeed(kind) {
       }
     });
     await Promise.all(workers);
-    state.origin = state.snapshotCount ? 'mixed' : 'live';
     emit();
   }
 
   /** One company. Never throws — a failure is recorded against that ticker and the walk goes on. */
   async function loadOne(key, { force = false } = {}) {
     const t = String(key || '').toUpperCase();
-    if (!force && state.rows.has(t)) return state.rows.get(t);
+    if (!force && !stale(t)) return state.rows.get(t) || [];
     state.asked.add(t);
 
-    const qs = `&from=${daysAgo(WINDOW_DAYS[kind])}&to=${iso(Date.now())}`.replace('&', '?');
+    const range = `from=${daysAgo(WINDOW_DAYS[kind])}&to=${iso(Date.now())}`;
+    const path = ROUTE[kind](kind === 'news' ? queryFor(t) : t, range);
     let res;
     try {
-      res = await conditionalJson(ROUTE[kind](key, qs), { key: KEYS.filingRow(kind, t), optional: true });
+      res = await conditionalJson(path, { key: KEYS.filingRow(kind, t), optional: true });
     } catch {
       res = null;
     }
@@ -274,10 +404,12 @@ export function createFeed(kind) {
     }
 
     if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
-    const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
+    const list = rowsIn(body);
     state.rows.set(t, list);
+    state.fromSnapshot.delete(t);
     state.failures.delete(t);
     state.confirmedAt.set(t, res?.checkedAt || Date.now());
+    state.confirmedHere.add(t);
     if (!state.capturedAt && body.fetchedAt) state.checkedAt = Date.parse(body.fetchedAt) || state.checkedAt;
     return list;
   }

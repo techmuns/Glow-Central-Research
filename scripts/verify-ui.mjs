@@ -3108,6 +3108,123 @@ console.log('\n— header status and live alerts —');
 }
 
 // ---------------------------------------------------------------------------------------
+// 15b. News, Corporate Announcements and Insider Trades
+//
+// TWO BUGS THAT LOOKED LIKE BROKEN APIs AND WERE NOT, so both are asserted here rather than left
+// to be rediscovered from a screenshot.
+//
+//   1. The client built ONE date-range string and patched a `?` onto the front of it. Right for the
+//      two path-parameter routes, wrong for `api/news?q=…`, which then carried two question marks:
+//      the Worker read `q` as `"RELIANCE?from=2026-07-18"` and `from` as absent, the upstream
+//      searched for that literal string, and every company came back with the same generic market
+//      news. The requests are observable even on a static origin, where they 404 — the URL is the
+//      artefact, not the response.
+//
+//   2. The tab subscribed to the feed ONCE and guarded the handler with the render token captured
+//      at subscribe time. A scope toggle — the entire point of these tabs — incremented that token
+//      and killed the subscription. Measured before the fix: the feed reached 40 companies and
+//      4,583 rows while the screen stayed at 21 and the pill still read "21 companies". Nothing
+//      threw and nothing failed; the tab simply stopped.
+// ---------------------------------------------------------------------------------------
+console.log('\n— news, announcements and insider trades —');
+{
+  const seen = { news: [], announcements: [], insider: [] };
+  const watchFilings = (req) => {
+    const u = req.url();
+    if (u.includes('/api/news')) seen.news.push(u);
+    else if (u.includes('/api/announcements/')) seen.announcements.push(u);
+    else if (u.includes('/api/insider-trades/')) seen.insider.push(u);
+  };
+  page.on('request', watchFilings);
+
+  await go('/#/research/news?scope=portfolio', 3500);
+  const bookNames = await evalSafe(async () => (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).map((h) => h.name));
+
+  const newsUrls = seen.news.map((u) => new URL(u));
+  ok('the news walk sends a request per company', newsUrls.length > 1, `${newsUrls.length} request(s)`);
+  // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
+  ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
+  ok('...carrying a date range the Worker can read',
+    newsUrls.every((u) => /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('from') || '') && /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('to') || '')),
+    newsUrls[0] ? `from=${newsUrls[0].searchParams.get('from')} to=${newsUrls[0].searchParams.get('to')}` : '');
+  const queries = newsUrls.map((u) => u.searchParams.get('q') || '');
+  // Not "no punctuation" — a real book line is `J&K Bank Limited`, and an ampersand that survives
+  // `encodeURIComponent` and comes back out of `searchParams` is the layer working. What must never
+  // appear inside the search term is a fragment of the URL that was supposed to sit beside it.
+  const folded = queries.find((q) => !q || /\b(from|to)=\d{4}-\d{2}-\d{2}/.test(q));
+  ok('...and a query with no part of the URL folded into it', !folded, folded ? `q=${folded}` : `${queries.length} clean, e.g. ${queries[0]}`);
+  // Searching the SYMBOL finds quote pages; searching the NAME finds the company. Measured on one
+  // book line: 3 results against 20, and the three were mostly price widgets.
+  const named = queries.filter((q) => bookNames.includes(q)).length;
+  ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
+
+  await go('/#/research/corp-announcements?scope=portfolio', 3500);
+  const annUrls = seen.announcements.map((u) => new URL(u));
+  ok('announcements asks per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
+  ok('...on a path route whose range is still a query string', annUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), annUrls[0]?.href.slice(-70) || '');
+
+  // A REPAINT MUST STILL REACH THE SCREEN AFTER A RE-RENDER. The scope toggle is the re-render that
+  // used to kill it. `invalidate()` + `load()` is the public way to make the feed emit again on
+  // demand, so this does not depend on catching a live walk mid-flight.
+  await page.click('#scope-toggle-mount button:last-of-type').catch(() => {});
+  await page.waitForTimeout(1200);
+  const repainted = await evalSafe(async () => {
+    const m = await import('/js/data/filings.js');
+    const first = document.querySelector('#content-host > *');
+    m.announcements.invalidate();
+    await m.announcements.load(['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ITC']);
+    await new Promise((r) => setTimeout(r, 2500));
+    return { replaced: document.querySelector('#content-host > *') !== first, had: !!first };
+  });
+  ok('a repaint still reaches the screen after a scope toggle', repainted.had && repainted.replaced,
+    repainted.had ? (repainted.replaced ? 'panel rebuilt' : 'FROZEN — the feed changed and the DOM did not') : 'no panel to compare');
+
+  // The headline IS the row, so it gets the width — but not at the cost of a scrollbar under it.
+  await go('/#/research/news?scope=portfolio', 3000);
+  const newsFit = await page.evaluate(() => {
+    const el = document.querySelector('[data-table-scroll]');
+    return el ? { need: el.scrollWidth, have: el.clientWidth } : null;
+  });
+  if (!newsFit) skip('the News table fits at 1440 with no horizontal scrollbar', 'no table rendered — this origin has no /api/news to answer');
+  else ok('the News table fits at 1440 with no horizontal scrollbar', newsFit.need <= newsFit.have + 1, `${newsFit.need}px in ${newsFit.have}px`);
+
+  // WHAT IS ON SCREEN MUST BE WHAT IS IN THE FEED. `scoreTable` caches a row's markup by its key and
+  // moves the existing `<tr>` nodes on a repaint, which is correct only while a key identifies a
+  // row. These tables grow while the live walk runs, so a key containing the row's INDEX came to
+  // mean a different article on every arrival: measured at 741 rows with zero repeated (ticker,
+  // headline) pairs in the data and 160 on screen, and the row count still exactly right. Counting
+  // rows would not have caught it; comparing them does.
+  const paint = await evalSafe(async () => {
+    const m = await import('/js/data/filings.js');
+    const rows = m.news.rows();
+    if (!rows.length) return null;
+    const tally = (list) => {
+      const c = new Map();
+      for (const k of list) c.set(k, (c.get(k) || 0) + 1);
+      return c;
+    };
+    const data = tally(rows.map((r) => `${r.ticker}||${r.title}`));
+    const dom = tally(
+      [...document.querySelectorAll('[data-table-scroll] tbody tr')].map((tr) => {
+        const d = tr.querySelectorAll('td div.truncate');
+        return `${(d[1]?.innerText || '').split(' · ')[0]}||${d[0]?.getAttribute('title') || ''}`;
+      })
+    );
+    const off = [...dom].filter(([k, n]) => (data.get(k) || 0) !== n);
+    return { rows: rows.length, domRows: [...dom.values()].reduce((a, n) => a + n, 0), mismatched: off.length, sample: off.slice(0, 2).map(([k, n]) => `${n}x ${k.slice(0, 60)}`) };
+  });
+  if (!paint) skip('every rendered row is a row the feed actually holds', 'no rows on this origin — there is no /api/news to answer');
+  else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
+
+  await go('/#/research/insider-trades?scope=portfolio', 3500);
+  const insUrls = seen.insider.map((u) => new URL(u));
+  ok('insider trades asks per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
+  ok('...with the same one-query-string shape', insUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), insUrls[0]?.href.slice(-70) || '');
+
+  page.off('request', watchFilings);
+}
+
+// ---------------------------------------------------------------------------------------
 // 16. Layout holds and nothing scrolls sideways
 // ---------------------------------------------------------------------------------------
 console.log('\n— layout —');

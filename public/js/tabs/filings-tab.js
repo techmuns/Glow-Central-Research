@@ -72,14 +72,31 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let ctxRef = null;
 
+  /**
+   * The companies to ask about, as `{ ticker, name }`.
+   *
+   * THE NAME TRAVELS WITH THE TICKER because the news feed searches by it: `?q=JAYNECOIND` finds
+   * three results, mostly quote pages, while `?q=Jayaswal Neco Industries` finds twenty about the
+   * company. The other two feeds are per-ticker upstreams and ignore it.
+   */
   function tickersFor(ctx) {
-    const book = coverage.holdings().map((h) => h.ticker).filter(Boolean);
+    const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
     if (ctx.scope === 'portfolio') return book;
-    // Universe is the book plus everything the technicals feed covers. Deliberately not the
-    // 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about companies
-    // nothing else on this dashboard tracks would spend the rate limit on rows nobody can act on.
-    const covered = cfg.feed.rows().map((r) => r.ticker).filter(Boolean);
-    return [...new Set([...book, ...covered])];
+    // Universe is the book plus every company the committed snapshot already covers. Deliberately
+    // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
+    // companies nothing else on this dashboard tracks would spend the rate limit on rows nobody can
+    // act on. The book comes FIRST, so a walk cut short by LIVE_LIMIT has covered the holdings
+    // rather than whatever the snapshot happens to list first — the same rule the scraper follows.
+    const seen = new Set(book.map((b) => String(b.ticker).toUpperCase()));
+    const out = [...book];
+    for (const r of cfg.feed.rows()) {
+      const t = String(r.ticker || '').toUpperCase();
+      if (t && !seen.has(t)) {
+        seen.add(t);
+        out.push({ ticker: t, name: null });
+      }
+    }
+    return out;
   }
 
   function render(ctx) {
@@ -97,15 +114,17 @@ export function makeFilingsTab(cfg) {
     // still said "reading 40 more" with a table of nothing. The state was right and only the paint
     // was stale, which is the worst version of this bug because nothing looks broken.
     //
+    // AND THE GUARD IS `ctxRef`, NOT THE TOKEN. The token check was `mine !== token`, with `mine`
+    // captured at subscribe time and the subscription created once — so the second `render()`, which
+    // a scope toggle always causes and which is the entire point of these tabs, incremented `token`
+    // and killed it. Measured: the feed went on to 40 companies and 4,583 rows while the screen sat
+    // at 21 and the pill still read "21 companies". Nothing threw, nothing failed, and the tab
+    // simply stopped. `ctxRef` is what the guard was for — it is set by every render and cleared by
+    // destroy(), so it tracks "is this tab still mounted" without going stale.
+    //
     // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
     // subscription that produced it.
-    if (!unsub) {
-      const mine = token;
-      unsub = cfg.feed.onChange(() => {
-        if (mine !== token || !ctxRef) return;
-        paint(ctxRef);
-      });
-    }
+    if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
 
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
@@ -132,9 +151,34 @@ export function makeFilingsTab(cfg) {
       return;
     }
 
+    // A ROW KEY MAY NEVER CONTAIN THE ROW'S POSITION. This is what made News look duplicated, and
+    // the data was innocent throughout: 741 rows, zero repeated (ticker, headline) pairs, and 160
+    // repeated pairs ON SCREEN — the same headline two and three times while others were missing,
+    // and the row count still exactly right.
+    //
+    // `scoreTable` caches a row's markup by its key and, on a repaint whose row set the DOM already
+    // holds, MOVES the existing `<tr>` nodes rather than re-parsing them (see "Performance on large
+    // tables" in CLAUDE.md). That is correct only if a key identifies a row. The key here was
+    // `ticker-date-INDEX`, and these tables grow while the walk runs — so every arrival shifted the
+    // indices, key `RELIANCE-2026-08-12-7` came to mean a different article, and the cached `<tr>`
+    // for the old one was moved into its place. A stable, content-derived key fixes it at source.
+    //
+    // Genuinely identical rows do exist — the insider feed carries same-day, same-size filings by
+    // different people — so a collision suffix keeps the keys unique. It is safe precisely because
+    // the rows it separates carry the same content: the failure mode being closed here is one key
+    // meaning two DIFFERENT rows, never two keys meaning the same one.
+    const rowKeys = new Map();
+    const keySeen = new Map();
+    for (const r of rows) {
+      const base = cfg.keyFor ? cfg.keyFor(r) : `${r.ticker || ''}|${r.url || r.title || ''}|${r.date || ''}`;
+      const n = (keySeen.get(base) || 0) + 1;
+      keySeen.set(base, n);
+      rowKeys.set(r, n === 1 ? base : `${base}#${n}`);
+    }
+
     const table = scoreTable({
       rows,
-      key: cfg.keyFor || ((r, i) => `${r.ticker || ''}-${r.date || ''}-${i}`),
+      key: (r) => rowKeys.get(r) || '',
       name: (r) => cfg.rowName(r),
       nameLabel: cfg.nameLabel || 'Headline',
       sub: (r) => cfg.rowSub(r),
@@ -203,7 +247,10 @@ const loadingHtml = () => `
  */
 function pill(m) {
   const bad = m.failed > 0 || !!m.reason;
-  const snap = m.origin === 'snapshot';
+  // `store` counts as a snapshot for colour AND for wording: those rows are bytes this device kept
+  // from an earlier visit, and the server has not confirmed them in this session. Saying "Live"
+  // over them is the one thing a freshness control may not do.
+  const snap = m.origin === 'snapshot' || m.origin === 'store';
   const cls = bad
     ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
     : snap
@@ -214,7 +261,7 @@ function pill(m) {
     : snap
       ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
       : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
-  const label = bad ? 'Partial' : snap ? 'Captured' : m.origin === 'mixed' ? 'Captured + live' : 'Live';
+  const label = bad ? 'Partial' : m.origin === 'snapshot' ? 'Captured' : m.origin === 'store' ? 'Cached' : m.origin === 'mixed' ? 'Captured + live' : 'Live';
   return `
     <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
       class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
@@ -289,5 +336,5 @@ export function coverageBlock(m) {
     </p>
     <p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
        listed at all. Those are different states and the pill counts them separately.</p>
-    ${deliveryNote({ origin: m.origin === 'snapshot' ? 'store' : 'live', checkedAt: m.checkedAt, fetchedAt: m.capturedAt ? Date.parse(m.capturedAt) : null, persisted: m.persisted })}`;
+    ${deliveryNote({ origin: m.origin === 'live' || m.origin === 'mixed' ? 'live' : 'store', checkedAt: m.checkedAt, fetchedAt: m.capturedAt ? Date.parse(m.capturedAt) : null, persisted: m.persisted })}`;
 }

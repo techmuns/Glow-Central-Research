@@ -24,7 +24,13 @@ const tab = makeFilingsTab({
   feed,
   noun: 'articles',
   nameLabel: 'Headline',
-  nameMaxPx: 520,
+  // WIDE, BECAUSE THE HEADLINE IS THE ROW. At 520px two genuinely different stories truncated to
+  // the same string — "Buy Prestige Estates Projects; target of Rs 1…" was Prabhudas Lilladher at
+  // ₹1,800 and Motilal Oswal at ₹1,830, on different days — and a table that shows the same words
+  // three times reads as duplicated even when every row is a distinct article. The three columns
+  // beside it are a date, an outlet and a link icon, so there is room; 1440px still fits without a
+  // scrollbar of its own, which `verify-ui.mjs` measures.
+  nameMaxPx: 780,
   rowName: (r) => r.title || '(untitled)',
   rowSub: (r) => [r.ticker, r.source].filter(Boolean).join(' · '),
   searchable: (r) => `${r.title || ''} ${r.source || ''} ${r.ticker || ''} ${r.summary || ''}`,

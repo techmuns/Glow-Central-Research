@@ -156,6 +156,17 @@ export function destroy() {}     // detach listeners/pollers; called on nav away
 - `destroy()` is called only when navigating to a *different* tab. Unsubscribe and
   `live.stop()` there.
 
+**A subscription that outlives one `render()` may not be guarded by anything captured inside it.**
+`render()` runs again on every scope and sub-view change — that is the contract above — so a handler
+written as `const mine = token; feed.onChange(() => { if (mine !== token) return; paint(); })`, set
+up once behind an `if (!unsub)`, is alive until the reader touches the scope toggle and dead
+afterwards. It cost the three filings tabs exactly that: the feed went on to 40 companies and 4,583
+rows while the screen stayed at 21 and the pill still read *21 companies*. **Nothing threw, nothing
+failed, and no state was wrong** — only the paint stopped, which is the version of this bug that
+looks like a broken API and gets diagnosed as one. Guard on the thing the lifecycle actually owns
+(`ctxRef`, set by every render and cleared by `destroy()`), and re-read the current ctx inside the
+handler rather than closing over the one that happened to be current at subscribe time.
+
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
@@ -597,6 +608,30 @@ That is survivable, and this is what makes it survivable:
    starts returning 401 on a day nobody changed anything. `unauthorised` is its own named state all
    the way to the screen and says so in those words, because the first instinct on a sudden 401 is
    to look for a bug in the request.
+6. **A route builds its own query string; a caller must never patch a `?` onto one.** The date range
+   was built once as `` `&from=…&to=…`.replace('&', '?') `` and appended to all three routes. Correct
+   for the two path-parameter routes and wrong for `api/news?q=…`, which then carried **two question
+   marks** — and that parses, fetches and returns **HTTP 200**. The Worker read `q` as
+   `"RELIANCE?from=2026-07-18"` and `from` as absent, so every company was searched for as that
+   literal string and the tab filled with the same generic market news for all forty of them. Only
+   the route knows whether it already has a query string, so only the route may append to it.
+7. **Search by the company NAME, and append nothing to it.** `?q=JAYNECOIND` returns three results,
+   mostly price widgets; `?q=Jayaswal Neco Industries` returns twenty about the company; adding
+   "share price results" ranks an unrelated IPO story second, because the extra words are themselves
+   terms the engine ranks on. The scrape and the browser walk send the identical query so the
+   snapshot and the live walk cannot disagree about what a company's news is. The ticker remains
+   what a row is filed under and what the device cache is keyed by — only the search term changes.
+8. **One definition of "still needs asking about", used by the queue AND by the request.** There
+   were two: the queue took every company whose rows were stale, and the request then returned early
+   for any company that had rows at all. So the walk counted down through forty companies **without
+   sending a request**, the strip said "reading 40 more companies" throughout, and nothing was ever
+   revalidated once its window expired. Two disagreeing predicates over the same question is the
+   shape to look for; the fix is that there is only one.
+9. **`origin` is derived, never assigned.** Four places wrote to it and it read `null` for the whole
+   of a live walk — which the pill renders as *"Live"* over rows that came off the device. It is now
+   computed from what is painted and what the server confirmed **in this session**, so it cannot
+   drift from them. Bytes this device kept from an earlier visit read *Cached*: they have a real
+   `checkedAt` and they have not been checked now, and those are different claims.
 
 **The universe is served from a committed snapshot, not from a live fan-out.** Two of the three are
 per-ticker and all three are capped at ~60 requests a minute, so 603 companies live is ten minutes
@@ -838,6 +873,18 @@ So **per-row state now goes through `staleKeys`**, and `replaceStaleRows()` swap
 nodes in place on the reorder branch (the full-rebuild branch clears the set, since it reads the
 watchlist fresh). If you add any other per-row state to the markup, mark it stale the same way —
 dropping the cache entry is only half of it.
+
+**And `key(row)` must be derived from the row's CONTENT, never from its position.** The whole fast
+path rests on a key meaning the same row from one paint to the next; an index in the key breaks that
+the moment the row set changes. It broke News: the key was `` `${ticker}-${date}-${i}` `` on a table
+that grows while the live walk runs, so every arrival shifted the indices, `RELIANCE-2026-08-12-7`
+came to mean a different article, and the `<tr>` cached for the old one was moved into its place.
+Measured: **741 rows, zero repeated (ticker, headline) pairs in the data, 160 repeated pairs on
+screen** — the same headline two and three times while others were missing, with the row count still
+exactly right. It reads as a duplicating API and the API is innocent, and **counting rows will never
+catch it** — the suite compares them instead. Where rows have no natural id, key on the fields that
+identify one (URL, or the joined cells) and suffix a counter for genuine content duplicates: the
+failure to close is one key meaning two different rows, never two keys meaning one row.
 
 ### Data sources
 
@@ -1466,6 +1513,13 @@ It covers, beyond the checklist below:
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both
   the depth and the trough date
 - the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
+- **the three filings tabs ask the right questions and keep painting the answers**: every news
+  request carries exactly one query string, a readable date range and a `q` that is a book company's
+  **name** with no part of the URL folded into it; all three walks send one request per company
+  rather than counting a queue down without asking anything; a repaint still reaches the screen
+  **after a scope toggle**, which is the re-render that used to kill the subscription silently; and
+  **every rendered row is a row the feed actually holds** — compared, not counted, because the
+  position-keyed rows that made News look duplicated always counted correctly
 - the CSV round trip parses every row back, and a malformed file names each rejection with its line
 - every `<th>` carries `scope="col"`; the three overlays trap focus and restore it on close
 - **the two polled feeds do not re-download themselves**: the payload is kept on the device under

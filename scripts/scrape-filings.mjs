@@ -101,7 +101,13 @@ async function run(kind, list) {
       if (!c) return;
       try {
         let res;
-        if (kind === 'news') res = await fetchNews({ query: `${c.name || c.ticker} share price results`, country: 'IN', fromDate: from, toDate: to }, env);
+        // THE COMPANY NAME, AND NOTHING APPENDED TO IT. The query used to end "share price results",
+        // which reads like a helpful narrowing and is not: measured against one company it swapped a
+        // Moneycontrol quarterly-results story for an unrelated IPO story, because the extra words
+        // are themselves terms the engine ranks on. The browser's live walk sends the same query —
+        // see ROUTE.news in js/data/filings.js — so the snapshot and the walk cannot disagree about
+        // what a company's news is.
+        if (kind === 'news') res = await fetchNews({ query: c.name || c.ticker, country: 'IN', fromDate: from, toDate: to }, env);
         else if (kind === 'announcements') res = await fetchAnnouncements({ ticker: c.ticker, fromDate: from, toDate: to }, env);
         else res = await fetchInsiderTrades({ ticker: c.ticker, country: 'india', fromDate: from, toDate: to }, env);
 

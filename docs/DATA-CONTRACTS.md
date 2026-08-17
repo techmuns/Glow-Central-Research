@@ -2141,6 +2141,57 @@ sourceless and undated. `profile.name` is the outlet; `page_age` is the timestam
 last on purpose** — "2 days ago" parses to nothing, so it can only ever confirm there is no date
 rather than invent one.
 
+**News is searched by COMPANY NAME, and the URL has to be built as a URL.**
+
+The browser sent `api/news?q=RELIANCE` and then appended a date range built as one string with a
+`?` patched onto the front of it — right for the two path-parameter routes, wrong for this one. The
+result carried **two question marks**, which parses without complaint into
+
+```
+q    = "RELIANCE?from=2026-07-18"     ← the search term the upstream actually received
+to   = "2026-08-17"
+from = absent
+```
+
+so every company was searched for as that literal string, the date filter was silently dropped, and
+the tab filled with the same generic market news for all forty of them — a CSIR-NET exam story
+filed under JAYNECOIND, the same headline repeating down the page. **It returned HTTP 200 the whole
+time.** Each route now appends its own range, because only the route knows whether it already has a
+query string.
+
+And the term itself matters. Measured on one book line:
+
+| Query | Results | What they were |
+| --- | --- | --- |
+| `JAYNECOIND` | 3 | mostly price-quote widgets |
+| `Jayaswal Neco Industries` | 20 | the company's own news |
+| `Jayaswal Neco Industries share price results` | 20 | ranked an unrelated IPO story second |
+
+So the query is the **company name, with nothing appended** — the extra words are themselves terms
+the engine ranks on. `scripts/scrape-filings.mjs` and the browser walk send the same query, so the
+snapshot and the live walk cannot disagree about what a company's news is. The name travels with
+the ticker into `feed.load([{ ticker, name }])`; the ticker is still what a row is filed under and
+what the device cache is keyed by.
+
+**Duplicate stories are dropped within a company, never across companies.** The comparison is the
+canonical URL — host without its `www.`/`m.`/`amp.` prefix, path without a trailing `/amp`, because
+`moneycontrol.com/news/…-13990522.html` and `…/amp` are one article — plus, separately, an exact
+match on publisher *and* headline. It does **not** merge two publishers running the same story
+(Hindustan Times and the Economic Times both ran "Prestige Group launches 3 housing projects in
+Q1" — two outlets reporting, not one row twice), and it does not merge across companies: a story
+that genuinely mentions two companies in scope appears under each, because the ticker a row is
+filed under is our search term, which the provenance modal says in those words. Measured over 741
+rows: six headlines repeated, every one of them under two different tickers.
+
+**And the duplication the reader saw was not in the data at all.** 741 rows carried zero repeated
+(ticker, headline) pairs while **160** pairs repeated on screen — the same headline two and three
+times, others missing, and the row count still exactly right. `scoreTable` caches a row's markup by
+its key and moves the existing `<tr>` nodes on a repaint, which is correct only while a key
+identifies a row; the key was `` `${ticker}-${date}-${i}` `` on a table that grows as the walk
+lands, so every arrival shifted the indices and a cached row was moved under a key that now meant a
+different article. Row keys here are content-derived, and `verify-ui.mjs` **compares** the rendered
+rows against the feed's rather than counting them.
+
 **Insider trades was right first time.** Fifteen columns, straight off the markdown table:
 `Company, Insider, Category, Security Type, Transaction, Trade Shares, Trade %, Trade Value,
 Post Holding Shares, Post Holding %, Mode, From Date, To Date, Broadcast Date, Source`. Rows that
@@ -2194,6 +2245,29 @@ like completeness.
 **A company absent from `byTicker` is not a company with nothing.** `failed` is what distinguishes
 "no announcements in this window" from "we could not read it", the pill counts them separately, and
 the two must never be conflated — the same error class as a count of zero from a failing endpoint.
+
+**One definition of "still needs asking about", used by the queue and by the request.** There were
+two and they disagreed: `load()` queued every company whose rows were older than the feed's window,
+and `loadOne()` then returned early for any company that had rows at all. So the walk counted down
+through forty companies **without sending a single request**, the strip said "reading 40 more
+companies" throughout, and nothing was ever revalidated once its window expired. A company the
+committed snapshot covers is now excluded from the queue outright — that file is the bulk source and
+its age is reported as `capturedAt`, not hidden behind 603 live requests.
+
+**`meta().origin` is derived, never assigned.** It was a field four places wrote to, and it read
+`null` for the whole of a live walk — which the pill renders as **"Live"** over rows that had come
+off the device. It is now computed from the two facts that decide it: what is painted, and what the
+server confirmed *in this session*.
+
+| `origin` | Means |
+| --- | --- |
+| `live` | every painted company was confirmed by the server this session |
+| `mixed` | some were |
+| `snapshot` | none were, and every painted company came from the committed file |
+| `store` | none were, and at least one came off this device's cache |
+
+Bytes this device kept from an earlier visit have a real `checkedAt` and have **not** been checked
+now, so they read *Cached*, not *Live*.
 
 ### Refreshing it
 
