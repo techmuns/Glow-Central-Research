@@ -709,12 +709,25 @@ slow", or — when the upstream flapped — as a wall of prose where the grid sh
 | Edge cache on the two routes | documented, never implemented — `caches.default` was untouched, so every reader made the upstream scrape finology.in 91 times | `investorRoute` in `worker/index.js` reads and writes it, 6h; `x-sattva-cache` reports which |
 | Upstream down | nothing shown at all | a `last-good` copy served as `stale: true` with its original `fetchedAt`, under an amber strip that says so |
 | Retry budget | 15s × 3 attempts = **46.6s** before the panel could speak, under a comment claiming "a couple of seconds" | 6s × 2 under an absolute 13s `DEADLINE_MS`; the failure is cached for 15s so the other 90 books do not each pay it |
-| Return visit | re-asked all 91 books inside a 6h window in which the server had nothing new to say, and rebuilt the whole panel once per arriving book | asks only for books unconfirmed for 6h (**1 request**), repaints on a trailing throttle (**2 rebuilds, not 14**, on a 12-investor stand-in) |
+| Return visit | re-asked all 91 books inside a window in which the server had nothing new to say, and rebuilt the whole panel once per arriving book | asks only for books unconfirmed inside the current window (**1 request**), repaints on a trailing throttle (**2 rebuilds, not 14**, on a 12-investor stand-in) |
+| First visit | 91 requests, four at a time — most of a minute of the grid filling in, and no device cache can help a reader who has never opened the tab | a **committed snapshot** of every book, `public/data/super-investors.json`: 414KB, 69KB over the wire, one conditional GET, **grid complete in ~1.1s with zero per-investor requests** |
 
-The last row is the one to be careful with: speed there is bought by *not asking*, so it is only
-honest because `meta().origin` keeps saying `store`, `meta().checkedAt` reports the **oldest**
-confirmation on screen rather than the newest, and *Re-read everything now* in the Live pill's modal
-discards every confirmation. `verify-ui.mjs` asserts all four.
+The last two rows are the ones to be careful with: speed there is bought by *not asking*, so it is
+only honest because `meta().origin` distinguishes `snapshot` / `store` / `live` and the pill says
+*Captured* / *Cached* / *Live* to match, `meta().checkedAt` reports the **oldest** confirmation on
+screen rather than the newest, and *Re-read everything now* in the Live pill's modal discards every
+confirmation. `verify-ui.mjs` asserts all of it — and the snapshot half needs no Worker to check,
+because it is a committed file.
+
+**How often a book is re-asked comes from the filing calendar, not from a number of hours.** A book
+is assembled from shareholding patterns companies file once a quarter: within 60 days of a quarter
+end the window is 24 hours, outside it 30 days, and a confirmation older than the most recent
+quarter end is **always** re-asked whatever the elapsed time says — otherwise a long hold could
+straddle a quarter boundary and serve last quarter's book into the new one.
+
+Refresh the snapshot with `node scripts/scrape-super-investors.mjs`. It reads **this dashboard's own
+Worker**, not Finology, so it needs no token, and it refuses to write below 80% coverage — a
+snapshot that is mostly missing gets painted and its gaps read as the whole book.
 
 Reproducing any of this needs a stand-in behind `MUNS_BASE` that can be told to 503 or hang —
 without one the whole block skips, which is exactly why the missing edge cache survived so long.

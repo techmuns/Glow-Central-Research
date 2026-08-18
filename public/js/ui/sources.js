@@ -19,6 +19,7 @@ import * as earningsLive from '../data/earnings-live.js';
 import * as chatter from '../data/chatter-live.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
+import * as superInvestors from '../data/super-investors.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -110,6 +111,8 @@ export function sourceGroups() {
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
   const book = coverage.isLoaded?.() ? coverage.meta() : null;
+  // Read from the module the view reads, like every other figure here — never typed.
+  const si = { count: num(() => superInvestors.meta().loadedBooks) };
   const chat = num(() => chatter.all().length);
   const chatResolved = num(() => chatter.companies().length);
   const funds = (() => {
@@ -367,9 +370,21 @@ export function sourceGroups() {
           url: 'https://ticker.finology.in/superstar-portfolios',
           feeds:
             '<strong>Real filings.</strong> The whole Superstar Investors view: every tracked investor Finology carry, and for each one the full book they publish — company by company, one column per quarter of disclosed holding percentage, with their net worth, active and total stock counts and any biography. <strong>Percentages are what the company filed with the exchanges; the ₹ value beside each holding is Finology\'s own derivation</strong> from that percentage and a market cap, reproduced unchanged rather than recomputed. A blank quarter means <strong>not disclosed</strong> — below the threshold a real holding is invisible — so it renders as a dash and is excluded from totals, never counted as zero. The one figure this dashboard computes is the quarter-over-quarter change, headed <em>Change (derived)</em>.',
-          cadence: 'Quarterly, as filings arrive · read once per visit through the Worker, then cached on the device',
+          cadence: 'Quarterly, as filings arrive · a committed snapshot covers the grid, live for what it misses',
           status: 'live',
           file: 'worker/index.js → /api/super-investors · worker/finology.mjs · public/js/data/finology-shared.js',
+        },
+        {
+          name: 'Superstar investors — the committed snapshot',
+          url: null,
+          feeds: clause(
+            si.count,
+            '<strong>Every book in one file.</strong> <code class="rounded bg-slate-100 px-1">public/data/super-investors.json</code>, written by <code class="rounded bg-slate-100 px-1">scripts/scrape-super-investors.mjs</code> reading this dashboard\'s own Worker, carries <n> investors\' books as the Worker itself served them.'
+          ) +
+            ' It exists because that view is <strong>one request per investor</strong> — each book is a separate scrape upstream — so a first visit meant ninety-one round trips and most of a minute of the grid filling in. One conditional GET replaces them. <strong>A book the capture could not read is absent, never empty</strong>, and is fetched live instead; a book already on this device wins over the file, because those bytes were confirmed later. The pill says <em>Captured</em> rather than <em>Live</em> for anything nobody has confirmed in this session.',
+          cadence: 'Refreshed on a schedule · re-read on demand from the Live pill',
+          status: 'live',
+          file: 'scripts/scrape-super-investors.mjs · public/data/super-investors.json · public/js/data/super-investors.js',
         },
         {
           name: 'Ticker Finology — the credential',

@@ -661,22 +661,51 @@ await waitForPanel();
 ok('the tab offers Reported / Calendar', (await page.locator('[data-view]').count()) === 2);
 
 await page.locator('[data-view="calendar"]').click();
-// The calendar opens on the newest date anything actually filed, which is answered from memory —
-// so the table is there before any round trip. Wait for the strip and the rows, or for the
-// failure panel a future-dated URL with no Worker would produce.
+// THE CALENDAR OPENS ON TODAY, and today legitimately has no rows on it until somebody files —
+// which is most of the trading day. So this waits for the strip plus EITHER rows or the settled
+// empty panel, and not for rows alone: waiting for rows would hang for thirty seconds every
+// morning and then report the strip as missing, which is a false failure about the wrong thing.
 const calReady = await (async () => {
   const started = Date.now();
   while (Date.now() - started < 30000) {
-    const st = await page.evaluate(() => ({
-      chips: document.querySelectorAll('[data-date]').length,
-      failed: /could not be loaded/i.test(document.querySelector('#content-host')?.innerText || ''),
-      rows: document.querySelectorAll('tr[data-row-key]').length,
-    }));
-    if ((st.chips && st.rows) || st.failed) return st;
+    const st = await page.evaluate(() => {
+      const text = document.querySelector('#content-host')?.innerText || '';
+      return {
+        chips: document.querySelectorAll('[data-date]').length,
+        failed: /could not be loaded/i.test(text),
+        rows: document.querySelectorAll('tr[data-row-key]').length,
+        settled: /Nothing filed yet today|No results were filed|Nothing scheduled|None of your holdings/i.test(text),
+      };
+    });
+    if ((st.chips && (st.rows || st.settled)) || st.failed) return st;
     await page.waitForTimeout(300);
   }
-  return { chips: 0, failed: false, rows: 0 };
+  return { chips: 0, failed: false, rows: 0, settled: false };
 })();
+
+// A DASHBOARD THAT OPENS ON A STALE DATE READS AS A DASHBOARD WHOSE DATA STOPPED. It used to open
+// on the results feed's most recent filing date, so four days into a quiet stretch it opened on
+// Friday the 14th with today's chip four places to the right and nothing on screen saying the
+// selection was not the current date.
+//
+// Today is TODAY IN IST, not in UTC: every date here is an Indian trading date, and `toISOString()`
+// alone names yesterday between 18:30 IST and midnight — exactly the evening, when the day's
+// filings are being read.
+{
+  const opened = await page.evaluate(() => {
+    const active = document.querySelector('[data-date][aria-current="date"]');
+    const strip = document.querySelector('[data-date-strip]');
+    const box = active?.getBoundingClientRect();
+    const sb = strip?.getBoundingClientRect();
+    return {
+      active: active?.dataset.date || null,
+      today: new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10),
+      inView: !!(box && sb && box.left >= sb.left - 1 && box.right <= sb.right + 1),
+    };
+  });
+  ok('the calendar opens on today', opened.active === opened.today, `${opened.active} vs ${opened.today} (IST)`);
+  ok('...with today’s chip scrolled into view', opened.inView);
+}
 
 // THE FIX THIS SECTION WAS EXTENDED FOR. Walking back through the strip used to show either a
 // twenty-row capture or an amber "counts only for this date" note, depending on whether the
@@ -2289,7 +2318,15 @@ const siProbe = await page.evaluate(async () => {
 });
 
 if (siProbe.state === 'no-route') {
-  ok('with no Worker, the view says the feed needs one rather than showing nothing', /needs the Worker/i.test(await hostText()));
+  // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
+  // route at all. This check used to assert the view said it needed the Worker, and that was the
+  // right assertion when nothing else could answer; now the honest outcome is the snapshot,
+  // labelled as such. Only a deployment with neither falls back to naming the missing route.
+  const noWorker = await hostText();
+  const fromFile = await page.locator('[data-open-investor]').count();
+  ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
+    fromFile > 0 ? /Captured/.test(noWorker) : /needs the Worker/i.test(noWorker),
+    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the missing route');
   skip('the live investor books render', 'no /api/super-investors on this origin');
 } else if (siProbe.state === 'error') {
   ok(`with the feed unavailable (${siProbe.reason}), the view names the reason`,
@@ -2549,7 +2586,13 @@ if (siProbe.state === 'live') {
     return { total: m.total, loadedBooks: m.loadedBooks, paints: window.__siPaints ?? -1 };
   });
 
-  ok('a cold device does fetch every book', cold.length >= coldState.total, `${cold.length} requests for ${coldState.total} investors`);
+  // A COLD DEVICE USED TO FETCH EVERY BOOK, and that was the assertion here — ninety-one requests
+  // was the correct behaviour when the committed snapshot did not exist. It does now, so the
+  // invariant is the opposite one: the reader who has never opened this tab gets the whole grid
+  // without a request per investor. Only the books the capture could not read are fetched live.
+  ok('a cold device paints the whole grid without a request per investor',
+    coldState.loadedBooks === coldState.total && cold.length < coldState.total,
+    `${cold.length} requests for ${coldState.total} investors, ${coldState.loadedBooks} books painted`);
   ok('...and a book landing does not rebuild the whole panel once per book',
     coldState.paints >= 0 && coldState.paints < coldState.total,
     `${coldState.paints} rebuilds for ${coldState.loadedBooks} books`);
@@ -2557,6 +2600,64 @@ if (siProbe.state === 'live') {
   skip('the investor list route is served from the edge on a repeat request', `the upstream is ${siProbe.state}`);
   skip('a return visit does not re-ask for every book it already holds', `the upstream is ${siProbe.state}`);
   skip('...and a book landing does not rebuild the whole panel once per book', `the upstream is ${siProbe.state}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// 9d. The committed snapshot of every book
+//
+// THIS IS THE HALF THAT HELPS A FIRST VISIT, and it needs no Worker to check, because it is a
+// committed file. The device cache does nothing at all for a reader who has never opened the tab,
+// and that reader is the one who waited: ninety-one requests, four at a time, each of which may be
+// a live scrape on somebody else's service.
+// ---------------------------------------------------------------------------------------
+{
+  const snap = await page.evaluate(async () => {
+    const res = await fetch('data/super-investors.json', { cache: 'no-cache' });
+    if (!res.ok) return { status: res.status };
+    const j = await res.json();
+    return {
+      status: 200,
+      count: j.count,
+      covered: j.covered,
+      books: Object.keys(j.books || {}).length,
+      failed: Object.keys(j.failed || {}).length,
+      capturedAt: j.capturedAt,
+      // Not one empty book may be written: an absent book is fetched live, an empty one is a lie.
+      empties: Object.entries(j.books || {}).filter(([, b]) => b?.ok === false || !Array.isArray(b?.holdings)).length,
+    };
+  });
+  if (snap.status !== 200 || !snap.count) {
+    skip('the committed snapshot carries every investor’s book', `data/super-investors.json is ${snap.status === 200 ? 'empty' : snap.status}`);
+  } else {
+    ok('the committed snapshot carries every investor’s book', snap.books > snap.count * 0.9, `${snap.books} of ${snap.count} books, ${snap.failed} unread`);
+    ok('...and never writes an unread book as an empty one', snap.empties === 0, `${snap.empties} empty`);
+    ok('...with a capture time on it, so its age is readable', /^\d{4}-\d{2}-\d{2}T/.test(snap.capturedAt || ''), snap.capturedAt || 'none');
+
+    // The paint itself, from a cold device. `clearAll()` + reload is the reader who has never been
+    // here; on a static origin every /api/ request 404s, so the grid can ONLY come from the file.
+    await page.evaluate(async () => (await import('/js/core/store.js')).clearAll());
+    const fresh = [];
+    const countFresh = (r) => {
+      if (/\/api\/super-investors/.test(r.url())) fresh.push(r.url());
+    };
+    page.on('request', countFresh);
+    await go('/#/research/super-investors/superstar-investors?scope=universe', 1200);
+    await page
+      .waitForFunction(() => document.querySelectorAll('#content-host [data-open-investor]').length > 10, null, { timeout: 30000 })
+      .catch(() => {});
+    await page.waitForTimeout(1500);
+    page.off('request', countFresh);
+    const painted = await page.evaluate(async () => {
+      const m = (await import('/js/data/super-investors.js')).meta();
+      return { total: m.total, loaded: m.loadedBooks, origin: m.origin, fromSnapshot: m.fromSnapshot, capturedAt: m.capturedAt,
+        pill: document.querySelector('[data-si-info]')?.innerText.replace(/\s+/g, ' ') || '' };
+    });
+    ok('a first visit paints the grid out of it', painted.loaded > painted.total * 0.9, `${painted.loaded} of ${painted.total} books`);
+    ok('...with no request per investor', fresh.length < painted.total, `${fresh.length} requests for ${painted.total} investors`);
+    // The speed may not be bought with a freshness claim. Nobody confirmed these bytes in this
+    // session, so the pill may not say "Live" over them — the same rule the filings pills follow.
+    ok('...and the pill says Captured rather than Live', painted.origin === 'snapshot' && /Captured/.test(painted.pill), `origin=${painted.origin} pill="${painted.pill}"`);
+  }
 }
 
 // The provenance modal has to say whose numbers these are, on any state.
@@ -2626,8 +2727,14 @@ ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
 // is unavailable. What must never happen is an empty panel that explains neither.
 {
   const t = await hostText();
-  ok('...and says so plainly when no tracked investor discloses a holding of yours',
-    /none of your holdings/i.test(t) || /of your holdings/i.test(t) || /No positions are shown/i.test(t), t.slice(0, 90).replace(/\s+/g, ' '));
+  const held = await page.locator('tr[data-row-key]').count();
+  // Two acceptable answers and one that is not. Either tracked investors DO disclose holdings in
+  // the book — in which case the rows are the answer and the pill prints the count — or none do,
+  // in which case the view has to say so in words. An empty panel explaining neither is the
+  // outcome this guards against, and it is the one that used to happen when the feed was absent.
+  ok('...and either lists the holdings tracked investors disclose, or says plainly that none do',
+    held > 0 || /none of your holdings/i.test(t) || /of your holdings/i.test(t) || /No positions are shown/i.test(t),
+    held > 0 ? `${held} disclosed positions in the book` : t.slice(0, 90).replace(/\s+/g, ' '));
 }
 
 for (const [hash, label] of [

@@ -20,14 +20,24 @@
 //   twenty-three sequential waits before the grid is full. That is the delay, and no amount of
 //   caching at the HTTP layer removes it, because the wait is latency and not bandwidth.
 //
-//   So `load()` now runs in two passes. The first reads everything already on this device and paints
-//   it, touching the network zero times; the second revalidates in the background and repaints only
-//   the books that actually moved. A returning reader sees the whole grid immediately.
+//   So `load()` reads what it already has before it asks for anything. The device comes first, then
+//   the COMMITTED SNAPSHOT — `public/data/super-investors.json`, every book in one 414KB file
+//   (69KB over the wire) written by scripts/scrape-super-investors.mjs — for whatever the device
+//   does not hold. Only then does a background pass revalidate.
 //
-//   THE STORE HOLDS THE SERVER'S OWN BYTES UNDER THE SERVER'S OWN TAG — never a locally patched
-//   copy — which is the entire basis for trusting a paint that asked nobody. `meta().origin` says
-//   `store` while that is what is on screen, and flips to `live` once the revalidation lands, so
-//   the view can never claim a freshness it has not confirmed.
+//   THE SNAPSHOT IS THE HALF THAT HELPS A FIRST VISIT, and it is the half that was missing. A
+//   device cache does nothing at all for a reader who has never opened the tab, and that reader is
+//   the one who waited: ninety-one requests, four at a time, each of which may be a live scrape on
+//   somebody else's service. Every other bulk feed in this dashboard is served from a committed
+//   file for exactly this reason.
+//
+//   Between them: a first visit is one request, a return visit is none, and a book the snapshot
+//   could not capture is fetched live and is absent rather than empty in the meantime.
+//
+//   THE STORE AND THE SNAPSHOT BOTH HOLD THE SERVER'S OWN BYTES — never a locally patched copy —
+//   which is the entire basis for trusting a paint that asked nobody. `meta().origin` distinguishes
+//   all three: `snapshot` for the committed file, `store` for this device's cache, `live` only once
+//   every painted book has been confirmed against the server in this session.
 //
 // A FAILED BOOK IS NOT AN EMPTY BOOK. `ok: false` from the Worker carries a `reason`, and this
 // module keeps it per investor. The card says "could not be read" and names why; it never shows a
@@ -36,12 +46,12 @@
 // THREE THINGS THAT MADE A RETURN VISIT SLOW, AND WHAT REPLACED THEM.
 //   1. EVERY BOOK WAS RE-ASKED ON EVERY PAGE LOAD. The revalidation pass walked all ninety-one
 //      unconditionally, so a reader who opened the tab twice in a minute paid ninety-one round
-//      trips to be told nothing had changed. The Worker's own edge window is six hours, so asking
-//      again inside it CANNOT learn anything new — the server would hand back the identical bytes
-//      it already gave us. `REVALIDATE_AFTER_MS` matches that window exactly, and a book confirmed
-//      inside it is left alone. A book that has never been read, and one carrying the server's
-//      `stale` flag, are always asked for regardless: the first has nothing to skip and the second
-//      is precisely the copy that wants replacing.
+//      trips to be told nothing had changed. A book confirmed inside the current window is now left
+//      alone, and THE WINDOW COMES FROM THE FILING CALENDAR rather than from a number of hours: a
+//      book is assembled from shareholding patterns companies file once a quarter, so outside a
+//      filing season there is nothing that can have changed it. See `revalidateWindowMs`. Three
+//      things are always asked for regardless — a book never read, a book carrying the server's
+//      `stale` flag, and a book whose confirmation predates the most recent quarter end.
 //   2. NINETY-ONE INDEXEDDB TRANSACTIONS BEFORE FIRST PAINT. `readEntry` per book, each opening
 //      its own transaction. `readEntries` does the lot in one.
 //   3. NINETY FULL REPAINTS OF A FOUR-THOUSAND-ROW TABLE. Every arriving book emitted, and the tab
@@ -61,6 +71,9 @@ import { normalisePortfolio, deriveMoves, summarise, quarterOrder } from './fino
 
 const LIST_PATH = 'api/super-investors';
 const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
+// Every book in one committed file, written by scripts/scrape-super-investors.mjs. See the note
+// about it in the header: this is what makes a FIRST visit fast, which no device cache can.
+const SNAPSHOT_PATH = 'data/super-investors.json';
 
 // How many books are in flight at once. Each one MAY be a live scrape upstream, so this is
 // politeness as much as it is throughput: four keeps a cold edge filling steadily without arriving
@@ -68,10 +81,41 @@ const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
 // these is a cache read of a few milliseconds and the ceiling stops mattering.
 const CONCURRENCY = 4;
 
-// Matches INVESTOR_TTL_S in worker/index.js. This is not a guess at how stale is tolerable — it is
-// the window inside which the server has nothing else to tell us, so a request would be spent
-// receiving bytes we already hold.
-const REVALIDATE_AFTER_MS = 6 * 60 * 60 * 1000;
+// HOW OFTEN A BOOK IS WORTH ASKING ABOUT AGAIN, WHICH IS A QUESTION ABOUT THE FILING CALENDAR.
+//
+// A super-investor's book is assembled from the shareholding patterns companies file with the
+// exchanges, and those are filed once a quarter. Nothing else moves it. So the window is derived
+// from where the calendar is rather than from a flat number of hours:
+//
+//   IN SEASON   a quarter has ended within FILING_SEASON_DAYS, so companies are still filing and
+//               a book genuinely gains lines from one day to the next.
+//   OUT OF      every company that is going to file for this quarter has, and the next thing that
+//   SEASON      can change any book is the next quarter end. Asking again before then cannot learn
+//               anything, so the hold is long.
+//
+// AND ONE HARD RULE ABOVE BOTH: a confirmation older than the most recent quarter end is always
+// re-asked, whatever the elapsed time says. Without it a long hold could straddle a quarter
+// boundary and keep serving last quarter's book into the new one — the exact failure the window is
+// meant to prevent, arrived at by being too clever about avoiding requests.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FILING_SEASON_DAYS = 60;
+const REVALIDATE_IN_SEASON_MS = 24 * 60 * 60 * 1000;
+const REVALIDATE_OUT_OF_SEASON_MS = 30 * DAY_MS;
+
+/** The most recent 31 Mar / 30 Jun / 30 Sep / 31 Dec, in ms. */
+function lastQuarterEnd(now = Date.now()) {
+  const d = new Date(now);
+  const y = d.getUTCFullYear();
+  const ends = [Date.UTC(y - 1, 11, 31), Date.UTC(y, 2, 31), Date.UTC(y, 5, 30), Date.UTC(y, 8, 30), Date.UTC(y, 11, 31)];
+  let last = ends[0];
+  for (const e of ends) if (e <= now) last = e;
+  return last;
+}
+
+function revalidateWindowMs(now = Date.now()) {
+  const sinceQuarterEnd = now - lastQuarterEnd(now);
+  return sinceQuarterEnd <= FILING_SEASON_DAYS * DAY_MS ? REVALIDATE_IN_SEASON_MS : REVALIDATE_OUT_OF_SEASON_MS;
+}
 
 // Books arrive faster than a repaint of the panel takes. Long enough to absorb a burst, short
 // enough that the grid still visibly fills rather than appearing in one jump.
@@ -102,7 +146,12 @@ function fresh() {
     staleReason: null,
     fetchedAt: null,
     checkedAt: null,
-    origin: null, // 'live' | 'store'
+    // Books painted out of the committed snapshot rather than off this device. Tracked apart from
+    // `unconfirmed` so the pill can name which of the two the reader is looking at — a file this
+    // deployment ships and a copy this browser kept are different provenances.
+    fromSnapshot: new Set(),
+    capturedAt: null, // when the committed snapshot was taken
+    origin: null, // 'live' | 'store' | 'snapshot'
     inFlight: 0,
     // Books painted from the device and not yet confirmed against the server. While this is
     // non-empty the view says the paint came from the cache, because it did.
@@ -185,9 +234,10 @@ export function meta() {
     // most of a return visit's books are as fresh as the device copy and no fresher, and reporting
     // the list's own check would overstate every one of them.
     checkedAt: oldestCheckedAt(),
-    // `store` until every painted book has been confirmed against the server, then `live`. The view
-    // must never say it read something live that it read off this device.
-    origin: state.unconfirmed.size ? 'store' : state.origin,
+    // Where the paint came from, and never a claim beyond what was confirmed. See `originNow`.
+    origin: originNow(),
+    capturedAt: state.capturedAt,
+    fromSnapshot: state.fromSnapshot.size,
     confirming: state.revalidating,
     // The Worker could not reach the upstream and served its last good read instead. Real filed
     // data of a known age, never invented — but it is not what the source would say right now,
@@ -198,6 +248,23 @@ export function meta() {
     persisted: isPersistent(),
     source: 'Ticker Finology, via devde.muns.io',
   };
+}
+
+/**
+ * Where what is on screen came from.
+ *
+ *   live      every painted book was confirmed against the server in this session
+ *   snapshot  some were not, and all of those came from the committed file
+ *   store     some were not, and at least one came off this device's own cache
+ *
+ * The two unconfirmed cases are kept apart because they are different promises to the reader: a
+ * file this deployment ships, with a capture date on it, and bytes this browser happens to have
+ * kept. Neither may be called `live`, which is the whole point of the distinction.
+ */
+function originNow() {
+  if (!state.unconfirmed.size) return state.origin;
+  for (const slug of state.unconfirmed) if (!state.fromSnapshot.has(slug)) return 'store';
+  return 'snapshot';
 }
 
 /** The oldest moment anything on screen was confirmed by the server. */
@@ -245,9 +312,15 @@ export function load() {
     //
     // A hit here means the grid is complete before the first request is even sent. A miss is not an
     // error and never has been: it means "fetch it", which is what pass two does regardless.
-    const seeded = await seedFromStore(gen);
+    const seededDevice = await seedFromStore(gen);
     if (!current(gen)) return state; // a re-read replaced everything while the device was read
-    if (seeded) {
+    // …and then the committed snapshot, for every book the device did not have. On a FIRST visit
+    // the device has nothing and this is the whole grid in one request; on a return visit it fills
+    // whatever gaps an interrupted walk left behind. The device's copy always wins where both have
+    // one: it was read from the server later than the file was captured.
+    const seededSnapshot = await seedFromSnapshot(gen);
+    if (!current(gen)) return state;
+    if (seededDevice || seededSnapshot) {
       state.loaded = true;
       state.origin = 'store';
       emit({ now: true });
@@ -357,6 +430,53 @@ async function seedFromStore(gen) {
 }
 
 /**
+ * Pass one and a half: the committed snapshot of every book, in one request.
+ *
+ * THIS IS THE ONLY THING THAT CAN MAKE A FIRST VISIT FAST. The device cache does nothing for a
+ * reader who has never opened the tab, and that reader is the one who waited: ninety-one requests
+ * four at a time, each of which may be a live scrape on somebody else's service, is most of a
+ * minute of a grid filling in. `scripts/scrape-super-investors.mjs` pays that once on a schedule
+ * and commits the result — 414KB, 69KB over the wire, one conditional GET.
+ *
+ * It never overwrites a book the device already holds: those bytes were confirmed by the server
+ * later than the file was captured. A book the capture could not read is absent rather than empty,
+ * exactly as it is in the filings snapshots, and pass two fetches it live.
+ */
+async function seedFromSnapshot(gen) {
+  let res;
+  try {
+    res = await conditionalJson(SNAPSHOT_PATH, { key: KEYS.investorSnapshot, optional: true });
+  } catch {
+    res = null;
+  }
+  if (!current(gen)) return false;
+  const body = res?.value;
+  if (!body || !Array.isArray(body.investors) || !body.investors.length) return false;
+
+  state.capturedAt = body.capturedAt || null;
+  // The list only if the device did not already have a newer one.
+  if (!state.investors.length) {
+    state.investors = body.investors;
+    state.listOk = true;
+    state.dropped = body.dropped || 0;
+  }
+  // The capture time IS a real confirmation time: these are the server's own bytes, read then.
+  const at = Date.parse(body.capturedAt || '') || null;
+  let added = 0;
+  for (const [slug, value] of Object.entries(body.books || {})) {
+    if (!value || value.ok === false || state.books.has(slug)) continue;
+    state.books.set(slug, normalisePortfolio(value, slug));
+    state.fromSnapshot.add(slug);
+    state.unconfirmed.add(slug);
+    if (at) state.confirmedAt.set(slug, at);
+    added++;
+  }
+  if (at && (state.checkedAt == null || at < state.checkedAt)) state.checkedAt = at;
+  if (added) bump();
+  return state.investors.length > 0;
+}
+
+/**
  * Pass two: confirm what was painted from the device, and fill in what was not.
  *
  * Every book goes back through `conditionalJson`, so an unchanged one is a bodyless 304 and its row
@@ -413,10 +533,12 @@ async function revalidate() {
  * first-visit walk skips them, because a book in memory there has just been fetched.
  *
  * WHAT THE REVALIDATION PASS DOES *NOT* ASK FOR is the change that made a return visit quick. A
- * book the server confirmed within REVALIDATE_AFTER_MS is inside the Worker's own edge window, so
- * the request would spend a round trip receiving bytes already on this device. Two exceptions,
- * both of which would otherwise strand a reader on something worse than a slow paint: a book we do
- * not have at all, and a book the Worker served from its last-good copy during an outage.
+ * book confirmed inside the current window — see `revalidateWindowMs`, which is derived from the
+ * filing calendar rather than from a number of hours — cannot have anything new to tell us, so the
+ * request would spend a round trip receiving bytes already on this device. Three exceptions, each
+ * of which would otherwise strand a reader on something worse than a slow paint: a book we do not
+ * have at all, a book the Worker served from its last-good copy during an outage, and a book whose
+ * confirmation predates the most recent quarter end.
  */
 async function walkBooks({ force = false } = {}) {
   const gen = generation;
@@ -446,7 +568,11 @@ function needsRevalidation(slug) {
   if (state.staleBooks.has(slug)) return true; // a last-good copy is exactly what wants replacing
   const at = state.confirmedAt.get(slug);
   if (at == null) return true; // no idea when it was confirmed, so treat it as unconfirmed
-  return Date.now() - at >= REVALIDATE_AFTER_MS;
+  const now = Date.now();
+  // A quarter has ended since this copy was confirmed, so a filing season it knows nothing about
+  // has begun. Elapsed time is not allowed to overrule that.
+  if (at < lastQuarterEnd(now)) return true;
+  return now - at >= revalidateWindowMs(now);
 }
 
 /**
@@ -492,6 +618,9 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
 
   if (had) {
     state.unconfirmed.delete(slug);
+    // Confirmed against the server, so it is no longer the committed file's copy whatever it
+    // started as. `meta().fromSnapshot` is a count of what is still unvouched-for.
+    state.fromSnapshot.delete(slug);
     // `fromStore` is the conditional layer reporting a 304 — the server confirmed the bytes we
     // already had, so there is nothing to re-normalise and nothing to repaint.
     if (res.fromStore) return false;

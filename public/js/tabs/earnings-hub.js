@@ -615,7 +615,12 @@ const MODES = {
   },
 };
 
-const isoToday = () => new Date().toISOString().slice(0, 10);
+// TODAY IN IST, NOT IN UTC. Every date on this tab is an Indian trading date — a company files at
+// 14:32 IST and the exchange calendar is IST — so `toISOString()` on its own is wrong for the five
+// and a half hours between 18:30 IST and midnight, during which it names YESTERDAY. That window is
+// exactly the evening, when the day's filings are being read.
+const IST_OFFSET_MS = 5.5 * 3600 * 1000;
+const isoToday = () => new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
 const shiftIso = (iso, n) => {
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
@@ -815,8 +820,20 @@ function keepActiveVisible(root) {
  * strip's own `defaultDate()` cannot help until the schedule has been fetched, and waiting for it
  * is what made this view open on a shimmer.
  */
+/**
+ * Which date the calendar opens on: TODAY.
+ *
+ * It used to be the results feed's most recent filing date, which lands on a date with rows on it
+ * and is wrong for the same reason a clock showing the last time anyone looked is wrong. Four days
+ * into a quiet stretch the tab opened on Friday the 14th with today's chip four places to the
+ * right, and nothing on screen said the selection was not the current date — it reads as a
+ * dashboard whose data stopped.
+ *
+ * A date the reader picked wins over this, and so does `?date=` in the URL, so a shared link and a
+ * session's own navigation both survive. This is only the answer to "no date chosen yet".
+ */
 function defaultCalendarDate(today) {
-  return feed.meta()?.latestResultDate || today;
+  return today;
 }
 
 function renderCalendar(ctx) {
@@ -910,8 +927,8 @@ function renderCalendar(ctx) {
           : mode === 'reported'
             ? `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
                  <div class="text-3xl">🗓️</div>
-                 <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings filed on this date' : 'No results were filed on this date'}</div>
-                 <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${rows.length ? ` · ${formatNumber(rows.length)} companies filed, none in this scope` : ''}</div>
+                 <div class="mt-2 text-sm font-semibold text-slate-700">${emptyReportedTitle(wanted, today, rows.length, ctx.scope)}</div>
+                 <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${emptyReportedDetail(wanted, today, rows.length)}</div>
                </div>`
             : !payload
               ? '<div class="skeleton-shimmer h-80 rounded-2xl bg-slate-100"></div>'
@@ -937,6 +954,28 @@ function renderCalendar(ctx) {
   }
   keepActiveVisible(ctx.root);
   if (table) disposers.push(table.wire(ctx.root));
+}
+
+/**
+ * "Nothing filed on this date" and "nothing filed YET" are different claims.
+ *
+ * The calendar now opens on today, so the commonest empty table is the one that will not be empty
+ * by this evening — companies file through the day. Saying "no results were filed on this date"
+ * about a day still in progress is a statement about the future dressed as a measurement, and the
+ * same error class as reading a missing value as a zero.
+ */
+function emptyReportedTitle(iso, today, filed, scope) {
+  if (filed) return scope === 'portfolio' ? 'None of your holdings filed on this date' : 'No results were filed on this date';
+  return iso === today ? 'Nothing filed yet today' : 'No results were filed on this date';
+}
+
+function emptyReportedDetail(iso, today, filed) {
+  if (filed) return ` · ${formatNumber(filed)} companies filed, none in this scope`;
+  const due = calendar.scheduledCountFor(iso);
+  if (iso !== today) return '';
+  // The schedule is a claim about the future and is labelled as one — it is never differenced
+  // against the filings, only printed beside them.
+  return due ? ` · ${formatNumber(due)} ${due === 1 ? 'company is' : 'companies are'} due, by Moneycontrol's schedule` : ' · companies file through the day';
 }
 
 /**

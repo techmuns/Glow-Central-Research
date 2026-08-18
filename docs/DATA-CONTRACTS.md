@@ -1174,6 +1174,26 @@ the pill then reads *"schedule"* rather than a number, and the pill's modal says
 behind each figure. `verify-ui.mjs` asserts the rendered claim, not payload equality — the payload
 disagreeing is upstream fact, the page printing "1 scheduled" above three companies would be ours.
 
+### It opens on today, in IST
+
+`defaultCalendarDate()` returns **today**. It used to return the results feed's most recent filing
+date — which lands on a date that has rows on it, and is wrong for the same reason a clock showing
+the last time anyone looked is wrong: four days into a quiet stretch the tab opened on Friday the
+14th with today's chip four places to the right, and nothing on screen said the selection was not
+the current date. It reads as a dashboard whose data stopped.
+
+`?date=` in the URL and the reader's own click both win over it, so a shared link and a session's
+navigation survive; this is only the answer to *"no date chosen yet"*.
+
+**Today is today in IST**, not in UTC. Every date on this tab is an Indian trading date — a company
+files at 14:32 IST — and `toISOString()` alone names *yesterday* between 18:30 IST and midnight,
+which is exactly the evening, when the day's filings are being read.
+
+A day still in progress legitimately has no rows on it, and that is not the same claim as a past
+date with none: it reads **"Nothing filed yet today"** with the scheduled count beside it, never
+"no results were filed on this date". Same rule as everywhere here — a missing value is not a
+measured zero, and a statement about the future is not a measurement.
+
 ### Two questions, one date — and only one of them is a schedule
 
 The Earnings Calendar picks its source from the date:
@@ -2299,7 +2319,68 @@ credential.
 
 **Modules** — `worker/finology.mjs` (HTTP client) · `public/js/data/finology-shared.js` (pure shape
 guards, imported by both sides) · `public/js/data/super-investors.js` (browser feed) ·
-`public/js/investors/live.js` (the view).
+`public/js/investors/live.js` (the view) · `scripts/scrape-super-investors.mjs` (the snapshot).
+
+### The committed snapshot — `public/data/super-investors.json`
+
+The view is **one request per investor**, because each book is a separate scrape upstream. Ninety
+investors is ninety-one round trips, four at a time, and that is most of a minute of the grid
+filling in on any device that has not been here before. Conditional fetching cannot help: the wait
+is latency, not bytes.
+
+```jsonc
+{
+  "capturedAt": "2026-08-18T08:58:59Z",
+  "source": "Ticker Finology, read through this dashboard's Worker",
+  "count": 90, "covered": 89, "positions": 2010, "failedCount": 1,
+  "investors": [ { "name": "…", "slug": "…", "bio": "…", "imageUrl": "…" } ],
+  "books":  { "<slug>": { …the Worker's own response, unedited… } },
+  "failed": { "<slug>": { "reason": "timeout", "message": "…" } }
+}
+```
+
+Measured: **414KB, 69KB over the wire, one conditional GET, grid complete in ~1.1s** on a cold
+device with no `/api/` route reachable at all — against ninety-one requests before.
+
+```bash
+node scripts/scrape-super-investors.mjs              # all 90, ~2 minutes
+SI_LIMIT=5 node scripts/scrape-super-investors.mjs   # a smoke run
+SI_BASE=http://127.0.0.1:8787 node scripts/…         # against wrangler dev
+```
+
+**It reads OUR Worker, not Finology.** The upstream needs a bearer token and that token lives on the
+Worker and nowhere else; a script that held it would put it in a shell history and a CI log. The
+Worker's own routes are open, already normalise the payload, and hold each book in a six-hour edge
+cache, so a run is mostly cache reads.
+
+Three rules, and they are the filings snapshot's rules:
+
+- **A book the capture could not read is absent, never empty.** It goes under `failed` with a reason
+  and the browser fetches it live; writing it as a book holding nothing would report an outage as a
+  fund that sold everything. The script **refuses to write below 80% coverage** at all, because a
+  snapshot that is mostly missing gets painted and its gaps read as the whole book.
+- **A last-good copy is never captured.** `stale: true` from the Worker means it served its own
+  fallback during an outage; freezing that into a committed file would preserve somebody else's
+  outage for a week.
+- **The device's copy always wins over the file**, because those bytes were confirmed later. The
+  snapshot only ever fills gaps, and `meta().origin` reads `snapshot` — the pill says *Captured* —
+  for anything nobody has confirmed in this session.
+
+### How often a book is worth asking about again
+
+A book is assembled from shareholding patterns companies file **once a quarter**, so the
+revalidation window is derived from the filing calendar rather than from a flat number of hours:
+
+| Where the calendar is | Window |
+| --- | --- |
+| within 60 days of a quarter end — companies are still filing | 24 hours |
+| outside that — nothing can change until the next quarter end | 30 days |
+
+Above both: **a confirmation older than the most recent quarter end is always re-asked**, whatever
+the elapsed time says. Without that a long hold could straddle a quarter boundary and keep serving
+last quarter's book into the new one. `refresh()`, wired to the Live pill's modal, discards every
+confirmation and asks again — a cache that decides on the reader's behalf that a question is not
+worth asking needs a way for them to ask it anyway.
 
 ### The Worker exists to hold the token
 

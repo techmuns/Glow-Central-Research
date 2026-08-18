@@ -44,6 +44,9 @@ export const KEYS = {
   // upstream, so a quarter landing for one investor must not invalidate the other fifty.
   investorList: 'investors:list',
   investorBook: (slug) => `investor:${slug}`,
+  // The committed snapshot of every book — one file, so one entry, unlike the per-investor keys
+  // above which mirror the upstream's one-page-per-investor shape.
+  investorSnapshot: 'investors:snapshot',
   chatter: 'chatter',
   // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
   // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the

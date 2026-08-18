@@ -1326,19 +1326,42 @@ because each is a separate scrape upstream. Conditional fetching already made a 
 free in bytes (every unchanged book is a bodyless 304), and the view still took seconds to fill,
 because ninety-one confirmations four at a time is twenty-three sequential waits.
 
-So `js/data/super-investors.js` reads **the device before it asks the network anything**:
+So `js/data/super-investors.js` reads **everything it already has before it asks the network
+anything**:
 
 1. **Pass one** rebuilds the whole view out of IndexedDB, with zero requests, and paints. `load()`
    resolves here — the caller's `then` should fire on the paint it can already make.
-2. **Pass two** revalidates in the background and repaints **only** the books whose bytes actually
+2. **Pass one and a half** fills whatever the device did not have out of the **committed
+   snapshot** — `public/data/super-investors.json`, every book in one file, written by
+   `scripts/scrape-super-investors.mjs`.
+3. **Pass two** revalidates in the background and repaints **only** the books whose bytes actually
    changed. `conditionalJson` reports a 304 as `fromStore`, so an unchanged book emits nothing at
    all — otherwise the grid would rebuild ninety times to display what was already on it.
 
+**A DEVICE CACHE DOES NOTHING FOR A READER WHO HAS NEVER OPENED THE TAB, and that reader is the one
+who waited.** The two-pass arrangement above made a *return* visit instant and left a first visit at
+ninety-one requests — most of a minute of the grid filling in, and the state the tab was actually
+found in, because a reader who navigates away mid-walk comes back to a half-warm cache and pays for
+the rest. The snapshot is the half that was missing, and it is the same answer every other bulk feed
+here already had. Measured, cold device, no `/api/` route reachable at all: **414KB (69KB over the
+wire), one conditional GET, grid complete in ~1.1s.**
+
+Two rules for it, and they are the filings snapshot's rules:
+
+- **A book the capture could not read is ABSENT, never empty.** It goes under `failed` with a
+  reason and is fetched live; writing it as a book holding nothing would report an outage as a fund
+  that sold everything. The script refuses to write below 80% coverage at all.
+- **The device's copy always wins over the file**, because those bytes were confirmed by the server
+  later than the file was captured. The snapshot only ever fills gaps.
+
 Three rules make that safe, and they are the same ones the store rests on generally:
 
-- **`meta().origin` may never claim a freshness that has not been confirmed.** It reads `store`
-  while any painted book is still unconfirmed and flips to `live` only when every one of them has
-  been. A book the second pass deliberately skipped is *unconfirmed*, not confirmed — see below.
+- **`meta().origin` may never claim a freshness that has not been confirmed.** It distinguishes
+  three: `snapshot` for the committed file, `store` for this device's cache, and `live` only once
+  every painted book has been confirmed against the server **in this session**. A book the second
+  pass deliberately skipped is *unconfirmed*, not confirmed — see below. The pill follows it and
+  says *Captured* / *Cached* / *Live*; it used to say "Live" unconditionally, in emerald, which was
+  survivable only while every paint really was a fresh read of all ninety-one routes.
 - **A failed revalidation must not delete a book you already have.** The cached copy is a real read
   of a real filing; replacing it with "could not be read" because a later request timed out throws
   away good data to report a transient network event. Only a book with no cached copy becomes a
@@ -1349,10 +1372,18 @@ Three rules make that safe, and they are the same ones the store rests on genera
 
 **And pass two must not ask for what the server cannot answer differently.** It used to walk all
 ninety-one books unconditionally, so a reader who opened the tab twice in a minute paid ninety-one
-round trips to be told nothing had changed. The Worker's own edge window is six hours; asking again
-inside it *cannot* learn anything new, because the identical bytes come back. So a book the server
-confirmed within `REVALIDATE_AFTER_MS` — which is that same six hours, deliberately, not a guess at
-tolerable staleness — is left alone, and a return visit costs **one request instead of ninety-one**.
+round trips to be told nothing had changed. So a book confirmed inside the current window is left
+alone, and a return visit costs **one request instead of ninety-one**.
+
+**That window comes from the filing calendar, not from a number of hours.** A super-investor's book
+is assembled from the shareholding patterns companies file with the exchanges, and those are filed
+once a quarter — nothing else moves it. So `revalidateWindowMs()` asks where the calendar is: inside
+`FILING_SEASON_DAYS` of a quarter end companies are still filing and a book genuinely gains lines
+day to day, and outside it the next thing that can change any book is the next quarter end. One hard
+rule sits above both — **a confirmation older than the most recent quarter end is always re-asked**,
+whatever the elapsed time says, or a long hold could straddle a quarter boundary and keep serving
+last quarter's book into the new one. That is the failure this is meant to prevent, arrived at by
+being too clever about avoiding requests.
 
 Three things keep that from being a freshness claim bought on credit, and all three are asserted:
 
@@ -1396,7 +1427,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the filings snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
-| Make the Superstar Investors view load faster | `js/data/super-investors.js` (the two passes, the revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
+| Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
+| Refresh the super-investor snapshot | `node scripts/scrape-super-investors.mjs` (`SI_LIMIT=5` for a smoke run) — it reads **our own Worker**, not Finology, so it needs no token; commit `public/data/super-investors.json` |
+| Change which date the Earnings Calendar opens on | `defaultCalendarDate()` in `js/tabs/earnings-hub.js` — it is today, in **IST**, and `?date=` and the reader's own click both win over it |
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
@@ -1535,8 +1568,14 @@ It covers, beyond the checklist below:
   `x-sattva-cache: hit` on a repeat request, a genuine second visit (a real `reload()`, not a hash
   navigation — that would leave the module's memory intact and prove nothing) makes **fewer
   requests than there are investors** while still painting every book, and says `origin: store`
-  with a real `checkedAt` rather than claiming to be live; and on a cold device, where books
-  actually arrive one at a time, the panel is rebuilt **fewer times than there are books**
+  with a real `checkedAt` rather than claiming to be live; and the panel is rebuilt **fewer times
+  than there are books**
+- **a first visit does not fetch ninety-one books either**: the committed snapshot carries one per
+  investor with a capture time on it and **no unread book written as an empty one**, a cold device
+  paints the whole grid from it with no request per investor — on a static origin with no `/api/`
+  at all — and the pill says **Captured**, not Live, over bytes nobody confirmed this session
+- **the Earnings Calendar opens on today**, in IST rather than UTC, with today's chip scrolled into
+  view; a day still in progress reads *"nothing filed yet"* rather than *"no results were filed"*
 - **switching tabs does not block on building a table**: the initial markup carries a screenful and
   says how many rows are outstanding, every row still arrives, the row count reports the whole
   visible set rather than what has been painted, and no switch blocks the main thread past 400ms

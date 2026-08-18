@@ -96,7 +96,7 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
     ${sectionHead({
       title: 'Superstar Investors',
       description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors', book: coverage.meta() })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: investorList.length, noun: 'investors' })}</div>`,
     })}
     ${stats.html}
     ${staleStrip(m)}
@@ -169,7 +169,7 @@ function renderUnavailable(ctx, m) {
     ${sectionHead({
       title: 'Superstar Investors',
       description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
-      meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'investors', book: coverage.meta() }),
+      meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'investors' }),
     })}
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
       <div class="flex flex-wrap items-start gap-3">
@@ -244,17 +244,35 @@ function loadingStrip(m) {
 // The Live pill and its provenance modal
 // ---------------------------------------------------------------------------------------
 
+/**
+ * The pill, which is the one always-visible statement of where these figures came from.
+ *
+ * IT MAY NOT SAY "LIVE" FOR BYTES NOBODY CONFIRMED IN THIS SESSION. It used to say it
+ * unconditionally, in emerald, which was survivable while every paint really was a fresh read of
+ * all ninety-one routes — and stopped being true the moment the grid could be painted from the
+ * committed snapshot or from this device without asking anyone. `meta().origin` distinguishes the
+ * three and this follows it: a file this deployment ships reads *Captured*, a copy this browser
+ * kept reads *Cached*, and only a set of books confirmed against the server now reads *Live*.
+ */
 function livePill(m) {
   const done = m.pending === 0;
+  const confirmed = m.origin === 'live';
+  const label = confirmed ? 'Live' : m.origin === 'snapshot' ? 'Captured' : 'Cached';
+  const cls = confirmed
+    ? 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100'
+    : 'bg-sky-50 text-sky-800 ring-sky-300 hover:bg-sky-100';
+  const dot = confirmed
+    ? done
+      ? '<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>'
+      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>'
+    : done
+      ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
+      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500"></span></span>';
   return `
     <button type="button" data-si-info title="Where this comes from, and what is ours versus theirs"
-      class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-      ${
-        done
-          ? '<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>'
-          : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>'
-      }
-      <span>Live</span>
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+      ${dot}
+      <span>${escapeHtml(label)}</span>
       <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.loadedBooks))} of ${escapeHtml(formatNumber(m.total))} books</span>
     </button>`;
 }
