@@ -498,7 +498,27 @@ async function revalidate() {
     }
     if (!current(gen)) return;
     const body = res?.value;
-    if (body && body.ok !== false && Array.isArray(body.investors)) {
+    // A REFUSAL ON THIS PASS IS STILL A REFUSAL, and it used to be dropped on the floor. `load()`
+    // names it — `state.reason`, `state.message`, and the panel that says which command fixes it —
+    // but `load()` only reaches the network when the device and the snapshot are both empty. Every
+    // other visit paints first and confirms here, so on the common path an `ok: false` fell through
+    // the guard below and was never recorded: the tab showed a complete grid, the pill said
+    // `Captured`, and nothing anywhere said the live feed was answering `no-token`.
+    //
+    // What is on screen stays on screen — a refusal is not a reason to blank real filings, and
+    // nothing here touches `books`, `investors` or `origin`. Only the reason is added, so the view
+    // can say the figures are the captured ones AND that the feed behind them is refusing.
+    //
+    // `res == null` is deliberately NOT this case: it means there is no `/api/super-investors` at
+    // this origin at all, which on a static deployment is the design rather than a fault, and the
+    // committed snapshot is exactly what should be on screen.
+    if (body && body.ok === false) {
+      state.reason = body.reason || 'upstream';
+      state.message = body.message || 'The super-investor feed could not be read.';
+    } else if (body && Array.isArray(body.investors)) {
+      // Recovered: a later read that succeeds clears the refusal, or the strip would outlive it.
+      state.reason = null;
+      state.message = null;
       state.checkedAt = res.checkedAt;
       state.dropped = body.dropped || 0;
       if (body.fetchedAt) state.fetchedAt = body.fetchedAt;

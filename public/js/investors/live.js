@@ -100,6 +100,7 @@ export function renderLive(ctx, { disposers = [], tableView, onView } = {}) {
     })}
     ${stats.html}
     ${staleStrip(m)}
+    ${refusedStrip(m)}
     ${loadingStrip(m)}
     <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>
     <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -220,6 +221,46 @@ function staleStrip(m) {
         ${escapeHtml(which)}, so the Worker served the copy it already had rather than nothing at all.
         These are real filed holdings of that age — not estimates, and not this moment's figures.
         ${m.staleReason ? `<span class="mt-1 block font-mono text-[11px] text-amber-800/80">${escapeHtml(m.staleReason)}</span>` : ''}
+      </p>
+    </div>`;
+}
+
+/**
+ * The live feed refused, and there are real figures on screen regardless.
+ *
+ * THIS IS THE HALF OF `renderUnavailable` THAT A PAGE WITH DATA ON IT NEVER GOT. That panel names
+ * the reason and the command that fixes it, and it only renders when there is nothing to show — so
+ * the moment the committed snapshot or the device cache could paint a grid, the refusal behind it
+ * became invisible. A deployment with no token showed ninety complete books and said nothing at
+ * all about the feed answering `no-token`.
+ *
+ * It is NOT the stale strip and must not read like one. That one is about AGE: the Worker answered,
+ * with real filings of a known age. This one is about a feed that did not answer at all, so it says
+ * what is wrong, whose it is to fix, and leaves the claim about what the figures ARE to the pill —
+ * `Captured` and `Cached` are already exact, and repeating them here in different words would give
+ * the reader two sentences to reconcile.
+ *
+ * Amber for a credential, slate for a service: one is a thing to do, the other a thing to wait for,
+ * and colour is the fastest way a reader tells those apart.
+ */
+function refusedStrip(m) {
+  if (!m.reason) return '';
+  const r = REASONS[m.reason] || REASONS.upstream;
+  const operator = m.reason === 'no-token' || m.reason === 'unauthorised';
+  const tone = operator
+    ? { box: 'bg-amber-50 ring-amber-200', text: 'text-amber-900', mono: 'text-amber-800/80', mark: 'bg-amber-100 text-amber-700' }
+    : { box: 'bg-slate-50 ring-slate-200', text: 'text-slate-700', mono: 'text-slate-500', mark: 'bg-slate-200 text-slate-600' };
+  return `
+    <div class="mb-5 flex items-start gap-3 rounded-2xl ${tone.box} p-3 ring-1">
+      <span class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${tone.mark}" aria-hidden="true">
+        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          ${operator ? '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/>'}
+        </svg>
+      </span>
+      <p class="text-xs leading-relaxed ${tone.text}">
+        <strong>${escapeHtml(r.title)}.</strong> ${r.body}
+        <span class="mt-1 block">Nothing below was re-read just now — the figures are the ones the pill above describes.</span>
+        ${m.message ? `<span class="mt-1 block font-mono text-[11px] ${tone.mono}">${escapeHtml(m.message)}</span>` : ''}
       </p>
     </div>`;
 }

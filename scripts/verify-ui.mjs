@@ -2603,6 +2603,147 @@ if (siProbe.state === 'live') {
 }
 
 // ---------------------------------------------------------------------------------------
+// 9e. A DEPLOYMENT MUST NOT SERVE ANOTHER DEPLOYMENT'S DATA, and a credential failure must not
+//     wear a service outage's clothes.
+//
+// Both halves of one bug, seen in production on a second deployment of this code. `edgeKey` built
+// `https://cache.invalid/<path>` — a key naming the payload and nothing about who wrote it — so
+// two Workers sharing `caches.default` shared entries. A deployment with NO token answered
+// `GET /api/super-investors` with the other one's books: inside the six-hour window as `stale:
+// false` (presented as live, no strip at all), and after it as a last-good copy, which the panel
+// renders as "the source did not answer just now" — an outage, for a Worker that never asked.
+//
+// The reader's half is that the reason went missing entirely. `renderUnavailable` names the token
+// and the command that fixes it, and it only renders when there is nothing to show — so the moment
+// the committed snapshot could paint a grid, the refusal behind it became invisible.
+// ---------------------------------------------------------------------------------------
+console.log('\n— super investors: one deployment, one cache —');
+{
+  // In-process, with a Map for `caches.default`: two hosts, one cache, and the question is whether
+  // the token-less one can see the other's entry. No browser and no Worker runtime needed.
+  const store = new Map();
+  const prevCaches = globalThis.caches;
+  globalThis.caches = {
+    default: {
+      async match(req) { const hit = store.get(req.url); return hit ? hit.clone() : undefined; },
+      async put(req, res) { store.set(req.url, res.clone()); },
+    },
+  };
+  const held = [];
+  const wctx = { waitUntil: (pr) => held.push(pr) };
+  const { createServer: createWorkerStub } = await import('node:http');
+  const upstream = createWorkerStub((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ count: 1, investors: [{ name: 'Test Investor', slug: 'test-investor', netWorth: 1 }] }));
+  });
+  await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+  const upBase = `http://127.0.0.1:${upstream.address().port}`;
+
+  let worker = null;
+  try {
+    worker = (await import(new URL('../worker/index.js', import.meta.url).href)).default;
+  } catch (e) {
+    skip('a token-less deployment cannot serve another deployment\'s books', `worker/index.js did not load here — ${e.message}`);
+    skip('...and a credential failure is named rather than dressed as an outage', 'worker/index.js did not load here');
+  }
+
+  if (worker) {
+    const call = async (host, env) => {
+      const res = await worker.fetch(new Request(`https://${host}/api/super-investors`), env, wctx);
+      await Promise.all(held.splice(0));
+      return { cache: res.headers.get('x-sattva-cache'), body: await res.json() };
+    };
+    const healthy = await call('deployment-one.example.dev', { MUNS_TOKEN: 'a-token', MUNS_BASE: upBase });
+    const broken = await call('deployment-two.example.dev', {});
+
+    ok(
+      'a token-less deployment cannot serve another deployment\'s books',
+      healthy.body.ok === true &&
+        healthy.body.investors?.length === 1 &&
+        broken.body.ok === false &&
+        broken.body.stale !== true &&
+        (broken.body.investors || []).length === 0,
+      `healthy ${healthy.body.investors?.length} book(s) / ${healthy.cache}; token-less ok=${broken.body.ok} stale=${broken.body.stale} books=${(broken.body.investors || []).length} / ${broken.cache}`
+    );
+    // The name matters more than the failure: `no-token` is a command an operator runs, and every
+    // other reason is a service to wait for. Serving a last-good copy here would say the second.
+    ok(
+      '...and a credential failure is named rather than dressed as an outage',
+      broken.body.reason === 'no-token' && !broken.body.staleReason,
+      `reason=${broken.body.reason} staleReason=${broken.body.staleReason || 'none'}`
+    );
+    // And the healthy deployment's own entry survives the broken one's failure write.
+    const again = await call('deployment-one.example.dev', { MUNS_TOKEN: 'a-token', MUNS_BASE: upBase });
+    ok(
+      '...and a broken deployment cannot poison a healthy one\'s cache',
+      again.body.ok === true && again.body.investors?.length === 1,
+      `${again.cache}, ${again.body.investors?.length} book(s)`
+    );
+    const keys = [...store.keys()].map((k) => k.replace('https://cache.invalid/', ''));
+    ok(
+      '...because every cache key names the deployment that wrote it',
+      keys.length > 0 && keys.every((k) => /^deployment-(one|two)\.example\.dev\//.test(k)),
+      keys.join(', ') || 'no entries'
+    );
+  }
+  upstream.close();
+  globalThis.caches = prevCaches;
+}
+
+// What the reader sees when the feed refuses and the committed snapshot has already painted. This
+// needs no Worker either: the route is fulfilled in the browser, so it runs on a static origin.
+{
+  const refuse = async (payload) => {
+    const pg = await context.newPage();
+    await pg.route('**/api/super-investors**', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) })
+    );
+    await pg.goto(`${BASE}/#/research/super-investors/superstar-investors?scope=universe`, { waitUntil: 'domcontentloaded' });
+    await pg.waitForTimeout(3200);
+    const text = await pg.locator('#content-host').innerText();
+    const m = await pg.evaluate(async () => (await import('/js/data/super-investors.js')).meta());
+    await pg.close();
+    return { text, m };
+  };
+
+  const noToken = await refuse({
+    ok: false,
+    stale: false,
+    reason: 'no-token',
+    message: 'No API token is configured for the super-investor feed.',
+    fetchedAt: new Date().toISOString(),
+    investors: [],
+    holdings: [],
+  });
+  if (noToken.m.total > 0) {
+    ok('a refused feed is reported even when the snapshot has painted a full grid', noToken.m.reason === 'no-token', `reason=${noToken.m.reason}`);
+    ok('...naming the command that fixes it', /wrangler secret put MUNS_TOKEN/.test(noToken.text));
+    // The failure this whole section exists for: an operator's problem worded as a service's.
+    ok(
+      '...and never as an outage the reader should wait out',
+      !/last good read|did not answer just now/i.test(noToken.text),
+      noToken.text.match(/last good read[^.]*\./i)?.[0] || 'no outage wording'
+    );
+    ok('...while the pill still says where the figures came from', noToken.m.origin === 'snapshot', `origin=${noToken.m.origin}`);
+  } else {
+    skip('a refused feed is reported even when the snapshot has painted a full grid', 'no committed snapshot on this origin');
+  }
+
+  // The mirror image, so the fix cannot over-reach: a SERVICE failure with a genuine last-good copy
+  // behind it is exactly what the stale strip is for, and it must still say so.
+  const outage = await refuse({
+    ok: true,
+    stale: true,
+    reason: 'unreachable',
+    staleReason: 'The super-investor API could not be reached.',
+    fetchedAt: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    investors: [],
+    holdings: [],
+  });
+  ok('a real last-good copy still says it is one', /last good read/i.test(outage.text) && outage.m.stale === true, `stale=${outage.m.stale}`);
+}
+
+// ---------------------------------------------------------------------------------------
 // 9d. The committed snapshot of every book
 //
 // THIS IS THE HALF THAT HELPS A FIRST VISIT, and it needs no Worker to check, because it is a

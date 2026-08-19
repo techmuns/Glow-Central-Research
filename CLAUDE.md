@@ -691,6 +691,31 @@ And two that come from the upstream being a live scrape rather than an API over 
   `staleReason` naming the failure, and a 30-second TTL so recovery reaches the screen quickly.
   The view carries an amber strip saying exactly that — *real filed holdings of this age*, which is
   a different statement from the mock ribbon and must not be worded like one.
+- **A CREDENTIAL FAILURE IS NOT AN OUTAGE, so it serves no last-good copy.** `no-token` and
+  `unauthorised` are an operator's to fix; every other reason is a service to wait for — and the
+  fallback above turns the first into the second. The strip says *"the source did not answer just
+  now"* over data the source was never asked for, and the panel that names
+  `npx wrangler secret put MUNS_TOKEN` is the one screen the reader never reaches, because a page
+  with data on it does not render the unavailable panel at all. A missing token also does not heal
+  on its own, so the copy would not be held across a blip but for the fourteen days of the
+  last-good TTL, ageing quietly while the deployment stayed broken. `investorRoute` returns the
+  named failure instead, still cached for the fifteen seconds a corrected token needs.
+- **AND THE CACHE KEY MUST NAME THE DEPLOYMENT THAT WROTE IT.** `edgeKey` built
+  `https://cache.invalid/<path>` — the payload's name and nothing about its author — while
+  `caches.default` is not private to one Worker. A second deployment of this code with no token
+  answered `/api/super-investors` with the first one's books: inside the six-hour window as
+  `stale: false`, which is another deployment's data presented as **live**, and after it as a
+  last-good copy under the outage strip above. The reverse direction is worse, because the failure
+  path writes the FRESH key too. The key now carries `new URL(request.url).host`, derived rather
+  than configured so it cannot drift — the same reason `origin` is derived in the filings feed. It
+  costs one cache namespace per hostname, which is the correct side of the trade.
+- **A refusal that arrives on the revalidation pass is still a refusal.** `load()` names one and
+  `revalidate()` used to drop it: the guard read `body.ok !== false`, so an `ok: false` fell through
+  and was never recorded. `load()` only reaches the network when the device and the snapshot are
+  both empty, so on the common path — snapshot paints, pass two confirms — a deployment answering
+  `no-token` showed ninety complete books and said nothing at all. The reason is recorded now, the
+  painted books are left alone, and `refusedStrip` says what is wrong without re-stating what the
+  pill already says the figures are.
 - **Cache the failure too, briefly.** With ninety-one requests behind one outage, a failure that is
   not cached costs every one of them its own full timeout. Both the stale answer and the hard
   failure go into the fresh key for a few seconds, so one reader pays the timeout once instead of
@@ -1570,6 +1595,11 @@ It covers, beyond the checklist below:
   requests than there are investors** while still painting every book, and says `origin: store`
   with a real `checkedAt` rather than claiming to be live; and the panel is rebuilt **fewer times
   than there are books**
+- **one deployment never serves another's data**: with two hosts sharing one `caches.default`, a
+  token-less deployment answers with its own named `no-token` and no books rather than the healthy
+  deployment's, cannot poison the healthy one's entry, and every key written names the host that
+  wrote it — and on the reader's side, a refused feed over a painted snapshot names the command
+  that fixes it, never the outage wording, while a genuine last-good copy still says it is one
 - **a first visit does not fetch ninety-one books either**: the committed snapshot carries one per
   investor with a capture time on it and **no unread book written as an empty one**, a cold device
   paints the whole grid from it with no request per investor — on a static origin with no `/api/`

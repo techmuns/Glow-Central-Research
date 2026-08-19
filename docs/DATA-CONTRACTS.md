@@ -2482,6 +2482,13 @@ an amber strip reading *"Showing the last good read, from &lt;when&gt;"* — rea
 stated age. **This is not the mock ribbon and must not be worded like one**: nothing here is
 invented, and the only thing wrong with it is that it is not this moment's figure.
 
+**`no-token` and `unauthorised` never take this path**, even when a last-good entry exists. They are
+a credential for an operator to fix rather than a service to wait for, and a stale copy states the
+second: the strip reads *"the source did not answer just now"* about a request that was never sent,
+and the screen naming `npx wrangler secret put MUNS_TOKEN` is unreachable while any data is on
+screen. They answer with the `ok: false` shape below, and the view renders its own strip — amber for
+a credential, slate for a service — above whatever the snapshot or the device already painted.
+
 A hard failure (no last-good copy) is cached for **15 seconds**. Caching failures at all matters
 because ninety-one requests sit behind one outage: uncached, every book pays its own full timeout.
 

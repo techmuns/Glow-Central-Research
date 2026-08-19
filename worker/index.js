@@ -162,8 +162,8 @@ async function handleEarnings(request, env, ctx) {
   // fragment the cache and multiply upstream fetches. The two representations are cached
   // separately so the poll never has to parse the 1.1MB one to answer with 10KB.
   const cache = caches.default;
-  const fullKey = edgeKey(`earnings?subType=${subType}&category=${category}`);
-  const pricesKey = edgeKey(`earnings-prices?subType=${subType}&category=${category}`);
+  const fullKey = edgeKey(request, `earnings?subType=${subType}&category=${category}`);
+  const pricesKey = edgeKey(request, `earnings-prices?subType=${subType}&category=${category}`);
 
   const hit = await cache.match(fields === 'prices' ? pricesKey : fullKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -318,7 +318,7 @@ async function handleCalendar(request, env, ctx) {
   // "nobody reports on this date", which is the one thing this route must never imply.
   const wantsList = url.searchParams.get('list') !== 'none';
 
-  const cacheKey = edgeKey(`earnings-calendar?date=${date}&from=${from}&to=${to}&list=${wantsList ? 'full' : 'none'}`);
+  const cacheKey = edgeKey(request, `earnings-calendar?date=${date}&from=${from}&to=${to}&list=${wantsList ? 'full' : 'none'}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -489,7 +489,7 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     return json({ ok: false, reason: 'shape', message: 'A news search needs ?q=.' }, 400);
   }
 
-  const cacheKey = edgeKey(`muns-${kind}?t=${ticker}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}`);
+  const cacheKey = edgeKey(request, `muns-${kind}?t=${ticker}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -555,7 +555,7 @@ async function handleConcalls(request, env, ctx) {
   // under its own key and TTL; the route itself is never cached as a whole, because its parts
   // expire at very different rates.
   const cached = async (key, ttl, load) => {
-    const cacheKey = edgeKey(`concalls/${key}`);
+    const cacheKey = edgeKey(request, `concalls/${key}`);
     const hit = await cache.match(cacheKey);
     if (hit) return { value: await hit.json(), fresh: false };
     const value = await load();
@@ -733,8 +733,8 @@ function handleInvestorPortfolio(request, env, ctx, slug) {
  */
 async function investorRoute(request, ctx, key, load, empty) {
   const cache = caches.default;
-  const freshKey = edgeKey(key);
-  const lastGoodKey = edgeKey(`${key}::last-good`);
+  const freshKey = edgeKey(request, key);
+  const lastGoodKey = edgeKey(request, `${key}::last-good`);
 
   const hit = await cache.match(freshKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -753,7 +753,20 @@ async function investorRoute(request, ctx, key, load, empty) {
     // is a service condition, so neither may serve a stale copy or be cached as one.
     if (reason === 'not-found') return json({ ok: false, reason, message: String(err?.message || err), ...empty }, 404);
 
-    const stale = await readLastGood(cache, lastGoodKey);
+    // NOR IS A CREDENTIAL FAILURE, and this is the same rule rather than a new one. `no-token` and
+    // `unauthorised` are an operator's to fix; everything else is a service to wait for. Serving a
+    // last-good copy for them dresses the first as the second: the panel says "the source did not
+    // answer just now" over data the source was never asked for, and the one screen that names the
+    // command — `npx wrangler secret put MUNS_TOKEN` — is the screen the reader never reaches,
+    // because a page with data on it does not render the unavailable panel at all.
+    //
+    // A missing token also does not heal on its own, so `stale` here would not be a copy held
+    // across a blip; it would be held for the fourteen days of the last-good TTL, ageing quietly
+    // while the deployment stayed broken. The named failure is still cached for ERROR_TTL_S, so a
+    // corrected token reaches the screen within seconds and ninety-one readers do not each pay the
+    // upstream's timeout.
+    const credential = reason === 'no-token' || reason === 'unauthorised';
+    const stale = credential ? null : await readLastGood(cache, lastGoodKey);
     const { body, tag } = stale
       ? withTag({
           ...stale,
@@ -883,7 +896,7 @@ async function handleLivePrices(request, env, ctx) {
   const cold = [];
   await Promise.all(
     capped.map(async (t) => {
-      const hit = await cacheGetQuote(cache, t);
+      const hit = await cacheGetQuote(cache, request, t);
       if (hit) prices[t] = hit;
       else cold.push(t);
     })
@@ -901,7 +914,7 @@ async function handleLivePrices(request, env, ctx) {
       prices[ticker] = res.quote;
       // Written back so the next reader — and the next click — gets it for free. `waitUntil`
       // keeps the write off the response's critical path.
-      ctx?.waitUntil?.(cachePutQuote(cache, ticker, res.quote));
+      ctx?.waitUntil?.(cachePutQuote(cache, request, ticker, res.quote));
     } else {
       missing.push({ ticker, reason: res.reason });
     }
@@ -1038,14 +1051,14 @@ async function openCache() {
   }
 }
 
-function quoteKey(ticker) {
-  return edgeKey(`quote/${encodeURIComponent(ticker)}`);
+function quoteKey(request, ticker) {
+  return edgeKey(request, `quote/${encodeURIComponent(ticker)}`);
 }
 
-async function cacheGetQuote(cache, ticker) {
+async function cacheGetQuote(cache, request, ticker) {
   if (!cache) return null;
   try {
-    const hit = await cache.match(quoteKey(ticker));
+    const hit = await cache.match(quoteKey(request, ticker));
     if (!hit) return null;
     const q = await hit.json();
     return q && typeof q.current === 'number' ? q : null;
@@ -1054,11 +1067,11 @@ async function cacheGetQuote(cache, ticker) {
   }
 }
 
-async function cachePutQuote(cache, ticker, quote) {
+async function cachePutQuote(cache, request, ticker, quote) {
   if (!cache) return;
   try {
     await cache.put(
-      quoteKey(ticker),
+      quoteKey(request, ticker),
       new Response(JSON.stringify(quote), {
         headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${QUOTE_TTL_S}` },
       })
@@ -1117,7 +1130,27 @@ function json(obj, status = 200) {
   });
 }
 
-/** Cache keys live on a hostname that cannot resolve, so an entry can never be confused for a fetch. */
-function edgeKey(path) {
-  return new Request(`https://cache.invalid/${path}`, { method: 'GET' });
+/**
+ * A key for one of our derived payloads in `caches.default`.
+ *
+ * The hostname cannot resolve, so an entry can never be confused for a fetch. THE REQUEST'S OWN
+ * HOST IS PART OF THE KEY, AND HAS TO BE: `caches.default` is not private to one Worker, and this
+ * key used to be `https://cache.invalid/<path>` — a constant naming the payload and nothing about
+ * who wrote it. Two deployments of this code then read and write each other's entries.
+ *
+ * That is not theoretical. A second deployment with no `MUNS_TOKEN` answered
+ * `GET /api/super-investors` with `ok: true, stale: true, fetchedAt: <yesterday>` — a last-good
+ * copy it could not have written, because it had never once read the upstream successfully. It was
+ * the other deployment's, found under the shared key, and the screen reported a service outage
+ * ("the source did not answer just now") for a Worker that had never asked the source anything.
+ * The reverse direction is worse: the failure path writes to the FRESH key too, so a broken
+ * deployment could put its own `ok: false` under the key a healthy one reads.
+ *
+ * Deriving it from the request means it cannot drift the way a configured name could — the same
+ * reason `origin` is derived rather than assigned in the filings feed. A Worker reachable at both
+ * a custom domain and `*.workers.dev` keeps one namespace per hostname, which costs a second cache
+ * fill and is the correct side of this trade.
+ */
+function edgeKey(request, path) {
+  return new Request(`https://cache.invalid/${new URL(request.url).host}/${path}`, { method: 'GET' });
 }
