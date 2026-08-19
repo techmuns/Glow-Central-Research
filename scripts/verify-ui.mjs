@@ -3111,6 +3111,11 @@ console.log('\n— header status and live alerts —');
   // that simply vanishes leaves the reader unsure anything was checked. "Couldn't check" is the
   // third real answer, for a poller that never settled: the wait is bounded so the button cannot
   // sit on "Checking…" for ever, and a check that did not complete must never print "Up to date".
+  //
+  // "Still reading…" is the FOURTH, and it arrived with the on-demand feeds. Those are one request
+  // per company, so a walk can outlast the button's patience while proceeding perfectly well —
+  // reporting that as "Couldn't check" would be a failure claim about work that has not failed, and
+  // as "Up to date" a freshness claim about a check that has not finished.
   await page.locator('[data-header-refresh]').click();
   const label = await (async () => {
     const until = Date.now() + 20000;
@@ -3122,7 +3127,7 @@ console.log('\n— header status and live alerts —');
     }
     return l;
   })();
-  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh|Couldn/i.test(label), label);
+  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh|Couldn|Still reading/i.test(label), label);
   ok('...and never re-enables itself still claiming to be checking', !(await page.locator('[data-header-refresh]').isDisabled()));
 
   // The alert stack.
@@ -3244,11 +3249,35 @@ console.log('\n— news, announcements and insider trades —');
   };
   page.on('request', watchFilings);
 
-  await go('/#/research/news?scope=portfolio', 3500);
+  // DRIVE THE WALK, DO NOT WAIT FOR ONE. These requests used to happen on their own, on every
+  // landing — which is the behaviour that was removed, because forty round trips is not a page
+  // load. What they assert is the SHAPE of the request, and that is worth keeping, so the walk is
+  // now started the way a reader starts it: through the refresh registry.
+  //
+  // A deployment with no committed snapshot still walks once on a cold start, and that walk overlaps
+  // the one this drives — measured as 80 requests across 40 companies, which reads as a duplicating
+  // walk and is two honest ones. So each feed settles first and the recording starts after.
+  const settle = async (key) => {
+    await page
+      .waitForFunction(async (k) => (await import('/js/data/filings.js'))[k].meta().pending === 0, key, { timeout: 60000 })
+      .catch(() => {});
+    await page.waitForTimeout(400);
+  };
+  const drive = async (feedKey, id) => {
+    await settle(feedKey);
+    seen.news.length = 0;
+    seen.announcements.length = 0;
+    seen.insider.length = 0;
+    await evalSafe(async (i) => (await import('/js/core/refresh.js')).refreshOne(i), id);
+    await page.waitForTimeout(2500);
+  };
+
+  await go('/#/research/news?scope=portfolio', 2500);
+  await drive('news', 'news');
   const bookNames = await evalSafe(async () => (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).map((h) => h.name));
 
   const newsUrls = seen.news.map((u) => new URL(u));
-  ok('the news walk sends a request per company', newsUrls.length > 1, `${newsUrls.length} request(s)`);
+  ok('a refresh sends one news request per company', newsUrls.length > 1, `${newsUrls.length} request(s)`);
   // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
   ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
   ok('...carrying a date range the Worker can read',
@@ -3265,9 +3294,10 @@ console.log('\n— news, announcements and insider trades —');
   const named = queries.filter((q) => bookNames.includes(q)).length;
   ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
 
-  await go('/#/research/corp-announcements?scope=portfolio', 3500);
+  await go('/#/research/corp-announcements?scope=portfolio', 2500);
+  await drive('announcements', 'corp-announcements');
   const annUrls = seen.announcements.map((u) => new URL(u));
-  ok('announcements asks per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
+  ok('a refresh asks announcements per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
   ok('...on a path route whose range is still a query string', annUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), annUrls[0]?.href.slice(-70) || '');
 
   // A REPAINT MUST STILL REACH THE SCREEN AFTER A RE-RENDER. The scope toggle is the re-render that
@@ -3323,10 +3353,59 @@ console.log('\n— news, announcements and insider trades —');
   if (!paint) skip('every rendered row is a row the feed actually holds', 'no rows on this origin — there is no /api/news to answer');
   else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
 
-  await go('/#/research/insider-trades?scope=portfolio', 3500);
+  await go('/#/research/insider-trades?scope=portfolio', 2500);
+  await drive('insider', 'insider-trades');
   const insUrls = seen.insider.map((u) => new URL(u));
-  ok('insider trades asks per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
+  ok('a refresh asks insider trades per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
   ok('...with the same one-query-string shape', insUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), insUrls[0]?.href.slice(-70) || '');
+
+  // A LANDING MAY NOT COST FORTY REQUESTS.
+  //
+  // Each of these upstreams answers one company at a time, so the walk that used to run on every
+  // visit was forty round trips before the table settled — and with the upstream down (measured:
+  // 93.5s per company before the Worker's retry budget was bounded) the tab counted forty companies
+  // down over a quarter of an hour and painted nothing at all. Worse, four hung connections out of
+  // a browser's six per origin starved the REST of the page: the Superstar Investors grid could not
+  // fetch its own committed snapshot, a static file, for forty-four seconds.
+  //
+  // So the snapshot is what arrives on its own and the walk is what the reader asks for. On this
+  // origin the committed snapshots may still be the empty placeholders, in which case a cold start
+  // legitimately walks once — an empty table saying "press Refresh" is worse than a slow one — so
+  // the assertion is conditional on there being anything cached to paint.
+  {
+    await go('/#/research/corp-announcements?scope=portfolio', 1200);
+    const landed = [];
+    const countLanding = (r) => {
+      if (/\/api\/(news|announcements|insider-trades)/.test(r.url())) landed.push(r.url());
+    };
+    page.on('request', countLanding);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(4000);
+    page.off('request', countLanding);
+    const st = await evalSafe(async () => {
+      const m = (await import('/js/data/filings.js')).announcements.meta();
+      const reg = await import('/js/core/refresh.js');
+      return { rows: m.rowCount, cold: m.coldStart, outstanding: m.outstanding, registered: reg.registered().map((r) => r.id) };
+    });
+    if (!st.rows) {
+      skip('landing on a filings tab sends no per-company request', 'no committed snapshot on this origin yet, so the cold start legitimately walks once');
+    } else {
+      ok('landing on a filings tab sends no per-company request', landed.length === 0 && !st.cold, `${landed.length} request(s) for ${st.rows} rows`);
+    }
+    ok('...and the tab is registered with the Refresh button instead', st.registered.includes('corp-announcements'), st.registered.join(', ') || 'nothing registered');
+    // What it may claim, and what it may not. These routes have no index, so "nothing is new" is a
+    // statement nobody can make without asking every company — the honest line is about US.
+    const strip = await hostText();
+    if (st.rows) {
+      ok('...and says how current it is rather than claiming nothing is new',
+        /Showing the (news|filings)/i.test(strip) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(strip),
+        (strip.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
+      ok('...and offers a control that asks', (await page.locator('[data-filings-refresh]').count()) > 0);
+    } else {
+      skip('...and says how current it is rather than claiming nothing is new', 'no rows cached on this origin');
+      skip('...and offers a control that asks', 'no rows cached on this origin');
+    }
+  }
 
   page.off('request', watchFilings);
 }

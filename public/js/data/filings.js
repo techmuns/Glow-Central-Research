@@ -1,8 +1,9 @@
 // data/filings.js — the feed behind News, Corporate Announcements and Insider Trades.
 //
 //   const feed = createFeed('announcements');
-//   feed.load(items)        snapshot first, then a bounded live walk for whatever it is missing
+//   feed.load(items)        the committed snapshot and this device, with NO live walk
 //                           (items are tickers, or { ticker, name } — the name is what news searches)
+//   feed.refresh()          the live walk, on demand — what the Refresh button calls
 //   feed.rows()             every row that has landed, newest first
 //   feed.meta()             what loaded, what failed, where the paint came from, and when
 //   feed.onChange(fn)       fires as rows arrive, so the table fills in progressively
@@ -19,8 +20,18 @@
 //      603 companies live would take ten minutes and hammer somebody else's service on every visit.
 //
 //   2. A LIVE WALK for companies the snapshot does not cover, bounded by LIVE_LIMIT and run
-//      CONCURRENCY at a time. This is what makes a brand-new deployment show something before the
-//      first scheduled run, and what refreshes one company on demand.
+//      CONCURRENCY at a time.
+//
+// AND THE WALK DOES NOT RUN ON A PAGE LOAD. That is the whole point of the split, and it took a
+// while to get right. Each of these upstreams is one request PER COMPANY, so a landing that walked
+// forty of them was forty round trips before the table settled — and when the insider-trades
+// upstream went down, every one of those requests spent the Worker's full retry budget, so the tab
+// counted forty companies down over a quarter of an hour and painted nothing at all. Measured: 93.5
+// seconds per company, forty companies, four at a time.
+//
+// So the snapshot is what arrives automatically, and the walk is what the reader asks for — see
+// `refresh()` and `js/core/refresh.js`. The one exception is an empty cache: with nothing to paint,
+// a table saying "press Refresh" is worse than a slow one, so a first-ever visit walks once.
 //
 // A SNAPSHOT IS NOT STALE DATA PRETENDING TO BE LIVE. `meta().origin` says which of `snapshot`,
 // `store`, `mixed` or `live` produced what is on screen and `meta().capturedAt` when the snapshot
@@ -48,6 +59,19 @@ const CONCURRENCY = 4;
 // per feed, deliberately rather than as a guess at tolerable staleness: inside it the server has
 // nothing else to tell us, so a request would be spent receiving bytes we already hold.
 const REVALIDATE_AFTER_MS = { news: 180_000, announcements: 900_000, insider: 900_000 };
+
+// HOW LONG THE BROWSER WILL HOLD A CONNECTION OPEN FOR ONE COMPANY.
+//
+// A browser allows about six concurrent connections per origin, and a walk that holds four of them
+// against a hung upstream is holding two thirds of the page's entire budget. Measured with all
+// three Muns upstreams down: the walks starved everything else on the origin — the Superstar
+// Investors grid could not fetch its own committed snapshot, a static file, for forty-four seconds,
+// and painted nothing. A tab being slow is one thing; a tab making the OTHER tabs slow is another.
+//
+// The Worker's own budget is 20s (worker/muns.mjs), so anything past this is the Worker not
+// answering rather than the upstream being thoughtful, and the connection is worth more than the
+// answer. An abort lands as a failure against that ticker, which is what it is.
+const REQUEST_TIMEOUT_MS = 25_000;
 
 const SNAPSHOT = {
   news: 'data/news.json',
@@ -161,6 +185,13 @@ export function createFeed(kind) {
       pending: 0,
       truncated: 0,
       headers: [], // insider trades keeps the upstream's own column headings
+      // The companies in scope, as the tab last asked for them. `refresh()` re-reads these, so the
+      // button asks about what is on screen rather than about everything the module has ever seen.
+      wanted: [],
+      // A deployment whose scheduled capture has not run yet has nothing to paint, so `load()`
+      // walks once. Recorded so the tab can say the walk was ours rather than the reader's.
+      coldStart: false,
+      lastRefreshAt: null,
     };
   }
 
@@ -215,6 +246,13 @@ export function createFeed(kind) {
       headers: state.headers,
       persisted: isPersistent(),
       windowDays: WINDOW_DAYS[kind],
+      // WHAT THIS SESSION HAS NOT LOOKED AT, which is a statement about us and not a claim about
+      // the upstream. These routes answer per company and have no index, so "is there anything
+      // new?" cannot be answered without asking — the honest thing to print is how many companies
+      // have not been asked and when the data on screen was captured, and let the reader decide.
+      outstanding: state.loaded ? outstanding().length : 0,
+      coldStart: state.coldStart,
+      lastRefreshAt: state.lastRefreshAt,
     };
   }
 
@@ -247,11 +285,17 @@ export function createFeed(kind) {
   const queryFor = (t) => state.names.get(t) || t;
 
   /**
-   * Fill from the committed snapshot, then walk live for what is still missing.
+   * Fill from the committed snapshot and this device. **NOTHING IS WALKED HERE.**
    *
-   * Resolves once there is something to paint, not once every company has answered — the same rule
-   * the super-investor feed follows. The walk continues in the background and `onChange` fires as
-   * rows land.
+   * A LANDING MAY NOT COST FORTY REQUESTS. Each of these upstreams is one request per company, and
+   * a walk of forty on every visit is what made the tabs feel broken — a table that fills in for a
+   * minute, and, when the upstream is down, one that never fills at all while the strip counts
+   * companies down. The committed snapshot is what arrives automatically; the live walk is what the
+   * reader asks for, with the Refresh button. See `refresh()` below and `js/core/refresh.js`.
+   *
+   * THE ONE EXCEPTION IS AN EMPTY CACHE. With no snapshot and nothing on the device there is
+   * nothing to paint, and an empty table saying "press Refresh" is worse than a slow one. So a
+   * first-ever visit to a deployment whose scheduled capture has not run yet still walks, once.
    *
    * `items` may be tickers or `{ ticker, name }`. The name is what the news search uses.
    */
@@ -265,31 +309,61 @@ export function createFeed(kind) {
         wanted.push(t);
         if (item?.name) state.names.set(t, String(item.name));
       }
+      state.wanted = wanted;
 
-      // PASS ONE — the committed snapshot and this device, with no network at all.
-      //
-      // A return visit paints the whole table before a single request is sent. The walk that used
-      // to run on every visit was the delay: forty companies, four at a time, is ten sequential
-      // waits for rows that were already on the device from last time.
+      // The committed snapshot and this device, with no per-company request at all.
       await seedFromSnapshot();
       await seedFromDevice(wanted);
       state.loaded = true;
       emit();
 
-      // PASS TWO — only what is genuinely missing or genuinely old. A company confirmed inside the
-      // feed's own cache window is skipped, because the server cannot answer differently yet, and
-      // a company the committed snapshot covers is skipped outright.
-      const missing = wanted.filter((t) => !state.failures.has(t) && !state.fromSnapshot.has(t) && stale(t));
-      if (missing.length) {
-        state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
-        state.pending = Math.min(missing.length, LIVE_LIMIT);
-        // Not awaited: whatever we already had is on screen and the walk fills in behind it.
-        walk(missing.slice(0, LIVE_LIMIT));
+      if (!state.rows.size) {
+        // Nothing to show. Walk once rather than render an empty table over a working feed.
+        state.coldStart = true;
+        walkMissing();
       }
       return state;
     })();
     return loading;
   }
+
+  /** The companies in scope whose rows nobody has confirmed inside the feed's window. */
+  const outstanding = () => state.wanted.filter((t) => !state.fromSnapshot.has(t) && stale(t));
+
+  function walkMissing() {
+    const missing = outstanding();
+    if (!missing.length) return null;
+    state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
+    state.pending = Math.min(missing.length, LIVE_LIMIT);
+    return walk(missing.slice(0, LIVE_LIMIT));
+  }
+
+  /**
+   * Read the live routes now, because the reader asked. Registered with `js/core/refresh.js`.
+   *
+   * Resolves when the walk finishes, with what it found — the button reports that rather than
+   * spinning and vanishing. `force` on every company, because "refresh" means "ask again", and a
+   * refresh that silently skipped everything inside its cache window would be a button that does
+   * nothing on the one occasion the reader is sure something has changed.
+   */
+  async function refresh() {
+    const before = rowCountNow();
+    // The scheduled capture may have moved since this page loaded, and that costs one conditional
+    // GET rather than forty. Do it first, so the walk only asks about what the file still lacks.
+    await seedFromSnapshot({ replace: true });
+    const queue = state.wanted.length ? state.wanted : [...state.rows.keys()];
+    state.truncated = Math.max(0, queue.length - LIVE_LIMIT);
+    state.pending = Math.min(queue.length, LIVE_LIMIT);
+    state.reason = null;
+    state.message = null;
+    emit();
+    await walk(queue.slice(0, LIVE_LIMIT), { force: true });
+    state.lastRefreshAt = Date.now();
+    emit();
+    return { added: Math.max(0, rowCountNow() - before), checked: Math.min(queue.length, LIVE_LIMIT), failed: state.failures.size };
+  }
+
+  const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
 
   /**
    * Everything this device already holds for the wanted companies, in ONE store transaction.
@@ -306,21 +380,39 @@ export function createFeed(kind) {
     } catch {
       return;
     }
+    // WHICHEVER COPY WAS CONFIRMED LATER WINS, and that is a comparison, not an order of calls.
+    // The snapshot is seeded first because it supplies the companies the device has never seen; a
+    // company the device DOES hold is newer whenever the server wrote those bytes here after the
+    // file was captured, which is the normal case for anything the reader has refreshed.
+    const capturedAt = Date.parse(state.capturedAt || '') || 0;
     for (const t of tickers) {
       const hit = entries.get(KEYS.filingRow(kind, t));
       const body = hit?.value;
       if (!body || body.ok === false) continue;
-      const list = rowsIn(body);
-      if (!state.rows.has(t)) state.rows.set(t, list);
+      const savedAt = hit.savedAt || 0;
+      const newerThanFile = savedAt > capturedAt;
+      if (!state.rows.has(t) || newerThanFile) {
+        state.rows.set(t, rowsIn(body));
+        if (newerThanFile) state.fromSnapshot.delete(t);
+      }
       if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
       // `savedAt` is when the SERVER's bytes were written here, so it is a real confirmation time
       // rather than this tab vouching for itself.
-      if (hit.savedAt) state.confirmedAt.set(t, hit.savedAt);
+      if (savedAt) state.confirmedAt.set(t, savedAt);
     }
+    state.snapshotCount = state.fromSnapshot.size;
   }
 
-  /** The committed snapshot. A miss is not an error — it means the scheduled run has not run yet. */
-  async function seedFromSnapshot() {
+  /**
+   * The committed snapshot. A miss is not an error — it means the scheduled run has not run yet.
+   *
+   * THIS IS THE CHANNEL BY WHICH NEW DATA ARRIVES ON ITS OWN, and it costs one conditional GET: a
+   * scheduled job captures the universe and the browser picks the file up, 304 when it has not
+   * moved. `replace` is for a refresh, where a capture newer than the one this page loaded should
+   * win over what is in memory; on the initial seed a company already read live must not be
+   * overwritten by an older file.
+   */
+  async function seedFromSnapshot({ replace = false } = {}) {
     let res;
     try {
       res = await conditionalJson(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
@@ -331,16 +423,23 @@ export function createFeed(kind) {
     state.checkedAt = res?.checkedAt || Date.now();
     if (!body || typeof body !== 'object') return false;
 
-    state.capturedAt = body.capturedAt || body.generated_at || null;
-    state.headers = Array.isArray(body.headers) ? body.headers : [];
+    const capturedAt = body.capturedAt || body.generated_at || null;
+    const newer = replace && capturedAt && capturedAt !== state.capturedAt;
+    if (!replace || newer) state.capturedAt = capturedAt;
+    if (Array.isArray(body.headers) && body.headers.length) state.headers = body.headers;
+    if (replace && !newer) return state.rows.size > 0;
+
     const byTicker = body.byTicker || {};
     for (const [ticker, list] of Object.entries(byTicker)) {
       if (!Array.isArray(list) || !list.length) continue;
       const t = ticker.toUpperCase();
+      // On the initial seed the device's copy has already been placed and is newer; on a refresh a
+      // newer capture wins over a company nobody has confirmed in this session.
+      if (state.rows.has(t) && !(newer && !state.confirmedHere.has(t))) continue;
       state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
       state.fromSnapshot.add(t);
     }
-    state.snapshotCount = state.rows.size;
+    state.snapshotCount = state.fromSnapshot.size;
     return state.rows.size > 0;
   }
 
@@ -350,14 +449,14 @@ export function createFeed(kind) {
     return kind === 'news' ? dedupeArticles(list) : list;
   }
 
-  async function walk(queue) {
+  async function walk(queue, { force = false } = {}) {
     const q = [...queue];
     const workers = Array.from({ length: Math.min(CONCURRENCY, q.length) }, async () => {
       for (;;) {
         const t = q.shift();
         if (!t) return;
         state.inFlight++;
-        await loadOne(t);
+        await loadOne(t, { force });
         state.inFlight--;
         state.pending = Math.max(0, state.pending - 1);
         emit();
@@ -376,10 +475,14 @@ export function createFeed(kind) {
     const range = `from=${daysAgo(WINDOW_DAYS[kind])}&to=${iso(Date.now())}`;
     const path = ROUTE[kind](kind === 'news' ? queryFor(t) : t, range);
     let res;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
     try {
-      res = await conditionalJson(path, { key: KEYS.filingRow(kind, t), optional: true });
+      res = await conditionalJson(path, { key: KEYS.filingRow(kind, t), optional: true, signal: abort.signal });
     } catch {
       res = null;
+    } finally {
+      clearTimeout(timer);
     }
     const body = res?.value;
 
@@ -417,6 +520,7 @@ export function createFeed(kind) {
   return {
     load,
     loadOne,
+    refresh,
     rows,
     forTicker,
     failureFor,

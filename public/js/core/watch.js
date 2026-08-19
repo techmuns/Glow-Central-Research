@@ -28,6 +28,11 @@
 import * as earnings from '../data/earnings-live.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
+import * as refreshRegistry from './refresh.js';
+
+// How long the header's Refresh waits for the per-company feeds before saying they are still
+// going. Long enough for a warm walk to finish, short enough that the button is not dead.
+const ON_DEMAND_WAIT_MS = 12_000;
 import * as coverage from '../data/coverage.js';
 import * as notifications from '../ui/notifications.js';
 import { formatCroreCompact, formatPct } from './format.js';
@@ -87,13 +92,40 @@ export function ensureRunning() {
  * something true rather than just spinning for a moment.
  */
 export async function refreshNow() {
-  if (!engine) return { announced: 0 };
   const before = notifications.announcedCount();
-  ensureRunning();
-  await engine.refreshAll();
+  // TWO KINDS OF FEED, AND THE BUTTON DRIVES BOTH.
+  //
+  //   the POLLERS — the results feed and the con-call scan. Conditional, cheap, already ticking,
+  //   and the source of every alert. `engine.refreshAll()` ticks the running ones.
+  //
+  //   the ON-DEMAND feeds — News, Corporate Announcements, Insider Trades, Superstar Investors.
+  //   One request per company, so they must not tick at all; this button is the only thing that
+  //   reads them. Registered by whichever tab is mounted, so the cost stays bounded.
+  //
+  // Both are awaited together and the counts are summed, because the reader pressed one button and
+  // is owed one answer.
+  const pollers = (async () => {
+    if (!engine) return null;
+    ensureRunning();
+    return engine.refreshAll();
+  })();
+
+  // A WALK OF FORTY COMPANIES DOES NOT FIT IN A BUTTON'S PATIENCE, and the button must not lie
+  // about that. It waits a bounded time for the on-demand feeds and then reports `pending` if they
+  // are still going — "Still reading…" is a true statement and "Couldn't check" would not be, on
+  // work that is proceeding perfectly well. The tab's own strip shows the walk as it lands.
+  const STILL_RUNNING = Symbol('pending');
+  const onDemand = refreshRegistry.refreshAll();
+  const bounded = await Promise.race([
+    Promise.all([pollers, onDemand]).then(([, o]) => o),
+    new Promise((resolve) => setTimeout(() => resolve(STILL_RUNNING), ON_DEMAND_WAIT_MS)),
+  ]);
   // The feeds' own onChange fires synchronously inside the tick, so by here the announcements
   // have already been made.
-  return { announced: notifications.announcedCount() - before };
+  const announced = notifications.announcedCount() - before;
+  if (bounded === STILL_RUNNING) return { announced, pending: true };
+  // A feed that was already walking when the button was pressed is still walking now.
+  return { announced: announced + (bounded?.announced || 0), pending: (bounded?.skipped || 0) > 0 };
 }
 
 // ---------------------------------------------------------------------------------------

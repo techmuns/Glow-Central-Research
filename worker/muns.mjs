@@ -33,10 +33,23 @@ import { normaliseAnnouncement, normaliseArticle, normaliseInsiderTrades, collec
 export const FASTAPI_BASE = 'https://fastapi.muns.io';
 export const NESTJS_BASE = 'https://devde.muns.io';
 
-// The registry's own numbers: 30s timeout, 3 attempts, backoff factor 2.
-const TIMEOUT_MS = 30_000;
-const ATTEMPTS = 3;
-const BACKOFF_MS = 1_000;
+// A RETRY CEILING HAS TO MATCH ITS OWN RATIONALE, and this one did not.
+//
+// The registry's own numbers are 30s, 3 attempts, backoff factor 2 — which with the backoff is
+// 30 + 1 + 30 + 2 + 30 = **93 seconds** before a failing company can say so. Measured, with the
+// insider-trades upstream down: every ticker took 93.5s. The browser walks forty companies four at
+// a time, so a dead upstream cost **fifteen and a half minutes** of a spinning strip over an empty
+// table, and the scheduled scrape would spend fifteen hours on six hundred of them.
+//
+// So there is an absolute DEADLINE_MS, and it is the guarantee that matters: each attempt gets what
+// is LEFT of it, so a slow first attempt shortens the second instead of being added to it. Same
+// arrangement, and the same reasoning, as worker/finology.mjs — see the note about it in CLAUDE.md.
+//
+// Retrying hard into a struggling upstream also makes the struggle worse, once per company.
+const TIMEOUT_MS = 12_000;
+const DEADLINE_MS = 20_000;
+const ATTEMPTS = 2;
+const BACKOFF_MS = 500;
 
 const newsBase = (env) => (env?.MUNS_NEWS_BASE || FASTAPI_BASE).replace(/\/+$/, '');
 const filingsBase = (env) => (env?.MUNS_BASE || NESTJS_BASE).replace(/\/+$/, '');
@@ -70,9 +83,14 @@ async function request(url, { method = 'GET', body = null, token, label }) {
   }
 
   let last = null;
+  const deadline = Date.now() + DEADLINE_MS;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    // What is LEFT of the deadline, never a fresh full timeout. A first attempt that burns most of
+    // the budget leaves the second a short one rather than doubling the wait.
+    const budget = Math.min(TIMEOUT_MS, deadline - Date.now());
+    if (budget <= 0) break;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), budget);
     try {
       const res = await fetch(url, {
         method,
@@ -113,10 +131,10 @@ async function request(url, { method = 'GET', body = null, token, label }) {
       if (err instanceof MunsError && err.reason !== 'upstream') throw err;
       last =
         err.name === 'AbortError'
-          ? new MunsError('timeout', `${label} did not answer within ${TIMEOUT_MS / 1000}s.`, { url })
+          ? new MunsError('timeout', `${label} did not answer within ${Math.round(DEADLINE_MS / 1000)}s.`, { url })
           : last || new MunsError('unreachable', `${label} could not be reached: ${String(err?.message || err)}`, { url });
     }
-    if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
+    if (attempt < ATTEMPTS && Date.now() < deadline) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
   }
   throw last || new MunsError('unreachable', `${label} could not be reached.`, { url });
 }

@@ -2289,17 +2289,56 @@ server confirmed *in this session*.
 Bytes this device kept from an earlier visit have a real `checkedAt` and have **not** been checked
 now, so they read *Cached*, not *Live*.
 
+### Nothing walks on a page load
+
+`js/data/filings.js` `load()` paints from the committed snapshot and this device and **sends no
+per-company request at all**. The walk is `refresh()`, registered with `js/core/refresh.js` and
+called only by the Refresh button — the header's, or the *Check for new* control on the tab.
+
+Three measurements from the day all three upstreams went down, each a different consequence of the
+walk running automatically:
+
+| | |
+| --- | --- |
+| a company that could not be read | **93.5s** — the Worker's own retry budget, 30s × 3 with backoff |
+| a landing, forty companies four at a time | **~15½ minutes**, painting nothing throughout |
+| the rest of the page | starved — four of a browser's six connections to the origin were held open, and the Superstar Investors grid could not fetch its own **static** snapshot file for 44s |
+
+`worker/muns.mjs` now runs under an absolute `DEADLINE_MS` (20s), and the browser bounds its own
+request at `REQUEST_TIMEOUT_MS` (25s) so a hung Worker cannot hold a connection.
+
+**What the tab may say, and what it may not.** These routes answer one company at a time and have
+no index, so *"nothing is new"* is not a statement anyone can make without asking about every
+company. The strip therefore reports **our** state — *"Showing the filings captured 11 minutes ago.
+63 companies have not been checked since."* — and leaves the decision to the reader. The committed
+snapshot is the channel by which new rows arrive without being asked for; it is revalidated with one
+conditional GET per load, and a newer capture wins over anything nobody has confirmed this session.
+
+An empty cache is the one exception: with nothing to paint, `load()` walks once and says so.
+
 ### Refreshing it
 
 ```bash
-MUNS_TOKEN=…  node scripts/scrape-filings.mjs                 # all three, 603 companies
-MUNS_TOKEN=…  node scripts/scrape-filings.mjs announcements   # one feed
+node scripts/scrape-filings.mjs                                       # all three, 603 companies
+node scripts/scrape-filings.mjs announcements                         # one feed
 FILINGS_LIMIT=20 FILINGS_SCOPE=book node scripts/scrape-filings.mjs   # a smoke run
+FILINGS_BASE=http://127.0.0.1:8787 node scripts/scrape-filings.mjs    # against wrangler dev
+MUNS_TOKEN=… node scripts/scrape-filings.mjs                          # straight at the upstream
 ```
 
-It walks **the book first**, so a run cut short by the rate limit or an expiring token has covered
-the holdings rather than whatever starts with A. It stops the whole feed on `no-token` /
+**It reads our own Worker by default and therefore needs no secret**, the same arrangement as the
+super-investor snapshot: the bearer token lives on the Worker and a script that held it would put it
+in a shell history and a CI log. That is what lets the scheduled workflow run it.
+
+It walks **the book first**, so a run cut short by the rate limit or the Action's time budget has
+covered the holdings rather than whatever starts with A. It stops the whole feed on `no-token` /
 `unauthorised` rather than collecting six hundred identical 401s.
+
+**And it will not replace a good snapshot with a bad run.** A run that covered nobody is not
+written at all, and a run covering less than the committed file leaves that file in place —
+measured on 19 Aug 2026, when `fastapi.muns.io` answered 502 to every news query and
+`devde.muns.io` did not answer at all, a run would otherwise have committed a file saying those 123
+companies have no news. An outage is not an absence of events. `FILINGS_FORCE=1` overrides both.
 
 ### The credential expires
 
@@ -2378,9 +2417,16 @@ revalidation window is derived from the filing calendar rather than from a flat 
 
 Above both: **a confirmation older than the most recent quarter end is always re-asked**, whatever
 the elapsed time says. Without that a long hold could straddle a quarter boundary and keep serving
-last quarter's book into the new one. `refresh()`, wired to the Live pill's modal, discards every
-confirmation and asks again — a cache that decides on the reader's behalf that a question is not
-worth asking needs a way for them to ask it anyway.
+last quarter's book into the new one.
+
+**And no book is re-read on a page load at all.** `load()` paints from the device and the snapshot
+and makes exactly **one** request — a conditional GET of the investor LIST, which is the one thing
+a snapshot cannot answer (an investor added or dropped). Confirming ninety books is ninety round
+trips, and it is work the reader asks for: `refresh()` is registered with `js/core/refresh.js`, so
+the header's Refresh button and *Re-read everything now* in the Live pill's modal both drive it. It
+ignores the window deliberately — a refresh that silently skipped every book because the capture was
+recent would be a button that does nothing on the one occasion the reader was sure something had
+changed.
 
 ### The Worker exists to hold the token
 

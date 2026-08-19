@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // scripts/scrape-filings.mjs — news, corporate announcements and insider trades for the universe.
 //
-//   MUNS_TOKEN=… node scripts/scrape-filings.mjs                 all three, the whole universe
-//   MUNS_TOKEN=… node scripts/scrape-filings.mjs announcements   just one feed
+//   node scripts/scrape-filings.mjs                              all three, the whole universe
+//   node scripts/scrape-filings.mjs announcements                just one feed
 //   FILINGS_LIMIT=20 node scripts/scrape-filings.mjs             a smoke run
 //   FILINGS_SCOPE=book node scripts/scrape-filings.mjs           the 123 book tickers only
+//   FILINGS_BASE=http://127.0.0.1:8787 node scripts/…            against wrangler dev
+//   MUNS_TOKEN=… node scripts/scrape-filings.mjs                 straight at the upstream instead
 //
 // Writes public/data/news.json, corp-announcements.json and insider-trades.json.
 //
@@ -17,9 +19,21 @@
 //   live routes stay, for the companies a snapshot does not cover yet and for refreshing one
 //   company on demand. Same division as the technicals feed.
 //
-// THE TOKEN IS READ FROM THE ENVIRONMENT AND NEVER WRITTEN ANYWHERE. It is a session JWT and it
-// expires, so a run that starts working and then 401s halfway is expected rather than a bug — the
-// output records how far it got instead of pretending the rest had nothing.
+// BY DEFAULT IT READS THIS DASHBOARD'S OWN WORKER, NOT THE UPSTREAM DIRECTLY.
+//   All three upstreams want `Authorization: Bearer …`, and that token lives on the Worker and
+//   nowhere else — a script that held it would put it in a shell history and a CI log, which is the
+//   one thing the whole proxy arrangement exists to prevent. The Worker's `/api/news`,
+//   `/api/announcements/{t}` and `/api/insider-trades/{t}` routes are open, already normalise the
+//   payload, and hold each answer in an edge cache, so a run costs the upstream less than the same
+//   walk made directly. It also means THIS JOB NEEDS NO SECRET, which is why it can live in the
+//   scheduled workflow beside the others.
+//
+//   `MUNS_TOKEN` still switches it back to calling the upstream directly, for a run from a machine
+//   that has one and no deployed Worker to lean on.
+//
+// THE TOKEN, WHERE ONE IS USED, IS READ FROM THE ENVIRONMENT AND NEVER WRITTEN ANYWHERE. It is a
+// session JWT and it expires, so a run that starts working and then 401s halfway is expected rather
+// than a bug — the output records how far it got instead of pretending the rest had nothing.
 //
 // A COMPANY THAT COULD NOT BE READ IS NOT A COMPANY WITH NOTHING. Failures are written into the
 // snapshot under `failed`, with the reason, so the tab can say "40 could not be read" rather than
@@ -46,6 +60,47 @@ const CONCURRENCY = 4;
 const GAP_MS = 250;
 
 const env = { MUNS_TOKEN: process.env.MUNS_TOKEN, MUNS_NEWS_TOKEN: process.env.MUNS_NEWS_TOKEN, MUNS_BASE: process.env.MUNS_BASE, MUNS_NEWS_BASE: process.env.MUNS_NEWS_BASE };
+
+// Our own Worker, unless a token says to go straight to the source. See the header.
+const BASE = (process.env.FILINGS_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
+const VIA_WORKER = !process.env.MUNS_TOKEN;
+const REQ_TIMEOUT_MS = Number(process.env.FILINGS_TIMEOUT_MS || 120_000);
+const REQ_ATTEMPTS = 2;
+
+/**
+ * One read through our own Worker, in the same shape `worker/muns.mjs` returns.
+ *
+ * The routes answer a failure as HTTP 200 carrying `ok: false` and a NAMED reason — see the header
+ * of `handleMuns` — so the reason is lifted back into a MunsError here and the caller's existing
+ * handling (record it against the ticker; stop the whole feed on an expired token) works unchanged
+ * whichever path the run took.
+ */
+async function viaWorker(path, label) {
+  let last = null;
+  for (let attempt = 1; attempt <= REQ_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${BASE}${path}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
+      if (!res.ok) {
+        last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url: `${BASE}${path}` });
+      } else {
+        const body = await res.json();
+        if (body && body.ok === false) throw new MunsError(body.reason || 'upstream', body.message || `${label} could not be read.`, { url: body.requestedUrl || `${BASE}${path}` });
+        return body;
+      }
+    } catch (err) {
+      if (err instanceof MunsError) throw err;
+      last = new MunsError('unreachable', `${label} could not be reached: ${String(err?.message || err)}`, { url: `${BASE}${path}` });
+    }
+  }
+  throw last;
+}
+
+const range = (from, to) => `from=${from}&to=${to}`;
+// EACH ROUTE APPENDS ITS OWN RANGE, because only the route knows whether it already has a query
+// string — the same rule, and the same bug, as ROUTE in js/data/filings.js.
+const readNews = (query, from, to) => viaWorker(`/api/news?q=${encodeURIComponent(query)}&${range(from, to)}`, 'The news API');
+const readAnnouncements = (t, from, to) => viaWorker(`/api/announcements/${encodeURIComponent(t)}?${range(from, to)}`, 'The announcements API');
+const readInsider = (t, from, to) => viaWorker(`/api/insider-trades/${encodeURIComponent(t)}?${range(from, to)}`, 'The insider-trades API');
 const LIMIT = Number(process.env.FILINGS_LIMIT || 0);
 const SCOPE = process.env.FILINGS_SCOPE || 'universe';
 const only = process.argv.slice(2).filter((a) => FEEDS[a]);
@@ -70,6 +125,15 @@ function companies() {
   const tech = JSON.parse(readFileSync(DATA('technicals.json'), 'utf8'));
   const rest = (tech.companies || []).filter((c) => c.ticker).map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name, held: false }));
   return dedupe([...held, ...rest]);
+}
+
+/** The committed snapshot as it stands, or null. Used to refuse to replace a better one. */
+function readIfPresent(file) {
+  try {
+    return JSON.parse(readFileSync(DATA(file), 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 function dedupe(list) {
@@ -107,9 +171,9 @@ async function run(kind, list) {
         // are themselves terms the engine ranks on. The browser's live walk sends the same query —
         // see ROUTE.news in js/data/filings.js — so the snapshot and the walk cannot disagree about
         // what a company's news is.
-        if (kind === 'news') res = await fetchNews({ query: c.name || c.ticker, country: 'IN', fromDate: from, toDate: to }, env);
-        else if (kind === 'announcements') res = await fetchAnnouncements({ ticker: c.ticker, fromDate: from, toDate: to }, env);
-        else res = await fetchInsiderTrades({ ticker: c.ticker, country: 'india', fromDate: from, toDate: to }, env);
+        if (kind === 'news') res = VIA_WORKER ? await readNews(c.name || c.ticker, from, to) : await fetchNews({ query: c.name || c.ticker, country: 'IN', fromDate: from, toDate: to }, env);
+        else if (kind === 'announcements') res = VIA_WORKER ? await readAnnouncements(c.ticker, from, to) : await fetchAnnouncements({ ticker: c.ticker, fromDate: from, toDate: to }, env);
+        else res = VIA_WORKER ? await readInsider(c.ticker, from, to) : await fetchInsiderTrades({ ticker: c.ticker, country: 'india', fromDate: from, toDate: to }, env);
 
         const rows = res[rowsKey] || [];
         // `raw` is for the browser's drill, not for a committed file — it is the whole upstream
@@ -141,7 +205,7 @@ async function run(kind, list) {
       'Headlines, subjects, column headings and wording are the source\'s own, reproduced unchanged and never summarised. ' +
       'A company absent from `byTicker` had nothing in this window OR could not be read — `failed` says which, and the two must not be conflated.',
     kind,
-    source: 'Muns filings/news API',
+    source: VIA_WORKER ? 'Muns filings/news API, read through this dashboard’s Worker' : 'Muns filings/news API',
     generator: 'scripts/scrape-filings.mjs',
     capturedAt: new Date().toISOString(),
     from,
@@ -156,6 +220,29 @@ async function run(kind, list) {
     byTicker,
     failed,
   };
+  // A BAD RUN MUST NOT REPLACE A GOOD SNAPSHOT. The insider-trades upstream was measured returning
+  // a timeout for every single ticker; writing that run would have swapped a complete file for one
+  // covering nobody, and the tab would have painted the result as "these companies have nothing".
+  // An outage is not an absence of events — the same rule the `failed` map exists for, applied to
+  // the file as a whole.
+  // Nothing at all came back. Measured on 19 Aug 2026: fastapi.muns.io answered 502 to every news
+  // query and devde.muns.io did not answer at all, so a run wrote a snapshot covering nobody — and
+  // a snapshot covering nobody is a file that says "these 123 companies have no news", which is a
+  // measurement nobody made. An outage is not an absence of events.
+  if (!payload.covered && list.length && !process.env.FILINGS_FORCE) {
+    console.log(`\r  ${kind}: nothing came back for any of ${list.length} companies — the upstream is down. Nothing written.`);
+    return;
+  }
+
+  const previous = readIfPresent(file);
+  if (previous && previous.covered > payload.covered && !process.env.FILINGS_FORCE) {
+    console.log(
+      `\r  ${kind}: covered ${payload.covered} of ${list.length}, but the committed snapshot covers ` +
+        `${previous.covered} — keeping it. Re-run when the upstream recovers, or set FILINGS_FORCE=1.`
+    );
+    return;
+  }
+
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(
     `\r  ${kind}: ${rowCount} rows across ${payload.covered} of ${list.length} companies` +
@@ -164,9 +251,6 @@ async function run(kind, list) {
 }
 
 const list = companies();
-console.log(`Walking ${list.length} companies (${SCOPE}) for: ${wanted.join(', ')}\n`);
-if (!env.MUNS_TOKEN) {
-  console.error('MUNS_TOKEN is not set. These endpoints need a bearer token; nothing was written.');
-  process.exit(2);
-}
+console.log(`Walking ${list.length} companies (${SCOPE}) for: ${wanted.join(', ')}`);
+console.log(VIA_WORKER ? `  through ${BASE} — no token needed here; the Worker holds it\n` : '  straight at the upstream, with MUNS_TOKEN\n');
 for (const kind of wanted) await run(kind, list);

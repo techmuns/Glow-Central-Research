@@ -14,6 +14,11 @@ name: Data refresh
 #                                what the Superstar Investors grid is painted FROM, because the
 #                                live view is one request per investor and ninety-one round trips
 #                                is most of a minute on any device that has not been here before.
+#   scrape-filings.mjs           news, corporate announcements and insider trades. Also not a
+#                                fallback, and for the same reason: one request per company.
+#
+# THE LAST TWO NEED NO SECRET. Both read this dashboard's own Worker, which holds the bearer token
+# the upstreams want — see the header of each script.
 #
 # NOTE ON THE EARNINGS FEED: the Earnings Hub does not wait for this. It reads /api/earnings,
 # which proxies Moneycontrol live behind a 30s edge cache, so a company that files at 14:32 is on
@@ -113,6 +118,18 @@ jobs:
         continue-on-error: true
         run: node scripts/scrape-super-investors.mjs
 
+      # News, corporate announcements and insider trades. Like the super-investor snapshot it reads
+      # THIS DASHBOARD'S OWN WORKER, so it needs no secret. This one is not a fallback either: those
+      # three tabs are painted from these files, and the live routes are what the reader's Refresh
+      # button asks — a walk of forty companies is not work to do on a page load.
+      #
+      # The book first, so a run cut short by the Action's time budget has covered the holdings. It
+      # refuses to write a snapshot covering nobody, and refuses to replace one covering more, so an
+      # upstream outage leaves the previous capture in place rather than committing an empty file.
+      - name: Run filings snapshots
+        continue-on-error: true
+        run: FILINGS_SCOPE=book node scripts/scrape-filings.mjs
+
       - name: Upload technicals data (artifact)
         if: always()
         uses: actions/upload-artifact@v5
@@ -128,6 +145,9 @@ jobs:
             public/data/earnings-calendar.json
             public/data/concall-scans.json
             public/data/super-investors.json
+            public/data/news.json
+            public/data/corp-announcements.json
+            public/data/insider-trades.json
           if-no-files-found: warn
 
       - name: Commit refreshed technicals to main
@@ -138,7 +158,7 @@ jobs:
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
           [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
-          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors; do
+          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors news corp-announcements insider-trades; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done
           if git diff --cached --quiet; then
