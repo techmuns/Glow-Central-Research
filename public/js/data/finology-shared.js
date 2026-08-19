@@ -17,6 +17,24 @@
 // THE ONE DERIVED FIGURE is the quarter-over-quarter change in `deriveMoves`, which is subtraction
 // of two of their own percentages. It is labelled as derived on every surface that shows it.
 
+/**
+ * THE RETRY BUDGET, AND IT LIVES HERE BECAUSE THE SCREEN QUOTES IT.
+ *
+ * `worker/finology.mjs` owns the rationale — six seconds is six times the healthy latency, two
+ * attempts rides out a restart, and `DEADLINE_MS` is the absolute guarantee. The numbers sit in
+ * this shared module because the panel tells the reader what the request was given, and a sentence
+ * that names a figure the code decides must READ it rather than repeat it. It did repeat it: the
+ * ceiling was cut from 15s × 3 to 6s × 2 under a 13s deadline, and the reason string in
+ * `js/investors/live.js` went on saying "given 15 seconds and retried" — quoting a budget that had
+ * not existed for some time, in the one place a reader could check it against a stopwatch.
+ *
+ * Same rule as the Sources modal: no figure on a surface may be typed by hand where the module that
+ * decides it can be asked instead.
+ */
+export const REQ_TIMEOUT_MS = 6000;
+export const ATTEMPTS = 2;
+export const DEADLINE_MS = 13000;
+
 /** Only [a-z0-9-] is a valid slug upstream; anything else is a 400 there, so it is rejected here. */
 export const isSlug = (s) => typeof s === 'string' && /^[a-z0-9-]+$/.test(s) && s.length <= 120;
 

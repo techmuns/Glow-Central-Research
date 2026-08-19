@@ -32,6 +32,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { deliveryNote } from '../ui/sources.js';
+import { DEADLINE_MS, ATTEMPTS } from '../data/finology-shared.js';
 import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
 
@@ -147,7 +148,7 @@ const REASONS = {
   },
   timeout: {
     title: 'The super-investor API did not answer in time',
-    body: 'The request was given 15 seconds and retried, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.',
+    body: `The request was given ${DEADLINE_MS / 1000} seconds across ${ATTEMPTS} attempts, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.`,
   },
   unreachable: { title: 'The super-investor API could not be reached', body: 'The upstream service did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
   upstream: { title: 'The super-investor API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },

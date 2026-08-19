@@ -19,7 +19,7 @@
 // credential for the operator to renew, everything else is a service to wait for. The Worker
 // route turns that code into something the panel can say out loud.
 
-import { isSlug, normaliseList, normalisePortfolio } from '../public/js/data/finology-shared.js';
+import { isSlug, normaliseList, normalisePortfolio, REQ_TIMEOUT_MS, ATTEMPTS, DEADLINE_MS } from '../public/js/data/finology-shared.js';
 
 export { isSlug };
 
@@ -40,9 +40,9 @@ export const BASE = 'https://devde.muns.io';
 //
 // Retrying hard into a struggling upstream also makes the struggle worse, and ninety books each
 // retrying three times is ninety times the harm.
-export const REQ_TIMEOUT_MS = 6000;
-export const ATTEMPTS = 2;
-export const DEADLINE_MS = 13000;
+// The three numbers themselves are in `finology-shared.js`, so the sentence the panel shows a
+// reader is read from the same place this module enforces — see the note above them there.
+export { REQ_TIMEOUT_MS, ATTEMPTS, DEADLINE_MS };
 const BACKOFF_MS = [400];
 
 function fail(message, code) {
