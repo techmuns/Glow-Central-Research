@@ -62,7 +62,7 @@ export async function exportRows({ filename = 'export', sheetName = 'Sheet1', co
     // Header styling — indigo band, white bold text, matching the dashboard's brand ramp.
     const header = ws.getRow(1);
     header.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7D5F16' } };
     header.alignment = { vertical: 'middle', horizontal: 'left' };
     header.height = 22;
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
@@ -119,8 +119,8 @@ export async function exportSheets({ filename = 'export', banner = '', sheets = 
         ws.mergeCells(1, 1, 1, Math.max(1, columns.length));
         const cell = ws.getCell(1, 1);
         cell.value = banner;
-        cell.font = { bold: true, size: 10, color: { argb: 'FF92400E' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+        cell.font = { bold: true, size: 10, color: { argb: 'FF7A4708' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBE8C8' } };
         cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
         ws.getRow(1).height = 28;
       }
@@ -137,7 +137,7 @@ export async function exportSheets({ filename = 'export', banner = '', sheets = 
 
       const header = ws.getRow(headerRowIdx);
       header.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7D5F16' } };
       header.alignment = { vertical: 'middle', horizontal: 'left' };
       header.height = 22;
       if (columns.length) {

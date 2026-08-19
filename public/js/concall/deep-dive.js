@@ -257,7 +257,7 @@ function confirmPanel() {
           : ''
       }
       <div class="mt-5 flex flex-wrap items-center gap-2">
-        <button data-dd-start class="rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90">${rerun ? 'Yes, start a fresh run' : 'Start the Deep Dive'}</button>
+        <button data-dd-start class="rounded-lg bg-gradient-to-r from-indigo-700 to-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90">${rerun ? 'Yes, start a fresh run' : 'Start the Deep Dive'}</button>
         <label class="flex items-center gap-1.5 text-xs text-slate-600">
           <input type="checkbox" data-dd-force class="rounded border-slate-300" ${rerun ? 'checked' : ''} />
           Force a fresh run, ignoring any cached report

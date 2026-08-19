@@ -23,7 +23,7 @@ showing the current workspace and a chevron.
 
 ### (b) Section — top tabs
 
-A springy indigo→purple underline scales in under the active tab; active tab in indigo,
+A springy champagne underline scales in under the active tab; active tab in deep gold,
 inactive slate with hover. Order is fixed:
 
 **Research Central**
@@ -142,7 +142,7 @@ Hash-based and shareable:
 Sticky, full-width, on a glass/blur background. See §1b for what it carries and why; this is the
 layout.
 
-- **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
+- **Left** — 48px rounded-xl champagne gradient mark reading "SC" in ink, then
   "Glow Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
 - **Right** — the Portfolio/Universe segmented toggle, then the status pill (pulsing dot,
   `Live · updated <relative time>`, opens the data-sources modal on click), then the refresh
@@ -161,28 +161,30 @@ result never reflows the chrome or shifts what the reader is pointing at. See §
 Aligned to the LKP Stock Screener's visual language. Tokens live in `:root` in
 `public/index.html`.
 
-**Brand ramp: indigo → purple → pink.** Emerald / amber / rose are reserved strictly for
-semantic rule states (pass / partial / fail) and are never used as brand colours.
+**Brand ramp: champagne — gold → champagne → pale champagne.** Emerald / amber / rose are
+reserved strictly for semantic rule states (pass / partial / fail) and are never used as brand
+colours. The Tailwind scales `indigo` / `purple` / `pink` are redefined as the brand ramp slots
+in the CDN config, so those names describe a role rather than a hue — see `CLAUDE.md`.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--brand-500` | `#6366f1` | indigo, brand ramp start |
-| `--brand-600` | `#4f46e5` | indigo-600, links and actions |
-| `--brand-mid` | `#a855f7` | purple, brand ramp middle |
-| `--brand-end` | `#ec4899` | pink, brand ramp end |
-| `--accent-600` | `#4f46e5` | accent for links/actions |
-| `--positive` | `#059669` | emerald — pass |
-| `--caution` | `#d97706` | amber — partial |
-| `--negative` | `#e11d48` | rose — fail |
-| `--hard-fail` | `#be123c` | rose-700 — hard fail |
-| `--neutral` | `#64748b` | slate — n/a |
-| `--page-bg` | `#f8fafc` | page background |
+| `--brand-500` | `#c3a962` | champagne-600, brand ramp start (fill only) |
+| `--brand-600` | `#8a6a1c` | deep gold, links and actions |
+| `--brand-mid` | `#d9c48f` | champagne-500, brand ramp middle (fill only) |
+| `--brand-end` | `#ecdcae` | champagne-400, brand ramp end (fill only) |
+| `--brand-ink` | `#1a1830` | the text the brand gradient carries — never white |
+| `--accent-600` | `#8a6a1c` | accent for links/actions |
+| `--positive` | `#047857` | emerald — pass |
+| `--caution` | `#9a5c09` | amber — partial |
+| `--negative` | `#b91c1c` | rose — fail |
+| `--hard-fail` | `#991b1b` | rose-700 — hard fail |
+| `--neutral` | `#6b6880` | warm slate — n/a |
+| `--page-bg` | `#f4f2ec` | page background |
 
-- Page background carries three radial gradients, all ≤ 12% opacity: violet top-left, pink
-  top-right, sky bottom-right.
+- Page background is parchment under a faint 32px rule grid at 5% ink.
 - Surfaces: white, `rounded-2xl`, `shadow-sm`, `ring-1 ring-slate-100`.
 - Content column is `max-w-[1400px] mx-auto px-6`.
-- Top-tab indicator: a 3px indigo→purple bar that scales in with a springy
+- Top-tab indicator: a 3px champagne bar that scales in with a springy
   `cubic-bezier(0.34, 1.56, 0.64, 1)` transition.
 - `font-variant-numeric: tabular-nums` on every number-bearing cell.
 - Light theme only. Fully responsive; tables scroll horizontally inside their own container so

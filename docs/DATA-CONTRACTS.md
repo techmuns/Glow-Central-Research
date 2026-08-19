@@ -404,7 +404,7 @@ are computed from the daily OHLCV series — a 50 EMA, an RSI, a 52-week positio
 the close those rules were scored against would sit a 14:32 price underneath a score that never
 read it, and the drill panel would explain a rule using a number that is not the one it used.
 
-So a refresh moves **the CMP column and nothing else**: the cell shows the live price, an indigo
+So a refresh moves **the CMP column and nothing else**: the cell shows the live price, a brand
 dot marks it as live, the dot's title names the EOD date the score still belongs to, and the note
 under the button ends *"CMP only; the 16-rule score stays EOD."* The day change beside it is
 recomputed from the quote's **own** previous close, or rendered as an em dash — carrying this

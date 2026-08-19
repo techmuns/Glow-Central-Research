@@ -605,7 +605,7 @@ export function liveBadge({ label = 'Live', getTimestamp, subscribeTick = null }
 
 // Tiny inline SVG sparkline — no chart library, just a polyline scaled to fit the box.
 export function spark({ values = [], width = 64, height = 24, tone = 'brand' } = {}) {
-  const strokeByTone = { brand: '#0d9488', accent: '#7c3aed', positive: '#059669', negative: '#e11d48', neutral: '#64748b' };
+  const strokeByTone = { brand: '#8a6a1c', accent: '#b8923c', positive: '#047857', negative: '#b91c1c', neutral: '#6b6880' };
   const stroke = strokeByTone[tone] || strokeByTone.brand;
   if (!values.length) return `<svg width="${width}" height="${height}" aria-hidden="true"></svg>`;
   const min = Math.min(...values);

@@ -13,19 +13,31 @@ import { escapeHtml } from '../core/dom.js';
 
 // Twelve gradient pairs. A company's avatar colour is a stable hash of its name, so the same
 // company keeps the same colour across tabs and reloads without storing anything.
+//
+// TWO REASONS THESE ARE RAW HEX RATHER THAN SCALE NAMES, and both are the palette's rules
+// rather than a preference:
+//
+//   1. An avatar is decoration, and `emerald`/`amber`/`rose` are the semantic slots. The old
+//      set drew four of its twelve pairs from them, so a third of all companies wore pass,
+//      partial or fail as an identity colour. Writing the decorative set as literals means it
+//      cannot drift back into the semantic scales when those are retuned.
+//   2. The initials are white, and white has a floor. Each pair's MIDPOINT — which is what sits
+//      under a centred glyph on a `to-br` gradient — is at or above 4.5:1 against white
+//      (measured range 5.02–7.46). Pale champagne ends fail that badly, which is why the brand
+//      gold appears here only in its dark half.
 const PALETTE = [
-  'from-purple-500 to-indigo-500',
-  'from-pink-500 to-rose-500',
-  'from-amber-500 to-orange-500',
-  'from-emerald-500 to-teal-500',
-  'from-blue-500 to-cyan-500',
-  'from-fuchsia-500 to-pink-500',
-  'from-violet-500 to-purple-500',
-  'from-lime-500 to-emerald-500',
-  'from-sky-500 to-indigo-500',
-  'from-red-500 to-pink-500',
-  'from-yellow-500 to-amber-500',
-  'from-teal-500 to-cyan-500',
+  'from-[#6f5415] to-[#a3803a]',
+  'from-[#3730a3] to-[#6366f1]',
+  'from-[#045f45] to-[#0b8a5f]',
+  'from-[#8f3159] to-[#d4527f]',
+  'from-[#0d5f7a] to-[#2b9ec2]',
+  'from-[#7a4a2a] to-[#a86f42]',
+  'from-[#4c3a8f] to-[#7c5fd3]',
+  'from-[#0f5f52] to-[#1a9b85]',
+  'from-[#8f2f2f] to-[#c14545]',
+  'from-[#5f4711] to-[#8a6a1c]',
+  'from-[#334155] to-[#5b6b82]',
+  'from-[#6b3a7a] to-[#9a55ad]',
 ];
 
 // Deterministic avatar for a company name → { color (Tailwind gradient pair), initials }.

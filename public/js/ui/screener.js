@@ -143,10 +143,10 @@ export function statStrip(cards = []) {
         .map((card, i) => {
           if (card.hero) {
             return `
-              <div class="stat-card rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg">
-                <div class="text-xs font-medium uppercase tracking-wider opacity-90">${escapeHtml(card.label)}</div>
+              <div class="stat-card rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 text-slate-900 shadow-lg">
+                <div class="text-xs font-medium uppercase tracking-wider opacity-75">${escapeHtml(card.label)}</div>
                 <div class="mt-1 text-2xl font-bold">${escapeHtml(card.value)}</div>
-                ${card.note ? `<div class="mt-0.5 text-xs opacity-90">${escapeHtml(card.note)}</div>` : ''}
+                ${card.note ? `<div class="mt-0.5 text-xs opacity-75">${escapeHtml(card.note)}</div>` : ''}
               </div>`;
           }
           if (card.help) helpRegistry.push({ index: i, ...card.help });
@@ -506,7 +506,7 @@ export function scoreTable(config) {
           `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
         return `
           <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
-            ${redFlag ? 'style="box-shadow: inset 3px 0 0 #f43f5e"' : ''}>
+            ${redFlag ? 'style="box-shadow: inset 3px 0 0 var(--negative)"' : ''}>
             ${
               showRank
                 ? `<td class="${PX} py-3 text-sm font-medium text-slate-500">

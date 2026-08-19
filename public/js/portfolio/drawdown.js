@@ -186,7 +186,7 @@ function curveChart(curve) {
   const ti = pts.findIndex((p) => p.d === curve.maxDrawdownTrough);
   const shade =
     pi >= 0 && ti > pi
-      ? `<rect x="${scaleX(pi, pts.length).toFixed(2)}" y="${PAD.t}" width="${(scaleX(ti, pts.length) - scaleX(pi, pts.length)).toFixed(2)}" height="${H - PAD.t - PAD.b}" fill="#e11d48" opacity="0.07"></rect>`
+      ? `<rect x="${scaleX(pi, pts.length).toFixed(2)}" y="${PAD.t}" width="${(scaleX(ti, pts.length) - scaleX(pi, pts.length)).toFixed(2)}" height="${H - PAD.t - PAD.b}" fill="#b91c1c" opacity="0.07"></rect>`
       : '';
 
   return `
@@ -204,15 +204,15 @@ function curveChart(curve) {
           aria-label="Portfolio value from ${escapeHtml(formatDate(curve.from))} to ${escapeHtml(formatDate(curve.to))}, ending at ${escapeHtml(formatRupee(pts.at(-1).value, { decimals: 0 }))}, with a maximum drawdown of ${escapeHtml(formatPct(curve.maxDrawdown, { decimals: 1 }))}">
           <defs>
             <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#6366f1" stop-opacity="0.22"></stop>
-              <stop offset="100%" stop-color="#ec4899" stop-opacity="0.02"></stop>
+              <stop offset="0%" stop-color="#c3a962" stop-opacity="0.30"></stop>
+              <stop offset="100%" stop-color="#ecdcae" stop-opacity="0.03"></stop>
             </linearGradient>
           </defs>
           ${shade}
           <path d="${area}" fill="url(#equityFill)"></path>
-          <path d="${holdingsLine}" fill="none" stroke="#c4b5fd" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
-          <path d="${line}" fill="none" stroke="#4f46e5" stroke-width="2" vector-effect="non-scaling-stroke"></path>
-          <line id="equity-cursor" x1="0" y1="${PAD.t}" x2="0" y2="${H - PAD.b}" stroke="#4f46e5" stroke-width="1" stroke-dasharray="3 3" opacity="0" vector-effect="non-scaling-stroke"></line>
+          <path d="${holdingsLine}" fill="none" stroke="#ddc998" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+          <path d="${line}" fill="none" stroke="#8a6a1c" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+          <line id="equity-cursor" x1="0" y1="${PAD.t}" x2="0" y2="${H - PAD.b}" stroke="#8a6a1c" stroke-width="1" stroke-dasharray="3 3" opacity="0" vector-effect="non-scaling-stroke"></line>
         </svg>
         <div id="equity-tip" class="pointer-events-none absolute hidden rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] leading-snug text-white shadow-lg"></div>
       </div>
@@ -255,9 +255,9 @@ function indexedChart(curve) {
       </div>
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="mt-3 h-56 w-full" role="img"
         aria-label="Growth of 100 rupees: portfolio ends at ${twrSeries.at(-1).toFixed(1)}, Nifty 500 ends at ${bench.at(-1).indexed.toFixed(1)}">
-        <line x1="${PAD.l}" y1="${y(100).toFixed(2)}" x2="${W - PAD.r}" y2="${y(100).toFixed(2)}" stroke="#e2e8f0" stroke-width="1" vector-effect="non-scaling-stroke"></line>
-        <path d="${bm}" fill="none" stroke="#94a3b8" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
-        <path d="${pf}" fill="none" stroke="#4f46e5" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+        <line x1="${PAD.l}" y1="${y(100).toFixed(2)}" x2="${W - PAD.r}" y2="${y(100).toFixed(2)}" stroke="#e4ddcd" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+        <path d="${bm}" fill="none" stroke="#928da1" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+        <path d="${pf}" fill="none" stroke="#8a6a1c" stroke-width="2" vector-effect="non-scaling-stroke"></path>
       </svg>
       <div class="mt-1 flex justify-between text-[11px] text-slate-400">
         <span>₹100 on ${escapeHtml(formatDate(curve.from))}</span>
@@ -336,9 +336,9 @@ function renderUnderwater(ctx, curve, m) {
       controls: headMeta(m, scopeSummary({ scope: ctx.scope, count: curve.tradingDays, noun: 'trading days' })),
     })}
     ${stats.html}
-    ${underwaterChart(curve, 'drawdown', 'Total portfolio', '#e11d48')}
-    ${underwaterChart(curve, 'holdingsDrawdown', 'Holdings only (excludes retained cash)', '#a855f7')}
-    ${curve.benchmarkDrawdown ? underwaterChart({ ...curve, benchmarkSeries: curve.benchmarkDrawdown.series }, 'benchmarkSeries', 'Nifty 500, same window', '#64748b') : ''}
+    ${underwaterChart(curve, 'drawdown', 'Total portfolio', '#b91c1c')}
+    ${underwaterChart(curve, 'holdingsDrawdown', 'Holdings only (excludes retained cash)', '#8a6a1c')}
+    ${curve.benchmarkDrawdown ? underwaterChart({ ...curve, benchmarkSeries: curve.benchmarkDrawdown.series }, 'benchmarkSeries', 'Nifty 500, same window', '#6b6880') : ''}
     <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
       <h3 class="font-display text-sm font-bold text-slate-900">Time under water</h3>
       <p class="mt-1 text-xs leading-relaxed text-slate-500">
@@ -370,7 +370,7 @@ function underwaterChart(curve, seriesKey, title, colour) {
       </div>
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="mt-3 h-40 w-full" role="img"
         aria-label="${escapeHtml(title)} underwater plot, worst drawdown ${worst.toFixed(1)} percent">
-        <line x1="${PAD.l}" y1="${PAD.t}" x2="${W - PAD.r}" y2="${PAD.t}" stroke="#e2e8f0" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+        <line x1="${PAD.l}" y1="${PAD.t}" x2="${W - PAD.r}" y2="${PAD.t}" stroke="#e4ddcd" stroke-width="1" vector-effect="non-scaling-stroke"></line>
         <path d="${area}" fill="${colour}" opacity="0.14"></path>
         <path d="${path}" fill="none" stroke="${colour}" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
       </svg>

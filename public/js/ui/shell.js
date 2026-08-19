@@ -69,7 +69,7 @@ function shellTemplate() {
     <header class="mx-auto max-w-[1400px] px-6 pb-4 pt-8">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex flex-shrink-0 items-center gap-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-lg font-extrabold text-white shadow-lg">SC</div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-lg font-extrabold text-slate-900 shadow-lg">SC</div>
           <div class="min-w-0">
             <h1 class="font-display truncate text-2xl font-extrabold leading-tight text-slate-900">Glow Central Research</h1>
             <p id="brand-subtitle" class="truncate text-sm text-slate-500">Research Central · Indian equities</p>

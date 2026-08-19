@@ -181,32 +181,64 @@ deleting one flag and re-adding a control that calls `goWorkspace()`.
 
 ## Design tokens
 
-Defined in `:root` in `public/index.html`. Use them; don't invent new colours.
+Defined in `:root` in `public/index.html` — **and in the Tailwind CDN config directly above
+it, which is where the palette actually lives.** Use them; don't invent new colours.
 
-**The brand ramp is indigo → purple → pink.** Emerald / amber / rose are *semantic only* —
-they mean pass / partial / fail. Never use a semantic colour to mean "branded", and never use
-indigo to mean "good".
+**THE SCALE NAMES ARE TAILWIND'S AND THEY NO LONGER DESCRIBE THEIR HUES.** Every colour on
+screen is a Tailwind utility, ~1,600 of them across 27 files, so the palette is set by
+**redefining the scales** in `tailwind.config` rather than by rewriting the classes.
+`indigo` / `purple` / `pink` are the **brand ramp slots** and carry champagne gold;
+`emerald` / `amber` / `rose` are the **semantic slots** and still mean pass / partial / fail;
+`slate` is the parchment-and-ink chassis. A class called `indigo-600` is *the brand's action
+colour*. Read the role, never the name — and when retuning, change the ramp in one place
+rather than touching the utilities, which is also what keeps `verify-ui.mjs`'s assertions on
+`from-indigo-500` (the freshness hero) and `bg-indigo-500` (the live pill) meaningful: they
+are assertions about the role, and the role has not moved.
+
+**The brand ramp is champagne: gold → champagne → pale champagne.** Emerald / amber / rose
+are *semantic only* — they mean pass / partial / fail. Never use a semantic colour to mean
+"branded", and never use the brand gold to mean "good".
 
 | Token | Value | Meaning |
 | --- | --- | --- |
-| `--brand-500` | `#6366f1` | indigo — brand ramp start |
-| `--brand-600` | `#4f46e5` | indigo-600 — links, actions, active nav |
-| `--brand-mid` | `#a855f7` | purple — brand ramp middle |
-| `--brand-end` | `#ec4899` | pink — brand ramp end |
-| `--accent-600` | `#4f46e5` | indigo-600 — accent for links/actions |
-| `--positive` | `#059669` | emerald — pass |
-| `--caution` | `#d97706` | amber — partial |
-| `--negative` | `#e11d48` | rose — fail |
-| `--hard-fail` | `#be123c` | rose-700 — hard fail |
-| `--neutral` | `#64748b` | slate — n/a |
-| `--page-bg` | `#f8fafc` | page background |
+| `--brand-500` | `#c3a962` | champagne-600 — brand ramp start (**fill only**) |
+| `--brand-600` | `#8a6a1c` | deep gold — links, actions, active nav, focus rings |
+| `--brand-mid` | `#d9c48f` | champagne-500 — brand ramp middle (**fill only**) |
+| `--brand-end` | `#ecdcae` | champagne-400 — brand ramp end (**fill only**) |
+| `--brand-ink` | `#1a1830` | the text colour the brand gradient carries |
+| `--accent-600` | `#8a6a1c` | deep gold — accent for links/actions |
+| `--positive` | `#047857` | emerald — pass |
+| `--caution` | `#9a5c09` | amber — partial |
+| `--negative` | `#b91c1c` | rose — fail |
+| `--hard-fail` | `#991b1b` | rose-700 — hard fail |
+| `--neutral` | `#6b6880` | warm slate — n/a |
+| `--page-bg` | `#f4f2ec` | page background |
 
 The brand gradient, used on the logo mark, the scope toggle thumb and the freshness hero card:
-`bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500`.
+`bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500` — unchanged as a class string,
+now rendering `#c3a962 → #d9c48f → #ecdcae`.
+
+**THE BRAND GRADIENT CARRIES INK, NEVER WHITE, and that is a measurement rather than a taste.**
+White on the ramp's pale end is **1.36:1** and on its darkest usable fill **2.9:1** — under the
+4.5 floor, and under even the 3:1 large-text allowance. Ink (`--brand-ink`) on the same three
+stops is 7.5 / 10.1 / 12.7:1. The old indigo ramp was dark enough that `text-white` was right
+on it, so every gradient surface carried white and the pairing looked like a house style rather
+than a contrast decision; three of them (the logo mark, the freshness hero, the Deep Dive
+dispatch button) had to be corrected when the ramp went gold. **If a gradient's luminance
+changes, re-check the text on it** — nothing in a class name will tell you it broke.
+
+**Gold and amber sit next to each other, and only one rule keeps them apart: the role.** The
+brand is olive-leaning and desaturated (`#8a6a1c`, hue ≈ 44°); caution is browner and more
+orange (`#9a5c09`, hue ≈ 34°). That is a real but small difference, so the separation is
+enforced by *where each may appear* — brand gold never inside a rule-status pill, a signal dot,
+a score tier or the legend; caution amber never as a fill for chrome. Do not close the gap by
+making one of them prettier.
 
 Conventions:
 - Surfaces are white, `rounded-2xl`, `shadow-sm`, `ring-1 ring-slate-100`.
-- Page background carries three radial gradients (violet TL, pink TR, sky BR), all ≤ 12%.
+- Page background is parchment `#f4f2ec` under a faint 32px rule grid at 5% ink. (It carried
+  three cool radial washes — violet TL, pink TR, sky BR — which were the last cold thing on the
+  page once the ramp went gold.)
 - Content column is `max-w-[1400px] mx-auto px-6`.
 - `font-variant-numeric: tabular-nums` on every number-bearing cell.
 - Tables scroll horizontally **inside their own container**; the page body must never scroll
