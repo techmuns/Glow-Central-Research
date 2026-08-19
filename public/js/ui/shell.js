@@ -71,7 +71,7 @@ function shellTemplate() {
         <div class="flex flex-shrink-0 items-center gap-3">
           <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-lg font-extrabold text-white shadow-lg">SC</div>
           <div class="min-w-0">
-            <h1 class="font-display truncate text-2xl font-extrabold leading-tight text-slate-900">Sattva Central Research</h1>
+            <h1 class="font-display truncate text-2xl font-extrabold leading-tight text-slate-900">Glow Central Research</h1>
             <p id="brand-subtitle" class="truncate text-sm text-slate-500">Research Central · Indian equities</p>
           </div>
         </div>
@@ -221,7 +221,7 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   tabBarMount.innerHTML = bar.html;
   chromeDisposers.push(bar.wire(tabBarMount));
 
-  document.title = `${tabModule.meta.title} · Sattva Central Research`;
+  document.title = `${tabModule.meta.title} · Glow Central Research`;
 
   // The tab we just left called `live.stop()` on the pollers it owns, and two of those are the
   // ones the alert watchers depend on. Re-assert the claim: `start()` is a no-op on a poller that

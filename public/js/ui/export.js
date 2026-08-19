@@ -5,7 +5,7 @@
 // that publishes `window.ExcelJS`.
 //
 //   import { exportRows } from '../ui/export.js';
-//   exportRows({ filename: 'sattva-technicals', sheetName: 'Technicals', columns, rows });
+//   exportRows({ filename: 'glow-technicals', sheetName: 'Technicals', columns, rows });
 //
 // `columns` is `[{ header, key, width?, get(row) }]`. Everything is a caller decision — this
 // file knows nothing about technicals or any other tab, so prompts 4–7 can adopt it as-is.
@@ -47,7 +47,7 @@ export async function exportRows({ filename = 'export', sheetName = 'Sheet1', co
 
   try {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Sattva Central Research';
+    wb.creator = 'Glow Central Research';
     wb.created = new Date();
     const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
 
@@ -107,7 +107,7 @@ export async function exportSheets({ filename = 'export', banner = '', sheets = 
 
   try {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Sattva Central Research';
+    wb.creator = 'Glow Central Research';
     wb.created = new Date();
 
     for (const sheet of sheets) {

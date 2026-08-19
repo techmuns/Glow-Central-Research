@@ -124,7 +124,7 @@ const tab = makeFilingsTab({
   onExport: async (visible, m) => {
     const headers = m.headers || [];
     await exportRows({
-      filename: 'sattva-insider-trades',
+      filename: 'glow-insider-trades',
       sheetName: 'Insider trades',
       columns: [
         {

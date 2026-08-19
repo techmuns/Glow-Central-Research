@@ -176,7 +176,7 @@ function renderPositions(ctx) {
     searchable: (r) => `${r.name} ${r.ticker} ${r.sector} ${r.convictionTier}`,
     initialSort: { key: 'Market Value', dir: 'desc' },
     onRowClick: drillPosition,
-    exportName: 'sattva-positions',
+    exportName: 'glow-positions',
     onExport: (visible) => exportPositions(visible, m),
   });
 
@@ -388,7 +388,7 @@ function renderRealised(ctx) {
     },
     searchable: (r) => `${r.name} ${r.ticker} ${r.term}`,
     initialSort: { key: 'P&L', dir: 'desc' },
-    exportName: 'sattva-realised',
+    exportName: 'glow-realised',
     onExport: (visible) => exportRealised(visible, m),
   });
 
@@ -516,7 +516,7 @@ function drillPosition(row) {
 async function exportPositions(rows, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: 'sattva-positions',
+    filename: 'glow-positions',
     sheetName: 'Positions',
     columns: [
       { header: 'Ticker', key: 'ticker', width: 14, get: (r) => (r.__banner ? r.__banner : r.ticker) },
@@ -541,7 +541,7 @@ async function exportPositions(rows, m) {
 async function exportRealised(rows, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: 'sattva-realised',
+    filename: 'glow-realised',
     sheetName: 'Realised P&L',
     columns: [
       { header: 'Ticker', key: 'ticker', width: 14, get: (r) => (r.__banner ? r.__banner : r.ticker) },

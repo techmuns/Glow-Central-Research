@@ -194,7 +194,7 @@ export function makeFilingsTab(cfg) {
       link: (r) => r.url || null,
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
-      exportName: `sattva-${cfg.id}`,
+      exportName: `glow-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
       emptyMessage:
         ctx.scope === 'portfolio'

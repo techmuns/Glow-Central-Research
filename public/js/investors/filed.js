@@ -83,7 +83,7 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
     searchable: (r) => `${r.name} ${r.ticker || ''} ${r.sector || ''} ${r.industry || ''}`,
     initialSort: { key: filing ? 'Holding Value' : 'Value (AMC)', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
-    exportName: `sattva-${fund.investorId}-holdings`,
+    exportName: `glow-${fund.investorId}-holdings`,
     onExport: (visible) => exportFund(visible, fund),
     emptyMessage: ctx.scope === 'portfolio' ? 'This fund holds none of your positions.' : 'No holding matches your filters.',
   });
@@ -635,7 +635,7 @@ async function exportFund(visible, fund) {
       ];
 
   await exportRows({
-    filename: `sattva-${fund.investorId}-holdings`,
+    filename: `glow-${fund.investorId}-holdings`,
     sheetName: filing ? 'Filed holdings' : 'Fund portfolio',
     columns: [
       ...columns,

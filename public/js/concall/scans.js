@@ -283,7 +283,7 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     // it short is what made every one of these links 404.
     link: (r) => r.transcriptUrl,
     initialSort: { key: 'Call', dir: 'desc' },
-    exportName: 'sattva-concall-scans',
+    exportName: 'glow-concall-scans',
     onExport: (visible) => exportScans(visible, m),
     emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has held a call this quarter.' : 'No calls match your filters.',
     initialView: tableView,
@@ -643,7 +643,7 @@ async function exportScans(rows, m) {
       `published bands. "pending" means the call is listed but not yet analysed — it is not a zero.`,
   };
   await exportRows({
-    filename: 'sattva-concall-scans',
+    filename: 'glow-concall-scans',
     sheetName: 'Concall Scans',
     columns: [
       { header: 'Call Date', key: 'd', width: 20, get: (r) => (r.__banner ? r.__banner : r.when) },

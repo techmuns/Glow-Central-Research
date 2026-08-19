@@ -541,7 +541,7 @@ function renderLatest(ctx) {
     // newest filings landed at positions 1313-1316 of 1326. Return is still one header click away.
     initialSort: { key: 'Date', dir: 'desc' },
     // No onRowClick, deliberately — see "WHY THERE IS NO DRILL PANEL" at the top of this file.
-    exportName: 'sattva-earnings',
+    exportName: 'glow-earnings',
     onExport: (visible) => exportResults(visible, m),
     emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has reported in this quarter yet.' : 'No results match your filters.',
     initialView: tableView,
@@ -896,7 +896,7 @@ function renderCalendar(ctx) {
         nameAfter: mode === 'reported' ? 0 : 1,
         searchable: (r) => `${mode === 'reported' ? r.company : r.name} ${r.ticker || ''} ${r.industry || ''}`,
         initialSort: { key: 'Market Cap', dir: 'desc' },
-        exportName: mode === 'reported' ? 'sattva-earnings-reported' : 'sattva-earnings-calendar',
+        exportName: mode === 'reported' ? 'glow-earnings-reported' : 'glow-earnings-calendar',
         onExport: (visible) => exportCalendar(visible, payload, { mode, date: wanted, meta: m, due: calendar.scheduledCountFor(wanted) }),
         emptyMessage: 'No companies match your filters.',
         initialView: calendarViewMode === mode ? calendarTableView : null,
@@ -1250,7 +1250,7 @@ async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', me
     const cur = m?.currentPeriod || 'Current';
     const pri = m?.priorPeriod || 'Prior';
     await exportRows({
-      filename: 'sattva-earnings-reported',
+      filename: 'glow-earnings-reported',
       sheetName: 'Reported',
       columns: [
         { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
@@ -1285,7 +1285,7 @@ async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', me
       `Market cap in Rs. crore. Blank cells mean not known, not zero.`,
   };
   await exportRows({
-    filename: 'sattva-earnings-calendar',
+    filename: 'glow-earnings-calendar',
     sheetName: 'Results Calendar',
     columns: [
       { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
@@ -1319,7 +1319,7 @@ async function exportResults(rows, m) {
   const pri = m?.priorPeriod || 'Prior';
   const val = (mm, field) => (mm?.[field] ?? '');
   await exportRows({
-    filename: 'sattva-earnings',
+    filename: 'glow-earnings',
     sheetName: 'Latest Results',
     columns: [
       { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },

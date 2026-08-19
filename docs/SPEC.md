@@ -1,4 +1,4 @@
-# Sattva Central Research — Product Spec
+# Glow Central Research — Product Spec
 
 An Indian-equities research and portfolio analytics dashboard. Static site, no build step,
 no framework, no npm dependencies for the app itself. Hosted as a Cloudflare Worker that
@@ -143,7 +143,7 @@ Sticky, full-width, on a glass/blur background. See §1b for what it carries and
 layout.
 
 - **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
-  "Sattva Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
+  "Glow Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
 - **Right** — the Portfolio/Universe segmented toggle, then the status pill (pulsing dot,
   `Live · updated <relative time>`, opens the data-sources modal on click), then the refresh
   button.

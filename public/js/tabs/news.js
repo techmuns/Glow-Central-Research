@@ -89,7 +89,7 @@ const tab = makeFilingsTab({
     </div>`,
   onExport: async (visible, m) => {
     await exportRows({
-      filename: 'sattva-news',
+      filename: 'glow-news',
       sheetName: 'News',
       columns: [
         {

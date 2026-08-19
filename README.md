@@ -1,4 +1,4 @@
-# Sattva Central Research
+# Glow Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
 **Research Central** (earnings, con-calls, public chatter, technical breakouts, superstar

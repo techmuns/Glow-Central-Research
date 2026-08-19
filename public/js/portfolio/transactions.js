@@ -173,7 +173,7 @@ function renderTrades(ctx) {
     searchable: (r) => `${r.name} ${r.ticker} ${r.type} ${r.date} ${r.id}`,
     initialSort: { key: 'Date', dir: 'desc' },
     onRowClick: (r) => drillTrade(r, book),
-    exportName: 'sattva-transactions',
+    exportName: 'glow-transactions',
     onExport: (visible) => exportTrades(visible, book, m),
   });
 
@@ -370,7 +370,7 @@ function renderIncome(ctx) {
     },
     searchable: (r) => `${r.name} ${r.ticker} ${r.type}`,
     initialSort: { key: 'Date', dir: 'desc' },
-    exportName: 'sattva-income',
+    exportName: 'glow-income',
     onExport: (visible) => exportIncome(visible, m),
   });
 
@@ -648,7 +648,7 @@ function wireImport(ctx) {
   const root = ctx.root;
 
   root.querySelector('#csv-download')?.addEventListener('click', () => {
-    downloadText(toCsv(ledger()), `sattva-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadText(toCsv(ledger()), `glow-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
   });
 
   root.querySelector('#xlsx-download')?.addEventListener('click', () => exportTrades(ledger(), currentBook(), portfolio.meta()));
@@ -791,7 +791,7 @@ function downloadText(text, filename) {
 async function exportTrades(rows, book, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: 'sattva-transactions',
+    filename: 'glow-transactions',
     sheetName: 'Transactions',
     columns: [
       { header: 'ID', key: 'id', width: 12, get: (r) => (r.__banner ? r.__banner : r.id) },
@@ -817,7 +817,7 @@ async function exportTrades(rows, book, m) {
 async function exportIncome(rows, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: 'sattva-income',
+    filename: 'glow-income',
     sheetName: 'Dividends & Actions',
     columns: [
       { header: 'Date', key: 'date', width: 14, get: (r) => (r.__banner ? r.__banner : r.date) },

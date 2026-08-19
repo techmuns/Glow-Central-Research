@@ -160,7 +160,7 @@ function paint(ctx) {
     searchable: (g) => `${g.key} ${g.tickers.join(' ')}`,
     initialSort: { key: 'Market Value', dir: 'desc' },
     onRowClick: (g) => drillGroup(g, cut, total),
-    exportName: `sattva-by-${cutId}`,
+    exportName: `glow-by-${cutId}`,
     onExport: (visible) => exportGroups(visible, cut, cutId, m),
     emptyMessage: 'No groups match your filters.',
   });
@@ -420,7 +420,7 @@ function drillGroup(group, cut, total) {
 async function exportGroups(groups, cut, cutId, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: `sattva-by-${cutId}`,
+    filename: `glow-by-${cutId}`,
     sheetName: cut.label,
     columns: [
       { header: cut.label, key: 'k', width: 26, get: (g) => (g.__banner ? g.__banner : g.key) },

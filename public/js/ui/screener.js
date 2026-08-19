@@ -322,7 +322,7 @@ export function scoreTable(config) {
     searchable = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
-    exportName = 'sattva-export',
+    exportName = 'glow-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
     // needs a per-row control — it moves inside the identity cell, ahead of the avatar. That frees

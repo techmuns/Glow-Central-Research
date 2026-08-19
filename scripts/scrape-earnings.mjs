@@ -59,7 +59,7 @@ async function resolveTicker(scId) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await fetch(`${PRICE_API}/${encodeURIComponent(scId)}`, {
-        headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0' },
+        headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0' },
       });
       if (r.status === 404) return null;
       if (!r.ok) throw new Error(`HTTP ${r.status}`);

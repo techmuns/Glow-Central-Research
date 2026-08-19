@@ -312,7 +312,7 @@ function renderScanner(ctx, rows) {
       },
     },
     initialSort: { key: 'Score', dir: 'desc' },
-    exportName: `sattva-technicals-${todayStamp()}`,
+    exportName: `glow-technicals-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -535,7 +535,7 @@ function renderStrongBreakouts(ctx, rows) {
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
     ],
     initialSort: null, // pre-sorted by breakout quality then score
-    exportName: `sattva-breakouts-${todayStamp()}`,
+    exportName: `glow-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -678,7 +678,7 @@ function renderFiiAccumulation(ctx, rows) {
       { label: 'Delivery trend Δ', get: (s) => deliveryCell(s.company.delivery_trend_diff), html: true, align: 'right', sortValue: (s) => s.company.delivery_trend_diff ?? -99 },
     ],
     initialSort: null,
-    exportName: `sattva-fii-accumulation-${todayStamp()}`,
+    exportName: `glow-fii-accumulation-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -769,7 +769,7 @@ function renderEarningsSurprise(ctx, rows) {
       { label: 'Above 200 DMA', get: (j) => dmaPill(j.tech?.company?.above_200dma), html: true, sortValue: (j) => (j.tech?.company?.above_200dma ? 1 : 0) },
     ],
     initialSort: null,
-    exportName: `sattva-earnings-surprise-${todayStamp()}`,
+    exportName: `glow-earnings-surprise-${todayStamp()}`,
   });
 
   ctx.root.innerHTML = `

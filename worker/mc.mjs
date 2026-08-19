@@ -157,7 +157,7 @@ export function headerIndexOf(header) {
 export async function fetchLatestResults(opts = {}, fetchImpl = fetch) {
   const url = buildUrl(opts);
   const res = await fetchImpl(url, {
-    headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0 (+dashboard)' },
+    headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0 (+dashboard)' },
   });
   if (!res.ok) throw new Error(`Moneycontrol HTTP ${res.status}`);
   const body = await res.json();
@@ -214,7 +214,7 @@ export const PRICE_FEED_URL = 'https://priceapi.moneycontrol.com/pricefeed/nse/e
 export async function resolveIdentity(scId, fetchImpl = fetch) {
   try {
     const res = await fetchImpl(`${PRICE_FEED_URL}/${encodeURIComponent(scId)}`, {
-      headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0' },
+      headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0' },
     });
     if (!res.ok) return null;
     const d = (await res.json())?.data || {};
@@ -367,7 +367,7 @@ export async function fetchCalendarStrip({ fromDate, toDate, indexId = 'N' } = {
   assertIsoDate(fromDate, 'fromDate');
   assertIsoDate(toDate, 'toDate');
   const url = `${CALENDAR_STRIP_URL}?fromDate=${fromDate}&toDate=${toDate}&indexId=${encodeURIComponent(indexId)}`;
-  const res = await fetchImpl(url, { headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0 (+dashboard)' } });
+  const res = await fetchImpl(url, { headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0 (+dashboard)' } });
   if (!res.ok) throw new Error(`Moneycontrol calendar HTTP ${res.status}`);
   const body = await res.json();
   if (!body || body.success !== 1 || !body.data) throw new Error(`Moneycontrol rejected the calendar request: ${typeof body?.data === 'string' ? body.data : 'unexpected payload'}`);

@@ -404,7 +404,7 @@ function renderEpisodes(ctx, curve, m) {
     ],
     searchable: (e) => `${e.peakDate} ${e.troughDate} ${e.recoveryDate || 'ongoing'}`,
     initialSort: { key: 'Depth', dir: 'asc' },
-    exportName: 'sattva-drawdown-episodes',
+    exportName: 'glow-drawdown-episodes',
     onExport: (visible) => exportEpisodes(visible, m),
     emptyMessage: 'No drawdown deeper than 2% in this window.',
   });
@@ -491,7 +491,7 @@ const days = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T0
 async function exportEpisodes(rows, m) {
   const banner = { __banner: exportBanner(m) };
   await exportRows({
-    filename: 'sattva-drawdown-episodes',
+    filename: 'glow-drawdown-episodes',
     sheetName: 'Drawdown Episodes',
     columns: [
       { header: 'Peak Date', key: 'pd', width: 14, get: (e) => (e.__banner ? e.__banner : e.peakDate) },

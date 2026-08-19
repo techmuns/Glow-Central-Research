@@ -43,7 +43,7 @@ import { SCAN_URL, UPCOMING_URL, TODAY_URL, normaliseScanRow, normaliseScheduleR
 const HEADERS = {
   accept: 'application/json',
   'content-type': 'application/json',
-  'user-agent': 'SattvaCentralResearch/1.0 (+dashboard)',
+  'user-agent': 'GlowCentralResearch/1.0 (+dashboard)',
 };
 
 async function postJson(url, body, fetchImpl) {

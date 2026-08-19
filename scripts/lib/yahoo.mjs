@@ -12,7 +12,7 @@
 // `^CRSLDX` (Nifty 500).
 
 export const INDEX_SYMBOL = '^CRSLDX';
-export const USER_AGENT = 'Mozilla/5.0 (compatible; SattvaCentralBot/1.0)';
+export const USER_AGENT = 'Mozilla/5.0 (compatible; GlowCentralBot/1.0)';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

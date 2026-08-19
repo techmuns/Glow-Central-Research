@@ -480,7 +480,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
     searchable: (r) => `${r.company} ${r.investor} ${r.companySlug || ''}`,
     initialSort: { key: 'Value', dir: 'desc' },
     onRowClick: (r) => openInvestor(r.slug),
-    exportName: `sattva-superinvestors-${todayStamp()}`,
+    exportName: `glow-superinvestors-${todayStamp()}`,
     onExport: () => runExport(),
     emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings is disclosed by a tracked investor.' : 'No positions match your filters.',
     initialView,
@@ -708,7 +708,7 @@ async function runExport() {
   const quarters = feed.quarterLabels();
   const rows = feed.allHoldings();
   await exportSheets({
-    filename: `sattva-superinvestors-${todayStamp()}`,
+    filename: `glow-superinvestors-${todayStamp()}`,
     banner:
       `REAL FILED HOLDINGS, NOT OURS. Superstar investor shareholdings via Ticker Finology (ticker.finology.in), read ${new Date().toISOString()}. ` +
       `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value Cr (Finology)" column is THEIR derivation ` +

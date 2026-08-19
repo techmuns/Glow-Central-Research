@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, '../public/data/super-investors.json');
 
-const BASE = (process.env.SI_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
+const BASE = (process.env.SI_BASE || 'https://glow-central-research.tech-441.workers.dev').replace(/\/+$/, '');
 const CONCURRENCY = Number(process.env.SI_CONCURRENCY || 4);
 const LIMIT = Number(process.env.SI_LIMIT || 0);
 const MIN_COVERAGE = 0.8;
