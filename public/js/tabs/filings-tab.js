@@ -99,6 +99,211 @@ export function makeFilingsTab(cfg) {
     return out;
   }
 
+  // ---------------------------------------------------------------------------------------
+  // The company picker (news only)
+  // ---------------------------------------------------------------------------------------
+
+  /** How many companies one search may ask about. Each is a live request against a ~60/min cap. */
+  const MAX_PICK = 20;
+
+  /**
+   * Everything the reader may pick from: the book first, then the rest of the coverage universe.
+   *
+   * THE NAME IS THE POINT, not the ticker. The news upstream is searched by company NAME —
+   * `?q=JAYNECOIND` returns three results, most of them quote pages, while
+   * `?q=Jayaswal Neco Industries` returns twenty about the company. A candidate with no name is
+   * still offered, and searches by its symbol, which is a worse search and still a search.
+   */
+  function candidatesFor(ctx) {
+    const out = [];
+    const seen = new Set();
+    for (const h of coverage.holdings()) {
+      const t = String(h.ticker || '').toUpperCase();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      out.push({ ticker: t, name: h.name || t, held: true });
+    }
+    for (const u of ctx.data?.universe || []) {
+      const t = String(u.ticker || '').toUpperCase();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      out.push({ ticker: t, name: u.name || t, held: false });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * The current selection, read from the URL so a search is shareable and survives a reload.
+   *
+   * A ticker in the URL that is not in the candidate list is KEPT rather than dropped — the list is
+   * this dashboard's coverage, and a reader who pasted a symbol we do not track has still asked a
+   * real question. It searches by symbol and the chip says so by carrying no name.
+   */
+  function selectionFrom(ctx) {
+    const raw = String(ctx.params?.co || '').trim();
+    if (!raw) return [];
+    const byTicker = new Map(candidatesFor(ctx).map((c) => [c.ticker, c]));
+    const out = [];
+    const seen = new Set();
+    for (const part of raw.split(',')) {
+      const t = part.trim().toUpperCase();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      const hit = byTicker.get(t);
+      out.push({ ticker: t, name: hit?.name || null, known: !!hit });
+      if (out.length >= MAX_PICK) break;
+    }
+    return out;
+  }
+
+  const chip = (c) => `
+    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-1 pl-2.5 pr-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
+      <span title="${escapeHtml(c.name || 'Not in this dashboard\'s coverage — searched by symbol')}">${escapeHtml(c.ticker)}</span>
+      <button type="button" data-pick-remove="${escapeHtml(c.ticker)}" aria-label="Remove ${escapeHtml(c.ticker)}"
+              class="flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700">&times;</button>
+    </span>`;
+
+  function pickerHtml(ctx, selected) {
+    const n = selected.length;
+    return `
+      <div data-picker class="w-full rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Companies</span>
+          <div data-pick-chips class="flex flex-wrap items-center gap-1.5">${selected.map(chip).join('') || '<span class="text-xs text-slate-400">none selected</span>'}</div>
+        </div>
+        <div class="relative mt-2 flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[240px] flex-1">
+            <input type="text" data-pick-search autocomplete="off" placeholder="Search a company by name or symbol…"
+                   class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+            <div data-pick-list class="absolute left-0 right-0 top-full z-20 mt-1 hidden max-h-72 overflow-y-auto rounded-xl bg-white py-1 shadow-lg ring-1 ring-slate-200 scrollbar-thin"></div>
+          </div>
+          <button type="button" data-pick-go
+                  class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+            Search news
+          </button>
+          <button type="button" data-pick-clear
+                  class="rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 ${n ? '' : 'hidden'}">Clear</button>
+          <span data-pick-count class="text-xs text-slate-400">${n} of ${MAX_PICK} max</span>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Selection is edited in the DOM and committed to the URL only on "Search news".
+   *
+   * Writing every add straight to `ctx.setParams` would re-mount the tab on each keystroke's worth
+   * of clicking, tearing down the input the reader is typing into — and would fire a search for a
+   * half-built list. The two-step is what the reader asked for: choose, then search.
+   */
+  function wirePicker(ctx, selected) {
+    const root = ctx.root.querySelector('[data-picker]');
+    if (!root) return;
+    const pending = selected.map((c) => ({ ...c }));
+    const chips = root.querySelector('[data-pick-chips]');
+    const search = root.querySelector('[data-pick-search]');
+    const list = root.querySelector('[data-pick-list]');
+    const go = root.querySelector('[data-pick-go]');
+    const clear = root.querySelector('[data-pick-clear]');
+    const count = root.querySelector('[data-pick-count]');
+    const candidates = candidatesFor(ctx);
+    const current = selected.map((c) => c.ticker).join(',');
+
+    const paintChips = () => {
+      chips.innerHTML = pending.map(chip).join('') || '<span class="text-xs text-slate-400">none selected</span>';
+      count.textContent = `${pending.length} of ${MAX_PICK} max`;
+      clear.classList.toggle('hidden', !pending.length);
+      // Disabled when nothing is selected, and when the selection is what is already on screen —
+      // re-running an identical search would spend the budget to redraw the same rows.
+      go.disabled = !pending.length || pending.map((c) => c.ticker).join(',') === current;
+    };
+
+    const closeList = () => {
+      list.classList.add('hidden');
+      list.innerHTML = '';
+    };
+
+    const openList = (q) => {
+      const term = q.trim().toLowerCase();
+      if (!term) return closeList();
+      const picked = new Set(pending.map((c) => c.ticker));
+      const hits = candidates
+        .filter((c) => !picked.has(c.ticker) && (c.name.toLowerCase().includes(term) || c.ticker.toLowerCase().includes(term)))
+        .slice(0, 50);
+      if (!hits.length) {
+        list.innerHTML = `<div class="px-3 py-2 text-xs text-slate-400">No company in coverage matches “${escapeHtml(q)}”.</div>`;
+        list.classList.remove('hidden');
+        return;
+      }
+      list.innerHTML = hits
+        .map(
+          (c) => `<button type="button" data-pick-add="${escapeHtml(c.ticker)}" data-pick-name="${escapeHtml(c.name)}"
+                    class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-indigo-50">
+                    <span class="truncate text-slate-700">${escapeHtml(c.name)}</span>
+                    <span class="flex-shrink-0 text-[11px] font-semibold text-slate-400">${escapeHtml(c.ticker)}${c.held ? ' · held' : ''}</span>
+                  </button>`,
+        )
+        .join('');
+      list.classList.remove('hidden');
+    };
+
+    const onSearch = () => openList(search.value);
+    const onListClick = (e) => {
+      const btn = e.target.closest('[data-pick-add]');
+      if (!btn) return;
+      const ticker = btn.getAttribute('data-pick-add');
+      if (pending.length >= MAX_PICK || pending.some((c) => c.ticker === ticker)) return;
+      pending.push({ ticker, name: btn.getAttribute('data-pick-name'), known: true });
+      search.value = '';
+      closeList();
+      paintChips();
+      search.focus();
+    };
+    const onChipClick = (e) => {
+      const btn = e.target.closest('[data-pick-remove]');
+      if (!btn) return;
+      const ticker = btn.getAttribute('data-pick-remove');
+      const i = pending.findIndex((c) => c.ticker === ticker);
+      if (i >= 0) pending.splice(i, 1);
+      paintChips();
+    };
+    const commit = () => {
+      const next = { ...(ctx.params || {}) };
+      if (pending.length) next.co = pending.map((c) => c.ticker).join(',');
+      else delete next.co;
+      ctx.setParams(next);
+    };
+    const onClear = () => {
+      pending.length = 0;
+      paintChips();
+      commit();
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') return closeList();
+      if (e.key === 'Enter') {
+        const first = list.querySelector('[data-pick-add]');
+        if (first) {
+          e.preventDefault();
+          first.click();
+        } else if (!go.disabled) commit();
+      }
+    };
+    const onDocClick = (e) => {
+      if (!root.contains(e.target)) closeList();
+    };
+
+    search.addEventListener('input', onSearch);
+    search.addEventListener('keydown', onKey);
+    list.addEventListener('click', onListClick);
+    chips.addEventListener('click', onChipClick);
+    go.addEventListener('click', commit);
+    clear.addEventListener('click', onClear);
+    document.addEventListener('click', onDocClick);
+
+    paintChips();
+    // The document listener is global, so it must be released when the tab goes away.
+    disposers.push(() => document.removeEventListener('click', onDocClick));
+  }
+
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
@@ -126,6 +331,35 @@ export function makeFilingsTab(cfg) {
     // subscription that produced it.
     if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
 
+    // NEWS ASKS BEFORE IT SEARCHES, AND THAT IS NOT A LIMITATION DRESSED AS A FEATURE.
+    //
+    // The news upstream is a SEARCH endpoint — one request per company name — so "the whole
+    // universe" is 603 requests against a sixty-a-minute cap, which is why this tab used to walk a
+    // bounded forty and report the rest as unread. Announcements moved to a date-indexed source and
+    // stopped needing a walk at all; news has no such index, because there is no "everyone's news
+    // today" endpoint to ask. So the request budget goes where the reader actually wants it: they
+    // name the companies, and every one they named is searched in full rather than forty arbitrary
+    // ones being searched on their behalf.
+    if (cfg.requireSelection) {
+      const selected = selectionFrom(ctx);
+      if (!selected.length) {
+        ctx.root.innerHTML = `
+          ${sectionHead({ title: cfg.title, description: cfg.subtitle, controls: pickerHtml(ctx, selected) })}
+          ${chooseCompaniesPanel(cfg)}`;
+        wirePicker(ctx, selected);
+        return;
+      }
+      const items = selected.map((t2) => ({ ticker: t2.ticker, name: t2.name }));
+      ctx.root.innerHTML = `
+        ${sectionHead({ title: cfg.title, description: cfg.subtitle, controls: pickerHtml(ctx, selected) })}
+        ${loadingHtml()}`;
+      wirePicker(ctx, selected);
+      cfg.feed.load(items).then(() => {
+        if (t === token) paint(ctx);
+      });
+      return;
+    }
+
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
       cfg.feed.load(tickersFor(ctx)).then(() => {
@@ -139,15 +373,36 @@ export function makeFilingsTab(cfg) {
   function paint(ctx) {
     const m = cfg.feed.meta();
     const book = new Set(coverage.holdings().map((h) => h.ticker).filter(Boolean));
-    const all = cfg.feed.rows();
+    let all = cfg.feed.rows();
+
+    // THE FEED OUTLIVES THE SELECTION, so the rows must be narrowed to what was asked for.
+    // `createFeed` is module-level and keeps every company it has ever loaded — which is what makes
+    // a second visit instant. Painting all of it after the reader narrowed to two companies would
+    // show them rows they did not ask for and count them in the pill.
+    const selected = cfg.requireSelection ? selectionFrom(ctx) : null;
+    if (selected) {
+      const want = new Set(selected.map((s2) => s2.ticker));
+      all = all.filter((r) => r.ticker && want.has(String(r.ticker).toUpperCase()));
+    }
     const rows = ctx.scope === 'portfolio' ? all.filter((r) => r.ticker && book.has(String(r.ticker).toUpperCase())) : all;
 
     // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
     // real answer and renders as an empty table with its own message.
     if (!rows.length && m.reason) {
+      // THE PICKER SURVIVES THE FAILURE STATE. It used to be dropped here, which meant a reader
+      // whose search hit an unreachable route lost the only control that could change it — and a
+      // reload with companies still in the URL painted no chips, so the address bar and the screen
+      // disagreed about what had been asked for. A control that selects the thing that failed must
+      // outlive the failure.
       ctx.root.innerHTML = `
-        ${sectionHead({ title: cfg.title, description: cfg.subtitle, meta: scopeSummary({ scope: ctx.scope, count: 0, noun: cfg.noun, book: coverage.meta() }) })}
+        ${sectionHead({
+          title: cfg.title,
+          description: cfg.subtitle,
+          meta: scopeSummary({ scope: ctx.scope, count: 0, noun: cfg.noun, book: coverage.meta() }),
+          controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
+        })}
         ${unavailablePanel(m)}`;
+      if (cfg.requireSelection) wirePicker(ctx, selected || []);
       return;
     }
 
@@ -208,11 +463,17 @@ export function makeFilingsTab(cfg) {
         title: cfg.title,
         description: cfg.subtitle,
         meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`,
+        // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
+        // whether it renders beside the title or wraps under it depends on how wide the chips and
+        // the description happen to be, and both change as companies are added. A control that
+        // moves when you use it reads as a different page.
+        controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
       })}
       ${walkStrip(m)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
+    if (cfg.requireSelection) wirePicker(ctx, selected || []);
     ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
   }
 
@@ -232,6 +493,28 @@ export function makeFilingsTab(cfg) {
 // ---------------------------------------------------------------------------------------
 // Shared furniture
 // ---------------------------------------------------------------------------------------
+
+/**
+ * The empty state before a company has been chosen.
+ *
+ * IT SAYS WHY, because a screen that asks for input without explaining itself reads as broken. The
+ * reason is real and worth one sentence: the news upstream is a per-company search with no
+ * "everyone's news" index to ask, so the choice is between forty arbitrary companies searched on
+ * the reader's behalf and the ones they actually want, searched in full.
+ */
+const chooseCompaniesPanel = (cfg) => `
+  <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+    <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-xl">🔍</div>
+    <h3 class="font-display text-lg font-bold text-slate-900">Choose the companies to search</h3>
+    <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+      ${escapeHtml(cfg.title)} is searched one company at a time — the upstream is a search endpoint, not a feed of
+      everything published today, so there is no “all companies” request to make. Pick the companies you want and each one
+      is searched in full.
+    </p>
+    <p class="mx-auto mt-3 max-w-xl text-xs text-slate-400">
+      Your selection rides in the address bar, so a search can be bookmarked or shared.
+    </p>
+  </div>`;
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -334,7 +617,15 @@ export function coverageBlock(m) {
       ${m.failed ? ` <strong class="text-amber-700">${escapeHtml(formatNumber(m.failed))}</strong> ${m.failed === 1 ? 'company' : 'companies'} could not be read and ${m.failed === 1 ? 'is' : 'are'} absent rather than shown as having nothing.` : ''}
       ${m.truncated ? ` ${escapeHtml(formatNumber(m.truncated))} more were in scope but not asked about on this visit — these upstreams allow about sixty requests a minute.` : ''}
     </p>
-    <p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
-       listed at all. Those are different states and the pill counts them separately.</p>
+    ${
+      m.coversUniverse
+        ? `<p class="mt-2 text-xs"><strong>Read by date, not by company.</strong> The question asked was <em>what was filed on
+             these dates</em>, across ${m.exchangeCompanies ? `all <strong>${escapeHtml(formatNumber(m.exchangeCompanies))}</strong> active listings` : 'the whole exchange'} —
+             not <em>what did these companies file</em>. So <strong>a company absent from this file filed nothing in the
+             window</strong>, rather than being one there was no request budget to ask about. That distinction is the entire
+             reason this feed changed source.</p>`
+        : `<p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
+       listed at all. Those are different states and the pill counts them separately.</p>`
+    }
     ${deliveryNote({ origin: m.origin === 'live' || m.origin === 'mixed' ? 'live' : 'store', checkedAt: m.checkedAt, fetchedAt: m.capturedAt ? Date.parse(m.capturedAt) : null, persisted: m.persisted })}`;
 }

@@ -20,8 +20,12 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 const tab = makeFilingsTab({
   id: 'news',
   title: 'News',
-  subtitle: 'Recent news for the companies in scope, as the news API returns it. Headlines and outlets are theirs; the article stays where it is published.',
+  subtitle: 'Choose one or more companies and each is searched in full. Headlines and outlets are the publishers’ own; the article stays where it is published.',
   feed,
+  // THE READER NAMES THE COMPANIES. See the header of filings-tab.js: the news upstream is a
+  // per-company search with no date index to flip to, so the request budget goes where it was
+  // asked to go rather than to forty companies chosen for the reader.
+  requireSelection: true,
   noun: 'articles',
   nameLabel: 'Headline',
   // WIDE, BECAUSE THE HEADLINE IS THE ROW. At 520px two genuinely different stories truncated to
@@ -69,6 +73,14 @@ const tab = makeFilingsTab({
         <p><strong>Real, and not ours.</strong> Articles come from the Muns news API
            (<code class="rounded bg-slate-100 px-1">POST /tools/news-search</code>), one search per company, read through this
            dashboard's Worker because the API needs a credential the browser must never hold.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this tab asks before it searches</h3>
+        <p class="mt-1 text-xs">It is a <strong>search endpoint, not a feed</strong> — there is no request that returns
+           everything published today, only one that answers “what has been written about this company”. At roughly sixty
+           requests a minute, searching the whole universe would take ten minutes on every visit, so this tab used to walk a
+           bounded forty companies and report the rest as unread. Naming the companies spends the same budget on the ones
+           you actually want, and <strong>every company you name is searched in full</strong>. Corporate Announcements does
+           not ask, because BSE publish that one indexed by date and the whole exchange fits in a couple of dozen requests.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What is reproduced and what is not</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">

@@ -153,6 +153,15 @@ export function createFeed(kind) {
       // only the second of those may be allowed to spell "Live".
       confirmedHere: new Set(),
       snapshotCount: 0,
+      // Set only by a snapshot that declares it. A date-indexed capture asks the exchange what was
+      // filed rather than asking each company, so every company is covered and an empty result for
+      // one is a real answer rather than a gap in our budget.
+      coversUniverse: false,
+      exchangeCompanies: null,
+      unnamedRows: 0,
+      // The window the snapshot actually holds, which a date-indexed capture knows and a per-company
+      // walk does not. Falls back to the feed's own constant.
+      snapshotWindowDays: null,
       capturedAt: null,
       checkedAt: null,
       reason: null,
@@ -207,6 +216,9 @@ export function createFeed(kind) {
       truncated: state.truncated,
       rowCount: [...state.rows.values()].reduce((a, r) => a + r.length, 0),
       snapshotCount: state.snapshotCount,
+      coversUniverse: state.coversUniverse,
+      exchangeCompanies: state.exchangeCompanies,
+      unnamedRows: state.unnamedRows,
       capturedAt: state.capturedAt,
       // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
       // company would overstate the age of the forty beside it.
@@ -214,7 +226,9 @@ export function createFeed(kind) {
       origin: originNow(),
       headers: state.headers,
       persisted: isPersistent(),
-      windowDays: WINDOW_DAYS[kind],
+      // A date-indexed snapshot knows its own window; only fall back to the constant when nothing
+      // has declared one, so the coverage text cannot claim a year it does not hold.
+      windowDays: state.snapshotWindowDays ?? WINDOW_DAYS[kind],
     };
   }
 
@@ -279,7 +293,18 @@ export function createFeed(kind) {
       // PASS TWO — only what is genuinely missing or genuinely old. A company confirmed inside the
       // feed's own cache window is skipped, because the server cannot answer differently yet, and
       // a company the committed snapshot covers is skipped outright.
-      const missing = wanted.filter((t) => !state.failures.has(t) && !state.fromSnapshot.has(t) && stale(t));
+      // A SNAPSHOT INDEXED BY DATE COVERS EVERY COMPANY, INCLUDING THE ONES WITH NO ROWS.
+      //
+      // The per-company walk exists because the old announcements snapshot could only reach the
+      // companies its request budget allowed — so a company absent from it might have filed
+      // something we had not asked about. The BSE feed is indexed the other way round: it asks
+      // "what was filed on these dates" across the whole exchange, so a company with no rows filed
+      // nothing in the window. Walking it per company would spend sixty requests a minute to
+      // rediscover that. `coversUniverse` is the snapshot saying so, and it is the ONLY thing that
+      // may switch the walk off — never a row count, which cannot tell absence from truncation.
+      const missing = state.coversUniverse
+        ? []
+        : wanted.filter((t) => !state.failures.has(t) && !state.fromSnapshot.has(t) && stale(t));
       if (missing.length) {
         state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
         state.pending = Math.min(missing.length, LIVE_LIMIT);
@@ -333,6 +358,10 @@ export function createFeed(kind) {
 
     state.capturedAt = body.capturedAt || body.generated_at || null;
     state.headers = Array.isArray(body.headers) ? body.headers : [];
+    state.coversUniverse = body.coversUniverse === true;
+    state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;
+    state.unnamedRows = Number.isFinite(body.unnamedRows) ? body.unnamedRows : 0;
+    state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;
     const byTicker = body.byTicker || {};
     for (const [ticker, list] of Object.entries(byTicker)) {
       if (!Array.isArray(list) || !list.length) continue;

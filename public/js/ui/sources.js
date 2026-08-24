@@ -19,6 +19,7 @@ import * as earningsLive from '../data/earnings-live.js';
 import * as chatter from '../data/chatter-live.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
+import { announcements as annFeed } from '../data/filings.js';
 import * as superInvestors from '../data/super-investors.js';
 
 // ---------------------------------------------------------------------------------------
@@ -348,13 +349,17 @@ export function sourceGroups() {
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/filings-shared.js · scripts/scrape-filings.mjs',
         },
         {
-          name: 'Muns filings API — corporate announcements',
-          url: 'https://devde.muns.io',
+          name: 'BSE — corporate announcements, indexed by date',
+          url: 'https://www.bseindia.com/corporates/ann.html',
           feeds:
-            "<strong>Real filings.</strong> Everything a company files with the exchanges, from <code class=\"rounded bg-slate-100 px-1\">GET /filings/corp/announcements/{ticker}</code> — <strong>BSE primary, NSE fallback</strong>, plus DRHP documents. Which source a row came from is a column rather than something flattened away: a board-meeting notice and a draft prospectus are different documents, and the same event filed with both exchanges is two filings, not a duplicate. Subjects and categories are the filings' own words; nothing here judges an announcement material or routine.",
-          cadence: 'Rolling 365 days · a scheduled walk writes the snapshot, live per company for what it misses',
+            "<strong>Real filings, for the whole exchange.</strong> Read from BSE's own date index (<code class=\"rounded bg-slate-100 px-1\">AnnSubCategoryGetData</code>), which answers <em>what was filed on these dates</em> rather than <em>what did this company file</em>. That difference is why coverage went from 118 companies to every listing: the per-company route costs one request each against a ~60/minute cap, so the universe was ten minutes of somebody else's service and a run cut short by the limit reached whatever it reached. This costs about twenty requests and needs no credential. <strong>So a company with no rows filed nothing in the window</strong> — it was not skipped for want of budget. Headlines, categories and sub-categories are BSE's own strings; the filing PDF stays on their server and every row links to it. Nothing here judges an announcement material or routine — BSE's own critical flag is reproduced where they set it.",
+          // Two counts, each dropping its own clause when unknown — the modal opens from every
+          // screen and this feed only loads when its tab mounts. A sentence built AROUND a number
+          // reads as broken prose the moment it does not arrive.
+          cadence:
+            `Refreshed weekdays at 20:00 IST, after filing stops for the day.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().rowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().covered), ' <n> companies filed something.')}`,
           status: 'live',
-          file: 'worker/index.js → /api/announcements/{ticker} · worker/muns.mjs · scripts/scrape-filings.mjs',
+          file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · .github/workflows/announcements-refresh.yml',
         },
         {
           name: 'Muns filings API — insider trades',

@@ -585,7 +585,7 @@ export function scoreTable(config) {
   const html = `
     <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
-        <div class="flex flex-1 flex-wrap items-center gap-2">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input type="text" data-table-search placeholder="Search company..." value="${escapeHtml(view.q)}"
@@ -593,8 +593,16 @@ export function scoreTable(config) {
           </div>
           ${filterDefs
             .map(
+              // `max-w-full` + `truncate` because A <select> IS AS WIDE AS ITS LONGEST OPTION, and
+              // the options come from the data. Corp Announcements' sub-category list carries BSE's
+              // own strings, the longest of which rendered a 490px control inside a 390px viewport;
+              // Super Investors' fund picker does the same at 637px. `overflow-x: hidden` on <body>
+              // then CLIPS it rather than scrolling, so the control is simply unreachable on a phone
+              // and nothing on screen says so. Constraining the control costs nothing — the option
+              // list still opens at full width — and it is why this is fixed here rather than by
+              // shortening anyone's labels.
               (f, i) => `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
-                   class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
                  </select>`
             )
@@ -1291,6 +1299,12 @@ export function closeModal() {
  * description. Controls that move when you use them read as a different page, not a different
  * view of one. Its own row cannot wrap, so it cannot move.
  */
+// The `meta` slot is `min-w-0 max-w-full`, NOT `flex-shrink-0`. It holds a pill and a scope chip
+// whose text comes from the data, and at 390px "Captured 526 companies - 3d" beside
+// "Universe - 722 announcements" is wider than the viewport. Refusing to shrink pushed the whole
+// row out, where the overflow-x:hidden backstop clipped it rather than scrolling — so the chips
+// were simply unreachable and nothing on screen said so. The inner block already carries
+// flex-wrap, so letting the slot shrink makes them stack instead of vanish.
 export function sectionHead({ title, description = '', meta = '', controls = '' }) {
   return `
     <div class="mb-5">
@@ -1299,7 +1313,7 @@ export function sectionHead({ title, description = '', meta = '', controls = '' 
           <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
           ${description ? `<p class="mt-1 max-w-5xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
         </div>
-        ${meta ? `<div class="flex-shrink-0">${meta}</div>` : ''}
+        ${meta ? `<div class="min-w-0 max-w-full">${meta}</div>` : ''}
       </div>
       ${controls ? `<div data-section-controls class="mt-3 flex flex-wrap items-center gap-2">${controls}</div>` : ''}
     </div>`;

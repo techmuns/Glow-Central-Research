@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// scripts/scrape-filings.mjs — news, corporate announcements and insider trades for the universe.
+// scripts/scrape-filings.mjs — news and insider trades for the universe.
 //
-//   MUNS_TOKEN=… node scripts/scrape-filings.mjs                 all three, the whole universe
-//   MUNS_TOKEN=… node scripts/scrape-filings.mjs announcements   just one feed
+//   MUNS_TOKEN=… node scripts/scrape-filings.mjs                 news and insider trades
+//   MUNS_TOKEN=… node scripts/scrape-filings.mjs news            just one feed
+//
+//   Corporate announcements are NOT here — see scripts/scrape-bse-announcements.mjs.
 //   FILINGS_LIMIT=20 node scripts/scrape-filings.mjs             a smoke run
 //   FILINGS_SCOPE=book node scripts/scrape-filings.mjs           the 123 book tickers only
 //
-// Writes public/data/news.json, corp-announcements.json and insider-trades.json.
+// Writes public/data/news.json and insider-trades.json.
 //
 // WHY THIS EXISTS AT ALL, WHEN THERE ARE PERFECTLY GOOD LIVE ROUTES
 //   Two of these three upstreams are per-ticker and all three are rate limited to about sixty
@@ -28,14 +30,21 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
+import { fetchNews, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
 
+// ANNOUNCEMENTS ARE NO LONGER HERE, AND MUST NOT COME BACK TO THIS SCRIPT.
+//
+// They are read by DATE from BSE instead — `scripts/scrape-bse-announcements.mjs` — which covers
+// every listed company in about twenty requests rather than reaching 118 of them in six hundred.
+// Leaving the feed defined here would be worse than useless: a routine run of this script would
+// silently overwrite `corp-announcements.json` with the truncated per-company version, and the file
+// would look fine because it would still be a valid snapshot. It is deleted rather than commented
+// out for exactly that reason.
 const FEEDS = {
   news: { file: 'news.json', rowsKey: 'articles', windowDays: 30 },
-  announcements: { file: 'corp-announcements.json', rowsKey: 'announcements', windowDays: 365 },
   insider: { file: 'insider-trades.json', rowsKey: 'trades', windowDays: 365 },
 };
 
@@ -108,7 +117,6 @@ async function run(kind, list) {
         // see ROUTE.news in js/data/filings.js — so the snapshot and the walk cannot disagree about
         // what a company's news is.
         if (kind === 'news') res = await fetchNews({ query: c.name || c.ticker, country: 'IN', fromDate: from, toDate: to }, env);
-        else if (kind === 'announcements') res = await fetchAnnouncements({ ticker: c.ticker, fromDate: from, toDate: to }, env);
         else res = await fetchInsiderTrades({ ticker: c.ticker, country: 'india', fromDate: from, toDate: to }, env);
 
         const rows = res[rowsKey] || [];

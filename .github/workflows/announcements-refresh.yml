@@ -1,0 +1,96 @@
+name: Corporate announcements refresh
+
+# Corporate announcements, read from BSE's DATE index rather than one request per company.
+#
+# WHY THIS IS ITS OWN JOB AND NOT A STEP IN THE DAILY REFRESH
+#   That one runs at 07:00 IST so it picks up the previous session's closing prices. Announcements
+#   are filed all day and well past the close — the latest in a normal day lands around 19:00 IST —
+#   so a 07:00 run would always be reporting yesterday. This runs after filing stops.
+#
+# COST: about twenty requests for the whole exchange, a few seconds. It replaced a per-company walk
+# that cost six hundred requests and still only reached 118 companies, because the old upstream is
+# capped near sixty requests a minute and its session token expires mid-run.
+#
+# The script keeps a rolling window (ANN_KEEP_DAYS, default 3) and merges each run into it, so the
+# daily cost stays at one day while the file keeps enough context to be worth opening on a Monday.
+# Widening it is one variable — but a weekday carries ~900 filings across the exchange, and every
+# byte of this file is downloaded by every visitor, so it is a deliberate ceiling rather than an
+# oversight.
+
+on:
+  schedule:
+    # 14:30 UTC = 20:00 IST, weekdays — after filing has stopped for the day.
+    - cron: "30 14 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days to fetch (default 1)"
+        required: false
+        default: "1"
+      keepDays:
+        description: "How many days the committed file keeps (default 3)"
+        required: false
+        default: "3"
+
+# One at a time — two runs would race on the same committed file.
+concurrency:
+  group: announcements-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # No secret of any kind. BSE's announcement feed is open, which is half the reason this
+      # replaced an upstream whose session JWT expired on days nobody had changed anything.
+      - name: Fetch corporate announcements
+        env:
+          ANN_DAYS: ${{ github.event.inputs.days || '1' }}
+          ANN_KEEP_DAYS: ${{ github.event.inputs.keepDays || '3' }}
+        run: node scripts/scrape-bse-announcements.mjs
+
+      - name: Upload announcements (artifact)
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: corp-announcements
+          path: public/data/corp-announcements.json
+          if-no-files-found: warn
+
+      # `if: success()` matters here. The scraper exits non-zero when it collected nothing across
+      # every category — which means the REQUEST was wrong, not that the exchange was quiet — and
+      # committing then would replace a good file with an empty one that still looks valid.
+      - name: Commit announcements to main
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/corp-announcements.json
+          if git diff --cached --quiet; then
+            echo "No announcement changes to commit."
+            exit 0
+          fi
+          git commit -m "Corporate announcements refresh ($(date -u +%Y-%m-%d))"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          echo "Push failed after 4 attempts."
+          exit 1

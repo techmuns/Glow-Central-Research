@@ -3244,11 +3244,36 @@ console.log('\n— news, announcements and insider trades —');
   };
   page.on('request', watchFilings);
 
-  await go('/#/research/news?scope=portfolio', 3500);
-  const bookNames = await evalSafe(async () => (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).map((h) => h.name));
+  // ---------------------------------------------------------------------------------------
+  // NEWS ASKS BEFORE IT SEARCHES.
+  //
+  // The old assertion here was "the news walk sends a request per company", which described a tab
+  // that picked forty companies on the reader's behalf and reported the rest as unread. The
+  // upstream is a SEARCH endpoint with no date index to flip to, so the honest shape is the reader
+  // naming the companies. That makes the request count a much stronger claim than it used to be:
+  // NOTHING before a selection, and then EXACTLY one request per company named — never a bounded
+  // forty, and never a stray extra.
+  // ---------------------------------------------------------------------------------------
+  const book = await evalSafe(async () =>
+    (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).slice(0, 3).map((h) => ({ ticker: h.ticker, name: h.name })));
+  const bookNames = (book || []).map((b) => b.name);
 
+  seen.news.length = 0;
+  await go('/#/research/news?scope=portfolio', 3500);
+  ok('news sends no request until companies are chosen', seen.news.length === 0, `${seen.news.length} request(s) before any selection`);
+  ok('...and says so rather than rendering an empty table',
+    await page.locator('text=Choose the companies to search').count() > 0,
+    'empty state shown');
+  ok('...with the picker on screen to act on', await page.locator('[data-picker]').count() > 0);
+
+  seen.news.length = 0;
+  const picked = (book || []).map((b) => b.ticker);
+  await go(`/#/research/news?scope=portfolio&co=${picked.join(',')}`, 4000);
   const newsUrls = seen.news.map((u) => new URL(u));
-  ok('the news walk sends a request per company', newsUrls.length > 1, `${newsUrls.length} request(s)`);
+  // EXACTLY one each. A gate that leaks one extra request per render is the failure mode here, and
+  // it would be invisible against the old "more than one" assertion.
+  ok('...then exactly one request per company named', newsUrls.length === picked.length, `${newsUrls.length} request(s) for ${picked.length} companies`);
+  ok('...and no company was asked about twice', new Set(newsUrls.map((u) => u.href)).size === newsUrls.length, `${new Set(newsUrls.map((u) => u.href)).size} distinct`);
   // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
   ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
   ok('...carrying a date range the Worker can read',
@@ -3264,11 +3289,41 @@ console.log('\n— news, announcements and insider trades —');
   // book line: 3 results against 20, and the three were mostly price widgets.
   const named = queries.filter((q) => bookNames.includes(q)).length;
   ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
+  // The selection is the state, so it has to survive the round trip that makes it shareable.
+  ok('...and the selection survives a reload', await (async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    return await page.locator('[data-pick-remove]').count();
+  })() === picked.length, `${picked.length} chip(s) restored from the URL`);
 
-  await go('/#/research/corp-announcements?scope=portfolio', 3500);
+  // ---------------------------------------------------------------------------------------
+  // ANNOUNCEMENTS ASK THE EXCHANGE, NOT THE COMPANIES.
+  //
+  // This check used to assert one request per company. It now asserts the opposite, and that is the
+  // point: BSE publish the same filings indexed by DATE, so the whole exchange arrives in the
+  // committed snapshot and the per-company walk is not merely unnecessary but wrong — it would
+  // spend a sixty-a-minute budget rediscovering that a company filed nothing.
+  //
+  // `coversUniverse` is what switches the walk off, and it must come from the SNAPSHOT declaring it
+  // rather than from a row count. A row count cannot tell "nobody filed" from "we ran out of
+  // budget", which is the exact confusion this whole change exists to end.
+  // ---------------------------------------------------------------------------------------
+  seen.announcements.length = 0;
+  await go('/#/research/corp-announcements?scope=universe', 4000);
   const annUrls = seen.announcements.map((u) => new URL(u));
-  ok('announcements asks per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
-  ok('...on a path route whose range is still a query string', annUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), annUrls[0]?.href.slice(-70) || '');
+  ok('announcements ask the exchange by date, not each company in turn', annUrls.length === 0, `${annUrls.length} per-company request(s)`);
+  const annMeta = await evalSafe(async () => (await import('/js/data/filings.js')).announcements.meta());
+  ok('...because the snapshot declares it covers every listing', annMeta?.coversUniverse === true, `coversUniverse=${annMeta?.coversUniverse}, exchange=${annMeta?.exchangeCompanies}`);
+  // The number that made this change worth making. The per-company walk reached 118 companies;
+  // anything near that would mean the date index is not actually being read.
+  ok('...and reaches far more companies than the per-company walk ever did', (annMeta?.covered || 0) > 300, `${annMeta?.covered} companies, ${annMeta?.rowCount} rows`);
+  ok('...carrying BSE\'s own categories rather than a taxonomy of ours', await (async () => {
+    const cats = await evalSafe(async () => {
+      const rows = (await import('/js/data/filings.js')).announcements.rows();
+      return [...new Set(rows.map((r) => r.category).filter(Boolean))];
+    });
+    return (cats || []).some((c) => ['Company Update', 'Board Meeting', 'Corp. Action', 'Result', 'AGM/EGM'].includes(c));
+  })(), 'BSE category names present');
 
   // A REPAINT MUST STILL REACH THE SCREEN AFTER A RE-RENDER. The scope toggle is the re-render that
   // used to kill it. `invalidate()` + `load()` is the public way to make the feed emit again on

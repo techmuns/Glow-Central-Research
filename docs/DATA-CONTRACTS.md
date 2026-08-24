@@ -2234,13 +2234,79 @@ parse stays blank and sorts last**; it is never given today's.
 table is built from `headers` at render time, in the source's order, under the source's headings.
 Nothing is renamed. Nothing is summed — a quantity written `1,20,000 (pledged)` is not a number.
 
-### Snapshot first, live walk second
+### Corporate announcements are read by DATE, from BSE — a different shape entirely
 
-The two per-ticker upstreams are capped at ~60 requests a minute and the universe is 603 companies,
-so "the whole universe, live" is ten minutes of somebody else's service on every page load.
+**`corp-announcements.json` no longer comes from the Muns filings API and must not go back to it.**
+The per-company route reached 118 of 603 companies because it costs one request each against a
+~60/minute cap. BSE publish the same filings indexed by date, so the whole exchange arrives in about
+twenty requests, with no credential.
 
 ```
-public/data/news.json · corp-announcements.json · insider-trades.json
+public/data/corp-announcements.json          written by scripts/scrape-bse-announcements.mjs
+{
+  "kind": "announcements",
+  "source": "BSE — api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData",
+  "capturedAt": "2026-08-24T…Z", "from": "2026-08-22", "to": "2026-08-24", "windowDays": 3,
+  "coversUniverse": true,        // THE FIELD THAT SWITCHES THE PER-COMPANY WALK OFF
+  "exchangeCompanies": 5122,     // active equity listings the date index spans
+  "companies": 526, "namedCompanies": 515, "unnamedRows": 11,
+  "rowCount": 722, "keepDays": 3, "prunedRows": 0, "requests": 19,
+  "byCategory": { "Company Update": { "declared": 482, "collected": 482, "pages": 10 }, … },
+  "unknownCategories": {},       // a category BSE added that we did not ask for — a tripwire
+  "shortfall": [],               // collected < declared, per category
+  "failed": [],
+  "byTicker": { "LAURUSLABS": [ {
+      "scripCode": "540222", "company": "Laurus Labs Ltd",
+      "headline": "…",           // BSE's own words
+      "category": "Result", "subCategory": "Financial Results",
+      "date": "2026-08-24", "time": "15:39:32",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/<file>.pdf",
+      "newsId": "…",             // BSE's own id — the merge key, never a position
+      "critical": true,          // BSE's flag, reproduced; omitted when false
+      "tickerSource": "confirmed" // 'confirmed' = mc-ticker-map bseId->ticker; 'bse' = BSE's scrip_id
+  } ] }
+}
+```
+
+**`coversUniverse` is the whole point and it may only come from the file.** A date-indexed capture
+asks *what was filed on these dates*, so a company with no rows filed nothing — and the per-company
+walk becomes wrong rather than merely redundant. `js/data/filings.js` switches the walk off on this
+flag alone. **Never infer it from a row count**: a count cannot distinguish "nobody filed" from "we
+ran out of request budget", which is the confusion the change exists to end.
+
+**The window is a bytes ceiling, not an editorial one.** A weekday carries ~900 filings across the
+exchange, so a month would be ~22,000 rows and ~16 MB that every visitor downloads. `ANN_KEEP_DAYS`
+defaults to **3** — today's filings plus a weekend's grace so a Monday morning is not blank. Rows are
+written without their nulls, without `false`, without the ticker that `byTicker`'s key already
+carries, and without BSE's `subject` field (which is `<company> - <scrip code> - <title-cased
+headline>`, every part of which is already a column). Widening it is one variable and one re-run;
+BSE still hold the history.
+
+**Two 200s that are not answers.** `strCat=-1` returns the string `"No Record Found!"`; an empty
+`strCat` returns zero rows. Both mean the request was wrong, not that the exchange was quiet, so
+`assertShape` in `worker/bse-ann.mjs` rejects them and a run collecting nothing exits non-zero
+rather than writing an empty file over a good one.
+
+```bash
+node scripts/scrape-bse-announcements.mjs                    # today, merged into the window
+ANN_DAYS=7 ANN_MERGE=0 node scripts/scrape-bse-announcements.mjs   # rebuild a week
+```
+Scheduled by `.github/workflows/announcements-refresh.yml` at 20:00 IST on weekdays — after filing
+stops for the day, which is why it is not a step in the 07:00 data refresh.
+
+### News and insider trades: snapshot first, live walk second
+
+These two are still per-ticker, capped at ~60 requests a minute.
+
+**News additionally asks before it searches.** It is a *search* endpoint — there is no "everything
+published today" request to make — so there is no axis to switch to the way announcements had one.
+The reader names the companies (up to `MAX_PICK`, 20) and each is searched in full, rather than forty
+being chosen for them and the rest reported as unread. The selection rides in `?co=` so a search is
+shareable and survives a reload, and **the picker stays on screen through the failure states**, since
+a control that selects the thing that failed must outlive the failure.
+
+```
+public/data/news.json · insider-trades.json
 {
   "kind": "announcements",
   "capturedAt": "2026-08-14T…Z", "from": "2025-08-14", "to": "2026-08-14", "windowDays": 365,
@@ -2292,8 +2358,8 @@ now, so they read *Cached*, not *Live*.
 ### Refreshing it
 
 ```bash
-MUNS_TOKEN=…  node scripts/scrape-filings.mjs                 # all three, 603 companies
-MUNS_TOKEN=…  node scripts/scrape-filings.mjs announcements   # one feed
+MUNS_TOKEN=…  node scripts/scrape-filings.mjs                 # news + insider, 603 companies
+MUNS_TOKEN=…  node scripts/scrape-filings.mjs news            # one feed
 FILINGS_LIMIT=20 FILINGS_SCOPE=book node scripts/scrape-filings.mjs   # a smoke run
 ```
 

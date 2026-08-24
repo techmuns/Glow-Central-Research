@@ -107,7 +107,8 @@ scripts/
   import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
   lib/xlsx-read.mjs           .xlsx reader built on node:zlib alone, no npm dependency
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
-  scrape-filings.mjs          walks the universe for news, announcements and insider trades
+  scrape-filings.mjs          walks the universe for news and insider trades (NOT announcements)
+  scrape-bse-announcements.mjs  the whole exchange's filings, read by DATE — ~20 requests
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -121,7 +122,8 @@ worker/http.mjs               content ETags, 304s and CORS — shared with any l
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
-worker/muns.mjs               the AUTHENTICATED news / announcements / insider clients — same token
+worker/muns.mjs               the AUTHENTICATED news / insider clients — same token
+worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -633,13 +635,65 @@ That is survivable, and this is what makes it survivable:
    drift from them. Bytes this device kept from an earlier visit read *Cached*: they have a real
    `checkedAt` and they have not been checked now, and those are different claims.
 
-**The universe is served from a committed snapshot, not from a live fan-out.** Two of the three are
-per-ticker and all three are capped at ~60 requests a minute, so 603 companies live is ten minutes
-of somebody else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule
-and commits the result; the live routes remain for companies the snapshot misses and for refreshing
-one on demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape walks **the
-book first**, so a run cut short by the rate limit or an expiring token has covered the holdings
-rather than whatever starts with A.
+**The universe is served from a committed snapshot, not from a live fan-out.** These upstreams are
+per-ticker and capped at ~60 requests a minute, so 603 companies live is ten minutes of somebody
+else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule and commits
+the result; the live routes remain for companies the snapshot misses and for refreshing one on
+demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape walks **the book
+first**, so a run cut short by the rate limit or an expiring token has covered the holdings rather
+than whatever starts with A.
+
+### ASK THE AXIS THE DATA IS PUBLISHED ON — the rule that fixed announcements
+
+The paragraph above is what these three tabs were built on, and for two of them it is still true.
+For corporate announcements it was solving the wrong problem, and the way it looked wrong is worth
+keeping.
+
+The committed snapshot reached **118 companies** and the tab said so honestly — the pill printed the
+denominator, the shortfall was on screen, `failed` was populated. Everything was accurate and the
+coverage was still a fifth of what it should be. The obvious remedy is to shrink the window: show
+one day instead of a year. **That buys nothing.** The date range is a *parameter* on a per-company
+request — `?fromDate=…&toDate=…` — so one day for 603 companies is still 603 requests, the same ten
+minutes and the same truncation, with a year of history thrown away for it.
+
+**What was actually wrong was the axis.** The upstream is indexed by *company*: "what did this
+company file". BSE publish the identical filings indexed by *date*: "what was filed on this day",
+across every listed company, in one paginated feed. Measured: **886 announcements for the whole
+exchange in about two dozen requests**, against 603 requests that reached 118 companies. No
+credential either, so it cannot fail the way a session JWT fails.
+
+So: **when a feed is rate-capped per request and you need breadth, do not tune the request — check
+whether the upstream publishes the same facts under a different key.** Narrowing a window on an
+entity-indexed route is optimising a parameter that was never the cost. Changing the index is the
+whole win. The tell is that the thing you want is *n × m* and the endpoint charges you for *n*: ask
+whether anyone charges for *m* instead.
+
+Three things follow, and each is load-bearing:
+
+1. **`coversUniverse` in the snapshot is what switches the walk off, and only that.** A date-indexed
+   capture makes an absence meaningful — a company with no rows filed nothing — so the per-company
+   walk becomes not merely unnecessary but wrong, since it would spend the rate limit rediscovering
+   that. **It must never be inferred from a row count**: a count cannot tell "nobody filed" from "we
+   ran out of budget", which is the exact confusion this change exists to end. The snapshot declares
+   it or the walk runs.
+2. **`strCat=-1` is a 200 that means the request was wrong.** The obvious "all categories" value
+   answers HTTP 200 with the bare string `"No Record Found!"`, and an empty `strCat` answers 200
+   with zero rows. Neither is an error and neither is an empty day. So the categories are named
+   explicitly, `assertShape` rejects the string form outright, and a run that collects nothing across
+   every category exits non-zero rather than committing an empty file over a good one. Naming them
+   costs a tripwire: `unknownCategories` checks every row's own `CATEGORYNAME` against what we asked
+   for, so a category BSE adds later shows up in the run report instead of silently vanishing.
+3. **The window is a SIZE limit, not an editorial one.** A weekday carries ~900 filings across the
+   exchange, so a month is ~22,000 rows and roughly 16 MB of committed JSON that every visitor
+   downloads. `ANN_KEEP_DAYS` (default 3) is a ceiling on bytes, and the file says so. Older filings
+   are not less true; BSE still hold them, and widening it is one variable and one re-run.
+
+**And the third feed did not get this treatment, because it cannot.** News is a *search* endpoint —
+there is no "everything published today" request to make, only "what has been written about this
+company". No axis to switch to. So it changed shape instead: the reader names the companies and each
+one is searched in full, rather than forty being chosen on their behalf and the rest reported as
+unread. A tab that asks before it acts is the honest answer when the budget genuinely cannot cover
+the universe — and it must say **why** it is asking, or it reads as broken.
 
 **A company that could not be read is not a company with nothing.** Failures are kept per ticker,
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
@@ -1422,9 +1476,13 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
-| Change News / Announcements / Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
+| Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
+| Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
+| Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
+| Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
-| Refresh the filings snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
+| Refresh the news / insider snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
+| Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
