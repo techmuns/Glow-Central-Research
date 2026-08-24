@@ -635,6 +635,9 @@ That is survivable, and this is what makes it survivable:
    drift from them. Bytes this device kept from an earlier visit read *Cached*: they have a real
    `checkedAt` and they have not been checked now, and those are different claims.
 
+**Nothing here walks on a page load.** See *Work the reader has to ask for* above: these are the
+reference consumers of that rule, and the three measurements in it are all from these feeds.
+
 **The universe is served from a committed snapshot, not from a live fan-out.** These upstreams are
 per-ticker and capped at ~60 requests a minute, so 603 companies live is ten minutes of somebody
 else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule and commits
@@ -699,6 +702,64 @@ the universe — and it must say **why** it is asking, or it reads as broken.
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
 report an outage as an absence of events — the same error class as a count of zero from a failing
 endpoint (see *And a count of zero is not always a count*).
+
+### Work the reader has to ask for — the on-demand rule
+
+**A feed that costs one request PER COMPANY may not run on a page load.** News, Corporate
+Announcements, Insider Trades and Superstar Investors are all of that shape: forty companies is
+forty round trips against somebody else's rate-limited service, and ninety-one for the investor
+books. There is no cheap tick — no index endpoint, nothing to 304 — so the pattern that works for
+the results feed and the con-call scan does not transfer, and applying it anyway is what made these
+tabs feel broken rather than slow.
+
+Three measurements, all from the same afternoon, and each is a different consequence of the same
+mistake:
+
+1. **A dead upstream turned a slow tab into a stopped one.** With `devde.muns.io` not answering at
+   all, the Worker spent its full retry budget on every company — 93.5 seconds each, measured — so
+   a landing counted forty companies down over a **quarter of an hour** and painted nothing.
+2. **And it starved the rest of the page.** A browser allows about six connections per origin; four
+   held open by a hung walk is two thirds of the budget. The Superstar Investors grid could not
+   fetch its own committed snapshot — a **static file** — for forty-four seconds.
+3. **The walk was work nobody asked for.** Every visit re-read forty companies to discover, almost
+   always, that nothing had changed.
+
+So the split is:
+
+| | Runs | Costs |
+| --- | --- | --- |
+| the committed snapshot | on a schedule, committed to the repo | one conditional GET per visit, 304 when unmoved |
+| the live walk | **only when the reader presses Refresh** | one request per company, bounded by `LIVE_LIMIT` |
+
+`js/core/refresh.js` is the registry, deliberately separate from `js/core/live.js`: that one is a
+poller and this one is explicitly not. A tab registers on mount and unregisters on destroy, so the
+button re-reads **what is on screen** rather than everything the dashboard can reach.
+
+Four rules, and the honesty ones matter most:
+
+- **Never claim "nothing is new".** These routes have no index, so whether anything has been filed
+  cannot be known without asking every company. What the strip prints is a statement about *us* —
+  *"Showing the filings captured 11 minutes ago. 63 companies have not been checked since."* — and
+  the reader decides whether to spend the requests. A page that said "you are up to date" would be
+  asserting something nobody measured.
+- **The result must reach the screen, and it must survive its own repaints.** Rows land while the
+  walk runs and every arrival repaints the panel, so the button the click handler is bound to is
+  gone by the time there is anything to report. The label lives in the module and the next paint
+  renders it; holding it on the node meant the control vanished mid-walk and came back reading
+  *"Check for new"* — the one thing it could not truthfully say.
+- **"Still reading…" is a fourth outcome, and not a failure.** A walk can outlast the header
+  button's patience while proceeding perfectly well. Reporting that as *Couldn't check* is a
+  failure claim about work that has not failed; reporting it as *Up to date* is a freshness claim
+  about a check that has not finished.
+- **An empty cache still walks, once.** A deployment whose scheduled capture has not run has
+  nothing to paint, and a table saying "press Refresh" is worse than a slow one. The strip says the
+  read is automatic, so the reader knows it was not theirs.
+
+**Bound every hop.** The Worker's Muns client had the registry's numbers — 30s × 3 attempts with
+backoff — which is 93 seconds before a failing company can say so; it now runs under an absolute
+`DEADLINE_MS`, exactly as `worker/finology.mjs` does. The browser bounds its own request too, at
+`REQUEST_TIMEOUT_MS`, because a connection held past the Worker's own budget is worth more than the
+answer.
 
 ### An upstream that needs a credential — the Finology rule
 
@@ -1481,8 +1542,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
-| Refresh the news / insider snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
+| Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
 | Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |
+| Change what the Refresh button drives | `js/core/refresh.js` (the registry) + `refreshNow()` in `js/core/watch.js` — read *Work the reader has to ask for* first; a per-company feed must never be registered with `live.js` |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
@@ -1604,6 +1666,9 @@ It covers, beyond the checklist below:
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both
   the depth and the trough date
 - the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
+- **a landing costs no per-company request**: with a committed snapshot present, mounting a filings
+  tab sends **zero** `/api/` requests, registers itself with the Refresh button instead, says how
+  current the data is and how many companies have not been checked — and never claims nothing is new
 - **the three filings tabs ask the right questions and keep painting the answers**: every news
   request carries exactly one query string, a readable date range and a `q` that is a book company's
   **name** with no part of the URL folded into it; all three walks send one request per company

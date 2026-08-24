@@ -536,6 +536,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
       icon.classList.add('spin-slow');
       label.textContent = 'Checking…';
       let announced = 0;
+      let pending = false;
       let failed = false;
       let timer = null;
       try {
@@ -544,7 +545,11 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
           new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), REFRESH_TIMEOUT_MS); }),
         ]);
         if (outcome === TIMED_OUT) failed = true;
-        else ({ announced = 0 } = outcome || {});
+        // `pending` is a THIRD outcome and not a failure: the per-company feeds are one request per
+        // company, so a walk can still be running perfectly well when the button's patience runs
+        // out. Saying "Couldn't check" about work that is proceeding is the same class of lie as
+        // saying "Up to date" about a check that did not complete.
+        else ({ announced = 0, pending = false } = outcome || {});
       } catch (err) {
         console.error('[status] refresh failed', err);
         failed = true;
@@ -554,7 +559,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
       icon.classList.remove('spin-slow');
       // Say what happened. "Up to date" is a real answer and the common one — a spinner that
       // vanishes leaves the reader unsure whether anything was checked at all.
-      label.textContent = failed ? 'Couldn’t check' : announced ? `${announced} new` : 'Up to date';
+      label.textContent = failed ? 'Couldn’t check' : pending ? 'Still reading…' : announced ? `${announced} new` : 'Up to date';
       refresh();
       btn.disabled = false;
       resetTimer = setTimeout(() => { label.textContent = 'Refresh'; }, 4000);

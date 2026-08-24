@@ -711,6 +711,7 @@ slow", or — when the upstream flapped — as a wall of prose where the grid sh
 | Retry budget | 15s × 3 attempts = **46.6s** before the panel could speak, under a comment claiming "a couple of seconds" | 6s × 2 under an absolute 13s `DEADLINE_MS`; the failure is cached for 15s so the other 90 books do not each pay it |
 | Return visit | re-asked all 91 books inside a window in which the server had nothing new to say, and rebuilt the whole panel once per arriving book | asks only for books unconfirmed inside the current window (**1 request**), repaints on a trailing throttle (**2 rebuilds, not 14**, on a 12-investor stand-in) |
 | First visit | 91 requests, four at a time — most of a minute of the grid filling in, and no device cache can help a reader who has never opened the tab | a **committed snapshot** of every book, `public/data/super-investors.json`: 414KB, 69KB over the wire, one conditional GET, **grid complete in ~1.1s with zero per-investor requests** |
+| Any visit | confirmed all 91 books in the background, whether or not anyone asked | **one** request — the investor list, which is the only thing a snapshot cannot answer. Re-reading the books is the Refresh button's job; see `js/core/refresh.js` |
 
 The last two rows are the ones to be careful with: speed there is bought by *not asking*, so it is
 only honest because `meta().origin` distinguishes `snapshot` / `store` / `live` and the pill says

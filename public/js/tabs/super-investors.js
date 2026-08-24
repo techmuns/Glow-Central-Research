@@ -24,6 +24,7 @@ import { sectionHead } from '../ui/screener.js';
 import { renderFiled } from '../investors/filed.js';
 import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
+import * as refreshRegistry from '../core/refresh.js';
 import * as filed from '../data/institution-holdings.js';
 
 export const meta = {
@@ -45,6 +46,7 @@ let disposers = [];
 // at a time) and the table's search/sort/filter state, carried across those repaints so a book
 // landing mid-read does not throw away what the reader had set up.
 let liveUnsub = null;
+let liveUnregister = null;
 let liveView = null;
 
 // ---------------------------------------------------------------------------------------
@@ -67,6 +69,8 @@ export function destroy() {
   // place it can be released. Without this, every visit stacks another repainter on a dead ctx.
   liveUnsub?.();
   liveUnsub = null;
+  liveUnregister?.();
+  liveUnregister = null;
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
@@ -111,10 +115,23 @@ function renderIndividuals(ctx) {
   // Repaint as each book lands. The subscription is a mount-lifetime thing, so it is released in
   // destroy() and not by the next repaint — otherwise the first arrival would tear down the
   // subscription that produced it.
+  // THE HEADER'S REFRESH BUTTON RE-READS THE BOOKS, and nothing else does. Ninety-one round trips
+  // is not work to do on a page load: the grid is painted from the committed snapshot and this
+  // device, and asking the server about all of it is what the reader presses a button for.
+  if (!liveUnregister) {
+    liveUnregister = refreshRegistry.register('superstar-investors', {
+      label: 'Superstar Investors',
+      refresh: () => liveInvestors.refresh(),
+    });
+  }
+
+  // THE GUARD IS `ctxRef`, NOT A CAPTURED TOKEN. `renderToken` increments on every render — which a
+  // scope toggle always causes — so a handler holding the value it had at subscribe time goes deaf
+  // the first time the reader touches the toggle, and the grid stops updating with nothing on
+  // screen to say so. Same bug, and same fix, as the three filings tabs.
   if (!liveUnsub) {
-    const token = renderToken;
     liveUnsub = liveInvestors.onChange(() => {
-      if (token !== renderToken || ctxRef?.subview !== 'superstar-investors') return;
+      if (ctxRef?.subview !== 'superstar-investors') return;
       // A re-read from the Live pill discards the whole feed and starts again, so for a moment
       // there is no list. Rendering the panel then would put "the API returned an error" on screen
       // for something the reader just asked for and which has not failed. The skeleton is the

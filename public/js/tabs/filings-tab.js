@@ -25,6 +25,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
+import * as refreshRegistry from '../core/refresh.js';
 
 const REASONS = {
   'no-route': {
@@ -44,7 +45,7 @@ const REASONS = {
     title: 'The API is rate limiting this deployment',
     body: 'These endpoints allow about 60 requests a minute and this deployment has passed that. It clears on its own; the committed snapshot exists so a normal visit does not spend that budget at all.',
   },
-  timeout: { title: 'The API did not answer in time', body: 'The request was given 30 seconds and retried, and the upstream did not respond.' },
+  timeout: { title: 'The API did not answer in time', body: 'The request was given its full budget and retried, and the upstream did not respond. The budget is deliberately short — a dead upstream that took ninety seconds per company is what made these tabs look broken rather than slow.' },
   unreachable: { title: 'The API could not be reached', body: 'The upstream did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
   upstream: { title: 'The API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
   shape: { title: 'The API returned something unreadable', body: 'The response was not in a shape this dashboard could read. That is a change on their side worth looking at.' },
@@ -69,8 +70,13 @@ export function makeFilingsTab(cfg) {
   let token = 0;
   let disposers = [];
   let unsub = null;
+  let unregister = null;
   let view = null;
   let ctxRef = null;
+  // What the tab's Refresh control should say right now. Module-level because it has to outlive the
+  // repaints the refresh itself causes — see `wireRefresh`.
+  let refreshLabel = 'Check for new';
+  let labelReset = null;
 
   /**
    * The companies to ask about, as `{ ticker, name }`.
@@ -331,6 +337,16 @@ export function makeFilingsTab(cfg) {
     // subscription that produced it.
     if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
 
+    // THE HEADER'S REFRESH BUTTON IS WHAT WALKS THESE ROUTES, and only while this tab is mounted.
+    // Registration is per mounted tab on purpose: a reader on News should not pay for the other two
+    // feeds' walks, so the button's cost stays bounded and predictable rather than a lottery.
+    if (!unregister) {
+      unregister = refreshRegistry.register(cfg.id, {
+        label: cfg.title,
+        refresh: () => cfg.feed.refresh(),
+      });
+    }
+
     // NEWS ASKS BEFORE IT SEARCHES, AND THAT IS NOT A LIMITATION DRESSED AS A FEATURE.
     //
     // The news upstream is a SEARCH endpoint — one request per company name — so "the whole
@@ -354,7 +370,9 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({ title: cfg.title, description: cfg.subtitle, controls: pickerHtml(ctx, selected) })}
         ${loadingHtml()}`;
       wirePicker(ctx, selected);
-      cfg.feed.load(items).then(() => {
+      // `walkWanted` because this IS the reader asking — they named these companies and pressed
+      // Search. The no-walk-on-load rule is about landings nobody requested, not about this.
+      cfg.feed.load(items, { walkWanted: true }).then(() => {
         if (t === token) paint(ctx);
       });
       return;
@@ -401,7 +419,8 @@ export function makeFilingsTab(cfg) {
           meta: scopeSummary({ scope: ctx.scope, count: 0, noun: cfg.noun, book: coverage.meta() }),
           controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
         })}
-        ${unavailablePanel(m)}`;
+        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
+      wireRefresh(ctx.root);
       if (cfg.requireSelection) wirePicker(ctx, selected || []);
       return;
     }
@@ -469,12 +488,42 @@ export function makeFilingsTab(cfg) {
         // moves when you use it reads as a different page.
         controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
       })}
-      ${walkStrip(m)}
+      ${freshnessStrip(m, refreshLabel)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
     if (cfg.requireSelection) wirePicker(ctx, selected || []);
     ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
+    wireRefresh(ctx.root);
+  }
+
+  /**
+   * The tab's own Refresh, which is the header button's action scoped to this feed.
+   *
+   * IT SAYS WHAT IT FOUND. "Up to date" is a real answer and the common one; a spinner that vanishes
+   * leaves the reader unsure whether anything was checked — the same rule the header button follows,
+   * and the reason the label is restored on a timer rather than immediately.
+   */
+  function wireRefresh(root) {
+    const btn = root.querySelector('[data-filings-refresh]');
+    if (!btn) return;
+    const onClick = async () => {
+      if (btn.disabled) return;
+      clearTimeout(labelReset);
+      const out = await refreshRegistry.refreshOne(cfg.id);
+      // THE RESULT LIVES IN `refreshLabel`, NOT ON THIS NODE. Rows land while the walk runs and
+      // every arrival repaints the panel, so the button this handler is bound to is long gone by
+      // the time there is anything to report. Holding the label in the module and letting the next
+      // paint render it is the only version that survives its own repaints.
+      refreshLabel = out.error ? 'Couldn’t check' : out.added ? `${formatNumber(out.added)} new` : 'Up to date';
+      if (ctxRef) paint(ctxRef);
+      labelReset = setTimeout(() => {
+        refreshLabel = 'Check for new';
+        if (ctxRef) paint(ctxRef);
+      }, 6000);
+    };
+    btn.addEventListener('click', onClick);
+    disposers.push(() => btn.removeEventListener('click', onClick));
   }
 
   function destroy() {
@@ -484,6 +533,10 @@ export function makeFilingsTab(cfg) {
     disposers = [];
     unsub?.();
     unsub = null;
+    unregister?.();
+    unregister = null;
+    clearTimeout(labelReset);
+    refreshLabel = 'Check for new';
     view = null;
   }
 
@@ -553,24 +606,64 @@ function pill(m) {
     </button>`;
 }
 
-/** While a live walk is running, say so — a half-filled table should explain itself. */
-function walkStrip(m) {
-  if (!m.pending && !m.inFlight && !m.truncated) return '';
+/**
+ * How current this is, and what it would take to be more current.
+ *
+ * IT SAYS WHAT WE KNOW, NOT WHAT WE GUESS. These upstreams answer per company and have no index, so
+ * "is there anything new?" cannot be answered without asking about every company — which is the
+ * expensive thing this whole arrangement exists to keep off a page load. What CAN be said honestly
+ * is when the data on screen was captured and how many companies nobody has asked about since, and
+ * that is what this prints. The reader decides whether to spend the requests.
+ *
+ * It replaced a strip that read "Reading 40 more companies…" on every single visit. That was true
+ * and it was also the problem: it described work nobody had asked for, and when the upstream was
+ * down it counted forty companies down for a quarter of an hour over an empty table.
+ */
+function freshnessStrip(m, label = 'Check for new') {
+  const busy = !!(m.pending || m.inFlight);
+
+  // THE BUTTON IS IN BOTH BRANCHES. It used to be in neither while a walk ran, so the control the
+  // reader had just pressed vanished, came back when the walk ended, and came back reading "Check
+  // for new" — the one thing it could not truthfully say, because the check had just happened and
+  // nothing on screen reported what it found.
+  const button = `
+    <button type="button" data-filings-refresh ${busy ? 'disabled' : ''}
+      class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="${busy ? 'spin-slow' : ''}">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+      </svg>
+      <span data-filings-refresh-label>${escapeHtml(busy ? 'Checking…' : label)}</span>
+    </button>`;
+
+  if (busy) {
+    return `
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
+        <p class="text-xs leading-relaxed text-slate-600">
+          Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.
+          ${m.coldStart ? ' Nothing was cached for this deployment yet, so this first read is automatic.' : ''}
+          ${m.truncated ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'is' : 'are'} in scope and will not be asked about in this pass.` : ''}
+        </p>
+        ${button}
+      </div>`;
+  }
+
+  const captured = m.capturedAt ? `captured ${escapeHtml(formatRelativeTime(Date.parse(m.capturedAt)))}` : null;
+  const refreshed = m.lastRefreshAt ? `read live ${escapeHtml(formatRelativeTime(m.lastRefreshAt))}` : null;
+  const when = [refreshed, captured].filter(Boolean).join(' · ');
+  if (!when && !m.outstanding) return '';
+
   return `
-    <div class="mb-5 flex items-start gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
-      <span class="relative mt-1 flex h-2 w-2 flex-shrink-0">
-        ${m.pending ? '<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>' : ''}
-        <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-600"></span>
-      </span>
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
       <p class="text-xs leading-relaxed text-slate-600">
-        ${m.pending ? `Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.` : ''}
+        ${when ? `Showing the ${escapeHtml(m.kind === 'news' ? 'news' : 'filings')} ${when}.` : ''}
         ${
-          m.truncated
-            ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'company is' : 'companies are'} in scope but were not asked about on this visit —
-                these upstreams allow about sixty requests a minute, so a live walk is bounded and the committed snapshot is what covers the rest.`
+          m.outstanding
+            ? ` <strong>${escapeHtml(formatNumber(m.outstanding))}</strong> ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since.
+                These routes answer one company at a time and have no index, so whether anything new has been filed can only be found by asking.`
             : ''
         }
       </p>
+      ${button}
     </div>`;
 }
 
@@ -581,7 +674,7 @@ function walkStrip(m) {
  * skeletons, which here would promise data that is not coming until an operator acts. It also
  * escapes its body, so the very command a reader needs would render as literal angle brackets.
  */
-function unavailablePanel(m) {
+function unavailablePanel(m, label = 'Try again') {
   const r = REASONS[m.reason] || REASONS.upstream;
   const operator = ['no-token', 'unauthorised', 'rate-limited'].includes(m.reason);
   return `
@@ -600,6 +693,13 @@ function unavailablePanel(m) {
             <strong>Nothing is shown.</strong> Not "no news" and not last week's — there is nothing to display until the feed
             answers, and inventing rows to fill the space would be worse than the gap.
           </p>
+          <button type="button" data-filings-refresh
+            class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+            </svg>
+            <span data-filings-refresh-label>${escapeHtml(label)}</span>
+          </button>
         </div>
       </div>
     </div>`;

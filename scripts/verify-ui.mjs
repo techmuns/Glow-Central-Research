@@ -1448,14 +1448,25 @@ const calShape = await page.evaluate(() => {
 });
 ok('...grouped into days', calShape.days > 0, `${calShape.days} dates`);
 ok('...with today marked', calShape.today);
-ok('...and each day capped, with the rest behind “+N more”', calShape.more > 0, `${calShape.more} collapsed days`);
+// WHETHER ANY DAY IS LONG ENOUGH TO COLLAPSE IS A PROPERTY OF THE SCHEDULE, NOT OF THE CODE.
+// A quiet week has no day past the per-day cut, and on such a week this check has nothing to
+// assert — the sibling search check below already skips for exactly that reason. It used to assert
+// `more > 0` and then hard-click `[data-cal-more]`, so a quiet week failed the check AND crashed
+// the run on a 30s locator timeout, taking the remaining ~270 assertions with it. A check that
+// cannot run is a SKIP; a check that aborts the suite is a bug in the check.
+if (!calShape.more) {
+  skip('...and each day capped, with the rest behind “+N more”', 'no day in the current schedule is past the per-day cut');
+  skip('“+N more” expands its day in place', 'nothing is collapsed to expand');
+} else {
+  ok('...and each day capped, with the rest behind “+N more”', calShape.more > 0, `${calShape.more} collapsed days`);
 
-// "+N more" must actually reveal that day, and only that day.
-const beforeMore = await page.locator('#modal-content section .grid > div').count();
-await page.locator('[data-cal-more]').first().click();
-await page.waitForTimeout(300);
-const afterMore = await page.locator('#modal-content section .grid > div').count();
-ok('“+N more” expands its day in place', afterMore > beforeMore, `${beforeMore} → ${afterMore} companies`);
+  // "+N more" must actually reveal that day, and only that day.
+  const beforeMore = await page.locator('#modal-content section .grid > div').count();
+  await page.locator('[data-cal-more]').first().click();
+  await page.waitForTimeout(300);
+  const afterMore = await page.locator('#modal-content section .grid > div').count();
+  ok('“+N more” expands its day in place', afterMore > beforeMore, `${beforeMore} → ${afterMore} companies`);
+}
 
 // Search has to reach days that are still collapsed, or it would only find what is on screen.
 const hidden = await page.evaluate(async () => {
@@ -3111,6 +3122,11 @@ console.log('\n— header status and live alerts —');
   // that simply vanishes leaves the reader unsure anything was checked. "Couldn't check" is the
   // third real answer, for a poller that never settled: the wait is bounded so the button cannot
   // sit on "Checking…" for ever, and a check that did not complete must never print "Up to date".
+  //
+  // "Still reading…" is the FOURTH, and it arrived with the on-demand feeds. Those are one request
+  // per company, so a walk can outlast the button's patience while proceeding perfectly well —
+  // reporting that as "Couldn't check" would be a failure claim about work that has not failed, and
+  // as "Up to date" a freshness claim about a check that has not finished.
   await page.locator('[data-header-refresh]').click();
   const label = await (async () => {
     const until = Date.now() + 20000;
@@ -3122,7 +3138,7 @@ console.log('\n— header status and live alerts —');
     }
     return l;
   })();
-  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh|Couldn/i.test(label), label);
+  ok('refresh reports a result rather than just spinning', /Up to date|\d+ new|Refresh|Couldn|Still reading/i.test(label), label);
   ok('...and never re-enables itself still claiming to be checking', !(await page.locator('[data-header-refresh]').isDisabled()));
 
   // The alert stack.
@@ -3244,19 +3260,80 @@ console.log('\n— news, announcements and insider trades —');
   };
   page.on('request', watchFilings);
 
-  // ---------------------------------------------------------------------------------------
-  // NEWS ASKS BEFORE IT SEARCHES.
+  // DRIVE THE WALK, DO NOT WAIT FOR ONE. These requests used to happen on their own, on every
+  // landing — which is the behaviour that was removed, because forty round trips is not a page
+  // load. What they assert is the SHAPE of the request, and that is worth keeping, so the walk is
+  // now started the way a reader starts it: through the refresh registry.
   //
-  // The old assertion here was "the news walk sends a request per company", which described a tab
-  // that picked forty companies on the reader's behalf and reported the rest as unread. The
-  // upstream is a SEARCH endpoint with no date index to flip to, so the honest shape is the reader
-  // naming the companies. That makes the request count a much stronger claim than it used to be:
-  // NOTHING before a selection, and then EXACTLY one request per company named — never a bounded
-  // forty, and never a stray extra.
+  // A deployment with no committed snapshot still walks once on a cold start, and that walk overlaps
+  // the one this drives — measured as 80 requests across 40 companies, which reads as a duplicating
+  // walk and is two honest ones. So each feed settles first and the recording starts after.
+  const settle = async (key) => {
+    await page
+      .waitForFunction(async (k) => (await import('/js/data/filings.js'))[k].meta().pending === 0, key, { timeout: 60000 })
+      .catch(() => {});
+    await page.waitForTimeout(400);
+  };
+  const drive = async (feedKey, id) => {
+    await settle(feedKey);
+    seen.news.length = 0;
+    seen.announcements.length = 0;
+    seen.insider.length = 0;
+    await evalSafe(async (i) => (await import('/js/core/refresh.js')).refreshOne(i), id);
+    await page.waitForTimeout(2500);
+  };
+
   // ---------------------------------------------------------------------------------------
-  const book = await evalSafe(async () =>
-    (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).slice(0, 3).map((h) => ({ ticker: h.ticker, name: h.name })));
-  const bookNames = (book || []).map((b) => b.name);
+  // NEWS ASKS *WHICH COMPANIES* BEFORE IT SEARCHES.
+  //
+  // Two separate claims live here and both matter. The walk does not run on a page load — that is
+  // the Refresh button's job, asserted below. AND the companies it walks are the ones the reader
+  // named, because the upstream is a SEARCH endpoint with no date index to flip to: "the whole
+  // universe" is 603 requests against a sixty-a-minute cap. So the request count is a much stronger
+  // claim than the old "more than one": NOTHING before a selection, then EXACTLY one per company
+  // named — never a bounded forty, and never a stray extra per render.
+  // ---------------------------------------------------------------------------------------
+  // PICK COMPANIES THE SNAPSHOT DOES NOT ALREADY COVER, or this measures nothing.
+  //
+  // The committed news snapshot now carries 123 companies. A selection drawn from those sends zero
+  // requests and is RIGHT to — the file already answers, and the Refresh button is what forces a
+  // live re-read. An earlier version of this check picked the first three book tickers, hit three
+  // companies that were already in the file, measured 0 requests and called it a failure. The code
+  // was correct and the check was wrong, which is the more dangerous way round.
+  // Read the SNAPSHOT FILE, not `feed.rows()`. With no selection the News tab returns early without
+  // calling `load()`, so the feed holds nothing yet — an earlier version read `rows()` there, got an
+  // empty set, concluded every held company was uncovered, and picked three that were in the file.
+  // The check then measured zero requests and blamed the code. Ask the artefact, not the module
+  // that has not read it yet.
+  const book = await evalSafe(async () => {
+    const cov = await import('/js/data/coverage.js');
+    const uniMod = await import('/js/data/universe.js');
+    const snap = await fetch('data/news.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({}));
+    const covered = new Set(Object.keys(snap.byTicker || {}).map((t) => t.toUpperCase()));
+    const held = cov.holdings().filter((h) => h.ticker);
+    // THE BOOK IS NOT ENOUGH TO EXERCISE THIS. Every one of the book's 123 companies is in the news
+    // snapshot, so a selection drawn from it can only ever measure the zero-request path — which is
+    // real, and is asserted separately below, but leaves the walk untested. The picker offers the
+    // whole coverage universe, so draw the walk's test subjects from there.
+    const uni = uniMod.adaptUniverse(await fetch('data/universe.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => []));
+    const pool = [...held.map((h) => ({ ticker: h.ticker, name: h.name })), ...uni.map((u) => ({ ticker: u.ticker, name: u.name }))];
+    const seenT = new Set();
+    const fresh = pool.filter((c) => {
+      const t = String(c.ticker || '').toUpperCase();
+      if (!t || seenT.has(t) || covered.has(t)) return false;
+      seenT.add(t);
+      return true;
+    });
+    const anyCovered = held.find((h) => covered.has(String(h.ticker).toUpperCase()));
+    return {
+      fresh: fresh.slice(0, 3),
+      coveredCount: covered.size,
+      heldCount: held.length,
+      poolCount: pool.length,
+      anyCovered: anyCovered ? anyCovered.ticker : null,
+    };
+  });
+  const bookNames = (book?.fresh || []).map((b) => b.name);
 
   seen.news.length = 0;
   await go('/#/research/news?scope=portfolio', 3500);
@@ -3267,12 +3344,16 @@ console.log('\n— news, announcements and insider trades —');
   ok('...with the picker on screen to act on', await page.locator('[data-picker]').count() > 0);
 
   seen.news.length = 0;
-  const picked = (book || []).map((b) => b.ticker);
+  const picked = (book?.fresh || []).map((b) => b.ticker);
   await go(`/#/research/news?scope=portfolio&co=${picked.join(',')}`, 4000);
   const newsUrls = seen.news.map((u) => new URL(u));
   // EXACTLY one each. A gate that leaks one extra request per render is the failure mode here, and
   // it would be invisible against the old "more than one" assertion.
-  ok('...then exactly one request per company named', newsUrls.length === picked.length, `${newsUrls.length} request(s) for ${picked.length} companies`);
+  if (!picked.length) {
+    skip('...then exactly one request per company named', `every held company is already in the committed snapshot (${book?.coveredCount} of ${book?.heldCount})`);
+  } else {
+    ok('...then exactly one request per company named', newsUrls.length === picked.length, `${newsUrls.length} request(s) for ${picked.length} companies`);
+  }
   ok('...and no company was asked about twice', new Set(newsUrls.map((u) => u.href)).size === newsUrls.length, `${new Set(newsUrls.map((u) => u.href)).size} distinct`);
   // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
   ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
@@ -3288,13 +3369,28 @@ console.log('\n— news, announcements and insider trades —');
   // Searching the SYMBOL finds quote pages; searching the NAME finds the company. Measured on one
   // book line: 3 results against 20, and the three were mostly price widgets.
   const named = queries.filter((q) => bookNames.includes(q)).length;
-  ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
+  if (!queries.length) skip('news searches the company name, not the ticker symbol', 'no request was sent — the snapshot already covered every company picked');
+  else ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
   // The selection is the state, so it has to survive the round trip that makes it shareable.
-  ok('...and the selection survives a reload', await (async () => {
+  // The other half of the same fact: a company the file already covers is painted, not re-fetched.
+  const covered = book?.anyCovered || null;
+  if (!covered) skip('...and a company the snapshot already covers costs no request at all', 'no held company is in the snapshot');
+  else {
+    seen.news.length = 0;
+    await go(`/#/research/news?scope=portfolio&co=${covered}`, 3500);
+    ok('...and a company the snapshot already covers costs no request at all', seen.news.length === 0, `${covered}: ${seen.news.length} request(s)`);
+    await go(`/#/research/news?scope=portfolio&co=${picked.join(',') || covered}`, 3500);
+  }
+
+  // `> 0` as well as the equality: with an empty selection this check would otherwise be satisfied
+  // by 0 === 0, which is a pass over nothing rather than a restored selection.
+  const restored = await (async () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2500);
-    return await page.locator('[data-pick-remove]').count();
-  })() === picked.length, `${picked.length} chip(s) restored from the URL`);
+    return page.locator('[data-pick-remove]').count();
+  })();
+  if (!picked.length) skip('...and the selection survives a reload', 'nothing was selected to restore');
+  else ok('...and the selection survives a reload', restored === picked.length && restored > 0, `${restored} of ${picked.length} chip(s) restored from the URL`);
 
   // ---------------------------------------------------------------------------------------
   // ANNOUNCEMENTS ASK THE EXCHANGE, NOT THE COMPANIES.
@@ -3378,10 +3474,59 @@ console.log('\n— news, announcements and insider trades —');
   if (!paint) skip('every rendered row is a row the feed actually holds', 'no rows on this origin — there is no /api/news to answer');
   else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
 
-  await go('/#/research/insider-trades?scope=portfolio', 3500);
+  await go('/#/research/insider-trades?scope=portfolio', 2500);
+  await drive('insider', 'insider-trades');
   const insUrls = seen.insider.map((u) => new URL(u));
-  ok('insider trades asks per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
+  ok('a refresh asks insider trades per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
   ok('...with the same one-query-string shape', insUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), insUrls[0]?.href.slice(-70) || '');
+
+  // A LANDING MAY NOT COST FORTY REQUESTS.
+  //
+  // Each of these upstreams answers one company at a time, so the walk that used to run on every
+  // visit was forty round trips before the table settled — and with the upstream down (measured:
+  // 93.5s per company before the Worker's retry budget was bounded) the tab counted forty companies
+  // down over a quarter of an hour and painted nothing at all. Worse, four hung connections out of
+  // a browser's six per origin starved the REST of the page: the Superstar Investors grid could not
+  // fetch its own committed snapshot, a static file, for forty-four seconds.
+  //
+  // So the snapshot is what arrives on its own and the walk is what the reader asks for. On this
+  // origin the committed snapshots may still be the empty placeholders, in which case a cold start
+  // legitimately walks once — an empty table saying "press Refresh" is worse than a slow one — so
+  // the assertion is conditional on there being anything cached to paint.
+  {
+    await go('/#/research/corp-announcements?scope=portfolio', 1200);
+    const landed = [];
+    const countLanding = (r) => {
+      if (/\/api\/(news|announcements|insider-trades)/.test(r.url())) landed.push(r.url());
+    };
+    page.on('request', countLanding);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(4000);
+    page.off('request', countLanding);
+    const st = await evalSafe(async () => {
+      const m = (await import('/js/data/filings.js')).announcements.meta();
+      const reg = await import('/js/core/refresh.js');
+      return { rows: m.rowCount, cold: m.coldStart, outstanding: m.outstanding, registered: reg.registered().map((r) => r.id) };
+    });
+    if (!st.rows) {
+      skip('landing on a filings tab sends no per-company request', 'no committed snapshot on this origin yet, so the cold start legitimately walks once');
+    } else {
+      ok('landing on a filings tab sends no per-company request', landed.length === 0 && !st.cold, `${landed.length} request(s) for ${st.rows} rows`);
+    }
+    ok('...and the tab is registered with the Refresh button instead', st.registered.includes('corp-announcements'), st.registered.join(', ') || 'nothing registered');
+    // What it may claim, and what it may not. These routes have no index, so "nothing is new" is a
+    // statement nobody can make without asking every company — the honest line is about US.
+    const strip = await hostText();
+    if (st.rows) {
+      ok('...and says how current it is rather than claiming nothing is new',
+        /Showing the (news|filings)/i.test(strip) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(strip),
+        (strip.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
+      ok('...and offers a control that asks', (await page.locator('[data-filings-refresh]').count()) > 0);
+    } else {
+      skip('...and says how current it is rather than claiming nothing is new', 'no rows cached on this origin');
+      skip('...and offers a control that asks', 'no rows cached on this origin');
+    }
+  }
 
   page.off('request', watchFilings);
 }

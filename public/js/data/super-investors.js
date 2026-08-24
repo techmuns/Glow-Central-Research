@@ -292,9 +292,15 @@ export function invalidate() {
  * know whether anything has moved in the last six hours has a control that asks. It is wired to
  * the Live pill's modal in js/investors/live.js and to nothing automatic.
  */
-export function refresh() {
+export async function refresh() {
+  const before = state.books.size;
   invalidate();
-  return load();
+  await load();
+  // IGNORING THE WINDOW IS THE POINT. A reader who presses Refresh is saying "ask anyway", and a
+  // refresh that quietly skipped every book because the committed capture was recent would be a
+  // button that does nothing on the one occasion they were sure something had changed.
+  await revalidate({ ignoreWindow: true });
+  return { added: Math.max(0, state.books.size - before), checked: state.investors.length, failed: state.failures.size };
 }
 
 /**
@@ -324,9 +330,14 @@ export function load() {
       state.loaded = true;
       state.origin = 'store';
       emit({ now: true });
-      // Confirm in the background. Deliberately not awaited — the caller's `then` should fire on
-      // the paint it can already make, not on a revalidation the reader will never notice.
-      revalidate();
+      // AND NOTHING IS WALKED. Confirming ninety books is ninety round trips, each of which may be
+      // a live scrape upstream, and it is work nobody asked for over a grid that is already
+      // complete and already labelled with where it came from. `refresh()` is what asks — the
+      // header's Refresh button, and *Re-read everything now* in the Live pill's modal.
+      //
+      // The LIST is a single request and does tell us something a snapshot cannot: whether an
+      // investor has been added or removed. That one is worth making, and it is one.
+      confirmList();
       return state;
     }
 
@@ -477,6 +488,36 @@ async function seedFromSnapshot(gen) {
 }
 
 /**
+ * One request: has the investor LIST changed?
+ *
+ * Cheap enough to make on a load that otherwise asks for nothing, and it answers the one question
+ * the committed snapshot genuinely cannot — an investor added or dropped upstream. It confirms no
+ * BOOK, so `meta().origin` keeps saying `snapshot` / `store`, which is what it should say.
+ */
+async function confirmList() {
+  const gen = generation;
+  let res;
+  try {
+    res = await conditionalJson(LIST_PATH, { key: KEYS.investorList, optional: true });
+  } catch {
+    return;
+  }
+  if (!current(gen)) return;
+  const body = res?.value;
+  if (!body || body.ok === false || !Array.isArray(body.investors)) return;
+  state.checkedAt = res.checkedAt;
+  state.dropped = body.dropped || 0;
+  if (body.fetchedAt) state.fetchedAt = body.fetchedAt;
+  state.stale = body.stale === true;
+  state.staleReason = body.stale === true ? body.staleReason || null : null;
+  if (body.investors.length !== state.investors.length) {
+    state.investors = body.investors;
+    bump();
+    emit({ now: true });
+  }
+}
+
+/**
  * Pass two: confirm what was painted from the device, and fill in what was not.
  *
  * Every book goes back through `conditionalJson`, so an unchanged one is a bodyless 304 and its row
@@ -485,7 +526,7 @@ async function seedFromSnapshot(gen) {
  * copy on screen and is recorded against the investor, because a book we HAVE is better than a gap,
  * and pretending the fund holds nothing would be worse than both.
  */
-async function revalidate() {
+async function revalidate({ ignoreWindow = false } = {}) {
   if (state.revalidating) return;
   const gen = generation;
   state.revalidating = true;
@@ -510,7 +551,7 @@ async function revalidate() {
         bump();
       }
     }
-    await walkBooks({ force: true });
+    await walkBooks({ force: true, ignoreWindow });
   } finally {
     // Only the pass that owns the current state may report on it. An abandoned pass finishing here
     // would clear `revalidating` and flip `origin` to `live` for a re-read that has not run yet.
@@ -540,9 +581,9 @@ async function revalidate() {
  * have at all, a book the Worker served from its last-good copy during an outage, and a book whose
  * confirmation predates the most recent quarter end.
  */
-async function walkBooks({ force = false } = {}) {
+async function walkBooks({ force = false, ignoreWindow = false } = {}) {
   const gen = generation;
-  const queue = state.investors.map((i) => i.slug).filter(Boolean).filter((slug) => !force || needsRevalidation(slug));
+  const queue = state.investors.map((i) => i.slug).filter(Boolean).filter((slug) => !force || ignoreWindow || needsRevalidation(slug));
   const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
     for (;;) {
       // A re-read abandons this walk. Ninety-one requests deep, continuing would spend them all
