@@ -72,6 +72,38 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let ctxRef = null;
 
+  // ---- picker mode (News only) --------------------------------------------------------
+  //
+  // When `cfg.picker` is set the tab does NOT auto-walk everything in scope. Instead the reader
+  // chooses companies and the results are GATED on that selection: nothing is fetched or shown
+  // until at least one company is picked and "Search news" is pressed. Everything below render()
+  // that is picker-specific keys off this being set; the other two filings tabs leave it null and
+  // keep their scope-driven behaviour untouched. See renderPicker/paintPicker below.
+  const picker = cfg.picker || null;
+  let selection = picker ? loadSelection() : []; // [{ ticker, name }]
+  let searched = null; // the selection last run through the feed THIS page-load (Set of tickers), or null
+  let searching = false; // a walk is in flight for the current selection
+
+  function loadSelection() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(cfg.picker.storageKey) || '[]');
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter((c) => c && c.ticker)
+        .map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name || null }))
+        .slice(0, cfg.picker.max || 20);
+    } catch {
+      return [];
+    }
+  }
+  function saveSelection() {
+    try {
+      localStorage.setItem(cfg.picker.storageKey, JSON.stringify(selection));
+    } catch {
+      // localStorage unavailable (private mode, quota) — the selection just won't survive a reload.
+    }
+  }
+
   /**
    * The companies to ask about, as `{ ticker, name }`.
    *
@@ -104,6 +136,18 @@ export function makeFilingsTab(cfg) {
     ctxRef = ctx;
     disposers.forEach((d) => d && d());
     disposers = [];
+
+    // PICKER MODE — gated on the reader's selection, so no walk fires on mount. The subscription is
+    // still set up before any early return (same reasoning as below), guarded by `ctxRef` so a
+    // scope change — which re-runs render() — cannot orphan it. A persisted selection is searched
+    // once per page-load (searched === null) so a reload restores the results; a return to the tab
+    // within the same page-load just repaints from what the feed already holds.
+    if (picker) {
+      if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paintPicker(ctxRef));
+      if (searched === null && selection.length) runSearch(ctx);
+      else paintPicker(ctx);
+      return;
+    }
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -151,22 +195,34 @@ export function makeFilingsTab(cfg) {
       return;
     }
 
-    // A ROW KEY MAY NEVER CONTAIN THE ROW'S POSITION. This is what made News look duplicated, and
-    // the data was innocent throughout: 741 rows, zero repeated (ticker, headline) pairs, and 160
-    // repeated pairs ON SCREEN — the same headline two and three times while others were missing,
-    // and the row count still exactly right.
-    //
-    // `scoreTable` caches a row's markup by its key and, on a repaint whose row set the DOM already
-    // holds, MOVES the existing `<tr>` nodes rather than re-parsing them (see "Performance on large
-    // tables" in CLAUDE.md). That is correct only if a key identifies a row. The key here was
-    // `ticker-date-INDEX`, and these tables grow while the walk runs — so every arrival shifted the
-    // indices, key `RELIANCE-2026-08-12-7` came to mean a different article, and the cached `<tr>`
-    // for the old one was moved into its place. A stable, content-derived key fixes it at source.
-    //
-    // Genuinely identical rows do exist — the insider feed carries same-day, same-size filings by
-    // different people — so a collision suffix keeps the keys unique. It is safe precisely because
-    // the rows it separates carry the same content: the failure mode being closed here is one key
-    // meaning two DIFFERENT rows, never two keys meaning the same one.
+    const table = tableFor(ctx, rows, m);
+
+    ctx.root.innerHTML = `
+      ${sectionHead({
+        title: cfg.title,
+        description: cfg.subtitle,
+        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`,
+      })}
+      ${walkStrip(m)}
+      ${table.html}`;
+
+    disposers.push(table.wire(ctx.root));
+    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
+  }
+
+  /**
+   * The results table — one config, shared by the scope-driven paint() and the picker's paintPicker().
+   *
+   * A ROW KEY MAY NEVER CONTAIN THE ROW'S POSITION. This is what made News look duplicated, and the
+   * data was innocent throughout: 741 rows, zero repeated (ticker, headline) pairs, and 160 repeated
+   * pairs ON SCREEN. `scoreTable` caches a row's markup by key and, on a repaint whose row set the
+   * DOM already holds, MOVES the existing `<tr>` nodes rather than re-parsing them — correct only if
+   * a key identifies a row. The old key was `ticker-date-INDEX`, and these tables grow while the walk
+   * runs, so every arrival shifted the indices and a cached `<tr>` was moved onto a different article.
+   * A stable, content-derived key fixes it at source; a collision suffix keeps genuinely identical
+   * rows (the insider feed's same-day, same-size filings) unique without reintroducing the position.
+   */
+  function tableFor(ctx, rows, m) {
     const rowKeys = new Map();
     const keySeen = new Map();
     for (const r of rows) {
@@ -175,7 +231,6 @@ export function makeFilingsTab(cfg) {
       keySeen.set(base, n);
       rowKeys.set(r, n === 1 ? base : `${base}#${n}`);
     }
-
     const table = scoreTable({
       rows,
       key: (r) => rowKeys.get(r) || '',
@@ -196,29 +251,312 @@ export function makeFilingsTab(cfg) {
       initialView: view,
       exportName: `glow-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
-      emptyMessage:
-        ctx.scope === 'portfolio'
+      emptyMessage: picker
+        ? `No ${cfg.noun} for the selected ${selection.length === 1 ? 'company' : 'companies'} in the last ${m.windowDays} days.`
+        : ctx.scope === 'portfolio'
           ? `No ${cfg.noun} for your holdings in the last ${m.windowDays} days.`
           : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
+    return table;
+  }
 
+  // ---- picker mode rendering ----------------------------------------------------------
+
+  /** Run the feed for the current selection, painting the loading state first and results after. */
+  function runSearch(ctx) {
+    const sel = selection.slice();
+    if (!sel.length) return;
+    searched = new Set(sel.map((c) => c.ticker.toUpperCase()));
+    searching = true;
+    paintPicker(ctx);
+    cfg.feed
+      .ensure(sel)
+      .catch(() => {})
+      .then(() => {
+        searching = false;
+        // Guard on the LATEST ctx, not the one captured here: a scope change swaps ctxRef while the
+        // walk runs, and painting the stale ctx would write into a torn-down root. ctxRef is null
+        // once the tab is unmounted, so this simply does nothing then.
+        if (ctxRef) paintPicker(ctxRef);
+      });
+  }
+
+  /** Empty the selection and forget its results. The gate closes again. */
+  function clearSelection(ctx) {
+    selection = [];
+    searched = null;
+    searching = false;
+    saveSelection();
+    cfg.feed.ensure([]); // prune the feed so a later, unrelated read cannot resurface these rows
+    paintPicker(ctx);
+  }
+
+  /** The company universe the picker searches: the book, plus the NSE-500 universe once it lands. */
+  function companyList(ctx) {
+    const seen = new Map();
+    for (const h of coverage.tracked()) {
+      const t = String(h.ticker).toUpperCase();
+      if (!seen.has(t)) seen.set(t, { ticker: h.ticker, name: h.name || null });
+    }
+    const uni = ctx.data && Array.isArray(ctx.data.universe) ? ctx.data.universe : [];
+    for (const u of uni) {
+      if (!u || !u.ticker) continue;
+      const t = String(u.ticker).toUpperCase();
+      if (!seen.has(t)) seen.set(t, { ticker: u.ticker, name: u.name || null });
+    }
+    return [...seen.values()].sort((a, b) => String(a.name || a.ticker).localeCompare(String(b.name || b.ticker)));
+  }
+
+  function paintPicker(ctx) {
+    // paintPicker is called directly on every add/remove/search, not only through render(), so it
+    // owns its own listener cleanup — the picker installs a document-level click handler that would
+    // otherwise leak on each repaint.
+    disposers.forEach((d) => d && d());
+    disposers = [];
+
+    const m = cfg.feed.meta();
+    const selSet = new Set(selection.map((c) => c.ticker.toUpperCase()));
+    const rows = cfg.feed.rows().filter((r) => selSet.has(String(r.ticker).toUpperCase()));
+    const headHtml = sectionHead({
+      title: cfg.title,
+      description: cfg.subtitle,
+      meta: selection.length ? `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}</div>` : '',
+    });
+
+    // The gate: nothing chosen, so nothing has been fetched and nothing is shown but the prompt.
+    if (!selection.length) {
+      ctx.root.innerHTML = `${headHtml}${pickerBar(ctx)}${promptPanel()}`;
+      disposers.push(wirePicker(ctx.root, ctx));
+      return;
+    }
+
+    // Chosen, but the feed cannot answer at all — a static origin with no /api/news, or an
+    // operator-level failure. Keep the picker so the reader can still change the selection.
+    if (!rows.length && m.reason) {
+      ctx.root.innerHTML = `${headHtml}${pickerBar(ctx)}${unavailablePanel(m)}`;
+      disposers.push(wirePicker(ctx.root, ctx));
+      return;
+    }
+
+    const table = tableFor(ctx, rows, m);
     ctx.root.innerHTML = `
-      ${sectionHead({
-        title: cfg.title,
-        description: cfg.subtitle,
-        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`,
-      })}
+      ${headHtml}
+      ${pickerBar(ctx)}
       ${walkStrip(m)}
+      ${pendingHint()}
+      ${accountingNote(m)}
       ${table.html}`;
-
+    disposers.push(wirePicker(ctx.root, ctx));
     disposers.push(table.wire(ctx.root));
     ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
+  }
+
+  /** The COMPANIES card: selected chips, the name/symbol search, and Search / Clear. */
+  function pickerBar(ctx) {
+    const canSearch = selection.some((c) => !(searched && searched.has(c.ticker.toUpperCase())));
+    const atMax = selection.length >= (picker.max || 20);
+    const chips = selection
+      .map(
+        (c) => `
+        <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-1 pl-2.5 pr-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
+          <span title="${escapeHtml(c.name || c.ticker)}">${escapeHtml(c.ticker)}</span>
+          <button type="button" data-picker-remove="${escapeHtml(c.ticker)}" aria-label="Remove ${escapeHtml(c.name || c.ticker)}"
+            class="flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 transition-colors hover:bg-indigo-100 hover:text-indigo-700">&times;</button>
+        </span>`
+      )
+      .join('');
+    return `
+      <div data-picker class="mb-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Companies</span>
+          ${chips || '<span class="text-xs text-slate-400">none selected yet</span>'}
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[240px] max-w-md flex-1" data-picker-search-root>
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+            <input type="text" data-picker-input autocomplete="off" ${atMax ? 'disabled' : ''}
+              placeholder="${atMax ? `Limit of ${picker.max} reached — remove one to add another` : 'Search a company by name or symbol…'}"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
+            <div data-picker-results class="scrollbar-thin absolute left-0 right-0 top-full z-40 mt-1 hidden max-h-72 overflow-y-auto rounded-lg bg-white shadow-xl ring-1 ring-slate-200"></div>
+          </div>
+          <button type="button" data-picker-search ${canSearch && !searching ? '' : 'disabled'}
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
+            ${searching ? 'Searching…' : 'Search news'}
+          </button>
+          <button type="button" data-picker-clear ${selection.length ? '' : 'disabled'}
+            class="rounded-lg px-2 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 disabled:opacity-40">Clear</button>
+          <span class="ml-auto text-xs tabular-nums text-slate-400">${selection.length} of ${picker.max} max</span>
+        </div>
+      </div>`;
+  }
+
+  function wirePicker(root, ctx) {
+    const el = root.querySelector('[data-picker]');
+    if (!el) return () => {};
+    const input = el.querySelector('[data-picker-input]');
+    const results = el.querySelector('[data-picker-results]');
+    // Recomputed on demand rather than captured once: the NSE-500 universe is a DEFERRED bootstrap
+    // file, so the very first render of this tab may see the book alone. Reading it live means the
+    // suggestions widen to the full universe as soon as it lands, without a rebuild of the picker.
+    const currentList = () => companyList(ctx);
+    const selectedSet = () => new Set(selection.map((c) => c.ticker.toUpperCase()));
+
+    const closeResults = () => {
+      if (results) {
+        results.classList.add('hidden');
+        results.innerHTML = '';
+      }
+    };
+    function renderResults(q) {
+      if (!results) return;
+      const sel = selectedSet();
+      const ql = q.toLowerCase();
+      const matches = currentList()
+        .filter((c) => !sel.has(c.ticker.toUpperCase()) && (c.ticker.toLowerCase().includes(ql) || String(c.name || '').toLowerCase().includes(ql)))
+        .slice(0, 8);
+      results.innerHTML = matches.length
+        ? matches
+            .map(
+              (c) => `
+          <button type="button" data-picker-add="${escapeHtml(c.ticker)}" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-indigo-50/60">
+            <span class="font-semibold text-slate-800">${escapeHtml(c.ticker)}</span>
+            <span class="truncate text-slate-400">${escapeHtml(c.name || '')}</span>
+          </button>`
+            )
+            .join('')
+        : '<div class="px-3 py-2 text-xs text-slate-400">No matching company in your book or the NSE-500 universe.</div>';
+      results.classList.remove('hidden');
+    }
+
+    function addByTicker(ticker) {
+      const t = String(ticker).toUpperCase();
+      if (!t || selection.some((c) => c.ticker.toUpperCase() === t)) return;
+      if (selection.length >= (picker.max || 20)) return;
+      const found = currentList().find((c) => c.ticker.toUpperCase() === t) || { ticker: t, name: null };
+      selection = [...selection, { ticker: found.ticker, name: found.name || null }];
+      saveSelection();
+      if (input) input.value = '';
+      closeResults();
+      paintPicker(ctx);
+    }
+    function removeByTicker(ticker) {
+      const t = String(ticker).toUpperCase();
+      selection = selection.filter((c) => c.ticker.toUpperCase() !== t);
+      saveSelection();
+      paintPicker(ctx);
+    }
+
+    input?.addEventListener('input', () => {
+      const q = input.value.trim();
+      if (!q) return closeResults();
+      renderResults(q);
+    });
+    input?.addEventListener('focus', () => {
+      const q = input.value.trim();
+      if (q) renderResults(q);
+    });
+    input?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const first = results?.querySelector('[data-picker-add]');
+        if (first) {
+          e.preventDefault();
+          addByTicker(first.dataset.pickerAdd);
+        }
+      } else if (e.key === 'Escape') {
+        closeResults();
+      }
+    });
+    // mousedown, not click, so the add fires before the input's blur can hide the dropdown.
+    results?.addEventListener('mousedown', (e) => {
+      const btn = e.target.closest('[data-picker-add]');
+      if (btn) {
+        e.preventDefault();
+        addByTicker(btn.dataset.pickerAdd);
+      }
+    });
+    el.addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-picker-remove]');
+      if (rm) return removeByTicker(rm.dataset.pickerRemove);
+      if (e.target.closest('[data-picker-search]')) return void (selection.length && runSearch(ctx));
+      if (e.target.closest('[data-picker-clear]')) return clearSelection(ctx);
+    });
+
+    const onDocClick = (e) => {
+      if (!el.contains(e.target)) closeResults();
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }
+
+  /** The gate's face: no company chosen, so no request has been made. */
+  function promptPanel() {
+    return `
+      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 ring-1 ring-indigo-100">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        </div>
+        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">Pick the companies you want news for</h3>
+        <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+          Search a company by name or symbol above and add up to ${picker.max}, then press
+          <strong>Search news</strong> to pull their recent headlines — one live search per company,
+          newest first. Nothing is loaded until you choose, so the results are only ever the companies you asked for.
+        </p>
+      </div>`;
+  }
+
+  /** Selected companies not yet run through the feed — a nudge to press Search. */
+  function pendingHint() {
+    if (searching || !searched) return '';
+    const adds = selection.filter((c) => !searched.has(c.ticker.toUpperCase()));
+    if (!adds.length) return '';
+    return `
+      <div class="mb-4 flex items-center gap-2 rounded-xl bg-indigo-50/70 p-3 text-xs text-indigo-700 ring-1 ring-indigo-100">
+        <span class="text-indigo-500">↻</span>
+        <span>You've added <strong>${adds.length}</strong> ${adds.length === 1 ? 'company' : 'companies'} — press <strong>Search news</strong> to load ${adds.length === 1 ? 'it' : 'them'}.</span>
+      </div>`;
+  }
+
+  /**
+   * The honest tally for selected companies that produced no article rows.
+   *
+   * Two states, kept distinct as everywhere else in this feed: a company with no news in the window,
+   * and a company that could not be read at all. Neither is invented as a table row — an em-dash
+   * "headline" would read as a broken article — so they are named here instead. Suppressed while the
+   * walk is still running, because a company with no rows YET is pending, not empty.
+   */
+  function accountingNote(m) {
+    if (searching || m.pending) return '';
+    const withRows = new Set(cfg.feed.rows().map((r) => String(r.ticker).toUpperCase()));
+    const empty = [];
+    const failed = [];
+    for (const c of selection) {
+      const t = c.ticker.toUpperCase();
+      if (withRows.has(t)) continue;
+      (cfg.feed.failureFor(t) ? failed : empty).push(c);
+    }
+    if (!empty.length && !failed.length) return '';
+    const names = (cs) => cs.map((c) => `<span class="font-medium">${escapeHtml(c.ticker)}</span>`).join(', ');
+    const parts = [];
+    if (empty.length)
+      parts.push(
+        `<p class="text-xs text-slate-500"><strong>${empty.length}</strong> of your ${selection.length} selected ${
+          selection.length === 1 ? 'company' : 'companies'
+        } had no news in the last ${escapeHtml(String(m.windowDays))} days: ${names(empty)}.</p>`
+      );
+    if (failed.length)
+      parts.push(
+        `<p class="mt-1 text-xs text-amber-700"><strong>${failed.length}</strong> could not be read just now and ${
+          failed.length === 1 ? 'is' : 'are'
+        } not shown as empty: ${names(failed)}.</p>`
+      );
+    return `<div class="mb-4 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">${parts.join('')}</div>`;
   }
 
   function destroy() {
     token++;
     ctxRef = null;
+    searching = false;
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();

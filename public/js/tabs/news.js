@@ -20,8 +20,13 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 const tab = makeFilingsTab({
   id: 'news',
   title: 'News',
-  subtitle: 'Recent news for the companies in scope, as the news API returns it. Headlines and outlets are theirs; the article stays where it is published.',
+  subtitle: 'Pick one or more companies to pull their recent news — one live search per company, newest first. Headlines and outlets are theirs; the article stays where it is published.',
   feed,
+  // THE COMPANY PICKER — News only. Results are gated on the reader's selection: nothing is fetched
+  // or shown until a company is chosen and "Search news" is pressed, which is a different model from
+  // the other two filings tabs (they walk everything in scope). The selection persists across
+  // reloads under this key. See the picker block in js/tabs/filings-tab.js.
+  picker: { storageKey: 'sattva:news-companies', max: 20 },
   noun: 'articles',
   nameLabel: 'Headline',
   // WIDE, BECAUSE THE HEADLINE IS THE ROW. At 520px two genuinely different stories truncated to
@@ -67,8 +72,10 @@ const tab = makeFilingsTab({
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
         <p><strong>Real, and not ours.</strong> Articles come from the Muns news API
-           (<code class="rounded bg-slate-100 px-1">POST /tools/news-search</code>), one search per company, read through this
-           dashboard's Worker because the API needs a credential the browser must never hold.</p>
+           (<code class="rounded bg-slate-100 px-1">POST /tools/news-search</code>), one search per company you select, read
+           through this dashboard's Worker because the API needs a credential the browser must never hold.</p>
+        <p class="mt-2"><strong>You pick the companies.</strong> This tab shows news only for the companies you add above —
+           nothing is fetched until you do, and the counts below describe that selection, not a whole universe.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What is reproduced and what is not</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">

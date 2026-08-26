@@ -3373,6 +3373,11 @@ console.log('\n— header status and live alerts —');
 //      and killed the subscription. Measured before the fix: the feed reached 40 companies and
 //      4,583 rows while the screen stayed at 21 and the pill still read "21 companies". Nothing
 //      threw and nothing failed; the tab simply stopped.
+//
+// NEWS IS NOW PICKER-GATED. Unlike its two siblings, News does not walk everything in scope on
+// mount — it fetches nothing until the reader selects companies and searches. So the walk here is
+// driven by seeding a persisted selection (the same path a "Search news" press takes) rather than
+// by the navigation alone, and the gate itself — no request before a pick — is asserted first.
 // ---------------------------------------------------------------------------------------
 console.log('\n— news, announcements and insider trades —');
 {
@@ -3385,11 +3390,39 @@ console.log('\n— news, announcements and insider trades —');
   };
   page.on('request', watchFilings);
 
-  await go('/#/research/news?scope=portfolio', 3500);
+  // THE GATE — clear any persisted selection so News opens on its prompt, and confirm nothing is
+  // fetched while no company is chosen.
+  await page.evaluate(() => localStorage.removeItem('sattva:news-companies')).catch(() => {});
+  await go('/#/research/news?scope=universe', 1500);
   const bookNames = await evalSafe(async () => (await import('/js/data/coverage.js')).holdings().filter((h) => h.ticker).map((h) => h.name));
+  ok('News fetches nothing until a company is selected', seen.news.length === 0, `${seen.news.length} request(s) before any pick`);
+  ok('...and shows the pick-companies prompt instead', /pick the companies/i.test(await hostText()));
+
+  // DRIVE IT. A persisted selection is searched on mount — the same walk a "Search news" press runs
+  // — so seed a handful of BOOK companies the committed snapshot does not already cover (a snapshot
+  // hit is served with no request) and let the tab search them.
+  const bookPick = await evalSafe(async () => {
+    const cov = await import('/js/data/coverage.js');
+    let covered = new Set();
+    try {
+      const snap = await fetch('/data/news.json').then((r) => (r.ok ? r.json() : null));
+      covered = new Set(Object.keys(snap?.byTicker || {}).map((t) => t.toUpperCase()));
+    } catch {}
+    return cov
+      .holdings()
+      .filter((h) => h.ticker && !covered.has(h.ticker.toUpperCase()))
+      .slice(0, 5)
+      .map((h) => ({ ticker: h.ticker, name: h.name }));
+  });
+  await page.evaluate((sel) => localStorage.setItem('sattva:news-companies', JSON.stringify(sel)), bookPick);
+  // A real reload, not a hash goto: the selection is read from localStorage when the tab module is
+  // imported, so only a full document reload re-reads a freshly seeded one (same reason the caching
+  // checks below insist on a real reload rather than a hash navigation).
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
 
   const newsUrls = seen.news.map((u) => new URL(u));
-  ok('the news walk sends a request per company', newsUrls.length > 1, `${newsUrls.length} request(s)`);
+  ok('the news walk sends a request per selected company', newsUrls.length > 1, `${newsUrls.length} request(s) for ${bookPick.length} picked`);
   // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
   ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
   ok('...carrying a date range the Worker can read',

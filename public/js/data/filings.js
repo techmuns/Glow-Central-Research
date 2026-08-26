@@ -129,6 +129,9 @@ const dedupeArticles = (list) => {
 export function createFeed(kind) {
   let state = fresh();
   let loading = null;
+  // The picker's walks are serialised through this, so a second Search click cannot prune the rows
+  // the first one is still landing. See `ensure()`.
+  let ensuring = Promise.resolve();
   const subscribers = new Set();
   const emit = () => subscribers.forEach((fn) => fn());
 
@@ -209,8 +212,14 @@ export function createFeed(kind) {
       snapshotCount: state.snapshotCount,
       capturedAt: state.capturedAt,
       // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
-      // company would overstate the age of the forty beside it.
-      checkedAt: state.confirmedAt.size ? Math.min(...state.confirmedAt.values()) : state.checkedAt,
+      // company would overstate the age of the forty beside it. Only confirmations for companies
+      // STILL on screen count: the News picker prunes rows when a company is deselected but keeps
+      // its confirmation time (so re-adding it inside the window costs no request), and a pruned
+      // company must not go on ageing the pill for the ones left.
+      checkedAt: (() => {
+        const shown = [...state.confirmedAt].filter(([t]) => state.rows.has(t)).map(([, v]) => v);
+        return shown.length ? Math.min(...shown) : state.checkedAt;
+      })(),
       origin: originNow(),
       headers: state.headers,
       persisted: isPersistent(),
@@ -292,6 +301,75 @@ export function createFeed(kind) {
   }
 
   /**
+   * Load a specific, caller-chosen set of companies — the News picker's entry point.
+   *
+   * `load()` runs the whole in-scope walk exactly ONCE (that is what the `loading` guard is for);
+   * the picker instead asks about the handful of companies the reader has selected, and asks again
+   * every time that selection changes, so it cannot go through that guard. What it does otherwise is
+   * the same shape as `load()`: register each company's name (news searches by name, not symbol),
+   * seed the selected companies from the committed snapshot and from this device with no network,
+   * paint, then walk whatever is missing or stale — bounded by LIVE_LIMIT like every walk here.
+   *
+   * It is SELECTION-SCOPED: rows, failures and snapshot/confirmation bookkeeping for companies no
+   * longer selected are dropped, so `rows()` and `meta().covered` describe the current selection
+   * rather than everything ever searched this session. `confirmedAt` is deliberately kept, so
+   * re-adding a company inside its cache window costs no request; `meta().checkedAt` already
+   * ignores confirmations whose company is no longer on screen.
+   *
+   * Calls are serialised, so a rapid second Search cannot prune rows the first is still landing.
+   * Resolves once its walk settles.
+   */
+  function ensure(items = []) {
+    const run = ensuring.then(() => ensureInner(items));
+    ensuring = run.catch(() => {});
+    return run;
+  }
+
+  async function ensureInner(items) {
+    const wanted = [];
+    for (const item of items) {
+      const t = String(item?.ticker ?? item ?? '').toUpperCase();
+      if (!t || wanted.includes(t)) continue;
+      wanted.push(t);
+      if (item?.name) state.names.set(t, String(item.name));
+    }
+    const want = new Set(wanted);
+
+    // Forget everything about companies that are no longer selected — but keep `confirmedAt`, which
+    // is this feed's memory of how fresh a company's bytes are and lets a re-add skip the network.
+    for (const t of [...state.rows.keys()]) if (!want.has(t)) state.rows.delete(t);
+    for (const t of [...state.failures.keys()]) if (!want.has(t)) state.failures.delete(t);
+    state.fromSnapshot = new Set([...state.fromSnapshot].filter((t) => want.has(t)));
+    state.confirmedHere = new Set([...state.confirmedHere].filter((t) => want.has(t)));
+    // A stale operator-level reason (an expired token from a previous search) must not outlive the
+    // selection that hit it; the walk below re-establishes one if it still applies.
+    state.reason = null;
+    state.message = null;
+
+    state.loaded = true;
+    if (!wanted.length) {
+      state.pending = 0;
+      state.truncated = 0;
+      emit();
+      return state;
+    }
+
+    // PASS ONE — the snapshot (restricted to the selection) and this device, no network.
+    await seedFromSnapshot(want);
+    await seedFromDevice(wanted.filter((t) => !state.rows.has(t)));
+    emit();
+
+    // PASS TWO — walk only what the snapshot did not cover and the device could not vouch for.
+    const missing = wanted.filter((t) => !state.fromSnapshot.has(t) && stale(t));
+    state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
+    state.pending = Math.min(missing.length, LIVE_LIMIT);
+    emit();
+    if (missing.length) await walk(missing.slice(0, LIVE_LIMIT));
+    else emit();
+    return state;
+  }
+
+  /**
    * Everything this device already holds for the wanted companies, in ONE store transaction.
    *
    * A miss is not an error — it means "fetch it", which pass two does. A stored FAILURE is never
@@ -319,8 +397,14 @@ export function createFeed(kind) {
     }
   }
 
-  /** The committed snapshot. A miss is not an error — it means the scheduled run has not run yet. */
-  async function seedFromSnapshot() {
+  /**
+   * The committed snapshot. A miss is not an error — it means the scheduled run has not run yet.
+   *
+   * `only`, when given, restricts the seed to that set of tickers — the News picker asks about a
+   * handful of chosen companies and has no use for the other ~600 the snapshot carries, and seeding
+   * them all would make `meta().covered` read "603 companies" over a four-company search.
+   */
+  async function seedFromSnapshot(only = null) {
     let res;
     try {
       res = await conditionalJson(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
@@ -337,11 +421,14 @@ export function createFeed(kind) {
     for (const [ticker, list] of Object.entries(byTicker)) {
       if (!Array.isArray(list) || !list.length) continue;
       const t = ticker.toUpperCase();
+      if (only && !only.has(t)) continue;
       state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
       state.fromSnapshot.add(t);
     }
-    state.snapshotCount = state.rows.size;
-    return state.rows.size > 0;
+    // Count snapshot-origin companies, not `state.rows.size` — the picker seeds the device before
+    // this on some calls, so the two can differ.
+    state.snapshotCount = state.fromSnapshot.size;
+    return state.fromSnapshot.size > 0;
   }
 
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
@@ -416,6 +503,7 @@ export function createFeed(kind) {
 
   return {
     load,
+    ensure,
     loadOne,
     rows,
     forTicker,
