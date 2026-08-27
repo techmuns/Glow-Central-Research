@@ -1950,11 +1950,12 @@ the same reasons (no credential to hold; a same-account Worker proxy is refused 
 re-ranks or recomputes. See `js/data/fund-returns.js` (transport) and `js/investors/fund-returns.js`
 (the view).
 
-**The base URL is not hardcoded and no host is committed.** `window.AMFIBEAS_API_BASE` in
-`public/index.html` names the host (empty by default — the API is not yet deployed);
+**The host is set in one place.** `window.AMFIBEAS_API_BASE` in `public/index.html` names it —
+`https://amfibeas.tech-441.workers.dev`, the same `*.tech-441.workers.dev` account convention as the
+chatter and con-call feeds, verified CORS-open (`access-control-allow-origin: *`).
 `localStorage['sattva:amfibeas-base']` overrides it, which is how `verify-ui.mjs` and a screenshot
-run point the feed at a stub. An empty base surfaces as the view's `no-url` state (*"configure the
-host"*), never a broken table.
+run point the feed at a stub. An **empty** base surfaces as the view's `no-url` state (*"configure
+the host"*), never a broken table — which is exactly what shipped before the host was wired.
 
 Query params (all optional): `classification`, `cohort`, `plan` (`regular`/`direct`/`unknown`),
 `option` (`growth`/`idcw`/`unknown`), `q`/`search`, `period` (comma list of the seven below;
@@ -2009,7 +2010,15 @@ pill reads *Live* / *Cached* accordingly and never claims a freshness it has not
 
 **Adding it to the Sources modal / app:** it is a direct-fetch lazy feed like chatter, so it is
 **not** in `app.js`'s `DATA_SOURCES` — the view loads it on mount. Its Sources-modal entry
-(`js/ui/sources.js`) is marked `status: 'pending'` until a host is configured.
+(`js/ui/sources.js`) is `status: 'live'` now that the host is wired.
+
+**One caveat on the wire — no ETag.** The live host answers `200` with
+`cache-control: public, max-age=300, s-maxage=3600` but **no `ETag`** and no
+`access-control-expose-headers`. `conditionalJson` can therefore never 304 it, so each view mount
+is a fresh full read (origin stays `live`, never `store`). That is acceptable here — this feed is
+loaded once per visit, not polled every 30s like the earnings feed — but if the upstream ever adds
+a content ETag and exposes it via `access-control-expose-headers`, the device cache starts saving
+the download for free with no client change.
 
 ---
 

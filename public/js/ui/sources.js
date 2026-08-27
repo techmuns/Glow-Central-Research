@@ -387,12 +387,9 @@ export function sourceGroups() {
               schemes,
               ' <n> schemes in the current pull.'
             )}`,
-          cadence: 'Daily · read live per visit, the device cache revalidated against the upstream ETag',
-          // PENDING, not live: the API is wired and rendering but has no deployed host yet — set
-          // window.AMFIBEAS_API_BASE in index.html to activate it. Marked honestly so the modal does
-          // not claim a live feed the reader is not seeing.
-          status: 'pending',
-          file: 'public/js/investors/fund-returns.js · public/js/data/fund-returns.js · window.AMFIBEAS_API_BASE in index.html',
+          cadence: 'Daily · read live per visit, straight from the browser',
+          status: 'live',
+          file: 'amfibeas.tech-441.workers.dev · public/js/data/fund-returns.js · public/js/investors/fund-returns.js · window.AMFIBEAS_API_BASE in index.html',
         },
       ],
     },

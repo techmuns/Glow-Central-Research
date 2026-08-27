@@ -50,15 +50,15 @@
       window.SATTVA_CHATTER_URL = 'https://sentimentdash-api.tech-441.workers.dev/v1';
 
       // The AmfiBeas "Returns & Ranking" API, read by the Institutions (Fund Returns) sub-view. Like
-      // the chatter feed above it is CORS-open, read-only and called STRAIGHT FROM THE BROWSER, so
-      // there is no credential to hold and nothing to proxy for.
+      // the chatter feed above it is CORS-open (verified `access-control-allow-origin: *`), read-only
+      // and called STRAIGHT FROM THE BROWSER, so there is no credential to hold and nothing to proxy
+      // for. Same `*.tech-441.workers.dev` account convention as the two feeds above.
       //
-      // LEFT EMPTY DELIBERATELY: the API is not yet deployed to a fixed host. An empty base surfaces
-      // as the view's `no-url` state, which says "configure the host" rather than showing a broken
-      // table. Fill in the host here once it is deployed (no trailing slash); the view appends
-      // `/api/returns-ranking`. `localStorage['sattva:amfibeas-base']` overrides it, which is how
-      // verify-ui.mjs and a screenshot run point the feed at a stub.
-      window.AMFIBEAS_API_BASE = '';
+      // The host carries no trailing slash; the view appends `/api/returns-ranking`. An empty value
+      // here would surface as the view's `no-url` state ("configure the host") rather than a broken
+      // table. `localStorage['sattva:amfibeas-base']` overrides it, which is how verify-ui.mjs and a
+      // screenshot run point the feed at a stub.
+      window.AMFIBEAS_API_BASE = 'https://amfibeas.tech-441.workers.dev';
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
