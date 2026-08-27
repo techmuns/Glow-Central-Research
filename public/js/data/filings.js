@@ -1,11 +1,14 @@
 // data/filings.js — the feed behind News, Corporate Announcements and Insider Trades.
 //
 //   const feed = createFeed('announcements');
-//   feed.load(items)        snapshot first, then a bounded live walk for whatever it is missing
+//   feed.load(items)        CACHE ONLY — the committed snapshot and this device, no network at all
 //                           (items are tickers, or { ticker, name } — the name is what news searches)
+//   feed.refresh(items)     the manual live walk: fetch only the stale/missing companies, in ONE
+//                           quiet pass (no per-company repaint), and resolve with a summary of what
+//                           changed. This is what the Refresh button runs.
 //   feed.rows()             every row that has landed, newest first
 //   feed.meta()             what loaded, what failed, where the paint came from, and when
-//   feed.onChange(fn)       fires as rows arrive, so the table fills in progressively
+//   feed.onChange(fn)       fires when the row set changes (the News picker repaints on it)
 //
 // ONE MODULE, THREE FEEDS, because everything that differs between them is a URL and a row shape,
 // and both of those already live elsewhere — the routes in worker/index.js, the shapes in
@@ -21,6 +24,15 @@
 //   2. A LIVE WALK for companies the snapshot does not cover, bounded by LIVE_LIMIT and run
 //      CONCURRENCY at a time. This is what makes a brand-new deployment show something before the
 //      first scheduled run, and what refreshes one company on demand.
+//
+// THE LIVE WALK IS MANUAL FOR ANNOUNCEMENTS AND INSIDER TRADES. It used to run automatically on
+// every visit, a few companies at a time, repainting the table as each one landed — which reads as a
+// flicker and spends somebody else's rate limit on every navigation. Now `load()` paints the cache
+// alone (instant, identical on every return) and the walk happens only when the reader presses
+// Refresh (`refresh()`): one quiet pass over the stale/missing companies, one repaint at the end,
+// bounded so repeated presses work through the backlog without hammering the upstream. Each fetched
+// company is written to the device store, so a return visit reuses it with no request. News is the
+// exception — it is picker-driven (`ensure()`) and shows each chosen company's results as they land.
 //
 // A SNAPSHOT IS NOT STALE DATA PRETENDING TO BE LIVE. `meta().origin` says which of `snapshot`,
 // `store`, `mixed` or `live` produced what is on screen and `meta().capturedAt` when the snapshot
@@ -132,6 +144,8 @@ export function createFeed(kind) {
   // The picker's walks are serialised through this, so a second Search click cannot prune the rows
   // the first one is still landing. See `ensure()`.
   let ensuring = Promise.resolve();
+  // A refresh in flight, so a double-press coalesces onto the one walk rather than starting a second.
+  let refreshing = null;
   const subscribers = new Set();
   const emit = () => subscribers.forEach((fn) => fn());
 
@@ -255,49 +269,91 @@ export function createFeed(kind) {
   // the caller did not supply falls back to the ticker, which is a worse search and still a search.
   const queryFor = (t) => state.names.get(t) || t;
 
+  /** Dedupe `items` to uppercase tickers, registering any names the news search will use. */
+  function normalizeWanted(items) {
+    const wanted = [];
+    for (const item of items) {
+      const t = String(item?.ticker ?? item ?? '').toUpperCase();
+      if (!t || wanted.includes(t)) continue;
+      wanted.push(t);
+      if (item?.name) state.names.set(t, String(item.name));
+    }
+    return wanted;
+  }
+
   /**
-   * Fill from the committed snapshot, then walk live for what is still missing.
+   * Seed from the committed snapshot and this device — CACHE ONLY, no network.
    *
-   * Resolves once there is something to paint, not once every company has answered — the same rule
-   * the super-investor feed follows. The walk continues in the background and `onChange` fires as
-   * rows land.
+   * The live walk used to run here on every visit, a few companies at a time, repainting as each one
+   * landed. That is the flicker the reader sees, and the rate limit spent on every navigation. It
+   * moved to refresh(): load() now only ever paints what is already on disk — instant, and the same
+   * on every return visit. Guarded so it runs once; resolves when the cache is seeded.
    *
    * `items` may be tickers or `{ ticker, name }`. The name is what the news search uses.
    */
   function load(items = []) {
     if (loading) return loading;
     loading = (async () => {
-      const wanted = [];
-      for (const item of items) {
-        const t = String(item?.ticker ?? item ?? '').toUpperCase();
-        if (!t || wanted.includes(t)) continue;
-        wanted.push(t);
-        if (item?.name) state.names.set(t, String(item.name));
-      }
-
-      // PASS ONE — the committed snapshot and this device, with no network at all.
-      //
-      // A return visit paints the whole table before a single request is sent. The walk that used
-      // to run on every visit was the delay: forty companies, four at a time, is ten sequential
-      // waits for rows that were already on the device from last time.
+      const wanted = normalizeWanted(items);
       await seedFromSnapshot();
       await seedFromDevice(wanted);
       state.loaded = true;
       emit();
-
-      // PASS TWO — only what is genuinely missing or genuinely old. A company confirmed inside the
-      // feed's own cache window is skipped, because the server cannot answer differently yet, and
-      // a company the committed snapshot covers is skipped outright.
-      const missing = wanted.filter((t) => !state.failures.has(t) && !state.fromSnapshot.has(t) && stale(t));
-      if (missing.length) {
-        state.truncated = Math.max(0, missing.length - LIVE_LIMIT);
-        state.pending = Math.min(missing.length, LIVE_LIMIT);
-        // Not awaited: whatever we already had is on screen and the walk fills in behind it.
-        walk(missing.slice(0, LIVE_LIMIT));
-      }
       return state;
     })();
     return loading;
+  }
+
+  /**
+   * The manual live walk — what the Refresh button runs.
+   *
+   * Fetch only the companies whose window has expired or that were never read; a company the
+   * committed snapshot already carries is the snapshot's to refresh, on its schedule. The walk runs
+   * QUIET — no per-company emit — so the table does not rebuild company by company the way it used
+   * to; the caller repaints ONCE, with the returned summary in hand. Bounded by LIVE_LIMIT, so a
+   * press fetches a batch and reports how many more are in scope; pressing again works through the
+   * backlog without ever hammering the upstream past its ~60/min ceiling. Every company that answers
+   * is written to the device store, so the next visit reuses it with no request.
+   *
+   * Concurrent presses coalesce onto the one walk. Resolves with
+   * `{ asked, newCompanies, newRows, failed, truncated }`.
+   */
+  function refresh(items = []) {
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      if (!state.loaded) await load(items);
+      const wanted = normalizeWanted(items);
+      const beforeCompanies = state.rows.size;
+
+      // Failed companies are included deliberately (a manual refresh is a retry) — but they go to the
+      // BACK, so a block of persistently-failing tickers at the front of the list cannot starve the
+      // fetchable ones behind them and leave a refresh forever short of "Up to date".
+      const candidates = wanted
+        .filter((t) => !state.fromSnapshot.has(t) && stale(t))
+        .sort((a, b) => (state.failures.has(a) ? 1 : 0) - (state.failures.has(b) ? 1 : 0));
+      state.truncated = Math.max(0, candidates.length - LIVE_LIMIT);
+      const batch = candidates.slice(0, LIVE_LIMIT);
+
+      // Per-company row counts BEFORE the walk, so "new" is the SUM OF POSITIVE DELTAS. A company
+      // whose rows shrank — a revised filing, one aged past the window — must not cancel another's
+      // new ones, which a single net (after − before) total would silently let it do.
+      const before = new Map(batch.map((t) => [t, (state.rows.get(t) || []).length]));
+      state.pending = batch.length;
+      await walk(batch, { quiet: true });
+      state.pending = 0;
+      const newRows = batch.reduce((a, t) => a + Math.max(0, (state.rows.get(t) || []).length - (before.get(t) || 0)), 0);
+
+      return {
+        asked: batch.length,
+        newCompanies: state.rows.size - beforeCompanies,
+        newRows,
+        failed: state.failures.size,
+        truncated: state.truncated,
+      };
+    })();
+    return refreshing.finally(() => {
+      refreshing = null;
+    });
   }
 
   /**
@@ -437,7 +493,7 @@ export function createFeed(kind) {
     return kind === 'news' ? dedupeArticles(list) : list;
   }
 
-  async function walk(queue) {
+  async function walk(queue, { quiet = false } = {}) {
     const q = [...queue];
     const workers = Array.from({ length: Math.min(CONCURRENCY, q.length) }, async () => {
       for (;;) {
@@ -447,11 +503,14 @@ export function createFeed(kind) {
         await loadOne(t);
         state.inFlight--;
         state.pending = Math.max(0, state.pending - 1);
-        emit();
+        // QUIET is the manual refresh: no per-company repaint, so the whole batch lands at once when
+        // the caller paints. Progressive (the default) is the News picker, where each chosen company
+        // appearing as it resolves is the point.
+        if (!quiet) emit();
       }
     });
     await Promise.all(workers);
-    emit();
+    if (!quiet) emit();
   }
 
   /** One company. Never throws — a failure is recorded against that ticker and the walk goes on. */
@@ -503,6 +562,7 @@ export function createFeed(kind) {
 
   return {
     load,
+    refresh,
     ensure,
     loadOne,
     rows,

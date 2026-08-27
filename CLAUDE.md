@@ -84,8 +84,10 @@ public/
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
       universe.js             screener-export -> legacy universe shape adapter
-      filings.js              the News / Announcements / Insider feed: snapshot first, then a
-                              bounded live walk for whatever it is missing
+      filings.js              the News / Announcements / Insider feed: CACHE-FIRST. `load()` seeds
+                              from the committed snapshot and this device with no network; the live
+                              walk is manual — `refresh()` for Announcements/Insider, `ensure()` for
+                              the News picker — never on mount
       filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
                               worker/muns.mjs
     scoring/
@@ -672,6 +674,19 @@ and commits the result; the live routes remain for companies the snapshot misses
 one on demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape walks **the
 book first**, so a run cut short by the rate limit or an expiring token has covered the holdings
 rather than whatever starts with A.
+
+**AND THE LIVE WALK NEVER RUNS ON MOUNT.** It used to: every visit to Announcements or Insider Trades
+fired a bounded walk that repainted the table a few rows at a time — a flicker, and somebody else's
+rate limit spent on every navigation, to discover mostly what the device already held. Now `load()`
+is cache-only (snapshot + device, instant) and the walk is behind the **Refresh** button:
+`refresh()` fetches only the stale/missing companies in ONE quiet pass — no per-company emit, so the
+whole batch lands with a single repaint at the end — and returns a summary the button shows (*"N
+new"* / *"Up to date"*). Repeated presses work through the `LIVE_LIMIT` backlog. A cold cache shows a
+*"Nothing cached yet — press Refresh"* panel rather than an empty table, and the pill reads **Not
+fetched** (never "Live") until the first fetch. News is the exception: it is picker-driven, so its
+walk fires per selected company on Search. The scope-driven tabs therefore hold **no `onChange`
+subscription** — they paint explicitly at each step, which is what removes the company-by-company
+rebuild; the picker keeps its subscription (see *One tab, one provenance* and the picker rules).
 
 **A company that could not be read is not a company with nothing.** Failures are kept per ticker,
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
@@ -1603,13 +1618,21 @@ It covers, beyond the checklist below:
 - **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both
   the depth and the trough date
 - the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
-- **the three filings tabs ask the right questions and keep painting the answers**: every news
-  request carries exactly one query string, a readable date range and a `q` that is a book company's
-  **name** with no part of the URL folded into it; all three walks send one request per company
-  rather than counting a queue down without asking anything; a repaint still reaches the screen
-  **after a scope toggle**, which is the re-render that used to kill the subscription silently; and
-  **every rendered row is a row the feed actually holds** — compared, not counted, because the
-  position-keyed rows that made News look duplicated always counted correctly
+- **the three filings tabs ask the right questions, and only when asked**: News fetches nothing until
+  a company is picked and searched; Announcements and Insider fetch nothing on mount and only when
+  **Refresh** is pressed. Every request that does fire carries exactly one query string, a readable
+  date range and — for News — a `q` that is a book company's **name** with no part of the URL folded
+  into it; each walk sends one request per company rather than counting a queue down without asking
+  anything. A re-render (the **scope toggle**) still repaints the panel — checked directly now, since
+  the scope-driven tabs hold no subscription to kill. And **every rendered row is a row the feed
+  actually holds** — compared, not counted, because the position-keyed rows that made News look
+  duplicated always counted correctly
+- **the cache-first tabs do not flicker and do not re-download**: Announcements and Insider paint the
+  cache on mount and their live walk is behind Refresh — one quiet pass that lands the whole batch in
+  a **single** repaint (never company-by-company), reports *"N new"* / *"Up to date"* on the button,
+  and a return visit paints from the device store with no request; the cold-cache state invites a
+  fetch rather than showing an empty table, and the pill reads **Not fetched** — never "Live" — until
+  the first one
 - the CSV round trip parses every row back, and a malformed file names each rejection with its line
 - every `<th>` carries `scope="col"`; the three overlays trap focus and restore it on close
 - **the two polled feeds do not re-download themselves**: the payload is kept on the device under

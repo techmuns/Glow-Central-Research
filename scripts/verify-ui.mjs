@@ -3378,6 +3378,12 @@ console.log('\n— header status and live alerts —');
 // mount — it fetches nothing until the reader selects companies and searches. So the walk here is
 // driven by seeding a persisted selection (the same path a "Search news" press takes) rather than
 // by the navigation alone, and the gate itself — no request before a pick — is asserted first.
+//
+// ANNOUNCEMENTS AND INSIDER TRADES ARE NOW CACHE-FIRST. They too fetch nothing on mount — the live
+// walk moved behind the Refresh button, one quiet pass with a single repaint at the end. So their
+// gate (no request on mount) is asserted first, the Refresh button drives the per-company walk, and
+// bug #2's concern — a re-render must still repaint — is checked against the scope toggle directly,
+// because these tabs no longer hold an onChange subscription at all.
 // ---------------------------------------------------------------------------------------
 console.log('\n— news, announcements and insider trades —');
 {
@@ -3439,26 +3445,32 @@ console.log('\n— news, announcements and insider trades —');
   const named = queries.filter((q) => bookNames.includes(q)).length;
   ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
 
-  await go('/#/research/corp-announcements?scope=portfolio', 3500);
+  // ANNOUNCEMENTS & INSIDER TRADES ARE CACHE-FIRST. The mount fetches nothing — it paints what is
+  // stored — and the live walk runs ONLY when Refresh is pressed. So the gate is asserted first,
+  // then the button drives the per-company walk (whose URLs are observable even on a static origin,
+  // where they 404 — the URL is the artefact, not the response).
+  await go('/#/research/corp-announcements?scope=portfolio', 2000);
+  ok('Corp Announcements fetches nothing on mount (cache-first)', seen.announcements.length === 0, `${seen.announcements.length} request(s) on mount`);
+  await page.click('[data-refresh]').catch(() => {});
+  await page.waitForTimeout(3500);
   const annUrls = seen.announcements.map((u) => new URL(u));
-  ok('announcements asks per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
+  ok('a refresh asks per company, once each', annUrls.length > 1 && new Set(annUrls.map((u) => u.pathname)).size === annUrls.length, `${annUrls.length} request(s), ${new Set(annUrls.map((u) => u.pathname)).size} distinct`);
   ok('...on a path route whose range is still a query string', annUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), annUrls[0]?.href.slice(-70) || '');
 
-  // A REPAINT MUST STILL REACH THE SCREEN AFTER A RE-RENDER. The scope toggle is the re-render that
-  // used to kill it. `invalidate()` + `load()` is the public way to make the feed emit again on
-  // demand, so this does not depend on catching a live walk mid-flight.
-  await page.click('#scope-toggle-mount button:last-of-type').catch(() => {});
-  await page.waitForTimeout(1200);
-  const repainted = await evalSafe(async () => {
-    const m = await import('/js/data/filings.js');
-    const first = document.querySelector('#content-host > *');
-    m.announcements.invalidate();
-    await m.announcements.load(['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ITC']);
-    await new Promise((r) => setTimeout(r, 2500));
-    return { replaced: document.querySelector('#content-host > *') !== first, had: !!first };
+  // A RE-RENDER MUST STILL REPAINT THE PANEL. These tabs paint explicitly now (there is no onChange
+  // subscription to survive a re-render), so the thing to prove is that the scope toggle — the
+  // re-render — rebuilds the DOM. Tag the current panel, flip scope, and confirm the tag is gone.
+  await evalSafe(() => {
+    const el = document.querySelector('#content-host > *');
+    if (el) el.setAttribute('data-repaint-probe', '1');
   });
-  ok('a repaint still reaches the screen after a scope toggle', repainted.had && repainted.replaced,
-    repainted.had ? (repainted.replaced ? 'panel rebuilt' : 'FROZEN — the feed changed and the DOM did not') : 'no panel to compare');
+  await page.click('#scope-toggle-mount button:has-text("Universe")').catch(() => {});
+  await page.waitForTimeout(1500);
+  const repainted = await evalSafe(() => {
+    const el = document.querySelector('#content-host > *');
+    return { replaced: !el || !el.hasAttribute('data-repaint-probe') };
+  });
+  ok('a re-render (scope toggle) still repaints the panel', repainted.replaced, repainted.replaced ? 'panel rebuilt' : 'FROZEN — scope changed and the DOM did not');
 
   // The headline IS the row, so it gets the width — but not at the cost of a scrollbar under it.
   await go('/#/research/news?scope=portfolio', 3000);
@@ -3497,9 +3509,12 @@ console.log('\n— news, announcements and insider trades —');
   if (!paint) skip('every rendered row is a row the feed actually holds', 'no rows on this origin — there is no /api/news to answer');
   else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
 
-  await go('/#/research/insider-trades?scope=portfolio', 3500);
+  await go('/#/research/insider-trades?scope=portfolio', 2000);
+  ok('Insider Trades fetches nothing on mount (cache-first)', seen.insider.length === 0, `${seen.insider.length} request(s) on mount`);
+  await page.click('[data-refresh]').catch(() => {});
+  await page.waitForTimeout(3500);
   const insUrls = seen.insider.map((u) => new URL(u));
-  ok('insider trades asks per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
+  ok('a refresh asks per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
   ok('...with the same one-query-string shape', insUrls.every((u) => (u.href.match(/\?/g) || []).length === 1 && u.searchParams.get('from') && u.searchParams.get('to')), insUrls[0]?.href.slice(-70) || '');
 
   page.off('request', watchFilings);

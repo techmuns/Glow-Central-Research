@@ -72,6 +72,13 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let ctxRef = null;
 
+  // ---- manual refresh (Corp Announcements, Insider Trades) -----------------------------
+  // These two are cache-first: the mount paints what is stored and the live walk runs only when the
+  // reader presses Refresh. See render()/paint()/doRefresh below.
+  let refreshing = false;
+  let refreshMsg = null; // { text, tone } — a transient result shown on the button after a refresh
+  let refreshTimer = null;
+
   // ---- picker mode (News only) --------------------------------------------------------
   //
   // When `cfg.picker` is set the tab does NOT auto-walk everything in scope. Instead the reader
@@ -149,27 +156,19 @@ export function makeFilingsTab(cfg) {
       return;
     }
 
-    // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
+    // ANNOUNCEMENTS & INSIDER TRADES — cache-first, refreshed on demand.
     //
-    // Rows arrive a few at a time while the walk runs and the tab has to repaint as they land. An
-    // earlier version set this up below, after `paint()` — which the first visit never reaches,
-    // because it returns early into `load().then(paint)`. The result was a tab that painted its
-    // empty first frame and then froze: the walk completed, forty companies failed, and the screen
-    // still said "reading 40 more" with a table of nothing. The state was right and only the paint
-    // was stale, which is the worst version of this bug because nothing looks broken.
+    // These two used to run a live walk on every visit, a few companies at a time, repainting the
+    // table as each one landed — the flicker the reader sees, and somebody else's rate limit spent on
+    // every navigation. Now the mount paints the cache alone (instant, identical on every return) and
+    // the walk happens only when Refresh is pressed: one quiet pass, one repaint at the end (see
+    // doRefresh + feed.refresh).
     //
-    // AND THE GUARD IS `ctxRef`, NOT THE TOKEN. The token check was `mine !== token`, with `mine`
-    // captured at subscribe time and the subscription created once — so the second `render()`, which
-    // a scope toggle always causes and which is the entire point of these tabs, incremented `token`
-    // and killed it. Measured: the feed went on to 40 companies and 4,583 rows while the screen sat
-    // at 21 and the pill still read "21 companies". Nothing threw, nothing failed, and the tab
-    // simply stopped. `ctxRef` is what the guard was for — it is set by every render and cleared by
-    // destroy(), so it tracks "is this tab still mounted" without going stale.
-    //
-    // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
-    // subscription that produced it.
-    if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
-
+    // THERE IS NO onChange SUBSCRIPTION HERE, unlike the picker path above. Nothing arrives
+    // asynchronously to react to any more — load() is cache-only and refresh() is quiet — so the tab
+    // paints explicitly at each step, which is what keeps the table from rebuilding company by
+    // company. It also sidesteps the failure mode the picker's ctxRef-guarded subscription defends
+    // against: with no subscription, a re-render cannot orphan one.
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
       cfg.feed.load(tickersFor(ctx)).then(() => {
@@ -181,33 +180,147 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
+    // paint() is called on mount, on scope change, and from doRefresh — so it owns its cleanup rather
+    // than leaning on render()'s, and never lets a previous table's listeners accumulate.
+    disposers.forEach((d) => d && d());
+    disposers = [];
+
     const m = cfg.feed.meta();
     const book = new Set(coverage.holdings().map((h) => h.ticker).filter(Boolean));
     const all = cfg.feed.rows();
     const rows = ctx.scope === 'portfolio' ? all.filter((r) => r.ticker && book.has(String(r.ticker).toUpperCase())) : all;
+    const headMeta = `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${refreshButton()}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`;
+    const head = sectionHead({ title: cfg.title, description: cfg.subtitle, meta: headMeta });
 
-    // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
-    // real answer and renders as an empty table with its own message.
+    // NOTHING AT ALL, AND A REASON WHY. The refresh button stays, so a reader who fixes the cause
+    // (a renewed token, the Worker coming up) can retry in place.
     if (!rows.length && m.reason) {
-      ctx.root.innerHTML = `
-        ${sectionHead({ title: cfg.title, description: cfg.subtitle, meta: scopeSummary({ scope: ctx.scope, count: 0, noun: cfg.noun, book: coverage.meta() }) })}
-        ${unavailablePanel(m)}`;
+      ctx.root.innerHTML = `${head}${unavailablePanel(m)}`;
+      wireRefresh(ctx);
+      return;
+    }
+
+    // NOTHING CACHED YET, and no failure — the cold-cache state. Invite a fetch rather than showing an
+    // empty table that reads as "no filings exist". Once fetched, the device store makes the return
+    // visit land here with rows and skip this panel.
+    if (!rows.length && m.covered === 0) {
+      ctx.root.innerHTML = `${head}${emptyCachePanel()}`;
+      wireRefresh(ctx);
       return;
     }
 
     const table = tableFor(ctx, rows, m);
-
     ctx.root.innerHTML = `
-      ${sectionHead({
-        title: cfg.title,
-        description: cfg.subtitle,
-        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`,
-      })}
-      ${walkStrip(m)}
+      ${head}
+      ${refreshableStrip(m)}
       ${table.html}`;
-
     disposers.push(table.wire(ctx.root));
     ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
+    wireRefresh(ctx);
+  }
+
+  // ---- the Refresh control ------------------------------------------------------------
+
+  /** The Refresh control beside the freshness pill — it runs the manual walk and reports the result. */
+  function refreshButton() {
+    const label = refreshing ? 'Checking…' : refreshMsg ? refreshMsg.text : 'Refresh';
+    const tone = !refreshing && refreshMsg ? (refreshMsg.tone === 'good' ? 'text-emerald-700' : refreshMsg.tone === 'bad' ? 'text-rose-700' : 'text-slate-600') : 'text-slate-600';
+    return `
+      <button type="button" data-refresh ${refreshing ? 'disabled' : ''}
+        title="Fetch newly filed ${escapeHtml(cfg.noun)} for the companies in scope. Only companies whose data may have changed are re-checked, and results are stored on this device."
+        class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold ${tone} ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-70">
+        <svg data-refresh-icon class="${refreshing ? 'spin-slow' : ''}" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+        <span data-refresh-label>${escapeHtml(label)}</span>
+      </button>`;
+  }
+
+  function wireRefresh(ctx) {
+    const btn = ctx.root.querySelector('[data-refresh]');
+    if (btn) btn.addEventListener('click', () => doRefresh(ctx));
+  }
+
+  /**
+   * Run the manual walk: spin the button IN PLACE (no repaint, so nothing flickers), fetch quietly,
+   * then repaint ONCE with everything that landed and report the result on the button. This is the
+   * whole point of the change — the reader sees a small spinner, then the finished table, never the
+   * table rebuilding company by company.
+   */
+  async function doRefresh(ctx) {
+    if (refreshing) return;
+    refreshing = true;
+    refreshMsg = null;
+    const btn = ctx.root.querySelector('[data-refresh]');
+    if (btn) {
+      btn.disabled = true;
+      btn.querySelector('[data-refresh-icon]')?.classList.add('spin-slow');
+      const lbl = btn.querySelector('[data-refresh-label]');
+      if (lbl) lbl.textContent = 'Checking…';
+    }
+    let summary = null;
+    try {
+      summary = await cfg.feed.refresh(tickersFor(ctx));
+    } catch {
+      summary = null;
+    }
+    refreshing = false;
+    // Paint the CURRENT ctx, not the one captured before the await. A scope toggle mid-walk swaps
+    // ctxRef, and bailing on a ctx mismatch would leave the button stuck spinning (the re-render
+    // painted it while the walk was still in flight) and the freshly fetched rows unpainted. ctxRef
+    // is null only once the tab is fully unmounted, where there is nothing to paint.
+    if (!ctxRef) return;
+    refreshMsg = summarizeRefresh(summary);
+    paint(ctxRef); // ONE repaint, all the new data at once
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      refreshMsg = null;
+      // Reset the label AND its success/fail colour — clearing only the text would leave an idle
+      // "Refresh" painted emerald or rose.
+      const b = ctxRef?.root?.querySelector('[data-refresh]');
+      if (b) {
+        b.classList.remove('text-emerald-700', 'text-rose-700');
+        b.classList.add('text-slate-600');
+        const lbl = b.querySelector('[data-refresh-label]');
+        if (lbl) lbl.textContent = 'Refresh';
+      }
+    }, 6000);
+  }
+
+  function summarizeRefresh(summary) {
+    // New rows win the label even if some companies also failed — the failures are already named in
+    // the panel and pill, and "12 new" is the more useful thing to say when data did land. Only when
+    // nothing landed does a feed-level failure (no route, expired token) get the button.
+    if (summary && summary.newRows > 0) return { text: `${formatNumber(summary.newRows)} new`, tone: 'good' };
+    if (!summary || cfg.feed.meta().reason) return { text: "Couldn't refresh", tone: 'bad' };
+    return { text: 'Up to date', tone: 'neutral' };
+  }
+
+  /** The cold-cache face: nothing stored yet, so nothing has been fetched. */
+  function emptyCachePanel() {
+    return `
+      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 ring-1 ring-indigo-100">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </div>
+        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">Nothing cached yet</h3>
+        <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+          Press <strong>Refresh</strong> to fetch the latest ${escapeHtml(cfg.noun)} for the companies in scope. They are then
+          stored on this device, so coming back here is instant — and Refresh only ever re-checks what may have changed.
+        </p>
+      </div>`;
+  }
+
+  /** After a bounded refresh, say how many companies are still in scope but were not fetched this time. */
+  function refreshableStrip(m) {
+    if (!m.truncated) return '';
+    return `
+      <div class="mb-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-100">
+        <span class="mt-0.5 flex-shrink-0 text-slate-400" aria-hidden="true">ℹ</span>
+        <span><strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'company is' : 'companies are'} in scope but ${
+          m.truncated === 1 ? 'was' : 'were'
+        } not fetched this time — these upstreams allow about sixty requests a minute, so each Refresh fetches a batch. Press <strong>Refresh</strong> again to fetch more.</span>
+      </div>`;
   }
 
   /**
@@ -557,6 +670,9 @@ export function makeFilingsTab(cfg) {
     token++;
     ctxRef = null;
     searching = false;
+    refreshing = false;
+    refreshMsg = null;
+    clearTimeout(refreshTimer);
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();
@@ -585,6 +701,18 @@ const loadingHtml = () => `
  */
 function pill(m) {
   const bad = m.failed > 0 || !!m.reason;
+  // NOTHING LOADED IS NOT "LIVE". With cache-first mount a tab can sit at zero companies before its
+  // first Refresh, and `origin` is null there — which the label logic below would otherwise spell as
+  // "Live". A freshness control may never claim a freshness it has not got, so the empty state gets
+  // its own neutral chip that says exactly what is true: nothing has been fetched yet.
+  if (!bad && !m.covered) {
+    return `
+      <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
+        class="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-100">
+        <span class="h-1.5 w-1.5 rounded-full bg-slate-300"></span><span>Not fetched</span>
+        <span class="font-normal opacity-70">${escapeHtml(String(m.windowDays))}d window</span>
+      </button>`;
+  }
   // `store` counts as a snapshot for colour AND for wording: those rows are bytes this device kept
   // from an earlier visit, and the server has not confirmed them in this session. Saying "Live"
   // over them is the one thing a freshness control may not do.
