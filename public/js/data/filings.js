@@ -51,9 +51,12 @@
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 
-// How many companies a live walk will ask about before it stops and says so. The upstreams allow
-// 60 requests a minute; forty keeps a cold start under a minute and well inside that budget.
-const LIVE_LIMIT = 40;
+// How many companies one Refresh press asks about before it stops and says how many remain. The
+// upstreams allow ~60 requests a minute, so this is one minute's budget: a press fetches the top 60
+// by market cap, and pressing again works down the list. The committed snapshot — written by the
+// scheduled scrape over the WHOLE universe — is what covers all ~1,900 at once; this bounded top-up
+// is only for on-demand freshness, so it must not blow the rate limit in a single press.
+const LIVE_LIMIT = 60;
 const CONCURRENCY = 4;
 
 // How long a company's rows are reused without asking again. Matches the Worker's own edge window
@@ -333,6 +336,13 @@ export function createFeed(kind) {
         .sort((a, b) => (state.failures.has(a) ? 1 : 0) - (state.failures.has(b) ? 1 : 0));
       state.truncated = Math.max(0, candidates.length - LIVE_LIMIT);
       const batch = candidates.slice(0, LIVE_LIMIT);
+
+      // Clear any stale feed-level reason before re-asking. A renewed token (the documented failure —
+      // "session JWTs, so they expire") must not leave the pill amber "Partial" or the button reading
+      // "Couldn't refresh" over data that now reads fine. loadOne re-establishes the reason if the
+      // failure still applies, so this only ever forgets one that no longer does.
+      state.reason = null;
+      state.message = null;
 
       // Per-company row counts BEFORE the walk, so "new" is the SUM OF POSITIVE DELTAS. A company
       // whose rows shrank — a revised filing, one aged past the window — must not cancel another's

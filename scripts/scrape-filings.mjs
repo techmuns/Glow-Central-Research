@@ -10,12 +10,15 @@
 //
 // WHY THIS EXISTS AT ALL, WHEN THERE ARE PERFECTLY GOOD LIVE ROUTES
 //   Two of these three upstreams are per-ticker and all three are rate limited to about sixty
-//   requests a minute. The universe is 603 companies, so "show me everything" live is 603 requests
-//   and ten minutes — on every visit, against somebody else's service. That is not a page load.
+//   requests a minute. The tracked universe is now ~1,900 companies (every listed company above a
+//   market-cap floor — see scripts/import-tracked-universe.mjs), so "show me everything" live is
+//   ~1,900 requests and half an hour — on every visit, against somebody else's service. That is not a
+//   page load, and it is why the browser NEVER walks on mount any more (it paints the cache).
 //
-//   So the schedule pays that cost once and commits the result, and the browser reads one file. The
-//   live routes stay, for the companies a snapshot does not cover yet and for refreshing one
-//   company on demand. Same division as the technicals feed.
+//   So the schedule pays that cost once and commits the result, and the browser reads one file. This
+//   snapshot is the ONLY thing that shows all ~1,900 companies at once; the live Refresh button tops
+//   up a bounded batch (biggest market cap first) between scheduled runs. Same division as the
+//   technicals feed. Run this weekdays via .github/workflows/filings-refresh.yml.
 //
 // THE TOKEN IS READ FROM THE ENVIRONMENT AND NEVER WRITTEN ANYWHERE. It is a session JWT and it
 // expires, so a run that starts working and then 401s halfway is expected rather than a bug — the
@@ -67,8 +70,14 @@ function companies() {
   const held = (book.holdings || []).filter((h) => h.ticker).map((h) => ({ ticker: h.ticker.toUpperCase(), name: h.name, held: true }));
   if (SCOPE === 'book') return dedupe(held);
 
-  const tech = JSON.parse(readFileSync(DATA('technicals.json'), 'utf8'));
-  const rest = (tech.companies || []).filter((c) => c.ticker).map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name, held: false }));
+  // The rest of the universe is the TRACKED MARKET UNIVERSE — every listed company above a market-cap
+  // floor, ~1,900 of them, already ordered biggest-first by scripts/import-tracked-universe.mjs. The
+  // book still comes first (a cut-short run covers the holdings), then the rest walks from the largest
+  // company down, which is where a filing matters most and is the priority the reader asked for. This
+  // is the SAME list the filings tabs walk (js/data/tracked-universe.js), so the committed snapshot
+  // and an on-demand Refresh cannot disagree about who is in scope.
+  const uni = JSON.parse(readFileSync(DATA('tracked-universe.json'), 'utf8'));
+  const rest = (uni.companies || []).filter((c) => c.ticker).map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name, held: false }));
   return dedupe([...held, ...rest]);
 }
 

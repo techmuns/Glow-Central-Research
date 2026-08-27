@@ -1,0 +1,9363 @@
+{
+  "source": "Screener export (scripts/fixtures/tracked-universe.csv), companies at or above ₹500 Cr market cap, ordered by market cap",
+  "floorCr": 500,
+  "count": 1871,
+  "generatedAt": "2026-08-27T03:30:05.543Z",
+  "companies": [
+    {
+      "ticker": "RELIANCE",
+      "name": "Reliance Industries",
+      "marketCapCr": 1756523.04
+    },
+    {
+      "ticker": "BHARTIARTL",
+      "name": "Bharti Airtel",
+      "marketCapCr": 1187005.71
+    },
+    {
+      "ticker": "HDFCBANK",
+      "name": "HDFC Bank",
+      "marketCapCr": 1120696.71
+    },
+    {
+      "ticker": "ICICIBANK",
+      "name": "ICICI Bank",
+      "marketCapCr": 1026250.49
+    },
+    {
+      "ticker": "SBIN",
+      "name": "SBI",
+      "marketCapCr": 971060.97
+    },
+    {
+      "ticker": "TCS",
+      "name": "TCS",
+      "marketCapCr": 821305.87
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "name": "Bajaj Finance",
+      "marketCapCr": 675516.04
+    },
+    {
+      "ticker": "LT",
+      "name": "Larsen & Toubro",
+      "marketCapCr": 555588.48
+    },
+    {
+      "ticker": "LICI",
+      "name": "Life Insurance",
+      "marketCapCr": 525354.31
+    },
+    {
+      "ticker": "HINDUNILVR",
+      "name": "Hind. Unilever",
+      "marketCapCr": 474852.39
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "name": "Sun Pharma.Inds.",
+      "marketCapCr": 455753.68
+    },
+    {
+      "ticker": "INFY",
+      "name": "Infosys",
+      "marketCapCr": 454502.34
+    },
+    {
+      "ticker": "TITAN",
+      "name": "Titan Company",
+      "marketCapCr": 452770.94
+    },
+    {
+      "ticker": "MARUTI",
+      "name": "Maruti Suzuki",
+      "marketCapCr": 425072.28
+    },
+    {
+      "ticker": "M&M",
+      "name": "M & M",
+      "marketCapCr": 422575.97
+    },
+    {
+      "ticker": "ADANIENT",
+      "name": "Adani Enterp.",
+      "marketCapCr": 421187.29
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "name": "Kotak Mah. Bank",
+      "marketCapCr": 414518.83
+    },
+    {
+      "ticker": "ADANIPOWER",
+      "name": "Adani Power",
+      "marketCapCr": 399578.87
+    },
+    {
+      "ticker": "AXISBANK",
+      "name": "Axis Bank",
+      "marketCapCr": 390669.63
+    },
+    {
+      "ticker": "ADANIPORTS",
+      "name": "Adani Ports",
+      "marketCapCr": 389714.68
+    },
+    {
+      "ticker": "HCLTECH",
+      "name": "HCL Technologies",
+      "marketCapCr": 352369.41
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "name": "UltraTech Cem.",
+      "marketCapCr": 345275.58
+    },
+    {
+      "ticker": "ITC",
+      "name": "ITC",
+      "marketCapCr": 338617.36
+    },
+    {
+      "ticker": "JSWSTEEL",
+      "name": "JSW Steel",
+      "marketCapCr": 327935.38
+    },
+    {
+      "ticker": "HAL",
+      "name": "Hind.Aeronautics",
+      "marketCapCr": 325392.48
+    },
+    {
+      "ticker": "NTPC",
+      "name": "NTPC",
+      "marketCapCr": 324450.45
+    },
+    {
+      "ticker": "BAJAJ-AUTO",
+      "name": "Bajaj Auto",
+      "marketCapCr": 322180.02
+    },
+    {
+      "ticker": "BAJAJFINSV",
+      "name": "Bajaj Finserv",
+      "marketCapCr": 322014.33
+    },
+    {
+      "ticker": "ETERNAL",
+      "name": "Eternal",
+      "marketCapCr": 315566.47
+    },
+    {
+      "ticker": "BEL",
+      "name": "Bharat Electron",
+      "marketCapCr": 297434.9
+    },
+    {
+      "ticker": "ONGC",
+      "name": "O N G C",
+      "marketCapCr": 292126.66
+    },
+    {
+      "ticker": "NESTLEIND",
+      "name": "Nestle India",
+      "marketCapCr": 279894.82
+    },
+    {
+      "ticker": "HINDZINC",
+      "name": "Hindustan Zinc",
+      "marketCapCr": 264716.24
+    },
+    {
+      "ticker": "SHRIRAMFIN",
+      "name": "Shriram Finance",
+      "marketCapCr": 262945.91
+    },
+    {
+      "ticker": "ASIANPAINT",
+      "name": "Asian Paints",
+      "marketCapCr": 251933.3
+    },
+    {
+      "ticker": "DMART",
+      "name": "Avenue Super.",
+      "marketCapCr": 249608.01
+    },
+    {
+      "ticker": "COALINDIA",
+      "name": "Coal India",
+      "marketCapCr": 248666.09
+    },
+    {
+      "ticker": "POWERGRID",
+      "name": "Power Grid Corpn",
+      "marketCapCr": 246652.01
+    },
+    {
+      "ticker": "DIVISLAB",
+      "name": "Divi's Lab.",
+      "marketCapCr": 239585.39
+    },
+    {
+      "ticker": "HINDALCO",
+      "name": "Hindalco Inds.",
+      "marketCapCr": 236632.95
+    },
+    {
+      "ticker": "TATASTEEL",
+      "name": "Tata Steel",
+      "marketCapCr": 234702.79
+    },
+    {
+      "ticker": "GRASIM",
+      "name": "Grasim Inds",
+      "marketCapCr": 224570
+    },
+    {
+      "ticker": "EICHERMOT",
+      "name": "Eicher Motors",
+      "marketCapCr": 220578.19
+    },
+    {
+      "ticker": "ADANIGREEN",
+      "name": "Adani Green",
+      "marketCapCr": 214660
+    },
+    {
+      "ticker": "TVSMOTOR",
+      "name": "TVS Motor Co.",
+      "marketCapCr": 212078.89
+    },
+    {
+      "ticker": "INDIGO",
+      "name": "Interglobe Aviat",
+      "marketCapCr": 203019.3
+    },
+    {
+      "ticker": "IOC",
+      "name": "I O C L",
+      "marketCapCr": 196963.03
+    },
+    {
+      "ticker": "ADANIENSOL",
+      "name": "Adani Energy Sol",
+      "marketCapCr": 192065
+    },
+    {
+      "ticker": "TORNTPHARM",
+      "name": "Torrent Pharma.",
+      "marketCapCr": 185999.88
+    },
+    {
+      "ticker": "HYUNDAI",
+      "name": "Hyundai Motor I",
+      "marketCapCr": 182821.75
+    },
+    {
+      "ticker": "SOLARINDS",
+      "name": "Solar Industries",
+      "marketCapCr": 181857.86
+    },
+    {
+      "ticker": "VAML",
+      "name": "Vedanta Aluminium Metal",
+      "marketCapCr": 180894.55
+    },
+    {
+      "ticker": "TMCV",
+      "name": "Tata Motors",
+      "marketCapCr": 178150.63
+    },
+    {
+      "ticker": "SBILIFE",
+      "name": "SBI Life Insuran",
+      "marketCapCr": 177396.62
+    },
+    {
+      "ticker": "WIPRO",
+      "name": "Wipro",
+      "marketCapCr": 175656.97
+    },
+    {
+      "ticker": "MOTHERSON",
+      "name": "Samvardh. Mothe.",
+      "marketCapCr": 174148.3
+    },
+    {
+      "ticker": "PIDILITIND",
+      "name": "Pidilite Inds.",
+      "marketCapCr": 167950.15
+    },
+    {
+      "ticker": "DLF",
+      "name": "DLF",
+      "marketCapCr": 166464.71
+    },
+    {
+      "ticker": "IDEA",
+      "name": "Vodafone Idea",
+      "marketCapCr": 163164.61
+    },
+    {
+      "ticker": "ABB",
+      "name": "A B B",
+      "marketCapCr": 161241.08
+    },
+    {
+      "ticker": "CHOLAFIN",
+      "name": "Cholaman.Inv.&Fn",
+      "marketCapCr": 159548.07
+    },
+    {
+      "ticker": "ICICIAMC",
+      "name": "ICICI AMC",
+      "marketCapCr": 159289.64
+    },
+    {
+      "ticker": "JIOFIN",
+      "name": "Jio Financial",
+      "marketCapCr": 159135.71
+    },
+    {
+      "ticker": "TATACAP",
+      "name": "Tata Capital",
+      "marketCapCr": 157336.07
+    },
+    {
+      "ticker": "TRENT",
+      "name": "Trent",
+      "marketCapCr": 155074.62
+    },
+    {
+      "ticker": "TECHM",
+      "name": "Tech Mahindra",
+      "marketCapCr": 153971.32
+    },
+    {
+      "ticker": "POWERINDIA",
+      "name": "Hitachi Energy",
+      "marketCapCr": 147645.96
+    },
+    {
+      "ticker": "BHEL",
+      "name": "B H E L",
+      "marketCapCr": 144679.73
+    },
+    {
+      "ticker": "BOSCHLTD",
+      "name": "Bosch",
+      "marketCapCr": 144221.18
+    },
+    {
+      "ticker": "CUMMINSIND",
+      "name": "Cummins India",
+      "marketCapCr": 144144
+    },
+    {
+      "ticker": "SIEMENS",
+      "name": "Siemens",
+      "marketCapCr": 143979.52
+    },
+    {
+      "ticker": "UNIONBANK",
+      "name": "Union Bank (I)",
+      "marketCapCr": 143145.37
+    },
+    {
+      "ticker": "VBL",
+      "name": "Varun Beverages",
+      "marketCapCr": 142486.33
+    },
+    {
+      "ticker": "BPCL",
+      "name": "B P C L",
+      "marketCapCr": 137964.47
+    },
+    {
+      "ticker": "POLYCAB",
+      "name": "Polycab India",
+      "marketCapCr": 136513.02
+    },
+    {
+      "ticker": "CGPOWER",
+      "name": "CG Power & Ind",
+      "marketCapCr": 136284.31
+    },
+    {
+      "ticker": "BSE",
+      "name": "BSE",
+      "marketCapCr": 135451.38
+    },
+    {
+      "ticker": "PNB",
+      "name": "Punjab Natl.Bank",
+      "marketCapCr": 134122.65
+    },
+    {
+      "ticker": "LTM",
+      "name": "LTM",
+      "marketCapCr": 132293.11
+    },
+    {
+      "ticker": "MUTHOOTFIN",
+      "name": "Muthoot Finance",
+      "marketCapCr": 128746.93
+    },
+    {
+      "ticker": "BAJAJHLDNG",
+      "name": "Bajaj Holdings",
+      "marketCapCr": 128428.66
+    },
+    {
+      "ticker": "BRITANNIA",
+      "name": "Britannia Inds.",
+      "marketCapCr": 127901.07
+    },
+    {
+      "ticker": "LODHA",
+      "name": "Lodha Developers",
+      "marketCapCr": 126401.74
+    },
+    {
+      "ticker": "APOLLOHOSP",
+      "name": "Apollo Hospitals",
+      "marketCapCr": 126048.82
+    },
+    {
+      "ticker": "BANKBARODA",
+      "name": "Bank of Baroda",
+      "marketCapCr": 125405.53
+    },
+    {
+      "ticker": "GROWW",
+      "name": "Billionbrains",
+      "marketCapCr": 123113.06
+    },
+    {
+      "ticker": "PFC",
+      "name": "Power Fin.Corpn.",
+      "marketCapCr": 120156.71
+    },
+    {
+      "ticker": "HDFCLIFE",
+      "name": "HDFC Life Insur.",
+      "marketCapCr": 120137.87
+    },
+    {
+      "ticker": "JINDALSTEL",
+      "name": "Jindal Steel",
+      "marketCapCr": 119901.15
+    },
+    {
+      "ticker": "INDIANB",
+      "name": "Indian Bank",
+      "marketCapCr": 119745.1
+    },
+    {
+      "ticker": "ENRIN",
+      "name": "Siemens Ener.Ind",
+      "marketCapCr": 118442.12
+    },
+    {
+      "ticker": "CANBK",
+      "name": "Canara Bank",
+      "marketCapCr": 117419.58
+    },
+    {
+      "ticker": "TATAPOWER",
+      "name": "Tata Power Co.",
+      "marketCapCr": 116310.36
+    },
+    {
+      "ticker": "TMPV",
+      "name": "Tata Motors PVeh",
+      "marketCapCr": 115311.33
+    },
+    {
+      "ticker": "SBIFUNDS",
+      "name": "SBI Funds Mgt.",
+      "marketCapCr": 114765.05
+    },
+    {
+      "ticker": "GAIL",
+      "name": "GAIL (India)",
+      "marketCapCr": 114728.91
+    },
+    {
+      "ticker": "ZYDUSLIFE",
+      "name": "Zydus Lifesci.",
+      "marketCapCr": 114712.94
+    },
+    {
+      "ticker": "HDFCAMC",
+      "name": "HDFC AMC",
+      "marketCapCr": 114402.36
+    },
+    {
+      "ticker": "LGEINDIA",
+      "name": "LG Electronics",
+      "marketCapCr": 113721.53
+    },
+    {
+      "ticker": "CIPLA",
+      "name": "Cipla",
+      "marketCapCr": 113317.56
+    },
+    {
+      "ticker": "LENSKART",
+      "name": "Lenskart Solut.",
+      "marketCapCr": 112559.2
+    },
+    {
+      "ticker": "ABCAPITAL",
+      "name": "Aditya Birla Cap",
+      "marketCapCr": 112232.18
+    },
+    {
+      "ticker": "VEDL",
+      "name": "Vedanta",
+      "marketCapCr": 112032.62
+    },
+    {
+      "ticker": "IRFC",
+      "name": "I R F C",
+      "marketCapCr": 111997.1
+    },
+    {
+      "ticker": "HEROMOTOCO",
+      "name": "Hero Motocorp",
+      "marketCapCr": 111979
+    },
+    {
+      "ticker": "UNITDSPR",
+      "name": "United Spirits",
+      "marketCapCr": 111902.93
+    },
+    {
+      "ticker": "GVT&D",
+      "name": "GE Vernova T&D",
+      "marketCapCr": 111125.7
+    },
+    {
+      "ticker": "PAYTM",
+      "name": "One 97",
+      "marketCapCr": 110018.44
+    },
+    {
+      "ticker": "MARICO",
+      "name": "Marico",
+      "marketCapCr": 108155.71
+    },
+    {
+      "ticker": "MAZDOCK",
+      "name": "Mazagon Dock",
+      "marketCapCr": 105887.25
+    },
+    {
+      "ticker": "ASHOKLEY",
+      "name": "Ashok Leyland",
+      "marketCapCr": 105171.37
+    },
+    {
+      "ticker": "MANIPALHOS",
+      "name": "Manipal Health",
+      "marketCapCr": 104572.49
+    },
+    {
+      "ticker": "GMRAIRPORT",
+      "name": "GMR Airports",
+      "marketCapCr": 104375.48
+    },
+    {
+      "ticker": "AMBUJACEM",
+      "name": "Ambuja Cements",
+      "marketCapCr": 104163.54
+    },
+    {
+      "ticker": "LLOYDSME",
+      "name": "Lloyds Metals",
+      "marketCapCr": 103895.74
+    },
+    {
+      "ticker": "TATACONSUM",
+      "name": "Tata Consumer",
+      "marketCapCr": 103630.44
+    },
+    {
+      "ticker": "OFSS",
+      "name": "Oracle Fin.Serv.",
+      "marketCapCr": 102758.09
+    },
+    {
+      "ticker": "INDHOTEL",
+      "name": "Indian Hotels Co",
+      "marketCapCr": 102629.46
+    },
+    {
+      "ticker": "LAURUSLABS",
+      "name": "Laurus Labs",
+      "marketCapCr": 101956.92
+    },
+    {
+      "ticker": "IDBI",
+      "name": "IDBI Bank",
+      "marketCapCr": 101879.01
+    },
+    {
+      "ticker": "LUPIN",
+      "name": "Lupin",
+      "marketCapCr": 99905.31
+    },
+    {
+      "ticker": "JSWENERGY",
+      "name": "JSW Energy",
+      "marketCapCr": 99649.79
+    },
+    {
+      "ticker": "INDUSTOWER",
+      "name": "Indus Towers",
+      "marketCapCr": 99643.41
+    },
+    {
+      "ticker": "MANKIND",
+      "name": "Mankind Pharma",
+      "marketCapCr": 98858.85
+    },
+    {
+      "ticker": "DRREDDY",
+      "name": "Dr Reddy's Labs",
+      "marketCapCr": 98658.68
+    },
+    {
+      "ticker": "MAXHEALTH",
+      "name": "Max Healthcare",
+      "marketCapCr": 97814.29
+    },
+    {
+      "ticker": "NYKAA",
+      "name": "FSN E-Commerce",
+      "marketCapCr": 97379.87
+    },
+    {
+      "ticker": "MEESHO",
+      "name": "Meesho",
+      "marketCapCr": 96234.98
+    },
+    {
+      "ticker": "BHARATFORG",
+      "name": "Bharat Forge",
+      "marketCapCr": 95856.77
+    },
+    {
+      "ticker": "GODREJCP",
+      "name": "Godrej Consumer",
+      "marketCapCr": 94430.58
+    },
+    {
+      "ticker": "AUROPHARMA",
+      "name": "Aurobindo Pharma",
+      "marketCapCr": 93383.83
+    },
+    {
+      "ticker": "DIXON",
+      "name": "Dixon Technolog.",
+      "marketCapCr": 90092.93
+    },
+    {
+      "ticker": "SHREECEM",
+      "name": "Shree Cement",
+      "marketCapCr": 89714.78
+    },
+    {
+      "ticker": "PERSISTENT",
+      "name": "Persistent Systems",
+      "marketCapCr": 88190.14
+    },
+    {
+      "ticker": "NAUKRI",
+      "name": "Info Edg.(India)",
+      "marketCapCr": 85818.47
+    },
+    {
+      "ticker": "MCX",
+      "name": "Multi Comm. Exc.",
+      "marketCapCr": 85422.27
+    },
+    {
+      "ticker": "FEDERALBNK",
+      "name": "Federal Bank",
+      "marketCapCr": 85351.67
+    },
+    {
+      "ticker": "POLICYBZR",
+      "name": "PB Fintech.",
+      "marketCapCr": 85135.86
+    },
+    {
+      "ticker": "RECLTD",
+      "name": "REC Ltd",
+      "marketCapCr": 84842.48
+    },
+    {
+      "ticker": "AUBANK",
+      "name": "AU Small Finance",
+      "marketCapCr": 83504.8
+    },
+    {
+      "ticker": "COFORGE",
+      "name": "Coforge",
+      "marketCapCr": 83269.05
+    },
+    {
+      "ticker": "LTF",
+      "name": "L&T Finance Ltd",
+      "marketCapCr": 80744.8
+    },
+    {
+      "ticker": "SAIL",
+      "name": "S A I L",
+      "marketCapCr": 80503.94
+    },
+    {
+      "ticker": "JSWINFRA",
+      "name": "JSW Infrast",
+      "marketCapCr": 80373.4
+    },
+    {
+      "ticker": "HINDPETRO",
+      "name": "H P C L",
+      "marketCapCr": 79899.74
+    },
+    {
+      "ticker": "ICICIGI",
+      "name": "ICICI Lombard",
+      "marketCapCr": 79780.9
+    },
+    {
+      "ticker": "SWIGGY",
+      "name": "Swiggy",
+      "marketCapCr": 79096.79
+    },
+    {
+      "ticker": "HAVELLS",
+      "name": "Havells India",
+      "marketCapCr": 78991.18
+    },
+    {
+      "ticker": "BHARTIHEXA",
+      "name": "Bharti Hexacom",
+      "marketCapCr": 78990
+    },
+    {
+      "ticker": "NAM-INDIA",
+      "name": "Nippon Life Ind.",
+      "marketCapCr": 78245.29
+    },
+    {
+      "ticker": "INDUSINDBK",
+      "name": "IndusInd Bank",
+      "marketCapCr": 78225.71
+    },
+    {
+      "ticker": "NMDC",
+      "name": "NMDC",
+      "marketCapCr": 77552.62
+    },
+    {
+      "ticker": "NTPCGREEN",
+      "name": "NTPC Green Ene.",
+      "marketCapCr": 76907.11
+    },
+    {
+      "ticker": "NHPC",
+      "name": "NHPC Ltd",
+      "marketCapCr": 76583.35
+    },
+    {
+      "ticker": "SRF",
+      "name": "SRF",
+      "marketCapCr": 76566.53
+    },
+    {
+      "ticker": "OIL",
+      "name": "Oil India",
+      "marketCapCr": 76312.3
+    },
+    {
+      "ticker": "WAAREEENER",
+      "name": "Waaree Energies",
+      "marketCapCr": 75796.13
+    },
+    {
+      "ticker": "ICICIPRULI",
+      "name": "ICICI Pru Life",
+      "marketCapCr": 74724.01
+    },
+    {
+      "ticker": "NATIONALUM",
+      "name": "Natl. Aluminium",
+      "marketCapCr": 73336.71
+    },
+    {
+      "ticker": "IDFCFIRSTB",
+      "name": "IDFC First Bank",
+      "marketCapCr": 72763.09
+    },
+    {
+      "ticker": "UNOMINDA",
+      "name": "Uno Minda",
+      "marketCapCr": 72760.87
+    },
+    {
+      "ticker": "APARINDS",
+      "name": "Apar Inds.",
+      "marketCapCr": 71446.77
+    },
+    {
+      "ticker": "ATGL",
+      "name": "Adani Total Gas",
+      "marketCapCr": 70794.78
+    },
+    {
+      "ticker": "YESBANK",
+      "name": "Yes Bank",
+      "marketCapCr": 70245.87
+    },
+    {
+      "ticker": "BAJAJHFL",
+      "name": "Bajaj Housing",
+      "marketCapCr": 70049.94
+    },
+    {
+      "ticker": "DABUR",
+      "name": "Dabur India",
+      "marketCapCr": 69574.59
+    },
+    {
+      "ticker": "PRESTIGE",
+      "name": "Prestige Estates",
+      "marketCapCr": 69567.24
+    },
+    {
+      "ticker": "FORTIS",
+      "name": "Fortis Health.",
+      "marketCapCr": 68991.85
+    },
+    {
+      "ticker": "PHOENIXLTD",
+      "name": "Phoenix Mills",
+      "marketCapCr": 68818.08
+    },
+    {
+      "ticker": "GLENMARK",
+      "name": "Glenmark Pharma.",
+      "marketCapCr": 68814.84
+    },
+    {
+      "ticker": "BIOCON",
+      "name": "Biocon",
+      "marketCapCr": 68039.73
+    },
+    {
+      "ticker": "OBEROIRLTY",
+      "name": "Oberoi Realty",
+      "marketCapCr": 67993.62
+    },
+    {
+      "ticker": "BANKINDIA",
+      "name": "Bank of India",
+      "marketCapCr": 66446.19
+    },
+    {
+      "ticker": "ASTERDM",
+      "name": "Aster DM Quality",
+      "marketCapCr": 66430.16
+    },
+    {
+      "ticker": "MAHABANK",
+      "name": "Bank of Maha",
+      "marketCapCr": 65839.71
+    },
+    {
+      "ticker": "SUZLON",
+      "name": "Suzlon Energy",
+      "marketCapCr": 64004.5
+    },
+    {
+      "ticker": "IOB",
+      "name": "I O B",
+      "marketCapCr": 63739.31
+    },
+    {
+      "ticker": "ALKEM",
+      "name": "Alkem Lab",
+      "marketCapCr": 63411.3
+    },
+    {
+      "ticker": "TORNTPOWER",
+      "name": "Torrent Power",
+      "marketCapCr": 63411.22
+    },
+    {
+      "ticker": "KALYANKJIL",
+      "name": "Kalyan Jewellers",
+      "marketCapCr": 63059.77
+    },
+    {
+      "ticker": "SBICARD",
+      "name": "SBI Cards",
+      "marketCapCr": 62817.96
+    },
+    {
+      "ticker": "SCHAEFFLER",
+      "name": "Schaeffler India",
+      "marketCapCr": 62680.9
+    },
+    {
+      "ticker": "MOTILALOFS",
+      "name": "Motil.Oswal.Fin.",
+      "marketCapCr": 62641.62
+    },
+    {
+      "ticker": "RADICO",
+      "name": "Radico Khaitan",
+      "marketCapCr": 61819.48
+    },
+    {
+      "ticker": "GICRE",
+      "name": "General Insuranc",
+      "marketCapCr": 61360.14
+    },
+    {
+      "ticker": "GODREJPROP",
+      "name": "Godrej Propert.",
+      "marketCapCr": 61302.6
+    },
+    {
+      "ticker": "WELCORP",
+      "name": "Welspun Corp",
+      "marketCapCr": 60848.59
+    },
+    {
+      "ticker": "APLAPOLLO",
+      "name": "APL Apollo Tubes",
+      "marketCapCr": 59946.45
+    },
+    {
+      "ticker": "RBLBANK",
+      "name": "RBL Bank",
+      "marketCapCr": 59291.64
+    },
+    {
+      "ticker": "ATHERENERG",
+      "name": "Ather Energy",
+      "marketCapCr": 58960.95
+    },
+    {
+      "ticker": "JSL",
+      "name": "Jindal Stain.",
+      "marketCapCr": 58776.99
+    },
+    {
+      "ticker": "BERGEPAINT",
+      "name": "Berger Paints",
+      "marketCapCr": 58731.56
+    },
+    {
+      "ticker": "COROMANDEL",
+      "name": "Coromandel Inter",
+      "marketCapCr": 57519.36
+    },
+    {
+      "ticker": "HDBFS",
+      "name": "HDB FINANC SER",
+      "marketCapCr": 57115.09
+    },
+    {
+      "ticker": "MRF",
+      "name": "MRF",
+      "marketCapCr": 56627.74
+    },
+    {
+      "ticker": "ABBOTINDIA",
+      "name": "Abbott India",
+      "marketCapCr": 56429.38
+    },
+    {
+      "ticker": "LINDEINDIA",
+      "name": "Linde India",
+      "marketCapCr": 56272.01
+    },
+    {
+      "ticker": "FACT",
+      "name": "F A C T",
+      "marketCapCr": 56052.61
+    },
+    {
+      "ticker": "TIINDIA",
+      "name": "Tube Investments",
+      "marketCapCr": 55361.68
+    },
+    {
+      "ticker": "MFSL",
+      "name": "Max Financial",
+      "marketCapCr": 55218.36
+    },
+    {
+      "ticker": "HINDCOPPER",
+      "name": "Hindustan Copper",
+      "marketCapCr": 53771.37
+    },
+    {
+      "ticker": "M&MFIN",
+      "name": "M & M Fin. Serv.",
+      "marketCapCr": 53562.54
+    },
+    {
+      "ticker": "KEI",
+      "name": "KEI Industries",
+      "marketCapCr": 52962.73
+    },
+    {
+      "ticker": "ANTHEM",
+      "name": "Anthem Bioscienc",
+      "marketCapCr": 51987.87
+    },
+    {
+      "ticker": "FLUOROCHEM",
+      "name": "Gujarat Fluoroch",
+      "marketCapCr": 51982.12
+    },
+    {
+      "ticker": "GLAXO",
+      "name": "Glaxosmi. Pharma",
+      "marketCapCr": 51404.57
+    },
+    {
+      "ticker": "VMM",
+      "name": "Vishal Mega Mart",
+      "marketCapCr": 51354.87
+    },
+    {
+      "ticker": "COLPAL",
+      "name": "Colgate-Palmoliv",
+      "marketCapCr": 50589.33
+    },
+    {
+      "ticker": "SUNDARMFIN",
+      "name": "Sundaram Finance",
+      "marketCapCr": 50436.71
+    },
+    {
+      "ticker": "PIRAMALFIN",
+      "name": "Piramal Finance.",
+      "marketCapCr": 50354.18
+    },
+    {
+      "ticker": "KRT",
+      "name": "Knowledge Realty",
+      "marketCapCr": 50192.97
+    },
+    {
+      "ticker": "BDL",
+      "name": "Bharat Dynamics",
+      "marketCapCr": 49962.47
+    },
+    {
+      "ticker": "UPL",
+      "name": "UPL",
+      "marketCapCr": 49731.32
+    },
+    {
+      "ticker": "SONACOMS",
+      "name": "Sona BLW Precis.",
+      "marketCapCr": 49599.31
+    },
+    {
+      "ticker": "IPCALAB",
+      "name": "Ipca Labs.",
+      "marketCapCr": 49533.21
+    },
+    {
+      "ticker": "360ONE",
+      "name": "360 ONE",
+      "marketCapCr": 48793.62
+    },
+    {
+      "ticker": "GLAND",
+      "name": "Gland Pharma",
+      "marketCapCr": 47893.12
+    },
+    {
+      "ticker": "AIIL",
+      "name": "Authum Invest",
+      "marketCapCr": 47692.5
+    },
+    {
+      "ticker": "THERMAX",
+      "name": "Thermax",
+      "marketCapCr": 47287.18
+    },
+    {
+      "ticker": "TATACOMM",
+      "name": "Tata Comm",
+      "marketCapCr": 47019.18
+    },
+    {
+      "ticker": "AEGISLOG",
+      "name": "Aegis Logistics",
+      "marketCapCr": 46742.67
+    },
+    {
+      "ticker": "RVNL",
+      "name": "Rail Vikas",
+      "marketCapCr": 46160.26
+    },
+    {
+      "ticker": "MPHASIS",
+      "name": "Mphasis",
+      "marketCapCr": 45810.25
+    },
+    {
+      "ticker": "PREMIERENE",
+      "name": "Premier Energies",
+      "marketCapCr": 45622.13
+    },
+    {
+      "ticker": "BALKRISIND",
+      "name": "Balkrishna Inds",
+      "marketCapCr": 45015.84
+    },
+    {
+      "ticker": "SUPREMEIND",
+      "name": "Supreme Inds.",
+      "marketCapCr": 44967.51
+    },
+    {
+      "ticker": "AJANTPHARM",
+      "name": "Ajanta Pharma",
+      "marketCapCr": 44382.95
+    },
+    {
+      "ticker": "INDOMIM",
+      "name": "Indo-MIM",
+      "marketCapCr": 44293.13
+    },
+    {
+      "ticker": "NAVINFLUOR",
+      "name": "Navin Fluo.Intl.",
+      "marketCapCr": 43882.46
+    },
+    {
+      "ticker": "PETRONET",
+      "name": "Petronet LNG",
+      "marketCapCr": 43350
+    },
+    {
+      "ticker": "ENDURANCE",
+      "name": "Endurance Tech.",
+      "marketCapCr": 42001.93
+    },
+    {
+      "ticker": "CPPLUS",
+      "name": "Aditya Infotech",
+      "marketCapCr": 41763.6
+    },
+    {
+      "ticker": "EMBASSY",
+      "name": "Embassy Off.REIT",
+      "marketCapCr": 41699.74
+    },
+    {
+      "ticker": "POONAWALLA",
+      "name": "Poonawalla Fin",
+      "marketCapCr": 41620.41
+    },
+    {
+      "ticker": "ASTRAL",
+      "name": "Astral",
+      "marketCapCr": 40998.7
+    },
+    {
+      "ticker": "JKCEMENT",
+      "name": "J K Cements",
+      "marketCapCr": 40774.46
+    },
+    {
+      "ticker": "COCHINSHIP",
+      "name": "Cochin Shipyard",
+      "marketCapCr": 40698.6
+    },
+    {
+      "ticker": "VOLTAS",
+      "name": "Voltas",
+      "marketCapCr": 40268.67
+    },
+    {
+      "ticker": "AIAENG",
+      "name": "AIA Engineering",
+      "marketCapCr": 39525.84
+    },
+    {
+      "ticker": "CONCOR",
+      "name": "Container Corpn.",
+      "marketCapCr": 39375.65
+    },
+    {
+      "ticker": "IRCTC",
+      "name": "I R C T C",
+      "marketCapCr": 39340
+    },
+    {
+      "ticker": "MEDANTA",
+      "name": "Global Health",
+      "marketCapCr": 39225.7
+    },
+    {
+      "ticker": "PAGEIND",
+      "name": "Page Industries",
+      "marketCapCr": 39211.44
+    },
+    {
+      "ticker": "KPRMILL",
+      "name": "K P R Mill Ltd",
+      "marketCapCr": 38830.07
+    },
+    {
+      "ticker": "NH",
+      "name": "Narayana Hrudaya",
+      "marketCapCr": 38475.01
+    },
+    {
+      "ticker": "GODREJIND",
+      "name": "Godrej Industrie",
+      "marketCapCr": 38333.65
+    },
+    {
+      "ticker": "CUPID",
+      "name": "Cupid",
+      "marketCapCr": 38187.02
+    },
+    {
+      "ticker": "PIIND",
+      "name": "P I Industries",
+      "marketCapCr": 38055.46
+    },
+    {
+      "ticker": "PATANJALI",
+      "name": "Patanjali Foods",
+      "marketCapCr": 37882.5
+    },
+    {
+      "ticker": "3MINDIA",
+      "name": "3M India",
+      "marketCapCr": 37833.39
+    },
+    {
+      "ticker": "EXIDEIND",
+      "name": "Exide Inds.",
+      "marketCapCr": 37740
+    },
+    {
+      "ticker": "NLCINDIA",
+      "name": "NLC India",
+      "marketCapCr": 37633.32
+    },
+    {
+      "ticker": "LTTS",
+      "name": "L&T Technology",
+      "marketCapCr": 37585.4
+    },
+    {
+      "ticker": "HUDCO",
+      "name": "H U D C O",
+      "marketCapCr": 37425.52
+    },
+    {
+      "ticker": "PWL",
+      "name": "Physicswallah",
+      "marketCapCr": 36588.88
+    },
+    {
+      "ticker": "BAGMANE",
+      "name": "Bagmane Prime REIT",
+      "marketCapCr": 36369.8
+    },
+    {
+      "ticker": "ANANDRATHI",
+      "name": "Anand Rathi Wea.",
+      "marketCapCr": 36187.03
+    },
+    {
+      "ticker": "HFCL",
+      "name": "HFCL",
+      "marketCapCr": 36105.38
+    },
+    {
+      "ticker": "UBL",
+      "name": "United Breweries",
+      "marketCapCr": 35792.53
+    },
+    {
+      "ticker": "DALBHARAT",
+      "name": "Dalmia BharatLtd",
+      "marketCapCr": 35600.02
+    },
+    {
+      "ticker": "EMCURE",
+      "name": "Emcure Pharma",
+      "marketCapCr": 35324.13
+    },
+    {
+      "ticker": "ITCHOTELS",
+      "name": "ITC Hotels",
+      "marketCapCr": 34717.46
+    },
+    {
+      "ticker": "STARHEALTH",
+      "name": "Star Health Insu",
+      "marketCapCr": 34360.9
+    },
+    {
+      "ticker": "MANAPPURAM",
+      "name": "Manappuram Fin.",
+      "marketCapCr": 34323.34
+    },
+    {
+      "ticker": "ESCORTS",
+      "name": "Escorts Kubota",
+      "marketCapCr": 34312.91
+    },
+    {
+      "ticker": "KARURVYSYA",
+      "name": "Karur Vysya Bank",
+      "marketCapCr": 34249.78
+    },
+    {
+      "ticker": "STLTECH",
+      "name": "Sterlite Tech.",
+      "marketCapCr": 34059.47
+    },
+    {
+      "ticker": "HEXT",
+      "name": "Hexaware Tech.",
+      "marketCapCr": 33908.33
+    },
+    {
+      "ticker": "DELHIVERY",
+      "name": "Delhivery",
+      "marketCapCr": 33637.6
+    },
+    {
+      "ticker": "GODFRYPHLP",
+      "name": "Godfrey Phillips",
+      "marketCapCr": 33587.55
+    },
+    {
+      "ticker": "HSCL",
+      "name": "Himadri Special",
+      "marketCapCr": 33496.16
+    },
+    {
+      "ticker": "NHIT",
+      "name": "National High",
+      "marketCapCr": 33488.15
+    },
+    {
+      "ticker": "IREDA",
+      "name": "Indian Renewable",
+      "marketCapCr": 33373.67
+    },
+    {
+      "ticker": "CRISIL",
+      "name": "CRISIL",
+      "marketCapCr": 33006.5
+    },
+    {
+      "ticker": "JUBLFOOD",
+      "name": "Jubilant Food.",
+      "marketCapCr": 32959.27
+    },
+    {
+      "ticker": "UCOBANK",
+      "name": "UCO Bank",
+      "marketCapCr": 32841.1
+    },
+    {
+      "ticker": "NUVAMA",
+      "name": "Nuvama Wealth",
+      "marketCapCr": 32670.71
+    },
+    {
+      "ticker": "TATAINVEST",
+      "name": "Tata Inv.Corpn.",
+      "marketCapCr": 32606.14
+    },
+    {
+      "ticker": "LALPATHLAB",
+      "name": "Dr Lal Pathlabs",
+      "marketCapCr": 32517.35
+    },
+    {
+      "ticker": "MINDSPACE",
+      "name": "Mindspace Busine",
+      "marketCapCr": 32286.75
+    },
+    {
+      "ticker": "DHOOTTRANS",
+      "name": "Dhoot Transmission",
+      "marketCapCr": 32227.57
+    },
+    {
+      "ticker": "TATATECH",
+      "name": "Tata Technolog.",
+      "marketCapCr": 32220.21
+    },
+    {
+      "ticker": "HONAUT",
+      "name": "Honeywell Auto",
+      "marketCapCr": 32217.38
+    },
+    {
+      "ticker": "RRKABEL",
+      "name": "R R Kabel",
+      "marketCapCr": 31789.43
+    },
+    {
+      "ticker": "KIMS",
+      "name": "Krishna Institu.",
+      "marketCapCr": 31756.69
+    },
+    {
+      "ticker": "PTCIL",
+      "name": "PTC Industries",
+      "marketCapCr": 31362.91
+    },
+    {
+      "ticker": "NETWEB",
+      "name": "Netweb Technol.",
+      "marketCapCr": 31339.29
+    },
+    {
+      "ticker": "SAILIFE",
+      "name": "Sai Life",
+      "marketCapCr": 31019.02
+    },
+    {
+      "ticker": "PNBHOUSING",
+      "name": "PNB Housing",
+      "marketCapCr": 30879.91
+    },
+    {
+      "ticker": "NIACL",
+      "name": "New India Assura",
+      "marketCapCr": 30832.43
+    },
+    {
+      "ticker": "WOCKPHARMA",
+      "name": "Wockhardt",
+      "marketCapCr": 30582.65
+    },
+    {
+      "ticker": "BLUESTARCO",
+      "name": "Blue Star",
+      "marketCapCr": 30533.8
+    },
+    {
+      "ticker": "MRPL",
+      "name": "M R P L",
+      "marketCapCr": 30426.87
+    },
+    {
+      "ticker": "NEULANDLAB",
+      "name": "Neuland Labs.",
+      "marketCapCr": 30207.97
+    },
+    {
+      "ticker": "GRSE",
+      "name": "Garden Reach Sh.",
+      "marketCapCr": 30130.61
+    },
+    {
+      "ticker": "RUBICON",
+      "name": "Rubicon Research",
+      "marketCapCr": 30106.94
+    },
+    {
+      "ticker": "CDSL",
+      "name": "C D S L",
+      "marketCapCr": 29970.6
+    },
+    {
+      "ticker": "ABSLAMC",
+      "name": "Aditya AMC",
+      "marketCapCr": 29905.2
+    },
+    {
+      "ticker": "IKS",
+      "name": "Inventurus Knowl",
+      "marketCapCr": 29893.42
+    },
+    {
+      "ticker": "KIRLOSENG",
+      "name": "Kirloskar Oil",
+      "marketCapCr": 29636.57
+    },
+    {
+      "ticker": "ZFCVINDIA",
+      "name": "ZF Commercial",
+      "marketCapCr": 29457.42
+    },
+    {
+      "ticker": "CHOLAHLDNG",
+      "name": "Chola Financial",
+      "marketCapCr": 29282.02
+    },
+    {
+      "ticker": "AEGISVOPAK",
+      "name": "Aegis Vopak Term",
+      "marketCapCr": 29267.6
+    },
+    {
+      "ticker": "SHYAMMETL",
+      "name": "Shyam Metalics",
+      "marketCapCr": 29043.67
+    },
+    {
+      "ticker": "LICHSGFIN",
+      "name": "LIC Housing Fin.",
+      "marketCapCr": 28845.3
+    },
+    {
+      "ticker": "SYRMA",
+      "name": "Syrma SGS Tech.",
+      "marketCapCr": 28425.14
+    },
+    {
+      "ticker": "BIRET",
+      "name": "Brookfield India",
+      "marketCapCr": 28377.78
+    },
+    {
+      "ticker": "APOLLOTYRE",
+      "name": "Apollo Tyres",
+      "marketCapCr": 28138.15
+    },
+    {
+      "ticker": "PPLPHARMA",
+      "name": "Piramal Pharma",
+      "marketCapCr": 28130.05
+    },
+    {
+      "ticker": "SCHNEIDER",
+      "name": "Schneider Elect.",
+      "marketCapCr": 28079.9
+    },
+    {
+      "ticker": "ACMESOLAR",
+      "name": "ACME Solar Hold.",
+      "marketCapCr": 27988.69
+    },
+    {
+      "ticker": "BANDHANBNK",
+      "name": "Bandhan Bank",
+      "marketCapCr": 27952.79
+    },
+    {
+      "ticker": "CENTRALBK",
+      "name": "Central Bank",
+      "marketCapCr": 27905.47
+    },
+    {
+      "ticker": "IIFL",
+      "name": "IIFL Finance",
+      "marketCapCr": 27822.05
+    },
+    {
+      "ticker": "REDINGTON",
+      "name": "Redington",
+      "marketCapCr": 27690.45
+    },
+    {
+      "ticker": "CRAFTSMAN",
+      "name": "Craftsman Auto",
+      "marketCapCr": 27564.16
+    },
+    {
+      "ticker": "TVSHLTD",
+      "name": "TVS Holdings",
+      "marketCapCr": 27398.32
+    },
+    {
+      "ticker": "ANGELONE",
+      "name": "Angel One",
+      "marketCapCr": 27305.55
+    },
+    {
+      "ticker": "KAYNES",
+      "name": "Kaynes Tech",
+      "marketCapCr": 27104.11
+    },
+    {
+      "ticker": "ITI",
+      "name": "ITI",
+      "marketCapCr": 26828.8
+    },
+    {
+      "ticker": "DATAPATTNS",
+      "name": "Data Pattern",
+      "marketCapCr": 26756.98
+    },
+    {
+      "ticker": "ACUTAAS",
+      "name": "Acutaas Chemical",
+      "marketCapCr": 26671.97
+    },
+    {
+      "ticker": "SUMICHEM",
+      "name": "Sumitomo Chemi.",
+      "marketCapCr": 26477.19
+    },
+    {
+      "ticker": "PGHH",
+      "name": "P & G Hygiene",
+      "marketCapCr": 26411.68
+    },
+    {
+      "ticker": "AMBER",
+      "name": "Amber Enterp.",
+      "marketCapCr": 26330.91
+    },
+    {
+      "ticker": "AWL",
+      "name": "AWL Agri Busine.",
+      "marketCapCr": 26240.51
+    },
+    {
+      "ticker": "SUNDRMFAST",
+      "name": "Sundram Fasten.",
+      "marketCapCr": 26012.84
+    },
+    {
+      "ticker": "SJVN",
+      "name": "SJVN",
+      "marketCapCr": 25877.7
+    },
+    {
+      "ticker": "URBANCO",
+      "name": "Urban Company",
+      "marketCapCr": 25836.15
+    },
+    {
+      "ticker": "METROBRAND",
+      "name": "Metro Brands",
+      "marketCapCr": 25768.19
+    },
+    {
+      "ticker": "NXST",
+      "name": "Nexus Select",
+      "marketCapCr": 25292.93
+    },
+    {
+      "ticker": "ACC",
+      "name": "ACC",
+      "marketCapCr": 25007.63
+    },
+    {
+      "ticker": "MSUMI",
+      "name": "Motherson Wiring",
+      "marketCapCr": 24981.47
+    },
+    {
+      "ticker": "CGCL",
+      "name": "Capri Global",
+      "marketCapCr": 24664.82
+    },
+    {
+      "ticker": "ASAHIINDIA",
+      "name": "Asahi India Glas",
+      "marketCapCr": 24247.4
+    },
+    {
+      "ticker": "DEEPAKNTR",
+      "name": "Deepak Nitrite",
+      "marketCapCr": 24232.95
+    },
+    {
+      "ticker": "HATSUN",
+      "name": "Hatsun Agro",
+      "marketCapCr": 24202.71
+    },
+    {
+      "ticker": "GILLETTE",
+      "name": "Gillette India",
+      "marketCapCr": 24128.01
+    },
+    {
+      "ticker": "NBCC",
+      "name": "NBCC",
+      "marketCapCr": 24086.7
+    },
+    {
+      "ticker": "GODIGIT",
+      "name": "Go Digit General",
+      "marketCapCr": 23956.47
+    },
+    {
+      "ticker": "SANSERA",
+      "name": "Sansera Enginee.",
+      "marketCapCr": 23941.75
+    },
+    {
+      "ticker": "GUJENERGY",
+      "name": "Gujarat Energy",
+      "marketCapCr": 23826.37
+    },
+    {
+      "ticker": "GABRIEL",
+      "name": "Gabriel India",
+      "marketCapCr": 23794.9
+    },
+    {
+      "ticker": "AFFLE",
+      "name": "Affle 3i",
+      "marketCapCr": 23769.43
+    },
+    {
+      "ticker": "KPIL",
+      "name": "Kalpataru Proj.",
+      "marketCapCr": 23759.58
+    },
+    {
+      "ticker": "KIOCL",
+      "name": "KIOCL",
+      "marketCapCr": 23638.48
+    },
+    {
+      "ticker": "PFOCUS",
+      "name": "Prime Focus",
+      "marketCapCr": 23561.8
+    },
+    {
+      "ticker": "IRB",
+      "name": "IRB Infra.Devl.",
+      "marketCapCr": 23503.79
+    },
+    {
+      "ticker": "TIMKEN",
+      "name": "Timken India",
+      "marketCapCr": 23308.03
+    },
+    {
+      "ticker": "CREDITACC",
+      "name": "CreditAcc. Gram.",
+      "marketCapCr": 23108.64
+    },
+    {
+      "ticker": "EMMVEE",
+      "name": "Emmvee Photovol.",
+      "marketCapCr": 23051.63
+    },
+    {
+      "ticker": "JYOTICNC",
+      "name": "Jyoti CNC Auto.",
+      "marketCapCr": 23031.14
+    },
+    {
+      "ticker": "IFCI",
+      "name": "IFCI",
+      "marketCapCr": 23020.22
+    },
+    {
+      "ticker": "FORCEMOT",
+      "name": "Force Motors",
+      "marketCapCr": 22992.58
+    },
+    {
+      "ticker": "GRINDWELL",
+      "name": "Grindwell Norton",
+      "marketCapCr": 22761.82
+    },
+    {
+      "ticker": "TDPOWERSYS",
+      "name": "TD Power Systems",
+      "marketCapCr": 22740.61
+    },
+    {
+      "ticker": "TATAELXSI",
+      "name": "Tata Elxsi",
+      "marketCapCr": 22739.34
+    },
+    {
+      "ticker": "CUB",
+      "name": "City Union Bank",
+      "marketCapCr": 22471.05
+    },
+    {
+      "ticker": "RAMCOCEM",
+      "name": "The Ramco Cement",
+      "marketCapCr": 22226.84
+    },
+    {
+      "ticker": "BELRISE",
+      "name": "Belrise Industri",
+      "marketCapCr": 22211.61
+    },
+    {
+      "ticker": "CEMPRO",
+      "name": "Cemindia Project",
+      "marketCapCr": 22110.78
+    },
+    {
+      "ticker": "PFIZER",
+      "name": "Pfizer",
+      "marketCapCr": 21970.35
+    },
+    {
+      "ticker": "AETHER",
+      "name": "Aether Industri.",
+      "marketCapCr": 21966.53
+    },
+    {
+      "ticker": "ANANTRAJ",
+      "name": "Anant Raj",
+      "marketCapCr": 21821.14
+    },
+    {
+      "ticker": "MTARTECH",
+      "name": "MTAR Technologie",
+      "marketCapCr": 21783.94
+    },
+    {
+      "ticker": "TENNIND",
+      "name": "Tenneco Clean",
+      "marketCapCr": 21778.49
+    },
+    {
+      "ticker": "SHRIPISTON",
+      "name": "SPR Auto Technologies",
+      "marketCapCr": 21384.07
+    },
+    {
+      "ticker": "BRIGADE",
+      "name": "Brigade Enterpr.",
+      "marketCapCr": 21373.25
+    },
+    {
+      "ticker": "CARBORUNIV",
+      "name": "Carborundum Uni.",
+      "marketCapCr": 21064.18
+    },
+    {
+      "ticker": "CUBEINVIT",
+      "name": "Cube Highways",
+      "marketCapCr": 20982.27
+    },
+    {
+      "ticker": "HAPPYFORGE",
+      "name": "Happy Forgings",
+      "marketCapCr": 20881.3
+    },
+    {
+      "ticker": "IGL",
+      "name": "Indraprastha Gas",
+      "marketCapCr": 20820.82
+    },
+    {
+      "ticker": "SAGILITY",
+      "name": "Sagility",
+      "marketCapCr": 20597.85
+    },
+    {
+      "ticker": "AADHARHFC",
+      "name": "Aadhar Hsg. Fin.",
+      "marketCapCr": 20588.98
+    },
+    {
+      "ticker": "GRANULES",
+      "name": "Granules India",
+      "marketCapCr": 20522.54
+    },
+    {
+      "ticker": "LMW",
+      "name": "LMW",
+      "marketCapCr": 20515.63
+    },
+    {
+      "ticker": "CHENNPETRO",
+      "name": "C P C L",
+      "marketCapCr": 20475.32
+    },
+    {
+      "ticker": "CESC",
+      "name": "CESC",
+      "marketCapCr": 20324.97
+    },
+    {
+      "ticker": "DIACABS",
+      "name": "Diamond Power",
+      "marketCapCr": 20232.74
+    },
+    {
+      "ticker": "CHALET",
+      "name": "Chalet Hotels",
+      "marketCapCr": 19982.12
+    },
+    {
+      "ticker": "INDIGRID",
+      "name": "IndiGrid Trust",
+      "marketCapCr": 19874.26
+    },
+    {
+      "ticker": "AARTIIND",
+      "name": "Aarti Industries",
+      "marketCapCr": 19694.25
+    },
+    {
+      "ticker": "FINCABLES",
+      "name": "Finolex Cables",
+      "marketCapCr": 19673.35
+    },
+    {
+      "ticker": "ELGIEQUIP",
+      "name": "Elgi Equipments",
+      "marketCapCr": 19570.72
+    },
+    {
+      "ticker": "JINDALSAW",
+      "name": "Jindal Saw",
+      "marketCapCr": 19341.93
+    },
+    {
+      "ticker": "PINELABS",
+      "name": "Pine Labs",
+      "marketCapCr": 19255.58
+    },
+    {
+      "ticker": "ATUL",
+      "name": "Atul",
+      "marketCapCr": 19213.69
+    },
+    {
+      "ticker": "CAPLIPOINT",
+      "name": "Caplin Point Lab",
+      "marketCapCr": 19126.82
+    },
+    {
+      "ticker": "FSL",
+      "name": "Firstsour.Solu.",
+      "marketCapCr": 19093.29
+    },
+    {
+      "ticker": "GESHIP",
+      "name": "GE Shipping Co",
+      "marketCapCr": 19019.44
+    },
+    {
+      "ticker": "KAJARIACER",
+      "name": "Kajaria Ceramics",
+      "marketCapCr": 19006.45
+    },
+    {
+      "ticker": "EIHOTEL",
+      "name": "EIH",
+      "marketCapCr": 18979.8
+    },
+    {
+      "ticker": "HBLENGINE",
+      "name": "HBL Engineering",
+      "marketCapCr": 18957.36
+    },
+    {
+      "ticker": "DEEPAKFERT",
+      "name": "Deepak Fertilis.",
+      "marketCapCr": 18674.36
+    },
+    {
+      "ticker": "TBOTEK",
+      "name": "TBO Tek",
+      "marketCapCr": 18530.51
+    },
+    {
+      "ticker": "CAMS",
+      "name": "Cams Services",
+      "marketCapCr": 18523
+    },
+    {
+      "ticker": "RATNAMANI",
+      "name": "Ratnamani Metals",
+      "marketCapCr": 18515.5
+    },
+    {
+      "ticker": "CASTROLIND",
+      "name": "Castrol India",
+      "marketCapCr": 18471.86
+    },
+    {
+      "ticker": "THELEELA",
+      "name": "Leela Palaces Hotels",
+      "marketCapCr": 18461.19
+    },
+    {
+      "ticker": "DEVYANI",
+      "name": "Devyani Intl.",
+      "marketCapCr": 18415.19
+    },
+    {
+      "ticker": "GMDCLTD",
+      "name": "G M D C",
+      "marketCapCr": 18410.61
+    },
+    {
+      "ticker": "BAYERCROP",
+      "name": "Bayer Crop Sci.",
+      "marketCapCr": 18378.17
+    },
+    {
+      "ticker": "SUNTV",
+      "name": "Sun TV Network",
+      "marketCapCr": 18330.85
+    },
+    {
+      "ticker": "ECLERX",
+      "name": "eClerx Services",
+      "marketCapCr": 18283.46
+    },
+    {
+      "ticker": "TRITURBINE",
+      "name": "Triveni Turbine",
+      "marketCapCr": 18260.09
+    },
+    {
+      "ticker": "AZAD",
+      "name": "Azad Engineering",
+      "marketCapCr": 18247.57
+    },
+    {
+      "ticker": "ERIS",
+      "name": "ERIS Lifescience",
+      "marketCapCr": 18164.11
+    },
+    {
+      "ticker": "SARDAEN",
+      "name": "Sarda Energy",
+      "marketCapCr": 18126.49
+    },
+    {
+      "ticker": "WELSPUNLIV",
+      "name": "Welspun Living",
+      "marketCapCr": 18009.82
+    },
+    {
+      "ticker": "ASTRAZEN",
+      "name": "Astrazeneca Phar",
+      "marketCapCr": 17882.5
+    },
+    {
+      "ticker": "COHANCE",
+      "name": "Cohance Life",
+      "marketCapCr": 17689.39
+    },
+    {
+      "ticker": "OLAELEC",
+      "name": "Ola Electric",
+      "marketCapCr": 17587.95
+    },
+    {
+      "ticker": "EMAMILTD",
+      "name": "Emami",
+      "marketCapCr": 17523.29
+    },
+    {
+      "ticker": "VERTIS",
+      "name": "Vertis Infra.",
+      "marketCapCr": 17515.81
+    },
+    {
+      "ticker": "INOXINDIA",
+      "name": "Inox India",
+      "marketCapCr": 17487.4
+    },
+    {
+      "ticker": "VTL",
+      "name": "Vardhman Textile",
+      "marketCapCr": 17452.5
+    },
+    {
+      "ticker": "CHOICEIN",
+      "name": "Choice Intl.",
+      "marketCapCr": 17417.78
+    },
+    {
+      "ticker": "SAMMAANCAP",
+      "name": "Sammaan Capital",
+      "marketCapCr": 17359.26
+    },
+    {
+      "ticker": "POLYMED",
+      "name": "Poly Medicure",
+      "marketCapCr": 17344.97
+    },
+    {
+      "ticker": "ABDL",
+      "name": "Allied Blenders",
+      "marketCapCr": 17165.81
+    },
+    {
+      "ticker": "CHAMBLFERT",
+      "name": "Chambal Fert.",
+      "marketCapCr": 17129.89
+    },
+    {
+      "ticker": "MILKYMIST",
+      "name": "Milky Mist Dairy",
+      "marketCapCr": 17098.99
+    },
+    {
+      "ticker": "THANGAMAYL",
+      "name": "Thangamayil Jew.",
+      "marketCapCr": 17081.12
+    },
+    {
+      "ticker": "JSWCEMENT",
+      "name": "JSW Cement",
+      "marketCapCr": 17037.97
+    },
+    {
+      "ticker": "PARADEEP",
+      "name": "Paradeep Phosph.",
+      "marketCapCr": 17015.12
+    },
+    {
+      "ticker": "ONESOURCE",
+      "name": "OneSource Speci.",
+      "marketCapCr": 17012.87
+    },
+    {
+      "ticker": "TRAVELFOOD",
+      "name": "Travel Food",
+      "marketCapCr": 16957.68
+    },
+    {
+      "ticker": "BASF",
+      "name": "BASF India",
+      "marketCapCr": 16942
+    },
+    {
+      "ticker": "ZENTEC",
+      "name": "Zen Technologies",
+      "marketCapCr": 16915
+    },
+    {
+      "ticker": "MINDACORP",
+      "name": "Minda Corp",
+      "marketCapCr": 16914.87
+    },
+    {
+      "ticker": "KFINTECH",
+      "name": "KFin Technolog.",
+      "marketCapCr": 16880.96
+    },
+    {
+      "ticker": "AEQUS",
+      "name": "Aequs",
+      "marketCapCr": 16877.97
+    },
+    {
+      "ticker": "ARE&M",
+      "name": "Amara Raja Ener.",
+      "marketCapCr": 16852.06
+    },
+    {
+      "ticker": "ZYDUSWELL",
+      "name": "Zydus Wellness",
+      "marketCapCr": 16837.07
+    },
+    {
+      "ticker": "SHILPAMED",
+      "name": "Shilpa Medicare",
+      "marketCapCr": 16834.71
+    },
+    {
+      "ticker": "PGEL",
+      "name": "PG Electroplast",
+      "marketCapCr": 16818.18
+    },
+    {
+      "ticker": "J&KBANK",
+      "name": "J & K Bank",
+      "marketCapCr": 16742.38
+    },
+    {
+      "ticker": "ALIVUS",
+      "name": "Alivus Life",
+      "marketCapCr": 16706.74
+    },
+    {
+      "ticker": "PSB",
+      "name": "Pun. & Sind Bank",
+      "marketCapCr": 16674.63
+    },
+    {
+      "ticker": "SYNGENE",
+      "name": "Syngene Intl.",
+      "marketCapCr": 16596.86
+    },
+    {
+      "ticker": "CMPDI",
+      "name": "Central Mine Pla",
+      "marketCapCr": 16549.81
+    },
+    {
+      "ticker": "GPIL",
+      "name": "Godawari Power",
+      "marketCapCr": 16546.75
+    },
+    {
+      "ticker": "GRWRHITECH",
+      "name": "Garware Hi Tech",
+      "marketCapCr": 16531.01
+    },
+    {
+      "ticker": "CENTURYPLY",
+      "name": "Century Plyboard",
+      "marketCapCr": 16508.56
+    },
+    {
+      "ticker": "DCMSHRIRAM",
+      "name": "DCM Shriram",
+      "marketCapCr": 16375.5
+    },
+    {
+      "ticker": "HORIZONIND",
+      "name": "Horizon Industrial",
+      "marketCapCr": 16369.12
+    },
+    {
+      "ticker": "KANSAINER",
+      "name": "Kansai Nerolac",
+      "marketCapCr": 16283.14
+    },
+    {
+      "ticker": "TATACHEM",
+      "name": "Tata Chemicals",
+      "marketCapCr": 16244.77
+    },
+    {
+      "ticker": "APLLTD",
+      "name": "Alembic Pharma",
+      "marketCapCr": 16212.53
+    },
+    {
+      "ticker": "KPITTECH",
+      "name": "KPIT Technologi.",
+      "marketCapCr": 16174.48
+    },
+    {
+      "ticker": "BEML",
+      "name": "BEML Ltd",
+      "marketCapCr": 16138.91
+    },
+    {
+      "ticker": "CONCORDBIO",
+      "name": "Concord Biotech",
+      "marketCapCr": 16133.91
+    },
+    {
+      "ticker": "ASTRAMICRO",
+      "name": "Astra Microwave",
+      "marketCapCr": 16128.31
+    },
+    {
+      "ticker": "VOGL",
+      "name": "Vedanta Oil and Gas",
+      "marketCapCr": 16114.71
+    },
+    {
+      "ticker": "NAVA",
+      "name": "Nava",
+      "marketCapCr": 16087.47
+    },
+    {
+      "ticker": "BHARATCOAL",
+      "name": "Bharat Coking",
+      "marketCapCr": 16034.05
+    },
+    {
+      "ticker": "AGARWALEYE",
+      "name": "Dr Agarwal's Hea",
+      "marketCapCr": 15805.34
+    },
+    {
+      "ticker": "FINEORG",
+      "name": "Fine Organic",
+      "marketCapCr": 15756.47
+    },
+    {
+      "ticker": "LTFOODS",
+      "name": "L T Foods",
+      "marketCapCr": 15671.53
+    },
+    {
+      "ticker": "MAHSCOOTER",
+      "name": "Mah. Scooters",
+      "marketCapCr": 15613.71
+    },
+    {
+      "ticker": "ABREL",
+      "name": "A B Real Estate",
+      "marketCapCr": 15551.39
+    },
+    {
+      "ticker": "HONASA",
+      "name": "Honasa Consumer",
+      "marketCapCr": 15502.45
+    },
+    {
+      "ticker": "NATCOPHARM",
+      "name": "Natco Pharma",
+      "marketCapCr": 15464.35
+    },
+    {
+      "ticker": "JBMA",
+      "name": "JBM Auto",
+      "marketCapCr": 15452.53
+    },
+    {
+      "ticker": "BIKAJI",
+      "name": "Bikaji Foods",
+      "marketCapCr": 15347.58
+    },
+    {
+      "ticker": "CROMPTON",
+      "name": "Crompton Gr. Con",
+      "marketCapCr": 15341.27
+    },
+    {
+      "ticker": "CARTRADE",
+      "name": "Cartrade Tech",
+      "marketCapCr": 15243.45
+    },
+    {
+      "ticker": "JNPR",
+      "name": "Juniper Green",
+      "marketCapCr": 15217.29
+    },
+    {
+      "ticker": "FIVESTAR",
+      "name": "Five-Star Bus.Fi",
+      "marketCapCr": 15203.69
+    },
+    {
+      "ticker": "NIVABUPA",
+      "name": "Niva Bupa Health",
+      "marketCapCr": 15195.15
+    },
+    {
+      "ticker": "VIJAYA",
+      "name": "Vijaya Diagnost.",
+      "marketCapCr": 15169.5
+    },
+    {
+      "ticker": "VISL",
+      "name": "Vedanta Iron & Steel",
+      "marketCapCr": 15164.48
+    },
+    {
+      "ticker": "USHAMART",
+      "name": "Usha Martin",
+      "marketCapCr": 15119.76
+    },
+    {
+      "ticker": "KIRLOSBROS",
+      "name": "Kirl. Brothers",
+      "marketCapCr": 15093.25
+    },
+    {
+      "ticker": "CIEINDIA",
+      "name": "CIE Automotive",
+      "marketCapCr": 15060.69
+    },
+    {
+      "ticker": "IGIL",
+      "name": "International Gemological Instit",
+      "marketCapCr": 15032.68
+    },
+    {
+      "ticker": "MARKSANS",
+      "name": "Marksans Pharma",
+      "marketCapCr": 15001.99
+    },
+    {
+      "ticker": "SHAILY",
+      "name": "Shaily Engineer.",
+      "marketCapCr": 14894.64
+    },
+    {
+      "ticker": "AVALON",
+      "name": "Avalon Tech",
+      "marketCapCr": 14874.97
+    },
+    {
+      "ticker": "ARVIND",
+      "name": "Arvind Ltd",
+      "marketCapCr": 14743.24
+    },
+    {
+      "ticker": "RAINBOW",
+      "name": "Rainbow Child.",
+      "marketCapCr": 14693.65
+    },
+    {
+      "ticker": "VEDPOWER",
+      "name": "Vedanta Power",
+      "marketCapCr": 14660.04
+    },
+    {
+      "ticker": "CCL",
+      "name": "CCL Products",
+      "marketCapCr": 14623.98
+    },
+    {
+      "ticker": "CANHLIFE",
+      "name": "Canara HSBC",
+      "marketCapCr": 14618.6
+    },
+    {
+      "ticker": "CEATLTD",
+      "name": "CEAT",
+      "marketCapCr": 14498.53
+    },
+    {
+      "ticker": "INGERRAND",
+      "name": "Ingersoll-Rand",
+      "marketCapCr": 14447.73
+    },
+    {
+      "ticker": "SHADOWFAX",
+      "name": "Shadowfax Technologies",
+      "marketCapCr": 14437.62
+    },
+    {
+      "ticker": "ANURAS",
+      "name": "Anupam Rasayan",
+      "marketCapCr": 14431.61
+    },
+    {
+      "ticker": "APOLLO",
+      "name": "Apollo Micro Sys",
+      "marketCapCr": 14418.06
+    },
+    {
+      "ticker": "VGUARD",
+      "name": "V-Guard Industri",
+      "marketCapCr": 14402.9
+    },
+    {
+      "ticker": "MOLBIO",
+      "name": "Molbio Diagnosti",
+      "marketCapCr": 14276.51
+    },
+    {
+      "ticker": "BALRAMCHIN",
+      "name": "Balrampur Chini",
+      "marketCapCr": 14269.08
+    },
+    {
+      "ticker": "FRACTAL",
+      "name": "Fractal Analyt.",
+      "marketCapCr": 14265.37
+    },
+    {
+      "ticker": "TMB",
+      "name": "T N Merc. Bank",
+      "marketCapCr": 14213.63
+    },
+    {
+      "ticker": "EIDPARRY",
+      "name": "EID Parry",
+      "marketCapCr": 14171.5
+    },
+    {
+      "ticker": "SKFINDUS",
+      "name": "SKF India Indus.",
+      "marketCapCr": 14162.99
+    },
+    {
+      "ticker": "JSWDULUX",
+      "name": "JSW Dulux",
+      "marketCapCr": 14144.82
+    },
+    {
+      "ticker": "JUBLPHARMA",
+      "name": "Jubilant Pharmo",
+      "marketCapCr": 14136.28
+    },
+    {
+      "ticker": "GALLANTT",
+      "name": "Gallantt Ispat L",
+      "marketCapCr": 14078.74
+    },
+    {
+      "ticker": "ENGINERSIN",
+      "name": "Engineers India",
+      "marketCapCr": 14071.29
+    },
+    {
+      "ticker": "CLEANMAX",
+      "name": "Clean Max Enviro",
+      "marketCapCr": 13888.62
+    },
+    {
+      "ticker": "VENTIVE",
+      "name": "Ventive Hospital",
+      "marketCapCr": 13886.38
+    },
+    {
+      "ticker": "TI",
+      "name": "Tilaknagar Inds.",
+      "marketCapCr": 13880.81
+    },
+    {
+      "ticker": "KSB",
+      "name": "KSB",
+      "marketCapCr": 13861.35
+    },
+    {
+      "ticker": "PRUDENT",
+      "name": "Prudent Corp.",
+      "marketCapCr": 13850.95
+    },
+    {
+      "ticker": "SOBHA",
+      "name": "Sobha",
+      "marketCapCr": 13817.86
+    },
+    {
+      "ticker": "SIGMAADV",
+      "name": "Sigma Advanced System",
+      "marketCapCr": 13813.53
+    },
+    {
+      "ticker": "ACE",
+      "name": "Action Const.Eq.",
+      "marketCapCr": 13801.74
+    },
+    {
+      "ticker": "HEG",
+      "name": "HEG",
+      "marketCapCr": 13769.91
+    },
+    {
+      "ticker": "INDGN",
+      "name": "Indegene",
+      "marketCapCr": 13725.48
+    },
+    {
+      "ticker": "LLOYDSENGG",
+      "name": "Lloyds Engineeri",
+      "marketCapCr": 13701.47
+    },
+    {
+      "ticker": "VINATIORGA",
+      "name": "Vinati Organics",
+      "marketCapCr": 13699.41
+    },
+    {
+      "ticker": "NAZARA",
+      "name": "Nazara Technolo.",
+      "marketCapCr": 13676.57
+    },
+    {
+      "ticker": "LALITHAA",
+      "name": "Lalithaa Jewel",
+      "marketCapCr": 13656.92
+    },
+    {
+      "ticker": "UTLSOLAR",
+      "name": "Fujiyama Power",
+      "marketCapCr": 13632.58
+    },
+    {
+      "ticker": "GRAVITA",
+      "name": "Gravita India",
+      "marketCapCr": 13582.97
+    },
+    {
+      "ticker": "SEDEMAC",
+      "name": "Sedemac Mechatro",
+      "marketCapCr": 13538.26
+    },
+    {
+      "ticker": "PRIVISCL",
+      "name": "Privi Speci.",
+      "marketCapCr": 13509.45
+    },
+    {
+      "ticker": "WABAG",
+      "name": "Va Tech Wabag",
+      "marketCapCr": 13465.92
+    },
+    {
+      "ticker": "GRAPHITE",
+      "name": "Graphite India",
+      "marketCapCr": 13463.33
+    },
+    {
+      "ticker": "UJJIVANSFB",
+      "name": "Ujjivan Small",
+      "marketCapCr": 13442.98
+    },
+    {
+      "ticker": "SCI",
+      "name": "S C I",
+      "marketCapCr": 13438.33
+    },
+    {
+      "ticker": "BBOX",
+      "name": "Black Box",
+      "marketCapCr": 13405.19
+    },
+    {
+      "ticker": "DOMS",
+      "name": "DOMS Industries",
+      "marketCapCr": 13375.71
+    },
+    {
+      "ticker": "RKFORGE",
+      "name": "Ramkrishna Forg.",
+      "marketCapCr": 13334.85
+    },
+    {
+      "ticker": "SPLPETRO",
+      "name": "Supreme Petroch.",
+      "marketCapCr": 13318.97
+    },
+    {
+      "ticker": "MANYAVAR",
+      "name": "Vedant Fashions",
+      "marketCapCr": 13281.19
+    },
+    {
+      "ticker": "ATLANTAELE",
+      "name": "Atlanta Electric",
+      "marketCapCr": 13265.44
+    },
+    {
+      "ticker": "LUMAXTECH",
+      "name": "Lumax Auto Tech.",
+      "marketCapCr": 13139.44
+    },
+    {
+      "ticker": "SKYGOLD",
+      "name": "Sky Gold & Diam.",
+      "marketCapCr": 13134.85
+    },
+    {
+      "ticker": "JSWHL",
+      "name": "JSW Holdings",
+      "marketCapCr": 13133.52
+    },
+    {
+      "ticker": "APTUS",
+      "name": "Aptus Value Hou.",
+      "marketCapCr": 12946.14
+    },
+    {
+      "ticker": "CORONA",
+      "name": "Corona Remedies",
+      "marketCapCr": 12862.58
+    },
+    {
+      "ticker": "AMAGI",
+      "name": "Amagi Media Labs",
+      "marketCapCr": 12838.8
+    },
+    {
+      "ticker": "PCBL",
+      "name": "PCBL Chemical",
+      "marketCapCr": 12813.11
+    },
+    {
+      "ticker": "KTKBANK",
+      "name": "Karnataka Bank",
+      "marketCapCr": 12775.22
+    },
+    {
+      "ticker": "SUDEEPPHRM",
+      "name": "Sudeep Pharma",
+      "marketCapCr": 12753.03
+    },
+    {
+      "ticker": "JMFINANCIL",
+      "name": "JM Financial",
+      "marketCapCr": 12712.26
+    },
+    {
+      "ticker": "SWANDEF",
+      "name": "Swan Defence",
+      "marketCapCr": 12684.81
+    },
+    {
+      "ticker": "INOXWIND",
+      "name": "Inox Wind",
+      "marketCapCr": 12650.7
+    },
+    {
+      "ticker": "E2E",
+      "name": "E2E Networks",
+      "marketCapCr": 12602.16
+    },
+    {
+      "ticker": "PARKHOSPS",
+      "name": "Park Medi World",
+      "marketCapCr": 12491.44
+    },
+    {
+      "ticker": "TRIDENT",
+      "name": "Trident",
+      "marketCapCr": 12454.52
+    },
+    {
+      "ticker": "TEGA",
+      "name": "Tega Inds.",
+      "marketCapCr": 12411.85
+    },
+    {
+      "ticker": "VARROC",
+      "name": "Varroc Engineer",
+      "marketCapCr": 12408.55
+    },
+    {
+      "ticker": "HOMEFIRST",
+      "name": "Home First Finan",
+      "marketCapCr": 12376.7
+    },
+    {
+      "ticker": "PVRINOX",
+      "name": "PVR Inox",
+      "marketCapCr": 12327.04
+    },
+    {
+      "ticker": "BLUESTONE",
+      "name": "Bluestone Jewel",
+      "marketCapCr": 12188.64
+    },
+    {
+      "ticker": "ASKAUTOLTD",
+      "name": "ASK Automotive",
+      "marketCapCr": 12163.7
+    },
+    {
+      "ticker": "NSLNISP",
+      "name": "NMDC Steel",
+      "marketCapCr": 12144.43
+    },
+    {
+      "ticker": "SOUTHBANK",
+      "name": "South Ind.Bank",
+      "marketCapCr": 12132.6
+    },
+    {
+      "ticker": "EDELWEISS",
+      "name": "Edelweiss.Fin.",
+      "marketCapCr": 12065.44
+    },
+    {
+      "ticker": "AKUMS",
+      "name": "Akums Drugs",
+      "marketCapCr": 12057.95
+    },
+    {
+      "ticker": "GODREJAGRO",
+      "name": "Godrej Agrovet",
+      "marketCapCr": 12036.92
+    },
+    {
+      "ticker": "PARAS",
+      "name": "Paras Defence",
+      "marketCapCr": 12029.27
+    },
+    {
+      "ticker": "MANORAMA",
+      "name": "Manorama Indust.",
+      "marketCapCr": 11973.69
+    },
+    {
+      "ticker": "BLUEDART",
+      "name": "Blue Dart Expres",
+      "marketCapCr": 11881.61
+    },
+    {
+      "ticker": "METROPOLIS",
+      "name": "Metropolis Healt",
+      "marketCapCr": 11827.31
+    },
+    {
+      "ticker": "TECHNOE",
+      "name": "Techno Elec.Engg",
+      "marketCapCr": 11679.38
+    },
+    {
+      "ticker": "IRCON",
+      "name": "Ircon Intl.",
+      "marketCapCr": 11667.1
+    },
+    {
+      "ticker": "CYIENT",
+      "name": "Cyient",
+      "marketCapCr": 11645.5
+    },
+    {
+      "ticker": "JPPOWER",
+      "name": "JP Power Ven.",
+      "marketCapCr": 11637.17
+    },
+    {
+      "ticker": "NUVOCO",
+      "name": "Nuvoco Vistas",
+      "marketCapCr": 11595.07
+    },
+    {
+      "ticker": "VIYASH",
+      "name": "Viyash Scientific",
+      "marketCapCr": 11587.17
+    },
+    {
+      "ticker": "UTIAMC",
+      "name": "UTI AMC",
+      "marketCapCr": 11532.52
+    },
+    {
+      "ticker": "INDIACEM",
+      "name": "India Cements",
+      "marketCapCr": 11523.53
+    },
+    {
+      "ticker": "KEC",
+      "name": "KEC International",
+      "marketCapCr": 11450.59
+    },
+    {
+      "ticker": "AVANTIFEED",
+      "name": "Avanti Feeds",
+      "marketCapCr": 11439.18
+    },
+    {
+      "ticker": "LLOYDSENT",
+      "name": "Lloyds Enterpris",
+      "marketCapCr": 11333.26
+    },
+    {
+      "ticker": "JUBLINGREA",
+      "name": "Jubilant Ingrev.",
+      "marketCapCr": 11279.49
+    },
+    {
+      "ticker": "SBFC",
+      "name": "SBFC Finance",
+      "marketCapCr": 11208.4
+    },
+    {
+      "ticker": "BLUEJET",
+      "name": "Blue Jet Health",
+      "marketCapCr": 11169.16
+    },
+    {
+      "ticker": "TITAGARH",
+      "name": "Titagarh Rail",
+      "marketCapCr": 11115.97
+    },
+    {
+      "ticker": "VOLTAMP",
+      "name": "Volt.Transform.",
+      "marketCapCr": 11107.08
+    },
+    {
+      "ticker": "RATEGAIN",
+      "name": "Rategain Travel",
+      "marketCapCr": 11065.04
+    },
+    {
+      "ticker": "JKTYRE",
+      "name": "JK Tyre & Indust",
+      "marketCapCr": 11057.34
+    },
+    {
+      "ticker": "BLACKBUCK",
+      "name": "Blackbuck",
+      "marketCapCr": 11025.54
+    },
+    {
+      "ticker": "MGL",
+      "name": "Mahanagar Gas",
+      "marketCapCr": 11016.69
+    },
+    {
+      "ticker": "PCJEWELLER",
+      "name": "PC Jeweller",
+      "marketCapCr": 10951.65
+    },
+    {
+      "ticker": "KWIL",
+      "name": "Kwality Wall's",
+      "marketCapCr": 10920.9
+    },
+    {
+      "ticker": "OLECTRA",
+      "name": "Olectra Greentec",
+      "marketCapCr": 10887.19
+    },
+    {
+      "ticker": "SIGNATURE",
+      "name": "SignatureGlobal",
+      "marketCapCr": 10884.17
+    },
+    {
+      "ticker": "IEX",
+      "name": "Indian Energy Ex",
+      "marketCapCr": 10878.65
+    },
+    {
+      "ticker": "ZENSARTECH",
+      "name": "Zensar Tech.",
+      "marketCapCr": 10738.4
+    },
+    {
+      "ticker": "CANFINHOME",
+      "name": "Can Fin Homes",
+      "marketCapCr": 10688.98
+    },
+    {
+      "ticker": "ALKYLAMINE",
+      "name": "Alkyl Amines",
+      "marketCapCr": 10687.51
+    },
+    {
+      "ticker": "SGMART",
+      "name": "SG Mart",
+      "marketCapCr": 10615.94
+    },
+    {
+      "ticker": "IIFLCAPS",
+      "name": "IIFL Capital",
+      "marketCapCr": 10590.09
+    },
+    {
+      "ticker": "PGIL",
+      "name": "Pearl Global Ind",
+      "marketCapCr": 10575.79
+    },
+    {
+      "ticker": "JWL",
+      "name": "Jupiter Wagons",
+      "marketCapCr": 10549.64
+    },
+    {
+      "ticker": "HCG",
+      "name": "Health.Global",
+      "marketCapCr": 10542.98
+    },
+    {
+      "ticker": "INDIAMART",
+      "name": "Indiamart Inter.",
+      "marketCapCr": 10536.48
+    },
+    {
+      "ticker": "SUVEN",
+      "name": "Suven Life Scie.",
+      "marketCapCr": 10516.98
+    },
+    {
+      "ticker": "ABLBL",
+      "name": "A B Lifestyle",
+      "marketCapCr": 10501.37
+    },
+    {
+      "ticker": "AFCONS",
+      "name": "Afcons Infrastr.",
+      "marketCapCr": 10483.7
+    },
+    {
+      "ticker": "RITES",
+      "name": "Rites",
+      "marketCapCr": 10477.64
+    },
+    {
+      "ticker": "SHREEJISPG",
+      "name": "Shreeji Ship. Gl",
+      "marketCapCr": 10410.48
+    },
+    {
+      "ticker": "GENUSPOWER",
+      "name": "Genus Power",
+      "marketCapCr": 10377.72
+    },
+    {
+      "ticker": "KRBL",
+      "name": "KRBL",
+      "marketCapCr": 10240.53
+    },
+    {
+      "ticker": "AAVAS",
+      "name": "AAVAS Financiers",
+      "marketCapCr": 10195.66
+    },
+    {
+      "ticker": "SANDUMA",
+      "name": "Sandur Manganese",
+      "marketCapCr": 10192.16
+    },
+    {
+      "ticker": "QPOWER",
+      "name": "Quality Power El",
+      "marketCapCr": 10053.79
+    },
+    {
+      "ticker": "ZEEL",
+      "name": "Zee Entertainmen",
+      "marketCapCr": 10029.74
+    },
+    {
+      "ticker": "FIRSTCRY",
+      "name": "Brainbees Solut.",
+      "marketCapCr": 10022.01
+    },
+    {
+      "ticker": "FINPIPE",
+      "name": "Finolex Inds.",
+      "marketCapCr": 10013.88
+    },
+    {
+      "ticker": "JAINREC",
+      "name": "Jain Resource",
+      "marketCapCr": 9976.43
+    },
+    {
+      "ticker": "BBTC",
+      "name": "The Bombay Burmah",
+      "marketCapCr": 9950.87
+    },
+    {
+      "ticker": "JAYNECOIND",
+      "name": "Jayaswal Neco",
+      "marketCapCr": 9926.52
+    },
+    {
+      "ticker": "KRN",
+      "name": "KRN Heat Exchan",
+      "marketCapCr": 9896.67
+    },
+    {
+      "ticker": "SUDARSCHEM",
+      "name": "Sudarshan Chem.",
+      "marketCapCr": 9825.96
+    },
+    {
+      "ticker": "JLHL",
+      "name": "Jupiter Life Lin",
+      "marketCapCr": 9793.92
+    },
+    {
+      "ticker": "WHIRLPOOL",
+      "name": "Whirlpool India",
+      "marketCapCr": 9790.7
+    },
+    {
+      "ticker": "BLS",
+      "name": "BLS Internat.",
+      "marketCapCr": 9789.55
+    },
+    {
+      "ticker": "SHIPROCKET",
+      "name": "Shiprocket",
+      "marketCapCr": 9640.4
+    },
+    {
+      "ticker": "THYROCARE",
+      "name": "Thyrocare Tech.",
+      "marketCapCr": 9632.68
+    },
+    {
+      "ticker": "MMTC",
+      "name": "MMTC",
+      "marketCapCr": 9603
+    },
+    {
+      "ticker": "INTELLECT",
+      "name": "Intellect Design",
+      "marketCapCr": 9600.39
+    },
+    {
+      "ticker": "SAREGAMA",
+      "name": "Saregama India",
+      "marketCapCr": 9593.24
+    },
+    {
+      "ticker": "WELENT",
+      "name": "Welspun Enterp",
+      "marketCapCr": 9590
+    },
+    {
+      "ticker": "SANOFICONR",
+      "name": "Sanofi Consumer",
+      "marketCapCr": 9577.28
+    },
+    {
+      "ticker": "PGHL",
+      "name": "P & G Health Ltd",
+      "marketCapCr": 9571.2
+    },
+    {
+      "ticker": "ELECON",
+      "name": "Elecon Engg.Co",
+      "marketCapCr": 9543.73
+    },
+    {
+      "ticker": "PRICOLLTD",
+      "name": "Pricol Ltd",
+      "marketCapCr": 9515.29
+    },
+    {
+      "ticker": "KENNAMET",
+      "name": "Kennametal India",
+      "marketCapCr": 9506.69
+    },
+    {
+      "ticker": "ESABINDIA",
+      "name": "Esab India",
+      "marketCapCr": 9486.72
+    },
+    {
+      "ticker": "KIRLPNU",
+      "name": "Kirl.Pneumatic",
+      "marketCapCr": 9466.44
+    },
+    {
+      "ticker": "SWANCORP",
+      "name": "Swan Corp",
+      "marketCapCr": 9408.41
+    },
+    {
+      "ticker": "WEWORK",
+      "name": "Wework India",
+      "marketCapCr": 9400.58
+    },
+    {
+      "ticker": "RPOWER",
+      "name": "Reliance Power",
+      "marketCapCr": 9388.2
+    },
+    {
+      "ticker": "YATHARTH",
+      "name": "Yatharth Hospit.",
+      "marketCapCr": 9301.09
+    },
+    {
+      "ticker": "WAAREERTL",
+      "name": "Waaree Renewab.",
+      "marketCapCr": 9245.39
+    },
+    {
+      "ticker": "NCC",
+      "name": "NCC",
+      "marketCapCr": 9241.9
+    },
+    {
+      "ticker": "ELANTAS",
+      "name": "Elantas Beck",
+      "marketCapCr": 9166.78
+    },
+    {
+      "ticker": "TIMETECHNO",
+      "name": "Time Technoplast",
+      "marketCapCr": 9147.06
+    },
+    {
+      "ticker": "RELAXO",
+      "name": "Relaxo Footwear",
+      "marketCapCr": 9146
+    },
+    {
+      "ticker": "MAXESTATES",
+      "name": "Max Estates",
+      "marketCapCr": 9127.74
+    },
+    {
+      "ticker": "TARIL",
+      "name": "T R I L",
+      "marketCapCr": 9125.04
+    },
+    {
+      "ticker": "TSFINV",
+      "name": "Tsf Investments",
+      "marketCapCr": 9120.7
+    },
+    {
+      "ticker": "PGINVIT",
+      "name": "Powergrid Infra.",
+      "marketCapCr": 9099.99
+    },
+    {
+      "ticker": "STAR",
+      "name": "Strides Pharma",
+      "marketCapCr": 9059.66
+    },
+    {
+      "ticker": "LOTUSDEV",
+      "name": "Sri Lotus",
+      "marketCapCr": 9040.9
+    },
+    {
+      "ticker": "RAILTEL",
+      "name": "Railtel Corpn.",
+      "marketCapCr": 9015.16
+    },
+    {
+      "ticker": "TEJASNET",
+      "name": "Tejas Networks",
+      "marketCapCr": 8988.58
+    },
+    {
+      "ticker": "BANCOINDIA",
+      "name": "Banco Products",
+      "marketCapCr": 8980.6
+    },
+    {
+      "ticker": "WESTLIFE",
+      "name": "Westlife Food",
+      "marketCapCr": 8829.11
+    },
+    {
+      "ticker": "CLEAN",
+      "name": "Clean Science",
+      "marketCapCr": 8815.6
+    },
+    {
+      "ticker": "BATAINDIA",
+      "name": "Bata India",
+      "marketCapCr": 8811.21
+    },
+    {
+      "ticker": "PNGJL",
+      "name": "P N Gadgil Jewe.",
+      "marketCapCr": 8768.86
+    },
+    {
+      "ticker": "GRINFRA",
+      "name": "G R Infraproject",
+      "marketCapCr": 8758.76
+    },
+    {
+      "ticker": "EMBDL",
+      "name": "Embassy Develop",
+      "marketCapCr": 8646.96
+    },
+    {
+      "ticker": "LEMONTREE",
+      "name": "Lemon Tree Hotel",
+      "marketCapCr": 8615.68
+    },
+    {
+      "ticker": "EQUITASBNK",
+      "name": "Equitas Sma. Fin",
+      "marketCapCr": 8605.8
+    },
+    {
+      "ticker": "GNFC",
+      "name": "G N F C",
+      "marketCapCr": 8585.01
+    },
+    {
+      "ticker": "VESUVIUS",
+      "name": "Vesuvius India",
+      "marketCapCr": 8583.21
+    },
+    {
+      "ticker": "MAHSEAMLES",
+      "name": "Mah. Seamless",
+      "marketCapCr": 8529.24
+    },
+    {
+      "ticker": "ICIL",
+      "name": "Indo Count Inds.",
+      "marketCapCr": 8429.19
+    },
+    {
+      "ticker": "SONATSOFTW",
+      "name": "Sonata Software",
+      "marketCapCr": 8397.32
+    },
+    {
+      "ticker": "TTKPRESTIG",
+      "name": "TTK Prestige",
+      "marketCapCr": 8357
+    },
+    {
+      "ticker": "MEDPLUS",
+      "name": "Medplus Health",
+      "marketCapCr": 8314.69
+    },
+    {
+      "ticker": "TIPSMUSIC",
+      "name": "Tips Music",
+      "marketCapCr": 8312.25
+    },
+    {
+      "ticker": "GALAXYSURF",
+      "name": "Galaxy Surfact.",
+      "marketCapCr": 8292.16
+    },
+    {
+      "ticker": "EUREKAFORB",
+      "name": "Eureka Forbes",
+      "marketCapCr": 8229
+    },
+    {
+      "ticker": "INDUSINVIT",
+      "name": "Indus Inf. Trust",
+      "marketCapCr": 8219.25
+    },
+    {
+      "ticker": "KINGFA",
+      "name": "Kingfa Science",
+      "marketCapCr": 8212.81
+    },
+    {
+      "ticker": "BSOFT",
+      "name": "Birlasoft Ltd",
+      "marketCapCr": 8207.65
+    },
+    {
+      "ticker": "GPPL",
+      "name": "Guj Pipavav Port",
+      "marketCapCr": 8192.37
+    },
+    {
+      "ticker": "EPL",
+      "name": "EPL Ltd",
+      "marketCapCr": 8144.31
+    },
+    {
+      "ticker": "SAPPHIRE",
+      "name": "Sapphire Foods",
+      "marketCapCr": 8024.29
+    },
+    {
+      "ticker": "V2RETAIL",
+      "name": "V2 Retail",
+      "marketCapCr": 8014.37
+    },
+    {
+      "ticker": "INDIAGLYCO",
+      "name": "India Glycols",
+      "marketCapCr": 7979.54
+    },
+    {
+      "ticker": "RPEL",
+      "name": "Raghav Product.",
+      "marketCapCr": 7975.27
+    },
+    {
+      "ticker": "SJS",
+      "name": "SJS Enterprises",
+      "marketCapCr": 7961.51
+    },
+    {
+      "ticker": "MIDHANI",
+      "name": "Mishra Dhatu Nig",
+      "marketCapCr": 7951.65
+    },
+    {
+      "ticker": "POWERMECH",
+      "name": "Power Mech Proj.",
+      "marketCapCr": 7946.12
+    },
+    {
+      "ticker": "GAEL",
+      "name": "Guj. Ambuja Exp",
+      "marketCapCr": 7943.72
+    },
+    {
+      "ticker": "ORKLAINDIA",
+      "name": "Orkla India",
+      "marketCapCr": 7942.64
+    },
+    {
+      "ticker": "CORDELIA",
+      "name": "Waterways Leisur",
+      "marketCapCr": 7927.2
+    },
+    {
+      "ticker": "MAHLIFE",
+      "name": "Mahindra Life.",
+      "marketCapCr": 7921.5
+    },
+    {
+      "ticker": "PRECWIRE",
+      "name": "Prec. Wires (I)",
+      "marketCapCr": 7901.87
+    },
+    {
+      "ticker": "BALAMINES",
+      "name": "Balaji Amines",
+      "marketCapCr": 7896.77
+    },
+    {
+      "ticker": "RELIGARE",
+      "name": "Religare Enterp.",
+      "marketCapCr": 7854.76
+    },
+    {
+      "ticker": "SKFINDIA",
+      "name": "SKF India",
+      "marketCapCr": 7846.3
+    },
+    {
+      "ticker": "CELLO",
+      "name": "Cello World",
+      "marketCapCr": 7829.27
+    },
+    {
+      "ticker": "DYNAMATECH",
+      "name": "Dynamatic Tech.",
+      "marketCapCr": 7816.95
+    },
+    {
+      "ticker": "JYOTHYLAB",
+      "name": "Jyothy Labs",
+      "marketCapCr": 7780.17
+    },
+    {
+      "ticker": "BORORENEW",
+      "name": "Borosil Renew.",
+      "marketCapCr": 7756.58
+    },
+    {
+      "ticker": "BALUFORGE",
+      "name": "Balu Forge",
+      "marketCapCr": 7755.73
+    },
+    {
+      "ticker": "GARFIBRES",
+      "name": "Garware Tech.",
+      "marketCapCr": 7741.07
+    },
+    {
+      "ticker": "STARCEMENT",
+      "name": "Star Cement",
+      "marketCapCr": 7726.31
+    },
+    {
+      "ticker": "HNDFDS",
+      "name": "Hindustan Foods",
+      "marketCapCr": 7712.01
+    },
+    {
+      "ticker": "ETHOSLTD",
+      "name": "Ethos",
+      "marketCapCr": 7704.61
+    },
+    {
+      "ticker": "TIIL",
+      "name": "Technocraf.Inds.",
+      "marketCapCr": 7678.37
+    },
+    {
+      "ticker": "KAMAHOLD",
+      "name": "Kama Holdings",
+      "marketCapCr": 7655.21
+    },
+    {
+      "ticker": "RHIM",
+      "name": "RHI Magnesita",
+      "marketCapCr": 7652.94
+    },
+    {
+      "ticker": "UNIMECH",
+      "name": "Unimech Aero.",
+      "marketCapCr": 7636.32
+    },
+    {
+      "ticker": "AARTIPHARM",
+      "name": "Aarti Pharma",
+      "marketCapCr": 7586.73
+    },
+    {
+      "ticker": "AVL",
+      "name": "Aditya Vision",
+      "marketCapCr": 7562.32
+    },
+    {
+      "ticker": "SMLMAH",
+      "name": "SML Mahindra",
+      "marketCapCr": 7510.65
+    },
+    {
+      "ticker": "NEWGEN",
+      "name": "Newgen Software",
+      "marketCapCr": 7472.51
+    },
+    {
+      "ticker": "BECTORFOOD",
+      "name": "Mrs Bectors",
+      "marketCapCr": 7467.24
+    },
+    {
+      "ticker": "IMFA",
+      "name": "Indian Metals",
+      "marketCapCr": 7448.36
+    },
+    {
+      "ticker": "GMRP&UI",
+      "name": "GMR Urban",
+      "marketCapCr": 7424.35
+    },
+    {
+      "ticker": "IXIGO",
+      "name": "Le Travenues",
+      "marketCapCr": 7421.7
+    },
+    {
+      "ticker": "KIRLFER",
+      "name": "Kirl. Ferrous",
+      "marketCapCr": 7398.21
+    },
+    {
+      "ticker": "CERA",
+      "name": "Cera Sanitary.",
+      "marketCapCr": 7373.52
+    },
+    {
+      "ticker": "SANOFI",
+      "name": "Sanofi India",
+      "marketCapCr": 7349.33
+    },
+    {
+      "ticker": "SAFARI",
+      "name": "Safari Inds.",
+      "marketCapCr": 7330.49
+    },
+    {
+      "ticker": "MBAPL",
+      "name": "M B Agro Prod.",
+      "marketCapCr": 7319.92
+    },
+    {
+      "ticker": "TTML",
+      "name": "Tata Tele. Mah.",
+      "marketCapCr": 7313.38
+    },
+    {
+      "ticker": "RIIT",
+      "name": "RaajMarg Infra",
+      "marketCapCr": 7306.2
+    },
+    {
+      "ticker": "RBA",
+      "name": "Restaurant Brand",
+      "marketCapCr": 7288.83
+    },
+    {
+      "ticker": "GOKULAGRO",
+      "name": "Gokul Agro",
+      "marketCapCr": 7241.13
+    },
+    {
+      "ticker": "JKPAPER",
+      "name": "JK Paper",
+      "marketCapCr": 7190.2
+    },
+    {
+      "ticker": "INDIASHLTR",
+      "name": "INDIA SHELTE FIN",
+      "marketCapCr": 7180.91
+    },
+    {
+      "ticker": "SHARDACROP",
+      "name": "Sharda Cropchem",
+      "marketCapCr": 7179.75
+    },
+    {
+      "ticker": "NESCO",
+      "name": "NESCO",
+      "marketCapCr": 7179.17
+    },
+    {
+      "ticker": "ENTERO",
+      "name": "Entero Healthcar",
+      "marketCapCr": 7172.6
+    },
+    {
+      "ticker": "OMNI",
+      "name": "Omnitech Engg.",
+      "marketCapCr": 7149.75
+    },
+    {
+      "ticker": "EMIL",
+      "name": "Electronics Mart",
+      "marketCapCr": 7100.15
+    },
+    {
+      "ticker": "AEROFLEX",
+      "name": "Aeroflex",
+      "marketCapCr": 7097.56
+    },
+    {
+      "ticker": "SFL",
+      "name": "Sheela Foam",
+      "marketCapCr": 7076.92
+    },
+    {
+      "ticker": "KMEW",
+      "name": "Knowledge Marine",
+      "marketCapCr": 7045.7
+    },
+    {
+      "ticker": "LEAPIND",
+      "name": "Leap India",
+      "marketCapCr": 7033.16
+    },
+    {
+      "ticker": "BENGALASM",
+      "name": "Bengal & Assam",
+      "marketCapCr": 7024.8
+    },
+    {
+      "ticker": "INOXGREEN",
+      "name": "Inox Green",
+      "marketCapCr": 7005.23
+    },
+    {
+      "ticker": "TANLA",
+      "name": "Tanla Platforms",
+      "marketCapCr": 6977.21
+    },
+    {
+      "ticker": "NEPHROPLUS",
+      "name": "Nephrocare Health Services",
+      "marketCapCr": 6975.28
+    },
+    {
+      "ticker": "TCI",
+      "name": "Transport Corp.",
+      "marketCapCr": 6939
+    },
+    {
+      "ticker": "CITIUSINVT",
+      "name": "Citius Transnet",
+      "marketCapCr": 6927.16
+    },
+    {
+      "ticker": "SUPRAJIT",
+      "name": "Suprajit Engg.",
+      "marketCapCr": 6896.01
+    },
+    {
+      "ticker": "BIRLACORPN",
+      "name": "Birla Corpn.",
+      "marketCapCr": 6894.71
+    },
+    {
+      "ticker": "DCBBANK",
+      "name": "DCB Bank",
+      "marketCapCr": 6888.51
+    },
+    {
+      "ticker": "SENORES",
+      "name": "Senores Pharma.",
+      "marketCapCr": 6883.63
+    },
+    {
+      "ticker": "CAMPUS",
+      "name": "Campus Activewe.",
+      "marketCapCr": 6882.99
+    },
+    {
+      "ticker": "AXISCADES",
+      "name": "AXISCADES Tech.",
+      "marketCapCr": 6833.86
+    },
+    {
+      "ticker": "JKLAKSHMI",
+      "name": "JK Lakshmi Cem.",
+      "marketCapCr": 6826.08
+    },
+    {
+      "ticker": "HAPPSTMNDS",
+      "name": "Happiest Minds",
+      "marketCapCr": 6819.63
+    },
+    {
+      "ticker": "GANESHHOU",
+      "name": "Ganesh Housing",
+      "marketCapCr": 6782.71
+    },
+    {
+      "ticker": "VMART",
+      "name": "V-Mart Retail",
+      "marketCapCr": 6782.61
+    },
+    {
+      "ticker": "REDTAPE",
+      "name": "Redtape",
+      "marketCapCr": 6775.21
+    },
+    {
+      "ticker": "RCF",
+      "name": "R C F",
+      "marketCapCr": 6748.82
+    },
+    {
+      "ticker": "POWERICA",
+      "name": "Powerica Ltd",
+      "marketCapCr": 6732.56
+    },
+    {
+      "ticker": "DBL",
+      "name": "Dilip Buildcon",
+      "marketCapCr": 6723.59
+    },
+    {
+      "ticker": "KOVAI",
+      "name": "Kovai Medical",
+      "marketCapCr": 6697.47
+    },
+    {
+      "ticker": "ABFRL",
+      "name": "Aditya Bir. Fas.",
+      "marketCapCr": 6654.22
+    },
+    {
+      "ticker": "AJAXENGG",
+      "name": "Ajax Engineering",
+      "marketCapCr": 6652.76
+    },
+    {
+      "ticker": "DODLA",
+      "name": "Dodla Dairy",
+      "marketCapCr": 6599.86
+    },
+    {
+      "ticker": "SETL",
+      "name": "Standard Engineering Technology",
+      "marketCapCr": 6591.2
+    },
+    {
+      "ticker": "RAIN",
+      "name": "Rain Industries",
+      "marketCapCr": 6585.06
+    },
+    {
+      "ticker": "EBGNG",
+      "name": "GNG Electronics",
+      "marketCapCr": 6580.74
+    },
+    {
+      "ticker": "PICCADIL",
+      "name": "Piccadily Agro",
+      "marketCapCr": 6558
+    },
+    {
+      "ticker": "TFCILTD",
+      "name": "Tour. Fin. Corp.",
+      "marketCapCr": 6527.52
+    },
+    {
+      "ticker": "NDRINVIT",
+      "name": "NDR INVIT Trust",
+      "marketCapCr": 6527.06
+    },
+    {
+      "ticker": "PRAJIND",
+      "name": "Praj Industries",
+      "marketCapCr": 6438.05
+    },
+    {
+      "ticker": "KSHINTL",
+      "name": "KSH Internationa",
+      "marketCapCr": 6424.93
+    },
+    {
+      "ticker": "STYL",
+      "name": "Seshaasai Tech.",
+      "marketCapCr": 6421.26
+    },
+    {
+      "ticker": "JSLL",
+      "name": "Jeena Sikho",
+      "marketCapCr": 6392.17
+    },
+    {
+      "ticker": "GSFC",
+      "name": "G S F C",
+      "marketCapCr": 6378.43
+    },
+    {
+      "ticker": "KPIGREEN",
+      "name": "KPI Green Energy",
+      "marketCapCr": 6365.04
+    },
+    {
+      "ticker": "TIMEX",
+      "name": "Timex Group",
+      "marketCapCr": 6349.76
+    },
+    {
+      "ticker": "KRISHANA",
+      "name": "Krishana Phosch.",
+      "marketCapCr": 6342.28
+    },
+    {
+      "ticker": "CYIENTDLM",
+      "name": "Cyient DLM",
+      "marketCapCr": 6334
+    },
+    {
+      "ticker": "LCL",
+      "name": "Lohia Corp",
+      "marketCapCr": 6319.98
+    },
+    {
+      "ticker": "SUNFLAG",
+      "name": "Sunflag Iron",
+      "marketCapCr": 6315.79
+    },
+    {
+      "ticker": "GREENLAM",
+      "name": "Greenlam Industr",
+      "marketCapCr": 6309.8
+    },
+    {
+      "ticker": "SPARC",
+      "name": "SPARC",
+      "marketCapCr": 6307.4
+    },
+    {
+      "ticker": "TRIVENI",
+      "name": "Triven.Engg.Ind.",
+      "marketCapCr": 6297.09
+    },
+    {
+      "ticker": "IBULLSLTD",
+      "name": "Indiabulls",
+      "marketCapCr": 6296.76
+    },
+    {
+      "ticker": "SUPRIYA",
+      "name": "Supriya Lifesci.",
+      "marketCapCr": 6291.74
+    },
+    {
+      "ticker": "JAIBALAJI",
+      "name": "Jai Balaji Inds.",
+      "marketCapCr": 6256.48
+    },
+    {
+      "ticker": "HCC",
+      "name": "Hind.Construct.",
+      "marketCapCr": 6255.29
+    },
+    {
+      "ticker": "VIKRAMSOLR",
+      "name": "Vikram Solar",
+      "marketCapCr": 6227.06
+    },
+    {
+      "ticker": "TRANSRAILL",
+      "name": "Transrail Light",
+      "marketCapCr": 6205.98
+    },
+    {
+      "ticker": "SMARTWORKS",
+      "name": "Smartworks Cowor",
+      "marketCapCr": 6197.74
+    },
+    {
+      "ticker": "PAISALO",
+      "name": "Paisalo Digital",
+      "marketCapCr": 6188.39
+    },
+    {
+      "ticker": "SKIPPER",
+      "name": "Skipper",
+      "marketCapCr": 6180.49
+    },
+    {
+      "ticker": "SHREMINVIT",
+      "name": "Shrem InvIT",
+      "marketCapCr": 6123.71
+    },
+    {
+      "ticker": "KUSUMGAR",
+      "name": "Kusumgar",
+      "marketCapCr": 6093.7
+    },
+    {
+      "ticker": "SBCL",
+      "name": "Shivalik Bimetal",
+      "marketCapCr": 6066.3
+    },
+    {
+      "ticker": "BLISSGVS",
+      "name": "Bliss GVS Pharma",
+      "marketCapCr": 6063
+    },
+    {
+      "ticker": "BAJAJCON",
+      "name": "Bajaj Consumer",
+      "marketCapCr": 6054.16
+    },
+    {
+      "ticker": "STYLAMIND",
+      "name": "Stylam Industrie",
+      "marketCapCr": 6051.14
+    },
+    {
+      "ticker": "SHAKTIPUMP",
+      "name": "Shakti Pumps",
+      "marketCapCr": 6050.82
+    },
+    {
+      "ticker": "ACI",
+      "name": "Archean Chemical",
+      "marketCapCr": 6048.23
+    },
+    {
+      "ticker": "CSBBANK",
+      "name": "CSB Bank",
+      "marketCapCr": 6032.97
+    },
+    {
+      "ticker": "SENCO",
+      "name": "Senco Gold",
+      "marketCapCr": 6017.62
+    },
+    {
+      "ticker": "FEDFINA",
+      "name": "Fedbank Financi.",
+      "marketCapCr": 6005.89
+    },
+    {
+      "ticker": "NEOGEN",
+      "name": "Neogen Chemicals",
+      "marketCapCr": 5978.24
+    },
+    {
+      "ticker": "SIS",
+      "name": "SIS",
+      "marketCapCr": 5951.45
+    },
+    {
+      "ticker": "ARVINDFASN",
+      "name": "Arvind Fashions.",
+      "marketCapCr": 5928.36
+    },
+    {
+      "ticker": "INNOVACAP",
+      "name": "Innova Captab",
+      "marketCapCr": 5901.32
+    },
+    {
+      "ticker": "FCL",
+      "name": "Fineotex Chem",
+      "marketCapCr": 5890.05
+    },
+    {
+      "ticker": "CEIGALL",
+      "name": "Ceigall India",
+      "marketCapCr": 5885.51
+    },
+    {
+      "ticker": "ITDC",
+      "name": "I T D C",
+      "marketCapCr": 5867.06
+    },
+    {
+      "ticker": "TVSSCS",
+      "name": "TVS Supply",
+      "marketCapCr": 5831.21
+    },
+    {
+      "ticker": "ORCHPHARMA",
+      "name": "Orchid Pharma",
+      "marketCapCr": 5828.93
+    },
+    {
+      "ticker": "JSFB",
+      "name": "Jana Small Finan",
+      "marketCapCr": 5785.72
+    },
+    {
+      "ticker": "NIRLON",
+      "name": "Nirlon",
+      "marketCapCr": 5773.99
+    },
+    {
+      "ticker": "DBREALTY",
+      "name": "Valor Estate",
+      "marketCapCr": 5767.95
+    },
+    {
+      "ticker": "GOKEX",
+      "name": "Gokaldas Exports",
+      "marketCapCr": 5767.68
+    },
+    {
+      "ticker": "GULFOILLUB",
+      "name": "Gulf Oil Lubric.",
+      "marketCapCr": 5762.32
+    },
+    {
+      "ticker": "LUMAXIND",
+      "name": "Lumax Industries",
+      "marketCapCr": 5760.07
+    },
+    {
+      "ticker": "KALPATARU",
+      "name": "Kalpat.",
+      "marketCapCr": 5704.04
+    },
+    {
+      "ticker": "LATENTVIEW",
+      "name": "Latent View",
+      "marketCapCr": 5663.54
+    },
+    {
+      "ticker": "INDIGOPNTS",
+      "name": "Indigo Paints",
+      "marketCapCr": 5661.57
+    },
+    {
+      "ticker": "ASHAPURMIN",
+      "name": "Ashapura Minech.",
+      "marketCapCr": 5659.44
+    },
+    {
+      "ticker": "ISGEC",
+      "name": "ISGEC Heavy",
+      "marketCapCr": 5656.63
+    },
+    {
+      "ticker": "FDC",
+      "name": "FDC",
+      "marketCapCr": 5653.58
+    },
+    {
+      "ticker": "PRSMJOHNSN",
+      "name": "Prism Johnson",
+      "marketCapCr": 5652.23
+    },
+    {
+      "ticker": "ALOKINDS",
+      "name": "Alok Industries",
+      "marketCapCr": 5600.79
+    },
+    {
+      "ticker": "VMARCIND",
+      "name": "V-Marc India",
+      "marketCapCr": 5585.5
+    },
+    {
+      "ticker": "FIEMIND",
+      "name": "Fiem Industries",
+      "marketCapCr": 5553.45
+    },
+    {
+      "ticker": "IFBIND",
+      "name": "IFB Industries",
+      "marketCapCr": 5550.43
+    },
+    {
+      "ticker": "QUESS",
+      "name": "Quess Corp",
+      "marketCapCr": 5536.77
+    },
+    {
+      "ticker": "MAPMYINDIA",
+      "name": "C.E. Info System",
+      "marketCapCr": 5522.65
+    },
+    {
+      "ticker": "JUSTDIAL",
+      "name": "Just Dial",
+      "marketCapCr": 5508.2
+    },
+    {
+      "ticker": "UNIVCABLES",
+      "name": "Universal Cables",
+      "marketCapCr": 5477.36
+    },
+    {
+      "ticker": "IOLCP",
+      "name": "IOL Chemicals",
+      "marketCapCr": 5459.91
+    },
+    {
+      "ticker": "MOIL",
+      "name": "MOIL",
+      "marketCapCr": 5459.51
+    },
+    {
+      "ticker": "IONEXCHANG",
+      "name": "ION Exchange",
+      "marketCapCr": 5442.06
+    },
+    {
+      "ticker": "MASFIN",
+      "name": "MAS FINANC SER",
+      "marketCapCr": 5393.7
+    },
+    {
+      "ticker": "EPIGRAL",
+      "name": "Epigral",
+      "marketCapCr": 5389.22
+    },
+    {
+      "ticker": "SAATVIKGL",
+      "name": "Saatvik Green",
+      "marketCapCr": 5387.35
+    },
+    {
+      "ticker": "LGBBROSLTD",
+      "name": "L G Balakrishnan",
+      "marketCapCr": 5386.31
+    },
+    {
+      "ticker": "GOLDIAM",
+      "name": "Goldiam Intl.",
+      "marketCapCr": 5375.64
+    },
+    {
+      "ticker": "VADILALIND",
+      "name": "Vadilal Inds.",
+      "marketCapCr": 5337.14
+    },
+    {
+      "ticker": "CCAVENUE",
+      "name": "AvenuesAI",
+      "marketCapCr": 5330.27
+    },
+    {
+      "ticker": "MOREPENLAB",
+      "name": "Morepen Labs.",
+      "marketCapCr": 5314.05
+    },
+    {
+      "ticker": "GUJALKALI",
+      "name": "Gujarat Alkalies",
+      "marketCapCr": 5286.58
+    },
+    {
+      "ticker": "MANINDS",
+      "name": "Man Industries",
+      "marketCapCr": 5273.92
+    },
+    {
+      "ticker": "OPTIEMUS",
+      "name": "Optiemus Infra.",
+      "marketCapCr": 5269.78
+    },
+    {
+      "ticker": "YASHO",
+      "name": "Yasho Industries",
+      "marketCapCr": 5268.47
+    },
+    {
+      "ticker": "MARINE",
+      "name": "Marine Electric.",
+      "marketCapCr": 5255.61
+    },
+    {
+      "ticker": "PDSL",
+      "name": "PDS",
+      "marketCapCr": 5221.3
+    },
+    {
+      "ticker": "THOMASCOOK",
+      "name": "Thomas Cook (I)",
+      "marketCapCr": 5207.58
+    },
+    {
+      "ticker": "BAJAJHIND",
+      "name": "Bajaj Hindusthan",
+      "marketCapCr": 5206.87
+    },
+    {
+      "ticker": "CRAMC",
+      "name": "Canara Robeco",
+      "marketCapCr": 5196.82
+    },
+    {
+      "ticker": "MSTCLTD",
+      "name": "MSTC",
+      "marketCapCr": 5192
+    },
+    {
+      "ticker": "PURVA",
+      "name": "Puravankara",
+      "marketCapCr": 5190.5
+    },
+    {
+      "ticker": "RPTECH",
+      "name": "Rashi Peripheral",
+      "marketCapCr": 5172.68
+    },
+    {
+      "ticker": "KISSHT",
+      "name": "Onemi Technology",
+      "marketCapCr": 5164.85
+    },
+    {
+      "ticker": "PNCINFRA",
+      "name": "PNC Infratech",
+      "marketCapCr": 5164.65
+    },
+    {
+      "ticker": "ARTEMISMED",
+      "name": "Artemis Medicare",
+      "marketCapCr": 5121.21
+    },
+    {
+      "ticker": "SHARDAMOTR",
+      "name": "Sharda Motor",
+      "marketCapCr": 5118.47
+    },
+    {
+      "ticker": "MASTEK",
+      "name": "Mastek",
+      "marketCapCr": 5098.35
+    },
+    {
+      "ticker": "RENUKA",
+      "name": "Sh.Renuka Sugar",
+      "marketCapCr": 5095.6
+    },
+    {
+      "ticker": "BANSALWIRE",
+      "name": "Bansal Wire Inds",
+      "marketCapCr": 5017.62
+    },
+    {
+      "ticker": "IRBINVIT",
+      "name": "IRB InvIT Fund",
+      "marketCapCr": 5013.82
+    },
+    {
+      "ticker": "VRLLOG",
+      "name": "VRL Logistics",
+      "marketCapCr": 5007.57
+    },
+    {
+      "ticker": "CARERATING",
+      "name": "CARE Ratings",
+      "marketCapCr": 4998.6
+    },
+    {
+      "ticker": "CENTUM",
+      "name": "Centum Electron",
+      "marketCapCr": 4922.39
+    },
+    {
+      "ticker": "PILANIINVS",
+      "name": "Pilani Invest.",
+      "marketCapCr": 4899.36
+    },
+    {
+      "ticker": "RAMRAT",
+      "name": "Ram Ratna Wires",
+      "marketCapCr": 4888.69
+    },
+    {
+      "ticker": "NXT-INFRA",
+      "name": "Nxt-Infra Trust",
+      "marketCapCr": 4885.57
+    },
+    {
+      "ticker": "KDDL",
+      "name": "KDDL Ltd",
+      "marketCapCr": 4847.27
+    },
+    {
+      "ticker": "ROLEXRINGS",
+      "name": "Rolex Rings",
+      "marketCapCr": 4838.73
+    },
+    {
+      "ticker": "JAMNAAUTO",
+      "name": "Jamna Auto Inds.",
+      "marketCapCr": 4838.22
+    },
+    {
+      "ticker": "WAKEFIT",
+      "name": "Wakefit Innovati",
+      "marketCapCr": 4828.17
+    },
+    {
+      "ticker": "BANARISUG",
+      "name": "Bannari Amm.Sug.",
+      "marketCapCr": 4825.15
+    },
+    {
+      "ticker": "AGI",
+      "name": "AGI Greenpac",
+      "marketCapCr": 4816.72
+    },
+    {
+      "ticker": "ELECTCAST",
+      "name": "Electrost.Cast.",
+      "marketCapCr": 4800.2
+    },
+    {
+      "ticker": "DEEDEV",
+      "name": "DEE Development",
+      "marketCapCr": 4792.75
+    },
+    {
+      "ticker": "RUSTOMJEE",
+      "name": "Keystone Realtor",
+      "marketCapCr": 4786.17
+    },
+    {
+      "ticker": "LXCHEM",
+      "name": "Laxmi Organic",
+      "marketCapCr": 4785.97
+    },
+    {
+      "ticker": "CMRGREEN",
+      "name": "CMR Green Tech.",
+      "marketCapCr": 4780.01
+    },
+    {
+      "ticker": "SURYAROSNI",
+      "name": "Surya Roshni",
+      "marketCapCr": 4779.72
+    },
+    {
+      "ticker": "SOTL",
+      "name": "Savita Oil Tech",
+      "marketCapCr": 4764.61
+    },
+    {
+      "ticker": "SUBROS",
+      "name": "Subros",
+      "marketCapCr": 4764.17
+    },
+    {
+      "ticker": "NORTHARC",
+      "name": "Northern Arc",
+      "marketCapCr": 4744.47
+    },
+    {
+      "ticker": "ICRA",
+      "name": "ICRA",
+      "marketCapCr": 4736.63
+    },
+    {
+      "ticker": "DATAMATICS",
+      "name": "Datamatics Glob.",
+      "marketCapCr": 4720.83
+    },
+    {
+      "ticker": "JUNIPER",
+      "name": "Juniper Hotels",
+      "marketCapCr": 4717.94
+    },
+    {
+      "ticker": "UFLEX",
+      "name": "Uflex",
+      "marketCapCr": 4697
+    },
+    {
+      "ticker": "NETWORK18",
+      "name": "Netwrk.18 Media",
+      "marketCapCr": 4695.39
+    },
+    {
+      "ticker": "SWSOLAR",
+      "name": "Sterling & Wils.",
+      "marketCapCr": 4673.63
+    },
+    {
+      "ticker": "PTC",
+      "name": "PTC India",
+      "marketCapCr": 4655.62
+    },
+    {
+      "ticker": "BOSCH-HCIL",
+      "name": "Bosch Home Comfort",
+      "marketCapCr": 4637.53
+    },
+    {
+      "ticker": "MPSLTD",
+      "name": "MPS",
+      "marketCapCr": 4625.41
+    },
+    {
+      "ticker": "MANINFRA",
+      "name": "Man Infra",
+      "marketCapCr": 4622.39
+    },
+    {
+      "ticker": "LASERPOWER",
+      "name": "Laser Power",
+      "marketCapCr": 4606.89
+    },
+    {
+      "ticker": "NRBBEARING",
+      "name": "NRB Bearings",
+      "marketCapCr": 4590.74
+    },
+    {
+      "ticker": "DECNGOLD",
+      "name": "Dec.Gold Mines",
+      "marketCapCr": 4589.21
+    },
+    {
+      "ticker": "GUJTHEM",
+      "name": "Guj. Themis Bio.",
+      "marketCapCr": 4584.71
+    },
+    {
+      "ticker": "SUNTECK",
+      "name": "Sunteck Realty",
+      "marketCapCr": 4582.94
+    },
+    {
+      "ticker": "FOSECOIND",
+      "name": "Foseco India",
+      "marketCapCr": 4580.77
+    },
+    {
+      "ticker": "GMMPFAUDLR",
+      "name": "GMM Pfaudler",
+      "marketCapCr": 4573.95
+    },
+    {
+      "ticker": "SSWL",
+      "name": "Steel Str. Wheel",
+      "marketCapCr": 4566.98
+    },
+    {
+      "ticker": "SGFIN",
+      "name": "SG Finserve",
+      "marketCapCr": 4561.25
+    },
+    {
+      "ticker": "GREAVESCOT",
+      "name": "Greaves Cotton",
+      "marketCapCr": 4557
+    },
+    {
+      "ticker": "ELLEN",
+      "name": "Ellen.Indl.Gas",
+      "marketCapCr": 4527.56
+    },
+    {
+      "ticker": "SHILCTECH",
+      "name": "Shilchar Tech.",
+      "marketCapCr": 4516.36
+    },
+    {
+      "ticker": "EMUDHRA",
+      "name": "eMudhra",
+      "marketCapCr": 4503.3
+    },
+    {
+      "ticker": "TEXRAIL",
+      "name": "Texmaco Rail",
+      "marketCapCr": 4436.45
+    },
+    {
+      "ticker": "HIRECT",
+      "name": "Hirect",
+      "marketCapCr": 4420.98
+    },
+    {
+      "ticker": "VIPIND",
+      "name": "V I P Inds.",
+      "marketCapCr": 4416.45
+    },
+    {
+      "ticker": "MHRIL",
+      "name": "Mahindra Holiday",
+      "marketCapCr": 4408.66
+    },
+    {
+      "ticker": "GOODLUCK",
+      "name": "Goodluck India",
+      "marketCapCr": 4398.45
+    },
+    {
+      "ticker": "DHANUKA",
+      "name": "Dhanuka Agritech",
+      "marketCapCr": 4391.86
+    },
+    {
+      "ticker": "AYE",
+      "name": "Aye Finance",
+      "marketCapCr": 4359.47
+    },
+    {
+      "ticker": "HAWKINCOOK",
+      "name": "Hawkins Cookers",
+      "marketCapCr": 4336.48
+    },
+    {
+      "ticker": "GVPIL",
+      "name": "GE Power",
+      "marketCapCr": 4326.76
+    },
+    {
+      "ticker": "TURTLEMINT",
+      "name": "Turtlemint Fintech",
+      "marketCapCr": 4324.72
+    },
+    {
+      "ticker": "RAYMONDLSL",
+      "name": "Raymond Lifestyl",
+      "marketCapCr": 4324.05
+    },
+    {
+      "ticker": "SWARAJENG",
+      "name": "Swaraj Engines",
+      "marketCapCr": 4311.99
+    },
+    {
+      "ticker": "SHANTIGEAR",
+      "name": "Shanthi Gears",
+      "marketCapCr": 4307.6
+    },
+    {
+      "ticker": "VISHNU",
+      "name": "Vishnu Chemicals",
+      "marketCapCr": 4306.83
+    },
+    {
+      "ticker": "RPGLIFE",
+      "name": "RPG LifeScience.",
+      "marketCapCr": 4288.07
+    },
+    {
+      "ticker": "WPIL",
+      "name": "WPIL",
+      "marketCapCr": 4281.4
+    },
+    {
+      "ticker": "RTNPOWER",
+      "name": "RattanIndia Pow.",
+      "marketCapCr": 4269.23
+    },
+    {
+      "ticker": "AHLUCONT",
+      "name": "Ahluwalia Contr.",
+      "marketCapCr": 4254.38
+    },
+    {
+      "ticker": "SHOPERSTOP",
+      "name": "Shoppers Stop",
+      "marketCapCr": 4253.94
+    },
+    {
+      "ticker": "DEEPINDS",
+      "name": "Deep Industries",
+      "marketCapCr": 4253.76
+    },
+    {
+      "ticker": "PITTIENG",
+      "name": "Pitti Engg.",
+      "marketCapCr": 4230.19
+    },
+    {
+      "ticker": "SEAMECLTD",
+      "name": "SEAMEC Ltd",
+      "marketCapCr": 4215.72
+    },
+    {
+      "ticker": "INDOSTAR",
+      "name": "Indostar Capital",
+      "marketCapCr": 4194.96
+    },
+    {
+      "ticker": "RTNINDIA",
+      "name": "RattanIndia Ent",
+      "marketCapCr": 4177.22
+    },
+    {
+      "ticker": "AVANTEL",
+      "name": "Avantel",
+      "marketCapCr": 4170.07
+    },
+    {
+      "ticker": "NACLIND",
+      "name": "NACL Industries",
+      "marketCapCr": 4160.4
+    },
+    {
+      "ticker": "RALLIS",
+      "name": "Rallis India",
+      "marketCapCr": 4160.27
+    },
+    {
+      "ticker": "ROSSTECH",
+      "name": "Rossell Techsys",
+      "marketCapCr": 4146.42
+    },
+    {
+      "ticker": "SYMPHONY",
+      "name": "Symphony",
+      "marketCapCr": 4137.45
+    },
+    {
+      "ticker": "RAYMOND",
+      "name": "Raymond",
+      "marketCapCr": 4134.56
+    },
+    {
+      "ticker": "MIDWESTLTD",
+      "name": "Midwest",
+      "marketCapCr": 4105.7
+    },
+    {
+      "ticker": "GUFICBIO",
+      "name": "Gufic BioScience",
+      "marketCapCr": 4096.04
+    },
+    {
+      "ticker": "REFEX",
+      "name": "Refex Industries",
+      "marketCapCr": 4073.36
+    },
+    {
+      "ticker": "INDIQUBE",
+      "name": "Indiqube Spaces",
+      "marketCapCr": 4069.51
+    },
+    {
+      "ticker": "TVSSRICHAK",
+      "name": "TVS Srichakra",
+      "marketCapCr": 4068.84
+    },
+    {
+      "ticker": "CMSINFO",
+      "name": "CMS Info Systems",
+      "marketCapCr": 4061.54
+    },
+    {
+      "ticker": "KOLTEPATIL",
+      "name": "Kolte Patil Dev.",
+      "marketCapCr": 4050.02
+    },
+    {
+      "ticker": "RESPONIND",
+      "name": "Responsive Ind",
+      "marketCapCr": 4044.72
+    },
+    {
+      "ticker": "KSCL",
+      "name": "Kaveri Seed Co.",
+      "marketCapCr": 4039.25
+    },
+    {
+      "ticker": "GHCL",
+      "name": "GHCL",
+      "marketCapCr": 4033.94
+    },
+    {
+      "ticker": "CAPILLARY",
+      "name": "Capillary Tech.",
+      "marketCapCr": 4031.97
+    },
+    {
+      "ticker": "SEITINVIT",
+      "name": "Sustainable Ener",
+      "marketCapCr": 4017.6
+    },
+    {
+      "ticker": "WSTCSTPAPR",
+      "name": "West Coast Paper",
+      "marketCapCr": 4014.52
+    },
+    {
+      "ticker": "KSL",
+      "name": "Kalyani Steels",
+      "marketCapCr": 4013.03
+    },
+    {
+      "ticker": "MOSCHIP",
+      "name": "Moschip Tech.",
+      "marketCapCr": 4009.02
+    },
+    {
+      "ticker": "IDEAFORGE",
+      "name": "Ideaforge Tech",
+      "marketCapCr": 4006.26
+    },
+    {
+      "ticker": "SANDHAR",
+      "name": "Sandhar Tech",
+      "marketCapCr": 3978.91
+    },
+    {
+      "ticker": "INDOTECH",
+      "name": "Indo Tech.Trans.",
+      "marketCapCr": 3978.15
+    },
+    {
+      "ticker": "SANGHVIMOV",
+      "name": "Sanghvi Movers",
+      "marketCapCr": 3969.51
+    },
+    {
+      "ticker": "ORIENTELEC",
+      "name": "Orient Electric",
+      "marketCapCr": 3966.9
+    },
+    {
+      "ticker": "KIRLOSIND",
+      "name": "Kirloskar Indus.",
+      "marketCapCr": 3966.32
+    },
+    {
+      "ticker": "MAHLOG",
+      "name": "Mahindra Logis.",
+      "marketCapCr": 3965.14
+    },
+    {
+      "ticker": "COCKERILL",
+      "name": "John Cockerill",
+      "marketCapCr": 3962.35
+    },
+    {
+      "ticker": "BAJAJELEC",
+      "name": "Bajaj Electrical",
+      "marketCapCr": 3930.28
+    },
+    {
+      "ticker": "PACEDIGITK",
+      "name": "Pace Digitek",
+      "marketCapCr": 3917.05
+    },
+    {
+      "ticker": "POCL",
+      "name": "Pondy Oxides",
+      "marketCapCr": 3908.88
+    },
+    {
+      "ticker": "HARSHA",
+      "name": "Harsha Engg Intl",
+      "marketCapCr": 3903.52
+    },
+    {
+      "ticker": "SINDHUTRAD",
+      "name": "Sindhu Trade",
+      "marketCapCr": 3901.08
+    },
+    {
+      "ticker": "SANATHAN",
+      "name": "Sanathan Textile",
+      "marketCapCr": 3900.31
+    },
+    {
+      "ticker": "DALMIASUG",
+      "name": "Dalmia Bharat",
+      "marketCapCr": 3893.99
+    },
+    {
+      "ticker": "AURIONPRO",
+      "name": "Aurionpro Sol.",
+      "marketCapCr": 3872.18
+    },
+    {
+      "ticker": "RAYMONDREL",
+      "name": "Raymond Realty",
+      "marketCapCr": 3829.32
+    },
+    {
+      "ticker": "VSTTILLERS",
+      "name": "VST Till. Tract.",
+      "marketCapCr": 3823.22
+    },
+    {
+      "ticker": "AARTIDRUGS",
+      "name": "Aarti Drugs",
+      "marketCapCr": 3815.09
+    },
+    {
+      "ticker": "TRUALT",
+      "name": "TruAlt Bioenergy",
+      "marketCapCr": 3791.98
+    },
+    {
+      "ticker": "JKIL",
+      "name": "J Kumar Infra",
+      "marketCapCr": 3788.19
+    },
+    {
+      "ticker": "SAMBHV",
+      "name": "Sambhv Steel",
+      "marketCapCr": 3785.35
+    },
+    {
+      "ticker": "TATVA",
+      "name": "Tatva Chintan",
+      "marketCapCr": 3757.7
+    },
+    {
+      "ticker": "VAIBHAVGBL",
+      "name": "Vaibhav Global",
+      "marketCapCr": 3747.93
+    },
+    {
+      "ticker": "SHAREINDIA",
+      "name": "Share India Sec.",
+      "marketCapCr": 3742.35
+    },
+    {
+      "ticker": "UNICHEMLAB",
+      "name": "Unichem Labs.",
+      "marketCapCr": 3733.62
+    },
+    {
+      "ticker": "ZOTA",
+      "name": "Zota Health Care",
+      "marketCapCr": 3730.28
+    },
+    {
+      "ticker": "BHAGCHEM",
+      "name": "Bhagiradha Chem.",
+      "marketCapCr": 3716.32
+    },
+    {
+      "ticker": "ASHIANA",
+      "name": "Ashiana Housing",
+      "marketCapCr": 3706.35
+    },
+    {
+      "ticker": "HEMIPROP",
+      "name": "Hemisphere Prop",
+      "marketCapCr": 3694.46
+    },
+    {
+      "ticker": "POLYPLEX",
+      "name": "Polyplex Corpn",
+      "marketCapCr": 3689.87
+    },
+    {
+      "ticker": "NOVARTIND",
+      "name": "Novartis India",
+      "marketCapCr": 3679.18
+    },
+    {
+      "ticker": "HEIDELBERG",
+      "name": "Heidelberg Cem.",
+      "marketCapCr": 3667.96
+    },
+    {
+      "ticker": "GREENPLY",
+      "name": "Greenply Industr",
+      "marketCapCr": 3648.39
+    },
+    {
+      "ticker": "MUTHOOTMF",
+      "name": "Muthoot Microfin",
+      "marketCapCr": 3645.98
+    },
+    {
+      "ticker": "UNIPARTS",
+      "name": "Uniparts India",
+      "marketCapCr": 3640.88
+    },
+    {
+      "ticker": "WHEELS",
+      "name": "Wheels India",
+      "marketCapCr": 3633.43
+    },
+    {
+      "ticker": "STYRENIX",
+      "name": "Styrenix Perfor.",
+      "marketCapCr": 3631.28
+    },
+    {
+      "ticker": "DBCORP",
+      "name": "D B Corp",
+      "marketCapCr": 3631.23
+    },
+    {
+      "ticker": "LUXIND",
+      "name": "Lux Industries",
+      "marketCapCr": 3629.95
+    },
+    {
+      "ticker": "WELSPLSOL",
+      "name": "Welspun Special.",
+      "marketCapCr": 3625.15
+    },
+    {
+      "ticker": "PREMEXPLN",
+      "name": "Prem. Explosives",
+      "marketCapCr": 3608.45
+    },
+    {
+      "ticker": "AGIIL",
+      "name": "AGI Infra",
+      "marketCapCr": 3598.67
+    },
+    {
+      "ticker": "DIVGIITTS",
+      "name": "Divgi Torq",
+      "marketCapCr": 3596.25
+    },
+    {
+      "ticker": "PSPPROJECT",
+      "name": "PSP Projects",
+      "marketCapCr": 3586.19
+    },
+    {
+      "ticker": "VSTIND",
+      "name": "VST Industries",
+      "marketCapCr": 3583.22
+    },
+    {
+      "ticker": "63MOONS",
+      "name": "63 Moons Tech.",
+      "marketCapCr": 3582.84
+    },
+    {
+      "ticker": "ANUP",
+      "name": "The Anup Enginee",
+      "marketCapCr": 3578.02
+    },
+    {
+      "ticker": "HERITGFOOD",
+      "name": "Heritage Foods",
+      "marketCapCr": 3556.87
+    },
+    {
+      "ticker": "VSSL",
+      "name": "Vardhman Special",
+      "marketCapCr": 3556.19
+    },
+    {
+      "ticker": "GOPAL",
+      "name": "Gopal Snacks",
+      "marketCapCr": 3551.76
+    },
+    {
+      "ticker": "SAMHI",
+      "name": "Samhi Hotels",
+      "marketCapCr": 3537.74
+    },
+    {
+      "ticker": "TCPLPACK",
+      "name": "TCPL Packaging",
+      "marketCapCr": 3528.16
+    },
+    {
+      "ticker": "NITINSPIN",
+      "name": "Nitin Spinners",
+      "marketCapCr": 3524.99
+    },
+    {
+      "ticker": "TARC",
+      "name": "TARC Ltd",
+      "marketCapCr": 3524.93
+    },
+    {
+      "ticker": "EIEL",
+      "name": "Enviro Infra",
+      "marketCapCr": 3522.71
+    },
+    {
+      "ticker": "NFL",
+      "name": "Natl.Fertilizer",
+      "marketCapCr": 3522.36
+    },
+    {
+      "ticker": "JTEKTINDIA",
+      "name": "JTEKT India",
+      "marketCapCr": 3509.9
+    },
+    {
+      "ticker": "JINDWORLD",
+      "name": "Jindal Worldwide",
+      "marketCapCr": 3493.07
+    },
+    {
+      "ticker": "STEELCAS",
+      "name": "Steelcast",
+      "marketCapCr": 3477.74
+    },
+    {
+      "ticker": "KNRCON",
+      "name": "KNR Construct.",
+      "marketCapCr": 3471
+    },
+    {
+      "ticker": "NPST",
+      "name": "Network People",
+      "marketCapCr": 3463.76
+    },
+    {
+      "ticker": "KPL",
+      "name": "Kwality Pharma",
+      "marketCapCr": 3451.23
+    },
+    {
+      "ticker": "DPABHUSHAN",
+      "name": "D.P. Abhushan",
+      "marketCapCr": 3438.11
+    },
+    {
+      "ticker": "AIMTRON",
+      "name": "Aimtron",
+      "marketCapCr": 3436.43
+    },
+    {
+      "ticker": "SEIL",
+      "name": "Shanti Educat.",
+      "marketCapCr": 3407.73
+    },
+    {
+      "ticker": "SPECTRUM",
+      "name": "Spectrum Electr.",
+      "marketCapCr": 3403.93
+    },
+    {
+      "ticker": "WEBELSOLAR",
+      "name": "Websol Energy",
+      "marketCapCr": 3398.2
+    },
+    {
+      "ticker": "VENUSPIPES",
+      "name": "Venus Pipes",
+      "marketCapCr": 3390.4
+    },
+    {
+      "ticker": "INDRAMEDCO",
+      "name": "Indrapr.Medical",
+      "marketCapCr": 3385.48
+    },
+    {
+      "ticker": "OSWALPUMPS",
+      "name": "Oswal Pumps",
+      "marketCapCr": 3367.13
+    },
+    {
+      "ticker": "KIRIINDUS",
+      "name": "Kiri Industries",
+      "marketCapCr": 3363.97
+    },
+    {
+      "ticker": "SMSPHARMA",
+      "name": "SMS Pharma.",
+      "marketCapCr": 3349.93
+    },
+    {
+      "ticker": "FILATEX",
+      "name": "Filatex India",
+      "marketCapCr": 3338.87
+    },
+    {
+      "ticker": "ADVENZYMES",
+      "name": "Advanced Enzyme",
+      "marketCapCr": 3327.93
+    },
+    {
+      "ticker": "CMLL",
+      "name": "Caliber Mining",
+      "marketCapCr": 3327.63
+    },
+    {
+      "ticker": "ANZEN",
+      "name": "Anzen IYEP Trust",
+      "marketCapCr": 3324.35
+    },
+    {
+      "ticker": "ARSSBL",
+      "name": "Anand Rathi Shar",
+      "marketCapCr": 3319.18
+    },
+    {
+      "ticker": "FUSION",
+      "name": "Fusion Finance",
+      "marketCapCr": 3318.4
+    },
+    {
+      "ticker": "PRINCEPIPE",
+      "name": "Prince Pipes",
+      "marketCapCr": 3299.14
+    },
+    {
+      "ticker": "ROUTE",
+      "name": "Route Mobile",
+      "marketCapCr": 3297.9
+    },
+    {
+      "ticker": "WONDERLA",
+      "name": "Wonderla Holiday",
+      "marketCapCr": 3275.12
+    },
+    {
+      "ticker": "HGINFRA",
+      "name": "H.G. Infra Engg.",
+      "marketCapCr": 3270.94
+    },
+    {
+      "ticker": "MAYURUNIQ",
+      "name": "Mayur Uniquoters",
+      "marketCapCr": 3247.86
+    },
+    {
+      "ticker": "JUBLCPL",
+      "name": "Jubilant Agri",
+      "marketCapCr": 3245.21
+    },
+    {
+      "ticker": "CARYSIL",
+      "name": "Carysil",
+      "marketCapCr": 3241.6
+    },
+    {
+      "ticker": "TECHNVISN",
+      "name": "Technvision Ven.",
+      "marketCapCr": 3221.14
+    },
+    {
+      "ticker": "NIITMTS",
+      "name": "NIIT Learning",
+      "marketCapCr": 3208.7
+    },
+    {
+      "ticker": "ASHOKA",
+      "name": "Ashoka Buildcon",
+      "marketCapCr": 3202.21
+    },
+    {
+      "ticker": "WINDMACHIN",
+      "name": "Windsor Machines",
+      "marketCapCr": 3198.45
+    },
+    {
+      "ticker": "INDSWFTLAB",
+      "name": "Ind-Swift Labs.",
+      "marketCapCr": 3195.66
+    },
+    {
+      "ticker": "ASHIKAG",
+      "name": "Ashika Global Securities.",
+      "marketCapCr": 3195.06
+    },
+    {
+      "ticker": "BEPL",
+      "name": "Bhansali Engg.",
+      "marketCapCr": 3194.1
+    },
+    {
+      "ticker": "KKCL",
+      "name": "Kewal Kir.Cloth.",
+      "marketCapCr": 3172.46
+    },
+    {
+      "ticker": "APCOTEXIND",
+      "name": "Apcotex Industri",
+      "marketCapCr": 3169.02
+    },
+    {
+      "ticker": "DREDGECORP",
+      "name": "Dredging Corpn.",
+      "marketCapCr": 3167.08
+    },
+    {
+      "ticker": "RML",
+      "name": "Rane (Madras)",
+      "marketCapCr": 3161.96
+    },
+    {
+      "ticker": "CRIZAC",
+      "name": "Crizac",
+      "marketCapCr": 3129.21
+    },
+    {
+      "ticker": "NILKAMAL",
+      "name": "Nilkamal Ltd",
+      "marketCapCr": 3128.43
+    },
+    {
+      "ticker": "GIPCL",
+      "name": "Guj Inds. Power",
+      "marketCapCr": 3127.14
+    },
+    {
+      "ticker": "KERNEX",
+      "name": "Kernex Microsys.",
+      "marketCapCr": 3126.15
+    },
+    {
+      "ticker": "STYLEBAAZA",
+      "name": "Baazar Style",
+      "marketCapCr": 3112.44
+    },
+    {
+      "ticker": "RELTD",
+      "name": "Ravindra Energy",
+      "marketCapCr": 3111.27
+    },
+    {
+      "ticker": "JASH",
+      "name": "Jash Engineering",
+      "marketCapCr": 3095.23
+    },
+    {
+      "ticker": "JTLIND",
+      "name": "JTL Industries",
+      "marketCapCr": 3094.92
+    },
+    {
+      "ticker": "ADFFOODS",
+      "name": "ADF Foods",
+      "marketCapCr": 3083.87
+    },
+    {
+      "ticker": "ARVSMART",
+      "name": "Arvind SmartSp.",
+      "marketCapCr": 3078.31
+    },
+    {
+      "ticker": "PARAGMILK",
+      "name": "Parag Milk Foods",
+      "marketCapCr": 3074.55
+    },
+    {
+      "ticker": "BUILDPRO",
+      "name": "Shankara Buildpro",
+      "marketCapCr": 3062.45
+    },
+    {
+      "ticker": "CARRARO",
+      "name": "Carraro India",
+      "marketCapCr": 3059.18
+    },
+    {
+      "ticker": "BOROLTD",
+      "name": "Borosil",
+      "marketCapCr": 3053.67
+    },
+    {
+      "ticker": "FMGOETZE",
+      "name": "Federal-Mogul Go",
+      "marketCapCr": 3052.42
+    },
+    {
+      "ticker": "EFCIL",
+      "name": "EFC (I)",
+      "marketCapCr": 3043.84
+    },
+    {
+      "ticker": "RAMCOIND",
+      "name": "Ramco Inds.",
+      "marketCapCr": 3036.42
+    },
+    {
+      "ticker": "MMFL",
+      "name": "M M Forgings",
+      "marketCapCr": 3034.5
+    },
+    {
+      "ticker": "BALMLAWRIE",
+      "name": "Balmer Lawrie",
+      "marketCapCr": 3021.98
+    },
+    {
+      "ticker": "GRAUWEIL",
+      "name": "Grauer & Weil",
+      "marketCapCr": 3012.01
+    },
+    {
+      "ticker": "MONARCH",
+      "name": "Monarch Networth",
+      "marketCapCr": 3011.34
+    },
+    {
+      "ticker": "GSPCROP",
+      "name": "GSP Crop Science",
+      "marketCapCr": 2991.85
+    },
+    {
+      "ticker": "NSIL",
+      "name": "Nalwa Sons Invst",
+      "marketCapCr": 2972.72
+    },
+    {
+      "ticker": "ELPROINTL",
+      "name": "Elpro Internatio",
+      "marketCapCr": 2959.11
+    },
+    {
+      "ticker": "UFBL",
+      "name": "United Foodbrands",
+      "marketCapCr": 2958.47
+    },
+    {
+      "ticker": "SOLARA",
+      "name": "Solara Active",
+      "marketCapCr": 2950.36
+    },
+    {
+      "ticker": "NAVNETEDUL",
+      "name": "Navneet Educat.",
+      "marketCapCr": 2944.57
+    },
+    {
+      "ticker": "MAITHANALL",
+      "name": "Maithan Alloys",
+      "marketCapCr": 2926.44
+    },
+    {
+      "ticker": "MANGLMCEM",
+      "name": "Mangalam Cement",
+      "marketCapCr": 2908.39
+    },
+    {
+      "ticker": "PANAMAPET",
+      "name": "Panama Petrochem",
+      "marketCapCr": 2905.51
+    },
+    {
+      "ticker": "BLSE",
+      "name": "BLS E-Services",
+      "marketCapCr": 2904.68
+    },
+    {
+      "ticker": "GLOBUSSPR",
+      "name": "Globus Spirits",
+      "marketCapCr": 2880.12
+    },
+    {
+      "ticker": "APOLLOPIPE",
+      "name": "Apollo Pipes",
+      "marketCapCr": 2876.79
+    },
+    {
+      "ticker": "RPSGVENT",
+      "name": "RPSG Ventures",
+      "marketCapCr": 2873.55
+    },
+    {
+      "ticker": "ROADSTAR",
+      "name": "Roadstar Infra",
+      "marketCapCr": 2870.87
+    },
+    {
+      "ticker": "SANGAMIND",
+      "name": "Sangam India",
+      "marketCapCr": 2868.83
+    },
+    {
+      "ticker": "PRABHA",
+      "name": "Prabha Energy",
+      "marketCapCr": 2863.52
+    },
+    {
+      "ticker": "DDEVPLSTIK",
+      "name": "DDev Plastiks",
+      "marketCapCr": 2858.54
+    },
+    {
+      "ticker": "SPORTKING",
+      "name": "Sportking India",
+      "marketCapCr": 2849.34
+    },
+    {
+      "ticker": "RSYSTEMS",
+      "name": "R Systems Intl.",
+      "marketCapCr": 2845.09
+    },
+    {
+      "ticker": "INTERARCH",
+      "name": "Interarch Build.",
+      "marketCapCr": 2844.1
+    },
+    {
+      "ticker": "PATELENG",
+      "name": "Patel Engineerin",
+      "marketCapCr": 2841.49
+    },
+    {
+      "ticker": "VINDHYATEL",
+      "name": "Vindhya Telelink",
+      "marketCapCr": 2840.09
+    },
+    {
+      "ticker": "IMAGICAA",
+      "name": "Imagica. Enter.",
+      "marketCapCr": 2839.49
+    },
+    {
+      "ticker": "SASKEN",
+      "name": "Sasken Technol.",
+      "marketCapCr": 2830.17
+    },
+    {
+      "ticker": "MARATHON",
+      "name": "Marathon Nextgen",
+      "marketCapCr": 2828.96
+    },
+    {
+      "ticker": "CHEMPLASTS",
+      "name": "Chemplast Sanmar",
+      "marketCapCr": 2811.82
+    },
+    {
+      "ticker": "JINDALPOLY",
+      "name": "Jindal Poly Film",
+      "marketCapCr": 2808.46
+    },
+    {
+      "ticker": "VIMTALABS",
+      "name": "Vimta Labs",
+      "marketCapCr": 2805
+    },
+    {
+      "ticker": "GANECOS",
+      "name": "Ganesha Ecosphe.",
+      "marketCapCr": 2800.72
+    },
+    {
+      "ticker": "SUNCLAY",
+      "name": "Sundaram Clayton",
+      "marketCapCr": 2795.23
+    },
+    {
+      "ticker": "DIAMONDYD",
+      "name": "Prataap Snacks",
+      "marketCapCr": 2793.34
+    },
+    {
+      "ticker": "ANTELOPUS",
+      "name": "Antelopus Selan",
+      "marketCapCr": 2785.03
+    },
+    {
+      "ticker": "ROSSARI",
+      "name": "Rossari Biotech",
+      "marketCapCr": 2769.98
+    },
+    {
+      "ticker": "ORIENTCEM",
+      "name": "Orient Cement",
+      "marketCapCr": 2763.02
+    },
+    {
+      "ticker": "XPROINDIA",
+      "name": "XPRO India",
+      "marketCapCr": 2760.82
+    },
+    {
+      "ticker": "CAPINVIT",
+      "name": "Capital Infra",
+      "marketCapCr": 2760.57
+    },
+    {
+      "ticker": "NOCIL",
+      "name": "NOCIL",
+      "marketCapCr": 2757.58
+    },
+    {
+      "ticker": "DCAL",
+      "name": "Dishman Carbogen",
+      "marketCapCr": 2747.94
+    },
+    {
+      "ticker": "ORISSAMINE",
+      "name": "Orissa Minerals",
+      "marketCapCr": 2743.32
+    },
+    {
+      "ticker": "GKENERGY",
+      "name": "GK Energy",
+      "marketCapCr": 2714.1
+    },
+    {
+      "ticker": "MUFIN",
+      "name": "Mufin Green",
+      "marketCapCr": 2709.87
+    },
+    {
+      "ticker": "STOVEKRAFT",
+      "name": "Stove Kraft",
+      "marketCapCr": 2703.54
+    },
+    {
+      "ticker": "POKARNA",
+      "name": "Pokarna",
+      "marketCapCr": 2696.11
+    },
+    {
+      "ticker": "ORIANA",
+      "name": "Oriana Power Ltd",
+      "marketCapCr": 2688.12
+    },
+    {
+      "ticker": "HUBTOWN",
+      "name": "Hubtown",
+      "marketCapCr": 2678.6
+    },
+    {
+      "ticker": "GATEWAY",
+      "name": "Gateway Distri",
+      "marketCapCr": 2669.6
+    },
+    {
+      "ticker": "ADOR",
+      "name": "Ador Welding",
+      "marketCapCr": 2664.72
+    },
+    {
+      "ticker": "RISHABH",
+      "name": "Rishabh Instrum.",
+      "marketCapCr": 2660.89
+    },
+    {
+      "ticker": "UTKARSHBNK",
+      "name": "Utkarsh Small F.",
+      "marketCapCr": 2658.61
+    },
+    {
+      "ticker": "EUROPRATIK",
+      "name": "Euro Pratik Sale",
+      "marketCapCr": 2656.69
+    },
+    {
+      "ticker": "CONFIPET",
+      "name": "Confidence Petro",
+      "marketCapCr": 2647.63
+    },
+    {
+      "ticker": "BBL",
+      "name": "Bharat Bijlee",
+      "marketCapCr": 2643.69
+    },
+    {
+      "ticker": "FLAIR",
+      "name": "Flair Writing",
+      "marketCapCr": 2637.52
+    },
+    {
+      "ticker": "AUTOAXLES",
+      "name": "Automotive Axles",
+      "marketCapCr": 2637.3
+    },
+    {
+      "ticker": "VEEDOL",
+      "name": "Veedol Corporat",
+      "marketCapCr": 2631.2
+    },
+    {
+      "ticker": "STALLION",
+      "name": "Stallion India",
+      "marketCapCr": 2600.32
+    },
+    {
+      "ticker": "SIYSIL",
+      "name": "Siyaram Silk",
+      "marketCapCr": 2590.18
+    },
+    {
+      "ticker": "ZAGGLE",
+      "name": "Zaggle Prepaid",
+      "marketCapCr": 2564.93
+    },
+    {
+      "ticker": "HIKAL",
+      "name": "Hikal",
+      "marketCapCr": 2560.09
+    },
+    {
+      "ticker": "TASTYBITE",
+      "name": "Tasty Bite Eat.",
+      "marketCapCr": 2543.29
+    },
+    {
+      "ticker": "MEDIASSIST",
+      "name": "Medi Assist Ser.",
+      "marketCapCr": 2540.24
+    },
+    {
+      "ticker": "JNKINDIA",
+      "name": "JNK",
+      "marketCapCr": 2536.11
+    },
+    {
+      "ticker": "DRAGARWQ",
+      "name": "Dr Agarwal's Eye",
+      "marketCapCr": 2535.3
+    },
+    {
+      "ticker": "ALEMBICLTD",
+      "name": "Alembic",
+      "marketCapCr": 2534.44
+    },
+    {
+      "ticker": "RAMKY",
+      "name": "Ramky Infra",
+      "marketCapCr": 2534.02
+    },
+    {
+      "ticker": "KITEX",
+      "name": "Kitex Garments",
+      "marketCapCr": 2529.66
+    },
+    {
+      "ticker": "FISCHER",
+      "name": "Fischer Medical",
+      "marketCapCr": 2518.76
+    },
+    {
+      "ticker": "RAJRATAN",
+      "name": "Rajratan Global",
+      "marketCapCr": 2516.97
+    },
+    {
+      "ticker": "ORIENTHOT",
+      "name": "Oriental Hotels",
+      "marketCapCr": 2516.64
+    },
+    {
+      "ticker": "TALBROAUTO",
+      "name": "Talbros Auto.",
+      "marketCapCr": 2512.95
+    },
+    {
+      "ticker": "EVEREADY",
+      "name": "Eveready Inds.",
+      "marketCapCr": 2512.44
+    },
+    {
+      "ticker": "SATIN",
+      "name": "Satin Creditcare",
+      "marketCapCr": 2508.35
+    },
+    {
+      "ticker": "BETA",
+      "name": "Beta Drugs Ltd",
+      "marketCapCr": 2506.52
+    },
+    {
+      "ticker": "GANDHAR",
+      "name": "Gandhar Oil Ref.",
+      "marketCapCr": 2499.75
+    },
+    {
+      "ticker": "SUNDROP",
+      "name": "Sundrop Brands",
+      "marketCapCr": 2490.82
+    },
+    {
+      "ticker": "RELINFRA",
+      "name": "Reliance Infra.",
+      "marketCapCr": 2482.84
+    },
+    {
+      "ticker": "SIRCA",
+      "name": "Sirca Paints",
+      "marketCapCr": 2476.45
+    },
+    {
+      "ticker": "FREDUN",
+      "name": "Fredun Pharma",
+      "marketCapCr": 2471.28
+    },
+    {
+      "ticker": "PIXTRANS",
+      "name": "Pix Transmission",
+      "marketCapCr": 2467.17
+    },
+    {
+      "ticker": "DOLPHIN",
+      "name": "Dolphin Offshore",
+      "marketCapCr": 2453.48
+    },
+    {
+      "ticker": "EASEMYTRIP",
+      "name": "Easy Trip Plann.",
+      "marketCapCr": 2446.58
+    },
+    {
+      "ticker": "PANACEABIO",
+      "name": "Panacea Biotec",
+      "marketCapCr": 2437.47
+    },
+    {
+      "ticker": "COSMOFIRST",
+      "name": "Cosmo First",
+      "marketCapCr": 2426.26
+    },
+    {
+      "ticker": "PARKHOTELS",
+      "name": "Apeejay Surrend.",
+      "marketCapCr": 2424.78
+    },
+    {
+      "ticker": "MONOLITH",
+      "name": "Monolithisch Ind",
+      "marketCapCr": 2419.65
+    },
+    {
+      "ticker": "INDNIPPON",
+      "name": "India Nipp.Elec.",
+      "marketCapCr": 2411.67
+    },
+    {
+      "ticker": "VINCOFE",
+      "name": "Vintage Coffee",
+      "marketCapCr": 2390.6
+    },
+    {
+      "ticker": "HMT",
+      "name": "HMT",
+      "marketCapCr": 2390
+    },
+    {
+      "ticker": "KNACK",
+      "name": "Knack Packaging",
+      "marketCapCr": 2389.79
+    },
+    {
+      "ticker": "SPAL",
+      "name": "S P Apparels",
+      "marketCapCr": 2387.44
+    },
+    {
+      "ticker": "GAJA",
+      "name": "Gaja Alternative Asset",
+      "marketCapCr": 2378.42
+    },
+    {
+      "ticker": "ARKADE",
+      "name": "Arkade",
+      "marketCapCr": 2376.87
+    },
+    {
+      "ticker": "MOLDTKPAC",
+      "name": "Mold-Tek Pack.",
+      "marketCapCr": 2362.91
+    },
+    {
+      "ticker": "ADVAIT",
+      "name": "Advait Energy",
+      "marketCapCr": 2350.23
+    },
+    {
+      "ticker": "TVSINVIT",
+      "name": "TVS Infra. Trust",
+      "marketCapCr": 2346.68
+    },
+    {
+      "ticker": "SAIPARENT",
+      "name": "Sai Parenteral's",
+      "marketCapCr": 2345.48
+    },
+    {
+      "ticker": "VERANDA",
+      "name": "Veranda Learning",
+      "marketCapCr": 2344.22
+    },
+    {
+      "ticker": "RATNAVEER",
+      "name": "Ratnaveer Precis",
+      "marketCapCr": 2343.81
+    },
+    {
+      "ticker": "GNA",
+      "name": "GNA Axles",
+      "marketCapCr": 2343.16
+    },
+    {
+      "ticker": "JGCHEM",
+      "name": "J.G.Chemicals",
+      "marketCapCr": 2343.13
+    },
+    {
+      "ticker": "EPACKPEB",
+      "name": "EPack PrefabTech",
+      "marketCapCr": 2336.15
+    },
+    {
+      "ticker": "ASIANENE",
+      "name": "Asian Energy",
+      "marketCapCr": 2328.01
+    },
+    {
+      "ticker": "PRAKASH",
+      "name": "Prakash Industri",
+      "marketCapCr": 2326.99
+    },
+    {
+      "ticker": "NITCO",
+      "name": "Nitco",
+      "marketCapCr": 2325.55
+    },
+    {
+      "ticker": "AJMERA",
+      "name": "Ajmera Realty",
+      "marketCapCr": 2319.43
+    },
+    {
+      "ticker": "KICL",
+      "name": "Kalyani Invest.",
+      "marketCapCr": 2298.84
+    },
+    {
+      "ticker": "PROTEAN",
+      "name": "Protean eGov",
+      "marketCapCr": 2297.94
+    },
+    {
+      "ticker": "BOMDYEING",
+      "name": "Bombay Dyeing",
+      "marketCapCr": 2297.08
+    },
+    {
+      "ticker": "UEL",
+      "name": "Ujaas Energy",
+      "marketCapCr": 2290.97
+    },
+    {
+      "ticker": "SOMANYCERA",
+      "name": "Somany Ceramics",
+      "marketCapCr": 2290.36
+    },
+    {
+      "ticker": "ANANTAM",
+      "name": "Anantam Highways",
+      "marketCapCr": 2282.45
+    },
+    {
+      "ticker": "BRIGHOTEL",
+      "name": "Brigade Hotel",
+      "marketCapCr": 2281.33
+    },
+    {
+      "ticker": "ESAFSFB",
+      "name": "ESAF Small Fin",
+      "marketCapCr": 2278.74
+    },
+    {
+      "ticker": "SILVERTUC",
+      "name": "Silver Touch",
+      "marketCapCr": 2269.39
+    },
+    {
+      "ticker": "REPCOHOME",
+      "name": "Repco Home Fin",
+      "marketCapCr": 2266.6
+    },
+    {
+      "ticker": "KMCSHIL",
+      "name": "KMC Speciality",
+      "marketCapCr": 2265.62
+    },
+    {
+      "ticker": "RAJESHEXPO",
+      "name": "Rajesh Exports",
+      "marketCapCr": 2263.46
+    },
+    {
+      "ticker": "RANEHOLDIN",
+      "name": "Rane Holdings",
+      "marketCapCr": 2258.52
+    },
+    {
+      "ticker": "GEOJITFSL",
+      "name": "Geojit Fin. Ser.",
+      "marketCapCr": 2256.98
+    },
+    {
+      "ticker": "VENKEYS",
+      "name": "Venky's (India)",
+      "marketCapCr": 2249.75
+    },
+    {
+      "ticker": "BNAGROCHEM",
+      "name": "BN Agrochem",
+      "marketCapCr": 2249.27
+    },
+    {
+      "ticker": "ALPEXSOLAR",
+      "name": "Alpex Solar",
+      "marketCapCr": 2235.27
+    },
+    {
+      "ticker": "DYCL",
+      "name": "Dynamic Cables",
+      "marketCapCr": 2223.77
+    },
+    {
+      "ticker": "KCP",
+      "name": "K C P",
+      "marketCapCr": 2217.83
+    },
+    {
+      "ticker": "THEJO",
+      "name": "Thejo Engg.",
+      "marketCapCr": 2217.12
+    },
+    {
+      "ticker": "OBSCP",
+      "name": "OBSC Perfection",
+      "marketCapCr": 2212.51
+    },
+    {
+      "ticker": "KLBRENG-B",
+      "name": "Kilburn Engg.",
+      "marketCapCr": 2211.45
+    },
+    {
+      "ticker": "SANSTAR",
+      "name": "Sanstar",
+      "marketCapCr": 2205.96
+    },
+    {
+      "ticker": "INDOCO",
+      "name": "Indoco Remedies",
+      "marketCapCr": 2205.5
+    },
+    {
+      "ticker": "JAYKAY",
+      "name": "Jaykay Enter.",
+      "marketCapCr": 2201.07
+    },
+    {
+      "ticker": "BAJEL",
+      "name": "Bajel Projects",
+      "marketCapCr": 2192.8
+    },
+    {
+      "ticker": "SAGCEM",
+      "name": "Sagar Cements",
+      "marketCapCr": 2191.57
+    },
+    {
+      "ticker": "JISLJALEQS",
+      "name": "Jain Irrigation",
+      "marketCapCr": 2190.52
+    },
+    {
+      "ticker": "ELCIDIN",
+      "name": "Elcid Investment",
+      "marketCapCr": 2180
+    },
+    {
+      "ticker": "HLEGLAS",
+      "name": "HLE Glascoat",
+      "marketCapCr": 2177.06
+    },
+    {
+      "ticker": "SIKA",
+      "name": "Sika Interplant",
+      "marketCapCr": 2163.34
+    },
+    {
+      "ticker": "EXICOM",
+      "name": "Exicom Tele-Sys.",
+      "marketCapCr": 2158.66
+    },
+    {
+      "ticker": "NIBE",
+      "name": "NIBE",
+      "marketCapCr": 2158.16
+    },
+    {
+      "ticker": "SHK",
+      "name": "S H Kelkar & Co.",
+      "marketCapCr": 2154.1
+    },
+    {
+      "ticker": "VENUSREM",
+      "name": "Venus Remedies",
+      "marketCapCr": 2147.94
+    },
+    {
+      "ticker": "LANDMARK",
+      "name": "Landmark Cars",
+      "marketCapCr": 2140.42
+    },
+    {
+      "ticker": "SAKSOFT",
+      "name": "Saksoft",
+      "marketCapCr": 2138.85
+    },
+    {
+      "ticker": "NELCO",
+      "name": "NELCO",
+      "marketCapCr": 2135.95
+    },
+    {
+      "ticker": "SHRINGARMS",
+      "name": "Shringar House",
+      "marketCapCr": 2129.03
+    },
+    {
+      "ticker": "TAJGVK",
+      "name": "TajGVK Hotels",
+      "marketCapCr": 2128.09
+    },
+    {
+      "ticker": "MARSONS",
+      "name": "Marsons",
+      "marketCapCr": 2126.81
+    },
+    {
+      "ticker": "BHARATRAS",
+      "name": "Bharat Rasayan",
+      "marketCapCr": 2124.84
+    },
+    {
+      "ticker": "PENIND",
+      "name": "Pennar Industrie",
+      "marketCapCr": 2120.52
+    },
+    {
+      "ticker": "TCIEXP",
+      "name": "TCI Express",
+      "marketCapCr": 2113.85
+    },
+    {
+      "ticker": "KABRAEXTRU",
+      "name": "Kabra Extrusion",
+      "marketCapCr": 2104.14
+    },
+    {
+      "ticker": "HONDAPOWER",
+      "name": "Honda India",
+      "marketCapCr": 2091.17
+    },
+    {
+      "ticker": "HINDOILEXP",
+      "name": "Hind.Oil Explor.",
+      "marketCapCr": 2090.9
+    },
+    {
+      "ticker": "WEL",
+      "name": "Wonder Electric.",
+      "marketCapCr": 2089.45
+    },
+    {
+      "ticker": "EMSLIMITED",
+      "name": "EMS",
+      "marketCapCr": 2086.57
+    },
+    {
+      "ticker": "ARMANFIN",
+      "name": "Arman Financial",
+      "marketCapCr": 2079.61
+    },
+    {
+      "ticker": "RAMCOSYS",
+      "name": "Ramco Systems",
+      "marketCapCr": 2079.47
+    },
+    {
+      "ticker": "INDIANHUME",
+      "name": "Indian Hume Pipe",
+      "marketCapCr": 2069.34
+    },
+    {
+      "ticker": "CANTABIL",
+      "name": "Cantabil Retail",
+      "marketCapCr": 2061.68
+    },
+    {
+      "ticker": "INA",
+      "name": "Insolation Ener",
+      "marketCapCr": 2054.83
+    },
+    {
+      "ticker": "CAMLINFINE",
+      "name": "Camlin Fine",
+      "marketCapCr": 2047.17
+    },
+    {
+      "ticker": "HUHTAMAKI",
+      "name": "Huhtamaki India",
+      "marketCapCr": 2042.11
+    },
+    {
+      "ticker": "SHANTIGOLD",
+      "name": "Shanti Gold",
+      "marketCapCr": 2041.81
+    },
+    {
+      "ticker": "GMBREW",
+      "name": "G M Breweries",
+      "marketCapCr": 2040.92
+    },
+    {
+      "ticker": "TBZ",
+      "name": "T B Z",
+      "marketCapCr": 2040.62
+    },
+    {
+      "ticker": "MAHASTEEL",
+      "name": "Mahamaya Steel",
+      "marketCapCr": 2030.47
+    },
+    {
+      "ticker": "WINDLAS",
+      "name": "Windlas Biotech",
+      "marketCapCr": 2019.05
+    },
+    {
+      "ticker": "HPL",
+      "name": "HPL Electric",
+      "marketCapCr": 2015.82
+    },
+    {
+      "ticker": "KODYTECH",
+      "name": "Kody Technolab",
+      "marketCapCr": 2006.37
+    },
+    {
+      "ticker": "SAKAR",
+      "name": "Sakar Healthcare",
+      "marketCapCr": 2005.61
+    },
+    {
+      "ticker": "HESTERBIO",
+      "name": "Hester Bios",
+      "marketCapCr": 2002.86
+    },
+    {
+      "ticker": "OMAXE",
+      "name": "Omaxe",
+      "marketCapCr": 2000.38
+    },
+    {
+      "ticker": "TIL",
+      "name": "TIL",
+      "marketCapCr": 1996.96
+    },
+    {
+      "ticker": "ALLCARGO",
+      "name": "Allcargo Logist.",
+      "marketCapCr": 1995.04
+    },
+    {
+      "ticker": "BLEL",
+      "name": "Behari Lal Engg.",
+      "marketCapCr": 1991.81
+    },
+    {
+      "ticker": "SIMPLEXINF",
+      "name": "Simplex Infra",
+      "marketCapCr": 1988.54
+    },
+    {
+      "ticker": "VOEPL",
+      "name": "Virtuoso Optoel.",
+      "marketCapCr": 1985.02
+    },
+    {
+      "ticker": "ELITECON",
+      "name": "Elitecon Inter.",
+      "marketCapCr": 1980.54
+    },
+    {
+      "ticker": "MUKANDLTD",
+      "name": "Mukand",
+      "marketCapCr": 1980.02
+    },
+    {
+      "ticker": "GOCLCORP",
+      "name": "GOCL Corpn.",
+      "marketCapCr": 1970.01
+    },
+    {
+      "ticker": "VINYAS",
+      "name": "Vinyas Innovativ",
+      "marketCapCr": 1968.63
+    },
+    {
+      "ticker": "PARACABLES",
+      "name": "Paramount Comm.",
+      "marketCapCr": 1966.05
+    },
+    {
+      "ticker": "MSPL",
+      "name": "MSP Steel & Pow.",
+      "marketCapCr": 1963.38
+    },
+    {
+      "ticker": "DCXINDIA",
+      "name": "DCX Systems",
+      "marketCapCr": 1961.63
+    },
+    {
+      "ticker": "NUCLEUS",
+      "name": "Nucleus Soft.",
+      "marketCapCr": 1948.34
+    },
+    {
+      "ticker": "SHUKRAPHAR",
+      "name": "Shukra Pharma.",
+      "marketCapCr": 1942.22
+    },
+    {
+      "ticker": "TIRUMALCHM",
+      "name": "Thirumalai Chem.",
+      "marketCapCr": 1940.54
+    },
+    {
+      "ticker": "GREENPANEL",
+      "name": "Greenpanel Inds.",
+      "marketCapCr": 1937.27
+    },
+    {
+      "ticker": "BFUTILITIE",
+      "name": "BF Utilities",
+      "marketCapCr": 1936.48
+    },
+    {
+      "ticker": "CAPACITE",
+      "name": "Capacit'e Infra.",
+      "marketCapCr": 1923.73
+    },
+    {
+      "ticker": "AWFIS",
+      "name": "AWFIS Space",
+      "marketCapCr": 1920.4
+    },
+    {
+      "ticker": "EPACK",
+      "name": "Epack Durable",
+      "marketCapCr": 1916.49
+    },
+    {
+      "ticker": "BLUSPRING",
+      "name": "Bluspring Enter.",
+      "marketCapCr": 1915.57
+    },
+    {
+      "ticker": "SBC",
+      "name": "SBC Exports",
+      "marketCapCr": 1910.95
+    },
+    {
+      "ticker": "TEAMLEASE",
+      "name": "Team Lease Serv.",
+      "marketCapCr": 1908.34
+    },
+    {
+      "ticker": "GRANDOAK",
+      "name": "Grand Oak Canyon",
+      "marketCapCr": 1904.3
+    },
+    {
+      "ticker": "LAOPALA",
+      "name": "La Opala RG",
+      "marketCapCr": 1888.89
+    },
+    {
+      "ticker": "ANONDITA",
+      "name": "Anondita Medi.",
+      "marketCapCr": 1887.7
+    },
+    {
+      "ticker": "MOTISONS",
+      "name": "Motisons Jewel",
+      "marketCapCr": 1871.2
+    },
+    {
+      "ticker": "HATHWAY",
+      "name": "Hathway Cable",
+      "marketCapCr": 1871
+    },
+    {
+      "ticker": "SCILAL",
+      "name": "Shipping Land",
+      "marketCapCr": 1870.18
+    },
+    {
+      "ticker": "HGS",
+      "name": "Hinduja Global",
+      "marketCapCr": 1869.88
+    },
+    {
+      "ticker": "BGRENERGY",
+      "name": "BGR Energy Sys.",
+      "marketCapCr": 1854.19
+    },
+    {
+      "ticker": "MACPOWER",
+      "name": "Macpower CNC",
+      "marketCapCr": 1851.37
+    },
+    {
+      "ticker": "PAUSHAKLTD",
+      "name": "Paushak",
+      "marketCapCr": 1850.62
+    },
+    {
+      "ticker": "VIDYAWIRES",
+      "name": "Vidya Wires",
+      "marketCapCr": 1848.72
+    },
+    {
+      "ticker": "BLUECLOUDS",
+      "name": "Blue Cloud Soft.",
+      "marketCapCr": 1848.01
+    },
+    {
+      "ticker": "GRMOVER",
+      "name": "GRM Overseas",
+      "marketCapCr": 1840.85
+    },
+    {
+      "ticker": "EIHAHOTELS",
+      "name": "EIH Assoc.Hotels",
+      "marketCapCr": 1839.97
+    },
+    {
+      "ticker": "SERVOTECH",
+      "name": "Servotech Renew",
+      "marketCapCr": 1839.28
+    },
+    {
+      "ticker": "KRSNAA",
+      "name": "Krsnaa Diagnost.",
+      "marketCapCr": 1834.57
+    },
+    {
+      "ticker": "JINDRILL",
+      "name": "Jindal Drilling",
+      "marketCapCr": 1832.84
+    },
+    {
+      "ticker": "TINNARUBR",
+      "name": "Tinna Rubber",
+      "marketCapCr": 1831.12
+    },
+    {
+      "ticker": "BCG",
+      "name": "Brightcom Group",
+      "marketCapCr": 1830.26
+    },
+    {
+      "ticker": "ALGOQUANT",
+      "name": "Algoquant Fin",
+      "marketCapCr": 1826.56
+    },
+    {
+      "ticker": "CNL",
+      "name": "Creative Newtech",
+      "marketCapCr": 1825.13
+    },
+    {
+      "ticker": "TARSONS",
+      "name": "Tarsons Products",
+      "marketCapCr": 1823.11
+    },
+    {
+      "ticker": "AEROPLANE",
+      "name": "A C J K Exports",
+      "marketCapCr": 1812.05
+    },
+    {
+      "ticker": "GOCOLORS",
+      "name": "Go Fashion (I)",
+      "marketCapCr": 1807.2
+    },
+    {
+      "ticker": "JAICORPLTD",
+      "name": "Jai Corp",
+      "marketCapCr": 1789.8
+    },
+    {
+      "ticker": "RACLGEAR",
+      "name": "RACL Geartech",
+      "marketCapCr": 1779.29
+    },
+    {
+      "ticker": "NGLFINE",
+      "name": "NGL Fine Chem",
+      "marketCapCr": 1778.17
+    },
+    {
+      "ticker": "PFS",
+      "name": "PTC India Fin",
+      "marketCapCr": 1776.56
+    },
+    {
+      "ticker": "STUDDS",
+      "name": "Studds Accessor.",
+      "marketCapCr": 1776.22
+    },
+    {
+      "ticker": "YATRA",
+      "name": "Yatra Online",
+      "marketCapCr": 1771.43
+    },
+    {
+      "ticker": "NDRAUTO",
+      "name": "NDR Auto Compon.",
+      "marketCapCr": 1770.34
+    },
+    {
+      "ticker": "RICOAUTO",
+      "name": "Rico Auto Inds",
+      "marketCapCr": 1769.18
+    },
+    {
+      "ticker": "MMWL",
+      "name": "Media Matrix",
+      "marketCapCr": 1767.08
+    },
+    {
+      "ticker": "5PAISA",
+      "name": "5paisa Capital",
+      "marketCapCr": 1764.65
+    },
+    {
+      "ticker": "SURAKSHA",
+      "name": "Suraksha Diagno.",
+      "marketCapCr": 1764.24
+    },
+    {
+      "ticker": "ARDEE",
+      "name": "Ardee Industries",
+      "marketCapCr": 1762.6
+    },
+    {
+      "ticker": "SPANDANA",
+      "name": "Spandana Sphoort",
+      "marketCapCr": 1761.95
+    },
+    {
+      "ticker": "PNGSREVA",
+      "name": "PNGS Reva Diamo.",
+      "marketCapCr": 1761.32
+    },
+    {
+      "ticker": "RHETAN",
+      "name": "Rhetan TMT Ltd",
+      "marketCapCr": 1748.34
+    },
+    {
+      "ticker": "GOODYEAR",
+      "name": "Goodyear India",
+      "marketCapCr": 1742.71
+    },
+    {
+      "ticker": "DISAQ",
+      "name": "Disa India",
+      "marketCapCr": 1741.27
+    },
+    {
+      "ticker": "INDOKEM",
+      "name": "Indokem",
+      "marketCapCr": 1740.23
+    },
+    {
+      "ticker": "GARUDA",
+      "name": "Garuda Cons",
+      "marketCapCr": 1704.71
+    },
+    {
+      "ticker": "VIDHIING",
+      "name": "Vidhi Specialty",
+      "marketCapCr": 1703.12
+    },
+    {
+      "ticker": "MCLOUD",
+      "name": "Magellanic Cloud",
+      "marketCapCr": 1700.64
+    },
+    {
+      "ticker": "KPEL",
+      "name": "K.P. Energy",
+      "marketCapCr": 1697.33
+    },
+    {
+      "ticker": "SHALBY",
+      "name": "Shalby",
+      "marketCapCr": 1694.89
+    },
+    {
+      "ticker": "ACCELYA",
+      "name": "Accelya Solution",
+      "marketCapCr": 1689.35
+    },
+    {
+      "ticker": "MTNL",
+      "name": "M T N L",
+      "marketCapCr": 1687.77
+    },
+    {
+      "ticker": "INSECTICID",
+      "name": "Insecticid.India",
+      "marketCapCr": 1686.22
+    },
+    {
+      "ticker": "BFINVEST",
+      "name": "BF Investment",
+      "marketCapCr": 1686.04
+    },
+    {
+      "ticker": "SURYODAY",
+      "name": "Suryoday Small",
+      "marketCapCr": 1684.06
+    },
+    {
+      "ticker": "AURUM",
+      "name": "Aurum Proptech",
+      "marketCapCr": 1683.35
+    },
+    {
+      "ticker": "HITECH",
+      "name": "Hi-Tech Pipes",
+      "marketCapCr": 1663.86
+    },
+    {
+      "ticker": "SMCGLOBAL",
+      "name": "SMC Global Sec.",
+      "marketCapCr": 1659.7
+    },
+    {
+      "ticker": "QUADFUTURE",
+      "name": "Quadrant Future",
+      "marketCapCr": 1647.8
+    },
+    {
+      "ticker": "GENESYS",
+      "name": "Genesys Intl.",
+      "marketCapCr": 1646.88
+    },
+    {
+      "ticker": "HINDWAREAP",
+      "name": "Hindware Home In",
+      "marketCapCr": 1641.89
+    },
+    {
+      "ticker": "RGL",
+      "name": "Renaiss. Global",
+      "marketCapCr": 1638.23
+    },
+    {
+      "ticker": "SPICEJET",
+      "name": "SpiceJet",
+      "marketCapCr": 1634.45
+    },
+    {
+      "ticker": "WENDT",
+      "name": "Wendt India",
+      "marketCapCr": 1629.7
+    },
+    {
+      "ticker": "AVADHSUGAR",
+      "name": "Avadh Sugar",
+      "marketCapCr": 1628.9
+    },
+    {
+      "ticker": "DELTACORP",
+      "name": "Delta Corp",
+      "marketCapCr": 1625.91
+    },
+    {
+      "ticker": "AEROENTER",
+      "name": "Aeroflex Enter.",
+      "marketCapCr": 1625.49
+    },
+    {
+      "ticker": "INDOBORAX",
+      "name": "Indo Borax & Ch.",
+      "marketCapCr": 1622.79
+    },
+    {
+      "ticker": "IPL",
+      "name": "India Pesticides",
+      "marketCapCr": 1617.7
+    },
+    {
+      "ticker": "IGPL",
+      "name": "I G Petrochems",
+      "marketCapCr": 1613.19
+    },
+    {
+      "ticker": "KOTIC",
+      "name": "Kothari Indl",
+      "marketCapCr": 1610.06
+    },
+    {
+      "ticker": "SYNCOMF",
+      "name": "Syncom Formul.",
+      "marketCapCr": 1600.82
+    },
+    {
+      "ticker": "INDORAMA",
+      "name": "Indo Rama Synth.",
+      "marketCapCr": 1598.53
+    },
+    {
+      "ticker": "JAGSNPHARM",
+      "name": "Jagsonpal Pharma",
+      "marketCapCr": 1597.49
+    },
+    {
+      "ticker": "BLIL",
+      "name": "Balmer Law. Inv.",
+      "marketCapCr": 1595.98
+    },
+    {
+      "ticker": "SPMLINFRA",
+      "name": "SPML Infra",
+      "marketCapCr": 1584.12
+    },
+    {
+      "ticker": "MIIL",
+      "name": "Meghna Infracon",
+      "marketCapCr": 1578.12
+    },
+    {
+      "ticker": "DANISH",
+      "name": "Danish Power",
+      "marketCapCr": 1576.9
+    },
+    {
+      "ticker": "DLINKINDIA",
+      "name": "D-Link India",
+      "marketCapCr": 1575.71
+    },
+    {
+      "ticker": "MOL",
+      "name": "Meghmani Organi.",
+      "marketCapCr": 1572.68
+    },
+    {
+      "ticker": "SUMMITSEC",
+      "name": "Summit Securitie",
+      "marketCapCr": 1562.55
+    },
+    {
+      "ticker": "MBEL",
+      "name": "M & B Engineer.",
+      "marketCapCr": 1561.63
+    },
+    {
+      "ticker": "CLSEL",
+      "name": "Chamanlal Setia",
+      "marketCapCr": 1557.41
+    },
+    {
+      "ticker": "MENONBE",
+      "name": "Menon Bearings",
+      "marketCapCr": 1551.41
+    },
+    {
+      "ticker": "GTLINFRA",
+      "name": "GTL Infra.",
+      "marketCapCr": 1549.94
+    },
+    {
+      "ticker": "IFGLEXPOR",
+      "name": "IFGL Refractori.",
+      "marketCapCr": 1549.76
+    },
+    {
+      "ticker": "TTKHLTCARE",
+      "name": "TTK Healthcare",
+      "marketCapCr": 1541.05
+    },
+    {
+      "ticker": "KAPSTON",
+      "name": "Kapston Services",
+      "marketCapCr": 1537.59
+    },
+    {
+      "ticker": "DOLLAR",
+      "name": "Dollar Industrie",
+      "marketCapCr": 1536.44
+    },
+    {
+      "ticker": "MOBIKWIK",
+      "name": "One Mobikwik",
+      "marketCapCr": 1534.62
+    },
+    {
+      "ticker": "KRISHNADEF",
+      "name": "Krishna Defence",
+      "marketCapCr": 1533.49
+    },
+    {
+      "ticker": "GNRL",
+      "name": "Guj.Nat.Resour.",
+      "marketCapCr": 1529.88
+    },
+    {
+      "ticker": "MVELECTRO",
+      "name": "MV Electrosystems",
+      "marketCapCr": 1528.24
+    },
+    {
+      "ticker": "VIKRAN",
+      "name": "Vikran Engg.",
+      "marketCapCr": 1527.09
+    },
+    {
+      "ticker": "AMRUTANJAN",
+      "name": "Amrutanjan Healt",
+      "marketCapCr": 1525.76
+    },
+    {
+      "ticker": "CEINSYS",
+      "name": "Ceinsys Tech",
+      "marketCapCr": 1524.68
+    },
+    {
+      "ticker": "DIGITIDE",
+      "name": "Digitide Solutio",
+      "marketCapCr": 1518.4
+    },
+    {
+      "ticker": "SDBL",
+      "name": "Som Distilleries",
+      "marketCapCr": 1509.78
+    },
+    {
+      "ticker": "INFOBEAN",
+      "name": "InfoBeans Tech.",
+      "marketCapCr": 1508.35
+    },
+    {
+      "ticker": "WALCHANNAG",
+      "name": "Walchan. Inds.",
+      "marketCapCr": 1500.28
+    },
+    {
+      "ticker": "AYMSYNTEX",
+      "name": "AYM Syntex",
+      "marketCapCr": 1498.8
+    },
+    {
+      "ticker": "UDS",
+      "name": "Updater Services",
+      "marketCapCr": 1486.83
+    },
+    {
+      "ticker": "IVALUE",
+      "name": "Ivalue Infosolut",
+      "marketCapCr": 1486.56
+    },
+    {
+      "ticker": "FRONTSP",
+      "name": "Frontier Springs",
+      "marketCapCr": 1486.28
+    },
+    {
+      "ticker": "IKIO",
+      "name": "IKIO Tech",
+      "marketCapCr": 1484.41
+    },
+    {
+      "ticker": "NAVKARCORP",
+      "name": "Navkar Corporat.",
+      "marketCapCr": 1481.71
+    },
+    {
+      "ticker": "PVP",
+      "name": "PVP Ventures",
+      "marketCapCr": 1470.76
+    },
+    {
+      "ticker": "SHREEPUSHK",
+      "name": "Sh.Pushkar Chem.",
+      "marketCapCr": 1462.15
+    },
+    {
+      "ticker": "ASALCBR",
+      "name": "Assoc.Alcohols",
+      "marketCapCr": 1461.67
+    },
+    {
+      "ticker": "ONEPOINT",
+      "name": "One Point One",
+      "marketCapCr": 1459.56
+    },
+    {
+      "ticker": "DIFFNKG",
+      "name": "Diffusion Eng",
+      "marketCapCr": 1455.13
+    },
+    {
+      "ticker": "ANDREWYU",
+      "name": "Andrew Yule & Co",
+      "marketCapCr": 1439.47
+    },
+    {
+      "ticker": "GPTINFRA",
+      "name": "GPT Infraproject",
+      "marketCapCr": 1437.78
+    },
+    {
+      "ticker": "SESHAPAPER",
+      "name": "Seshasayee Paper",
+      "marketCapCr": 1433.35
+    },
+    {
+      "ticker": "VIVIDEL",
+      "name": "Vivid Electromech",
+      "marketCapCr": 1432.58
+    },
+    {
+      "ticker": "SPIC",
+      "name": "S P I C",
+      "marketCapCr": 1431.18
+    },
+    {
+      "ticker": "PNBGILTS",
+      "name": "PNB Gilts",
+      "marketCapCr": 1429.28
+    },
+    {
+      "ticker": "ACCENTMIC",
+      "name": "Accent Microcell",
+      "marketCapCr": 1424.35
+    },
+    {
+      "ticker": "NITTAGELA",
+      "name": "Nitta Gelatin",
+      "marketCapCr": 1423.56
+    },
+    {
+      "ticker": "ARFIN",
+      "name": "Arfin India",
+      "marketCapCr": 1420.81
+    },
+    {
+      "ticker": "SKMEGGPROD",
+      "name": "SKM Egg Prod.",
+      "marketCapCr": 1413.45
+    },
+    {
+      "ticker": "DPEL",
+      "name": "Divine Power",
+      "marketCapCr": 1413.27
+    },
+    {
+      "ticker": "BHARATSE",
+      "name": "Bharat Seats",
+      "marketCapCr": 1411.37
+    },
+    {
+      "ticker": "NIITLTD",
+      "name": "NIIT",
+      "marketCapCr": 1410.62
+    },
+    {
+      "ticker": "AGL",
+      "name": "Allcargo Global",
+      "marketCapCr": 1407.34
+    },
+    {
+      "ticker": "KROSS",
+      "name": "Kross Ltd",
+      "marketCapCr": 1404.5
+    },
+    {
+      "ticker": "TEXINFRA",
+      "name": "Texmaco Infrast.",
+      "marketCapCr": 1403.35
+    },
+    {
+      "ticker": "TAALTECH",
+      "name": "TAAL Tech",
+      "marketCapCr": 1402.82
+    },
+    {
+      "ticker": "SIGNPOST",
+      "name": "Signpost India",
+      "marketCapCr": 1396.11
+    },
+    {
+      "ticker": "RSL",
+      "name": "Rajputana Stain.",
+      "marketCapCr": 1392.15
+    },
+    {
+      "ticker": "ASIANTILES",
+      "name": "Asian Granito",
+      "marketCapCr": 1385.13
+    },
+    {
+      "ticker": "STEELXIND",
+      "name": "Steel Exchange",
+      "marketCapCr": 1383.94
+    },
+    {
+      "ticker": "DCW",
+      "name": "DCW",
+      "marketCapCr": 1380.74
+    },
+    {
+      "ticker": "SHANKESH",
+      "name": "Shankesh Jewellers",
+      "marketCapCr": 1378.27
+    },
+    {
+      "ticker": "FERMENTA",
+      "name": "Fermenta Biotec.",
+      "marketCapCr": 1375.9
+    },
+    {
+      "ticker": "PUNJABCHEM",
+      "name": "Punjab Chemicals",
+      "marketCapCr": 1371.89
+    },
+    {
+      "ticker": "DSSL",
+      "name": "Dynacons Sys.",
+      "marketCapCr": 1367.33
+    },
+    {
+      "ticker": "EXPLEOSOL",
+      "name": "Expleo Solutions",
+      "marketCapCr": 1365.66
+    },
+    {
+      "ticker": "TECHNOCRAF",
+      "name": "Technocraft Ven.",
+      "marketCapCr": 1361.23
+    },
+    {
+      "ticker": "ONIDA",
+      "name": "Onida Electronics",
+      "marketCapCr": 1359.86
+    },
+    {
+      "ticker": "ATULAUTO",
+      "name": "Atul Auto",
+      "marketCapCr": 1352.87
+    },
+    {
+      "ticker": "UGROCAP",
+      "name": "Ugro Capital",
+      "marketCapCr": 1351.78
+    },
+    {
+      "ticker": "IMPAL",
+      "name": "India Motor Part",
+      "marketCapCr": 1350.84
+    },
+    {
+      "ticker": "ALLTIME",
+      "name": "All Time Plastic",
+      "marketCapCr": 1350.64
+    },
+    {
+      "ticker": "OAL",
+      "name": "Oriental Aromat.",
+      "marketCapCr": 1350.35
+    },
+    {
+      "ticker": "KALAMANDIR",
+      "name": "Sai Silks",
+      "marketCapCr": 1346.55
+    },
+    {
+      "ticker": "JAGRAN",
+      "name": "Jagran Prakashan",
+      "marketCapCr": 1343.8
+    },
+    {
+      "ticker": "IGARASHI",
+      "name": "Igarashi Motors",
+      "marketCapCr": 1342.41
+    },
+    {
+      "ticker": "ANDHRSUGAR",
+      "name": "Andhra Sugars",
+      "marketCapCr": 1342.07
+    },
+    {
+      "ticker": "JAYBARMARU",
+      "name": "Jay Bharat Maru.",
+      "marketCapCr": 1340.68
+    },
+    {
+      "ticker": "MODISONLTD",
+      "name": "Modison",
+      "marketCapCr": 1335.64
+    },
+    {
+      "ticker": "GALAPREC",
+      "name": "Gala Precis. Eng",
+      "marketCapCr": 1333.65
+    },
+    {
+      "ticker": "MANAKCOAT",
+      "name": "Manaksia Coated",
+      "marketCapCr": 1328.02
+    },
+    {
+      "ticker": "PASHUPATI",
+      "name": "Pashupati Cotsp.",
+      "marketCapCr": 1327.28
+    },
+    {
+      "ticker": "BENARAS",
+      "name": "Benares Hotels",
+      "marketCapCr": 1326
+    },
+    {
+      "ticker": "NINSYS",
+      "name": "NINtec Systems",
+      "marketCapCr": 1325.21
+    },
+    {
+      "ticker": "AVTNPL",
+      "name": "AVT Natural Prod",
+      "marketCapCr": 1324.25
+    },
+    {
+      "ticker": "SHRIRAMPPS",
+      "name": "Shriram Properti",
+      "marketCapCr": 1323.25
+    },
+    {
+      "ticker": "ELECTHERM",
+      "name": "Electrotherm(I)",
+      "marketCapCr": 1323.09
+    },
+    {
+      "ticker": "ASTEC",
+      "name": "Astec Lifescienc",
+      "marketCapCr": 1322.49
+    },
+    {
+      "ticker": "DEN",
+      "name": "Den Networks",
+      "marketCapCr": 1320.96
+    },
+    {
+      "ticker": "RUBYMILLS",
+      "name": "Ruby Mills",
+      "marketCapCr": 1315.86
+    },
+    {
+      "ticker": "DOLATALGO",
+      "name": "Dolat Algotech",
+      "marketCapCr": 1312.61
+    },
+    {
+      "ticker": "DHANBANK",
+      "name": "Dhanlaxmi Bank",
+      "marketCapCr": 1310.79
+    },
+    {
+      "ticker": "RIR",
+      "name": "RIR Power Electr",
+      "marketCapCr": 1308.65
+    },
+    {
+      "ticker": "ASIANHOTNR",
+      "name": "Asian Hotels (N)",
+      "marketCapCr": 1307.56
+    },
+    {
+      "ticker": "EXCELINDUS",
+      "name": "Excel Industries",
+      "marketCapCr": 1307.04
+    },
+    {
+      "ticker": "GCSL",
+      "name": "Gretex Corporate",
+      "marketCapCr": 1299.77
+    },
+    {
+      "ticker": "SOLARWORLD",
+      "name": "Solarworld Ene.",
+      "marketCapCr": 1293.76
+    },
+    {
+      "ticker": "GYFTR",
+      "name": "GYFTR",
+      "marketCapCr": 1291.84
+    },
+    {
+      "ticker": "BHAGYANGR",
+      "name": "Bhagyanagar Ind",
+      "marketCapCr": 1288.78
+    },
+    {
+      "ticker": "SIGACHI",
+      "name": "Sigachi Indust.",
+      "marketCapCr": 1285.44
+    },
+    {
+      "ticker": "INVPRECQ",
+      "name": "Inv.& Prec.Cast.",
+      "marketCapCr": 1285
+    },
+    {
+      "ticker": "CAPITALSFB",
+      "name": "Capital Small",
+      "marketCapCr": 1284.85
+    },
+    {
+      "ticker": "IZMO",
+      "name": "IZMO",
+      "marketCapCr": 1283.59
+    },
+    {
+      "ticker": "RAJRILTD",
+      "name": "Raj Rayon Inds.",
+      "marketCapCr": 1282.88
+    },
+    {
+      "ticker": "BHARATWIRE",
+      "name": "Bharat Wire",
+      "marketCapCr": 1279.78
+    },
+    {
+      "ticker": "MANALIPETC",
+      "name": "Manali Petrochem",
+      "marketCapCr": 1277.27
+    },
+    {
+      "ticker": "YUKEN",
+      "name": "Yuken India",
+      "marketCapCr": 1275.33
+    },
+    {
+      "ticker": "EIMCOELECO",
+      "name": "Eimco Elecon(I)",
+      "marketCapCr": 1272.63
+    },
+    {
+      "ticker": "PANORAMA",
+      "name": "Panorama Studios",
+      "marketCapCr": 1267.51
+    },
+    {
+      "ticker": "ULTRAMAR",
+      "name": "Ultramarine Pig.",
+      "marketCapCr": 1263.63
+    },
+    {
+      "ticker": "QLINE",
+      "name": "Q-Line Biotech",
+      "marketCapCr": 1252.61
+    },
+    {
+      "ticker": "SULA",
+      "name": "Sula Vineyards",
+      "marketCapCr": 1249.99
+    },
+    {
+      "ticker": "GPTHEALTH",
+      "name": "GPT Healthcare",
+      "marketCapCr": 1247.64
+    },
+    {
+      "ticker": "STLNETWORK",
+      "name": "STL Networks",
+      "marketCapCr": 1244.67
+    },
+    {
+      "ticker": "GODAVARIB",
+      "name": "Godavari Bioref.",
+      "marketCapCr": 1244.34
+    },
+    {
+      "ticker": "BLKASHYAP",
+      "name": "B.L.Kashyap",
+      "marketCapCr": 1243.3
+    },
+    {
+      "ticker": "ALLDIGI",
+      "name": "Alldigi Tech",
+      "marketCapCr": 1242.23
+    },
+    {
+      "ticker": "EKC",
+      "name": "Everest Kanto",
+      "marketCapCr": 1235.97
+    },
+    {
+      "ticker": "ROTO",
+      "name": "Roto Pumps",
+      "marketCapCr": 1234.51
+    },
+    {
+      "ticker": "ZSARACOM",
+      "name": "Saraswati Commer",
+      "marketCapCr": 1234.12
+    },
+    {
+      "ticker": "JYOTISTRUC",
+      "name": "Jyoti Structures",
+      "marketCapCr": 1231.86
+    },
+    {
+      "ticker": "PRECAM",
+      "name": "Precision Camshf",
+      "marketCapCr": 1227.88
+    },
+    {
+      "ticker": "LINCOLN",
+      "name": "Lincoln Pharma.",
+      "marketCapCr": 1226.92
+    },
+    {
+      "ticker": "CENTENKA",
+      "name": "Century Enka",
+      "marketCapCr": 1218.25
+    },
+    {
+      "ticker": "GULPOLY",
+      "name": "Gulshan Polyols",
+      "marketCapCr": 1213.48
+    },
+    {
+      "ticker": "FINOPB",
+      "name": "Fino Payments",
+      "marketCapCr": 1211.16
+    },
+    {
+      "ticker": "GHCLTEXTIL",
+      "name": "GHCL Textiles",
+      "marketCapCr": 1211.07
+    },
+    {
+      "ticker": "ARIS",
+      "name": "Arisinfra Solu.",
+      "marketCapCr": 1210.22
+    },
+    {
+      "ticker": "ANDHRAPAP",
+      "name": "Andhra Paper",
+      "marketCapCr": 1202.25
+    },
+    {
+      "ticker": "FAZE3Q",
+      "name": "Faze Three",
+      "marketCapCr": 1202.1
+    },
+    {
+      "ticker": "GKSL",
+      "name": "Gujarat Kidney",
+      "marketCapCr": 1201.1
+    },
+    {
+      "ticker": "PLATIND",
+      "name": "Platinum Industr",
+      "marketCapCr": 1199.06
+    },
+    {
+      "ticker": "APEX",
+      "name": "Apex Frozen Food",
+      "marketCapCr": 1195.31
+    },
+    {
+      "ticker": "UTTAMSUGAR",
+      "name": "Uttam Sug.Mills",
+      "marketCapCr": 1193.04
+    },
+    {
+      "ticker": "RUPA",
+      "name": "Rupa & Co",
+      "marketCapCr": 1186.9
+    },
+    {
+      "ticker": "MWL",
+      "name": "Mangalam World.",
+      "marketCapCr": 1184.46
+    },
+    {
+      "ticker": "DHAMPURSUG",
+      "name": "Dhampur Sugar",
+      "marketCapCr": 1181.12
+    },
+    {
+      "ticker": "IRMENERGY",
+      "name": "IRM Energy",
+      "marketCapCr": 1180.47
+    },
+    {
+      "ticker": "RAMBHAJO",
+      "name": "Advit Jewels",
+      "marketCapCr": 1171.32
+    },
+    {
+      "ticker": "COMSYN",
+      "name": "Commerl. Synbags",
+      "marketCapCr": 1164.67
+    },
+    {
+      "ticker": "BALAJITELE",
+      "name": "Balaji Telefilms",
+      "marketCapCr": 1163.31
+    },
+    {
+      "ticker": "THEMISMED",
+      "name": "Themis Medicare",
+      "marketCapCr": 1162.86
+    },
+    {
+      "ticker": "ICEMAKE",
+      "name": "ICE Make Refrig.",
+      "marketCapCr": 1158.23
+    },
+    {
+      "ticker": "SAFEENTP",
+      "name": "Safe Enterprises",
+      "marketCapCr": 1158.12
+    },
+    {
+      "ticker": "RIIL",
+      "name": "Rel. Indl. Infra",
+      "marketCapCr": 1151.38
+    },
+    {
+      "ticker": "MUNJALAU",
+      "name": "Munjal Auto Inds",
+      "marketCapCr": 1148.7
+    },
+    {
+      "ticker": "SUNRAKSHAK",
+      "name": "Sunrakshakk Inds",
+      "marketCapCr": 1144.77
+    },
+    {
+      "ticker": "WAAREEINDO",
+      "name": "Indosolar",
+      "marketCapCr": 1144.73
+    },
+    {
+      "ticker": "SUNSHINE",
+      "name": "Sunshine Picture",
+      "marketCapCr": 1143.78
+    },
+    {
+      "ticker": "STEL",
+      "name": "STEL Holdings",
+      "marketCapCr": 1143.68
+    },
+    {
+      "ticker": "BUTTERFLY",
+      "name": "Butterfly Gan Ap",
+      "marketCapCr": 1142.98
+    },
+    {
+      "ticker": "ALICON",
+      "name": "Alicon Cast.",
+      "marketCapCr": 1135.12
+    },
+    {
+      "ticker": "AKCAPIT",
+      "name": "A.K.Capital Serv",
+      "marketCapCr": 1133.62
+    },
+    {
+      "ticker": "BODALCHEM",
+      "name": "Bodal Chemicals",
+      "marketCapCr": 1133.24
+    },
+    {
+      "ticker": "BOROSCI",
+      "name": "Borosil Scienti.",
+      "marketCapCr": 1130.31
+    },
+    {
+      "ticker": "TGVSL",
+      "name": "TGV Sraac",
+      "marketCapCr": 1128.94
+    },
+    {
+      "ticker": "PRIZOR",
+      "name": "Prizor Viztech",
+      "marketCapCr": 1128.42
+    },
+    {
+      "ticker": "MONTECARLO",
+      "name": "Monte Carlo Fas.",
+      "marketCapCr": 1128.34
+    },
+    {
+      "ticker": "BIL",
+      "name": "Bhartiya Intl.",
+      "marketCapCr": 1127.08
+    },
+    {
+      "ticker": "SSEGL",
+      "name": "Sathlokhar Sys.",
+      "marketCapCr": 1126.3
+    },
+    {
+      "ticker": "CENTRUM",
+      "name": "Centrum Capital",
+      "marketCapCr": 1125.55
+    },
+    {
+      "ticker": "UNIHEALTH",
+      "name": "Unihealth Hosp",
+      "marketCapCr": 1124.92
+    },
+    {
+      "ticker": "ORIENTTECH",
+      "name": "Orient Tech.",
+      "marketCapCr": 1124.76
+    },
+    {
+      "ticker": "KRISHIVAL",
+      "name": "Krishival Foods",
+      "marketCapCr": 1124.66
+    },
+    {
+      "ticker": "MADRASFERT",
+      "name": "Madras Fertilize",
+      "marketCapCr": 1123.04
+    },
+    {
+      "ticker": "ARIHANTSUP",
+      "name": "Arihant Super.",
+      "marketCapCr": 1122.12
+    },
+    {
+      "ticker": "3BBLACKBIO",
+      "name": "3B Blackbio",
+      "marketCapCr": 1121.15
+    },
+    {
+      "ticker": "GREENPOWER",
+      "name": "Orient Green",
+      "marketCapCr": 1117.9
+    },
+    {
+      "ticker": "TCC",
+      "name": "TCC Concept",
+      "marketCapCr": 1117.62
+    },
+    {
+      "ticker": "BIRLANU",
+      "name": "BirlaNu Ltd",
+      "marketCapCr": 1116.43
+    },
+    {
+      "ticker": "SHREDIGCEM",
+      "name": "Sh. Digvijay Cem",
+      "marketCapCr": 1113.5
+    },
+    {
+      "ticker": "BCLIND",
+      "name": "BCL Industries",
+      "marketCapCr": 1112.47
+    },
+    {
+      "ticker": "SEPC",
+      "name": "SEPC",
+      "marketCapCr": 1106.88
+    },
+    {
+      "ticker": "IRISDOREME",
+      "name": "Iris Clothings",
+      "marketCapCr": 1101.07
+    },
+    {
+      "ticker": "BAJAJHCARE",
+      "name": "Bajaj Healthcare",
+      "marketCapCr": 1098.92
+    },
+    {
+      "ticker": "FINKURVE",
+      "name": "Finkurve Fin.",
+      "marketCapCr": 1098.45
+    },
+    {
+      "ticker": "ACGL",
+      "name": "Auto.Corp.of Goa",
+      "marketCapCr": 1097.72
+    },
+    {
+      "ticker": "GANDHITUBE",
+      "name": "Gandhi Spl. Tube",
+      "marketCapCr": 1095.5
+    },
+    {
+      "ticker": "VHL",
+      "name": "Vardhman Hold.",
+      "marketCapCr": 1093.82
+    },
+    {
+      "ticker": "AWHCL",
+      "name": "Antony Waste han",
+      "marketCapCr": 1091.44
+    },
+    {
+      "ticker": "ONEGLOBAL",
+      "name": "One Global Serv",
+      "marketCapCr": 1087.57
+    },
+    {
+      "ticker": "SACHEEROME",
+      "name": "Sacheerome",
+      "marketCapCr": 1084.63
+    },
+    {
+      "ticker": "JYOTIRES",
+      "name": "Jyoti Resins",
+      "marketCapCr": 1084.38
+    },
+    {
+      "ticker": "TEMBO",
+      "name": "Tembo Global",
+      "marketCapCr": 1083.04
+    },
+    {
+      "ticker": "UTSSAV",
+      "name": "Utssav CZ Gold",
+      "marketCapCr": 1082.19
+    },
+    {
+      "ticker": "LAXMIDENTL",
+      "name": "Laxmi Dental",
+      "marketCapCr": 1079.58
+    },
+    {
+      "ticker": "HARIOMPIPE",
+      "name": "Hariom Pipe",
+      "marketCapCr": 1073.17
+    },
+    {
+      "ticker": "SHRIAHIMSA",
+      "name": "Shri Ahimsa",
+      "marketCapCr": 1073.14
+    },
+    {
+      "ticker": "JINDALPHOT",
+      "name": "Jindal Photo",
+      "marketCapCr": 1069.53
+    },
+    {
+      "ticker": "ANAWIL",
+      "name": "Anawil Wire",
+      "marketCapCr": 1069.12
+    },
+    {
+      "ticker": "ETL",
+      "name": "Emkay Tools",
+      "marketCapCr": 1068.3
+    },
+    {
+      "ticker": "SEKURITIND",
+      "name": "Saint-Gob. Sekur",
+      "marketCapCr": 1066.35
+    },
+    {
+      "ticker": "MATRIMONY",
+      "name": "Matrimony.com",
+      "marketCapCr": 1064.78
+    },
+    {
+      "ticker": "ONIXSOLAR",
+      "name": "Onix Solar",
+      "marketCapCr": 1064.19
+    },
+    {
+      "ticker": "BPLPHARMA",
+      "name": "Bharat Parenter.",
+      "marketCapCr": 1062.19
+    },
+    {
+      "ticker": "SRM",
+      "name": "SRM Contractors",
+      "marketCapCr": 1061.17
+    },
+    {
+      "ticker": "NAHARSPING",
+      "name": "Nahar Spinning",
+      "marketCapCr": 1060.68
+    },
+    {
+      "ticker": "DAMCAPITAL",
+      "name": "Dam Capital Advi",
+      "marketCapCr": 1060.43
+    },
+    {
+      "ticker": "CREST",
+      "name": "Crest Ventures",
+      "marketCapCr": 1059.33
+    },
+    {
+      "ticker": "FLYSBS",
+      "name": "FlySBS Aviation",
+      "marketCapCr": 1056.48
+    },
+    {
+      "ticker": "GRPLTD",
+      "name": "GRP",
+      "marketCapCr": 1050.4
+    },
+    {
+      "ticker": "HMAAGRO",
+      "name": "HMA Agro Inds.",
+      "marketCapCr": 1049.61
+    },
+    {
+      "ticker": "REMUS",
+      "name": "Remus Pharma.",
+      "marketCapCr": 1049.37
+    },
+    {
+      "ticker": "ARROWGREEN",
+      "name": "Arrow Greentech",
+      "marketCapCr": 1045.67
+    },
+    {
+      "ticker": "SUNSHIEL",
+      "name": "Sunshield Chem.",
+      "marketCapCr": 1045.44
+    },
+    {
+      "ticker": "MASTERTR",
+      "name": "Master Trust",
+      "marketCapCr": 1045.14
+    },
+    {
+      "ticker": "JPOLYINVST",
+      "name": "Jindal Poly Inve",
+      "marketCapCr": 1042.8
+    },
+    {
+      "ticker": "INDPRUD",
+      "name": "Indl.& Prud.Inv.",
+      "marketCapCr": 1042.46
+    },
+    {
+      "ticker": "AMNPLST",
+      "name": "Amines & Plast.",
+      "marketCapCr": 1041.42
+    },
+    {
+      "ticker": "SALASAR",
+      "name": "Salasar Techno",
+      "marketCapCr": 1040.03
+    },
+    {
+      "ticker": "SALSTEEL",
+      "name": "S.A.L Steel",
+      "marketCapCr": 1037.11
+    },
+    {
+      "ticker": "UNITECH",
+      "name": "Unitech",
+      "marketCapCr": 1036.05
+    },
+    {
+      "ticker": "DVL",
+      "name": "Dhunseri Vent.",
+      "marketCapCr": 1031.13
+    },
+    {
+      "ticker": "JARO",
+      "name": "Jaro Institute",
+      "marketCapCr": 1026.89
+    },
+    {
+      "ticker": "GAYAPROJ",
+      "name": "Gayatri Projects",
+      "marketCapCr": 1024.24
+    },
+    {
+      "ticker": "AFSL",
+      "name": "Abans Financial",
+      "marketCapCr": 1021.88
+    },
+    {
+      "ticker": "TNPETRO",
+      "name": "T N Petro Prod.",
+      "marketCapCr": 1019.09
+    },
+    {
+      "ticker": "HITECHGEAR",
+      "name": "The Hi-Tech Gear",
+      "marketCapCr": 1018.16
+    },
+    {
+      "ticker": "MMP",
+      "name": "MMP Industries",
+      "marketCapCr": 1017.88
+    },
+    {
+      "ticker": "FRESHARA",
+      "name": "Freshara Agro",
+      "marketCapCr": 1012.82
+    },
+    {
+      "ticker": "KAMDHENU",
+      "name": "Kamdhenu",
+      "marketCapCr": 1010.27
+    },
+    {
+      "ticker": "MAMATA",
+      "name": "Mamata Machinery",
+      "marketCapCr": 1009.29
+    },
+    {
+      "ticker": "NELCAST",
+      "name": "Nelcast",
+      "marketCapCr": 1003.47
+    },
+    {
+      "ticker": "SAHANA",
+      "name": "Sahana Systems",
+      "marketCapCr": 998.36
+    },
+    {
+      "ticker": "DWARKESH",
+      "name": "Dwarikesh Sugar",
+      "marketCapCr": 996
+    },
+    {
+      "ticker": "SUBEXLTD",
+      "name": "Subex",
+      "marketCapCr": 993.21
+    },
+    {
+      "ticker": "SWARAJ",
+      "name": "Swaraj Suiting",
+      "marketCapCr": 985.8
+    },
+    {
+      "ticker": "ZUARI",
+      "name": "Zuari Agro Chem.",
+      "marketCapCr": 985.42
+    },
+    {
+      "ticker": "SALZERELEC",
+      "name": "Salzer Electron.",
+      "marketCapCr": 984.04
+    },
+    {
+      "ticker": "REGAAL",
+      "name": "Regaal Resources",
+      "marketCapCr": 974.01
+    },
+    {
+      "ticker": "TNPL",
+      "name": "T N Newsprint",
+      "marketCapCr": 973.59
+    },
+    {
+      "ticker": "ESTER",
+      "name": "Ester Industries",
+      "marketCapCr": 973.18
+    },
+    {
+      "ticker": "ARIHANT",
+      "name": "Arih.Found.Hsg.",
+      "marketCapCr": 969.95
+    },
+    {
+      "ticker": "BHAGERIA",
+      "name": "Bhageria Indust.",
+      "marketCapCr": 965.85
+    },
+    {
+      "ticker": "PRIMESECU",
+      "name": "Prime Securities",
+      "marketCapCr": 963.79
+    },
+    {
+      "ticker": "CONTROLPR",
+      "name": "Control Print",
+      "marketCapCr": 961.73
+    },
+    {
+      "ticker": "UNIECOM",
+      "name": "Unicommerce",
+      "marketCapCr": 959.72
+    },
+    {
+      "ticker": "PREMIERPOL",
+      "name": "Premier Polyfilm",
+      "marketCapCr": 950.96
+    },
+    {
+      "ticker": "TEJASCARGO",
+      "name": "Tejas Cargo",
+      "marketCapCr": 950.94
+    },
+    {
+      "ticker": "HEALTHX",
+      "name": "Health X Platform",
+      "marketCapCr": 948.59
+    },
+    {
+      "ticker": "ASTAR",
+      "name": "Asian Star Co.",
+      "marketCapCr": 944.4
+    },
+    {
+      "ticker": "GKWLIMITED",
+      "name": "GKW",
+      "marketCapCr": 943.26
+    },
+    {
+      "ticker": "BSHSL",
+      "name": "Bombay Super Hyb",
+      "marketCapCr": 943.18
+    },
+    {
+      "ticker": "KOPRAN",
+      "name": "Kopran",
+      "marketCapCr": 939.4
+    },
+    {
+      "ticker": "AMBIKCO",
+      "name": "Ambika Cotton",
+      "marketCapCr": 938.44
+    },
+    {
+      "ticker": "SURAJEST",
+      "name": "Suraj Estate",
+      "marketCapCr": 936.41
+    },
+    {
+      "ticker": "RSWM",
+      "name": "RSWM Ltd",
+      "marketCapCr": 932.42
+    },
+    {
+      "ticker": "AMAL",
+      "name": "Amal",
+      "marketCapCr": 922.07
+    },
+    {
+      "ticker": "SWELECTES",
+      "name": "Swelect Energy",
+      "marketCapCr": 917.94
+    },
+    {
+      "ticker": "HIMATSEIDE",
+      "name": "Himatsing. Seide",
+      "marketCapCr": 913.77
+    },
+    {
+      "ticker": "WANBURY",
+      "name": "Wanbury",
+      "marketCapCr": 913.16
+    },
+    {
+      "ticker": "WEALTH",
+      "name": "Wealth First Por",
+      "marketCapCr": 912.12
+    },
+    {
+      "ticker": "KRYSTAL",
+      "name": "Krystal Integrat",
+      "marketCapCr": 911.6
+    },
+    {
+      "ticker": "SGIL",
+      "name": "Synergy Green",
+      "marketCapCr": 911.6
+    },
+    {
+      "ticker": "DHARMAJ",
+      "name": "Dharmaj Crop",
+      "marketCapCr": 911.01
+    },
+    {
+      "ticker": "MICEL",
+      "name": "MIC Electronics",
+      "marketCapCr": 908.37
+    },
+    {
+      "ticker": "TIRUPATIFL",
+      "name": "Tirupati Forge",
+      "marketCapCr": 905.73
+    },
+    {
+      "ticker": "SUMEETINDS",
+      "name": "Sumeet Industrie",
+      "marketCapCr": 903.17
+    },
+    {
+      "ticker": "GEMAROMA",
+      "name": "Gem Aromatics",
+      "marketCapCr": 900.31
+    },
+    {
+      "ticker": "IFBAGRO",
+      "name": "IFB Agro Inds.",
+      "marketCapCr": 898.77
+    },
+    {
+      "ticker": "SVLL",
+      "name": "Shree Vasu Logis",
+      "marketCapCr": 896.57
+    },
+    {
+      "ticker": "SADHNANIQ",
+      "name": "Sadhana Nitro",
+      "marketCapCr": 894.5
+    },
+    {
+      "ticker": "SUDARCOLOR",
+      "name": "Sudarshan Colorants",
+      "marketCapCr": 894.3
+    },
+    {
+      "ticker": "ORIRAIL",
+      "name": "Oriental Rail",
+      "marketCapCr": 891.82
+    },
+    {
+      "ticker": "RITCO",
+      "name": "Ritco Logistics",
+      "marketCapCr": 890.74
+    },
+    {
+      "ticker": "ORICONENT",
+      "name": "Oricon Enterpris",
+      "marketCapCr": 889.68
+    },
+    {
+      "ticker": "VHLTD",
+      "name": "Viceroy Hotels",
+      "marketCapCr": 887.52
+    },
+    {
+      "ticker": "SUYOG",
+      "name": "Suyog Telematics",
+      "marketCapCr": 885.58
+    },
+    {
+      "ticker": "PCCL",
+      "name": "Petro Carbon",
+      "marketCapCr": 885.12
+    },
+    {
+      "ticker": "VINSYS",
+      "name": "Vinsys IT Serv.",
+      "marketCapCr": 884.84
+    },
+    {
+      "ticker": "VILAS",
+      "name": "Vilas Transcore",
+      "marketCapCr": 883.97
+    },
+    {
+      "ticker": "RAJOOENG",
+      "name": "Rajoo Engineers",
+      "marketCapCr": 882.48
+    },
+    {
+      "ticker": "LGHL",
+      "name": "Laxmi Goldorna",
+      "marketCapCr": 882.13
+    },
+    {
+      "ticker": "ECORECO",
+      "name": "Eco Recyc.",
+      "marketCapCr": 881.76
+    },
+    {
+      "ticker": "PRADPME",
+      "name": "Pradeep Metals",
+      "marketCapCr": 880.77
+    },
+    {
+      "ticker": "GANESHBE",
+      "name": "Ganesh Benzopl.",
+      "marketCapCr": 880.21
+    },
+    {
+      "ticker": "CONSOFINVT",
+      "name": "Cons. Finvest",
+      "marketCapCr": 879.83
+    },
+    {
+      "ticker": "INDOAMIN",
+      "name": "Indo Amines",
+      "marketCapCr": 879.54
+    },
+    {
+      "ticker": "WCIL",
+      "name": "Western Carriers",
+      "marketCapCr": 878.96
+    },
+    {
+      "ticker": "MCCHRLS-B",
+      "name": "Mac Charles(I)",
+      "marketCapCr": 877.7
+    },
+    {
+      "ticker": "ARIHANTCAP",
+      "name": "Arihant Capital",
+      "marketCapCr": 875.92
+    },
+    {
+      "ticker": "HEXATRADEX",
+      "name": "Hexa Tradex",
+      "marketCapCr": 875.71
+    },
+    {
+      "ticker": "TAC",
+      "name": "TAC Infosec",
+      "marketCapCr": 872.53
+    },
+    {
+      "ticker": "MAFATIND",
+      "name": "Mafatlal Inds.",
+      "marketCapCr": 866.8
+    },
+    {
+      "ticker": "NRAIL",
+      "name": "N R Agarwal Inds",
+      "marketCapCr": 866.78
+    },
+    {
+      "ticker": "KECL",
+      "name": "Kirl. Electric",
+      "marketCapCr": 866.31
+    },
+    {
+      "ticker": "BAHETI",
+      "name": "Baheti Recycling",
+      "marketCapCr": 862.61
+    },
+    {
+      "ticker": "FEDDERSHOL",
+      "name": "Fedders Holding",
+      "marketCapCr": 856.02
+    },
+    {
+      "ticker": "WELINV",
+      "name": "Welspun Investme",
+      "marketCapCr": 854.32
+    },
+    {
+      "ticker": "NRL",
+      "name": "Nupur Recyclers",
+      "marketCapCr": 853.35
+    },
+    {
+      "ticker": "GAUDIUMIVF",
+      "name": "Gaudium IVF",
+      "marketCapCr": 851.61
+    },
+    {
+      "ticker": "PDMJEPAPER",
+      "name": "Pudumjee Paper",
+      "marketCapCr": 851.61
+    },
+    {
+      "ticker": "VIESL",
+      "name": "Vision Infra",
+      "marketCapCr": 851.03
+    },
+    {
+      "ticker": "MAXIND",
+      "name": "Max India Ltd",
+      "marketCapCr": 850.33
+    },
+    {
+      "ticker": "PANACHE",
+      "name": "Panache Digilife",
+      "marketCapCr": 849.46
+    },
+    {
+      "ticker": "MVKAGRO",
+      "name": "M.V.K. Agro",
+      "marketCapCr": 848.72
+    },
+    {
+      "ticker": "DBOL",
+      "name": "Dhampur Bio",
+      "marketCapCr": 847.97
+    },
+    {
+      "ticker": "BORANA",
+      "name": "Borana Weaves",
+      "marketCapCr": 847.59
+    },
+    {
+      "ticker": "UNITEDPOLY",
+      "name": "United Polyfab",
+      "marketCapCr": 845.76
+    },
+    {
+      "ticker": "SOLEX",
+      "name": "Solex Energy",
+      "marketCapCr": 844.16
+    },
+    {
+      "ticker": "VADILENT",
+      "name": "Vadilal Enterp.",
+      "marketCapCr": 842.37
+    },
+    {
+      "ticker": "HEXAGON",
+      "name": "Hexagon Nutri.",
+      "marketCapCr": 840.02
+    },
+    {
+      "ticker": "ROHLTD",
+      "name": "Royal Orch.Hotel",
+      "marketCapCr": 839.76
+    },
+    {
+      "ticker": "FAIRCHEMOR",
+      "name": "Fairchem Organic",
+      "marketCapCr": 838.89
+    },
+    {
+      "ticker": "NDTV",
+      "name": "NDTV",
+      "marketCapCr": 838.85
+    },
+    {
+      "ticker": "SICALLOG",
+      "name": "Sical Logistics",
+      "marketCapCr": 836.23
+    },
+    {
+      "ticker": "XTRANET",
+      "name": "Xtranet Techno.",
+      "marketCapCr": 835.68
+    },
+    {
+      "ticker": "PRECOT",
+      "name": "Precot",
+      "marketCapCr": 834.54
+    },
+    {
+      "ticker": "VALIANTORG",
+      "name": "Valiant Organics",
+      "marketCapCr": 832.63
+    },
+    {
+      "ticker": "RADHIKAJWE",
+      "name": "Radhika Jeweltec",
+      "marketCapCr": 832.37
+    },
+    {
+      "ticker": "LIKHITHA",
+      "name": "Likhitha Infra.",
+      "marketCapCr": 831.96
+    },
+    {
+      "ticker": "RMDRIP",
+      "name": "R M Drip & Sprin",
+      "marketCapCr": 829.48
+    },
+    {
+      "ticker": "SUPREMEINF",
+      "name": "Supreme Infra.",
+      "marketCapCr": 826.92
+    },
+    {
+      "ticker": "JITFINFRA",
+      "name": "JITF Infra Logis",
+      "marketCapCr": 826.5
+    },
+    {
+      "ticker": "TVSELECT",
+      "name": "TVS Elec.",
+      "marketCapCr": 826.49
+    },
+    {
+      "ticker": "NCLIND",
+      "name": "NCL Industries",
+      "marketCapCr": 822.56
+    },
+    {
+      "ticker": "MEIL",
+      "name": "Mangal Electrica",
+      "marketCapCr": 822.41
+    },
+    {
+      "ticker": "ZUARIIND",
+      "name": "Zuari Industries",
+      "marketCapCr": 821.66
+    },
+    {
+      "ticker": "STERTOOLS",
+      "name": "Sterling Tools",
+      "marketCapCr": 816.66
+    },
+    {
+      "ticker": "MAGADSUGAR",
+      "name": "Magadh Sugar",
+      "marketCapCr": 813.23
+    },
+    {
+      "ticker": "CIFL",
+      "name": "Capital India",
+      "marketCapCr": 811.44
+    },
+    {
+      "ticker": "EXCELSOFT",
+      "name": "Excelsoft Tech.",
+      "marketCapCr": 811.34
+    },
+    {
+      "ticker": "BEEKAY",
+      "name": "Beekay Steel Ind",
+      "marketCapCr": 810.56
+    },
+    {
+      "ticker": "DECCANCE",
+      "name": "Deccan Cements",
+      "marketCapCr": 808.44
+    },
+    {
+      "ticker": "SRHHYPOLTD",
+      "name": "Sr.Rayala.Hypo",
+      "marketCapCr": 808.38
+    },
+    {
+      "ticker": "OCCLLTD",
+      "name": "OCCL",
+      "marketCapCr": 804.75
+    },
+    {
+      "ticker": "VELJAN",
+      "name": "Veljan Denison",
+      "marketCapCr": 803.3
+    },
+    {
+      "ticker": "AHCL",
+      "name": "Anlon Healthcare",
+      "marketCapCr": 803.12
+    },
+    {
+      "ticker": "LOTUSCHO",
+      "name": "Lotus Chocolate",
+      "marketCapCr": 803.08
+    },
+    {
+      "ticker": "BIRLACABLE",
+      "name": "Birla Cable",
+      "marketCapCr": 803.04
+    },
+    {
+      "ticker": "KOKUYOCMLN",
+      "name": "Kokuyo Camlin",
+      "marketCapCr": 801.73
+    },
+    {
+      "ticker": "PROSTARM",
+      "name": "Prostarm Info",
+      "marketCapCr": 799.99
+    },
+    {
+      "ticker": "SARLAPOLY",
+      "name": "Sarla Performanc",
+      "marketCapCr": 799.01
+    },
+    {
+      "ticker": "PARIN",
+      "name": "Parin Enterpris.",
+      "marketCapCr": 796.6
+    },
+    {
+      "ticker": "ANUHPHR",
+      "name": "Anuh Pharma",
+      "marketCapCr": 791.97
+    },
+    {
+      "ticker": "SYSTMTXC",
+      "name": "Systematix Corp.",
+      "marketCapCr": 791.92
+    },
+    {
+      "ticker": "KOTHARIPET",
+      "name": "Kothari Petroche",
+      "marketCapCr": 790.9
+    },
+    {
+      "ticker": "VISAKAIND",
+      "name": "Visaka Industrie",
+      "marketCapCr": 790.86
+    },
+    {
+      "ticker": "OMINFRAL",
+      "name": "Om Infra",
+      "marketCapCr": 790.65
+    },
+    {
+      "ticker": "20MICRONS",
+      "name": "20 Microns",
+      "marketCapCr": 789.11
+    },
+    {
+      "ticker": "SAHASRA",
+      "name": "Sahasra Electro.",
+      "marketCapCr": 788.02
+    },
+    {
+      "ticker": "ADVANCE",
+      "name": "Advance Agrolife",
+      "marketCapCr": 788.01
+    },
+    {
+      "ticker": "ELDEHSG",
+      "name": "Eldeco Housing",
+      "marketCapCr": 786.2
+    },
+    {
+      "ticker": "MODIS",
+      "name": "Modi's Navnirman",
+      "marketCapCr": 783.45
+    },
+    {
+      "ticker": "STANLEY",
+      "name": "Stanley Lifesty.",
+      "marketCapCr": 782.68
+    },
+    {
+      "ticker": "SANDESH",
+      "name": "Sandesh",
+      "marketCapCr": 781.38
+    },
+    {
+      "ticker": "PATELRMART",
+      "name": "Patel Retail",
+      "marketCapCr": 778.63
+    },
+    {
+      "ticker": "ASAL",
+      "name": "Automotive Stamp",
+      "marketCapCr": 776.03
+    },
+    {
+      "ticker": "PERMAGN",
+      "name": "Permanent Magnet",
+      "marketCapCr": 774.47
+    },
+    {
+      "ticker": "SCODATUBES",
+      "name": "Scoda Tubes",
+      "marketCapCr": 771.99
+    },
+    {
+      "ticker": "MUKKA",
+      "name": "Mukka Proteins",
+      "marketCapCr": 771.9
+    },
+    {
+      "ticker": "TRANSPEK",
+      "name": "Transpek Inds.",
+      "marketCapCr": 770.59
+    },
+    {
+      "ticker": "VLSFINANCE",
+      "name": "VLS Finance",
+      "marketCapCr": 769.88
+    },
+    {
+      "ticker": "CELLECOR",
+      "name": "Cellecor Gadgets",
+      "marketCapCr": 767.03
+    },
+    {
+      "ticker": "ISTLTD",
+      "name": "IST",
+      "marketCapCr": 766.68
+    },
+    {
+      "ticker": "EFFWA",
+      "name": "Effwa Infra",
+      "marketCapCr": 766.17
+    },
+    {
+      "ticker": "GEECEE",
+      "name": "GeeCee Vent.",
+      "marketCapCr": 765.47
+    },
+    {
+      "ticker": "ARYAMAN",
+      "name": "Aryaman Fin.Serv",
+      "marketCapCr": 765.44
+    },
+    {
+      "ticker": "ABINFRA",
+      "name": "A B Infrabuild",
+      "marketCapCr": 763.35
+    },
+    {
+      "ticker": "GICHSGFIN",
+      "name": "GIC Housing Fin",
+      "marketCapCr": 763.32
+    },
+    {
+      "ticker": "DENTA",
+      "name": "Denta Water",
+      "marketCapCr": 762.55
+    },
+    {
+      "ticker": "RAJPALAYAM",
+      "name": "Rajapalayam Mill",
+      "marketCapCr": 762.42
+    },
+    {
+      "ticker": "TANAA",
+      "name": "Taneja Aerospace",
+      "marketCapCr": 761.06
+    },
+    {
+      "ticker": "QUICKHEAL",
+      "name": "Quick Heal Tech",
+      "marketCapCr": 760.51
+    },
+    {
+      "ticker": "SEJALLTD",
+      "name": "Sejal Glass",
+      "marketCapCr": 760.32
+    },
+    {
+      "ticker": "PVSL",
+      "name": "Popular Vehicles",
+      "marketCapCr": 758.47
+    },
+    {
+      "ticker": "MVGJL",
+      "name": "Manoj Vaibhav",
+      "marketCapCr": 758.06
+    },
+    {
+      "ticker": "NEUEON",
+      "name": "Neueon Corporation",
+      "marketCapCr": 757.7
+    },
+    {
+      "ticker": "ADVENTHTL",
+      "name": "Advent Hotels",
+      "marketCapCr": 747
+    },
+    {
+      "ticker": "VIVIANA",
+      "name": "Viviana Power",
+      "marketCapCr": 743.72
+    },
+    {
+      "ticker": "RNFI",
+      "name": "RNFI Services",
+      "marketCapCr": 742.07
+    },
+    {
+      "ticker": "AMANTA",
+      "name": "Amanta Healthcar",
+      "marketCapCr": 741.76
+    },
+    {
+      "ticker": "CHEMCON",
+      "name": "Chemcon Special.",
+      "marketCapCr": 736.83
+    },
+    {
+      "ticker": "BAJAJST",
+      "name": "Bajaj Steel Inds",
+      "marketCapCr": 736.74
+    },
+    {
+      "ticker": "MERCURYEV",
+      "name": "Mercury EV-Tech",
+      "marketCapCr": 735.77
+    },
+    {
+      "ticker": "BAJAJINDEF",
+      "name": "Indef Manufactur",
+      "marketCapCr": 734.88
+    },
+    {
+      "ticker": "DENTALKART",
+      "name": "Vasa Denticity",
+      "marketCapCr": 734.41
+    },
+    {
+      "ticker": "YOGI",
+      "name": "Yogi Ltd",
+      "marketCapCr": 733.91
+    },
+    {
+      "ticker": "EMPIND",
+      "name": "Empire Inds.",
+      "marketCapCr": 733.08
+    },
+    {
+      "ticker": "EMAMIPAP",
+      "name": "Emami Paper",
+      "marketCapCr": 731.93
+    },
+    {
+      "ticker": "ENKEIWHEL",
+      "name": "Enkei Wheels",
+      "marketCapCr": 727.62
+    },
+    {
+      "ticker": "KRONOX",
+      "name": "Kronox Lab",
+      "marketCapCr": 725.16
+    },
+    {
+      "ticker": "BIRLAMONEY",
+      "name": "Adit.Birla Money",
+      "marketCapCr": 724.17
+    },
+    {
+      "ticker": "ZTECH",
+      "name": "Z-Tech (India)",
+      "marketCapCr": 724.12
+    },
+    {
+      "ticker": "VASCONEQ",
+      "name": "Vascon Engineers",
+      "marketCapCr": 720.81
+    },
+    {
+      "ticker": "CHEMBONDCH",
+      "name": "Chembond Chemic.",
+      "marketCapCr": 720.18
+    },
+    {
+      "ticker": "SUNLITE",
+      "name": "Sunlite Recycli.",
+      "marketCapCr": 719.28
+    },
+    {
+      "ticker": "SPECIALITY",
+      "name": "Speciality Rest.",
+      "marketCapCr": 718.9
+    },
+    {
+      "ticker": "KELLTONTEC",
+      "name": "Kellton Tech",
+      "marketCapCr": 717.93
+    },
+    {
+      "ticker": "TUTIALKA",
+      "name": "Tuticorin Alkali",
+      "marketCapCr": 717.37
+    },
+    {
+      "ticker": "MAANALU",
+      "name": "Maan Aluminium",
+      "marketCapCr": 713.7
+    },
+    {
+      "ticker": "DMCC",
+      "name": "DMCC Speciality",
+      "marketCapCr": 713.03
+    },
+    {
+      "ticker": "UPHOT",
+      "name": "U P Hotels",
+      "marketCapCr": 712.8
+    },
+    {
+      "ticker": "HALDYNGL",
+      "name": "Haldyn Glass",
+      "marketCapCr": 712.43
+    },
+    {
+      "ticker": "ATL",
+      "name": "Allcargo Termi",
+      "marketCapCr": 709.83
+    },
+    {
+      "ticker": "STCINDIA",
+      "name": "S T C",
+      "marketCapCr": 709.74
+    },
+    {
+      "ticker": "AGARIND",
+      "name": "Agarwal Indl.",
+      "marketCapCr": 703.32
+    },
+    {
+      "ticker": "ABSMARINE",
+      "name": "ABS Marine",
+      "marketCapCr": 703.11
+    },
+    {
+      "ticker": "INFLUX",
+      "name": "Influx Health.",
+      "marketCapCr": 700.07
+    },
+    {
+      "ticker": "OSELDEVICE",
+      "name": "OSEL Devices",
+      "marketCapCr": 699.15
+    },
+    {
+      "ticker": "EIFFL",
+      "name": "Euro India Fresh",
+      "marketCapCr": 697.25
+    },
+    {
+      "ticker": "KARNIKA",
+      "name": "Karnika Industri",
+      "marketCapCr": 696.54
+    },
+    {
+      "ticker": "HERANBA",
+      "name": "Heranba Inds",
+      "marketCapCr": 696.47
+    },
+    {
+      "ticker": "RAMASTEEL",
+      "name": "Rama Steel Tubes",
+      "marketCapCr": 695.32
+    },
+    {
+      "ticker": "BLAL",
+      "name": "BEML Land Assets",
+      "marketCapCr": 694.46
+    },
+    {
+      "ticker": "DPSCLTD",
+      "name": "India Power Corp",
+      "marketCapCr": 692.36
+    },
+    {
+      "ticker": "SOUTHWEST",
+      "name": "South West Pinn.",
+      "marketCapCr": 691.1
+    },
+    {
+      "ticker": "SCPL",
+      "name": "Sheetal Cool",
+      "marketCapCr": 690.06
+    },
+    {
+      "ticker": "TVTODAY",
+      "name": "T.V. Today Netw.",
+      "marketCapCr": 687.14
+    },
+    {
+      "ticker": "PRAVEG",
+      "name": "Praveg",
+      "marketCapCr": 685.54
+    },
+    {
+      "ticker": "XCHANGING",
+      "name": "Xchanging Sol.",
+      "marketCapCr": 685.24
+    },
+    {
+      "ticker": "KANORICHEM",
+      "name": "Kanoria Chem.",
+      "marketCapCr": 685.08
+    },
+    {
+      "ticker": "SHALPAINTS",
+      "name": "Shalimar Paints",
+      "marketCapCr": 682.66
+    },
+    {
+      "ticker": "DHUNINV",
+      "name": "Dhunseri Invest.",
+      "marketCapCr": 680.38
+    },
+    {
+      "ticker": "EVERESTIND",
+      "name": "Everest Inds.",
+      "marketCapCr": 680.21
+    },
+    {
+      "ticker": "INDOTHAI",
+      "name": "Indo Thai Sec.",
+      "marketCapCr": 679.6
+    },
+    {
+      "ticker": "ZIMLAB",
+      "name": "Zim Laboratories",
+      "marketCapCr": 678.24
+    },
+    {
+      "ticker": "TANKUP",
+      "name": "Tankup Engi.",
+      "marketCapCr": 677.76
+    },
+    {
+      "ticker": "CHEVIOT",
+      "name": "Cheviot Company",
+      "marketCapCr": 674.15
+    },
+    {
+      "ticker": "LOKESHMACH",
+      "name": "Lokesh Mach.",
+      "marketCapCr": 673.41
+    },
+    {
+      "ticker": "CCCL",
+      "name": "C C C L",
+      "marketCapCr": 673.27
+    },
+    {
+      "ticker": "GANESHCP",
+      "name": "Ganesh Consumer",
+      "marketCapCr": 671.14
+    },
+    {
+      "ticker": "INDOFARM",
+      "name": "Indo Farm Equip.",
+      "marketCapCr": 671.14
+    },
+    {
+      "ticker": "JAYAGROGN",
+      "name": "Jayant Agro Org.",
+      "marketCapCr": 669.75
+    },
+    {
+      "ticker": "PARTH",
+      "name": "Parth Electrical",
+      "marketCapCr": 669.73
+    },
+    {
+      "ticker": "ECOSMOBLTY",
+      "name": "Ecos (India)",
+      "marketCapCr": 669.72
+    },
+    {
+      "ticker": "KAMATHOTEL",
+      "name": "Kamat Hotels",
+      "marketCapCr": 669.43
+    },
+    {
+      "ticker": "LAXMIINDIA",
+      "name": "Laxmi India Fin.",
+      "marketCapCr": 663.98
+    },
+    {
+      "ticker": "PROZONER",
+      "name": "Prozone Realty",
+      "marketCapCr": 663.96
+    },
+    {
+      "ticker": "BAFNAPH",
+      "name": "Bafna Pharma.",
+      "marketCapCr": 663.8
+    },
+    {
+      "ticker": "SPELS",
+      "name": "Spel Semiconduct",
+      "marketCapCr": 662.33
+    },
+    {
+      "ticker": "MANBA",
+      "name": "Manba Finance",
+      "marketCapCr": 662.26
+    },
+    {
+      "ticker": "HMVL",
+      "name": "Hindustan Media",
+      "marketCapCr": 662.23
+    },
+    {
+      "ticker": "UNIENTER",
+      "name": "Uniphos Enter.",
+      "marketCapCr": 661.28
+    },
+    {
+      "ticker": "EMKAY",
+      "name": "Emk.Global Fin.",
+      "marketCapCr": 660.91
+    },
+    {
+      "ticker": "DCI",
+      "name": "DC Infotech",
+      "marketCapCr": 660.59
+    },
+    {
+      "ticker": "SGRL",
+      "name": "Shree Ganesh Rem",
+      "marketCapCr": 658.63
+    },
+    {
+      "ticker": "SAURASHCEM",
+      "name": "Saurashtra Cem.",
+      "marketCapCr": 656.71
+    },
+    {
+      "ticker": "AXTEL",
+      "name": "Axtel Industries",
+      "marketCapCr": 656.37
+    },
+    {
+      "ticker": "VAKRANGEE",
+      "name": "Vakrangee",
+      "marketCapCr": 655.33
+    },
+    {
+      "ticker": "ARIES",
+      "name": "Aries Agro",
+      "marketCapCr": 655.03
+    },
+    {
+      "ticker": "INNOVANA",
+      "name": "Innovana Think.",
+      "marketCapCr": 654.72
+    },
+    {
+      "ticker": "DCMSIL",
+      "name": "DCM Shriram Intl",
+      "marketCapCr": 654.62
+    },
+    {
+      "ticker": "FABTECH",
+      "name": "Fabtech Tech.",
+      "marketCapCr": 653.38
+    },
+    {
+      "ticker": "GLOSTERLTD",
+      "name": "Gloster Ltd",
+      "marketCapCr": 651.51
+    },
+    {
+      "ticker": "KSOLVES",
+      "name": "Ksolves India",
+      "marketCapCr": 648.52
+    },
+    {
+      "ticker": "TREL",
+      "name": "TransIndia Real",
+      "marketCapCr": 648.39
+    },
+    {
+      "ticker": "CREDENT",
+      "name": "Credent Connect N Care",
+      "marketCapCr": 647.55
+    },
+    {
+      "ticker": "PROV",
+      "name": "Proventus Agro.",
+      "marketCapCr": 647.52
+    },
+    {
+      "ticker": "KANPRPLA",
+      "name": "Kanpur Plastipa.",
+      "marketCapCr": 646.92
+    },
+    {
+      "ticker": "APSISAERO",
+      "name": "Apsis Aerocom",
+      "marketCapCr": 644.48
+    },
+    {
+      "ticker": "VIRAT",
+      "name": "Virat Industries",
+      "marketCapCr": 641.93
+    },
+    {
+      "ticker": "VOITHPAPR",
+      "name": "Voith Paper",
+      "marketCapCr": 640.94
+    },
+    {
+      "ticker": "NAMOEWASTE",
+      "name": "Namo eWaste",
+      "marketCapCr": 638.58
+    },
+    {
+      "ticker": "SHINDL",
+      "name": "Sharat Industrie",
+      "marketCapCr": 638.22
+    },
+    {
+      "ticker": "SUTLEJTEX",
+      "name": "Sutlej Textiles",
+      "marketCapCr": 635.16
+    },
+    {
+      "ticker": "BESTAGRO",
+      "name": "Best Agrolife",
+      "marketCapCr": 633.09
+    },
+    {
+      "ticker": "PPL",
+      "name": "Prakash Pipes",
+      "marketCapCr": 633
+    },
+    {
+      "ticker": "KUANTUM",
+      "name": "Kuantum Papers",
+      "marketCapCr": 631.35
+    },
+    {
+      "ticker": "ONWARDTEC",
+      "name": "Onward Technolog",
+      "marketCapCr": 630.55
+    },
+    {
+      "ticker": "COFFEEDAY",
+      "name": "Coffee Day Enter",
+      "marketCapCr": 629.11
+    },
+    {
+      "ticker": "HTMEDIA",
+      "name": "H T Media",
+      "marketCapCr": 625.69
+    },
+    {
+      "ticker": "SNOWMAN",
+      "name": "Snowman Logistic",
+      "marketCapCr": 620.4
+    },
+    {
+      "ticker": "ADSL",
+      "name": "Allied Digital",
+      "marketCapCr": 620.21
+    },
+    {
+      "ticker": "UGARSUGAR",
+      "name": "Ugar Sugar Works",
+      "marketCapCr": 618.41
+    },
+    {
+      "ticker": "HARDWYN",
+      "name": "Hardwyn India",
+      "marketCapCr": 617.47
+    },
+    {
+      "ticker": "GTPL",
+      "name": "GTPL Hathway",
+      "marketCapCr": 612.92
+    },
+    {
+      "ticker": "GFLLIMITED",
+      "name": "GFL",
+      "marketCapCr": 612.85
+    },
+    {
+      "ticker": "BIGBLOC",
+      "name": "BIGBLOC Const.",
+      "marketCapCr": 612.6
+    },
+    {
+      "ticker": "MALLCOM",
+      "name": "Mallcom (India)",
+      "marketCapCr": 611.36
+    },
+    {
+      "ticker": "ORBTEXP",
+      "name": "Orbit Exports",
+      "marketCapCr": 608.13
+    },
+    {
+      "ticker": "GLOTTIS",
+      "name": "Glottis",
+      "marketCapCr": 607.73
+    },
+    {
+      "ticker": "AQYLON",
+      "name": "Aqylon Nexus",
+      "marketCapCr": 607.68
+    },
+    {
+      "ticker": "ZFSTEERING",
+      "name": "Z F Steering",
+      "marketCapCr": 607.33
+    },
+    {
+      "ticker": "AHLWEST",
+      "name": "Asian Hotels (W)",
+      "marketCapCr": 607.14
+    },
+    {
+      "ticker": "INNOVISION",
+      "name": "Innovision",
+      "marketCapCr": 606.76
+    },
+    {
+      "ticker": "TPLPLASTEH",
+      "name": "TPL Plastech",
+      "marketCapCr": 605.3
+    },
+    {
+      "ticker": "SHIVAUM",
+      "name": "Shiv Aum Steels",
+      "marketCapCr": 604.47
+    },
+    {
+      "ticker": "NAHARPOLY",
+      "name": "Nahar Poly",
+      "marketCapCr": 603.64
+    },
+    {
+      "ticker": "HINDCOMPOS",
+      "name": "Hind.Composites",
+      "marketCapCr": 602.94
+    },
+    {
+      "ticker": "SREEL",
+      "name": "Sreeleathers",
+      "marketCapCr": 602.03
+    },
+    {
+      "ticker": "FOCE",
+      "name": "Foce India",
+      "marketCapCr": 601.24
+    },
+    {
+      "ticker": "KILITCH",
+      "name": "Kilitch Drugs",
+      "marketCapCr": 598.79
+    },
+    {
+      "ticker": "PYRAMID",
+      "name": "Pyramid Technopl",
+      "marketCapCr": 598.6
+    },
+    {
+      "ticker": "RBZJEWEL",
+      "name": "RBZ Jewellers Lt",
+      "marketCapCr": 597.32
+    },
+    {
+      "ticker": "SHRJAGP",
+      "name": "Sh. Jagdamba Pol",
+      "marketCapCr": 596.16
+    },
+    {
+      "ticker": "KRMAYURVED",
+      "name": "KRM Ayurveda",
+      "marketCapCr": 594.88
+    },
+    {
+      "ticker": "DHABRIYA",
+      "name": "Dhabriya Poly.",
+      "marketCapCr": 594.2
+    },
+    {
+      "ticker": "OMPOWER",
+      "name": "Om Power Transmission",
+      "marketCapCr": 591.89
+    },
+    {
+      "ticker": "SHRADDHA",
+      "name": "Shraddha Prime",
+      "marketCapCr": 591.31
+    },
+    {
+      "ticker": "NBIFIN",
+      "name": "NBI Indl. Fin.",
+      "marketCapCr": 588.02
+    },
+    {
+      "ticker": "NAHARINDUS",
+      "name": "Nahar Indl. Ent.",
+      "marketCapCr": 587.25
+    },
+    {
+      "ticker": "SATIA",
+      "name": "Satia Industries",
+      "marketCapCr": 586.9
+    },
+    {
+      "ticker": "PENINLAND",
+      "name": "Peninsula Land",
+      "marketCapCr": 586.16
+    },
+    {
+      "ticker": "VALIANTLAB",
+      "name": "Valiant Laborato",
+      "marketCapCr": 585.87
+    },
+    {
+      "ticker": "BLACKROSE",
+      "name": "Black Rose Indus",
+      "marketCapCr": 584.77
+    },
+    {
+      "ticker": "ZEEMEDIA",
+      "name": "Zee Media",
+      "marketCapCr": 584.64
+    },
+    {
+      "ticker": "SOFTTECH",
+      "name": "Softtech Enginee",
+      "marketCapCr": 584.35
+    },
+    {
+      "ticker": "SHREERAMA",
+      "name": "Sh. Rama Multi.",
+      "marketCapCr": 579.79
+    },
+    {
+      "ticker": "HITECHCORP",
+      "name": "Hitech Corp.",
+      "marketCapCr": 578.82
+    },
+    {
+      "ticker": "LINC",
+      "name": "Linc",
+      "marketCapCr": 578.23
+    },
+    {
+      "ticker": "LAKSHMIMIL",
+      "name": "Lakshmi Mills",
+      "marketCapCr": 577.61
+    },
+    {
+      "ticker": "SUPREMEPWR",
+      "name": "Supreme Power",
+      "marketCapCr": 577.05
+    },
+    {
+      "ticker": "KSE",
+      "name": "KSE",
+      "marketCapCr": 576.74
+    },
+    {
+      "ticker": "TRITONV",
+      "name": "Triton Valves",
+      "marketCapCr": 575.57
+    },
+    {
+      "ticker": "MOLDTECH",
+      "name": "Mold-Tek Technol",
+      "marketCapCr": 571.72
+    },
+    {
+      "ticker": "ONMOBILE",
+      "name": "OnMobile Global",
+      "marketCapCr": 570.7
+    },
+    {
+      "ticker": "MANAKSTEEL",
+      "name": "Manaksia Steels",
+      "marketCapCr": 570.28
+    },
+    {
+      "ticker": "UNIVASTU",
+      "name": "Univastu India",
+      "marketCapCr": 568.2
+    },
+    {
+      "ticker": "GGBL",
+      "name": "Ganesh Green",
+      "marketCapCr": 567.32
+    },
+    {
+      "ticker": "GLOBAL",
+      "name": "Global Education",
+      "marketCapCr": 565.31
+    },
+    {
+      "ticker": "PANSARI",
+      "name": "Pansari Develop.",
+      "marketCapCr": 565.28
+    },
+    {
+      "ticker": "CEWATER",
+      "name": "Concord Enviro",
+      "marketCapCr": 562.42
+    },
+    {
+      "ticker": "SAYAJIHOTL",
+      "name": "Sayaji Hotels",
+      "marketCapCr": 560.75
+    },
+    {
+      "ticker": "ORIENTBELL",
+      "name": "Orient Bell",
+      "marketCapCr": 556.54
+    },
+    {
+      "ticker": "PASUPTAC",
+      "name": "Pasupati Acrylon",
+      "marketCapCr": 553.68
+    },
+    {
+      "ticker": "PANCHMAHQ",
+      "name": "Panchmahal Steel",
+      "marketCapCr": 553.32
+    },
+    {
+      "ticker": "CHANDAN",
+      "name": "Chandan Healthca",
+      "marketCapCr": 553.23
+    },
+    {
+      "ticker": "DICIND",
+      "name": "DIC India",
+      "marketCapCr": 552.53
+    },
+    {
+      "ticker": "KHAICHEM",
+      "name": "Khaitan Chemical",
+      "marketCapCr": 552.06
+    },
+    {
+      "ticker": "MAWANASUG",
+      "name": "Mawana Sugars",
+      "marketCapCr": 552.06
+    },
+    {
+      "ticker": "KIRANVYPAR",
+      "name": "Kiran Vyapar",
+      "marketCapCr": 551.14
+    },
+    {
+      "ticker": "HAZOOR",
+      "name": "Haz.Multi Proj.",
+      "marketCapCr": 551
+    },
+    {
+      "ticker": "MINDTECK",
+      "name": "Mindteck (India)",
+      "marketCapCr": 545.14
+    },
+    {
+      "ticker": "VISACHROME",
+      "name": "VISA Chrome",
+      "marketCapCr": 543.79
+    },
+    {
+      "ticker": "ORIENTCER",
+      "name": "Orient Ceratech",
+      "marketCapCr": 541.85
+    },
+    {
+      "ticker": "VTMLTD",
+      "name": "VTM",
+      "marketCapCr": 540.16
+    },
+    {
+      "ticker": "KNAGRI",
+      "name": "KN Agri Resource",
+      "marketCapCr": 538.2
+    },
+    {
+      "ticker": "SJLOGISTIC",
+      "name": "S J Logistics (I",
+      "marketCapCr": 534.9
+    },
+    {
+      "ticker": "KAYA",
+      "name": "Kaya Ltd",
+      "marketCapCr": 534.3
+    },
+    {
+      "ticker": "OSWALGREEN",
+      "name": "Oswal Green Tech",
+      "marketCapCr": 533.91
+    },
+    {
+      "ticker": "APTECHT",
+      "name": "Aptech",
+      "marketCapCr": 530.78
+    },
+    {
+      "ticker": "MUNJALSHOW",
+      "name": "Munjal Showa",
+      "marketCapCr": 529.49
+    },
+    {
+      "ticker": "CHEMFAB",
+      "name": "Chemfab Alka.",
+      "marketCapCr": 527.66
+    },
+    {
+      "ticker": "CSLFINANCE",
+      "name": "CSL Finance",
+      "marketCapCr": 523.41
+    },
+    {
+      "ticker": "MCLEODRUSS",
+      "name": "Mcleod Russel",
+      "marketCapCr": 517.58
+    },
+    {
+      "ticker": "PRIMO",
+      "name": "Primo Chemicals",
+      "marketCapCr": 515.71
+    },
+    {
+      "ticker": "MUFTI",
+      "name": "Credo Brands",
+      "marketCapCr": 514.19
+    },
+    {
+      "ticker": "SILINV",
+      "name": "SIL Investments",
+      "marketCapCr": 512.78
+    },
+    {
+      "ticker": "PTL",
+      "name": "PTL Enterprises",
+      "marketCapCr": 512.17
+    },
+    {
+      "ticker": "GPECO",
+      "name": "GP Eco Solutions",
+      "marketCapCr": 512.12
+    },
+    {
+      "ticker": "ENIL",
+      "name": "Ent.Network",
+      "marketCapCr": 510.03
+    },
+    {
+      "ticker": "NILASPACES",
+      "name": "Nila Spaces",
+      "marketCapCr": 509.3
+    },
+    {
+      "ticker": "MODINATUR",
+      "name": "Modi Naturals",
+      "marketCapCr": 507.44
+    },
+    {
+      "ticker": "PATILAUTOM",
+      "name": "Patil Automation",
+      "marketCapCr": 507.33
+    },
+    {
+      "ticker": "DISHTV",
+      "name": "Dish TV India",
+      "marketCapCr": 506.35
+    },
+    {
+      "ticker": "SUKHJITS",
+      "name": "Sukhjit Starch",
+      "marketCapCr": 504.68
+    },
+    {
+      "ticker": "THEINVEST",
+      "name": "The Invest.Trust",
+      "marketCapCr": 503.3
+    },
+    {
+      "ticker": "APS",
+      "name": "Australian Prem",
+      "marketCapCr": 502.99
+    },
+    {
+      "ticker": "IWARE",
+      "name": "Iware Supplych.",
+      "marketCapCr": 502.96
+    },
+    {
+      "ticker": "SAAKSHI",
+      "name": "Saakshi Medtech",
+      "marketCapCr": 501.78
+    },
+    {
+      "ticker": "BLUEWATER",
+      "name": "Blue Water",
+      "marketCapCr": 501.6
+    },
+    {
+      "ticker": "SARTELE",
+      "name": "Sar Televenture",
+      "marketCapCr": 500.72
+    }
+  ]
+}

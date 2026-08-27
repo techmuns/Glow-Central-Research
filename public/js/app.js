@@ -11,6 +11,7 @@ import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeCoverage } from './data/coverage.js';
+import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -40,6 +41,10 @@ const CRITICAL_SOURCES = {
 const DEFERRED_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
+  // The broad market universe the filings feeds walk — ~1,900 companies above a market-cap floor,
+  // ordered by market cap. Deferred: only the two filings tabs read it, and only when Refresh is
+  // pressed, by which point the deferred pass has long landed. See js/data/tracked-universe.js.
+  trackedUniverse: 'data/tracked-universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
   // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
@@ -98,6 +103,9 @@ function loadDeferred(data) {
       // Institutions: filed shareholdings and AMC portfolios. The Superstar half of that tab loads
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
+
+      // The filings tracking universe (Corporate Announcements, Insider Trades).
+      primeTrackedUniverse(data.trackedUniverse);
 
       // Portfolio Analytics: the holdings config and the ledger are both small and already fetched
       // here, so the module is seeded rather than refetching. It pulls the two heavy inputs itself

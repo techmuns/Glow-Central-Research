@@ -25,6 +25,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
+import * as trackedUniverse from '../data/tracked-universe.js';
 
 const REASONS = {
   'no-route': {
@@ -119,20 +120,32 @@ export function makeFilingsTab(cfg) {
    * company. The other two feeds are per-ticker upstreams and ignore it.
    */
   function tickersFor(ctx) {
-    const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
-    if (ctx.scope === 'portfolio') return book;
-    // Universe is the book plus every company the committed snapshot already covers. Deliberately
-    // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
-    // companies nothing else on this dashboard tracks would spend the rate limit on rows nobody can
-    // act on. The book comes FIRST, so a walk cut short by LIVE_LIMIT has covered the holdings
-    // rather than whatever the snapshot happens to list first — the same rule the scraper follows.
-    const seen = new Set(book.map((b) => String(b.ticker).toUpperCase()));
-    const out = [...book];
-    for (const r of cfg.feed.rows()) {
-      const t = String(r.ticker || '').toUpperCase();
-      if (t && !seen.has(t)) {
-        seen.add(t);
-        out.push({ ticker: t, name: null });
+    const mcap = (t) => trackedUniverse.marketCapOf(t) ?? -1;
+    const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: String(h.ticker).toUpperCase(), name: h.name }));
+
+    // PORTFOLIO — the holdings, biggest first, so a bounded refresh covers the largest positions
+    // before the smaller ones.
+    if (ctx.scope === 'portfolio') {
+      return [...book].sort((a, b) => mcap(b.ticker) - mcap(a.ticker));
+    }
+
+    // UNIVERSE — the whole tracked market universe, BIGGEST MARKET CAP FIRST (the priority the reader
+    // asked for: RELIANCE, BHARTIARTL, HDFCBANK… down the list), with any book holding that is not in
+    // it — a small-cap or a BSE-only line — appended, so a company is never dropped from its own
+    // dashboard. Until the universe file lands this falls back to the book alone; it is only read on a
+    // Refresh press, by which point the deferred load has resolved.
+    const seen = new Set();
+    const out = [];
+    for (const c of trackedUniverse.all()) {
+      const t = c.ticker.toUpperCase();
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push({ ticker: t, name: c.name });
+    }
+    for (const b of book) {
+      if (!seen.has(b.ticker)) {
+        seen.add(b.ticker);
+        out.push(b);
       }
     }
     return out;
@@ -150,6 +163,9 @@ export function makeFilingsTab(cfg) {
     // once per page-load (searched === null) so a reload restores the results; a return to the tab
     // within the same page-load just repaints from what the feed already holds.
     if (picker) {
+      // Widen the autocomplete to the tracked universe; it reads live per keystroke, so this just
+      // needs to have landed by the time the reader types (it is a small deferred file).
+      trackedUniverse.load();
       if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paintPicker(ctxRef));
       if (searched === null && selection.length) runSearch(ctx);
       else paintPicker(ctx);
@@ -171,9 +187,15 @@ export function makeFilingsTab(cfg) {
     // against: with no subscription, a re-render cannot orphan one.
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
-      cfg.feed.load(tickersFor(ctx)).then(() => {
-        if (t === token) paint(ctx);
-      });
+      // Make sure the tracking universe is available before seeding the cache, so seedFromDevice reads
+      // every tracked company's stored rows — not just the book's. It is a small deferred file and the
+      // fetch is shared per path, so this is cheap even on a cold visit.
+      trackedUniverse
+        .load()
+        .then(() => (t === token ? cfg.feed.load(tickersFor(ctx)) : null))
+        .then(() => {
+          if (t === token) paint(ctx);
+        });
       return;
     }
     paint(ctx);
@@ -293,6 +315,10 @@ export function makeFilingsTab(cfg) {
     // nothing landed does a feed-level failure (no route, expired token) get the button.
     if (summary && summary.newRows > 0) return { text: `${formatNumber(summary.newRows)} new`, tone: 'good' };
     if (!summary || cfg.feed.meta().reason) return { text: "Couldn't refresh", tone: 'bad' };
+    // Nothing was live-walked: every company in scope is covered by the committed snapshot (refreshed
+    // on a schedule, not by this button) or was confirmed inside its window. "Up to date" would claim
+    // a currency this press did not — and for the snapshot rows cannot — establish, so don't.
+    if (summary.asked === 0) return { text: 'Nothing to re-check', tone: 'neutral' };
     return { text: 'Up to date', tone: 'neutral' };
   }
 
@@ -405,19 +431,18 @@ export function makeFilingsTab(cfg) {
     paintPicker(ctx);
   }
 
-  /** The company universe the picker searches: the book, plus the NSE-500 universe once it lands. */
+  /** The company universe the picker searches: the book, the ~1,900-company tracked universe, and the
+   *  NSE-500 universe — deduped, once each has landed. */
   function companyList(ctx) {
     const seen = new Map();
-    for (const h of coverage.tracked()) {
-      const t = String(h.ticker).toUpperCase();
-      if (!seen.has(t)) seen.set(t, { ticker: h.ticker, name: h.name || null });
-    }
+    const add = (ticker, name) => {
+      const t = String(ticker || '').toUpperCase();
+      if (t && !seen.has(t)) seen.set(t, { ticker, name: name || null });
+    };
+    for (const h of coverage.tracked()) add(h.ticker, h.name);
+    for (const c of trackedUniverse.all()) add(c.ticker, c.name); // the broad market universe
     const uni = ctx.data && Array.isArray(ctx.data.universe) ? ctx.data.universe : [];
-    for (const u of uni) {
-      if (!u || !u.ticker) continue;
-      const t = String(u.ticker).toUpperCase();
-      if (!seen.has(t)) seen.set(t, { ticker: u.ticker, name: u.name || null });
-    }
+    for (const u of uni) if (u && u.ticker) add(u.ticker, u.name);
     return [...seen.values()].sort((a, b) => String(a.name || a.ticker).localeCompare(String(b.name || b.ticker)));
   }
 

@@ -73,6 +73,8 @@ public/
     data/
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
+      tracked-universe.js     THE FILINGS UNIVERSE — the ~1,900 companies above a market-cap floor
+                              that Corporate Announcements and Insider Trades walk, biggest first
       technicals.js           loads + scores the live feed once, caches it
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter-live.js         the live chatter feed: mention counts + sentiment, split by
@@ -109,7 +111,9 @@ scripts/
   import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
   lib/xlsx-read.mjs           .xlsx reader built on node:zlib alone, no npm dependency
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
-  scrape-filings.mjs          walks the universe for news, announcements and insider trades
+  scrape-filings.mjs          walks the TRACKED UNIVERSE for news, announcements and insider trades
+  import-tracked-universe.mjs  the ~1,900-company filings universe: a Screener export (above a
+                               market-cap floor) -> public/data/tracked-universe.json, market-cap sorted
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -668,8 +672,8 @@ That is survivable, and this is what makes it survivable:
    `checkedAt` and they have not been checked now, and those are different claims.
 
 **The universe is served from a committed snapshot, not from a live fan-out.** Two of the three are
-per-ticker and all three are capped at ~60 requests a minute, so 603 companies live is ten minutes
-of somebody else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule
+per-ticker and all three are capped at ~60 requests a minute, so the ~1,900-company tracked universe
+live is half an hour of somebody else's service on every visit. `scripts/scrape-filings.mjs` pays that once on a schedule
 and commits the result; the live routes remain for companies the snapshot misses and for refreshing
 one on demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape walks **the
 book first**, so a run cut short by the rate limit or an expiring token has covered the holdings
@@ -1496,7 +1500,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News / Announcements / Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
-| Refresh the filings snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) |
+| Refresh the filings snapshots | `MUNS_TOKEN=… node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only). Scheduled by `.github/workflows/filings-refresh.yml` — the only thing that covers all ~1,900 at once |
+| Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and the scraper read it |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
