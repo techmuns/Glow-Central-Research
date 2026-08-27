@@ -2043,6 +2043,34 @@ await go('/#/research/super-investors/fund-flows?scope=universe', 1800);
 const staleLink = await hostText();
 ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
 
+// THE SUB-VIEW SELECTOR IS A DROPDOWN, NOT THE LEFT RAIL (meta.subviewLayout: 'dropdown'). Both
+// sub-views are wide — a 90-card grid and a 15-column table — so the ~240px rail was empty space
+// beside them. The shell hides the rail and renders a compact dropdown above the content, and the
+// panel spans the full width. Routing is unchanged; the dropdown switches sub-views like the rail.
+await go('/#/research/super-investors/superstar-investors?scope=universe', 2000);
+const railHidden = await page.evaluate(() => {
+  const a = document.querySelector('#rail-aside');
+  return !a || a.classList.contains('hidden') || getComputedStyle(a).display === 'none';
+});
+ok('Super Investors drops the left rail for a dropdown selector', railHidden && (await page.locator('[data-subview-dropdown]').count()) === 1);
+const contentLeft = await page.evaluate(() => document.querySelector('#content-host')?.getBoundingClientRect().left ?? 999);
+ok('...so the panel starts at the page gutter, not indented by a rail', contentLeft <= 60, `content left ${contentLeft}px`);
+const ddLabel = (await page.locator('[data-subview-dropdown]').innerText()).replace(/\s+/g, ' ');
+ok('...and the dropdown names the tab and the active sub-view', /Super Investors/i.test(ddLabel) && /Superstar Investors/i.test(ddLabel), ddLabel);
+// Selecting the other sub-view from the dropdown switches the view, exactly as the rail did.
+await page.locator('[data-subview-dropdown] [data-dd-trigger]').click();
+await page.waitForTimeout(250);
+await page.locator('[data-subview-dropdown] [data-dd-id="institutions"]').click();
+await page.waitForTimeout(1800);
+ok('...and choosing from it switches the sub-view', /super-investors\/institutions/.test(page.url()), page.url().split('#')[1] || '');
+// A tab that keeps the rail (Breakouts) is untouched — the dropdown layout is opt-in per tab.
+await go('/#/research/breakouts/strong-breakouts?scope=universe', 1800);
+const breakoutsRail = await page.evaluate(() => {
+  const a = document.querySelector('#rail-aside');
+  return a && !a.classList.contains('hidden') && a.getBoundingClientRect().width > 180;
+});
+ok('a rail tab (Breakouts) keeps its rail — the dropdown layout is opt-in', breakoutsRail && (await page.locator('[data-subview-dropdown]').count()) === 0);
+
 // ---------------------------------------------------------------------------------------
 // 9b. Institutions → Fund Returns — the AmfiBeas "Returns & Ranking" table, reproduced.
 //

@@ -41,6 +41,10 @@ export const meta = {
     // The URL id stays `institutions` for saved-link stability; the label is what the reader sees.
     { id: 'institutions', label: 'Fund Returns' },
   ],
+  // A compact dropdown selector rather than the left rail: both sub-views are wide (a 90-card grid
+  // and a 15-column table), so the ~240px rail column was empty space beside them. The dropdown
+  // frees the full width. Routing is unchanged — the shell just moves the selector. See shell.js.
+  subviewLayout: 'dropdown',
 };
 
 let renderToken = 0;

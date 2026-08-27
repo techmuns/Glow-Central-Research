@@ -96,6 +96,9 @@ function shellTemplate() {
         <div id="aside-content" class="lg:sticky lg:top-6"></div>
       </aside>
       <main class="fade-in min-w-0 flex-1">
+        <!-- Shell-owned slot for a tab whose sub-views render as a compact dropdown instead of the
+             left rail (meta.subviewLayout === 'dropdown'). Empty — and zero-height — for rail tabs. -->
+        <div id="subview-bar-mount"></div>
         <div id="content-host"></div>
       </main>
     </div>`;
@@ -183,24 +186,48 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
 
   const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
   const activeSubviewLabel = subviewItems.find((s) => s.id === resolved.subview)?.label || '';
-  const rail = railNav({ items: subviewItems, activeId: resolved.subview, onSelect: goSubview });
-  const mobileSubDropdown = dropdownMenu({
-    key: 'subview-mobile',
-    kicker: tabModule.meta.title,
-    valueLabel: activeSubviewLabel,
-    items: subviewItems,
-    activeId: resolved.subview,
-    onSelect: goSubview,
-  });
 
   const hasSubviews = subviewItems.length > 0;
+  // A tab may ask for a compact dropdown selector instead of the left rail (meta.subviewLayout ===
+  // 'dropdown'). The rail costs a ~240px column at every width, which is a lot of empty space beside
+  // a wide table or a card grid; a dropdown frees the full width for the panel. Routing is identical
+  // — same items, same `goSubview` — so this is purely where the selector sits.
+  const useDropdown = tabModule.meta.subviewLayout === 'dropdown' && hasSubviews;
+
   const asideEl = $('#aside-content', root);
   const asideWrap = $('#rail-aside', root);
-  asideWrap.classList.toggle('hidden', !hasSubviews);
+  const subBarMount = $('#subview-bar-mount', root);
 
-  if (!hasSubviews) {
-    asideEl.innerHTML = '';
-  } else {
+  // Reset both slots each route, then fill exactly one. Hiding the aside (display:none) drops it as
+  // a flex item, so `main` spans the full width with no leftover gap.
+  asideEl.innerHTML = '';
+  subBarMount.innerHTML = '';
+  asideWrap.classList.toggle('hidden', !hasSubviews || useDropdown);
+
+  if (useDropdown) {
+    const compact = dropdownMenu({
+      key: 'subview-compact',
+      kicker: tabModule.meta.title,
+      valueLabel: activeSubviewLabel,
+      items: subviewItems,
+      activeId: resolved.subview,
+      onSelect: goSubview,
+    });
+    subBarMount.innerHTML = `
+      <div data-subview-dropdown class="mb-5 w-full max-w-[17rem] rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+        ${compact.html}
+      </div>`;
+    chromeDisposers.push(compact.wire(subBarMount));
+  } else if (hasSubviews) {
+    const rail = railNav({ items: subviewItems, activeId: resolved.subview, onSelect: goSubview });
+    const mobileSubDropdown = dropdownMenu({
+      key: 'subview-mobile',
+      kicker: tabModule.meta.title,
+      valueLabel: activeSubviewLabel,
+      items: subviewItems,
+      activeId: resolved.subview,
+      onSelect: goSubview,
+    });
     asideEl.innerHTML = `
       <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
         <div class="p-2">

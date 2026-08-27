@@ -154,6 +154,8 @@ export const meta = {
   title: 'Earnings Hub',
   subtitle: 'One line describing the tab.',
   subviews: [{ id: 'latest-results', label: 'Latest Results', badge: 12 /* optional */ }],
+  // subviewLayout: 'dropdown'  // optional — a compact dropdown selector instead of the left rail,
+                                // so the panel spans the full width. See the rail note below.
 };
 
 export function render(ctx) {}   // ctx = { scope, subview, root, live, data }
@@ -261,6 +263,14 @@ Conventions:
   on a tab with `subviews: []`** — the content then spans the full width. The workspace switcher
   sits in the tab-bar row, not the rail, which is what makes that safe: dropping the rail never
   strands a workspace.
+- **A tab with sub-views can also opt out of the rail at every width** with `meta.subviewLayout:
+  'dropdown'` — the shell then hides the ~240px rail column and renders a compact dropdown selector
+  in a slot above the content (`#subview-bar-mount`), so the panel spans the full width. Routing is
+  identical (same items, same `goSubview`); only where the selector sits changes. Super Investors
+  uses it because both its sub-views are wide — a 90-card grid and a 15-column table — so the rail
+  was empty space beside them, and freeing the width lets the whole Fund Returns table fit. Reach
+  for it when a tab's rail costs more width than its sub-view list is worth; the default rail is
+  still right for narrow panels that want the persistent list visible.
 - Long-running lists get `.scrollbar-thin`; panels that mount fresh get `.fade-in`.
 
 ---
