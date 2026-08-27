@@ -1746,6 +1746,13 @@ beside the quoted post text would simply disagree with it.
 
 ## `public/data/institution-holdings.json` — REAL, and TWO DIFFERENT DISCLOSURES
 
+> **DORMANT — no longer rendered.** The Institutions sub-view was rebuilt on the AmfiBeas
+> *Returns & Ranking* feed (see [`GET /api/returns-ranking`](#get-apireturns-ranking--live-fund-returns--peer-ranking-amfibeas) below). This file, `js/data/institution-holdings.js` and
+> `js/investors/filed.js` are left on disk, unwired, rather than deleted in the same change — nothing
+> imports them any more (`js/app.js` still defers-loads the file, awaited by nobody). The contract
+> below is kept for whoever re-wires or finally deletes them. **AMFI's monthly flow figures or a
+> revived filed-shareholdings view would come back through this shape.**
+
 Fund holdings, from two sources that measure opposite things. Every entry carries a `disclosure`
 tag, and **every consumer must branch on it before writing a heading.**
 
@@ -1929,6 +1936,80 @@ workbook, re-run. The workbooks are committed so the import reproduces from the 
 `scripts/lib/xlsx-read.mjs` reads them with nothing but the Node standard library — an .xlsx is a
 ZIP of XML, both of which `node:zlib` and a tag scanner already handle. This repo has no
 `package.json` and a one-off data import is not the thing that should introduce one.
+
+---
+
+## `GET /api/returns-ranking` — LIVE, fund returns & peer ranking (AmfiBeas)
+
+The **Institutions** sub-view (now labelled **Fund Returns**). Every tracked mutual fund and ETF,
+its point-to-point return for each period, and its rank **within its own cohort**. Computed by
+**AmfiBeas** over AMFI's daily NAV snapshot; refreshed daily. Public, unauthenticated, **CORS-open**,
+so it is called **straight from the browser** — the same arrangement as SentimentDash below, and for
+the same reasons (no credential to hold; a same-account Worker proxy is refused by Cloudflare, error
+1042). **Every return and every rank is theirs, reproduced unchanged** — nothing here re-bands,
+re-ranks or recomputes. See `js/data/fund-returns.js` (transport) and `js/investors/fund-returns.js`
+(the view).
+
+**The base URL is not hardcoded and no host is committed.** `window.AMFIBEAS_API_BASE` in
+`public/index.html` names the host (empty by default — the API is not yet deployed);
+`localStorage['sattva:amfibeas-base']` overrides it, which is how `verify-ui.mjs` and a screenshot
+run point the feed at a stub. An empty base surfaces as the view's `no-url` state (*"configure the
+host"*), never a broken table.
+
+Query params (all optional): `classification`, `cohort`, `plan` (`regular`/`direct`/`unknown`),
+`option` (`growth`/`idcw`/`unknown`), `q`/`search`, `period` (comma list of the seven below;
+default all), `fields` (`compact`/`standard`/`full`, default `standard`), `format` (`json`/`csv`),
+`limit`, `offset`. **The view requests `?fields=compact`** — only `{ return, rank, peerCount }` per
+period, which is all the table needs, so the ~3,400-scheme payload stays small.
+
+```jsonc
+{
+  "asOfDate": "2026-08-25",          // the AMFI NAV date the returns were computed to (YYYY-MM-DD)
+  "generatedAt": "2026-08-25T…Z",
+  "source": "AmfiBeas daily NAV snapshot (AMFI)",
+  "periods": ["1M","3M","6M","1Y","3Y","5Y","10Y"],
+  "total": 3439,                     // the whole universe; `count` is how many this response carried
+  "count": 3439,
+  "funds": [{
+    "schemecode": "119551",          // stable id — the row key, never a positional index
+    "fundName": "Axis Bluechip Fund - Direct Plan - Growth",
+    "classification": "Equity: Large Cap",
+    "plan": "direct", "option": "growth",
+    "cohortKey": "equity-large-cap",
+    "returns": {
+      "1M":  { "return": 3.4852, "rank": 38, "peerCount": 149 },  // return is a PERCENT already → +3.5%
+      "3Y":  { "return": 21.07,  "rank": 4,  "peerCount": 121 },  // 3Y/5Y/10Y are CAGRs
+      "10Y": { "return": null,   "rank": null, "peerCount": null } // null return / null rank → em dash
+    }
+  }]
+}
+```
+
+**Field semantics, and the honesty rules the view enforces:**
+
+- `returns[p].return` is **a percentage already** (`3.4852` → `+3.5%`), a *simple* return for
+  1M/3M/6M/1Y and a *CAGR* for 3Y/5Y/10Y. The view renders it **one decimal, sign-prefixed**, green
+  above zero and rose below. A `null` return is *"no return for that period"* and renders an em dash
+  — **never a zero**.
+- `rank`/`peerCount` is the scheme's rank **within its cohort**, rendered `rank/peerCount`
+  (`38/149`). A `null` rank means *"the cohort was too small to rank"* and **may sit beside a
+  non-null return** — it renders an em dash, not a zero.
+- **Column labels:** `1M, 3M, 6M, 1Y, 3Y CAGR, 5Y CAGR, 10Y CAGR`, each with a Returns and a
+  Ranking sub-column. **A period whose return AND rank are null for every scheme is hidden** — that
+  is the only display choice the view makes; it is not a new number. Rows are **alphabetical by
+  `fundName`**, exactly as the source lists them.
+- Every failure is a **named state carried on `meta().reason`** (`no-url`, `not-found`,
+  `unreachable`, `upstream`, `shape`), never a thrown error or an empty table. The requested URL
+  travels with it, and the panel offers a **Try again** that calls `reload()`.
+
+Revalidated against the upstream's **ETag** through `conditionalJson`, cached on the device under
+`KEYS.fundReturns`, so a return visit reuses the bytes it already holds when the server says nothing
+changed. `meta().origin` is `live` (read this session) or `store` (a 304-confirmed device copy); the
+pill reads *Live* / *Cached* accordingly and never claims a freshness it has not confirmed.
+
+**Adding it to the Sources modal / app:** it is a direct-fetch lazy feed like chatter, so it is
+**not** in `app.js`'s `DATA_SOURCES` — the view loads it on mount. Its Sources-modal entry
+(`js/ui/sources.js`) is marked `status: 'pending'` until a host is configured.
 
 ---
 

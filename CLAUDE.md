@@ -68,7 +68,11 @@ public/
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
     investors/
-      filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
+      fund-returns.js         THE Institutions view — the AmfiBeas Returns & Ranking table, every
+                              scheme's period returns + same-cohort peer rank, reproduced not scored
+      filed.js                DORMANT — the old Institutions half (filed shareholdings off Trendlyne
+                              + AMC portfolios). Unwired when the view swapped to fund-returns; kept
+                              on disk, imported by nothing. Delete or re-wire later.
       live.js                 the WHOLE Superstar Investors view — real filed books off Finology
     data/
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
@@ -79,7 +83,10 @@ public/
       earnings.js             same, for the earnings feed (+ legacy-summary adapter)
       chatter-live.js         the live chatter feed: mention counts + sentiment, split by
                               whether the slug resolved to a symbol we cover
-      institution-holdings.js real filed shareholdings, by institution (Trendlyne)
+      fund-returns.js         the AmfiBeas returns/ranking feed: called DIRECT from the browser
+                              (CORS-open, like chatter), ETag-revalidated, every failure a named state
+      institution-holdings.js DORMANT — real filed shareholdings/AMC portfolios; read by nobody since
+                              the Institutions view swapped to fund-returns (still deferred in app.js)
       finology-shared.js      pure shape guards + deriveMoves — imported by worker/finology.mjs
       sentiment-shared.js     pure shape guards + the slug->NSE resolver for the chatter feed
       super-investors.js      the live super-investor feed: list, then every book, four at a time
@@ -326,7 +333,11 @@ the only consumer that changes all four, because it carries ten numeric columns:
 
 Reach for these only when the alternative is a horizontal scrollbar at 1440px. Measure before and
 after — `[data-table-scroll]`'s `scrollWidth` vs `clientWidth` is the number that matters, and
-`verify-ui.mjs` asserts it for the Earnings Hub (ten columns) and for Institutions (thirteen).
+`verify-ui.mjs` asserts it for the Earnings Hub (ten columns). Some tables are legitimately too wide
+to fit — the Institutions **Fund Returns** table carries up to fifteen columns (seven periods ×
+Returns+Ranking, plus the scheme), and the kit's sanctioned answer there is the container scroller:
+the table scrolls inside `[data-table-scroll]` and the suite asserts only that the **page** never
+scrolls sideways, which is the real invariant.
 
 ### `meta` versus `controls` — where a tab's chips go
 
@@ -540,7 +551,13 @@ the ₹ value beside each one is Ticker Finology's derivation from a percentage 
 headed *Value (Finology)*, reproduced, never recomputed. The single figure this dashboard computes
 on that feed is the quarter-over-quarter change, and it is headed *Change (derived)*.
 
-### Two disclosures that look identical — the Institutions rule
+### Two disclosures that look identical — the Institutions rule (DORMANT)
+
+> **The Institutions sub-view no longer renders this.** It was rebuilt on the AmfiBeas *Returns &
+> Ranking* feed (`js/investors/fund-returns.js`); the filed/AMC code below (`js/investors/filed.js`,
+> `js/data/institution-holdings.js`) is dormant on disk, read by nothing. This rule is kept because
+> the failure it describes — two look-alike percentages that measure inverse things — recurs
+> whenever two disclosures share a shape, and because a revived filed view would face it again.
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
 about *what it measures*. Two kinds of fund sit behind one picker:
@@ -1381,10 +1398,11 @@ Rules:
   one sub-view and a 232KB mock corpus read by one other. Two rules if you add a file:
   **the deferred object is mutated in place**, because `ctx.data` is the same reference every
   mounted tab holds — replacing it would leave them all with the empty one; and **the consumer
-  waits, rather than rendering early.** Breakouts → Earnings Surprise and Super Investors →
-  Institutions both do, via `whenDeferredData()` and `filed.load()` respectively. An unprimed
-  Institutions renders an empty book, and an empty book on screen is a claim that nobody holds
-  anything.
+  waits, rather than rendering early.** Breakouts → Earnings Surprise does exactly this, via
+  `whenDeferredData()`: an unprimed render is an empty table, and an empty table on screen is a
+  claim that nobody reported. (Institutions used to be the second example — it awaited `filed.load()`
+  over the 347KB shareholdings file — but it now reads AmfiBeas live from the browser, so that file
+  is deferred-loaded and awaited by nobody; it is dormant, pending deletion.)
 - **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
   `meta.origin` says where this paint came from (`live` / `store` / `snapshot`) and
   `meta.checkedAt` when the server last confirmed it — a different fact from `meta.fetchedAt`,
@@ -1504,6 +1522,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and the scraper read it |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
+| Change the Institutions (Fund Returns) view | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE`. The old filed/AMC view is dormant in `js/investors/filed.js` |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
 | Refresh the super-investor snapshot | `node scripts/scrape-super-investors.mjs` (`SI_LIMIT=5` for a smoke run) — it reads **our own Worker**, not Finology, so it needs no token; commit `public/data/super-investors.json` |
 | Change which date the Earnings Calendar opens on | `defaultCalendarDate()` in `js/tabs/earnings-hub.js` — it is today, in **IST**, and `?date=` and the reader's own click both win over it |

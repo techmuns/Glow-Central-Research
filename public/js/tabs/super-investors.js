@@ -1,11 +1,17 @@
 // tabs/super-investors.js — who owns what, from two live sources and nothing else.
 //
 //   Superstar Investors  every tracked investor's book, live off Ticker Finology  → investors/live.js
-//   Institutions         funds, from shareholding filings and AMC portfolios      → investors/filed.js
+//   Institutions         every tracked scheme's returns and peer rank, off AmfiBeas → investors/fund-returns.js
 //
 // THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. Both sub-views own their own rendering,
 // provenance and export; all that is left here is the tab contract, the two lifetimes, and the
 // loading state.
+//
+// THE INSTITUTIONS SUB-VIEW WAS REBUILT. It used to be filed shareholdings (Trendlyne) and AMC
+// portfolios (`js/investors/filed.js` over `institution-holdings.json`); it now renders the AmfiBeas
+// "Returns & Ranking" table — every tracked mutual fund and ETF, its point-to-point return for each
+// period and its rank within its own cohort. The URL id stays `institutions` so saved links keep
+// working; the old view's modules are left on disk, dormant, rather than deleted in the same change.
 //
 // THE SYNTHETIC HALF IS GONE, AND ITS MACHINERY WITH IT. There used to be a third sub-view, Fund
 // Flows, running on `superinvestors.json` / `institutions.json` — real names against generated
@@ -21,18 +27,19 @@
 // AMFI publish the real monthly figures and it comes back pointed at those.
 
 import { sectionHead } from '../ui/screener.js';
-import { renderFiled } from '../investors/filed.js';
+import { renderFundReturns } from '../investors/fund-returns.js';
 import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
-import * as filed from '../data/institution-holdings.js';
+import * as fundReturns from '../data/fund-returns.js';
 
 export const meta = {
   id: 'super-investors',
   title: 'Super Investors',
-  subtitle: 'Superstar-investor and institutional holdings, quarter on quarter and month on month.',
+  subtitle: 'Superstar-investor holdings and every tracked scheme’s returns and peer rank.',
   subviews: [
     { id: 'superstar-investors', label: 'Superstar Investors' },
-    { id: 'institutions', label: 'Institutions' },
+    // The URL id stays `institutions` for saved-link stability; the label is what the reader sees.
+    { id: 'institutions', label: 'Fund Returns' },
   ],
 };
 
@@ -129,60 +136,43 @@ function renderIndividuals(ctx) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Institutions — filed shareholdings and AMC portfolios
+// Institutions — every tracked scheme's returns and peer rank, off AmfiBeas
 // ---------------------------------------------------------------------------------------
 
 /**
- * One table per fund, with a picker across the top.
+ * One table: every tracked mutual fund and ETF, its point-to-point return per period and its rank
+ * within its own cohort. The whole view is `js/investors/fund-returns.js`; this only owns the load
+ * gate and the repaint used by that view's "Try again" control.
  *
- * Two kinds of fund sit behind that picker and they measure different things — see the header of
- * js/investors/filed.js. This function does not know or care which; `renderFiled` branches.
+ * `fundReturns.load()` NEVER REJECTS — every failure is a named state carried on `meta().reason` —
+ * so the panel renders either the table or a named failure (with a retry), and `paint` is safe to
+ * call again from the retry button.
  */
 function renderInstitutions(ctx) {
   disposers.forEach((d) => d && d());
   disposers = [];
+  const token = renderToken;
 
-  // The holdings file is 347KB and this is the only view that reads it, so it is no longer in
-  // front of the shell's first paint (see js/app.js). `filed.load()` is idempotent and resolves at
-  // once when the bootstrap pass has already primed it — so on any visit but a cold one this is a
-  // resolved promise and the shimmer never renders. It must be awaited rather than raced: an
-  // unprimed `filed.all()` is empty, and an empty book on screen is a claim that nobody holds
-  // anything, which is exactly the failure the panel below is written to avoid.
-  if (!filed.all().length) {
-    const token = renderToken;
-    ctx.root.innerHTML = loadingHtml();
-    filed.load().then(() => {
-      if (token === renderToken) paintInstitutions(ctx);
-    });
+  const paint = () => {
+    if (token !== renderToken || ctxRef?.subview !== 'institutions') return;
+    // A repaint (the failure view's retry) must release the previous paint's listeners first, or
+    // each retry stacks another on the document.
+    disposers.forEach((d) => d && d());
+    disposers = [];
+    const panel = renderFundReturns(ctx, { disposers, repaint: paint });
+    ctx.root.innerHTML = panel.html;
+    panel.wire(ctx.root);
+  };
+
+  // On any visit but a cold one the feed is already loaded and the shimmer never renders. It is
+  // awaited rather than raced: an unprimed `all()` is empty, and an empty table on screen would
+  // read as "no schemes" — exactly the failure the named panel is written to avoid.
+  if (fundReturns.isLoaded()) {
+    paint();
     return;
   }
-  paintInstitutions(ctx);
+  ctx.root.innerHTML = loadingHtml();
+  fundReturns.load().then(() => {
+    if (token === renderToken) paint();
+  });
 }
-
-function paintInstitutions(ctx) {
-  const panel = renderFiled(ctx, { disposers });
-  if (!panel.html) {
-    // No holdings file on disk. Say so rather than rendering an empty table, which would read as a
-    // fund that holds nothing.
-    ctx.root.innerHTML = `
-      ${sectionHead({ title: 'Institutions', description: 'Fund holdings, from shareholding filings and AMC portfolio disclosures.' })}
-      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-        <h3 class="font-display text-base font-bold text-slate-900">No holdings file loaded</h3>
-        <p class="mt-1.5 text-sm leading-relaxed text-slate-600">
-          <code class="rounded bg-slate-100 px-1">public/data/institution-holdings.json</code> did not load at bootstrap.
-          It is written by <code class="rounded bg-slate-100 px-1">scripts/scrape-institution-holdings.mjs</code> and
-          <code class="rounded bg-slate-100 px-1">scripts/import-amc-portfolio.mjs</code>.
-        </p>
-        <p class="mt-3 text-xs text-slate-500">
-          <strong>Nothing is shown.</strong> Not an empty book — there is simply no file to read.
-        </p>
-      </div>`;
-    return;
-  }
-
-  ctx.root.innerHTML = panel.html;
-  panel.wire(ctx.root);
-}
-
-/** Exposed for the verification suite, which asserts the two kinds never merge. */
-export const _funds = () => filed.all();

@@ -48,6 +48,9 @@ export const KEYS = {
   // above which mirror the upstream's one-page-per-investor shape.
   investorSnapshot: 'investors:snapshot',
   chatter: 'chatter',
+  // The AmfiBeas returns-ranking feed — one file for every scheme, called direct from the browser
+  // (CORS-open) like the chatter feed, revalidated against its ETag.
+  fundReturns: 'fund-returns',
   // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
   // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the
   // body in a status envelope, so there is no validator to send and nothing to 304. The reason to

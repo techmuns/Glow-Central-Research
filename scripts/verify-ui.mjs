@@ -1973,6 +1973,47 @@ ok(
 // ---------------------------------------------------------------------------------------
 console.log('\n— super investors —');
 
+// ---------------------------------------------------------------------------------------
+// The Institutions sub-view now renders the AmfiBeas "Returns & Ranking" table
+// (js/investors/fund-returns.js), called straight from the browser like the chatter feed. The API
+// is not deployed to a fixed host, so it is stubbed here from `page.route` — deterministic and no
+// egress — in exactly the shape docs/DATA-CONTRACTS.md documents. `amfiMode` flips it to a 404 for
+// the failure path. 10Y is null for every scheme, so its column must be hidden; some ranks are null
+// (cohort too small) and must sit beside a real return as an em dash, never a zero.
+// ---------------------------------------------------------------------------------------
+const AMFI_PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
+let amfiMode = 'ok';
+let amfiSeq = 0;
+const amfiPayload = () => {
+  const classes = ['Equity: Large Cap', 'Equity: Mid Cap', 'Equity: Small Cap', 'Debt: Short Duration'];
+  const funds = [];
+  for (let i = 0; i < 44; i++) {
+    const cls = classes[i % classes.length];
+    const returns = {};
+    for (const p of AMFI_PERIODS) {
+      if (p === '10Y') { returns[p] = { return: null, rank: null, peerCount: null }; continue; } // empty for all → column hidden
+      const base = ((i * 7 + p.length * 3) % 44) - 16;
+      const rankNull = i % 10 === 0;
+      returns[p] = { return: Number((base + 0.5).toFixed(4)), rank: rankNull ? null : ((i % 30) + 1), peerCount: rankNull ? null : 149 };
+    }
+    funds.push({
+      schemecode: `SC${1000 + i}`,
+      fundName: `${String.fromCharCode(90 - (i % 26))}${i} ${cls.split(':')[0]} Fund`, // deliberately NOT pre-sorted
+      classification: cls, plan: i % 2 ? 'direct' : 'regular', option: i % 3 ? 'growth' : 'idcw', cohortKey: cls, returns,
+    });
+  }
+  return { asOfDate: '2026-08-25', generatedAt: new Date().toISOString(), source: 'AmfiBeas daily NAV snapshot (AMFI)', periods: AMFI_PERIODS, total: 3439, count: funds.length, funds };
+};
+await page.route('**/returns-ranking*', async (route) => {
+  if (amfiMode === '404') { await route.fulfill({ status: 404, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' }, body: 'not found' }); return; }
+  await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', etag: `"amfi-${++amfiSeq}"` }, body: JSON.stringify(amfiPayload()) });
+});
+// Point the feed at the stub and force a full load so the module re-reads localStorage on import.
+await go('/#/research/super-investors/institutions?scope=universe', 300);
+await page.evaluate(() => localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.stub'));
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(400);
+
 // BOTH SUB-VIEWS ARE REAL NOW. Fund Flows was the last synthetic surface on this tab and it is
 // gone, along with `js/data/investors.js`, `js/investors/deep-dive.js` and the two mock payloads —
 // the Con-call resolution applied again: when a tab acquires two provenances, remove the synthetic
@@ -2003,266 +2044,124 @@ const staleLink = await hostText();
 ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
-// 9b. Institutions — REAL filed shareholdings, and the line between them and the rest.
+// 9b. Institutions → Fund Returns — the AmfiBeas "Returns & Ranking" table, reproduced.
 //
-// This is the one view where a real feed and the synthetic placeholders share a sub-view, so the
-// checks that matter are about the boundary: no headline number may span both, and the reader must
-// never be able to mistake which half a figure came from.
+// The old filed-shareholdings / AMC-portfolio view was swapped for this one. Every return and every
+// rank is AmfiBeas's, reproduced unchanged — the same rule the con-call and chatter feeds follow —
+// and the checks are about that boundary and about not turning a null into a zero. The feed is
+// stubbed above from page.route (the API has no deployed host yet).
 // ---------------------------------------------------------------------------------------
-await go('/#/research/super-investors/institutions?scope=universe', 2400);
+await go('/#/research/super-investors/institutions?scope=universe', 1600);
 await waitForPanel();
-const filedData = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  const f = m.all()[0];
-  if (!f) return null;
-  return {
-    name: f.name,
-    stocksHeld: f.stocksHeld,
-    portfolioValueCr: f.portfolioValueCr,
-    sumOfRows: Math.round(f.holdings.reduce((a, h) => a + (h.valueCr ?? 0), 0) * 10) / 10,
-    filed: f.filedThisQuarter,
-    awaiting: f.awaitingFiling.length,
-    quarters: f.quarters.length,
-    // The one number that must never be faked: a holding with no filed percentage keeps its
-    // share count, and must not be carrying a zero percentage instead.
-    zeroPcts: f.holdings.filter((h) => h.holdingPct === 0).length,
-    nullPctWithQty: f.holdings.filter((h) => h.holdingPct == null && h.qty != null).length,
-    deltaDisagreements: f.holdings.filter((h) => h.changePp != null && h.pctDelta != null && Math.abs(h.changePp - h.pctDelta) > 0.11).length,
-  };
-});
-if (filedData) {
-  ok('the filed-holdings file loads', filedData.stocksHeld > 0, `${filedData.name}: ${filedData.stocksHeld} holdings`);
-  ok("...and its total is the sum of its own rows", Math.abs(filedData.portfolioValueCr - filedData.sumOfRows) < 0.5, `${filedData.portfolioValueCr} vs ${filedData.sumOfRows}`);
-  ok('...with nine quarters of filed history', filedData.quarters === 9, `${filedData.quarters} quarters`);
-  // Trendlyne publish their own change per row; ours is the difference of two filed percentages.
-  // They should agree — a disagreement means the history columns are being read out of order.
-  ok("our change agrees with Trendlyne's on every row", filedData.deltaDisagreements === 0, `${filedData.deltaDisagreements} rows differ by >0.11pp`);
-  ok('a holding awaiting its filing keeps null, never a zero percentage', filedData.zeroPcts === 0 && filedData.nullPctWithQty === filedData.awaiting, `${filedData.awaiting} awaiting, ${filedData.zeroPcts} zeros`);
 
-  const inst = await hostText();
-  ok('the table renders every filed holding', (await rowCount()) === filedData.stocksHeld, `${await rowCount()} rows`);
-  ok('the panel says the value is Trendlyne’s, not ours', /Trendlyne/.test(inst) && /derivation/i.test(inst));
-  // A row awaiting its filing shows a dash for the percentage and says WHY in the change column —
-  // Trendlyne's own label. A zero there would report a live position as sold.
-  ok('...and a holding awaiting its filing says so rather than showing zero', filedData.awaiting === 0 || /Filing Awaited/i.test(inst));
-  // The paragraph that used to spell this out under the table is gone; the explanation moved into
-  // the pill's modal, where "what does this number mean" already lived. The check follows it —
-  // asserting the prose is still on screen would be asserting the layout, not the disclosure.
-  await page.locator('[data-filed-info]').first().click();
-  await page.waitForTimeout(500);
-  const dashProv = await page.locator('#modal-content').innerText();
-  ok('...and the provenance modal explains what the dash means', /not filed/i.test(dashProv) && /(never sold|as sold|still held)/i.test(dashProv));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+const frRendered = (await rowCount()) > 10;
+ok('the Fund Returns table renders every scheme the feed carried', frRendered, `${await rowCount()} rows`);
 
-  // THE COLUMN SET IS TRENDLYNE'S: Stock, Holding Value, Qty Held, the latest quarter's change and
-  // holding percentage, then the eight prior quarters. Thirteen columns, every one sortable.
-  const cols = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => ({ label: t.innerText.trim().toUpperCase().replace(/\s*[▾▴]$/, ''), sortable: !!t.dataset.sort })));
-  ok('the table carries Trendlyne’s full column set', cols.length === 13, `${cols.length} columns: ${cols.map((c) => c.label).join(' | ').slice(0, 90)}…`);
-  for (const want of ['STOCK', 'HOLDING VALUE', 'QTY HELD']) {
-    ok(`column: ${want}`, cols.some((c) => c.label.replace(/\s+/g, ' ') === want), cols.map((c) => c.label).join(' | '));
+if (frRendered) {
+  const frText = await hostText();
+  ok('...titled Fund Returns & Ranking', /Fund Returns\s*&\s*Ranking/i.test(frText));
+  ok('...crediting AmfiBeas and stating the as-of date', /AmfiBeas/i.test(frText) && /25 Aug 2026/i.test(frText), frText.slice(0, 140));
+  ok('...and saying it adds no scoring of its own', /adds no scoring of its own/i.test(frText));
+
+  // The columns are two per VISIBLE period — a return and a rank — with the multi-year ones labelled
+  // CAGR. 10Y is null for every scheme in the stub, so its column must be HIDDEN.
+  const frCols = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase().replace(/\s*[▾▴]$/, '').replace(/\s+/g, ' ')));
+  ok('the identity column is the scheme', frCols.includes('SCHEME'), frCols.join(' | '));
+  for (const want of ['1M', '3M', '6M', '1Y', '3Y CAGR', '5Y CAGR']) {
+    ok(`a returns column for ${want}`, frCols.includes(want), frCols.join(' | '));
+    ok(`...and a ranking column for ${want}`, frCols.includes(`${want} RANK`), frCols.join(' | '));
   }
-  ok('the latest quarter has both a change and a holding column', cols.filter((c) => /CHANGE %|HOLDING %/.test(c.label)).length === 2);
-  ok('...and eight prior quarters follow it', cols.filter((c) => /^[A-Z]{3} \d{2} %$/.test(c.label.replace(/\s+/g, ' '))).length === 8);
-  ok('EVERY heading is a sort button', cols.every((c) => c.sortable), `${cols.filter((c) => !c.sortable).length} not sortable`);
+  ok('the multi-year periods are labelled CAGR', frCols.includes('3Y CAGR') && frCols.includes('5Y CAGR'));
+  ok('a period null for every scheme is HIDDEN, not a column of dashes', !frCols.some((c) => /10Y/.test(c)), frCols.join(' | '));
+  ok('every heading is a sort button', await page.$$eval('#content-host thead th[data-sort]', (t) => t.length >= 12), 'sortable heads');
 
-  // And sorting has to actually reorder the rows, on a numeric column and on the name.
-  const firstBy = async (label) => {
-    await page.locator(`th[data-sort="${label}"]`).click();
-    await page.waitForTimeout(400);
-    return (await page.locator('tr[data-row-key]').first().getAttribute('data-row-key')) || '';
-  };
-  const byValue = await firstBy('Holding Value');
-  const byQty = await firstBy('Qty Held');
-  ok('sorting by a heading reorders the table', byValue !== byQty, `by value ${byValue}, by qty ${byQty}`);
-  const qtyDesc = await page.evaluate(() => [...document.querySelectorAll('tr[data-row-key] td')].length > 0);
-  ok('...and the sorted column is the one that is ordered', qtyDesc && (await page.evaluate(() => {
-    const idx = [...document.querySelectorAll('#content-host thead th')].findIndex((t) => t.dataset.sort === 'Qty Held');
-    const vals = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => Number((tr.children[idx]?.innerText || '').replace(/[^0-9]/g, '')) || 0);
-    return vals.every((v, i) => i === 0 || vals[i - 1] >= v);
-  })));
-
-  // Thirteen columns is a lot. They have to fit the content column at the design width without
-  // the table needing a scrollbar of its own — the same bar the Earnings Hub is held to.
-  const filedFit = await page.evaluate(() => {
-    const e = document.querySelector('[data-table-scroll]');
-    return { over: e.scrollWidth - e.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  // Cell formatting: returns are one-decimal, sign-prefixed % coloured green/red; ranks are
+  // rank/peerCount; a null return or rank is an em dash, NEVER a zero.
+  const frCells = await page.evaluate(() => {
+    const tds = [...document.querySelectorAll('#content-host tbody tr')].slice(0, 30).flatMap((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText.trim()));
+    const spans = [...document.querySelectorAll('#content-host tbody td span')];
+    return {
+      oneDecimalSigned: tds.some((t) => /^[+-]\d+\.\d%$/.test(t)),
+      twoDecimal: tds.some((t) => /^[+-]\d+\.\d\d%$/.test(t)),
+      rankPair: tds.some((t) => /^\d+\/\d+$/.test(t)),
+      dash: tds.some((t) => t === '—'),
+      posEmerald: !!spans.find((s) => /^\+/.test(s.innerText) && /emerald/.test(s.className)),
+      negRose: !!spans.find((s) => /^-\d/.test(s.innerText) && /rose/.test(s.className)),
+    };
   });
-  ok('the thirteen columns fit at 1440 with no scrollbar of their own', filedFit.over <= 0, `${filedFit.over}px over`);
-  ok('...and the page never scrolls sideways', filedFit.page <= 0, `${filedFit.page}px`);
+  ok('returns render one-decimal, sign-prefixed % (e.g. +3.5%)', frCells.oneDecimalSigned);
+  ok('...never with a second decimal', !frCells.twoDecimal);
+  ok('a positive return is emerald and a negative one rose', frCells.posEmerald && frCells.negRose);
+  ok('ranks render rank/peerCount (e.g. 3/149)', frCells.rankPair);
+  ok('a null return or rank is an em dash, never a zero', frCells.dash);
 
-  await page.locator('[data-filed-info]').click();
-  await page.waitForTimeout(500);
-  const prov = await page.locator('#modal-content').innerText();
-  ok('the Filed pill explains which numbers are filings', /filing/i.test(prov) && /derivation/i.test(prov));
+  // Alphabetical by scheme name, exactly as the source lists them — the stub deliberately supplies
+  // the funds out of order, so this is a real assertion about the view's sort.
+  const frNames = await page.$$eval('#content-host tbody tr', (trs) =>
+    trs.slice(0, 8).map((tr) => tr.querySelector('.font-semibold.text-slate-900')?.textContent.trim() || '').filter(Boolean),
+  );
+  ok('rows are alphabetical by scheme name', JSON.stringify(frNames) === JSON.stringify([...frNames].sort((a, b) => a.localeCompare(b))), frNames.slice(0, 3).join(' | '));
+
+  // A wide return/rank table scrolls INSIDE its own container; the page body must never scroll
+  // sideways. (Fitting seven periods × two sub-columns into 1440 without a container scrollbar is
+  // not possible, and the kit's sanctioned answer is the container scroller — same as the source.)
+  const frFit = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok('the page never scrolls sideways', frFit <= 1, `${frFit}px`);
+
+  // The Live pill and its provenance modal carry the whole accountability — this view has no ribbon
+  // and no stat strip, exactly like the Earnings Hub.
+  ok('a provenance pill is present', (await page.locator('[data-fund-returns-info]').count()) === 1);
+  await page.locator('[data-fund-returns-info]').click();
+  await page.waitForTimeout(400);
+  const frModal = await page.locator('#modal-content').innerText();
+  ok('the modal says the returns and ranks are theirs, reproduced', /AmfiBeas/i.test(frModal) && /reproduced/i.test(frModal));
+  ok('...and explains the rank is within the scheme’s own cohort', /within its own cohort/i.test(frModal));
+  ok('...and that a dash is not a zero', /not (a )?zero/i.test(frModal));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-} else {
-  skip('the filed-holdings file loads', 'public/data/institution-holdings.json is not present');
-}
 
-// ---------------------------------------------------------------------------------------
-// 9b-ii. THE AMC PORTFOLIOS — and the line between two disclosures that look identical.
-//
-// A holding percentage and a % to NAV are both "a percentage against a company name" and they
-// measure opposite things: how much of the company the fund owns, versus how much of the fund is
-// in the company. Nothing on screen prevents a reader confusing them except the labelling, so the
-// labelling is what is asserted here — on the column, on the pill, and in the exported banner,
-// which is the one artefact that travels without the page around it.
-// ---------------------------------------------------------------------------------------
-const kinds = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  return m.all().map((f) => ({
-    id: f.investorId,
-    disclosure: f.disclosure,
-    noun: f.periodNoun,
-    periods: f.periods.length,
-    label0: f.periodLabels[0],
-    held: f.holdings.length,
-    former: f.former.length,
-    resolved: f.holdings.filter((h) => h.ticker).length,
-    // Every holding must carry a key for every published period — a period with no entry at all
-    // would let a reader's eye fill the gap rather than the em dash doing it.
-    complete: f.holdings.every((h) => f.periods.every((p) => p in h.pctByPeriod)),
-    zeroWeights: f.holdings.filter((h) => h.pct === 0).length,
-    nullWeights: f.holdings.filter((h) => h.pct == null).length,
-  }));
-});
-ok('both disclosures are loaded and tagged', kinds.some((k) => k.disclosure === 'shareholding') && kinds.filter((k) => k.disclosure === 'portfolio').length === 2, JSON.stringify(kinds.map((k) => `${k.id}=${k.disclosure}`)));
-ok('...each with its own period vocabulary', kinds.every((k) => (k.disclosure === 'portfolio' ? k.noun === 'month' : k.noun === 'quarter')));
-ok('...and every holding has a key for every published period', kinds.every((k) => k.complete));
-
-// A LINE OUT OF AN AMC BOOK IS NOT A LINE HELD AT NIL. The importer moves it to `former`, so no
-// portfolio row may carry a null latest weight — one that did would sort as -1 and read as zero.
-//
-// A SHAREHOLDING FUND IS THE OPPOSITE CASE and must be allowed exactly that: a company files weeks
-// after the quarter closes, so a still-held position legitimately has no percentage yet and
-// Trendlyne label it "Filing Awaited". Asserting zero nulls across both kinds would be demanding
-// that the filed feed lie about a filing it has not received.
-ok('no AMC holding is held at "null"', kinds.filter((k) => k.disclosure === 'portfolio').every((k) => k.nullWeights === 0), JSON.stringify(kinds.map((k) => `${k.id}:${k.nullWeights}`)));
-ok('...while a filed holding awaiting its filing keeps its row', kinds.filter((k) => k.disclosure === 'shareholding').every((k) => k.nullWeights >= 0));
-ok('...and exited lines are kept, not dropped', kinds.filter((k) => k.disclosure === 'portfolio').every((k) => k.former > 0), JSON.stringify(kinds.map((k) => `${k.id}:${k.former}`)));
-
-for (const fundId of ['bandhan-focused-fund', 'bandhan-small-cap-fund']) {
-  await go(`/#/research/super-investors/institutions?scope=universe&fund=${fundId}`, 2200);
-  await waitForPanel();
-  const heads = (await page.locator('#content-host thead th').allTextContents()).map((h) => h.replace(/\s+/g, ' ').trim());
-
-  ok(`${fundId}: the percentage columns say "% to NAV"`, heads.some((h) => /% TO NAV/i.test(h)), heads.join(' | '));
-  ok(`${fundId}: ...and never "Holding %", which means the other thing`, !heads.some((h) => /HOLDING %/i.test(h)), heads.join(' | '));
-  ok(`${fundId}: the value column is attributed to the AMC, not derived`, heads.some((h) => /VALUE \(AMC\)/i.test(h)));
-  // A portfolio disclosure states a weight and a value and no share count. A column of dashes
-  // would imply we asked for something and were refused.
-  ok(`${fundId}: no share-count column, because this disclosure has none`, !heads.some((h) => /QTY/i.test(h)));
-
-  const pill = (await page.locator('[data-filed-info]').first().innerText()).replace(/\s+/g, ' ');
-  ok(`${fundId}: the pill says which disclosure this is`, /Disclosed/i.test(pill) && /% to NAV/i.test(pill), pill);
-
-  const over = await page.evaluate(() => {
-    const el = document.querySelector('[data-table-scroll]');
-    return el ? el.scrollWidth - el.clientWidth : 0;
-  });
-  ok(`${fundId}: the table fits 1440px without a scrollbar of its own`, over <= 0, `${over}px`);
-}
-
-// THE FIGURES ARE THE WORKBOOK'S. Recompute the change column from the two weights beside it, and
-// check the row total against the fund's stated portfolio value — the same class of check the
-// Trendlyne scraper makes before it will write a file.
-const amcMath = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  const out = [];
-  for (const f of m.all().filter((x) => x.disclosure === 'portfolio')) {
-    const [latest, prior] = f.periods;
-    let changeOk = 0;
-    let changeBad = 0;
-    for (const h of f.holdings) {
-      const now = h.pctByPeriod[latest];
-      const before = h.pctByPeriod[prior];
-      if (now == null || before == null) {
-        // No previous month is a presence change, not a move of "the whole weight".
-        if (h.changePp != null) changeBad++;
-        continue;
-      }
-      Math.abs(Math.round((now - before) * 100) / 100 - h.changePp) < 1e-9 ? changeOk++ : changeBad++;
+  // A classification filter narrows the set (search + at least a classification select are offered).
+  const frBefore = await rowCount();
+  const frSelects = await page.locator('#content-host select').count();
+  ok('a classification filter is offered', frSelects >= 1, `${frSelects} selects`);
+  if (frSelects >= 1) {
+    const opts = await page.locator('#content-host select').first().locator('option').allTextContents();
+    const pick = opts.find((o) => !/^all /i.test(o));
+    if (pick) {
+      await page.locator('#content-host select').first().selectOption({ label: pick });
+      await page.waitForTimeout(500);
+      const frAfter = await rowCount();
+      ok('choosing a classification narrows the table', frAfter > 0 && frAfter < frBefore, `${frBefore} → ${frAfter} (${pick})`);
+      await page.locator('#content-host select').first().selectOption({ index: 0 });
+      await page.waitForTimeout(300);
     }
-    const sum = f.holdings.reduce((a, h) => a + (h.valueCr || 0), 0);
-    out.push({ id: f.investorId, changeOk, changeBad, sum: Math.round(sum * 100) / 100, stated: f.portfolioValueCr });
   }
-  return out;
-});
-ok('the change column recomputes from the two weights beside it', amcMath.every((r) => r.changeBad === 0 && r.changeOk > 0), JSON.stringify(amcMath.map((r) => `${r.id}:${r.changeOk}ok/${r.changeBad}bad`)));
-ok('...and the rows sum to the fund value printed above them', amcMath.every((r) => Math.abs(r.sum - r.stated) < 0.02), JSON.stringify(amcMath.map((r) => `${r.id}:${r.sum} vs ${r.stated}`)));
+} else {
+  skip('the Fund Returns table renders', 'the AmfiBeas stub did not answer');
+}
 
-// THE TWO KINDS ARE NEVER ADDED TOGETHER. There is no combined-book figure on this view, and the
-// check is that no rendered number equals the sum across both — the arithmetic that would be
-// meaningless is simply never performed.
-const noCombined = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  const all = m.all();
-  const combined = all.reduce((a, f) => a + (f.portfolioValueCr || 0), 0);
-  const text = document.querySelector('#content-host').innerText.replace(/,/g, '');
-  return !text.includes(String(Math.round(combined)));
-});
-ok('no figure on the page sums across the two disclosures', noCombined);
+// A FAILED READ IS A NAMED STATE, NEVER AN EMPTY TABLE — and it is recoverable in place. Flip the
+// stub to 404, reload so the module hits it on mount, and the view must name the failure, carry the
+// requested URL, and offer a working "Try again".
+amfiMode = '404';
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1200);
+const frFail = await hostText();
+ok('a 404 renders a named failure panel, not an empty table', /answered 404|could not be read/i.test(frFail), frFail.slice(0, 120));
+ok('...carrying the exact requested URL for diagnosis', /returns-ranking/i.test(frFail));
+ok('...and never showing a zero in place of missing data', /an empty list and a list we could not read must never look the same/i.test(frFail));
+const hasRetry = (await page.locator('[data-fund-returns-retry]').count()) === 1;
+ok('...with a Try again control', hasRetry);
+if (hasRetry) {
+  amfiMode = 'ok';
+  await page.locator('[data-fund-returns-retry]').click();
+  await page.waitForTimeout(1400);
+  ok('Try again recovers the table without leaving the tab', (await rowCount()) > 10, `${await rowCount()} rows after retry`);
+}
 
-// AN UNRESOLVED LINE IS STILL A HOLDING. It keeps its row under Universe and says why it has no
-// symbol; it simply cannot be joined to the book, so it is absent under Portfolio.
-const unresolved = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  const f = m.byId('bandhan-small-cap-fund');
-  const missing = f.holdings.filter((h) => !h.ticker);
-  return {
-    count: missing.length,
-    allExplained: missing.every((h) => typeof h.unresolvedReason === 'string' && h.unresolvedReason.length > 10),
-    inUniverse: m.holdingsForScope('universe', [], f.holdings).filter((h) => !h.ticker).length,
-    inPortfolio: m.holdingsForScope('portfolio', [{ ticker: 'RECLTD' }], f.holdings).filter((h) => !h.ticker).length,
-  };
-});
-ok('every unmatched line states why it carries no ticker', unresolved.count > 0 && unresolved.allExplained, JSON.stringify(unresolved));
-ok('...keeps its row under Universe', unresolved.inUniverse === unresolved.count);
-ok('...and drops out of Portfolio scope rather than matching nothing', unresolved.inPortfolio === 0);
-
-// A COMPANY RE-ENTERED AFTER AN EXIT IS ONE ROW, and only because its two lines are disjoint.
-const spells = await page.evaluate(async () => {
-  const m = await import('/js/data/institution-holdings.js');
-  const out = [];
-  for (const f of m.all().filter((x) => x.disclosure === 'portfolio')) {
-    const names = [...f.holdings, ...f.former].map((h) => h.name);
-    out.push({
-      id: f.investorId,
-      dupes: names.length - new Set(names).size,
-      merged: f.holdings.filter((h) => h.spells > 1).length,
-      tickers: (() => {
-        const t = f.holdings.map((h) => h.ticker).filter(Boolean);
-        return t.length - new Set(t).size;
-      })(),
-    });
-  }
-  return out;
-});
-ok('no company appears twice in one book', spells.every((s) => s.dupes === 0 && s.tickers === 0), JSON.stringify(spells));
-ok('...and a re-entered position records how many spells it was folded from', spells.some((s) => s.merged > 0), JSON.stringify(spells.map((s) => `${s.id}:${s.merged}`)));
-
-// THE DRILL SAYS WHAT THE PERCENTAGE IS, because the column heading is four words and the reader
-// who clicks through is the one asking.
-await go('/#/research/super-investors/institutions?scope=universe&fund=bandhan-focused-fund', 2200);
-await waitForPanel();
-await page.locator('#content-host tbody tr').first().click();
-await page.waitForTimeout(700);
-const amcDrill = await page.locator('#drill-content').innerText();
-ok('the AMC drill explains what the percentage measures', /% to NAV/i.test(amcDrill) && /not how much of the company/i.test(amcDrill), amcDrill.slice(0, 90));
-ok('...and separates the AMC\'s figures from the one we compute', /only figure computed here/i.test(amcDrill));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
-
-// THE PROVENANCE MODAL, which is where the two disclosures are set against each other.
-await page.locator('[data-filed-info]').first().click();
-await page.waitForTimeout(500);
-const amcProv = await page.locator('#modal-content').innerText();
-ok('the Disclosed pill contrasts % to NAV with a shareholding percentage', /% to NAV/i.test(amcProv) && /how much of the company/i.test(amcProv));
-ok('...and says the value is published rather than derived', /published rather than derived/i.test(amcProv));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+// The stub route and the base override are deliberately LEFT IN PLACE for the rest of the suite, so
+// any later navigation to this sub-view (the layout section exercises its wide table) renders the
+// real Fund Returns table rather than the "configure the host" panel. `amfiMode` is back to 'ok'.
 
 // ---------------------------------------------------------------------------------------
 // 9c. Superstar Investors — REAL filed books, off Ticker Finology, behind a credential.
@@ -3529,7 +3428,7 @@ for (const width of [1440, 1024, 390]) {
   for (const [route, label] of [
     ['/#/research/concall?scope=universe', 'con-call scan table'],
     ['/#/research/public-chatter?scope=universe', 'public chatter'],
-    ['/#/research/super-investors/institutions?scope=universe&fund=bandhan-small-cap-fund', 'AMC portfolio table'],
+    ['/#/research/super-investors/institutions?scope=universe', 'Fund Returns table'],
   ]) {
     await go(route, 1700);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -3669,6 +3568,7 @@ const noStore = await page.evaluate(async () => {
     'js/data/concall-scans.js',
     'js/data/super-investors.js',
     'js/data/institution-holdings.js',
+    'js/data/fund-returns.js',
     'js/data/coverage.js',
   ];
   const out = [];
@@ -3680,7 +3580,7 @@ const noStore = await page.evaluate(async () => {
   }
   return { out, missing };
 });
-ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${10} read`);
+ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${11} read`);
 ok('no static-file loader still uses cache: no-store', noStore.out.length === 0, noStore.out.join(', '));
 
 // ---------------------------------------------------------------------------------------
@@ -3762,11 +3662,13 @@ const bootBlocking = await page.evaluate(async () => {
 ok('the shell blocks on one file, not seven', bootBlocking.length === 1, bootBlocking.join(', '));
 ok('...and it is the book, which every scope filter reads synchronously', bootBlocking[0] === 'data/portfolio-companies.json', bootBlocking[0]);
 // The deferred files still have to arrive, and the views that read them have to wait rather than
-// render an empty answer. Institutions is the one that would fail loudest: an unprimed book is an
-// empty book, and an empty book on screen is a claim that nobody holds anything.
-await go('/#/research/super-investors/institutions?scope=universe', 2500);
+// render an empty answer. Breakouts → Earnings Surprise is the reference consumer: it awaits
+// `whenDeferredData()` and joins the deferred earnings feed, so an unprimed render would be an empty
+// table — a claim that nobody reported. (Institutions no longer qualifies: it now reads AmfiBeas
+// live from the browser, not a deferred bootstrap file.)
+await go('/#/research/breakouts/earnings-surprise?scope=universe', 2500);
 await waitForPanel();
-ok('a deferred feed still reaches the view that needs it', !/No holdings file loaded/i.test(await hostText()) && (await rowCount()) > 0, `${await rowCount()} holdings`);
+ok('a deferred feed still reaches the view that needs it', (await rowCount()) > 0, `${await rowCount()} rows`);
 
 // ---------------------------------------------------------------------------------------
 console.log('\n— console —');

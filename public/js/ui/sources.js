@@ -17,7 +17,7 @@ import * as coverage from '../data/coverage.js';
 import * as concalls from '../data/concall-scans.js';
 import * as earningsLive from '../data/earnings-live.js';
 import * as chatter from '../data/chatter-live.js';
-import * as institutions from '../data/institution-holdings.js';
+import * as fundReturns from '../data/fund-returns.js';
 import * as technicals from '../data/technicals.js';
 import * as superInvestors from '../data/super-investors.js';
 
@@ -50,10 +50,6 @@ function num(fn) {
 /** `clause(n, '(<n> in the current pull)')` — drops the whole clause when the count is unknown. */
 function clause(v, template) {
   return v == null ? '' : template.replace('<n>', formatNumber(v));
-}
-/** ₹ crore, rounded the way a headline figure should be: no false precision on a big number. */
-function cr(v) {
-  return v == null ? null : `₹${formatNumber(Math.round(v))} Cr`;
 }
 
 /**
@@ -115,20 +111,8 @@ export function sourceGroups() {
   const si = { count: num(() => superInvestors.meta().loadedBooks) };
   const chat = num(() => chatter.all().length);
   const chatResolved = num(() => chatter.companies().length);
-  const funds = (() => {
-    try {
-      return institutions.isLoaded() ? institutions.all() : [];
-    } catch {
-      return [  ];
-      }
-    })();
-    const fundBlurb = (disclosure, noun) =>
-      funds
-        .filter((f) => f.disclosure === disclosure)
-        .map((f) => `<strong>${escapeHtml(f.name)}</strong> (${formatNumber(f.holdings?.length || 0)} ${noun}${
-          f.portfolioValueCr ? `, ${cr(f.portfolioValueCr)}` : ''
-        }${f.periodLabels?.length ? `, ${formatNumber(f.periodLabels.length)} ${f.periodNoun || 'period'}s to ${escapeHtml(f.periodLabels[0])}` : ''})`)
-        .join(' and ');
+  // Read from the module the Fund Returns view reads, like every other figure here — never typed.
+  const schemes = num(() => fundReturns.meta()?.total || fundReturns.all().length);
 
     return [
     {
@@ -396,26 +380,19 @@ export function sourceGroups() {
           file: 'worker/index.js · .dev.vars for local development',
         },
         {
-          name: 'Bandhan Mutual Fund — monthly portfolio disclosures',
-          url: 'https://bandhanmutual.com/',
+          name: 'AmfiBeas — fund returns & peer ranking',
+          url: null,
           feeds:
-            `<strong>Real disclosures.</strong> Indian AMCs publish the full portfolio of every scheme each month, naming each instrument with its weight and its market value.${
-              fundBlurb('portfolio', 'holdings') ? ` Wired for ${fundBlurb('portfolio', 'holdings')}.` : ''
-            } <strong>The percentage is % to NAV — how much of the FUND is in each company</strong>, which is the opposite measurement from the shareholding filings below and is never summed with them. Weights and values are the AMC's own published figures; the only figure computed here is the month-on-month change. The NSE symbol is ours, resolved from the dashboard's other feeds, and a line that could not be matched says so rather than guessing.`,
-          cadence: 'Monthly · drop the new workbook in scripts/fixtures/ and re-run the importer',
-          status: 'live',
-          file: 'public/data/institution-holdings.json · scripts/import-amc-portfolio.mjs · scripts/lib/xlsx-read.mjs · scripts/lib/company-index.mjs',
-        },
-        {
-          name: 'Trendlyne — superstar shareholdings (filed)',
-          url: 'https://trendlyne.com/portfolio/superstar-shareholders/54015/latest/smallcap-world-fund-inc/',
-          feeds:
-            `<strong>Real filings.</strong> Indian companies file their shareholding pattern with the exchanges every quarter, naming each holder above 1% with a share count and a percentage of the company; Trendlyne aggregate those filings by holder.${
-              fundBlurb('shareholding', 'Indian holdings') ? ` Wired for ${fundBlurb('shareholding', 'Indian holdings')}.` : ''
-            } <strong>Share counts and percentages are the filings; the ₹ value is Trendlyne's own derivation</strong> (holding % × market cap), reproduced unchanged and attributed rather than recomputed. A blank percentage means the company has not filed yet, not that the position was sold.`,
-          cadence: 'Quarterly, as filings arrive over the weeks after a quarter closes · re-run the scraper',
-          status: 'live',
-          file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
+            `<strong>Real returns, and not ours.</strong> The Institutions sub-view (<em>Fund Returns</em>) is every tracked mutual fund and ETF, its point-to-point return for each period — a simple return for 1M/3M/6M/1Y, a CAGR for 3Y/5Y/10Y — and its rank <strong>within its own cohort</strong>, shown <code class="rounded bg-slate-100 px-1">rank/peerCount</code>. AmfiBeas compute all of it from AMFI's daily NAV snapshot; <strong>this dashboard reproduces the returns and ranks unchanged and adds no scoring of its own</strong>. Called <strong>straight from the browser</strong> — the feed is CORS-open and read-only, so there is no credential to hold. A missing return is "no return for that period" and a missing rank is "the cohort was too small to rank": both render an em dash, never a zero.${clause(
+              schemes,
+              ' <n> schemes in the current pull.'
+            )}`,
+          cadence: 'Daily · read live per visit, the device cache revalidated against the upstream ETag',
+          // PENDING, not live: the API is wired and rendering but has no deployed host yet — set
+          // window.AMFIBEAS_API_BASE in index.html to activate it. Marked honestly so the modal does
+          // not claim a live feed the reader is not seeing.
+          status: 'pending',
+          file: 'public/js/investors/fund-returns.js · public/js/data/fund-returns.js · window.AMFIBEAS_API_BASE in index.html',
         },
       ],
     },
