@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-08-27T11:43:12.662Z",
-  "from": "2026-08-24",
-  "to": "2026-09-17",
+  "capturedAt": "2026-08-28T13:06:44.196Z",
+  "from": "2026-08-25",
+  "to": "2026-09-18",
   "listCap": 20,
   "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
   "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-18",
+      "displayDate": "18 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-17",
       "displayDate": "17 Sep",
@@ -84,7 +89,7 @@
     {
       "date": "2026-09-02",
       "displayDate": "02 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-01",
@@ -124,15 +129,36 @@
     {
       "date": "2026-08-25",
       "displayDate": "25 Aug",
-      "count": 3
-    },
-    {
-      "date": "2026-08-24",
-      "displayDate": "24 Aug",
-      "count": 1
+      "count": 4
     }
   ],
   "byDate": {
+    "2026-09-02": {
+      "rows": [
+        {
+          "scId": "TVL01",
+          "name": "Technocraft Ventures",
+          "shortName": "Technocraft Ven",
+          "resultDate": "2026-09-02",
+          "displayDate": "2 Sep",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 373.83,
+          "changePct": 4.35,
+          "marketCap": 1480.6,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
+          "ticker": "TECHNOCRAF",
+          "fullName": "Technocraft Ven",
+          "industry": "Construction - Infrastructure",
+          "shares": 39606200,
+          "mktCapAtBuild": 1480.6
+        }
+      ],
+      "scheduledCount": 1,
+      "capped": false,
+      "asOnDate": "28/08/2026"
+    },
     "2026-08-31": {
       "rows": [
         {
@@ -143,16 +169,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 217.31,
-          "changePct": -2.16,
-          "marketCap": 16729.47,
+          "ltp": 214.31,
+          "changePct": -1.38,
+          "marketCap": 16498.51,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
           "fullName": "Milky Mist",
           "industry": "Consumer Food",
           "shares": 769843411,
-          "mktCapAtBuild": 16729.47
+          "mktCapAtBuild": 16498.51
         },
         {
           "scId": "LIL07",
@@ -162,21 +188,35 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 161.77,
-          "changePct": 1.33,
-          "marketCap": 7126.56,
+          "ltp": 168.4,
+          "changePct": 4.1,
+          "marketCap": 7418.63,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
           "fullName": "LEAP India",
           "industry": "Logistics",
           "shares": 440536458,
-          "mktCapAtBuild": 7126.56
+          "mktCapAtBuild": 7418.63
+        },
+        {
+          "scId": "DPL03",
+          "name": "Dachepalli Publishers",
+          "shortName": "Dachepalli Pub",
+          "resultDate": "2026-08-31",
+          "displayDate": "31 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 80.6,
+          "changePct": 1.6,
+          "marketCap": 120.71,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/dachepallipublishers/DPL03"
         }
       ],
       "scheduledCount": 2,
       "capped": false,
-      "asOnDate": "27/08/2026"
+      "asOnDate": "28/08/2026"
     },
     "2026-08-29": {
       "rows": [
@@ -188,21 +228,21 @@
           "displayDate": "29 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 17.86,
-          "changePct": 1.82,
-          "marketCap": 238.91,
+          "ltp": 17.93,
+          "changePct": 0.39,
+          "marketCap": 239.84,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 238.91
+          "mktCapAtBuild": 239.84
         }
       ],
       "scheduledCount": 1,
       "capped": false,
-      "asOnDate": "27/08/2026"
+      "asOnDate": "28/08/2026"
     },
     "2026-08-26": {
       "rows": [
@@ -214,16 +254,16 @@
           "displayDate": "26 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 254.32,
-          "changePct": -4.91,
-          "marketCap": 14470.77,
+          "ltp": 258.23,
+          "changePct": 1.54,
+          "marketCap": 14693.25,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/renewables/junipergreenenergy/JGE",
           "ticker": "JNPR",
           "fullName": "Juniper Green",
           "industry": "Renewables",
           "shares": 568998442,
-          "mktCapAtBuild": 14470.77
+          "mktCapAtBuild": 14693.25
         },
         {
           "scId": "VL06",
@@ -234,7 +274,7 @@
           "quarter": "Q1 FY26-27",
           "time": null,
           "ltp": 1.14,
-          "changePct": 5.56,
+          "changePct": null,
           "marketCap": 158.27,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/chemicals/vikasecotech/VGO01",
@@ -252,9 +292,9 @@
           "displayDate": "26 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 133.85,
-          "changePct": -3.46,
-          "marketCap": 146.22,
+          "ltp": 138,
+          "changePct": 2.76,
+          "marketCap": 150.75,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-construction/oneindigtechnologies/O01"
         },
@@ -266,43 +306,24 @@
           "displayDate": "26 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 8.77,
-          "changePct": -1.9,
-          "marketCap": 36.2,
+          "ltp": 8.6,
+          "changePct": -1.94,
+          "marketCap": 35.5,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/sugar/simbhaolisugars/SS52",
           "ticker": "SIMBHALS",
           "fullName": "Simbhaoli Sugar",
           "industry": "Sugar",
           "shares": 41279020,
-          "mktCapAtBuild": 36.2
+          "mktCapAtBuild": 35.5
         }
       ],
       "scheduledCount": 3,
       "capped": false,
-      "asOnDate": "27/08/2026"
+      "asOnDate": "28/08/2026"
     },
     "2026-08-25": {
       "rows": [
-        {
-          "scId": "AIL11",
-          "name": "Ardee Industries",
-          "shortName": "Ardee Industrie",
-          "resultDate": "2026-08-25",
-          "displayDate": "25 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 59.28,
-          "changePct": 6.01,
-          "marketCap": 1868.51,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-non-ferrous/ardeeindustries/AIL11",
-          "ticker": "ARDEE",
-          "fullName": "Ardee Industrie",
-          "industry": "Metals - Non Ferrous",
-          "shares": 315200950,
-          "mktCapAtBuild": 1868.51
-        },
         {
           "scId": "MEL04",
           "name": "MV Electrosystems",
@@ -311,16 +332,35 @@
           "displayDate": "25 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 646.8,
-          "changePct": 15.47,
-          "marketCap": 1764.65,
+          "ltp": 719.55,
+          "changePct": 11.25,
+          "marketCap": 1963.13,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/electric-equipment-switchgears/mvelectrosystems/MEL04",
           "ticker": "MVELECTRO",
           "fullName": "MV Electrosyste",
           "industry": "Electric Equipment - Switchgears",
           "shares": 27282728,
-          "mktCapAtBuild": 1764.65
+          "mktCapAtBuild": 1963.13
+        },
+        {
+          "scId": "AIL11",
+          "name": "Ardee Industries",
+          "shortName": "Ardee Industrie",
+          "resultDate": "2026-08-25",
+          "displayDate": "25 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 61.16,
+          "changePct": 3.17,
+          "marketCap": 1927.77,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-non-ferrous/ardeeindustries/AIL11",
+          "ticker": "ARDEE",
+          "fullName": "Ardee Industrie",
+          "industry": "Metals - Non Ferrous",
+          "shares": 315200950,
+          "mktCapAtBuild": 1927.77
         },
         {
           "scId": "STC",
@@ -330,61 +370,40 @@
           "displayDate": "25 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 117.48,
-          "changePct": -0.68,
-          "marketCap": 704.88,
+          "ltp": 116.88,
+          "changePct": -0.51,
+          "marketCap": 701.28,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/statetradingcorporationindia/STC",
           "ticker": "STCINDIA",
           "fullName": "STC India",
           "industry": "Trading",
           "shares": 60000000,
-          "mktCapAtBuild": 704.88
-        }
-      ],
-      "scheduledCount": 3,
-      "capped": false,
-      "asOnDate": "27/08/2026"
-    },
-    "2026-08-24": {
-      "rows": [
-        {
-          "scId": "PEEL",
-          "name": "Propshop Events and Exhibitions",
-          "shortName": "Propshop Events",
-          "resultDate": "2026-08-24",
-          "displayDate": "24 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 74.7,
-          "changePct": -1.84,
-          "marketCap": 109.29,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/misc-commercial-services/propshopeventsexhibitions/PEEL",
-          "ticker": "PROPSHOP",
-          "fullName": "Propshop Events",
-          "industry": "Misc. Commercial Services",
-          "shares": 14630804,
-          "mktCapAtBuild": 109.29
+          "mktCapAtBuild": 701.28
         },
         {
-          "scId": "VP01",
-          "name": "TeleCanor Global",
-          "shortName": "TeleCanor Glob",
-          "resultDate": "2026-08-24",
-          "displayDate": "24 Aug",
+          "scId": "ABL08",
+          "name": "Avience Biomedicals",
+          "shortName": "Avience Biomedi",
+          "resultDate": "2026-08-25",
+          "displayDate": "25 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 22.29,
-          "changePct": -1.89,
-          "marketCap": 36.76,
-          "exchange": "B",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/it-services-consulting/telecanorglobal/TCG01"
+          "ltp": 269.5,
+          "changePct": -0.42,
+          "marketCap": 147.82,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/medical-equipment-supplies-accessories/aviencebiomedicals/ABL08",
+          "ticker": "AVIENCE",
+          "fullName": "Avience Biomedi",
+          "industry": "Medical Equipment/Supplies/Accessories",
+          "shares": 5485056,
+          "mktCapAtBuild": 147.82
         }
       ],
-      "scheduledCount": 1,
+      "scheduledCount": 4,
       "capped": false,
-      "asOnDate": "27/08/2026"
+      "asOnDate": "28/08/2026"
     }
   }
 }
