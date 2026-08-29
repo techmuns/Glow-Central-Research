@@ -2250,7 +2250,7 @@ public/data/market-news.json          written by scripts/scrape-mc-news.mjs
   "newestId": "14017856",          // their article id — the merge key and the sort key
   "articleCount": 600, "keep": 600,
   "withPublishedAt": 156,          // carry the PUBLISHER'S time
-  "withoutPublishedAt": 444,       // render an em dash — never `firstSeenAt` in disguise
+  "withoutPublishedAt": 444,       // the card reads "time not published" — never `firstSeenAt`
   "listingRequests": 25, "stoppedAtKnown": false,
   "articles": [ {
     "id": "14017856",
@@ -2285,6 +2285,25 @@ Scheduled by `.github/workflows/market-news-refresh.yml` every 20 minutes. **It 
 once `.github/workflows/deploy.yml` runs** — `public/` is served through the Worker's `assets`
 binding, so a commit alone changes nothing on the live site. That workflow needs
 `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*.
+
+**`image` is the publisher's own thumbnail URL, hot-linked, never copied.** It comes off
+`images.moneycontrol.com` with their sizing query string intact (`?impolicy=website&width=400…`), so
+the bytes stay on their CDN and the capture stays at ~400 KB rather than becoming an image archive.
+The card carries `loading="lazy"` and an `onerror` that hides the `<img>`, leaving the placeholder
+block — a reader offline, or a verification run with no egress, gets a clean card rather than a grid
+of broken-image icons. Every story in the current capture carries one (600/600).
+
+**The tab renders these as the publisher's cards, not as a table** — thumbnail, headline, standfirst,
+and the whole card is a link to their page. See *The one hand-rolled list* in `CLAUDE.md` for why
+this is the single feed here that does not use the screener kit, and what the kit's discipline still
+buys that is kept by hand.
+
+**A story arriving while the reader is on the page raises an alert**, through the same stack as the
+results feed and the con-call scan (`js/core/watch.js` → `js/ui/notifications.js`, `kind: 'news'`).
+The poll is `POLL_MS = 20 minutes`, matching the Action's cadence rather than guessing at tolerable
+staleness — polling faster cannot surface a story sooner, only spend requests confirming the same
+capture. The paint that first loads a capture announces **nothing**: everything in it predates the
+reader's arrival, and replaying it would make every later alert worth less.
 
 ### Corporate announcements are read by DATE, from BSE — a different shape entirely
 

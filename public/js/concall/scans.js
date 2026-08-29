@@ -358,7 +358,9 @@ function loadReady() {
 }
 
 /** The row key, in one place, because the Deep Dive button carries it back. */
-const rowKey = (r) => `${r.companyKey}|${r.when}`;
+// The feed's own id, not a key of this tab's making — the provider can hold two analyses of one
+// call, so (company, time) is not unique. See `rowIdOf` in js/data/concall-scans.js.
+const rowKey = (r) => feed.rowUid(r);
 
 /**
  * The Deep Dive cell.

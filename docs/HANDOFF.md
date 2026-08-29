@@ -38,6 +38,7 @@ This is the first thing to check before quoting any number off a screen.
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
 | **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
 | **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | called direct from the browser, **not** proxied — see §5e | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), hourly client poll** |
+| **Market-wide stocks news** — every story Moneycontrol publish to `/news/business/stocks/`, 600 held | `public/data/market-news.json` (406 KB) | Moneycontrol, read with `curl` from a GitHub runner — **neither the browser nor the Worker can fetch this host** | Every 20 minutes |
 | scID → NSE ticker, industry, share count | `public/data/mc-ticker-map.json` (190 KB) | Moneycontrol price feed | Incremental, daily |
 | Close on each result date | `public/data/result-returns.json` (80 KB) | Yahoo Finance | Incremental, daily |
 

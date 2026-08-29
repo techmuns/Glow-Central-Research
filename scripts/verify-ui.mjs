@@ -1371,6 +1371,33 @@ ok('unanalysed calls carry a null score, never a zero', csPending.nulls >= 0 && 
 await page.locator('#content-host select').first().selectOption('pending');
 await page.waitForTimeout(600);
 ok('...and the pending filter shows them as “pending”', (await rowCount()) === csPending.nulls && (csPending.nulls === 0 || /pending/i.test(await hostText())), `${await rowCount()} rows`);
+
+// A ROW KEY THAT MEANS TWO ROWS, AND THE ONE SYMPTOM IT PRODUCES.
+//
+// The provider holds two analyses of some calls — Supriya Lifescience's 14 Aug 11:00 call scored
+// 50.4 and 50.3 against two different documents. Keyed on (company, time) both were "the same
+// row", so `repaint`'s Map of <tr> nodes dropped one and the orphan stayed in the DOM through
+// every filter: a scored call sitting at the top of "Awaiting analysis", out of sort order.
+// A ROW COUNT CANNOT CATCH THIS on its own, so both halves are asserted — the key is unique in
+// the data, and nothing scored is drawn under a filter that excludes scored rows.
+const csKeys = await page.evaluate(async () => {
+  const mod = await import('/js/data/concall-scans.js');
+  const rows = mod.all();
+  const keys = rows.map((r) => String(mod.rowUid(r)));
+  const counts = new Map();
+  for (const k of keys) counts.set(k, (counts.get(k) || 0) + 1);
+  const collided = [...counts.entries()].filter(([, n]) => n > 1);
+  // (company, time) alone: kept as evidence that the collision is REAL and not hypothetical.
+  const naive = new Set(rows.map((r) => `${r.companyKey}|${r.when}`));
+  return { rows: rows.length, unique: counts.size, collided: collided.length, naiveUnique: naive.size };
+});
+ok('no two con-call rows share a key, even where the provider holds two analyses of one call',
+  csKeys.collided === 0 && csKeys.unique === csKeys.rows,
+  `${csKeys.unique} keys for ${csKeys.rows} rows (company+time alone would give ${csKeys.naiveUnique})`);
+const csScoredUnderPending = await page.evaluate(() =>
+  [...document.querySelectorAll('#content-host tbody tr')].filter((tr) => /\d+(\.\d+)?\s*\/\s*100/.test(tr.innerText)).length);
+ok('...so nothing already scored is drawn under “Awaiting analysis”', csScoredUnderPending === 0,
+  `${csScoredUnderPending} scored row(s) under the pending filter`);
 await page.locator('#content-host select').first().selectOption('all');
 await page.waitForTimeout(400);
 
@@ -3463,32 +3490,166 @@ console.log('\n— news, announcements and insider trades —');
   ok('...and the button offers to check for stories, never to fetch the publisher',
     /check for new/i.test(btn) && !/fetch|moneycontrol/i.test(btn), btn.trim());
 
-  // A story with no publisher time is a dash, NOT the moment we saw it.
-  const dates = await evalSafe(async () => {
+  // -------------------------------------------------------------------------------------
+  // THE UNIVERSE HALF IS AN EDITORIAL LIST, NOT A TABLE — thumbnail, headline, standfirst, in the
+  // publisher's own layout, and the WHOLE CARD is the link out. Three things must hold:
+  //   • clicking a story opens the publisher's page, in a new tab, with the opener severed;
+  //   • the thumbnail is the publisher's own image, not a placeholder we invented;
+  //   • a story with no publisher time SAYS SO, rather than borrowing the moment we captured it.
+  // -------------------------------------------------------------------------------------
+  const cards = await evalSafe(async () => {
     const mod = await import('/js/data/market-news.js');
-    const undated = mod.rows().filter((r) => !r.publishedAt);
-    const withFirstSeen = undated.filter((r) => r.firstSeenAt).length;
-    const cells = [...document.querySelectorAll('[data-table-scroll] tbody tr')].map((tr) => tr.children[1]?.innerText.trim());
-    return { undated: undated.length, withFirstSeen, dashes: cells.filter((c) => c === '—').length, sample: cells.slice(0, 3) };
+    const rows = mod.rows();
+    const byKey = new Map(rows.map((r) => [String(r.id || r.url), r]));
+    const nodes = [...document.querySelectorAll('[data-news-key]')];
+    const keys = nodes.map((a) => a.getAttribute('data-news-key'));
+    const anchors = nodes.filter((a) => a.tagName === 'A').length;
+    // A story whose captured URL is not http(s) is rendered without a link on purpose. None should
+    // exist; if one does, this reports it rather than letting it read as a missing anchor.
+    const unlinkable = nodes.filter((a) => a.hasAttribute('data-news-unlinkable')).length;
+    const offsite = nodes.filter((a) => /^https:\/\/(www\.)?moneycontrol\.com\//.test(a.getAttribute('href') || '')).length;
+    const newTab = nodes.filter((a) => a.getAttribute('target') === '_blank' && /noreferrer/.test(a.getAttribute('rel') || '')).length;
+    const hrefMatchesFeed = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.url === a.getAttribute('href')).length;
+    const thumbs = nodes.filter((a) => {
+      const img = a.querySelector('img');
+      return img && /^https:\/\/images\.moneycontrol\.com\//.test(img.getAttribute('src') || '');
+    }).length;
+    const withImage = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.image).length;
+    const headlines = nodes.filter((a) => {
+      const h = a.querySelector('h3');
+      return h && h.innerText.trim() === (byKey.get(a.getAttribute('data-news-key'))?.title || '').trim();
+    }).length;
+    // Undated stories: the card must name the absence, and must never print firstSeenAt.
+    const undatedOnScreen = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key')) && !byKey.get(a.getAttribute('data-news-key')).publishedAt);
+    const undatedSay = undatedOnScreen.filter((a) => /time not published/i.test(a.innerText)).length;
+    return {
+      data: rows.length,
+      drawn: nodes.length,
+      dupes: keys.length - new Set(keys).size,
+      missing: keys.filter((k) => !byKey.has(k)).length,
+      anchors, offsite, newTab, hrefMatchesFeed, thumbs, withImage, headlines, unlinkable,
+      undated: undatedOnScreen.length,
+      undatedSay,
+    };
   });
-  ok('a story with no publisher time renders a dash, never the time we saw it',
-    dates && dates.undated > 0 ? dates.dashes > 0 : true,
-    `${dates?.undated} undated (${dates?.withFirstSeen} do carry firstSeenAt), ${dates?.dashes} dashes on screen`);
 
-  // Row keys are the publisher's article id, so a growing table cannot reassign cached markup.
-  const mktPaint = await evalSafe(async () => {
+  ok('every market-news story on screen is a distinct story the feed holds',
+    cards && cards.dupes === 0 && cards.missing === 0 && cards.drawn > 0,
+    `${cards?.drawn} drawn from ${cards?.data}, ${cards?.dupes} duplicate(s), ${cards?.missing} not in the feed`);
+  ok('...rendered as the publisher\'s card — thumbnail, headline, standfirst',
+    cards && cards.thumbs === cards.withImage && cards.withImage > 0 && cards.headlines === cards.drawn,
+    `${cards?.thumbs}/${cards?.withImage} thumbnails off the publisher's CDN, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
+  ok('...and clicking one opens THAT story on the publisher\'s site, in a new tab',
+    cards && cards.unlinkable === 0 && cards.anchors === cards.drawn && cards.offsite === cards.drawn && cards.newTab === cards.drawn && cards.hrefMatchesFeed === cards.drawn,
+    `${cards?.anchors} anchors, ${cards?.offsite} to moneycontrol.com, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
+  ok('a story with no publisher time says so, never the time we saw it',
+    cards && (cards.undated === 0 || cards.undatedSay === cards.undated),
+    `${cards?.undated} undated on screen, ${cards?.undatedSay} saying the time is not published`);
+
+  // Search narrows the list without touching the head, and the count reports the ARRAY.
+  const filtered = await evalSafe(async () => {
+    const input = document.querySelector('[data-news-search]');
+    if (!input) return null;
     const mod = await import('/js/data/market-news.js');
-    const data = new Set(mod.rows().map((r) => String(r.id || r.url)));
-    // `data-row-key` is the publisher's article id. An earlier version read the first line of
-    // innerText, which on this table is the watchlist star — identical on all 600 rows, so it
-    // reported 599 duplicates and was measuring the glyph rather than the story.
-    const dom = [...document.querySelectorAll('[data-table-scroll] tbody tr[data-row-key]')].map((tr) => tr.getAttribute('data-row-key'));
-    const dupes = dom.length - new Set(dom).size;
-    const missing = dom.filter((k) => !data.has(k)).length;
-    return { data: data.size, drawn: dom.length, dupes, missing };
+    const term = 'stock';
+    const expect = mod.rows().filter((r) => `${r.title || ''} ${r.summary || ''} ${r.section || ''}`.toLowerCase().includes(term)).length;
+    // FOCUS FIRST. A reader types into a focused box, and the restore path this is checking reads
+    // `document.activeElement` before the rebuild — dispatching `input` at an unfocused node tests
+    // nothing and fails for the wrong reason.
+    input.focus();
+    input.value = term;
+    input.setSelectionRange(term.length, term.length);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+    const pending = document.querySelector('[data-rows-pending]');
+    const label = document.querySelector('[data-mcnews-list]')?.innerText.match(/([\d,]+)\s+of\s+([\d,]+)\s+stories/);
+    const live = document.querySelector('[data-news-search]');
+    const focused = document.activeElement === live;
+    const caret = live ? live.selectionStart : null;
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 500));
+    return { expect, shown: label ? Number(label[1].replace(/,/g, '')) : null, total: label ? Number(label[2].replace(/,/g, '')) : null, focused, caret, term, pending: !!pending, restored: document.querySelectorAll('[data-news-key]').length };
   });
-  ok('every market-news row on screen is a distinct story the feed holds', mktPaint && mktPaint.dupes === 0 && mktPaint.missing === 0,
-    `${mktPaint?.drawn} drawn from ${mktPaint?.data}, ${mktPaint?.dupes} duplicate(s), ${mktPaint?.missing} not in the feed`);
+  ok('search narrows the list, counts the whole result rather than what is painted, and keeps the caret',
+    filtered && filtered.shown === filtered.expect && filtered.expect > 0 && filtered.expect < filtered.total
+      && filtered.focused && filtered.caret === filtered.term.length,
+    filtered ? `${filtered.shown} shown of ${filtered.total} (expected ${filtered.expect}), focus ${filtered.focused ? 'kept' : 'LOST'}, caret at ${filtered.caret}` : 'no search box');
+
+  await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), { timeout: 20000 }).catch(() => {});
+
+  // -------------------------------------------------------------------------------------
+  // A STORY THAT LANDS WHILE THE READER IS HERE POPS AN ALERT — the same stack the results feed
+  // and the con-call scan use, and for the same reason: an alert is only worth having if it fires
+  // while the reader is looking at something else.
+  //
+  // Driven end to end rather than by calling `push` directly: the feed is loaded against a
+  // deliberately SHORT capture (its ten newest stories withheld), then the withholding is dropped
+  // and the feed re-checked, so the ten arrive exactly as they would from a scheduled run. That is
+  // the path that has to work — the backlog suppression, the arrival diff, the dedupe key and the
+  // card — and none of it is exercised by pushing a card by hand.
+  // -------------------------------------------------------------------------------------
+  let withholdNewest = true;
+  await page.route('**/data/market-news.json*', async (route) => {
+    if (!withholdNewest) return route.fallback();
+    const upstream = await route.fetch();
+    const body = await upstream.json();
+    body.articles = (body.articles || []).slice(10);
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'application/json', etag: '"mcnews-withheld"', 'cache-control': 'no-cache' },
+      body: JSON.stringify(body),
+    });
+  });
+  const seeded = await evalSafe(async () => {
+    (await import('/js/ui/notifications.js')).clear();
+    const mod = await import('/js/data/market-news.js');
+    mod.invalidate();
+    await mod.load();
+    // The first paint announces NOTHING, whatever it contains. Everything in a capture predates
+    // the reader's arrival, and replaying it would make every later alert worth less.
+    return { rows: mod.rows().length, arrivals: mod.newArrivals().length, cards: document.getElementById('notification-root')?.children.length ?? -1 };
+  });
+  ok('the market-news capture announces nothing on the paint that first loads it',
+    seeded && seeded.rows > 0 && seeded.arrivals === 0 && seeded.cards === 0,
+    `${seeded?.rows} stories seeded, ${seeded?.arrivals} arrival(s), ${seeded?.cards} card(s)`);
+
+  withholdNewest = false;
+  const alerted = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const out = await mod.refresh();
+    await new Promise((r) => setTimeout(r, 900));
+    const root = document.getElementById('notification-root');
+    const cards = [...(root?.children || [])];
+    const arrivals = mod.newArrivals();
+    const first = arrivals[0];
+    const text = cards.map((c) => c.innerText.replace(/\s+/g, ' ')).join(' ~ ');
+    return {
+      added: out.added,
+      arrivals: arrivals.length,
+      cards: cards.length,
+      labelled: /Market news/i.test(text),
+      // The card carries the publisher's own headline and standfirst, not a summary of ours.
+      verbatim: !!first && text.includes(String(first.title).slice(0, 40)),
+      text: text.slice(0, 160),
+      // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
+    };
+  });
+  ok('a story arriving while the reader is here pops an alert', alerted && alerted.added > 0 && alerted.cards > 0,
+    `${alerted?.added} new, ${alerted?.arrivals} on the arrival list, ${alerted?.cards} card(s)`);
+  ok('...labelled as market news and carrying the publisher\'s own headline',
+    alerted && alerted.labelled && alerted.verbatim, alerted?.text);
+  const reAnnounced = await evalSafe(async () => {
+    const before = document.getElementById('notification-root')?.children.length ?? 0;
+    const mod = await import('/js/data/market-news.js');
+    await mod.refresh();
+    await new Promise((r) => setTimeout(r, 700));
+    return { before, after: document.getElementById('notification-root')?.children.length ?? 0 };
+  });
+  ok('...and the same story never announces itself twice', reAnnounced && reAnnounced.after <= reAnnounced.before,
+    `${reAnnounced?.before} card(s) before a second check, ${reAnnounced?.after} after`);
+  await page.unroute('**/data/market-news.json*').catch(() => {});
+  await evalSafe(async () => (await import('/js/ui/notifications.js')).clear());
 
   // Back to announcements: the next check drives the ANNOUNCEMENTS feed and needs its tab mounted.
   await go('/#/research/corp-announcements?scope=universe', 3000);

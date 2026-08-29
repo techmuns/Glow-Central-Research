@@ -765,11 +765,25 @@ export function scoreTable(config) {
       current = visibleRows();
       head.innerHTML = headHtml();
 
+      // A Map keyed by row key CANNOT SURVIVE A DUPLICATE: the second `<tr>` displaces the first,
+      // the first is then never visited by the removal loop, and it stays in the DOM for ever —
+      // wrong row, wrong place, invisible to any count. That is exactly what a colliding key did
+      // to the con-call table (see `rowIdOf` in js/data/concall-scans.js), so both sides are now
+      // closed: the key is unique, and a duplicate here falls through to the rebuild instead of
+      // quietly painting the wrong thing. A caller with a bad key gets a slower paint, never a lie.
       const existing = new Map();
-      for (const tr of body.children) if (tr.dataset?.rowKey) existing.set(tr.dataset.rowKey, tr);
+      let domDupes = 0;
+      for (const tr of body.children) {
+        const k = tr.dataset?.rowKey;
+        if (!k) continue;
+        if (existing.has(k)) domDupes++;
+        existing.set(k, tr);
+      }
 
       const nextKeys = current.map((r) => String(key(r)));
-      const canReorder = current.length > 0 && existing.size > 0 && nextKeys.every((k) => existing.has(k));
+      const keyDupes = nextKeys.length - new Set(nextKeys).size;
+      const canReorder =
+        current.length > 0 && existing.size > 0 && domDupes === 0 && keyDupes === 0 && nextKeys.every((k) => existing.has(k));
 
       if (canReorder) {
         const keep = new Set(nextKeys);

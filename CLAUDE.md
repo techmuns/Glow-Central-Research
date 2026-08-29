@@ -735,7 +735,9 @@ Three consequences, and the third is the one that matters to the reader:
 **And the listing page carries no date on any story.** Verified: no date, time or timestamp element
 anywhere on it. The publisher's time lives on each story's own page, so it costs one request per
 story, is budgeted (`MCNEWS_DATE_LIMIT`), and the newest are done first. A story the budget did not
-reach keeps `publishedAt: null` and renders an em dash. **It is never stamped with `firstSeenAt`** —
+reach keeps `publishedAt: null` and the card says *time not published* in those words — an em dash
+is right in a date column where the heading supplies the noun, and wrong on an editorial card where
+nothing else on the row says what the missing thing was. **It is never stamped with `firstSeenAt`** —
 that is when the *scraper* saw the story, it is a fact about us rather than about the story, and it
 is kept in its own field so the two cannot be confused. Ordering does not depend on it either way:
 Moneycontrol's own article id is in every URL and increases with publication, which is also why it is
@@ -758,6 +760,41 @@ the universe — and it must say **why** it is asking, or it reads as broken.
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
 report an outage as an absence of events — the same error class as a count of zero from a failing
 endpoint (see *And a count of zero is not always a count*).
+
+### The one hand-rolled list — when a row is editorial rather than a record
+
+`js/tabs/market-news-view.js` is the single place in this dashboard that does not build its rows out
+of `scoreTable`, and the exception is narrow enough to state exactly.
+
+**The kit models a record with columns.** Every other feed here is one: a company, a score, a date, a
+percentage — cells the reader compares down the column. A news story is not that shape. Its row is a
+thumbnail, a headline and a standfirst, and the headline **is** the row; forcing it into a table made
+a headline share its width with a date column and a section chip, which is the ranking exactly
+backwards. So this tab reproduces the publisher's own card — image left, headline, standfirst, then a
+muted line of time / section / premium — and **the whole card is the anchor**, because a news list
+where only a small arrow is clickable makes the reader hunt for the one live pixel. `target="_blank"`
+with `rel="noopener noreferrer"`, since the destination is not ours.
+
+Opting out of the kit does **not** opt out of what the kit was protecting, and all four are kept by
+hand here:
+
+1. **A screenful first, then the rest under `requestIdleCallback`.** 600 cards is far more DOM than
+   600 table rows, so mounting it all up front would block the main thread on every visit.
+   `data-rows-pending` on the section is the honest signal that stories are outstanding, and the
+   suite waits on that attribute rather than sleeping.
+2. **Keys derived from content** — the publisher's article id — never from a position. Same rule, and
+   the same failure it prevents, as *Performance on large tables*.
+3. **The count and the export read the ARRAY, never the DOM.** A fill still in flight must not be
+   able to truncate a workbook or under-report the result of a search.
+4. **Every string escaped.** These are somebody else's headlines arriving over the network.
+
+Two things it must do that a `scoreTable` would have done for free, so they are easy to forget:
+**rebuild only the list when the reader types** (a full repaint takes the focus and the caret out of
+the search box they are typing into), and **own the scroll position** — a capture landing must not
+throw the reader back to the top, and a *new filter* must, because a new filter is a new list.
+
+**Do not read this as licence to hand-roll the next table.** The test is whether the row is a record
+with columns or a piece of editorial. Everything else in this dashboard is the first.
 
 ### Work the reader has to ask for — the on-demand rule
 
@@ -1056,6 +1093,29 @@ exactly right. It reads as a duplicating API and the API is innocent, and **coun
 catch it** — the suite compares them instead. Where rows have no natural id, key on the fields that
 identify one (URL, or the joined cells) and suffix a counter for genuine content duplicates: the
 failure to close is one key meaning two different rows, never two keys meaning one row.
+
+**It happened a second time, from the other direction, and the symptom looked nothing like the
+first.** The con-call table keyed on `(companyKey, when)` — which is unique right up until the
+research provider holds **two analyses of one call**. Supriya Lifescience's 14 Aug 11:00 call is in
+the feed twice, scoring 50.4 and 50.3 against two different documents; both are theirs and both are
+real. One key, two rows. `repaint` holds the existing `<tr>` nodes in a `Map` keyed by row key, so
+the second displaced the first, the removal loop never visited the first, and it **stayed in the DOM
+for ever** — a scored call sitting at the top of *Awaiting analysis*, out of sort order, through
+every filter and every sort. Measured: 28 rows under a filter matching 27.
+
+Three things to take from it:
+
+1. **Uniqueness is a property of the data, not of the field names.** `(company, time)` reads like an
+   identity and is not one. Ask what the upstream can legitimately hold two of before trusting a
+   composite key — the id here now includes the document, with a counter behind it.
+2. **The failure is silent and the state is correct.** Nothing threw, no count was wrong, the feed
+   held exactly the right rows, and only one `<tr>` disagreed with all of it. The same class as the
+   subscription bug at the top of this file, and it is diagnosed the same way: **compare what is
+   drawn against what the feed holds**, never count it.
+3. **A `Map` keyed by something that might collide is the mechanism, so close that too.** `repaint`
+   now falls through to the rebuild if it sees a duplicate key — in the DOM or in the incoming row
+   set — instead of quietly painting the wrong thing. A caller with a bad key gets a slower paint,
+   never a lie.
 
 ### Data sources
 
