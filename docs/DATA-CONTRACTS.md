@@ -2298,6 +2298,73 @@ and the whole card is a link to their page. See *The one hand-rolled list* in `C
 this is the single feed here that does not use the screener kit, and what the kit's discipline still
 buys that is kept by hand.
 
+### The Refresh button can start a scrape — `POST /api/market-news/refresh`
+
+**Everywhere else here "refresh" means "ask the upstream again". For this feed it could not**, and
+that gap is what this route closes. Neither the browser nor the Worker can read
+`www.moneycontrol.com` (403 by TLS fingerprint, measured both ways), so the free button on the page
+can only ask whether a newer *capture* has been published. The button beside it asks the **GitHub
+runner** — the one reader that works — to run the scrape now.
+
+```
+POST /api/market-news/refresh     starts a run. THE ONLY CALL HERE THAT COSTS ANYTHING.
+GET  /api/market-news/run         how it is going. Free, and therefore the half that may be polled.
+```
+
+`worker/github-actions.mjs` is the client: pure, `fetch` a parameter, exactly as `worker/mc.mjs` and
+`worker/finology.mjs` are.
+
+**Setting it up.** One fine-grained personal access token, scoped to **this repository only**, with
+a single permission — **Actions: read and write**. Nothing else: it does not need `contents`, and a
+token that can write code is not the token to put behind an unauthenticated route.
+
+```bash
+npx wrangler secret put GH_DISPATCH_TOKEN        # production
+echo 'GH_DISPATCH_TOKEN=github_pat_…' >> .dev.vars   # local, gitignored
+```
+
+`GH_REPO` (`owner/name`) and `GH_REF` are plain `vars` in `wrangler.jsonc` — they are the public
+name of a repository, and they live there **rather than in the request** so that nobody who finds
+the route can point it at another workflow or another repository. `GH_API_BASE` redirects the API,
+the way `MUNS_BASE` redirects Finology, so a verification run never dispatches against the real one.
+
+**Without the token nothing breaks.** The route answers `200` with `ok: false, reason: 'no-token'`
+and the command that fixes it; the page says so and adds that the scheduled run every 20 minutes is
+unaffected. That is true — the Action's own cron does not go through this route at all.
+
+**Named failures, because the fixes differ** (the Finology rule):
+
+| `reason` | What it means | Who fixes it |
+| --- | --- | --- |
+| `no-worker` | this origin serves static files — there is no Worker. **Measured: `python3 -m http.server` answers a POST with 501, not 404**, so all of 404/405/501 and any non-JSON reply are read this way | nobody; it is a sandbox, not a fault |
+| `no-token` / `no-repo` | not configured | an operator, with the command above |
+| `unauthorised` | GitHub rejected the token — expired or revoked | reissue it |
+| `forbidden` | the token lacks *Actions: read and write* | widen the token |
+| `rate-limited` | GitHub's hourly limit for the token is spent | wait; it resets on the hour |
+| `not-found` | **ambiguous, and says so.** GitHub answers **404 rather than 403** when a token cannot see a private repository — identical to a missing workflow file. Both readings are printed, with the URL that was asked for | check the file name *and* the token's repository access |
+| `refused` | 422 — workflow disabled, or the ref does not exist | GitHub's own message is carried through |
+
+**A finished run is not new stories on screen, and the outcomes keep that straight.** The scrape
+commits only if it found something, and `public/` reaches readers only after `deploy.yml` then runs.
+So `watchScrape()` in `js/data/market-news.js` resolves to one of six, and each is a *statement
+about what was observed* rather than an inference:
+
+| Outcome | What was observed |
+| --- | --- |
+| `landed` | the capture moved — `added` says by how many |
+| `nothing-new` | the run completed and **no deploy followed it**, which is what happens when it found nothing to commit. This is the one place on the tab that can honestly say the publisher was just read and had nothing new — the 20-minute poll never can, because it has no index to ask |
+| `publishing` | a deploy started after the run finished, so stories were captured and are on their way |
+| `published` | the deploy finished and this browser still holds the old bytes |
+| `publish-failed` | stories were captured but the deploy failed, so they are not on the site |
+| `failed` / `timed-out` | GitHub reports the run as failed / the watch budget ran out with it still going. **These are different**, and a run still going is never reported as a failure |
+
+**Nothing dispatches on its own.** No poller calls it, nothing calls it on render, and the route is
+POST-only so a prefetcher or a link preview cannot trip it. A dispatch also reads the latest run
+first and returns `dispatched: false` when one is already going — the workflow's `concurrency` group
+would queue a duplicate harmlessly, so this is not about correctness upstream but about this
+dashboard never being the thing that started a run nobody needed. A `DISPATCH_COOLDOWN_S` at the
+edge is the second line of defence, and is per-colo and therefore best-effort by construction.
+
 **A story arriving while the reader is on the page raises an alert**, through the same stack as the
 results feed and the con-call scan (`js/core/watch.js` → `js/ui/notifications.js`, `kind: 'news'`).
 The poll is `POLL_MS = 20 minutes`, matching the Action's cadence rather than guessing at tolerable

@@ -202,6 +202,163 @@ export function invalidate() {
 }
 
 // ---------------------------------------------------------------------------------------
+// STARTING A SCRAPE — the half of "refresh" that costs somebody something
+// ---------------------------------------------------------------------------------------
+//
+// `refresh()` above asks whether a newer CAPTURE exists: one conditional GET, usually a bodyless
+// 304, free. `startScrape()` asks the GitHub runner to go and READ MONEYCONTROL: a real Action run
+// and a real request to the publisher. They are different acts and this module keeps them apart,
+// the same way js/data/deep-dive.js keeps a metered POST apart from a free GET.
+//
+// FOUR THINGS THIS MUST NOT DO, all of them learned elsewhere in this codebase:
+//
+//   1. NEVER FIRE ON ITS OWN. No poller calls `startScrape`, nothing calls it on render, and the
+//      route behind it is POST-only so a prefetcher cannot trip it. It happens on a click.
+//   2. NEVER CLAIM THE NEWS HAS ARRIVED WHEN A RUN HAS MERELY FINISHED. The scrape commits only if
+//      it found something, and `public/` reaches readers only after deploy.yml then runs. So a
+//      completed run is not new stories on screen — `watchScrape` keeps checking the capture and
+//      reports what it actually observed.
+//   3. NEVER TRANSLATE THEIR VOCABULARY. `status` and `conclusion` are GitHub's words, passed
+//      through. The view reproduces them; it does not invent a progress model for their pipeline.
+//   4. NEVER TURN A NAMED FAILURE INTO "SOMETHING WENT WRONG". `no-token` is one command for an
+//      operator; `unauthorised` is a token to reissue; `no-worker` means this origin is a plain
+//      static server. Those have different fixes and the view says which.
+
+const DISPATCH_ROUTE = 'api/market-news/refresh';
+const RUN_ROUTE = 'api/market-news/run';
+
+// Long enough for a queue, a ~40s scrape and a ~90s deploy, and no longer: past this the watch
+// stops and SAYS it stopped rather than spinning on a run that may never report.
+const WATCH_BUDGET_MS = 6 * 60 * 1000;
+const WATCH_EVERY_MS = 6000;
+const REQUEST_TIMEOUT_MS = 12000;
+// Once the deploy has finished the file IS published, and only the edge stands between it and this
+// browser. That is worth a bounded grace and no more: spinning to the whole budget would report a
+// settled outcome as a timeout. A parameter, so a test can scale it with a shorter budget rather
+// than being forced to wait out the real one.
+const PUBLISH_GRACE_MS = 45000;
+
+async function askWorker(path, { method = 'GET' } = {}) {
+  try {
+    const res = await fetch(path, { method, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: { accept: 'application/json' } });
+    // A STATIC ORIGIN HAS NO WORKER, and that is a configuration fact rather than a failure of the
+    // scrape. Saying "could not start" there would send an operator looking for a broken token
+    // that does not exist.
+    //
+    // THE STATUS TO EXPECT IS NOT THE OBVIOUS ONE. `python3 -m http.server` answers a POST with
+    // **501 Unsupported method**, not 404 — measured, and the first version of this check missed
+    // it and reported the sandbox as an upstream failure. So all three of the answers a static
+    // file server can give here are named, and the content type is checked as well: our Worker
+    // always replies JSON, so an HTML error page is proof there is no Worker behind this origin
+    // whatever number it came with.
+    if (res.status === 404 || res.status === 405 || res.status === 501) {
+      return { ok: false, reason: 'no-worker', message: `This origin serves static files only — there is no Worker to start a scrape (HTTP ${res.status}).`, requested: path };
+    }
+    const type = res.headers.get('content-type') || '';
+    if (!/json/i.test(type)) {
+      return { ok: false, reason: 'no-worker', message: `This origin answered ${res.status} with ${type || 'no content type'}, not JSON — there is no Worker behind it.`, requested: path };
+    }
+    if (!res.ok) return { ok: false, reason: 'upstream', message: `The Worker answered ${res.status}.`, requested: path };
+    return await res.json();
+  } catch (err) {
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    return { ok: false, reason: timedOut ? 'timeout' : 'unreachable', message: String(err?.message || err), requested: path };
+  }
+}
+
+/** Ask the runner to read Moneycontrol. THE ONE CALL HERE THAT STARTS WORK. */
+export function startScrape() {
+  return askWorker(DISPATCH_ROUTE, { method: 'POST' });
+}
+
+/** How the run is going. Free, so this is the half that may be polled. */
+export function runStatus() {
+  return askWorker(RUN_ROUTE);
+}
+
+/**
+ * Watch a dispatched run through to an outcome, reporting each step to `onStep`.
+ *
+ * The outcome is a STATEMENT ABOUT WHAT WAS OBSERVED, never a freshness claim bought on credit:
+ *
+ *   'landed'     the capture moved. `added` says by how many stories.
+ *   'nothing-new' the scrape finished and no deploy followed it, which is what happens when the
+ *                run found nothing to commit. The strongest honest reading of that evidence.
+ *   'publishing' the scrape finished and a deploy is running, so stories are on their way but are
+ *                not on screen yet. Different from both of the above.
+ *   'published'  the deploy finished and this browser still holds the old bytes. A real state, and
+ *                neither "nothing new" (a deploy ran, so something WAS committed) nor "landed".
+ *   'failed'     GitHub reports the run as failed. Theirs to fix, and it says so.
+ *   'timed-out'  the budget ran out with the run still going. NOT a failure — see CLAUDE.md's
+ *                "Still reading… is a fourth outcome": reporting an unfinished check as failed is
+ *                a failure claim about work that has not failed.
+ */
+export async function watchScrape({ onStep = () => {}, budgetMs = WATCH_BUDGET_MS, everyMs = WATCH_EVERY_MS, publishGraceMs = PUBLISH_GRACE_MS, now = Date.now } = {}) {
+  const startedAt = now();
+  const before = state.articles.length;
+  // Once the deploy has finished, the file is published and only the edge stands between it and
+  // this browser. That is worth a bounded grace and no more — spinning to the whole budget would
+  // report a settled outcome as a timeout.
+  let publishDoneAt = null;
+
+  while (now() - startedAt < budgetMs) {
+    await new Promise((r) => setTimeout(r, everyMs));
+    const st = await runStatus();
+
+    if (st.ok === false) {
+      // A blip must not end the watch — but a configuration failure will not fix itself.
+      if (['no-worker', 'no-token', 'no-repo', 'unauthorised', 'forbidden'].includes(st.reason)) return { outcome: 'failed', ...st };
+      onStep({ phase: 'checking', error: st.reason });
+      continue;
+    }
+
+    const { scrape, publish } = st;
+
+    if (!scrape || scrape.status !== 'completed') {
+      onStep({ phase: 'scraping', scrape, publish });
+      continue;
+    }
+    if (scrape.conclusion && scrape.conclusion !== 'success') {
+      return { outcome: 'failed', scrape, publish, message: `The scrape run finished as "${scrape.conclusion}".` };
+    }
+
+    // The only question that matters to the reader, and it is answered by asking for the FILE
+    // rather than by inferring from a run's exit code.
+    await refresh();
+    if (state.articles.length !== before) {
+      return { outcome: 'landed', added: Math.max(0, state.articles.length - before), scrape, publish };
+    }
+
+    // A deploy that STARTED AFTER the scrape finished is the evidence that something was
+    // committed; its absence is the evidence that the run found nothing to commit. Without this
+    // the page would have to guess between "nothing was published" and "it is on its way", and
+    // those are different claims.
+    const scrapeEndedAt = Date.parse(scrape.updatedAt || scrape.createdAt || '');
+    const publishStartedAt = Date.parse(publish?.createdAt || '');
+    const publishFollowed = Number.isFinite(publishStartedAt) && Number.isFinite(scrapeEndedAt) && publishStartedAt >= scrapeEndedAt;
+
+    if (!publishFollowed) return { outcome: 'nothing-new', scrape, publish };
+
+    if (publish.status !== 'completed') {
+      onStep({ phase: 'publishing', scrape, publish });
+      continue;
+    }
+    if (publish.conclusion && publish.conclusion !== 'success') {
+      return { outcome: 'publish-failed', scrape, publish, message: `New stories were captured, but the deploy finished as "${publish.conclusion}", so they are not on the site yet.` };
+    }
+    if (!publishDoneAt) publishDoneAt = now();
+    if (now() - publishDoneAt >= publishGraceMs) {
+      // Published, and this browser still has the old bytes. Stating that is the honest end —
+      // claiming "nothing new" would be wrong (a deploy ran, so something was committed) and
+      // claiming "landed" would be a freshness claim nothing measured.
+      return { outcome: 'published', scrape, publish };
+    }
+    onStep({ phase: 'publishing', scrape, publish });
+  }
+  return { outcome: 'timed-out' };
+}
+
+// ---------------------------------------------------------------------------------------
 // The twenty-minute poll
 // ---------------------------------------------------------------------------------------
 

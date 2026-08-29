@@ -30,6 +30,7 @@ import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } f
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
+import { dispatchWorkflow, latestRun, parseRepo, isInFlight, NEWS_WORKFLOW, DEPLOY_WORKFLOW } from './github-actions.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -113,6 +114,16 @@ export default {
     }
     if (url.pathname.startsWith('/api/insider-trades/')) {
       return handleMuns(request, env, ctx, 'insider', url.pathname.slice('/api/insider-trades/'.length));
+    }
+    // POST-ONLY, DELIBERATELY. This is the one route here that makes something happen rather than
+    // reporting something — a GET that started a scrape could be fired by a prefetcher, a link
+    // preview or a crawler.
+    if (url.pathname === '/api/market-news/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
+      return handleNewsDispatch(request, env, ctx);
+    }
+    if (url.pathname === '/api/market-news/run') {
+      return handleNewsRunStatus(request, env, ctx);
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -1104,6 +1115,171 @@ function parseQuote(str) {
     marketCap: num(kv['Market Cap']),
     yearlyChangePct: num(kv['Yearly Change (%)']),
   };
+}
+
+// ---------------------------------------------------------------------------------------
+// POST /api/market-news/refresh — start a scrape.   GET /api/market-news/run — watch one.
+//
+// THE BUTTON THAT COULD NOT DO WHAT IT SAID, AND HOW IT CAN NOW.
+//
+// Everywhere else here "refresh" means "ask the upstream again". For market news it could not:
+// `www.moneycontrol.com` answers a Cloudflare Worker with 403 exactly as it answers node's fetch,
+// by TLS fingerprint rather than by headers, so there is no request this Worker can make that
+// returns the news. The only reader that works is a normal GitHub runner with curl.
+//
+// So the button asks the runner to run. `workflow_dispatch` on market-news-refresh.yml, with the
+// token held here and never in the browser, then a free poll of GitHub's own run status while it
+// goes. The reader gets the thing they actually asked for — a fresh read of the publisher — and
+// the page keeps being able to say truthfully where every number came from.
+//
+// FOUR RULES, AND THE FIRST THREE ARE THE DEEP DIVE RULES ARRIVING AGAIN.
+//
+//   1. WHAT COSTS AND WHAT DOES NOT ARE SEPARATE ROUTES, AND ONLY ONE OF THEM IS POST.
+//      Nothing dispatches on a page load, on a render, or on a poll. `/run` is a plain read and
+//      may be polled; `/refresh` happens on a click and nowhere else.
+//   2. ASK BEFORE STARTING. `dispatchWorkflow` reads the latest run first and returns
+//      `dispatched: false` if one is already going. The workflow's own concurrency group would
+//      queue a duplicate harmlessly — this is about never being the thing that started a run
+//      nobody needed.
+//   3. REPRODUCE THEIR VOCABULARY. `status` and `conclusion` are passed through as GitHub writes
+//      them. Translating `in_progress` into words of our own would describe their pipeline in our
+//      language and drift the moment they changed it.
+//   4. A FAILURE IS NAMED, BECAUSE THE FIXES DIFFER. `no-token` and `no-repo` are one command for
+//      an operator; `unauthorised` is a token to reissue; `not-found` is ambiguous between a
+//      missing workflow and a token that cannot see the repository, and says both. Collapsing
+//      these into "could not refresh" throws away the only useful part of the failure.
+//
+// AND A COOLDOWN, BECAUSE THIS ROUTE IS UNAUTHENTICATED. The repository, the workflow and the ref
+// are fixed here and are not readable from the request, so nobody who finds the URL can point it
+// somewhere else — but they could still hold the button down. `DISPATCH_COOLDOWN_S` at the edge
+// plus the in-flight check above means a click-storm costs one run. It is per-colo and therefore
+// best-effort, which is why it is the second line of defence and not the first.
+// ---------------------------------------------------------------------------------------
+
+const DISPATCH_COOLDOWN_S = 120;
+const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
+
+/** Everything the two routes need, or a named reason they cannot run. */
+function githubConfig(env) {
+  const token = env.GH_DISPATCH_TOKEN;
+  if (!token) {
+    return {
+      error: {
+        ok: false,
+        reason: 'no-token',
+        message: 'This deployment has no GitHub token, so it cannot start a scrape.',
+        fix: 'npx wrangler secret put GH_DISPATCH_TOKEN',
+      },
+    };
+  }
+  try {
+    const { owner, repo } = parseRepo(env.GH_REPO);
+    return { token, owner, repo, ref: env.GH_REF || 'main', ...(env.GH_API_BASE ? { base: env.GH_API_BASE } : {}) };
+  } catch (err) {
+    return {
+      error: {
+        ok: false,
+        reason: err.code || 'no-repo',
+        message: 'This deployment has no repository configured, so it cannot start a scrape.',
+        fix: 'Set "GH_REPO": "owner/name" in wrangler.jsonc and redeploy.',
+        configured: err.configured ?? null,
+      },
+    };
+  }
+}
+
+/** A named failure becomes a 200 with `ok: false` — the request to US succeeded. */
+function githubFailure(err) {
+  const reason = err?.code || 'upstream';
+  const fixes = {
+    unauthorised: 'Reissue the token and run: npx wrangler secret put GH_DISPATCH_TOKEN',
+    forbidden: 'The token needs "Actions: read and write" on this repository.',
+    'rate-limited': "GitHub's hourly limit for this token is spent. It resets on the hour.",
+    refused: 'Check that the workflow exists on the configured branch and is not disabled.',
+    'not-found': 'Check the workflow file name and that the token can see this repository.',
+  };
+  return {
+    ok: false,
+    reason,
+    message: String(err?.message || err),
+    // CARRY THE URL THAT WAS ASKED FOR. A bare "404" is unfalsifiable — that lesson cost a long
+    // investigation on the chatter API while the upstream was healthy the whole time.
+    requested: err?.url || null,
+    ...(fixes[reason] ? { fix: fixes[reason] } : {}),
+  };
+}
+
+async function handleNewsDispatch(request, env, ctx) {
+  const cfg = githubConfig(env);
+  if (cfg.error) return json(cfg.error, 200);
+
+  const cache = caches.default;
+  const key = edgeKey('mcnews-dispatch');
+  const held = await cache.match(key);
+  if (held) {
+    const body = await held.json().catch(() => null);
+    // NOT A FAILURE, AND IT MUST NOT READ AS ONE. A scrape was started moments ago and is what the
+    // reader wanted; saying "too many requests" about their own click would be nonsense.
+    return json({ ...(body || {}), ok: true, dispatched: false, reason: 'cooling-down', cooldownS: DISPATCH_COOLDOWN_S }, 200);
+  }
+
+  try {
+    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref);
+    const payload = {
+      ok: true,
+      dispatched: out.dispatched,
+      reason: out.dispatched ? 'dispatched' : 'already-running',
+      run: out.run,
+      workflow: NEWS_WORKFLOW,
+      requestedAt: new Date().toISOString(),
+    };
+    ctx.waitUntil(
+      cache.put(key, new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${DISPATCH_COOLDOWN_S}` } })),
+    );
+    return json(payload, 200);
+  } catch (err) {
+    return json(githubFailure(err), 200);
+  }
+}
+
+/**
+ * How the run is going — free, and therefore the half that may be polled.
+ *
+ * TWO WORKFLOWS, BECAUSE A SCRAPE FINISHING IS NOT THE NEWS ARRIVING. The scrape commits only when
+ * it found something; `public/` reaches readers only when deploy.yml then runs. So a deploy that
+ * STARTED AFTER the scrape finished is the evidence that something was committed, and its absence
+ * is the evidence that the run found nothing new. Without that second read the page would have to
+ * guess between "nothing was published" and "it is on its way", and those are different claims.
+ */
+async function handleNewsRunStatus(request, env, ctx) {
+  const cfg = githubConfig(env);
+  if (cfg.error) return json(cfg.error, 200);
+
+  const cache = caches.default;
+  const key = edgeKey('mcnews-run-status');
+  const held = await cache.match(key);
+  if (held) return new Response(held.body, { status: 200, headers: { ...Object.fromEntries(held.headers), ...CORS, 'x-sattva-cache': 'hit' } });
+
+  try {
+    const [scrapeRuns, deployRuns] = await Promise.all([
+      latestRun(fetch, cfg, NEWS_WORKFLOW, { perPage: 1 }),
+      latestRun(fetch, cfg, DEPLOY_WORKFLOW, { perPage: 1 }).catch(() => []),
+    ]);
+    const payload = {
+      ok: true,
+      scrape: scrapeRuns[0] || null,
+      publish: deployRuns[0] || null,
+      inFlight: isInFlight(scrapeRuns[0]) || isInFlight(deployRuns[0]),
+      servedAt: new Date().toISOString(),
+    };
+    const res = json(payload, 200);
+    const store = new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${RUN_STATUS_TTL_S}` } });
+    ctx.waitUntil(cache.put(key, store));
+    res.headers.set('x-sattva-cache', 'live');
+    return res;
+  } catch (err) {
+    return json(githubFailure(err), 200);
+  }
 }
 
 function json(obj, status = 200) {

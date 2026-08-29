@@ -127,6 +127,8 @@ worker/muns.mjs               the AUTHENTICATED news / insider clients — same 
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
+worker/github-actions.mjs     the AUTHENTICATED workflow_dispatch client — holds env.GH_DISPATCH_TOKEN,
+                              never the browser. Lets the news button START the scrape it cannot do
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -743,6 +745,46 @@ is kept in its own field so the two cannot be confused. Ordering does not depend
 Moneycontrol's own article id is in every URL and increases with publication, which is also why it is
 the merge key — a headline gets edited after publication and a title-derived key would then read as a
 second story.
+
+**SO "REFRESH" HAS TO MEAN SOMETHING ELSE, AND THE HONEST VERSION IS TO ASK THE RUNNER TO RUN.**
+The first version of the button could only check whether a newer *capture* had been published, and
+it said so — correct, and still not what a reader means by refresh. The runner is the only reader
+that works, so the button now dispatches `market-news-refresh.yml` through
+`worker/github-actions.mjs` (`POST /api/market-news/refresh`) and watches it (`GET
+/api/market-news/run`, free). Both buttons are on the tab, because they are two different acts and
+the reader is owed the difference: one costs nothing and answers *has anything landed*, the other
+costs a run and a request to somebody else's site and answers *go and look now*.
+
+That makes this the second consumer of the Deep Dive rules, and they arrive unchanged:
+
+1. **What costs and what does not are separate routes, and only one of them is POST.** Nothing
+   dispatches on a page load, on a render, or on a poll — a GET that started a scrape could be
+   fired by a prefetcher or a link preview. A dispatch also reads the latest run first and does
+   nothing if one is going: their concurrency group would queue a duplicate harmlessly, so this is
+   about never being the thing that started a run nobody needed.
+2. **Reproduce their vocabulary.** `queued` / `in_progress` / `completed` and the `conclusion` are
+   GitHub's words, passed through. No elapsed clock and no percentage — a progress bar over a run
+   whose length nobody knows is a confidence this page does not have.
+3. **The token lives on the Worker**, and the repository, workflow and ref are fixed *server-side*
+   so the route cannot be pointed elsewhere by anyone who finds it. One fine-grained token, one
+   repository, one permission — *Actions: read and write*.
+
+**And the outcome must never confuse a finished RUN with new stories on the SCREEN.** The scrape
+commits only if it found something, and `public/` reaches readers only after `deploy.yml` then runs.
+So a completed run is not an answer on its own, and a deploy that *started after* the run finished
+is the evidence that something was committed — its absence is the evidence that nothing was. That
+one extra read is what lets the button say **"Moneycontrol was read just now — nothing new to
+publish"**, which is the one honest version of a sentence this tab could never say before (see
+*Never claim "nothing is new"* above: the 20-minute poll has no index to ask, and still cannot).
+`landed`, `nothing-new`, `publishing`, `published`, `publish-failed`, `failed` and `timed-out` are
+seven different statements and the note makes exactly one of them — with `timed-out` never worded
+as a failure, because a run outlasting our patience has not failed.
+
+**A static origin is not a broken deployment, and the status that proves it is not the obvious one.**
+`python3 -m http.server` answers a POST with **501 Unsupported method**, not 404 — measured, after
+the first version of the check looked for 404/405 and reported the sandbox as an upstream failure.
+So 404, 405, 501 *and any non-JSON reply* all read as `no-worker`, which says the scheduled run
+every 20 minutes is unaffected rather than sending an operator after a token that was never missing.
 
 **RSS looks like the easy answer and is a trap.** `moneycontrol.com/rss/*.xml` still resolve with
 HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports.xml`,
@@ -1659,6 +1701,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately. That is the **Portfolio** half only |
 | Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
+| Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
+| Set up the news Fetch button on a deployment | `npx wrangler secret put GH_DISPATCH_TOKEN` — a fine-grained token on this repo alone with **Actions: read and write**, nothing more; `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc`. Without it the button says so and names the command |
 | Make a committed file reach the live site | `.github/workflows/deploy.yml` — needs `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*, not green |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |

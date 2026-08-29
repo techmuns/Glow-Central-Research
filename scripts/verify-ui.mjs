@@ -2374,13 +2374,26 @@ if (siProbe.state === 'no-route') {
     fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the missing route');
   skip('the live investor books render', 'no /api/super-investors on this origin');
 } else if (siProbe.state === 'error') {
-  ok(`with the feed unavailable (${siProbe.reason}), the view names the reason`,
-    /token|could not be reached|returned an error|unreadable|does not have the super-investor endpoints|did not answer in time/i.test(await hostText()));
+  // AN UNREACHABLE LIVE ROUTE IS NOT AN EMPTY VIEW — the committed snapshot is a static file and
+  // answers without any route at all. This branch used to assert only that the reason was named,
+  // which was right when nothing else could answer and became wrong the day the snapshot shipped:
+  // running against `wrangler dev` with no MUNS_TOKEN is the first configuration that reaches it
+  // WITH a snapshot present, and it reported the good fallback as a failure. Same resolution as
+  // the no-route branch above: with a snapshot the outcome is the snapshot, labelled `Captured`;
+  // only a deployment with neither falls through to naming the reason.
+  const errText = await hostText();
+  const fromFile = await page.locator('[data-open-investor]').count();
+  ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
+    fromFile > 0
+      ? /Captured/.test(errText)
+      : /token|could not be reached|returned an error|unreadable|does not have the super-investor endpoints|did not answer in time/i.test(errText),
+    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the reason');
   // A 404 on the LIST route means the endpoint is absent, not that an investor is missing. The two
   // were once conflated, and the panel said "No such investor" while the real problem was that the
   // backend had never shipped the route — a diagnosis that sent the search in the wrong direction.
-  if (siProbe.reason === 'route-missing') ok('...and a missing endpoint is never reported as a missing investor', !/no such investor/i.test(await hostText()));
-  ok('...and shows no positions rather than empty or invented ones', (await page.locator('tr[data-row-key]').count()) === 0);
+  if (siProbe.reason === 'route-missing') ok('...and a missing endpoint is never reported as a missing investor', !/no such investor/i.test(errText));
+  ok('...and never shows an empty book where it has no data', fromFile > 0 || (await page.locator('tr[data-row-key]').count()) === 0,
+    fromFile > 0 ? 'painted from the snapshot' : 'no rows, as it should be');
   skip('the live investor books render', `the upstream reported "${siProbe.reason}"`);
 } else {
   // Books arrive a few at a time; wait for the walk to finish before measuring totals.
@@ -3285,10 +3298,11 @@ console.log('\n— header status and live alerts —');
 // ---------------------------------------------------------------------------------------
 console.log('\n— news, announcements and insider trades —');
 {
-  const seen = { news: [], announcements: [], insider: [] };
+  const seen = { news: [], announcements: [], insider: [], marketNewsApi: [] };
   const watchFilings = (req) => {
     const u = req.url();
-    if (u.includes('/api/news')) seen.news.push(u);
+    if (u.includes('/api/market-news/')) seen.marketNewsApi.push(`${req.method()} ${u}`);
+    else if (u.includes('/api/news')) seen.news.push(u);
     else if (u.includes('/api/announcements/')) seen.announcements.push(u);
     else if (u.includes('/api/insider-trades/')) seen.insider.push(u);
   };
@@ -3650,6 +3664,114 @@ console.log('\n— news, announcements and insider trades —');
     `${reAnnounced?.before} card(s) before a second check, ${reAnnounced?.after} after`);
   await page.unroute('**/data/market-news.json*').catch(() => {});
   await evalSafe(async () => (await import('/js/ui/notifications.js')).clear());
+
+  // -------------------------------------------------------------------------------------
+  // "FETCH FROM MONEYCONTROL" — the one control on this page that starts work somewhere else.
+  //
+  // It asks a GitHub runner to read the publisher, because nothing in a browser or on the edge
+  // can. That makes it the Deep Dive rule arriving on a second feed, and the same three things
+  // have to hold: nothing dispatches unprompted, a failure is NAMED rather than collapsed into
+  // "could not refresh", and a finished RUN is never reported as new stories on SCREEN.
+  //
+  // The outcomes are driven with scripted responses rather than a real dispatch — a suite that
+  // started a real run on every push would be spending somebody's runner minutes and hitting
+  // Moneycontrol to test a button.
+  // -------------------------------------------------------------------------------------
+  seen.marketNewsApi.length = 0;
+  await go('/#/research/news?scope=universe', 3000);
+  const dispatchOnLoad = seen.marketNewsApi.length;
+  ok('landing on the news tab dispatches nothing', dispatchOnLoad === 0, `${dispatchOnLoad} /api/market-news/ request(s) on load`);
+  ok('...and the control says it fetches the publisher, not that it checks a file',
+    /fetch from moneycontrol/i.test(await page.locator('[data-mcnews-scrape]').innerText().catch(() => '')),
+    (await page.locator('[data-mcnews-scrape]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
+
+  // A GET must not be able to start a run: a prefetcher or a link preview would trip it.
+  const dispatchGet = await evalSafe(async () => {
+    const r = await fetch('api/market-news/refresh', { method: 'GET' });
+    return { status: r.status, body: await r.text().catch(() => '') };
+  });
+  if (dispatchGet && dispatchGet.status !== 404 && dispatchGet.status !== 501) {
+    ok('a GET can never start a scrape — the route is POST-only', dispatchGet.status === 405, `HTTP ${dispatchGet.status}`);
+  } else {
+    skip('a GET can never start a scrape — the route is POST-only', 'no Worker on this origin — run against `npx wrangler dev`');
+  }
+
+  // Every named outcome, scripted. Each is a DIFFERENT STATEMENT and the wording must not merge
+  // them: "read it, nothing new" is a measurement, "publishing" is work in flight, "published"
+  // says this browser has not received it, and "still running" is not a failure.
+  const outcomes = await (async () => {
+    const script = async (runSeq, { captureGrows = false } = {}) => {
+      let i = 0;
+      await page.route('**/api/market-news/run*', (route) =>
+        route.fulfill({ status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(runSeq[Math.min(i++, runSeq.length - 1)]) }));
+      // THE ETAG HAS TO MOVE WHEN THE BODY DOES, or `conditionalJson` correctly reports no change
+      // and the "landed" case can never be reached — which is what the first version of this did,
+      // stamping both responses with the same tag and then blaming the module for reading them as
+      // unchanged. The counter is the seq, taken BEFORE the body is decided.
+      let readN = 0;
+      await page.route('**/data/market-news.json*', async (route) => {
+        const seq = readN++;
+        const upstream = await route.fetch();
+        const body = await upstream.json();
+        // Read 0 is always short; later reads are full only when this case is meant to grow.
+        if (seq === 0 || !captureGrows) body.articles = (body.articles || []).slice(3);
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'application/json', etag: `"mcnews-${captureGrows ? 'grow' : 'same'}-${captureGrows ? seq : 0}"` },
+          body: JSON.stringify(body),
+        });
+      });
+      const out = await evalSafe(async () => {
+        const mod = await import('/js/data/market-news.js');
+        mod.invalidate();
+        await mod.load();
+        return await mod.watchScrape({ everyMs: 60, budgetMs: 4000, publishGraceMs: 300 });
+      });
+      await page.unroute('**/api/market-news/run*').catch(() => {});
+      await page.unroute('**/data/market-news.json*').catch(() => {});
+      return out;
+    };
+
+    const done = (concl = 'success') => ({ ok: true, scrape: { status: 'completed', conclusion: concl, updatedAt: '2026-01-01T00:00:00Z', url: null }, publish: null });
+    const withPublish = (status, concl = null) => ({
+      ok: true,
+      scrape: { status: 'completed', conclusion: 'success', updatedAt: '2026-01-01T00:00:00Z', url: null },
+      publish: { status, conclusion: concl, createdAt: '2026-01-01T00:01:00Z', url: null },
+    });
+
+    return {
+      nothingNew: await script([done()]),
+      landed: await script([done()], { captureGrows: true }),
+      publishFailed: await script([withPublish('completed', 'failure')]),
+      published: await script([withPublish('completed', 'success')]),
+      scrapeFailed: await script([done('failure')]),
+      stillRunning: await script([{ ok: true, scrape: { status: 'in_progress', conclusion: null, url: null }, publish: null }]),
+      noToken: await script([{ ok: false, reason: 'no-token', message: 'none configured', fix: 'npx wrangler secret put GH_DISPATCH_TOKEN' }]),
+    };
+  })();
+
+  ok('a run that finished with nothing to publish says the publisher WAS read',
+    outcomes.nothingNew?.outcome === 'nothing-new', `outcome=${outcomes.nothingNew?.outcome}`);
+  ok('...and a capture that actually moved is reported as new stories, not as a finished run',
+    outcomes.landed?.outcome === 'landed' && outcomes.landed.added > 0, `outcome=${outcomes.landed?.outcome}, added=${outcomes.landed?.added}`);
+  ok('a deploy that failed says the stories exist but are not on the site — never "nothing new"',
+    outcomes.publishFailed?.outcome === 'publish-failed', `outcome=${outcomes.publishFailed?.outcome}`);
+  // A deploy RAN, so something was committed — "nothing new" would be wrong, and "landed" would be
+  // a freshness claim nothing measured. It is its own outcome for exactly that reason.
+  ok('...and a deploy that succeeded while this browser still holds the old bytes is neither',
+    outcomes.published?.outcome === 'published', `outcome=${outcomes.published?.outcome}`);
+  ok('a failed run is reported as failed, and a run still going is NOT',
+    outcomes.scrapeFailed?.outcome === 'failed' && outcomes.stillRunning?.outcome === 'timed-out',
+    `failed=${outcomes.scrapeFailed?.outcome}, in-flight=${outcomes.stillRunning?.outcome}`);
+  ok('a missing credential is named with its fix, not collapsed into "could not refresh"',
+    outcomes.noToken?.outcome === 'failed' && outcomes.noToken?.reason === 'no-token' && /wrangler secret put/.test(outcomes.noToken?.fix || ''),
+    `${outcomes.noToken?.reason} — ${outcomes.noToken?.fix || 'NO FIX GIVEN'}`);
+
+  await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    mod.invalidate();
+    await mod.load();
+  });
 
   // Back to announcements: the next check drives the ANNOUNCEMENTS feed and needs its tab mounted.
   await go('/#/research/corp-announcements?scope=universe', 3000);
