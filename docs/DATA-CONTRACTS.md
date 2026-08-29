@@ -2234,6 +2234,58 @@ parse stays blank and sorts last**; it is never given today's.
 table is built from `headers` at render time, in the source's order, under the source's headings.
 Nothing is renamed. Nothing is summed — a quantity written `1,20,000 (pledged)` is not a number.
 
+### Market news: the Universe half of the News tab
+
+**`market-news.json` is a CAPTURE, not a live route, and that is forced rather than chosen.**
+`www.moneycontrol.com` refuses automated readers by TLS fingerprint: `curl` with a browser
+user-agent gets **200 and 598 KB**, node's `fetch` gets **403 with a 24-byte body** on every header
+set tried, and a **Cloudflare Worker gets 403 as well**. There is no proxy route to build. A
+scheduled Action on a normal runner reads the page with `curl` and commits what it finds.
+
+```
+public/data/market-news.json          written by scripts/scrape-mc-news.mjs
+{
+  "source": "Moneycontrol — https://www.moneycontrol.com/news/business/stocks/",
+  "capturedAt": "2026-08-28T…Z",   // when the Action last READ Moneycontrol
+  "newestId": "14017856",          // their article id — the merge key and the sort key
+  "articleCount": 600, "keep": 600,
+  "withPublishedAt": 156,          // carry the PUBLISHER'S time
+  "withoutPublishedAt": 444,       // render an em dash — never `firstSeenAt` in disguise
+  "listingRequests": 25, "stoppedAtKnown": false,
+  "articles": [ {
+    "id": "14017856",
+    "url": "https://www.moneycontrol.com/news/business/markets/…-14017856.html",
+    "title": "…",  "summary": "…",  "image": "…",
+    "section": "markets",           // from their URL path, not invented
+    "premium": false,               // their crown marker, reproduced
+    "publishedAt": "2026-08-28T22:27:59.000Z",  // or null
+    "firstSeenAt": "2026-08-28T…Z"  // when THIS SCRAPER saw it. A fact about us.
+  } ]
+}
+```
+
+**Two times, never one.** `capturedAt` is when Moneycontrol was read; `meta().checkedAt` in
+`js/data/market-news.js` is when this browser last confirmed it holds the newest capture. A 304
+moves the second and not the first, and the tab prints both. The refresh button asks for a newer
+capture — **it cannot fetch Moneycontrol** — and says so.
+
+**No date on the listing page.** Verified: not one date, time or timestamp element on it. The
+publisher's time comes from each story's own page at one request each, so it is budgeted
+(`MCNEWS_DATE_LIMIT`, default 40) and the newest are done first. Ordering never depends on it:
+their article id is in every URL and increases with publication.
+
+**A top-up run stops at the first story already held**, because the listing is in publication order.
+A normal run is one or two page reads. `MCNEWS_FULL=1` walks regardless, for the first fill.
+
+```bash
+node scripts/scrape-mc-news.mjs                                  # top-up
+MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
+```
+Scheduled by `.github/workflows/market-news-refresh.yml` every 20 minutes. **It only reaches readers
+once `.github/workflows/deploy.yml` runs** — `public/` is served through the Worker's `assets`
+binding, so a commit alone changes nothing on the live site. That workflow needs
+`CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*.
+
 ### Corporate announcements are read by DATE, from BSE — a different shape entirely
 
 **`corp-announcements.json` no longer comes from the Muns filings API and must not go back to it.**

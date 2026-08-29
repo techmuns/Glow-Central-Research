@@ -14,13 +14,14 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { news as feed } from '../data/filings.js';
+import * as marketNews from './market-news-view.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
 const tab = makeFilingsTab({
   id: 'news',
   title: 'News',
-  subtitle: 'Choose one or more companies and each is searched in full. Headlines and outlets are the publishers’ own; the article stays where it is published.',
+  subtitle: 'Portfolio scope searches company by company — choose one or more and each is searched in full. Switch to Universe for everything Moneycontrol publish, market-wide.',
   feed,
   // THE READER NAMES THE COMPANIES. See the header of filings-tab.js: the news upstream is a
   // per-company search with no date index to flip to, so the request budget goes where it was
@@ -129,5 +130,43 @@ const tab = makeFilingsTab({
 });
 
 export const meta = tab.meta;
-export const render = tab.render;
-export const destroy = tab.destroy;
+
+// ---------------------------------------------------------------------------------------
+// TWO FEEDS UNDER ONE TAB, CHOSEN BY THE SCOPE TOGGLE
+//
+// Portfolio scope keeps the per-company search: the Muns news API answers one company at a time,
+// so the reader names the companies and each is searched in full.
+//
+// Universe scope cannot work that way — 603 searches is ten minutes of somebody else's service —
+// so it asks a different question entirely: not "what has been written about these companies" but
+// "what has been published". Moneycontrol publish exactly that, market-wide, and a scheduled
+// Action captures it because neither the browser nor the Worker can read their site (403 by TLS
+// fingerprint, measured both ways — see js/data/market-news.js).
+//
+// The two halves are DIFFERENT PUBLISHERS ANSWERING DIFFERENT QUESTIONS, and each says so in its
+// own description. A reader flipping the toggle must never have to guess why the rows changed
+// completely; that is also why neither half is presented as a subset of the other.
+//
+// `render()` runs on every scope change, so it must tear the OTHER half down — otherwise the
+// unmounted view keeps its subscription and repaints into a root that now belongs to the other
+// feed. `destroy()` is only called when leaving the tab entirely, which is too late for that.
+// ---------------------------------------------------------------------------------------
+
+let mounted = null; // 'universe' | 'portfolio'
+
+export function render(ctx) {
+  const wanted = ctx.scope === 'portfolio' ? 'portfolio' : 'universe';
+  if (mounted && mounted !== wanted) {
+    if (mounted === 'universe') marketNews.destroy();
+    else tab.destroy();
+  }
+  mounted = wanted;
+  if (wanted === 'universe') marketNews.render(ctx);
+  else tab.render(ctx);
+}
+
+export function destroy() {
+  if (mounted === 'universe') marketNews.destroy();
+  else if (mounted === 'portfolio') tab.destroy();
+  mounted = null;
+}

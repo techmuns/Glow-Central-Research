@@ -1,0 +1,84 @@
+name: Market news refresh
+
+# Moneycontrol's market-wide stocks news, captured every twenty minutes.
+#
+# WHY AN ACTION AND NOT A WORKER ROUTE — this is the whole reason the feed is shaped this way.
+#   www.moneycontrol.com refuses automated readers by TLS fingerprint rather than by headers.
+#   Measured three ways:
+#     curl + browser user-agent          HTTP 200, 598 KB
+#     node fetch, any header set         HTTP 403, 24-byte body  (bare UA, UA+accept, full browser)
+#     Cloudflare Worker under wrangler   HTTP 403, 24-byte body
+#   So there is no proxy route to build and no header fix to find. A normal runner with curl is the
+#   only thing that can read the page, which is why the browser reads a COMMITTED CAPTURE and the
+#   tab's button checks for a newer one rather than pretending to reach the publisher.
+#
+# A TOP-UP RUN IS CHEAP BY CONSTRUCTION. The listing is in publication order, so the walk stops at
+# the first story already held — normally one or two page reads plus a handful of article reads for
+# the publisher's timestamps. The deep first fill was a one-off (MCNEWS_FULL=1).
+
+on:
+  schedule:
+    # Every 20 minutes. GitHub's scheduler is best-effort and often runs late under load; the page
+    # states when Moneycontrol was actually last read, so a late run shows as a stale capture rather
+    # than as fresh news that is not.
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Full walk instead of stopping at a known story (1 = yes)"
+        required: false
+        default: "0"
+      pages:
+        description: "Listing pages to read"
+        required: false
+        default: "4"
+
+concurrency:
+  group: market-news-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # No secret of any kind — the page is public. The scraper shells out to curl, which is on
+      # every runner, because node's fetch cannot read this host.
+      - name: Capture market news
+        env:
+          MCNEWS_FULL: ${{ github.event.inputs.full || '0' }}
+          MCNEWS_PAGES: ${{ github.event.inputs.pages || '4' }}
+        run: node scripts/scrape-mc-news.mjs
+
+      # `if: success()` matters: the scraper exits non-zero when it read pages and parsed nothing,
+      # which means the markup changed rather than the news being quiet. Committing then would
+      # replace a good capture with an empty one that still looks valid.
+      - name: Commit the capture
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/market-news.json
+          if git diff --cached --quiet; then
+            echo "No new stories."
+            exit 0
+          fi
+          git commit -m "Market news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

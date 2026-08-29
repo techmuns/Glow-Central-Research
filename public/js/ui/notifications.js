@@ -33,6 +33,9 @@ const KIND = {
   earnings: { dot: 'bg-indigo-500', ring: 'ring-indigo-100', chip: 'bg-indigo-50 text-indigo-700', label: 'Result filed' },
   concall: { dot: 'bg-purple-500', ring: 'ring-purple-100', chip: 'bg-purple-50 text-purple-700', label: 'Con-call' },
   chatter: { dot: 'bg-pink-500', ring: 'ring-pink-100', chip: 'bg-pink-50 text-pink-700', label: 'Chatter' },
+  // The brand ramp again, not a semantic colour: a published story is neither good news nor bad,
+  // and emerald or rose here would be this dashboard passing judgement on somebody's reporting.
+  news: { dot: 'bg-indigo-400', ring: 'ring-indigo-100', chip: 'bg-indigo-50 text-indigo-700', label: 'Market news' },
   system: { dot: 'bg-slate-400', ring: 'ring-slate-100', chip: 'bg-slate-100 text-slate-600', label: 'Update' },
 };
 

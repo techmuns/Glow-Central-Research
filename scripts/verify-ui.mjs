@@ -1447,7 +1447,14 @@ const calShape = await page.evaluate(() => {
   };
 });
 ok('...grouped into days', calShape.days > 0, `${calShape.days} dates`);
-ok('...with today marked', calShape.today);
+// WHETHER TODAY IS IN THE SCHEDULE IS A PROPERTY OF THE CAPTURE'S AGE, NOT OF THE CODE.
+// The con-call schedule is a committed snapshot; once it is a few days old it holds no call dated
+// today, and this check then fails every run for a reason that has nothing to do with the marker
+// working. Same shape as the "+N more" check below — it asserts when there is something to assert
+// and skips, with the reason, when there is not.
+if (!calShape.days) skip('...with today marked', 'the schedule is empty');
+else if (!calShape.today) skip('...with today marked', 'the committed con-call capture holds no call dated today — refresh it with scripts/scrape-concalls.mjs');
+else ok('...with today marked', calShape.today);
 // WHETHER ANY DAY IS LONG ENOUGH TO COLLAPSE IS A PROPERTY OF THE SCHEDULE, NOT OF THE CODE.
 // A quiet week has no day past the per-day cut, and on such a week this check has nothing to
 // assert — the sibling search check below already skips for exactly that reason. It used to assert
@@ -3420,6 +3427,71 @@ console.log('\n— news, announcements and insider trades —');
     });
     return (cats || []).some((c) => ['Company Update', 'Board Meeting', 'Corp. Action', 'Result', 'AGM/EGM'].includes(c));
   })(), 'BSE category names present');
+
+  // ---------------------------------------------------------------------------------------
+  // THE UNIVERSE HALF OF NEWS IS A DIFFERENT FEED ANSWERING A DIFFERENT QUESTION.
+  //
+  // Portfolio scope searches company by company. Universe scope cannot — 603 searches is ten
+  // minutes of somebody else's service — so it reads Moneycontrol's market-wide listing instead,
+  // captured by a scheduled Action because neither the browser nor a Cloudflare Worker can fetch
+  // that host (403 by TLS fingerprint, measured both ways).
+  //
+  // What must hold: the two halves never bleed into each other, the Universe half costs no
+  // per-company request, and — the part that is easy to get wrong — the control says what it can
+  // actually do. It checks for a newer CAPTURE. It cannot reach the publisher, and a button that
+  // implied otherwise would be the freshest-looking lie on the page.
+  // ---------------------------------------------------------------------------------------
+  seen.news.length = 0;
+  await go('/#/research/news?scope=universe', 4000);
+  await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), { timeout: 20000 }).catch(() => {});
+  const mkt = await evalSafe(async () => (await import('/js/data/market-news.js')).meta());
+  ok('Universe news reads the market-wide capture, not the per-company API', seen.news.length === 0 && (mkt?.count || 0) > 0,
+    `${seen.news.length} /api/news request(s), ${mkt?.count} stories`);
+  ok('...and the per-company picker is not on screen', (await page.locator('[data-picker]').count()) === 0);
+  ok('...while Portfolio scope still gets the picker and no market table', await (async () => {
+    await go('/#/research/news?scope=portfolio', 3000);
+    return (await page.locator('[data-picker]').count()) === 1 && (await page.locator('[data-mcnews-refresh]').count()) === 0;
+  })());
+  await go('/#/research/news?scope=universe', 3500);
+
+  // The two times are different facts and the page must not merge them.
+  const strip = (await page.locator('[data-mcnews-refresh]').locator('xpath=..').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  ok('...saying when Moneycontrol was last READ', /Moneycontrol last read/i.test(strip), strip.slice(0, 80));
+  ok('...separately from when this browser last CHECKED', /checked for a newer capture/i.test(strip));
+  // The claim that matters. "Fetch/get the latest news from Moneycontrol" would be false.
+  const btn = (await page.locator('[data-mcnews-refresh]').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  ok('...and the button offers to check for stories, never to fetch the publisher',
+    /check for new/i.test(btn) && !/fetch|moneycontrol/i.test(btn), btn.trim());
+
+  // A story with no publisher time is a dash, NOT the moment we saw it.
+  const dates = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const undated = mod.rows().filter((r) => !r.publishedAt);
+    const withFirstSeen = undated.filter((r) => r.firstSeenAt).length;
+    const cells = [...document.querySelectorAll('[data-table-scroll] tbody tr')].map((tr) => tr.children[1]?.innerText.trim());
+    return { undated: undated.length, withFirstSeen, dashes: cells.filter((c) => c === '—').length, sample: cells.slice(0, 3) };
+  });
+  ok('a story with no publisher time renders a dash, never the time we saw it',
+    dates && dates.undated > 0 ? dates.dashes > 0 : true,
+    `${dates?.undated} undated (${dates?.withFirstSeen} do carry firstSeenAt), ${dates?.dashes} dashes on screen`);
+
+  // Row keys are the publisher's article id, so a growing table cannot reassign cached markup.
+  const mktPaint = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const data = new Set(mod.rows().map((r) => String(r.id || r.url)));
+    // `data-row-key` is the publisher's article id. An earlier version read the first line of
+    // innerText, which on this table is the watchlist star — identical on all 600 rows, so it
+    // reported 599 duplicates and was measuring the glyph rather than the story.
+    const dom = [...document.querySelectorAll('[data-table-scroll] tbody tr[data-row-key]')].map((tr) => tr.getAttribute('data-row-key'));
+    const dupes = dom.length - new Set(dom).size;
+    const missing = dom.filter((k) => !data.has(k)).length;
+    return { data: data.size, drawn: dom.length, dupes, missing };
+  });
+  ok('every market-news row on screen is a distinct story the feed holds', mktPaint && mktPaint.dupes === 0 && mktPaint.missing === 0,
+    `${mktPaint?.drawn} drawn from ${mktPaint?.data}, ${mktPaint?.dupes} duplicate(s), ${mktPaint?.missing} not in the feed`);
+
+  // Back to announcements: the next check drives the ANNOUNCEMENTS feed and needs its tab mounted.
+  await go('/#/research/corp-announcements?scope=universe', 3000);
 
   // A REPAINT MUST STILL REACH THE SCREEN AFTER A RE-RENDER. The scope toggle is the re-render that
   // used to kill it. `invalidate()` + `load()` is the public way to make the feed emit again on

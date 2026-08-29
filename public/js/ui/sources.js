@@ -20,6 +20,7 @@ import * as chatter from '../data/chatter-live.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
+import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
 
 // ---------------------------------------------------------------------------------------
@@ -347,6 +348,16 @@ export function sourceGroups() {
           cadence: 'Rolling 30 days · a scheduled walk writes the snapshot; the live routes answer the Refresh button, never a page load',
           status: 'live',
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/filings-shared.js · scripts/scrape-filings.mjs',
+        },
+        {
+          name: 'Moneycontrol — market-wide stocks news',
+          url: 'https://www.moneycontrol.com/news/business/stocks/',
+          feeds:
+            "<strong>Real reporting, and not ours.</strong> Every stocks story Moneycontrol publish, market-wide — the Universe half of the News tab. Headlines, standfirsts and section names are theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing is summarised, scored, ranked or flagged as important, and <strong>the order is the publisher's own</strong>, by their article id. <strong>It is a capture, not a live read, and that is not a choice:</strong> their site refuses automated readers by TLS fingerprint — curl with a browser user-agent gets 200 and 598 KB, node's <code class=\"rounded bg-slate-100 px-1\">fetch</code> gets 403 on every header set tried, and a Cloudflare Worker gets 403 too — so a scheduled Action reads the page and the browser reads what it committed. Their listing page carries <strong>no date at all</strong>, so a story's time comes from its own page, costs one request each and is budgeted; the rest render a dash and are <strong>never</strong> stamped with the moment this dashboard saw them.",
+          cadence:
+            `Every 20 minutes by scheduled capture.${clause(num(() => marketNews.meta().count), ' <n> stories in the current file.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry the publisher's own time.")}`,
+          status: 'live',
+          file: 'worker/mc-news.mjs · scripts/scrape-mc-news.mjs · .github/workflows/market-news-refresh.yml',
         },
         {
           name: 'BSE — corporate announcements, indexed by date',

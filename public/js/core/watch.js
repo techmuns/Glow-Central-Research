@@ -28,6 +28,7 @@
 import * as earnings from '../data/earnings-live.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
+import * as marketNews from '../data/market-news.js';
 import * as refreshRegistry from './refresh.js';
 
 // How long the header's Refresh waits for the per-company feeds before saying they are still
@@ -59,6 +60,7 @@ export function start(live) {
   wire(earnings, { keyOf: earningsKey, announce: announceEarnings, label: earnings.LIVE_ID });
   wire(concalls, { keyOf: concallKey, announce: announceConcalls, label: concalls.LIVE_ID });
   wire(chatter, { keyOf: chatterKey, announce: announceChatter, label: chatter.LIVE_ID });
+  wire(marketNews, { keyOf: marketNewsKey, announce: announceMarketNews, label: marketNews.LIVE_ID });
 }
 
 function wire(feed, { keyOf, announce, label }) {
@@ -84,7 +86,7 @@ function wire(feed, { keyOf, announce, label }) {
  */
 export function ensureRunning() {
   if (!engine) return;
-  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID]) engine.start(id);
+  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID, marketNews.LIVE_ID]) engine.start(id);
 }
 
 /**
@@ -173,6 +175,45 @@ function describeMetric(label, m) {
   if (m.kind === 'loss_both') return `${label} ${value} — loss in both periods`;
   if (m.pct == null) return `${label} ${value}`;
   return `${label} ${value} (${formatPct(m.pct, { signed: true })})`;
+}
+
+/**
+ * The publisher's own article id. Stable across captures and across edits to the headline, which a
+ * title-derived key would not be — Moneycontrol revise headlines after publication, and that would
+ * announce one story twice.
+ */
+const marketNewsKey = (a) => `mcnews:${a.id || a.url}`;
+
+/**
+ * A story that appeared since this page loaded.
+ *
+ * NO SUMMARY AND NO JUDGEMENT. The detail line carries the publisher's own standfirst, trimmed, and
+ * the section they filed it under — nothing here decides a story is important, and nothing rewrites
+ * their words. An alert is the one surface that reaches a reader with none of the page's context,
+ * so it is the last place to start editorialising.
+ *
+ * The time shown is the PUBLISHER'S where we have it. A story whose date was not fetched carries
+ * `firstSeenAt`, which is when this dashboard saw it — different fact, and the card must not
+ * present the second as the first, so it falls back to "just captured" rather than to a timestamp.
+ */
+function announceMarketNews() {
+  for (const a of [...marketNews.newArrivals()].reverse()) {
+    notifications.push({
+      key: marketNewsKey(a),
+      kind: 'news',
+      title: a.title || 'A story was published',
+      detail: marketNewsDetail(a),
+      href: '#/research/news?scope=universe',
+      at: a.publishedAt ? Date.parse(a.publishedAt) : Date.now(),
+    });
+  }
+}
+
+export function marketNewsDetail(a) {
+  const section = a.section ? a.section.replace(/-/g, ' ') : null;
+  const lead = a.summary ? String(a.summary).slice(0, 140) : null;
+  if (lead && section) return `${section} · ${lead}`;
+  return lead || (section ? `Published under ${section}` : 'Published on Moneycontrol');
 }
 
 function announceConcalls() {

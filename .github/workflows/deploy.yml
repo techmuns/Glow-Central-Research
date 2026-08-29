@@ -1,0 +1,59 @@
+name: Deploy
+
+# A COMMIT DOES NOT UPDATE THE LIVE SITE ON ITS OWN, and until this workflow existed nothing here
+# said so. `wrangler.jsonc` serves `public/` through the Worker's own `assets` binding, so every
+# committed JSON file — technicals, announcements, market news — reaches readers only when
+# `wrangler deploy` runs. The daily and twenty-minute refreshes were writing to a repository that
+# nobody was publishing from.
+#
+# THIS IS WHAT MAKES THE TWENTY-MINUTE NEWS CADENCE REAL. Without it the Action would commit a
+# fresh capture every twenty minutes and the deployed site would keep serving whatever was last
+# deployed by hand, while the page's own "Moneycontrol last read" line reported the capture's age
+# honestly — so the reader would see the staleness without anything explaining it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/**"
+      - "worker/**"
+      - "wrangler.jsonc"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  # A ONE-STEP JOB WHOSE ONLY PURPOSE IS TO TURN "IS THE SECRET SET" INTO AN OUTPUT.
+  # Guarding the deploy steps individually would let the job report SUCCESS while every step
+  # skipped — a green tick over work that did not happen. Guarding at JOB level renders as
+  # "Skipped" in the checks list, which is the truth.
+  secret:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - id: check
+        run: echo "available=${{ secrets.CLOUDFLARE_API_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: secret
+    if: needs.secret.outputs.available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      # `--dry-run` first: it validates the bundle and the asset directory without publishing, so a
+      # broken build fails before it can replace a working deployment.
+      - name: Validate the bundle
+        run: npx --yes wrangler@4 deploy --dry-run
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy

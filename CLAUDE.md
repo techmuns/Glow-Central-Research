@@ -109,6 +109,7 @@ scripts/
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
   scrape-filings.mjs          walks the universe for news and insider trades (NOT announcements)
   scrape-bse-announcements.mjs  the whole exchange's filings, read by DATE — ~20 requests
+  scrape-mc-news.mjs          market-wide stocks news, captured every 20 min (curl, NOT fetch)
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -124,6 +125,8 @@ worker/stockscans.mjs         the StockScans con-call client (vocabulary lives i
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
 worker/muns.mjs               the AUTHENTICATED news / insider clients — same token
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
+worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
+                              the edge can fetch it, so only the Action ever calls this
 wrangler.jsonc
 docs/SPEC.md                  product spec + roadmap
 docs/DATA-CONTRACTS.md        every JSON file's shape, units, source, cadence
@@ -690,6 +693,59 @@ Three things follow, and each is load-bearing:
    exchange, so a month is ~22,000 rows and roughly 16 MB of committed JSON that every visitor
    downloads. `ANN_KEEP_DAYS` (default 3) is a ceiling on bytes, and the file says so. Older filings
    are not less true; BSE still hold them, and widening it is one variable and one re-run.
+
+### AN UPSTREAM NEITHER THE BROWSER NOR THE WORKER CAN READ — the market-news rule
+
+Every other upstream here is reachable from somewhere we control: the browser calls the chatter API
+directly, the Worker proxies Moneycontrol's *API* and StockScans and Finology. `www.moneycontrol.com`
+is the first one that is reachable from **neither**, and the way that was established is the point.
+
+| Reader | Result |
+| --- | --- |
+| `curl` + a browser user-agent | **200**, 598 KB, articles present |
+| node `fetch`, bare user-agent | **403**, 24-byte body |
+| node `fetch`, user-agent + accept | **403**, 24-byte body |
+| node `fetch`, the full sixteen-header browser set (`sec-fetch-*`, `sec-ch-ua`, …) | **403**, 24-byte body |
+| **a Cloudflare Worker under `wrangler dev`** | **403**, 24-byte body |
+
+**It is TLS/HTTP2 fingerprinting, not headers**, so tuning headers is time spent on the wrong thing —
+and the Worker result is what settles the architecture, because it removes the proxy route that every
+other credentialed or awkward upstream here uses. Note that `api.moneycontrol.com`, which
+`worker/mc.mjs` uses for the earnings feed, does **not** do this: it is the `www` host only, so "we
+already read Moneycontrol" is not evidence that this will work.
+
+Three consequences, and the third is the one that matters to the reader:
+
+1. **A GitHub Action on a normal runner is the only thing that can read it**, so the feed is a
+   committed capture and `scripts/scrape-mc-news.mjs` shells out to `curl`. `worker/mc-news.mjs`
+   stays pure and takes `fetchImpl` as a parameter, which is what lets the parser be tested offline
+   without knowing anything about that.
+2. **A committed capture is worth nothing until it is deployed.** `wrangler.jsonc` serves `public/`
+   through the Worker's `assets` binding, so every committed JSON file reaches readers only when
+   `wrangler deploy` runs — and until `.github/workflows/deploy.yml` existed, nothing did. The daily
+   and twenty-minute refreshes were writing to a repository nobody was publishing from. **Check that
+   a scheduled capture has a path to the live site before believing its cadence.**
+3. **The refresh button must not claim what it cannot do.** It checks whether a *newer capture*
+   exists — one conditional GET, usually a bodyless 304 — and says so in those words. So two times
+   are printed and never combined: *when Moneycontrol was last read* (how fresh the news is) and
+   *when this browser last checked* (whether we hold the newest capture). A twenty-minute-old capture
+   confirmed one second ago is fresh in one sense and stale in the other, and one "updated just now"
+   would let the second stand in for the first — the same failure as the header's two competing chips.
+
+**And the listing page carries no date on any story.** Verified: no date, time or timestamp element
+anywhere on it. The publisher's time lives on each story's own page, so it costs one request per
+story, is budgeted (`MCNEWS_DATE_LIMIT`), and the newest are done first. A story the budget did not
+reach keeps `publishedAt: null` and renders an em dash. **It is never stamped with `firstSeenAt`** —
+that is when the *scraper* saw the story, it is a fact about us rather than about the story, and it
+is kept in its own field so the two cannot be confused. Ordering does not depend on it either way:
+Moneycontrol's own article id is in every URL and increases with publication, which is also why it is
+the merge key — a headline gets edited after publication and a title-derived key would then read as a
+second story.
+
+**RSS looks like the easy answer and is a trap.** `moneycontrol.com/rss/*.xml` still resolve with
+HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports.xml`,
+`latestnews.xml` — and every one is abandoned: the newest item in each is from **April 2024**, and
+`MCtopnews.xml`'s is from **2016**. A 200 with valid XML and plausible `pubDate`s is not a live feed.
 
 **And the third feed did not get this treatment, because it cannot.** News is a *search* endpoint —
 there is no "everything published today" request to make, only "what has been written about this
@@ -1540,7 +1596,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
-| Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately |
+| Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately. That is the **Portfolio** half only |
+| Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
+| Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
+| Make a committed file reach the live site | `.github/workflows/deploy.yml` — needs `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*, not green |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
 | Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |
