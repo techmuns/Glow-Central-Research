@@ -40,6 +40,7 @@
 //   this" and "this is zero" are different claims.
 
 import { adaptUniverse } from './universe.js';
+import { filterByScope } from './scope.js';
 import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/earnings-live.json';
@@ -585,8 +586,5 @@ export function dateRange() {
  * that has reported. Filtering the cached list — never a refetch.
  */
 export function forScope(scope, holdings = []) {
-  const rows = all();
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((r) => r.ticker && held.has(r.ticker));
+  return filterByScope(all(), scope, holdings);
 }

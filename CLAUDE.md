@@ -48,6 +48,8 @@ public/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
       state.js                global state + localStorage + pub/sub
+      watchlist.js            THE WATCHLIST — a set of COMPANIES, not of rows. Backs the star in
+                              every table AND the Watchlist scope; see the scope section below
       router.js               hash routing (#/ws/tab/subview?scope=)
       live.js                 live-update polling engine
       watch.js                app-wide feed watchers -> the alert stack
@@ -71,6 +73,9 @@ public/
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
       live.js                 the WHOLE Superstar Investors view — real filed books off Finology
     data/
+      scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
+                              and the one `filterByScope()` every forScope() is built on
+      daily-alerts.js         TODAY, across every feed. Derived: no file, no route of its own
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -92,8 +97,10 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     earnings-hub, concall, public-chatter, breakouts, super-investors,
-                              news, corp-announcements, insider-trades
+    tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+                              super-investors, news, corp-announcements, insider-trades
+      daily-alerts.js         THE LANDING TAB — one stream of today, red = a negative reading,
+                              orange = an update, plus the panel saying which feeds have looked
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
@@ -154,7 +161,10 @@ export function render(ctx) {}   // ctx = { scope, subview, root, live, data }
 export function destroy() {}     // detach listeners/pollers; called on nav away
 ```
 
-- `ctx.scope` is `'portfolio' | 'universe'` — **every tab must visibly reflect it.**
+- `ctx.scope` is `'portfolio' | 'watchlist' | 'universe'` — **every tab must visibly reflect it.**
+  Never write `scope !== 'portfolio'` to mean "everything": that was correct with two scopes and is
+  silently wrong with three. Ask `js/data/scope.js` — `scopeTickers()` returns the Set to filter by
+  or `null` for "this scope does not narrow".
 - `ctx.root` is the content host, already cleared.
 - `ctx.data` is the loaded data set, keyed as in `DATA_SOURCES` (see `app.js`).
 - `ctx.live` is the live engine.
@@ -177,7 +187,12 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**There is no workspace switcher.** Research Central's five tabs are the whole nav. Portfolio
+**Daily Alerts is first, and first is the default landing page.** `handleRoute` falls back to
+`ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
+there is no second place recording it that could disagree with the array. Reordering that array
+moves the landing page, which is the intended way to move it.
+
+**There is no workspace switcher.** Research Central's tabs are the whole nav. Portfolio
 Analytics still exists — four modules, four routes — but its `WORKSPACES` entry is marked
 `hidden: true`, so it is reachable by URL and not by clicking. Hidden rather than deleted on
 purpose: dropping the entry would make every saved `#/portfolio/…` link fall through to Research
@@ -269,7 +284,8 @@ ctx.root.innerHTML = `
 stats.wire(ctx.root); cards.wire(ctx.root); table.wire(ctx.root);
 ```
 
-`scoreTable` essentials — `rows`, `key(row)` (watchlist id), `name(row)`, `sub(row)`, and
+`scoreTable` essentials — `rows`, `key(row)` (the ROW's id), `watchKey(row)` (the COMPANY's, for
+the star — defaults to `key`), `name(row)`, `sub(row)`, and
 `columns: [{ label, get(row), html?, align?, sortable?, sortValue? }]`. `html: true` means
 `get()` returns trusted markup, so **escape inside it yourself**. Optional: `showScore` +
 `score(row) => { points, max, pct, redFlag? }`, `showSignals` + `signals(row) => [{ label, status }]`,
@@ -316,6 +332,30 @@ simply moved.
 **Controls that move when you use them read as a different page rather than another view of one.**
 A row of its own cannot wrap, so it cannot move. `verify-ui.mjs` measures the controls row's `x`
 on both Earnings Hub sub-views and asserts they are equal and aligned to the title.
+
+### The star marks a COMPANY, and `key` is not `watchKey`
+
+`key(row)` identifies a **row**. `watchKey(row)` identifies the **company** on it, and defaults to
+`key` because on a screener the two are the same ticker.
+
+They are not the same everywhere, and pretending they were is what the watchlist used to store: the
+ticker on Breakouts, Moneycontrol's `scID` on the Earnings Hub, `company|time|document` on Con-call,
+a composite of the cells on the three filings tabs. **Four vocabularies in one set**, which could not
+answer the one question a watchlist exists to answer — which companies — and which is exactly what
+the Watchlist scope needs.
+
+Three consequences, and all three are load-bearing:
+
+1. **A table whose rows are events must pass `watchKey`.** Three announcements from one filer are
+   three rows and one watched company.
+2. **Starring one row restains every row of that company.** The click handler marks every row
+   sharing the watch key stale, not just the one clicked — otherwise the other two would show the
+   opposite of what is stored, which is the same control-disagrees-with-its-state failure that
+   `staleKeys` exists to close, arrived at from the other side.
+3. **A row with no company gets NO STAR**, not a dead one. Superstar Investors (Finology discloses a
+   company name and no symbol) and Public Chatter's unresolved half both pass `watchKey: () => null`.
+   A star that filed a name where a symbol is expected would match nothing for ever, and a star that
+   silently does nothing is worse than a control that is not offered.
 
 ### Honesty rules for the kit
 
@@ -1302,6 +1342,164 @@ Three rules:
 
 ---
 
+## Three scopes, not two — `js/data/scope.js` + `js/core/watchlist.js`
+
+**Portfolio · Watchlist · Universe, widest last, and Portfolio is the default.** That order reads
+left to right as *mine, watched, everything*. Universe was the default only because it was the
+scope that needed no data loaded first, which is not a reason.
+
+`js/data/scope.js` owns the vocabulary — `SCOPES`, `isScope`, `scopeLabel`, `scopeTickers`,
+`filterByScope`, `scopeBook` — and `core/state.js` and `core/router.js` import it rather than
+repeating the string pair. **A fourth scope is a change in that one file.**
+
+### `scopeTickers()` returns a Set, or `null`, and those are not the same thing
+
+```js
+const wanted = scopeTickers(scope, holdings);   // null == "this scope does not narrow"
+if (!wanted) return rows;
+return rows.filter((r) => r.ticker && wanted.has(r.ticker.toUpperCase()));
+```
+
+An **empty Set is a real, correct answer** — nothing is watched yet — and must narrow the feed to
+nothing. `null` means the scope does not narrow at all. Collapse the two and an empty watchlist
+shows the whole universe: a scope silently meaning its own opposite.
+
+**This is why `scope !== 'portfolio'` is now a bug wherever it appears.** It was the correct
+spelling of "everything else" with two scopes and became "the book, or every listed company, but
+never the watchlist" with three. Every `forScope()` in `js/data/` and every scope branch in a tab
+now goes through `filterByScope`/`scopeTickers` instead, so the question is asked in one place.
+
+### The watchlist is a list of COMPANIES
+
+`sattva:watchlist` holds `{ ticker, name, addedAt }`. See *The star marks a COMPANY* above for what
+that changed in `scoreTable`, and `docs/DATA-CONTRACTS.md` for the shape and the legacy prune.
+
+`name` exists so a watched company can be **named** on a feed that does not carry it. Printing the
+symbol back where a name belongs would be inventing one — the same class of error as rendering a
+missing value as zero.
+
+### Two denominators that are not the same claim
+
+Both scopes print one, per the rule above: ninety-six rows look complete until you know the list is
+a hundred and forty-two. But they mean different things and `scopeSummary` words them differently:
+
+- **the book's gap is partly permanent** — nineteen lines carry no NSE symbol, so *no feed here can
+  ever show them*;
+- **a watchlist entry came FROM a feed**, so its gap is only ever *this particular feed does not
+  carry it*, which is a smaller and more temporary claim.
+
+### Two places the scope means something else, and they are left alone deliberately
+
+**Portfolio Analytics' scope axis is not a company filter.** Its four modules read
+`js/data/portfolio.js`'s `forScope`, where `portfolio` means *open positions* and anything else
+means *open plus fully exited* — a different question from "whose companies", asked of a
+twelve-position ledger. Watchlist there behaves as Universe. Adding a third meaning would put a
+company filter over the FIFO replay and risk the two numeric identities the suite asserts, for a
+workspace that is `hidden: true` and reachable only by URL.
+
+**Two feeds carry rows with no company on them at all**, and those rows are not filtered by one:
+Public Chatter's unresolved half, and market-wide news. Filtering rows that have no ticker BY
+ticker would report *"your companies are not in the news"* when the truth is that nothing on those
+rows says whose they are. Both keep the section whole and say why.
+
+### Every "nothing matched" sentence is built from `scopePossessive()`
+
+`'your holdings'` / `'your watchlist companies'` / `null` for Universe. The failure this closes is
+a message that still reads *"None of your holdings has reported"* to a reader looking at their
+watchlist — a sentence quietly about a different list, on a page that is otherwise correct.
+
+### An empty watchlist is answered by the SHELL, once, for every tab
+
+`watchlistEmptyPanel()` says there are zero watchlist companies and how to add one. It lives in the
+shell rather than in nine tabs because an empty scope is a property of the scope, not of any tab —
+and because a table reading *"no results match your filters"* over a list nobody has added to sends
+the reader hunting for a filter to clear.
+
+**The teardown is decided against what will actually be mounted, not against the tab the route
+names.** Getting that wrong was invisible until two navigations later: landing on Daily Alerts with
+an empty watchlist took the short-circuit branch, so `currentTabModule !== tabModule` was false and
+nothing was destroyed. The module's subscriptions stayed live, its in-flight collect finished, and
+it painted its own table into `contentHost` — which by then belonged to Breakouts. **Nothing threw
+and no state was wrong**; the reader simply saw one tab's chrome over another tab's rows. The same
+lifecycle failure the module contract at the top of this file is about, from the one direction the
+contract does not cover: a tab the shell decided not to mount.
+
+---
+
+## Daily Alerts — the landing tab, and the only one organised by DAY
+
+Every other tab here is organised by SOURCE. That is right for research and wrong for the first
+thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
+happened, and does any of it need me*.
+
+`js/data/daily-alerts.js` takes the readings, `js/tabs/daily-alerts.js` draws them, and **the tab
+adds no data source**: every row comes from a feed that already has its own tab, filtered to today's
+**Indian trading date**. Full shapes in `docs/DATA-CONTRACTS.md`.
+
+### The two colours are measurements, not opinions
+
+**RED is a direct negative reading on the row itself, and the row prints the reading.** Profit fell
+/ the loss widened / the company slipped into loss (through `classifyChange`'s `kind`, so a
+*narrowing* loss is an improvement and not a fall — reading the raw percentage would have got
+Vodafone Idea's "+43%" exactly backwards); the price fell more than `MOVE_PCT` at the close; the
+research provider's own tier for a call is one of their two lowest; the chatter source's own label
+is bearish. **ORANGE is everything else that arrived today.**
+
+A colour whose cause is not on screen beside it is a judgement, and this dashboard does not make
+those — so `reason` is mandatory on an alert and absent on an update.
+
+**Two feeds are deliberately never red, and it is the same rule from the other side.** Insider
+trades carries no model — *"no sentiment, no materiality flag"*, because its columns are the
+upstream's own and unknown at build time — and deciding that "Pledge" is red **is** a materiality
+flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. Both print
+the upstream's own wording and let the reader read it.
+
+**Both thresholds are printed** — on the tab, in the help modal, and in row 1 of the export. A page
+that quietly dropped everything below a number the reader cannot see would be deciding what counts
+as news in secret.
+
+### `reachesToday` is the half that makes an empty day readable
+
+Most of these feeds are captures on a best-effort schedule, so an empty bucket has two completely
+different meanings: *nobody filed*, and *nothing has looked at today yet*. The coverage panel states,
+per feed, when it last looked and whether that reaches today. Same rule as the filings tabs' *"63
+companies have not been checked since"*: **never claim nothing is new.**
+
+It is computed differently depending on what the feed IS, and the distinction matters:
+
+- feeds whose ROWS carry their own date (announcements, insider, news, market news) use
+  `capturedDay >= day` — a later capture still covers an earlier day;
+- feeds that are ONE SNAPSHOT of one day (price moves, chatter) use **`snapshotDay === day`**,
+  equals and not `>=`. `pct_change_today` is *that* day's move and no other, so reporting it under a
+  different date would stamp one day's measurement with another day's label.
+
+A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
+a half-finished read must not be allowed to give a finished answer.
+
+### Nothing on it walks, and nothing on it blocks on the slowest feed
+
+The three filings feeds are seeded with **`feed.seed()`** — the committed snapshot and this device,
+no per-company request. That is deliberately separate from `load()`: `load()` memoises its promise,
+so a seed arriving first would hand the tab that owns the feed the seed's promise and silently
+discard its company list, and the Refresh button would then re-read an empty set and ask about
+nothing. `seed()` never writes `wanted`.
+
+**`Promise.all` over independent reads is head-of-line blocking with a tidy syntax.** The first
+version awaited all eight feeds together and the landing page sat blank for as long as the slowest —
+measured at 10–15 seconds on a static origin, because the chatter API is a direct call to somebody
+else's service and an unreachable host takes its own time to say so. Seven feeds that had already
+answered were held hostage by the one that had not, on the first tab a reader sees. Each feed now
+settles independently and the page paints as it lands, coalesced at 250ms with a **trailing throttle,
+not a debounce** — a debounce would keep deferring while feeds kept landing and the page would sit
+still until the slowest finished, which is the thing this exists to stop. Measured after: first paint
+**~250ms**, everything settled by 3s.
+
+**The Refresh button compares event ids, never counts.** The day rolls over, captures land, stories
+drop off the end of a bounded cache — a count cannot answer "did anything change" for a collection
+like that. Same rule, and the same failure, as the news Fetch button.
+
+---
+
 ## Portfolio Analytics — the FIFO engine and the two identities
 
 `js/portfolio/lots.js` replays the ledger once per page load; `js/data/portfolio.js` joins the
@@ -1802,6 +2000,12 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
 | Add or remove a company from the book | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
+| Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
+| Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
+| Change the Daily Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *Daily Alerts* above first. It has **no feed of its own** and must never send a request per company |
+| Change what makes a Daily Alerts row RED | the per-feed collectors in `js/data/daily-alerts.js` — every alert must carry the `reason` that made it one, and Insider / Announcements stay ungraded |
+| Change the Daily Alerts thresholds | `MOVE_PCT` / `CHATTER_PCT` in `js/data/daily-alerts.js` — they are printed on the tab, in the help modal and in row 1 of the export, so all three follow the constant |
+| Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
 | Change the portfolio provenance pill | `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` — one function, four sub-views |
@@ -1855,11 +2059,29 @@ node scripts/verify-ui.mjs
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 9 tabs across both workspaces render their panel
+- all 13 tabs across both workspaces render their panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub has none by design; its Live pill carries the provenance instead)
 - rail sub-views switch content
-- the Portfolio/Universe toggle changes what every tab reports
+- the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
+  is in that order — widest last
+- **the dashboard opens on Daily Alerts, in Portfolio scope**, with four stat cards and the
+  gradient hero fourth, no rail, and the Indian trading date stated rather than a UTC one
+- **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*
+  from *nothing today* from *could not be read* from *reading…*, and names the quarterly feed as
+  not-daily rather than leaving it off the list
+- **every Daily Alerts alert prints the reading that made it one** and no update carries one;
+  insider disclosures and corporate announcements are never graded red; every event id is unique
+  (compared, not counted); and mounting the tab sends **zero** per-company filings requests
+- market-wide news is excluded from a narrowed scope **with the reason stated**, not filtered to
+  nothing
+- **an empty watchlist gets its own panel on every tab**, saying there are zero watchlist companies
+  and how to add one — never an empty table under a filter the reader never set
+- **the star marks a company, not the row it sits on**: on the Earnings Hub the row key is
+  Moneycontrol's scID and the watch key is the ticker, starring one row of a company fills the star
+  on its other rows, and a legacy composite row key is pruned rather than filed as a company
+- the Watchlist scope narrows a feed to the starred companies, an EMPTY one narrows to nothing
+  rather than to everything, and the pill prints its own denominator
 - the URL hash updates; browser back/forward work
 - a reload restores the same route and scope
 - the top-tab underline scales in on the active tab only

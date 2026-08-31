@@ -32,6 +32,8 @@
 //   "Filing Awaited". Portfolio: a blank month is a month the fund did not hold the line at all.
 //   Rendering either as 0% would report something that is not so.
 
+import { filterByScope } from './scope.js';
+
 const PATH = 'data/institution-holdings.json';
 
 let cache = null;
@@ -129,11 +131,9 @@ export function holdersOf(ticker) {
  * useful question than "what does this fund own" — it answers "where does this fund overlap me".
  */
 export function holdingsForScope(scope, portfolioHoldings = [], rows = []) {
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(portfolioHoldings.map((h) => String(h.ticker).toUpperCase()));
-  // A row with no ticker cannot be matched against the book, so it drops out of Portfolio scope.
-  // That is a limit of the join and not a claim the fund does not hold it — the row is still there
-  // under Universe, and it says why it carries no symbol. Tested explicitly rather than left to
-  // String(null) happening not to collide with a real symbol.
-  return rows.filter((h) => h.ticker && held.has(String(h.ticker).toUpperCase()));
+  // A row with no ticker cannot be matched against the book or the watchlist, so it drops out of
+  // either narrowed scope. That is a limit of the join and not a claim the fund does not hold it —
+  // the row is still there under Universe, and it says why it carries no symbol. Tested explicitly
+  // rather than left to String(null) happening not to collide with a real symbol.
+  return filterByScope(rows, scope, portfolioHoldings);
 }

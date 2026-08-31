@@ -34,6 +34,8 @@ import { exportSheets, todayStamp } from '../ui/export.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
+import * as watchlist from '../core/watchlist.js';
+import { scopePossessive } from '../data/scope.js';
 
 const SOURCE = 'Ticker Finology, read live through this dashboard’s Worker.';
 const FINOLOGY_INVESTOR = (slug) => `https://ticker.finology.in/investor/${encodeURIComponent(slug)}`;
@@ -417,6 +419,11 @@ function holdingsTable(ctx, rows, quarters, initialView) {
   return scoreTable({
     rows,
     key: (r) => `${r.slug}|${r.company}`,
+    // NO STAR ON THIS TABLE. The watchlist is a list of NSE symbols — that is what every scope
+    // filter on this dashboard matches — and this upstream discloses a company NAME and no symbol
+    // at all. A star here would either store a name where a symbol is expected, which nothing could
+    // match, or quietly do nothing at all; both are worse than not offering the control.
+    watchKey: () => null,
     name: (r) => r.company,
     nameLabel: 'Company',
     sub: (r) => r.investor,
@@ -482,7 +489,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
     onRowClick: (r) => openInvestor(r.slug),
     exportName: `sattva-superinvestors-${todayStamp()}`,
     onExport: () => runExport(),
-    emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings is disclosed by a tracked investor.' : 'No positions match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} is disclosed by a tracked investor.` : 'No positions match your filters.',
     initialView,
   });
 }
@@ -660,13 +667,23 @@ function profilePanel() {
 // Scope, totals and the export
 // ---------------------------------------------------------------------------------------
 
-/** Universe is every disclosed position; Portfolio narrows to companies the family actually owns. */
+/**
+ * Universe is every disclosed position; Portfolio and Watchlist narrow to companies the reader has
+ * a stake in.
+ *
+ * MATCHED BY NAME, NOT BY TICKER, because that is all this upstream gives: Finology's books carry
+ * a company name and no symbol. The watchlist carries the name the row was starred under, which is
+ * the same kind of string, so the two scopes use one comparison.
+ */
 function scopedHoldings(ctx) {
   const all = feed.allHoldings();
-  if (ctx.scope !== 'portfolio') return all;
-  const held = (coverage.holdings()).map((h) => String(h.name || '').toLowerCase());
-  if (!held.length) return [];
-  return all.filter((r) => held.some((n) => n && r.company.toLowerCase().includes(n.slice(0, 12))));
+  if (ctx.scope === 'universe') return all;
+  const names =
+    ctx.scope === 'watchlist'
+      ? watchlist.all().map((w) => String(w.name || '').toLowerCase())
+      : coverage.holdings().map((h) => String(h.name || '').toLowerCase());
+  if (!names.some(Boolean)) return [];
+  return all.filter((r) => names.some((n) => n && r.company.toLowerCase().includes(n.slice(0, 12))));
 }
 
 const count = (moves, action) => moves.filter((m) => m.action === action).length;

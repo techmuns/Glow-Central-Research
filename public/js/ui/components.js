@@ -5,6 +5,8 @@
 
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.js';
+import { scopeLabel } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
 
 // Semantic tones (positive/negative/caution) describe a data outcome; brand/accent are the
 // indigo→purple chrome colours. Never use a semantic tone to mean "branded".
@@ -59,8 +61,24 @@ export function sectionHeader({ title, description = '', meta = '' }) {
  * way to tell whether it is absent from the feed or absent from the book.
  */
 export function scopeSummary({ scope, count, noun = 'companies', book = null }) {
-  const label = scope === 'portfolio' ? 'Portfolio' : 'Universe';
-  const tone = scope === 'portfolio' ? 'accent' : 'brand';
+  const label = scopeLabel(scope);
+  const tone = scope === 'universe' ? 'brand' : 'accent';
+
+  // WATCHLIST PRINTS ITS OWN DENOMINATOR, and it is a different fact from the book's. The book's
+  // gap is partly permanent — nineteen lines carry no NSE symbol and no feed here can ever show
+  // them. A watchlist entry came FROM a feed, so its gap is only ever "this particular feed does
+  // not carry it", which is a smaller and more temporary claim and must not be worded like the
+  // other one.
+  if (scope === 'watchlist') {
+    const tracked = watchlist.size();
+    if (!tracked) return pill({ label: `${label} · nothing tracked yet`, tone, title: 'Star a company under Universe to track it here.' });
+    const why =
+      tracked === count
+        ? `Every one of the ${formatNumber(tracked)} companies you track appears on this feed.`
+        : `You track ${formatNumber(tracked)} companies; ${formatNumber(count)} of them appear on this feed. The rest are tracked but not carried here.`;
+    return pill({ label: `${label} · ${formatNumber(count)} of ${formatNumber(tracked)} ${noun}`, tone, title: why });
+  }
+
   if (scope !== 'portfolio' || !book?.count) return pill({ label: `${label} · ${formatNumber(count)} ${noun}`, tone });
 
   const gap = book.count - count;

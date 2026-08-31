@@ -2883,6 +2883,146 @@ write the file — and the UI says so rather than letting the work vanish silent
 
 ---
 
+## Browser-local state — the watchlist, and what the three scopes filter by
+
+Two things the reader owns are not files and never travel to a server. They are documented here
+because a scope filter is a data contract even when its storage is `localStorage`.
+
+### `sattva:watchlist` — the companies the reader is tracking
+
+```jsonc
+[
+  { "ticker": "RELIANCE", "name": "Reliance Industries", "addedAt": "2026-08-31T09:14:22.001Z" }
+]
+```
+
+| Field | Meaning |
+| --- | --- |
+| `ticker` | **NSE symbol, upper case.** The join key, same as every file in this document. |
+| `name` | The display name of the row it was starred from, or `null` for a pre-v2 entry. It exists so a watched company can be *named* on a feed that does not carry it — printing the symbol back as though it were a name would be inventing one. |
+| `addedAt` | ISO timestamp. Drives the ordering: a watchlist is a working set, so newest first. |
+
+**It is a list of COMPANIES, and it did not used to be.** The star lived entirely inside
+`scoreTable` and stored whatever that table used as a row key — which is a different vocabulary on
+every tab: the ticker on Breakouts, Moneycontrol's `scID` on the Earnings Hub,
+`company|time|document` on Con-call, a composite of the cells on the three filings tabs. Four
+vocabularies in one set, which could not answer the one question a watchlist exists to answer.
+
+So `scoreTable` now takes **`watchKey(row)` beside `key(row)`**: `key` identifies the row, `watchKey`
+the company, and they are allowed to differ. Three announcements from one filer are three rows and
+one watched company, and starring any of them fills the star on all three — the click handler marks
+every row sharing the watch key stale, not just the one that was clicked, or the other two would
+show the opposite of what is stored.
+
+**A row with no company gets no star at all.** Superstar Investors (Finology discloses a company
+name and no symbol) and Public Chatter's unresolved half both pass `watchKey: () => null`. A star
+that stored a name where a symbol is expected would match nothing for ever; a star that silently
+did nothing is worse than a control that is not offered.
+
+**The legacy set is pruned, not reinterpreted.** An upgrading reader has an array of old row keys
+under this same key. Reading them all back as tickers would file `RELIANCE|2026-08-12|3` as a
+company — a value that meant something else, read as a measurement. The migration keeps only
+entries *shaped like* an NSE symbol (`/^[A-Z][A-Z0-9&.\-]{0,19}$/`) and drops the rest, once,
+recording that it ran under `sattva:watchlist:shape`. A dropped entry was never a company; it was
+a row.
+
+### `sattva:scope` — which of the three scopes is active
+
+`"portfolio" | "watchlist" | "universe"`, defaulting to **`portfolio`**. The vocabulary lives in
+`public/js/data/scope.js` and `core/state.js` and `core/router.js` import it, so the list exists
+once. `?scope=` in the URL wins over the stored value; an unrecognised value falls back to the
+stored one rather than letting a typo redefine what is on screen.
+
+| Scope | Filters by | Denominator the pill prints |
+| --- | --- | --- |
+| `portfolio` | `portfolio-companies.json` via `js/data/coverage.js` — 142 book lines, 123 with an NSE symbol | *"123 of 142 book companies"*. Part of that gap is permanent: nineteen lines carry no symbol, so no feed here can ever show them. |
+| `watchlist` | `sattva:watchlist` above | *"12 of 20 watched companies"*. This gap is only ever *this feed does not carry it* — a watchlist entry came **from** a feed. |
+| `universe` | nothing — it is the denominator | plain count |
+
+`scopeTickers(scope, holdings)` returns the `Set` to filter by, or **`null` for universe**. `null`
+and an empty `Set` are deliberately different: an empty `Set` is a real, correct answer (nothing is
+watched yet) and must narrow the feed to nothing, while `null` means *this scope does not narrow*.
+Collapsing the two would make an empty watchlist show the whole universe — a scope silently meaning
+its own opposite.
+
+**An empty watchlist is answered by the shell, once, for every tab.** `watchlistEmptyPanel()` says
+there are zero watchlist companies and how to add one; the tab is not mounted at all, and the shell
+decides teardown against what it will actually mount so the un-mounted module is destroyed rather
+than left painting into the content host.
+
+---
+
+## Daily Alerts — DERIVED, no file and no route of its own
+
+`js/data/daily-alerts.js` writes nothing and fetches nothing new. It calls the same loaders every
+other tab calls, filters each to one **Indian trading date**, and returns readings.
+
+```jsonc
+{
+  "day": "2026-08-31",
+  "scope": "portfolio",
+  "pending": 0,                       // feeds that have not answered YET — never "nothing today"
+  "events": [{
+    "id": "results:JGE:2026-08-26",   // content-derived and unique; never a position
+    "feed": "results", "feedLabel": "Results", "tab": "earnings-hub",
+    "severity": "alert",              // "alert" (red) | "update" (orange)
+    "time": null,                     // HH:MM IST, or null where the feed dates to the day only
+    "at": "2026-08-26",
+    "ticker": "JNPR", "company": "Juniper Green",
+    "headline": "Filed standalone results",
+    "detail": "Revenue: +67.0% · Net profit: -61.0%",
+    "reason": "Net profit fell 61.0%",  // ALWAYS present on an alert, never on an update
+    "url": "https://…"
+  }],
+  "feeds": [{
+    "id": "results", "label": "Results", "tab": "earnings-hub",
+    "status": "ok",                   // ok | failed | pending | not-daily
+    "count": 2,
+    "reachesToday": true,             // HAS THIS FEED LOOKED AT THIS DAY — null where it cannot know
+    "asOf": "2026-08-31T06:41:12.000Z",
+    "note": null
+  }]
+}
+```
+
+**`reason` is the contract that makes the colour honest.** A red row without one would be this
+dashboard grading a company, which it does not do. Severity comes from:
+
+| Feed | Red when | Whose reading |
+| --- | --- | --- |
+| Results | `netProfit.kind` is `slipped-to-loss` or `loss-widened`, or `normal` with `direction < 0` | ours, from the filed figures — via `classifyChange`, so a **narrowing loss is an improvement**, not a fall |
+| Con-calls | the provider's `resultTierOf` is *Poor*/*Weak*, or `sentimentTierOf` is *Bearish*/*Cautious* | **theirs** — their cut-points, lifted from their own client, never re-banded |
+| Price moves | `pct_change_today <= -MOVE_PCT` (5%) | ours, one figure, stated on screen |
+| Chatter | the source's own `sentiment` label is `bearish` | **theirs**, reproduced |
+| Announcements, Insider, News | **never** | — |
+
+Insider trades and corporate announcements are never graded here. `CLAUDE.md` is explicit that the
+insider feed carries no model — *"no sentiment, no materiality flag"* — because its columns are the
+upstream's own and unknown at build time, and deciding that "Pledge" is red **is** a materiality
+flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. Both print
+the upstream's own wording instead.
+
+**`reachesToday` is the half that makes an empty day readable**, and it is computed differently
+depending on what the feed is:
+
+| Feed | Test | Why |
+| --- | --- | --- |
+| Results | `dateRange().last >= day` | the feed knows the newest date it holds |
+| Con-calls | always `true` | a live index; a call that has been held is in it |
+| Announcements, Insider, News, Market news | `capturedDay >= day` | rows carry their own date, so a later capture still covers an earlier day |
+| Price moves, Chatter | `snapshotDay === day`, **equals, not `>=`** | one snapshot, one day: `pct_change_today` is *that* day's move and no other, so reporting it under a different date would stamp one day's measurement with another day's label |
+
+A feed nobody has heard from yet is `pending`, which the panel draws as *reading…* and never as
+*nothing today* — a half-finished read must not be allowed to give a finished answer.
+
+**Nothing on this tab walks.** The three filings feeds are seeded with `feed.seed()` — the committed
+snapshot and this device, no per-company request — which is deliberately separate from `load()`:
+`load()` memoises its promise, so a seed arriving first would hand the tab that owns the feed the
+seed's promise and silently discard its company list, and the Refresh button would then re-read an
+empty set and ask about nothing.
+
+---
+
 ## Adding a new data file
 
 1. Drop the JSON in `public/data/` (or `public/data/mock/` if it's placeholder data).

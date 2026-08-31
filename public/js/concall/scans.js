@@ -47,6 +47,7 @@ import * as feed from '../data/concall-scans.js';
 import * as deepDive from '../data/deep-dive.js';
 import { openDeepDive } from './deep-dive.js';
 import * as coverage from '../data/coverage.js';
+import { scopePossessive } from '../data/scope.js';
 
 const ATTRIBUTION = 'Scores, sentiment and highlights are the research provider’s own analysis, shown unchanged.';
 
@@ -200,6 +201,11 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   const table = scoreTable({
     rows,
     key: rowKey,
+    // THE STAR MARKS THE COMPANY, NOT THE ROW. `key` above identifies the row and is not a ticker
+    // here, so without this the watchlist would fill with row ids and the Watchlist scope — which
+    // narrows every feed on this dashboard by symbol — would have nothing it could match.
+    watchKey: (r) => r.ticker || null,
+    watchName: (r) => r.name || r.ticker,
     name: (r) => r.name,
     nameLabel: 'Company',
     sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || '—'}`,
@@ -285,7 +291,7 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     initialSort: { key: 'Call', dir: 'desc' },
     exportName: 'sattva-concall-scans',
     onExport: (visible) => exportScans(visible, m),
-    emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has held a call this quarter.' : 'No calls match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has held a call this quarter.` : 'No calls match your filters.',
     initialView: tableView,
   });
   onView?.(table.view);
@@ -515,7 +521,7 @@ function scheduleBodyHtml(rows, scope) {
 
   if (!matched.length) {
     return `<div class="px-6 py-14 text-center">
-      <p class="text-sm font-semibold text-slate-700">${q ? 'No company matches that search' : scope === 'portfolio' ? 'None of your holdings has a call scheduled' : 'Nothing is scheduled yet'}</p>
+      <p class="text-sm font-semibold text-slate-700">${q ? 'No company matches that search' : scopePossessive(scope) ? `None of ${scopePossessive(scope)} has a call scheduled` : 'Nothing is scheduled yet'}</p>
       <p class="mt-1 text-xs text-slate-500">${
         q
           ? 'Only companies with a call already on the schedule appear here.'

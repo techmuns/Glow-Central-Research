@@ -37,6 +37,7 @@
 //   and attributed. We add no scoring of our own here — deliberately. See worker/stockscans.mjs.
 
 import { resultTierOf, sentimentTierOf, docUrl, fingerprint, mergeScans } from './stockscans-shared.js';
+import { filterByScope } from './scope.js';
 import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/concall-scans.json';
@@ -274,9 +275,7 @@ export const newArrivals = () => arrivals;
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
 
 export function forScope(scope, holdings = [], rows = all()) {
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((r) => r.ticker && held.has(r.ticker.toUpperCase()));
+  return filterByScope(rows, scope, holdings);
 }
 
 export { mergeScans };

@@ -401,7 +401,7 @@ function buildCoveredTable(ctx, rows) {
 const emptyCovered = (scope) => `
   <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
     <h3 class="font-display text-base font-bold text-slate-900">${
-      scope === 'portfolio' ? 'No book holding appears in this scrape' : 'Nothing resolved to a company we cover'
+      scope === 'portfolio' ? 'No book holding appears in this scrape' : scope === 'watchlist' ? 'None of your watchlist companies appears in this scrape' : 'Nothing resolved to a company we cover'
     }</h3>
     <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">${
       scope === 'portfolio'
@@ -414,6 +414,9 @@ function buildOtherTable(rows) {
   return scoreTable({
     rows,
     key: (r) => r.slug,
+    // The uncovered half is BY DEFINITION the entries that resolved to no company — that is what
+    // puts them in this table — so there is nothing to star.
+    watchKey: () => null,
     name: (r) => r.name,
     sub: (r) => r.slug,
     searchable: true,

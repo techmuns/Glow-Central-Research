@@ -15,9 +15,10 @@
 // which are the upstream's words; the article and the PDF stay where they are published. Same rule
 // as the con-call tab: surface the index, link to the content.
 //
-// THE SCOPE TOGGLE IS THE POINT OF THE TAB. Portfolio narrows to the book's tickers and Universe
-// widens to everything the snapshot covers, and both print their denominator — a list of 40 rows
-// looks complete until you know how many companies were asked about.
+// THE SCOPE TOGGLE IS THE POINT OF THE TAB. Portfolio narrows to the book's tickers, Watchlist to
+// the companies the reader starred, and Universe widens to everything the snapshot covers. All
+// three print their denominator — a list of 40 rows looks complete until you know how many
+// companies were asked about.
 
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
@@ -25,6 +26,8 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
+import { scopeTickers } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
 import * as refreshRegistry from '../core/refresh.js';
 
 const REASONS = {
@@ -88,6 +91,9 @@ export function makeFilingsTab(cfg) {
   function tickersFor(ctx) {
     const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
     if (ctx.scope === 'portfolio') return book;
+    // The watchlist carries the name the row was starred under, which is exactly what the news
+    // search needs — and it is the only name we have for a watched company outside the book.
+    if (ctx.scope === 'watchlist') return watchlist.all().map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
     // Universe is the book plus every company the committed snapshot already covers. Deliberately
     // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
     // companies nothing else on this dashboard tracks would spend the rate limit on rows nobody can
@@ -390,7 +396,6 @@ export function makeFilingsTab(cfg) {
 
   function paint(ctx) {
     const m = cfg.feed.meta();
-    const book = new Set(coverage.holdings().map((h) => h.ticker).filter(Boolean));
     let all = cfg.feed.rows();
 
     // THE FEED OUTLIVES THE SELECTION, so the rows must be narrowed to what was asked for.
@@ -402,7 +407,8 @@ export function makeFilingsTab(cfg) {
       const want = new Set(selected.map((s2) => s2.ticker));
       all = all.filter((r) => r.ticker && want.has(String(r.ticker).toUpperCase()));
     }
-    const rows = ctx.scope === 'portfolio' ? all.filter((r) => r.ticker && book.has(String(r.ticker).toUpperCase())) : all;
+    const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
+    const rows = wantedTickers ? all.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : all;
 
     // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
     // real answer and renders as an empty table with its own message.
@@ -453,6 +459,11 @@ export function makeFilingsTab(cfg) {
     const table = scoreTable({
       rows,
       key: (r) => rowKeys.get(r) || '',
+      // THE STAR MARKS THE COMPANY, NOT THE ROW. `key` above identifies the row and is not a
+      // ticker here, so without this the watchlist would fill with row ids and the Watchlist scope
+      // — which narrows every feed on this dashboard by symbol — would have nothing to match.
+      watchKey: (r) => r.ticker || null,
+      watchName: (r) => r.company || cfg.rowName(r) || r.ticker,
       name: (r) => cfg.rowName(r),
       nameLabel: cfg.nameLabel || 'Headline',
       sub: (r) => cfg.rowSub(r),
@@ -473,7 +484,9 @@ export function makeFilingsTab(cfg) {
       emptyMessage:
         ctx.scope === 'portfolio'
           ? `No ${cfg.noun} for your holdings in the last ${m.windowDays} days.`
-          : `No ${cfg.noun} matches your filters.`,
+          : ctx.scope === 'watchlist'
+            ? `No ${cfg.noun} for your watchlist in the last ${m.windowDays} days.`
+            : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
 
