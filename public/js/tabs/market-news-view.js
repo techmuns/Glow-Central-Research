@@ -558,7 +558,12 @@ async function startScrape(ctx) {
     onStep: (step) => {
       if (!ctxRef) return;
       if (step.phase === 'publishing') {
-        scrape = { phase: 'publishing', text: 'Moneycontrol was read and new stories were captured. Publishing them to this site now.', runUrl: step.publish?.url || scrape?.runUrl || null };
+        // A NEW CAPTURE IS NOT NEW STORIES, AND ONLY ONE OF THEM HAS BEEN MEASURED HERE.
+        // The scrape restamps `capturedAt` and so commits on every run, which is what starts the
+        // deploy — so a deploy in flight proves a new capture exists and says nothing whatever
+        // about whether it contains a story we did not have. Live: this said "new stories were
+        // captured" over a run that brought in exactly zero.
+        scrape = { phase: 'publishing', text: 'Moneycontrol was read. The new capture is being published to this site — the stories in it, if any, will appear when it lands.', runUrl: step.publish?.url || scrape?.runUrl || null };
       } else if (step.phase === 'scraping' && step.scrape?.status) {
         // Their word, not ours.
         scrape = { phase: 'running', text: `The scrape run is ${step.scrape.status.replace(/_/g, ' ')}. This page will pick the capture up when it is published.`, runUrl: step.scrape.url || scrape?.runUrl || null };
@@ -583,7 +588,9 @@ function outcomeResult(r) {
       // 20-minute poll can never say this — see the on-demand rule: it has no index to ask.
       return { tone: 'text-slate-500', text: 'Moneycontrol was read just now — nothing new to publish' };
     case 'published':
-      return { tone: 'text-slate-500', text: 'New stories were published; this browser has not received them yet' };
+      // Same rule: what was published is a capture. Whether it holds anything new is unknown until
+      // this browser has it, and saying otherwise would be a claim nothing measured.
+      return { tone: 'text-slate-500', text: 'Moneycontrol was read — the new capture has not reached this browser yet' };
     case 'publish-failed':
       return { tone: 'text-rose-700', text: r.message };
     case 'failed':

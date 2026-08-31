@@ -3789,6 +3789,27 @@ console.log('\n— news, announcements and insider trades —');
   // a freshness claim nothing measured. It is its own outcome for exactly that reason.
   ok('...and a deploy that succeeded while this browser still holds the old bytes is neither',
     outcomes.published?.outcome === 'published', `outcome=${outcomes.published?.outcome}`);
+  // NEITHER OF THOSE TWO MAY CLAIM STORIES. The scrape restamps `capturedAt` and so commits on
+  // every run, which is what starts the deploy — so a deploy in flight proves a new CAPTURE and
+  // says nothing about its contents. Live, the wording said "new stories were captured" over a run
+  // that brought in zero.
+  const deployWording = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    return { has: typeof mod.watchScrape === 'function' };
+  });
+  const noStoryClaim = await page.evaluate(async () => {
+    const src = await (await fetch('js/tabs/market-news-view.js')).text();
+    // The two strings the publishing/published states render.
+    const publishing = /phase: 'publishing', text: '([^']+)'/.exec(src)?.[1] || '';
+    const published = /case 'published':[\s\S]{0,400}?text: '([^']+)'/.exec(src)?.[1] || '';
+    return { publishing, published };
+  });
+  ok('...and neither claims new STORIES, which nothing has measured at that point',
+    deployWording?.has &&
+      !/new stories were|stories were captured/i.test(noStoryClaim.publishing) &&
+      !/new stories were/i.test(noStoryClaim.published) &&
+      /capture/i.test(noStoryClaim.publishing) && /capture/i.test(noStoryClaim.published),
+    `publishing="${noStoryClaim.publishing.slice(0, 60)}…" published="${noStoryClaim.published.slice(0, 60)}…"`);
   ok('a failed run is reported as failed, and a run still going is NOT',
     outcomes.scrapeFailed?.outcome === 'failed' && outcomes.stillRunning?.outcome === 'timed-out',
     `failed=${outcomes.scrapeFailed?.outcome}, in-flight=${outcomes.stillRunning?.outcome}`);

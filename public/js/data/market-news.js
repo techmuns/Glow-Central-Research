@@ -244,11 +244,17 @@ const RUN_ROUTE = 'api/market-news/run';
 const WATCH_BUDGET_MS = 6 * 60 * 1000;
 const WATCH_EVERY_MS = 6000;
 const REQUEST_TIMEOUT_MS = 12000;
-// Once the deploy has finished the file IS published, and only the edge stands between it and this
-// browser. That is worth a bounded grace and no more: spinning to the whole budget would report a
-// settled outcome as a timeout. A parameter, so a test can scale it with a shorter budget rather
-// than being forced to wait out the real one.
-const PUBLISH_GRACE_MS = 45000;
+// HOW LONG TO WAIT FOR THIS RUN'S CAPTURE TO REACH THE BROWSER, and the number has to be bigger
+// than the thing it is waiting for. Measured: a push takes ~110 seconds to be served by
+// Cloudflare's Git integration. At 45 seconds the grace expired first almost every time, so the
+// watch reported `published` — "a new capture exists that you have not received" — when waiting
+// another minute would have produced the real answer. That is not wrong, but it is the least
+// informative true thing available, and it crowded out `nothing-new`, which is the one verdict on
+// this tab that no other control can ever give.
+//
+// 150s clears a measured deploy with room to spare and still sits well inside WATCH_BUDGET_MS. A
+// parameter, so a test can scale it rather than wait out the real one.
+const PUBLISH_GRACE_MS = 150000;
 
 async function askWorker(path, { method = 'GET' } = {}) {
   try {
