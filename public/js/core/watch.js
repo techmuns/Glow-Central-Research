@@ -203,6 +203,9 @@ function announceMarketNews() {
       kind: 'news',
       title: a.title || 'A story was published',
       detail: marketNewsDetail(a),
+      // The publisher's own thumbnail, the same one the card on the tab shows. Hot-linked, never
+      // copied, and dropped by the alert if it is not an https URL.
+      image: a.image || null,
       href: '#/research/news?scope=universe',
       at: a.publishedAt ? Date.parse(a.publishedAt) : Date.now(),
     });

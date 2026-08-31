@@ -758,9 +758,20 @@ The first version of the button could only check whether a newer *capture* had b
 it said so — correct, and still not what a reader means by refresh. The runner is the only reader
 that works, so the button now dispatches `market-news-refresh.yml` through
 `worker/github-actions.mjs` (`POST /api/market-news/refresh`) and watches it (`GET
-/api/market-news/run`, free). Both buttons are on the tab, because they are two different acts and
-the reader is owed the difference: one costs nothing and answers *has anything landed*, the other
-costs a run and a request to somebody else's site and answers *go and look now*.
+/api/market-news/run`, free).
+
+**IT WAS TWO BUTTONS FOR A WHILE, AND THAT WAS THE WRONG READING OF THE DEEP DIVE RULE.** A free
+*Check for new stories* sat beside the metered *Fetch*, on the reasoning that what costs and what
+does not must be separate controls. But that rule exists so a reader is never *forced to spend* to
+get a free answer — and here they never were: the twenty-minute poll already makes that cheap check
+unprompted, and the fetch has always ended by making it too. So the free button bought nothing a
+reader was not already getting for nothing, and cost two controls that looked like they did the
+same job. **Separating cost is not the same as surfacing it twice.**
+
+The free read is not gone, it is **folded in**: the one button reads the capture first and, if a
+scheduled run has already published one this browser lacks, reports that and starts nothing. Only
+then does it dispatch. Strictly better than either button alone, and the failure states are
+unchanged — which is the part that had to survive the simplification.
 
 That makes this the second consumer of the Deep Dive rules, and they arrive unchanged:
 
@@ -769,9 +780,13 @@ That makes this the second consumer of the Deep Dive rules, and they arrive unch
    fired by a prefetcher or a link preview. A dispatch also reads the latest run first and does
    nothing if one is going: their concurrency group would queue a duplicate harmlessly, so this is
    about never being the thing that started a run nobody needed.
-2. **Reproduce their vocabulary.** `queued` / `in_progress` / `completed` and the `conclusion` are
-   GitHub's words, passed through. No elapsed clock and no percentage — a progress bar over a run
-   whose length nobody knows is a confidence this page does not have.
+2. **Reproduce their vocabulary — where you show it at all.** `queued` / `in_progress` /
+   `completed` and the `conclusion` are GitHub's words, and nothing here paraphrases them. But the
+   panel no longer narrates them: a reader who pressed one button wants one answer, and a running
+   commentary plus a link out to the run is a lot of small text for *"how many stories did I get"*.
+   The button reads `Fetching…` and the strip then says how many arrived. **A failure still gets a
+   sentence** — `no-token` names a command an operator needs — because that is the one state where
+   the detail is the whole value.
 3. **The token lives on the Worker**, and the repository, workflow and ref are fixed *server-side*
    so the route cannot be pointed elsewhere by anyone who finds it. One fine-grained token, one
    repository, one permission — *Actions: read and write*.

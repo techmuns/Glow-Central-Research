@@ -34,11 +34,10 @@ let disposers = [];
 let ctxRef = null;
 let busy = false;
 let lastResult = null;
-// The run in flight, or null. Module state, not node state — a walk outlives many repaints, and
-// holding it on the button meant the control vanished mid-run and came back offering to start
-// another. (See CLAUDE.md, *Work the reader has to ask for*: the result must survive its own
-// repaints.) `{ phase, text, runUrl?, fix? }`.
-let scrape = null;
+// Module state, not node state — a fetch outlives many repaints, and holding this on the button
+// meant the control vanished mid-run and came back offering to start another. (See CLAUDE.md,
+// *Work the reader has to ask for*: the result must survive its own repaints.)
+let failure = null;
 // The reader's own filters. Module state, not node state: every repaint rebuilds the list, so a
 // value held on the input would be discarded the moment a capture landed.
 let listView = { q: '', section: 'all' };
@@ -72,73 +71,62 @@ function pill(m) {
 }
 
 /**
- * The freshness line and the two controls.
+ * The freshness line and the one control.
  *
- * A row of its own under the heading, never the `meta` slot — the text changes as the capture ages
- * and as the buttons report, and a control that moves when you use it reads as a different page.
+ * IT USED TO BE TWO, AND THE SPLIT WAS WRONG. "Check for new stories" made one conditional GET and
+ * cost nothing; "Fetch from Moneycontrol" started a run on a GitHub runner. Keeping them apart came
+ * from the Deep Dive rule — separate what costs from what does not — but that rule exists so a
+ * reader is never FORCED to spend to get a free answer, and here they never were: the twenty-minute
+ * poll already makes that cheap check unprompted, and the fetch has always ended by re-reading the
+ * capture anyway. So the cheap button bought nothing a reader was not already getting for nothing,
+ * and cost two controls that looked like they did the same job.
  *
- * TWO BUTTONS, BECAUSE THEY ARE TWO DIFFERENT ACTS AND THE READER IS OWED THE DIFFERENCE.
- *
- *   "Check for new stories"      one conditional GET, usually a bodyless 304. Costs nothing.
- *   "Fetch from Moneycontrol"    asks a GitHub runner to go and read the publisher. A real run and
- *                                a real request to somebody else's site.
- *
- * This is the Deep Dive split (CLAUDE.md, *Triggering someone else's pipeline*) arriving on a
- * second feed: separate what costs from what does not, hold that line on every surface, and let
- * nothing that costs fire on its own. Neither button is the primary one by accident — the free one
- * answers the common question ("has anything landed?") and the metered one answers the rarer one
- * ("go and look now"), so the cheap answer is the one a reader reaches for first.
+ * The free read is not deleted, it is FOLDED IN: pressing this reads the capture first, and if a
+ * newer one has already been published — the scheduled job having just run — it reports that and
+ * spends no run at all. Strictly better than either button was alone.
  */
 function controls(m) {
   const captured = m.capturedAt ? formatRelativeTime(Date.parse(m.capturedAt)) : 'never';
-  const checked = m.checkedAt ? formatRelativeTime(m.checkedAt) : 'not yet';
   const result = lastResult
     ? `<span class="ml-2 font-semibold ${lastResult.tone || 'text-slate-500'}">${escapeHtml(lastResult.text)}</span>`
     : '';
-  const scraping = !!scrape;
   return `
     <div class="w-full rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
       <div class="flex flex-wrap items-center gap-3">
-        <button type="button" data-mcnews-refresh ${busy || scraping ? 'disabled' : ''}
-          class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
-          <span>${busy ? '…' : '⟳'}</span><span>${busy ? 'Checking' : 'Check for new stories'}</span>
-        </button>
-        <button type="button" data-mcnews-scrape ${scraping || busy ? 'disabled' : ''}
+        <button type="button" data-mcnews-fetch ${busy ? 'disabled' : ''}
           title="Asks the scheduled job to read moneycontrol.com now. It runs on a GitHub runner, because neither this browser nor the edge can fetch that host."
-          class="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-200 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:ring-slate-200">
-          <span>${scraping ? '◔' : '↧'}</span><span>${scraping ? 'Reading Moneycontrol' : 'Fetch from Moneycontrol'}</span>
+          class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300">
+          ${busy ? SPINNER : '<span>↧</span>'}<span>${busy ? 'Fetching…' : 'Fetch latest news'}</span>
         </button>
         <p class="min-w-0 flex-1 text-xs leading-relaxed text-slate-500">
           <strong class="text-slate-700">Moneycontrol last read ${escapeHtml(captured)}</strong>
-          · this page checked for a newer capture ${escapeHtml(checked)}.
-          A scheduled job also reads it through the day.${result}
+          · a scheduled job also reads it through the day.${result}
         </p>
       </div>
-      ${scrapeNote()}
+      ${failureNote()}
     </div>`;
 }
 
+const SPINNER = `<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+  </svg>`;
+
 /**
- * What the run is doing, in GitHub's own words.
+ * A FAILURE STILL GETS A SENTENCE. Progress does not.
  *
- * REPRODUCE THEIR VOCABULARY, DO NOT INVENT ONE. `queued`, `in_progress` and `completed` are
- * theirs; the sentence around them is ours and says only what was observed. And there is no
- * elapsed clock and no percentage: a progress bar over a run whose length nobody knows is a
- * confidence this page does not have.
+ * The panel used to narrate every step — "the scrape run is in progress", a link out to the run, a
+ * paragraph about publishing — which is a lot of small text for a reader who asked one question and
+ * wants one answer. The button says `Fetching…` and the strip says how many stories came in, and
+ * that is the whole of it for every successful case.
+ *
+ * What must not go with it is the failure text: `no-token` is a thing an operator fixes and the
+ * command that fixes it is the only useful part of that state. So this renders for failures alone.
  */
-function scrapeNote() {
-  if (!scrape) return '';
-  const tone = {
-    dispatched: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
-    running: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
-    publishing: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
-    failed: 'bg-rose-50 text-rose-800 ring-rose-100',
-  }[scrape.phase] || 'bg-slate-50 text-slate-700 ring-slate-200';
-  const link = scrape.runUrl
-    ? ` <a href="${escapeHtml(scrape.runUrl)}" target="_blank" rel="noopener noreferrer" class="font-semibold underline decoration-dotted underline-offset-2">watch the run</a>`
-    : '';
-  const fix = scrape.fix ? ` <code class="rounded bg-white/70 px-1">${escapeHtml(scrape.fix)}</code>` : '';
-  return `<p data-mcnews-scrape-note class="mt-2 rounded-xl px-3 py-2 text-xs leading-relaxed ring-1 ${tone}">${escapeHtml(scrape.text)}${fix}${link}</p>`;
+function failureNote() {
+  if (!failure) return '';
+  const fix = failure.fix ? ` <code class="rounded bg-white/70 px-1">${escapeHtml(failure.fix)}</code>` : '';
+  return `<p data-mcnews-failure class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 ring-1 ring-rose-100">${escapeHtml(failure.text)}${fix}</p>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -398,19 +386,21 @@ function provenance(m) {
          above states only when the publisher was actually last read — and why the Fetch button exists, since it is the
          one path that does not wait for a schedule.</p>
 
-      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The two buttons do different things</h3>
-      <p class="mt-1 text-xs"><strong>Check for new stories</strong> asks whether a newer capture has been published —
-         one conditional request, usually a bodyless 304, and it costs nothing. It cannot reach Moneycontrol.</p>
-      <p class="mt-2 text-xs"><strong>Fetch from Moneycontrol</strong> asks the GitHub runner to read the publisher
-         <em>now</em>: it starts the same scheduled job on demand and then watches it. That is a real run and a real
-         request to somebody else's site, so <strong>nothing on this page ever starts one on its own</strong> — no poll,
-         no peek on load, only a click. If a run is already going it watches that one instead of starting a second.
-         The credential that authorises it lives on the Worker and has never been in a browser.</p>
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the Fetch button does</h3>
+      <p class="mt-1 text-xs">It reads the committed capture first — free, and if a scheduled run has just published one
+         this browser has not picked up, that is the answer and nothing is started. Otherwise it asks the GitHub runner
+         to read Moneycontrol <em>now</em>, starting the same scheduled job on demand and watching it. That is a real run
+         and a real request to somebody else's site, so <strong>nothing on this page ever starts one on its own</strong> —
+         no poll, no peek on load, only a click. If a run is already going it watches that one rather than starting a
+         second. The credential that authorises it lives on the Worker and has never been in a browser.</p>
+      <p class="mt-2 text-xs">There used to be a second button that only made the free check. It was removed because it
+         did nothing a reader was not already getting for nothing: the twenty-minute poll makes that same check
+         unprompted, and the fetch has always ended by making it too. Two controls that do the same job read as two
+         different features.</p>
       <p class="mt-2 text-xs">A finished run is <strong>not</strong> the same as new stories on screen: the job commits
-         only if it found something, and the site serves the new file only after the deploy that follows. So the note
-         under the button distinguishes <em>read it, nothing new</em> from <em>captured, publishing now</em> from
-         <em>published, not received here yet</em> — and a run still going says so rather than being reported as a
-         failure.</p>
+         only if it found something, and the site serves the new file only after the deploy that follows. So the result
+         beside the button counts the stories that actually arrived — <strong>by their ids, never by the length of the
+         list</strong>, because the capture is capped and a new story pushes the oldest off the end.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The blank times are the honest part</h3>
       <p class="mt-1 text-xs">Moneycontrol's listing page carries no date on any story — checked, there is no date, time or
@@ -489,129 +479,83 @@ function relist(root) {
   }
 }
 
-/** The section head: the provenance pill and the freshness/refresh row. */
+/** The section head: the provenance pill and the freshness/fetch row. */
 function wireHead(ctx) {
   ctx.root.querySelector('[data-mcnews-info]')?.addEventListener('click', () => openModal(provenance(marketNews.meta()), { size: 'default' }));
-  // The ONLY caller of startScrape in the codebase. Nothing on a render, nothing on a poll.
-  ctx.root.querySelector('[data-mcnews-scrape]')?.addEventListener('click', () => startScrape(ctx));
-  ctx.root.querySelector('[data-mcnews-refresh]')?.addEventListener('click', async () => {
-    if (busy) return;
-    busy = true;
-    lastResult = null;
-    paint(ctx);
-    try {
-      const out = await marketNews.refresh();
-      // SAY WHAT IT FOUND. A control that spins and vanishes leaves the reader unsure anything was
-      // checked — and "no newer capture" is a real, useful answer, not a failure.
-      lastResult = out.added
-        ? { added: out.added, text: `${out.added} new ${out.added === 1 ? 'story' : 'stories'}` }
-        : { added: 0, text: 'No newer capture' };
-    } catch {
-      lastResult = { added: 0, text: 'Could not check' };
-    } finally {
-      busy = false;
-      paint(ctx);
-    }
-  });
+  // The ONLY caller of fetchLatest in the codebase. Nothing on a render, nothing on a poll.
+  ctx.root.querySelector('[data-mcnews-fetch]')?.addEventListener('click', () => fetchLatest(ctx));
 }
 
 /**
- * "Fetch from Moneycontrol" — the one control on this page that starts work somewhere else.
+ * The one control on this page that can start work somewhere else.
  *
- * WHAT IT ACTUALLY DOES, AND WHY IT CANNOT DO THE OBVIOUS THING. Neither this browser nor the
- * Worker can read moneycontrol.com — 403 by TLS fingerprint, measured both ways — so "fetch" here
- * means "ask the GitHub runner that CAN read it to run now", then watch. The button says so in
- * those words, and the note beneath it reports GitHub's own status rather than a progress model
- * invented here.
+ * WHAT IT DOES, AND WHY IT CANNOT DO THE OBVIOUS THING. Neither this browser nor the Worker can
+ * read moneycontrol.com — 403 by TLS fingerprint, measured both ways — so "fetch" means "ask the
+ * GitHub runner that CAN read it to run now", then watch until the answer is on screen.
  *
- * A COMPLETED RUN IS NOT NEW STORIES ON SCREEN, and the outcomes keep those apart: the scrape
- * commits only if it found something, and `public/` reaches readers only after the deploy then
- * runs. So "landed", "nothing new", "published but not here yet" and "still going" are four
- * different statements and the note makes exactly one of them.
+ * THE FREE READ COMES FIRST. A scheduled run may already have published a capture this browser has
+ * not picked up; answering from that costs nothing and starts nothing. Only when it carries no
+ * story we lack does this dispatch — which is all the second button ever did, folded in where it
+ * cannot be mistaken for a different feature.
  */
-async function startScrape(ctx) {
-  if (scrape || busy) return;
-  scrape = { phase: 'dispatched', text: 'Asking the scraper to read Moneycontrol…' };
+async function fetchLatest(ctx) {
+  if (busy) return;
+  busy = true;
+  failure = null;
   lastResult = null;
   paint(ctx);
 
-  const out = await marketNews.startScrape();
-  if (out.ok === false) {
-    scrape = { phase: 'failed', text: dispatchFailureText(out), fix: out.fix || null };
-    paint(ctx);
-    return;
-  }
+  try {
+    const already = await marketNews.refresh();
+    if (already.added > 0) {
+      lastResult = countResult(already.added);
+      return;
+    }
 
-  scrape = {
-    phase: 'running',
-    text:
-      out.reason === 'already-running'
-        ? 'A scrape was already running, so this did not start a second one. Watching it.'
-        : out.reason === 'cooling-down'
-          ? 'A scrape was started moments ago. Watching that one rather than starting another.'
-          : 'The scraper is reading Moneycontrol. A run takes a couple of minutes, and this page will pick the capture up when it is published.',
-    runUrl: out.run?.url || null,
-  };
-  paint(ctx);
+    const out = await marketNews.startScrape();
+    if (out.ok === false) {
+      failure = { text: failureText(out), fix: out.fix || null };
+      return;
+    }
 
-  const result = await marketNews.watchScrape({
-    onStep: (step) => {
-      if (!ctxRef) return;
-      if (step.phase === 'publishing') {
-        // A NEW CAPTURE IS NOT NEW STORIES, AND ONLY ONE OF THEM HAS BEEN MEASURED HERE.
-        // The scrape restamps `capturedAt` and so commits on every run, which is what starts the
-        // deploy — so a deploy in flight proves a new capture exists and says nothing whatever
-        // about whether it contains a story we did not have. Live: this said "new stories were
-        // captured" over a run that brought in exactly zero.
-        scrape = { phase: 'publishing', text: 'Moneycontrol was read. The new capture is being published to this site — the stories in it, if any, will appear when it lands.', runUrl: step.publish?.url || scrape?.runUrl || null };
-      } else if (step.phase === 'scraping' && step.scrape?.status) {
-        // Their word, not ours.
-        scrape = { phase: 'running', text: `The scrape run is ${step.scrape.status.replace(/_/g, ' ')}. This page will pick the capture up when it is published.`, runUrl: step.scrape.url || scrape?.runUrl || null };
-      }
-      if (ctxRef) paint(ctxRef);
-    },
-  });
-
-  if (!ctxRef) return;
-  scrape = null;
-  lastResult = outcomeResult(result);
-  paint(ctxRef);
-}
-
-/** One sentence per named outcome. Each says what was OBSERVED — none of them guesses. */
-function outcomeResult(r) {
-  switch (r.outcome) {
-    case 'landed':
-      return { tone: 'text-emerald-700', text: `${r.added} new ${r.added === 1 ? 'story' : 'stories'}` };
-    case 'nothing-new':
-      // Only sayable because a run was watched to completion and no deploy followed it. The
-      // 20-minute poll can never say this — see the on-demand rule: it has no index to ask.
-      return { tone: 'text-slate-500', text: 'Moneycontrol was read just now — nothing new to publish' };
-    case 'published':
-      // Same rule: what was published is a capture. Whether it holds anything new is unknown until
-      // this browser has it, and saying otherwise would be a claim nothing measured.
-      return { tone: 'text-slate-500', text: 'Moneycontrol was read — the new capture has not reached this browser yet' };
-    case 'publish-failed':
-      return { tone: 'text-rose-700', text: r.message };
-    case 'failed':
-      return { tone: 'text-rose-700', text: r.message || dispatchFailureText(r) };
-    case 'timed-out':
-      // NOT a failure claim. The run may still be perfectly healthy.
-      return { tone: 'text-slate-500', text: 'Still running — this page will pick the capture up when it lands' };
-    default:
-      return { tone: 'text-slate-500', text: 'Checked' };
+    const result = await marketNews.watchScrape();
+    if (!ctxRef) return;
+    switch (result.outcome) {
+      case 'landed':
+        lastResult = countResult(result.added);
+        break;
+      case 'nothing-new':
+        lastResult = { tone: 'text-slate-500', text: 'No new stories' };
+        break;
+      case 'published':
+      case 'publish-failed':
+      case 'timed-out':
+        // None of these has measured a story either way, and none is a failure of the run. The
+        // shortest true sentence is that the answer has not reached this page yet.
+        lastResult = { tone: 'text-slate-500', text: 'Read — waiting for it to reach this page' };
+        break;
+      default:
+        failure = { text: result.message || failureText(result), fix: result.fix || null };
+    }
+  } catch (err) {
+    failure = { text: `The fetch could not be completed (${String(err?.message || err)}).` };
+  } finally {
+    busy = false;
+    if (ctxRef) paint(ctxRef);
   }
 }
 
-/** A named failure has a named fix; "could not refresh" throws the useful half away. */
-function dispatchFailureText(out) {
+const countResult = (n) => ({ tone: 'text-emerald-700', text: `${formatNumber(n)} new ${n === 1 ? 'story' : 'stories'}` });
+
+/** A named failure has a named fix; "could not fetch" throws the useful half away. */
+function failureText(out) {
   switch (out.reason) {
     case 'no-worker':
-      return 'This origin serves static files only, so there is no Worker to start a scrape. The scheduled job is unaffected.';
+      return 'This origin serves static files only, so there is no Worker to start a fetch. The scheduled job is unaffected.';
     case 'no-token':
-      return 'This deployment has no GitHub token, so it cannot start a scrape. An operator adds one here:';
+      return 'This deployment has no GitHub token, so it cannot start a fetch. An operator adds one here:';
     case 'no-repo':
-      return 'No repository is configured on the Worker, so it cannot start a scrape. Set GH_REPO in wrangler.jsonc and redeploy.';
+      return 'No repository is configured on the Worker, so it cannot start a fetch. Set GH_REPO in wrangler.jsonc and redeploy.';
     case 'unauthorised':
       return 'GitHub rejected the token — it has expired or been revoked. Replace it here:';
     case 'forbidden':
@@ -626,7 +570,7 @@ function dispatchFailureText(out) {
     case 'timeout':
       return 'GitHub did not answer in time. Nothing was started, and the scheduled job is unaffected.';
     default:
-      return `The scrape could not be started (${out.reason || 'unknown'}). The scheduled job is unaffected.`;
+      return `The fetch could not be started (${out.reason || 'unknown'}). The scheduled job is unaffected.`;
   }
 }
 
@@ -680,10 +624,10 @@ export function destroy() {
   unsub?.();
   unsub = null;
   lastResult = null;
-  // The watch checks `ctxRef` before every paint, so clearing it above is what stops it — this is
-  // the honest record that nothing is being reported into a tab that is gone. The run itself
-  // carries on: it is a GitHub Action, and leaving the tab does not cancel it.
-  scrape = null;
+  // The watch checks `ctxRef` before every paint, so clearing it above is what stops it. The run
+  // itself carries on: it is a GitHub Action, and leaving the tab does not cancel it.
+  failure = null;
+  busy = false;
   // The filters are the reader's, and leaving the tab discards them deliberately: coming back to a
   // list silently narrowed by a search typed ten minutes ago reads as a feed that lost stories.
   listView = { q: '', section: 'all' };

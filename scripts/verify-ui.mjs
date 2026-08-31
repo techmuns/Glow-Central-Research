@@ -3491,18 +3491,25 @@ console.log('\n— news, announcements and insider trades —');
   ok('...and the per-company picker is not on screen', (await page.locator('[data-picker]').count()) === 0);
   ok('...while Portfolio scope still gets the picker and no market table', await (async () => {
     await go('/#/research/news?scope=portfolio', 3000);
-    return (await page.locator('[data-picker]').count()) === 1 && (await page.locator('[data-mcnews-refresh]').count()) === 0;
+    return (await page.locator('[data-picker]').count()) === 1 && (await page.locator('[data-mcnews-fetch]').count()) === 0;
   })());
   await go('/#/research/news?scope=universe', 3500);
 
-  // The two times are different facts and the page must not merge them.
-  const strip = (await page.locator('[data-mcnews-refresh]').locator('xpath=..').innerText().catch(() => '')).replace(/\s+/g, ' ');
-  ok('...saying when Moneycontrol was last READ', /Moneycontrol last read/i.test(strip), strip.slice(0, 80));
-  ok('...separately from when this browser last CHECKED', /checked for a newer capture/i.test(strip));
-  // The claim that matters. "Fetch/get the latest news from Moneycontrol" would be false.
-  const btn = (await page.locator('[data-mcnews-refresh]').innerText().catch(() => '')).replace(/\s+/g, ' ');
-  ok('...and the button offers to check for stories, never to fetch the publisher',
-    /check for new/i.test(btn) && !/fetch|moneycontrol/i.test(btn), btn.trim());
+  // ONE CONTROL, NOT TWO. The free "check for a newer capture" button was removed: the 20-minute
+  // poll already makes that check unprompted and the fetch ends by making it too, so it bought
+  // nothing a reader was not already getting for nothing — and two controls that do the same job
+  // read as two features. The free read survives INSIDE the fetch, where it cannot be confused
+  // for one.
+  const controlCount = await page.locator('[data-mcnews-fetch]').count();
+  const strip = (await page.locator('[data-mcnews-fetch]').locator('xpath=../..').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  ok('the news tab carries exactly one fetch control', controlCount === 1, `${controlCount} control(s)`);
+  ok('...saying when Moneycontrol was last READ', /Moneycontrol last read/i.test(strip), strip.slice(0, 90));
+  ok('...and no leftover second button offering to "check for new stories"',
+    !/check for new/i.test(strip), strip.slice(0, 120));
+  // The progress narration is gone: a reader asked one question and gets one answer.
+  ok('...and the head carries no run link or step-by-step prose',
+    (await page.locator('[data-mcnews-scrape-note]').count()) === 0 && !/watch the run/i.test(strip),
+    strip.slice(0, 120));
 
   // -------------------------------------------------------------------------------------
   // THE UNIVERSE HALF IS AN EDITORIAL LIST, NOT A TABLE — thumbnail, headline, standfirst, in the
@@ -3646,6 +3653,11 @@ console.log('\n— news, announcements and insider trades —');
       // The card carries the publisher's own headline and standfirst, not a summary of ours.
       verbatim: !!first && text.includes(String(first.title).slice(0, 40)),
       text: text.slice(0, 160),
+      // AND THE STORY'S OWN PICTURE. The card is the one surface a reader sees without the tab
+      // open, so it carries the same thumbnail the list does — the publisher's, hot-linked, and
+      // only ever from an https URL, because this is external content reaching `src`.
+      thumbs: cards.filter((c) => c.querySelector('img[src^="https://images.moneycontrol.com/"]')).length,
+      withImage: arrivals.slice(0, cards.length).filter((a) => a.image).length,
       // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
     };
   });
@@ -3653,6 +3665,9 @@ console.log('\n— news, announcements and insider trades —');
     `${alerted?.added} new, ${alerted?.arrivals} on the arrival list, ${alerted?.cards} card(s)`);
   ok('...labelled as market news and carrying the publisher\'s own headline',
     alerted && alerted.labelled && alerted.verbatim, alerted?.text);
+  ok('...and the story\'s own thumbnail, the same one the list shows',
+    alerted && alerted.withImage > 0 && alerted.thumbs === alerted.withImage,
+    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry the publisher's image`);
   const reAnnounced = await evalSafe(async () => {
     const before = document.getElementById('notification-root')?.children.length ?? 0;
     const mod = await import('/js/data/market-news.js');
@@ -3681,9 +3696,9 @@ console.log('\n— news, announcements and insider trades —');
   await go('/#/research/news?scope=universe', 3000);
   const dispatchOnLoad = seen.marketNewsApi.length;
   ok('landing on the news tab dispatches nothing', dispatchOnLoad === 0, `${dispatchOnLoad} /api/market-news/ request(s) on load`);
-  ok('...and the control says it fetches the publisher, not that it checks a file',
-    /fetch from moneycontrol/i.test(await page.locator('[data-mcnews-scrape]').innerText().catch(() => '')),
-    (await page.locator('[data-mcnews-scrape]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
+  ok('...and the control says it fetches, not that it checks a file',
+    /fetch/i.test(await page.locator('[data-mcnews-fetch]').innerText().catch(() => '')),
+    (await page.locator('[data-mcnews-fetch]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
 
   // A GET must not be able to start a run: a prefetcher or a link preview would trip it.
   const dispatchGet = await evalSafe(async () => {
@@ -3789,27 +3804,27 @@ console.log('\n— news, announcements and insider trades —');
   // a freshness claim nothing measured. It is its own outcome for exactly that reason.
   ok('...and a deploy that succeeded while this browser still holds the old bytes is neither',
     outcomes.published?.outcome === 'published', `outcome=${outcomes.published?.outcome}`);
-  // NEITHER OF THOSE TWO MAY CLAIM STORIES. The scrape restamps `capturedAt` and so commits on
-  // every run, which is what starts the deploy — so a deploy in flight proves a new CAPTURE and
-  // says nothing about its contents. Live, the wording said "new stories were captured" over a run
-  // that brought in zero.
-  const deployWording = await evalSafe(async () => {
-    const mod = await import('/js/data/market-news.js');
-    return { has: typeof mod.watchScrape === 'function' };
-  });
-  const noStoryClaim = await page.evaluate(async () => {
+  // NO OUTCOME MAY CLAIM STORIES THAT NOTHING MEASURED. The scrape restamps `capturedAt` and so
+  // commits on every run, which is what starts the deploy — so a deploy proves a new CAPTURE and
+  // says nothing about its contents. Live, the old wording said "new stories were captured" over a
+  // run that brought in zero. `published`, `publish-failed` and `timed-out` have all measured
+  // nothing either way, so they must share one sentence that counts nothing.
+  const wording = await page.evaluate(async () => {
     const src = await (await fetch('js/tabs/market-news-view.js')).text();
-    // The two strings the publishing/published states render.
-    const publishing = /phase: 'publishing', text: '([^']+)'/.exec(src)?.[1] || '';
-    const published = /case 'published':[\s\S]{0,400}?text: '([^']+)'/.exec(src)?.[1] || '';
-    return { publishing, published };
+    const results = [...src.matchAll(/text:\s*'([^']*)'/g)].map((m) => m[1]);
+    const counted = [...src.matchAll(/countResult\(/g)].length;
+    return {
+      // POSITIVE assertions only. "No new stories" is the `nothing-new` branch, which HAS measured
+      // its answer — a negative is a measurement, and flagging it would ban the honest sentence.
+      claims: results.filter((t) => /(new stories|stories) (were|are) (captured|published|found)/i.test(t)),
+      unmeasured: results.filter((t) => /waiting for it to reach this page/i.test(t)).length,
+      counted,
+    };
   });
-  ok('...and neither claims new STORIES, which nothing has measured at that point',
-    deployWording?.has &&
-      !/new stories were|stories were captured/i.test(noStoryClaim.publishing) &&
-      !/new stories were/i.test(noStoryClaim.published) &&
-      /capture/i.test(noStoryClaim.publishing) && /capture/i.test(noStoryClaim.published),
-    `publishing="${noStoryClaim.publishing.slice(0, 60)}…" published="${noStoryClaim.published.slice(0, 60)}…"`);
+  ok('no outcome claims new stories except the one that counted them',
+    wording && wording.claims.length === 0 && wording.unmeasured > 0 && wording.counted > 0,
+    wording?.claims.length ? `claims without a count: ${JSON.stringify(wording.claims)}` : `${wording?.counted} counted branch(es), ${wording?.unmeasured} explicitly-unmeasured`);
+
   ok('a failed run is reported as failed, and a run still going is NOT',
     outcomes.scrapeFailed?.outcome === 'failed' && outcomes.stillRunning?.outcome === 'timed-out',
     `failed=${outcomes.scrapeFailed?.outcome}, in-flight=${outcomes.stillRunning?.outcome}`);

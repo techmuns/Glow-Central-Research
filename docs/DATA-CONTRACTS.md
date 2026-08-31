@@ -2324,6 +2324,12 @@ POST /api/market-news/refresh     starts a run. THE ONLY CALL HERE THAT COSTS AN
 GET  /api/market-news/run         how it is going. Free, and therefore the half that may be polled.
 ```
 
+**One button on the tab, not two.** A free *Check for new stories* used to sit beside it; it was
+removed because it did nothing a reader was not already getting for nothing — the 20-minute poll
+makes that check unprompted, and the fetch ends by making it too. The free read now happens *inside*
+the fetch: it reads the capture first and, if a scheduled run has already published one this browser
+lacks, reports that and dispatches nothing.
+
 `worker/github-actions.mjs` is the client: pure, `fetch` a parameter, exactly as `worker/mc.mjs` and
 `worker/finology.mjs` are.
 
