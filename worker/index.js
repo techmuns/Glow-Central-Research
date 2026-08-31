@@ -1168,7 +1168,14 @@ function githubConfig(env) {
         ok: false,
         reason: 'no-token',
         message: 'This deployment has no GitHub token, so it cannot start a scrape.',
-        fix: 'npx wrangler secret put GH_DISPATCH_TOKEN',
+        // NAME THE PLACE THIS DEPLOYMENT ACTUALLY USES. This said `npx wrangler secret put …`,
+        // which needs a terminal logged in to Cloudflare — and measured on the live deployment,
+        // there isn't one: the site publishes through Cloudflare's own Git integration and the
+        // repo's deploy workflow has been SKIPPED on every run for want of CLOUDFLARE_API_TOKEN.
+        // So the only instruction the page could give named a route the operator does not have.
+        // The dashboard is a web form and is the honest first answer; the command still works for
+        // anyone who does have a terminal.
+        fix: 'Cloudflare dashboard → Workers & Pages → this Worker → Settings → Variables and Secrets → add a Secret named GH_DISPATCH_TOKEN. (Or: npx wrangler secret put GH_DISPATCH_TOKEN)',
       },
     };
   }
@@ -1192,7 +1199,7 @@ function githubConfig(env) {
 function githubFailure(err) {
   const reason = err?.code || 'upstream';
   const fixes = {
-    unauthorised: 'Reissue the token and run: npx wrangler secret put GH_DISPATCH_TOKEN',
+    unauthorised: 'Reissue the token, then replace the GH_DISPATCH_TOKEN secret in the Cloudflare dashboard (Settings → Variables and Secrets).',
     forbidden: 'The token needs "Actions: read and write" on this repository.',
     'rate-limited': "GitHub's hourly limit for this token is spent. It resets on the hour.",
     refused: 'Check that the workflow exists on the configured branch and is not disabled.',

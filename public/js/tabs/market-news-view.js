@@ -602,11 +602,11 @@ function dispatchFailureText(out) {
     case 'no-worker':
       return 'This origin serves static files only, so there is no Worker to start a scrape. The scheduled job is unaffected.';
     case 'no-token':
-      return 'This deployment has no GitHub token, so it cannot start a scrape. An operator sets one with:';
+      return 'This deployment has no GitHub token, so it cannot start a scrape. An operator adds one here:';
     case 'no-repo':
       return 'No repository is configured on the Worker, so it cannot start a scrape. Set GH_REPO in wrangler.jsonc and redeploy.';
     case 'unauthorised':
-      return 'GitHub rejected the token. It has expired or been revoked:';
+      return 'GitHub rejected the token — it has expired or been revoked. Replace it here:';
     case 'forbidden':
       return 'The token is not allowed to start this workflow. It needs "Actions: read and write" on this repository.';
     case 'rate-limited':

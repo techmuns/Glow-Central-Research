@@ -1,15 +1,25 @@
 name: Deploy
 
-# A COMMIT DOES NOT UPDATE THE LIVE SITE ON ITS OWN, and until this workflow existed nothing here
-# said so. `wrangler.jsonc` serves `public/` through the Worker's own `assets` binding, so every
-# committed JSON file — technicals, announcements, market news — reaches readers only when
-# `wrangler deploy` runs. The daily and twenty-minute refreshes were writing to a repository that
-# nobody was publishing from.
+# A FALLBACK PUBLISH PATH, AND ON THIS REPOSITORY IT IS NOT THE ONE IN USE.
 #
-# THIS IS WHAT MAKES THE TWENTY-MINUTE NEWS CADENCE REAL. Without it the Action would commit a
-# fresh capture every twenty minutes and the deployed site would keep serving whatever was last
-# deployed by hand, while the page's own "Moneycontrol last read" line reported the capture's age
-# honestly — so the reader would see the staleness without anything explaining it.
+# MEASURED, 31 Aug: every run of this workflow has completed in six or seven seconds with the
+# `deploy` job **skipped** — `secrets.CLOUDFLARE_API_TOKEN` is not set, so the gate below reports
+# `available=false`. It has therefore never deployed anything. And yet the live site is current to
+# the minute: a commit pushed at 07:58 was serving at 08:0x, assets and Worker code alike.
+#
+# So this repository publishes through **Cloudflare's own Git integration** (Workers Builds), which
+# watches the branch and deploys without any of this. That is a perfectly good arrangement — but it
+# means the comment that used to sit here, and the line in docs/DATA-CONTRACTS.md that said a
+# committed capture "only reaches readers once deploy.yml runs", were both WRONG. The capture was
+# reaching readers the whole time, by a route neither of them named.
+#
+# The lesson is the one CLAUDE.md already states, arriving from the other side: *check that a
+# scheduled capture has a path to the live site* — and when you check, find out which path, because
+# a workflow that reports success while skipping its only real job looks exactly like one that
+# works. This one now says which mode it is in, on every run, in the run summary.
+#
+# KEEP IT. If the Git integration is ever disconnected, setting CLOUDFLARE_API_TOKEN here restores
+# publishing with no other change.
 
 on:
   push:
@@ -97,3 +107,32 @@ jobs:
           }
           sync_one GH_DISPATCH_TOKEN "$GH_DISPATCH_TOKEN"
           sync_one MUNS_TOKEN "$MUNS_TOKEN"
+
+  # A GREEN TICK OVER A SKIPPED DEPLOY IS THE THING THAT HID THIS FOR DAYS.
+  #
+  # Deliberately does NOT fail: on this repository the skip is CORRECT, because Cloudflare's Git
+  # integration is doing the publishing, and a red X on every push would be a false alarm that
+  # trains everyone to ignore it. What it does is make the mode unmissable in the run summary, so
+  # "Deploy: success" can never again be read as "this workflow deployed something".
+  report:
+    needs: [secret, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Say which publish path was used
+        run: |
+          if [ "${{ needs.secret.outputs.available }}" = "true" ]; then
+            echo "### Published by this workflow" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`wrangler deploy\` ran with CLOUDFLARE_API_TOKEN, and any Worker secrets present in the GitHub secret store were synced." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### This workflow published NOTHING — and that is expected here" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`CLOUDFLARE_API_TOKEN\` is not set, so the deploy job was skipped. This repository publishes through **Cloudflare's own Git integration**, which deploys on push without this workflow — verified: a commit pushed at 07:58 was live minutes later with this job skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Two consequences worth knowing:" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Worker secrets are not synced from here.** Set them in the Cloudflare dashboard: *Workers & Pages → this Worker → Settings → Variables and Secrets*. That is where \`GH_DISPATCH_TOKEN\` (the news Fetch button) and \`MUNS_TOKEN\` (super-investor books) belong." >> "$GITHUB_STEP_SUMMARY"
+            echo "- **If the Git integration is ever disconnected, nothing publishes.** Add \`CLOUDFLARE_API_TOKEN\` as a repository secret to bring this workflow back as the publish path." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Deploy skipped::CLOUDFLARE_API_TOKEN is unset, so this workflow deployed nothing. Publishing is handled by Cloudflare's Git integration; see the run summary."
+          fi

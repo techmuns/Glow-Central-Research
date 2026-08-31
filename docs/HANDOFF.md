@@ -59,9 +59,11 @@ be read from a browser or from the edge, so the tab's *Fetch from Moneycontrol* 
 `market-news-refresh.yml` on GitHub and watches it. Set it up with a fine-grained personal access
 token scoped to **this repository only**, with the single permission **Actions: read and write**:
 
-Add **`GH_DISPATCH_TOKEN`** under *Settings → Secrets and variables → Actions*, beside
-`CLOUDFLARE_API_TOKEN`. `deploy.yml` syncs it to the Worker on the next deploy, so no Cloudflare
-terminal is needed; `npx wrangler secret put GH_DISPATCH_TOKEN` still works if you have one.
+Add a Secret named **`GH_DISPATCH_TOKEN`** in the **Cloudflare dashboard** — *Workers & Pages →
+this Worker → Settings → Variables and Secrets*. That is the route on this deployment, which
+publishes through **Cloudflare's Git integration** rather than through `.github/workflows/deploy.yml`
+(whose deploy job is skipped here: `CLOUDFLARE_API_TOKEN` is not set as a repository secret).
+`npx wrangler secret put GH_DISPATCH_TOKEN` does the same thing from a terminal.
 
 `GH_REPO` and `GH_REF` are plain vars in `wrangler.jsonc` — fixed there, not read from the request,
 so the unauthenticated route cannot be pointed at another workflow. **Without the secret nothing

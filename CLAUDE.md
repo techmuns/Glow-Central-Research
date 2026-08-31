@@ -722,11 +722,18 @@ Three consequences, and the third is the one that matters to the reader:
    committed capture and `scripts/scrape-mc-news.mjs` shells out to `curl`. `worker/mc-news.mjs`
    stays pure and takes `fetchImpl` as a parameter, which is what lets the parser be tested offline
    without knowing anything about that.
-2. **A committed capture is worth nothing until it is deployed.** `wrangler.jsonc` serves `public/`
-   through the Worker's `assets` binding, so every committed JSON file reaches readers only when
-   `wrangler deploy` runs — and until `.github/workflows/deploy.yml` existed, nothing did. The daily
-   and twenty-minute refreshes were writing to a repository nobody was publishing from. **Check that
-   a scheduled capture has a path to the live site before believing its cadence.**
+2. **A committed capture is worth nothing until it is deployed** — and **finding out WHICH path
+   deploys it is part of the check.** `wrangler.jsonc` serves `public/` through the Worker's
+   `assets` binding, so a committed JSON file reaches readers only when a deploy runs.
+   `.github/workflows/deploy.yml` was written for that, and on this repository it **has never run**:
+   measured, every one of its runs completed in six or seven seconds with the deploy job *skipped*,
+   because `CLOUDFLARE_API_TOKEN` is not set. The site is nonetheless current to the minute — a
+   commit pushed at 07:58 was serving at 08:0x — because **Cloudflare's own Git integration**
+   watches the branch and deploys without any of it.
+   So the rule has two halves. *Check that a scheduled capture has a path to the live site before
+   believing its cadence* — and then **check which path**, because a workflow reporting success
+   while skipping its only real job is indistinguishable from one that works, and the docs went on
+   naming the wrong publisher for days. It now prints which mode it is in on every run.
 3. **The refresh button must not claim what it cannot do.** It checks whether a *newer capture*
    exists — one conditional GET, usually a bodyless 304 — and says so in those words. So two times
    are printed and never combined: *when Moneycontrol was last read* (how fresh the news is) and
@@ -770,7 +777,7 @@ That makes this the second consumer of the Deep Dive rules, and they arrive unch
    repository, one permission — *Actions: read and write*.
 
 **And the outcome must never confuse a finished RUN with new stories on the SCREEN.** The scrape
-commits only if it found something, and `public/` reaches readers only after `deploy.yml` then runs.
+commits only if it found something, and `public/` reaches readers only after a deploy then runs.
 So a completed run is not an answer on its own, and a deploy that *started after* the run finished
 is the evidence that something was committed — its absence is the evidence that nothing was. That
 one extra read is what lets the button say **"Moneycontrol was read just now — nothing new to
@@ -808,17 +815,22 @@ still means what it always meant: the markup changed, or this code is broken. Re
 runner as a broken scraper sends somebody to read working code, and makes the failure notification
 worthless when more than half of them are that.
 
-**A SECRET THE OPERATOR CANNOT CONVENIENTLY INSTALL IS A FEATURE THAT DOES NOT SHIP.** The Fetch
-button sat in `no-token` on a deployment that was otherwise fully configured, because
-`npx wrangler secret put` wants a terminal logged in to Cloudflare — a different place from the
-GitHub secret store where `CLOUDFLARE_API_TOKEN` already lived. `deploy.yml` now syncs
-`GH_DISPATCH_TOKEN` (and `MUNS_TOKEN`) from GitHub's own secrets on every deploy, so turning the
-button on is pasting a token into the page the operator already uses. Two rules if you touch it:
-the presence test is **shell, not a step-level `if:`** — the `secrets` context is not dependable
-there, which is why the job above it turns one into an output first — and an unset secret must
-**skip rather than push an empty string**, because a blank secret reads as configured and turns
-`no-token`, which names the fix, into `unauthorised`, which describes the same state and sends the
-reader to reissue a token that was never created.
+**A SECRET THE OPERATOR CANNOT INSTALL IS A FEATURE THAT DOES NOT SHIP, AND THE INSTRUCTION HAS TO
+NAME A ROUTE THEY ACTUALLY HAVE.** The Fetch button sat in `no-token` on a live deployment, and the
+only thing the page could tell them was `npx wrangler secret put …` — which wants a terminal logged
+in to Cloudflare. This deployment does not publish from a terminal *or* from `deploy.yml`; it
+publishes from Cloudflare's Git integration, so the honest instruction is the **Cloudflare dashboard
+→ Workers & Pages → this Worker → Settings → Variables and Secrets**, which is a web form. The
+command is still offered for anyone who has the terminal. **A named fix that the reader cannot carry
+out is the same failure as an unnamed one** — it just looks helpful.
+
+`deploy.yml` also syncs `GH_DISPATCH_TOKEN` and `MUNS_TOKEN` from GitHub's secret store when it is
+the publish path, which it is not here. Two rules if you touch that: the presence test is **shell,
+not a step-level `if:`** — the `secrets` context is not dependable there, which is why the job above
+it turns one into an output first — and an unset secret must **skip rather than push an empty
+string**, because a blank secret reads as configured and turns `no-token`, which names the fix, into
+`unauthorised`, which describes the same state and sends the reader to reissue a token that was
+never created.
 
 **RSS looks like the easy answer and is a trap.** `moneycontrol.com/rss/*.xml` still resolve with
 HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports.xml`,
@@ -1736,9 +1748,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
-| Set up the news Fetch button on a deployment | add **`GH_DISPATCH_TOKEN`** under *Settings → Secrets and variables → Actions* — a fine-grained token on this repo alone with **Actions: read and write**, nothing more. `deploy.yml` syncs it to the Worker on the next deploy; `npx wrangler secret put GH_DISPATCH_TOKEN` still works if you have a Cloudflare terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
+| Set up the news Fetch button on a deployment | add a Secret named **`GH_DISPATCH_TOKEN`** in the **Cloudflare dashboard** (*Workers & Pages → this Worker → Settings → Variables and Secrets*) — a fine-grained GitHub token on this repo alone with **Actions: read and write**, nothing more. That is the route on this deployment, which publishes via Cloudflare's Git integration rather than `deploy.yml`. `npx wrangler secret put GH_DISPATCH_TOKEN` does the same from a terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
 | Change when the news scrape runs | the two crons in `.github/workflows/market-news-refresh.yml` — read *And the schedule is best-effort twice over* first; both windows come from measured run history, not preference |
-| Make a committed file reach the live site | `.github/workflows/deploy.yml` — needs `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*, not green |
+| Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
 | Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |

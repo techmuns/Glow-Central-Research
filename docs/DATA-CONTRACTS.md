@@ -2354,7 +2354,7 @@ is true — the Action's own cron does not go through this route at all.
 | `refused` | 422 — workflow disabled, or the ref does not exist | GitHub's own message is carried through |
 
 **A finished run is not new stories on screen, and the outcomes keep that straight.** The scrape
-commits only if it found something, and `public/` reaches readers only after `deploy.yml` then runs.
+commits only if it found something, and `public/` reaches readers only after a deploy then runs.
 So `watchScrape()` in `js/data/market-news.js` resolves to one of six, and each is a *statement
 about what was observed* rather than an inference:
 
