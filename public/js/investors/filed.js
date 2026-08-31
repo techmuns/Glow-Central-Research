@@ -29,6 +29,7 @@ import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
+import { scopePossessive } from '../data/scope.js';
 import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as filed from '../data/institution-holdings.js';
@@ -61,6 +62,10 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
     // instrument name stands in. It is unique within a fund — the importer merges a company's
     // repeat spells into one row and fails the run on two companies sharing a symbol.
     key: (r) => r.ticker || r.name,
+    // An AMC line that resolved to no NSE symbol has a row key but nothing to track: the watchlist
+    // matches symbols, so a name would sit in it matching nothing for ever.
+    watchKey: (r) => r.ticker || null,
+    watchName: (r) => r.name,
     name: (r) => r.name,
     nameLabel: filing ? 'Stock' : 'Instrument',
     // The ticker earns the sub-line because it is the join key everywhere else in the dashboard.
@@ -85,7 +90,7 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
     onRowClick: (r) => drillHolding(r, fund),
     exportName: `sattva-${fund.investorId}-holdings`,
     onExport: (visible) => exportFund(visible, fund),
-    emptyMessage: ctx.scope === 'portfolio' ? 'This fund holds none of your positions.' : 'No holding matches your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `This fund holds none of ${scopePossessive(ctx.scope)}.` : 'No holding matches your filters.',
   });
 
   // ONE TABLE AND NOTHING ELSE, the way the Earnings Hub is built. No stat strip, no ranking grid:

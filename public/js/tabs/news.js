@@ -152,10 +152,14 @@ export const meta = tab.meta;
 // feed. `destroy()` is only called when leaving the tab entirely, which is too late for that.
 // ---------------------------------------------------------------------------------------
 
-let mounted = null; // 'universe' | 'portfolio'
+let mounted = null; // 'universe' | 'companies'
 
 export function render(ctx) {
-  const wanted = ctx.scope === 'portfolio' ? 'portfolio' : 'universe';
+  // MARKET-WIDE NEWS CARRIES NO COMPANY, so it cannot be narrowed to a book or a watchlist — see
+  // the chatter rule in CLAUDE.md: filtering rows that have no ticker BY ticker would report "your
+  // companies are not in the news" when the truth is that nothing on those rows says whose they
+  // are. Universe gets the market-wide capture; both narrowed scopes get the per-company search.
+  const wanted = ctx.scope === 'universe' ? 'universe' : 'companies';
   if (mounted && mounted !== wanted) {
     if (mounted === 'universe') marketNews.destroy();
     else tab.destroy();
@@ -167,6 +171,6 @@ export function render(ctx) {
 
 export function destroy() {
   if (mounted === 'universe') marketNews.destroy();
-  else if (mounted === 'portfolio') tab.destroy();
+  else if (mounted === 'companies') tab.destroy();
   mounted = null;
 }

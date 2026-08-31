@@ -15,6 +15,7 @@
 // swaps and `isMock` goes false — nothing else here changes.
 
 import { scoreCompany } from '../scoring/earnings-scoring.js';
+import { scopeTickers, filterByScope } from './scope.js';
 
 const EARNINGS_PATH = 'data/mock/earnings.json';
 const CALENDAR_PATH = 'data/mock/earnings-calendar.json';
@@ -207,7 +208,17 @@ export function isLoaded() {
  */
 export function forScope(scope, holdings = []) {
   const rows = all();
-  if (scope !== 'portfolio') return rows;
+  const wanted = scopeTickers(scope, holdings);
+  if (!wanted) return rows;
+
+  // A WATCHED COMPANY WITH NO ROW IS NOT A PLACEHOLDER, IT IS A FILTER.
+  //
+  // The book gets placeholders because a holding that vanished from a Portfolio view would be the
+  // dashboard quietly redefining what you own. A watchlist is the reader's own list and they can
+  // see what is on it; the honest report for a starred company this feed does not carry is the
+  // denominator the pill already prints ("12 of 20 watched companies on this feed"), not a row of
+  // dashes carrying a name nobody supplied. So watchlist narrows and book fills in.
+  if (scope !== 'portfolio') return filterByScope(rows, scope, holdings, (r) => r.company?.ticker);
 
   const out = [];
   for (const h of holdings) {

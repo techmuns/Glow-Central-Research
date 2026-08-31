@@ -1,12 +1,20 @@
 // core/state.js — single global state object + localStorage persistence + a tiny pub/sub.
 // Nothing here talks to the DOM; router.js and shell.js react to changes via subscribe().
 
+import { isScope } from '../data/scope.js';
+
 const STORAGE_KEYS = {
   scope: 'sattva:scope',
   lastRoute: 'sattva:lastRoute',
 };
 
-export const DEFAULT_SCOPE = 'universe';
+// THE SCOPE VOCABULARY LIVES IN js/data/scope.js — this module only validates and persists it,
+// and importing the list keeps the two from drifting the way two hard-coded string pairs would.
+//
+// PORTFOLIO IS THE DEFAULT. The first question on opening a dashboard about your own money is what
+// your own money did; "every listed company" is the widest possible answer to that and was only
+// ever the default because it was the scope that needed no data to be loaded first.
+export const DEFAULT_SCOPE = 'portfolio';
 
 // The single source of truth for the app. Treat fields as read-only outside this module —
 // always go through the setters below so persistence + subscribers stay in sync.
@@ -44,14 +52,14 @@ function notify(reason) {
 function loadScope() {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.scope);
-    return saved === 'portfolio' || saved === 'universe' ? saved : DEFAULT_SCOPE;
+    return isScope(saved) ? saved : DEFAULT_SCOPE;
   } catch {
     return DEFAULT_SCOPE;
   }
 }
 
 export function setScope(scope) {
-  if (scope !== 'portfolio' && scope !== 'universe') return;
+  if (!isScope(scope)) return;
   if (state.scope === scope) return;
   state.scope = scope;
   try {

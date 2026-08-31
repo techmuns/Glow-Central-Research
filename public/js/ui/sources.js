@@ -22,6 +22,9 @@ import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
+// NOT TYPED OUT. The threshold is stated in three places on the Daily Alerts tab and here; all
+// four read the same constant, so changing it cannot leave one of them describing the old filter.
+import { MOVE_PCT as DAILY_MOVE_PCT } from '../data/daily-alerts.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -133,6 +136,29 @@ export function sourceGroups() {
         .join(' and ');
 
     return [
+    {
+      // DAILY ALERTS COMES FIRST BECAUSE IT IS THE FIRST TAB, and it is the only group here whose
+      // whole point is that it introduces NOTHING. A reader opening this modal from the landing tab
+      // is owed the answer "this page has no feed of its own" before they go looking for one.
+      title: 'Daily Alerts',
+      icon: '🔔',
+      tabs: 'Daily Alerts',
+      items: [
+        {
+          name: 'No source of its own — every row is one of the feeds below',
+          feeds:
+            'The landing tab consolidates the other feeds in this modal, filtered to today\'s Indian trading date, and adds no data of its own. ' +
+            '<strong>Red</strong> is a direct negative reading printed in the row that carries it — profit fell, the loss widened, the company slipped into loss, ' +
+            `the price fell more than ${DAILY_MOVE_PCT}% at the close, or the source's own tier or sentiment label is one of its lowest. <strong>Orange</strong> is anything else that arrived. ` +
+            '<strong>Insider trades and corporate announcements are never graded</strong>: their columns are the upstream\'s own and this dashboard carries no model over either, ' +
+            'so calling one of them material would be a flag we invented. ' +
+            'Its own panel says, per feed, when that feed last looked and whether that reaches today — because an empty stream and a feed that has not run are not the same answer.',
+          cadence: 'Recomputed on every visit and whenever a polled feed lands; nothing on it walks per company',
+          status: 'live',
+          file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
+        },
+      ],
+    },
     {
       title: 'Market data',
       icon: '💹',
