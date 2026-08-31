@@ -1,11 +1,26 @@
 {
-  "capturedAt": "2026-08-28T13:20:44.286Z",
-  "from": "2026-08-25",
-  "to": "2026-09-18",
+  "capturedAt": "2026-08-31T07:30:31.056Z",
+  "from": "2026-08-28",
+  "to": "2026-09-21",
   "listCap": 20,
   "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
   "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-21",
+      "displayDate": "21 Sep",
+      "count": 0
+    },
+    {
+      "date": "2026-09-20",
+      "displayDate": "20 Sep",
+      "count": 0
+    },
+    {
+      "date": "2026-09-19",
+      "displayDate": "19 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-18",
       "displayDate": "18 Sep",
@@ -99,12 +114,12 @@
     {
       "date": "2026-08-31",
       "displayDate": "31 Aug",
-      "count": 2
+      "count": 3
     },
     {
       "date": "2026-08-30",
       "displayDate": "30 Aug",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-08-29",
@@ -115,21 +130,6 @@
       "date": "2026-08-28",
       "displayDate": "28 Aug",
       "count": 0
-    },
-    {
-      "date": "2026-08-27",
-      "displayDate": "27 Aug",
-      "count": 0
-    },
-    {
-      "date": "2026-08-26",
-      "displayDate": "26 Aug",
-      "count": 3
-    },
-    {
-      "date": "2026-08-25",
-      "displayDate": "25 Aug",
-      "count": 4
     }
   ],
   "byDate": {
@@ -143,21 +143,35 @@
           "displayDate": "2 Sep",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 373.83,
-          "changePct": 4.35,
-          "marketCap": 1480.6,
+          "ltp": 369.93,
+          "changePct": -1.04,
+          "marketCap": 1465.15,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
           "ticker": "TECHNOCRAF",
           "fullName": "Technocraft Ven",
           "industry": "Construction - Infrastructure",
           "shares": 39606200,
-          "mktCapAtBuild": 1480.6
+          "mktCapAtBuild": 1465.15
+        },
+        {
+          "scId": "VIVAN54173",
+          "name": "Vivanta Industries Limited",
+          "shortName": "Vivanta Industr",
+          "resultDate": "2026-09-02",
+          "displayDate": "2 Sep",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 1.81,
+          "changePct": -0.55,
+          "marketCap": 23.32,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/vivantaindustrieslimited/VIVAN54173"
         }
       ],
       "scheduledCount": 1,
       "capped": false,
-      "asOnDate": "28/08/2026"
+      "asOnDate": "31/08/2026"
     },
     "2026-08-31": {
       "rows": [
@@ -169,16 +183,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 214.31,
-          "changePct": -1.38,
-          "marketCap": 16498.51,
+          "ltp": 215.69,
+          "changePct": 0.64,
+          "marketCap": 16604.75,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
           "fullName": "Milky Mist",
           "industry": "Consumer Food",
           "shares": 769843411,
-          "mktCapAtBuild": 16498.51
+          "mktCapAtBuild": 16606.29
         },
         {
           "scId": "LIL07",
@@ -188,16 +202,35 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 168.4,
-          "changePct": 4.1,
-          "marketCap": 7418.63,
+          "ltp": 168.18,
+          "changePct": -0.13,
+          "marketCap": 7408.94,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
           "fullName": "LEAP India",
           "industry": "Logistics",
           "shares": 440536458,
-          "mktCapAtBuild": 7418.63
+          "mktCapAtBuild": 7408.06
+        },
+        {
+          "scId": "GSC01",
+          "name": "Setco Automotive",
+          "shortName": "Setco Auto",
+          "resultDate": "2026-08-31",
+          "displayDate": "31 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 18.28,
+          "changePct": 1.95,
+          "marketCap": 244.53,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
+          "ticker": "SETCO",
+          "fullName": "Setco Auto",
+          "industry": "Auto Ancillaries - Clutches",
+          "shares": 133767275,
+          "mktCapAtBuild": 244.53
         },
         {
           "scId": "DPL03",
@@ -207,16 +240,42 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 80.6,
-          "changePct": 1.6,
-          "marketCap": 120.71,
+          "ltp": 79.6,
+          "changePct": -1.24,
+          "marketCap": 119.21,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/dachepallipublishers/DPL03"
         }
       ],
-      "scheduledCount": 2,
+      "scheduledCount": 3,
       "capped": false,
-      "asOnDate": "28/08/2026"
+      "asOnDate": "31/08/2026"
+    },
+    "2026-08-30": {
+      "rows": [
+        {
+          "scId": "NFC",
+          "name": "Nagarjuna Fertilisers and Chemicals",
+          "shortName": "Nagarjuna Fert",
+          "resultDate": "2026-08-30",
+          "displayDate": "30 Aug",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 2.05,
+          "changePct": -4.65,
+          "marketCap": 122.6,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/fertilisers/nagarjunafertiliserschemicals/NFC",
+          "ticker": "NAGAFERT",
+          "fullName": "Nagarjuna Fert",
+          "industry": "Fertilizers",
+          "shares": 598065003,
+          "mktCapAtBuild": 122.6
+        }
+      ],
+      "scheduledCount": 1,
+      "capped": false,
+      "asOnDate": "31/08/2026"
     },
     "2026-08-29": {
       "rows": [
@@ -228,182 +287,21 @@
           "displayDate": "29 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 17.93,
-          "changePct": 0.39,
-          "marketCap": 239.84,
+          "ltp": 18.28,
+          "changePct": 1.95,
+          "marketCap": 244.53,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 239.84
+          "mktCapAtBuild": 244.53
         }
       ],
       "scheduledCount": 1,
       "capped": false,
-      "asOnDate": "28/08/2026"
-    },
-    "2026-08-26": {
-      "rows": [
-        {
-          "scId": "JGE",
-          "name": "Juniper Green Energy",
-          "shortName": "Juniper Green",
-          "resultDate": "2026-08-26",
-          "displayDate": "26 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 258.23,
-          "changePct": 1.54,
-          "marketCap": 14693.25,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/renewables/junipergreenenergy/JGE",
-          "ticker": "JNPR",
-          "fullName": "Juniper Green",
-          "industry": "Renewables",
-          "shares": 568998442,
-          "mktCapAtBuild": 14693.25
-        },
-        {
-          "scId": "VL06",
-          "name": "Vikas Ecotech",
-          "shortName": "Vikas Ecotech",
-          "resultDate": "2026-08-26",
-          "displayDate": "26 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 1.14,
-          "changePct": null,
-          "marketCap": 158.27,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/chemicals/vikasecotech/VGO01",
-          "ticker": "VIKASECO",
-          "fullName": "Vikas Ecotech",
-          "industry": "Speciality Chemicals",
-          "shares": 1388356024,
-          "mktCapAtBuild": 158.27
-        },
-        {
-          "scId": "O01",
-          "name": "Oneindig Technologies",
-          "shortName": "Oneindig Tech",
-          "resultDate": "2026-08-26",
-          "displayDate": "26 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 138,
-          "changePct": 2.76,
-          "marketCap": 150.75,
-          "exchange": "B",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-construction/oneindigtechnologies/O01"
-        },
-        {
-          "scId": "SSM04",
-          "name": "Simbhaoli Sugars",
-          "shortName": "Simbhaoli Sugar",
-          "resultDate": "2026-08-26",
-          "displayDate": "26 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 8.6,
-          "changePct": -1.94,
-          "marketCap": 35.5,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/sugar/simbhaolisugars/SS52",
-          "ticker": "SIMBHALS",
-          "fullName": "Simbhaoli Sugar",
-          "industry": "Sugar",
-          "shares": 41279020,
-          "mktCapAtBuild": 35.5
-        }
-      ],
-      "scheduledCount": 3,
-      "capped": false,
-      "asOnDate": "28/08/2026"
-    },
-    "2026-08-25": {
-      "rows": [
-        {
-          "scId": "MEL04",
-          "name": "MV Electrosystems",
-          "shortName": "MV Electrosyste",
-          "resultDate": "2026-08-25",
-          "displayDate": "25 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 719.55,
-          "changePct": 11.25,
-          "marketCap": 1963.13,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/electric-equipment-switchgears/mvelectrosystems/MEL04",
-          "ticker": "MVELECTRO",
-          "fullName": "MV Electrosyste",
-          "industry": "Electric Equipment - Switchgears",
-          "shares": 27282728,
-          "mktCapAtBuild": 1963.13
-        },
-        {
-          "scId": "AIL11",
-          "name": "Ardee Industries",
-          "shortName": "Ardee Industrie",
-          "resultDate": "2026-08-25",
-          "displayDate": "25 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 61.16,
-          "changePct": 3.17,
-          "marketCap": 1927.77,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-non-ferrous/ardeeindustries/AIL11",
-          "ticker": "ARDEE",
-          "fullName": "Ardee Industrie",
-          "industry": "Metals - Non Ferrous",
-          "shares": 315200950,
-          "mktCapAtBuild": 1927.77
-        },
-        {
-          "scId": "STC",
-          "name": "State Trading Corporation of India",
-          "shortName": "STC India",
-          "resultDate": "2026-08-25",
-          "displayDate": "25 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 116.88,
-          "changePct": -0.51,
-          "marketCap": 701.28,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/statetradingcorporationindia/STC",
-          "ticker": "STCINDIA",
-          "fullName": "STC India",
-          "industry": "Trading",
-          "shares": 60000000,
-          "mktCapAtBuild": 729.6
-        },
-        {
-          "scId": "ABL08",
-          "name": "Avience Biomedicals",
-          "shortName": "Avience Biomedi",
-          "resultDate": "2026-08-25",
-          "displayDate": "25 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 269.5,
-          "changePct": -0.42,
-          "marketCap": 147.82,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/medical-equipment-supplies-accessories/aviencebiomedicals/ABL08",
-          "ticker": "AVIENCE",
-          "fullName": "Avience Biomedi",
-          "industry": "Medical Equipment/Supplies/Accessories",
-          "shares": 5485056,
-          "mktCapAtBuild": 147.82
-        }
-      ],
-      "scheduledCount": 4,
-      "capped": false,
-      "asOnDate": "28/08/2026"
+      "asOnDate": "31/08/2026"
     }
   }
 }
