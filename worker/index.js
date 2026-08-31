@@ -188,7 +188,7 @@ async function dispatchNewsScrape(event, env) {
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref);
+    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source: 'cron' });
     console.log(`[news-cron] ${at.toISOString()} — ${out.dispatched ? 'dispatched' : 'a run was already going'}`);
   } catch (err) {
     // A failed dispatch is not worth throwing over: the next tick is twenty minutes away and the
@@ -1321,7 +1321,7 @@ async function handleNewsDispatch(request, env, ctx) {
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref);
+    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source: 'button' });
     const payload = {
       ok: true,
       dispatched: out.dispatched,
@@ -1366,6 +1366,8 @@ async function handleNewsRunStatus(request, env, ctx) {
       ok: true,
       scrape: scrapeRuns[0] || null,
       publish: deployRuns[0] || null,
+      // Whether the cadence is holding on its own, answerable without opening a run.
+      lastAutomatic: (scrapeRuns.find((r) => /github-cron|\(cron\)/i.test(r.title || '')) || null),
       inFlight: isInFlight(scrapeRuns[0]) || isInFlight(deployRuns[0]),
       servedAt: new Date().toISOString(),
     };

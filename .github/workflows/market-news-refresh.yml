@@ -48,6 +48,20 @@ on:
         description: "Listing pages to read"
         required: false
         default: "4"
+      source:
+        description: "Who asked for this run — cron, button, or manual"
+        required: false
+        default: "manual"
+
+# WHAT DROVE THIS RUN, VISIBLE IN THE RUNS LIST WITHOUT OPENING IT.
+#
+# The cadence question — "is the news actually refreshing on its own?" — was answered wrongly twice
+# because the evidence was hard to get at: `event` distinguishes `schedule` from `workflow_dispatch`
+# but every dispatch looks alike, so a run started by the Worker's cron is indistinguishable from
+# one a reader started by pressing Fetch. `run-name` puts the source in `display_title`, which the
+# API returns in the list — so "when did this last refresh by itself" is now one query, for anyone,
+# for ever.
+run-name: Market news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
 
 concurrency:
   group: market-news-refresh

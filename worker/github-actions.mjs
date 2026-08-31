@@ -169,6 +169,8 @@ function shapeRun(r) {
   return {
     id: r?.id ?? null,
     status: r?.status ?? null, // queued | in_progress | completed
+    // The workflow's own run name, which carries what drove it (cron / button / github-cron).
+    title: typeof r?.display_title === 'string' ? r.display_title : null,
     conclusion: r?.conclusion ?? null, // success | failure | cancelled | skipped | …
     event: r?.event ?? null,
     createdAt: r?.created_at ?? null,
@@ -185,7 +187,7 @@ export const isInFlight = (run) => !!run && (run.status === 'queued' || run.stat
  * Returns `{ dispatched: true }`, or `{ dispatched: false, run }` when one was already going —
  * which is not a failure and must not be reported as one.
  */
-export async function dispatchWorkflow(fetchImpl, cfg, workflow, ref) {
+export async function dispatchWorkflow(fetchImpl, cfg, workflow, ref, inputs = null) {
   const { token, owner, repo, base = API, now = Date.now } = cfg;
 
   // ASK BEFORE STARTING. Their concurrency group would queue a duplicate harmlessly, so this is
@@ -195,6 +197,10 @@ export async function dispatchWorkflow(fetchImpl, cfg, workflow, ref) {
   if (existing && isInFlight(existing[0])) return { dispatched: false, run: existing[0] };
 
   const url = `${base}/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`;
-  await call(fetchImpl, { token, url, method: 'POST', body: { ref }, deadlineAt: now() + DEADLINE_MS, now });
+  // `inputs` carries who asked — the workflow puts it in its own run name, so the runs list says
+  // whether the cadence is holding on its own or whether every refresh was somebody pressing a
+  // button. That question was answered wrongly twice for want of exactly this.
+  const body = inputs ? { ref, inputs } : { ref };
+  await call(fetchImpl, { token, url, method: 'POST', body, deadlineAt: now() + DEADLINE_MS, now });
   return { dispatched: true, run: null };
 }
