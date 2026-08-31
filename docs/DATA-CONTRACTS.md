@@ -2281,7 +2281,18 @@ A normal run is one or two page reads. `MCNEWS_FULL=1` walks regardless, for the
 node scripts/scrape-mc-news.mjs                                  # top-up
 MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
 ```
-Scheduled by `.github/workflows/market-news-refresh.yml` — **every 30 minutes across 03:00-14:59 UTC
+**The cadence is driven by a Cloudflare Cron Trigger, not by GitHub's scheduler.** `triggers.crons`
+in `wrangler.jsonc` wakes the Worker every 20 minutes and `scheduled()` dispatches the workflow —
+every 20 minutes across 03:00-14:59 UTC (08:30-20:29 IST, the window the publisher answers in) and
+hourly outside it: **48 dispatches a day**. That indirection exists because GitHub's `schedule:`
+trigger measurably does not fire on this repository: `*/20` managed 12 runs against 124 scheduled
+over 41 hours, and relaxing it to `*/30` produced **zero against ~11** in the following 5.7 hours.
+`workflow_dispatch` has never been late — six dispatches in one day each started within seconds.
+The dispatch declines when a run is already in flight, so a tick landing on a reader's click costs
+no second run.
+
+The `schedule:` block below remains as a fallback for a deployment with no Worker, and is not what
+the cadence should be read from — **every 30 minutes across 03:00-14:59 UTC
 (08:30-20:29 IST) and hourly outside it**, and both windows are measured rather than chosen. Over 41
 hours a `*/20 * * * *` cron fired **12 times against 124 scheduled (10%)**: GitHub sheds the densest
 schedules first. Of those 12, **7 were answered HTTP 403** on the listing page, and every refusal

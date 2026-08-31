@@ -24,5 +24,22 @@
   "vars": {
     "GH_REPO": "techmuns/Sattva-Central-Research",
     "GH_REF": "main"
+  },
+
+  // THE NEWS CADENCE COMES FROM HERE, NOT FROM GITHUB'S `schedule:` BLOCK.
+  //
+  // Measured on this repository: a GitHub `*/20 * * * *` cron fired 12 times against 124 scheduled
+  // over 41 hours, and after being relaxed to `*/30` across a 12-hour window it fired ZERO times
+  // against ~11 scheduled in the next 5.7 hours. Their scheduler is best-effort and this repo is at
+  // the back of the queue. `workflow_dispatch`, by contrast, started a run within SECONDS on every
+  // one of six dispatches the same day.
+  //
+  // So a scheduler that works drives the trigger that works: this cron wakes the Worker, and
+  // `scheduled()` in worker/index.js dispatches market-news-refresh.yml. It ticks every 20 minutes
+  // and the handler drops to hourly outside the window the publisher answers in — see the comment
+  // there for both measurements. GitHub's own `schedule:` block stays as a fallback for a
+  // deployment that has no Worker.
+  "triggers": {
+    "crons": ["*/20 * * * *"]
   }
 }

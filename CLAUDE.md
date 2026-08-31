@@ -823,6 +823,25 @@ the first version of the check looked for 404/405 and reported the sandbox as an
 So 404, 405, 501 *and any non-JSON reply* all read as `no-worker`, which says the scheduled run
 every 20 minutes is unaffected rather than sending an operator after a token that was never missing.
 
+**AND IN THE END GITHUB'S SCHEDULER HAD TO BE TAKEN OFF THE CRITICAL PATH ENTIRELY.** Relaxing the
+cron was the obvious remedy and it is the one the measurements refuted: `*/20 * * * *` fired **12
+times against 124** over 41 hours (10%), and after being relaxed to `*/30` across a 12-hour window
+it fired **zero times against ~11** in the next 5.7 hours. Tuning a schedule that is not being
+honoured is tuning the wrong thing.
+
+**`workflow_dispatch` is not throttled at all** — six dispatches in one day each started a run
+within *seconds* of the POST. So the cadence now comes from **a scheduler that works driving the
+trigger that works**: a Cloudflare Cron Trigger (`triggers.crons` in `wrangler.jsonc`) wakes the
+Worker every 20 minutes and `scheduled()` dispatches the workflow through the same
+`dispatchWorkflow` the button uses — which already declines when a run is in flight, so a tick
+landing on a reader's click costs no second run. GitHub's own `schedule:` block stays as a fallback
+for a deployment with no Worker, and is no longer what anyone should read the cadence from.
+
+**The rule generalises: when a scheduler is not honouring you, stop negotiating with it.** Two
+rounds were spent on the cron expression before checking whether the expression was the variable at
+all. The tell was in the data the whole time — every *dispatched* run started instantly while every
+*scheduled* one was late or absent, which is a fact about the trigger, not about the workload.
+
 **AND THE SCHEDULE IS BEST-EFFORT TWICE OVER, WHICH THE PAGE USED TO OVERSTATE.** The tab said
 *"refreshed automatically every 20 minutes"*, and 41 hours of run history says it was wrong on two
 independent counts:
@@ -1808,7 +1827,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
 | Set up the news Fetch button on a deployment | add a Secret named **`GH_DISPATCH_TOKEN`** in the **Cloudflare dashboard** (*Workers & Pages → this Worker → Settings → Variables and Secrets*) — a fine-grained GitHub token on this repo alone with **Actions: read and write**, nothing more. That is the route on this deployment, which publishes via Cloudflare's Git integration rather than `deploy.yml`. `npx wrangler secret put GH_DISPATCH_TOKEN` does the same from a terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
-| Change when the news scrape runs | the two crons in `.github/workflows/market-news-refresh.yml` — read *And the schedule is best-effort twice over* first; both windows come from measured run history, not preference |
+| Change when the news scrape runs | **`triggers.crons` in `wrangler.jsonc` + `scheduled()` in `worker/index.js`** — that is what actually drives the cadence. The `schedule:` block in `.github/workflows/market-news-refresh.yml` is a fallback and is measurably not firing on this repo; read *And in the end GitHub's scheduler had to be taken off the critical path* first |
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
