@@ -1,9 +1,15 @@
 # Sattva Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (earnings, con-calls, public chatter, technical breakouts, superstar
-investors) and **Portfolio Analytics** (positions, allocation, transactions, drawdown) — with a
-global Portfolio ⇄ Universe scope toggle that applies to every tab.
+**Research Central** (daily alerts, earnings, con-calls, public chatter, technical breakouts,
+superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
+allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
+toggle that applies to every tab.
+
+**Daily Alerts** is the landing tab: one stream of everything that happened today, consolidated
+from every other feed, red for a direct negative reading and orange for anything else that arrived.
+It adds no data source of its own, and it says per feed whether that feed has actually looked at
+today — because an empty stream and a scrape that has not run are not the same answer.
 
 Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
@@ -14,7 +20,7 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**All nine tabs across both workspaces are built.** See
+**All thirteen tabs across both workspaces are built.** See
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
@@ -84,13 +90,17 @@ public/
   js/
     app.js            bootstrap: load JSON, mount the shell
     core/             state, router, live engine, format, dom helpers
+                      watchlist.js — the companies the reader stars, and the Watchlist scope
     ui/               components.js (primitives), shell.js (chrome + tab registry)
     concall/          keyword-engine.js (runtime scanner), keyword-editor, deep-dive
     data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
+                      scope.js — the three scopes; every forScope() is built on it
+                      daily-alerts.js — today's readings, taken across every feed
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    tabs/             earnings-hub, concall, public-chatter, breakouts, super-investors
+    tabs/             daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+                      super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json

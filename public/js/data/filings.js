@@ -153,6 +153,7 @@ const dedupeArticles = (list) => {
 export function createFeed(kind) {
   let state = fresh();
   let loading = null;
+  let seeding = null;
   const subscribers = new Set();
   const emit = () => subscribers.forEach((fn) => fn());
 
@@ -303,6 +304,32 @@ export function createFeed(kind) {
   const queryFor = (t) => state.names.get(t) || t;
 
   /**
+   * The committed snapshot and this device, and NOTHING ELSE — no walk, and no claim on `wanted`.
+   *
+   * For a reader that wants the rows this feed already holds without being the tab that owns it.
+   * The Daily Alerts tab is the one consumer: it consolidates today's filings across every feed,
+   * and it must not be the thing that decides which companies the Corporate Announcements tab will
+   * later refresh.
+   *
+   * `state.wanted` IS THE POINT OF THE SEPARATION. `load()` memoises its promise, so a seed call
+   * arriving first and then a real `load(items)` would hand the second caller the first one's
+   * promise and silently discard its company list — the Refresh button would then re-read an empty
+   * set and ask about nothing. Seeding keeps its own promise and never writes `wanted`, so
+   * whichever order the two arrive in, the tab's list is the one that survives.
+   */
+  function seed() {
+    if (loading) return loading;
+    if (seeding) return seeding;
+    seeding = (async () => {
+      await seedFromSnapshot();
+      await seedFromDevice(state.wanted);
+      state.loaded = true;
+      emit();
+    })();
+    return seeding;
+  }
+
+  /**
    * Fill from the committed snapshot and this device. **NOTHING IS WALKED HERE.**
    *
    * A LANDING MAY NOT COST FORTY REQUESTS. Each of these upstreams is one request per company, and
@@ -329,8 +356,11 @@ export function createFeed(kind) {
       }
       state.wanted = wanted;
 
-      // The committed snapshot and this device, with no per-company request at all.
-      await seedFromSnapshot();
+      // The committed snapshot and this device, with no per-company request at all. A seed already
+      // in flight is awaited rather than raced: both read the same file, and letting them overlap
+      // would merge the same rows twice for nothing.
+      if (seeding) await seeding;
+      else await seedFromSnapshot();
       await seedFromDevice(wanted);
       state.loaded = true;
       emit();
@@ -572,6 +602,7 @@ export function createFeed(kind) {
   }
 
   return {
+    seed,
     load,
     loadOne,
     refresh,
@@ -583,6 +614,7 @@ export function createFeed(kind) {
     invalidate() {
       state = fresh();
       loading = null;
+      seeding = null;
     },
     onChange(fn) {
       subscribers.add(fn);

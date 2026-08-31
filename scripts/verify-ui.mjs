@@ -272,6 +272,7 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
       'tabs/concall.js',
       'tabs/public-chatter.js',
@@ -294,6 +295,9 @@ const routes = await page.evaluate(async () => {
   return out;
 });
 
+// The watchlist scope is swept too, but with the list EMPTY it is answered by the shell for every
+// tab and there is nothing tab-specific left to break; the dedicated block below drives it with a
+// company actually starred. Sweeping it empty here would assert the same panel thirteen times.
 let broken = [];
 for (const [ws, tab, sub] of routes) {
   for (const scope of ['universe', 'portfolio']) {
@@ -1035,8 +1039,16 @@ await go('/#/research/breakouts?scope=universe', 2500);
   await page.waitForTimeout(400);
   const after = await glyph();
   ok('clicking the watchlist star fills it', before === '☆' && after === '★', `${before} → ${after}`);
+  // THE STORED ENTRY IS A COMPANY, NOT A ROW. On Breakouts the row key IS the ticker, so the two
+  // coincide here — but the shape does not: entries are `{ ticker, name, addedAt }`, because the
+  // Watchlist scope has to be able to name a company on a feed that does not carry it.
   ok('...and the stored watchlist agrees with the glyph',
-    await page.evaluate((k) => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').includes(k), key0));
+    await page.evaluate((k) => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === k), key0));
+  ok('...and the entry carries the company name, not just the symbol',
+    await page.evaluate((k) => {
+      const e = JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').find((x) => x.ticker === k);
+      return !!e && typeof e.name === 'string' && e.name.length > 0 && e.name !== k;
+    }, key0));
 
   // Watchlist-only is a different repaint path — the row set narrows — and it left the same stale
   // markup behind, so the filtered view showed hollow stars on the very rows it had filtered TO.
@@ -1055,7 +1067,235 @@ await go('/#/research/breakouts?scope=universe', 2500);
   await page.waitForTimeout(400);
   ok('...and clicking it again empties it', (await glyph()) === '☆', await glyph());
   ok('...and empties the stored watchlist with it',
-    await page.evaluate((k) => !JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').includes(k), key0));
+    await page.evaluate((k) => !JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === k), key0));
+}
+
+// ---------------------------------------------------------------------------------------
+// 3d. Daily Alerts — the landing tab
+//
+// Two things it has to get right, and they pull in opposite directions: it must consolidate every
+// feed, and it must never let a feed that has not looked at today read as a feed with nothing to
+// report. So the assertions here are as much about the coverage panel as about the stream.
+// ---------------------------------------------------------------------------------------
+console.log('\n— daily alerts —');
+{
+  // THE DEFAULT LANDING TAB. The order of WORKSPACES[0].tabs is the only thing that decides this,
+  // so a reorder that moved it would surface here rather than in a bug report.
+  // A FRESH READER, not this run's accumulated state. Two things have to be true for that:
+  //
+  //   • `sattva:scope` and `sattva:lastRoute` are cleared. Both persist the reader's own choices
+  //     and rightly win over the default, so a run that has been clicking through `?scope=universe`
+  //     would otherwise be asserting its own leftovers.
+  //   • the page is genuinely RELOADED WITH NO HASH. Dropping the fragment is still a
+  //     same-document navigation, so the app stays alive, re-resolves, and immediately writes the
+  //     route it was already on back into the URL — after which a reload reads that hash and the
+  //     check measures the run's leftovers rather than the default. A changing query string forces
+  //     a real document load and carries no fragment for the router to read.
+  //   • the clear happens AFTER the app has finished booting. `domcontentloaded` returns before
+  //     `boot()` resolves, and the shell writes `sattva:lastRoute` on its first route — so clearing
+  //     immediately after the goto races that write and loses, and the next load restores the route
+  //     the run was already on. Flaky in exactly the way that makes a suite untrustworthy: it
+  //     passed on one run and failed on the next with nothing changed.
+  await page.goto(`${BASE}/?fresh=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2000);
+  await page.evaluate(() => {
+    localStorage.removeItem('sattva:lastRoute');
+    localStorage.removeItem('sattva:scope');
+  });
+  await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4500);
+  ok('the dashboard opens on Daily Alerts', /daily-alerts/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Daily Alerts');
+  // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
+  // `?scope=`, so a failure printed a string that looked identical to a pass.
+  ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  const daText = await hostText();
+  ok('the stat strip carries four cards', (await page.locator('#content-host .stat-card').count()) === 4);
+  ok('...with the gradient freshness hero as the fourth',
+    await page.locator('#content-host .stat-card').nth(3).evaluate((el) => el.className.includes('from-indigo-500')));
+  ok('the sub-view rail is hidden for this single-stream tab', !(await page.locator('#aside-content').innerText()).trim());
+  ok('it states the Indian trading date rather than a UTC one', /Indian trading date · \d{4}-\d{2}-\d{2}/.test(daText));
+
+  // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
+  const panel = await page.locator('[data-alerts-coverage]').innerText();
+  ok('every feed is accounted for by name', (await page.locator('[data-alerts-coverage] > div > div').count()) >= 8,
+    `${await page.locator('[data-alerts-coverage] > div > div').count()} feed rows`);
+  ok('...and a feed that has not read today says so in those words rather than showing a zero',
+    /has not looked at today/.test(panel) || /reading…/.test(panel) || /every daily feed/i.test(daText), panel.slice(0, 90));
+  ok('...and a quarterly feed is named as not-daily rather than left off the list',
+    /not a daily feed/.test(panel));
+  ok('...and a feed that could not be read is distinguished from one with nothing to report',
+    !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
+
+  // THE COLOURS. Every red row must print the reading that made it red — that is the whole basis
+  // for a colour on this page not being a judgement.
+  const report = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    // A day the results feed actually holds, so the profit-reading branches are exercised on a
+    // static origin too. Today is frequently quiet, and a check that only passes on a busy day is
+    // a check that does not run.
+    const r = await da.collect({ scope: 'universe', day: '2026-08-26' });
+    const alerts = r.events.filter((e) => e.severity === 'alert');
+    return {
+      total: r.events.length,
+      alerts: alerts.length,
+      everyAlertHasReason: alerts.every((e) => typeof e.reason === 'string' && e.reason.length > 0),
+      noUpdateHasReason: r.events.filter((e) => e.severity === 'update').every((e) => !e.reason),
+      gradedFeeds: [...new Set(alerts.map((e) => e.feed))],
+      severities: [...new Set(r.events.map((e) => e.severity))],
+      uniqueIds: new Set(r.events.map((e) => e.id)).size,
+      feeds: r.feeds.map((f) => ({ id: f.id, status: f.status, reaches: f.reachesToday, n: f.count })),
+    };
+  });
+  ok('the collector reads something across the feeds', report.total > 0, `${report.total} events`);
+  ok('every severity is one of the two documented ones',
+    report.severities.every((v) => v === 'alert' || v === 'update'), report.severities.join('/'));
+  ok('EVERY alert prints the reading that made it one', report.everyAlertHasReason, `${report.alerts} alerts`);
+  ok('...and no update carries one, so the colour and the reason cannot drift apart', report.noUpdateHasReason);
+  // The two feeds that must never be graded. CLAUDE.md is explicit that the insider feed carries no
+  // model — "no sentiment, no materiality flag" — and BSE's category is a taxonomy, not a verdict.
+  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', '));
+  ok('...and neither are corporate announcements', !report.gradedFeeds.includes('announcements'));
+  // A key that means two rows is the failure this dashboard has hit twice; it is never caught by
+  // counting, so it is compared.
+  ok('every event id is unique', report.uniqueIds === report.total, `${report.uniqueIds} ids for ${report.total} events`);
+
+  // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
+  // and this tab reads three of those feeds.
+  const perCompany = [];
+  const countPerCompany = (r) => {
+    const u = r.url();
+    if (/\/api\/(news|announcements|insider)/.test(u)) perCompany.push(u);
+  };
+  page.on('request', countPerCompany);
+  await go('/#/research/daily-alerts?scope=universe', 5000);
+  page.off('request', countPerCompany);
+  ok('mounting it sends no per-company filings request', perCompany.length === 0, perCompany.slice(0, 2).join(' '));
+
+  // Market-wide news has no company on it, so it cannot be narrowed BY one — the same rule the
+  // chatter tab follows for its unresolved half. It must say so rather than filter to nothing.
+  await go('/#/research/daily-alerts?scope=portfolio', 5000);
+  const scopedPanel = await page.locator('[data-alerts-coverage]').innerText();
+  ok('market-wide news is excluded from a narrowed scope WITH A STATED REASON',
+    /carr(y|ies) no company/i.test(scopedPanel) && /Switch to Universe/i.test(scopedPanel));
+
+  ok('the legend explains both colours', /Red — alert/.test(await hostText()) && /Orange — update/.test(await hostText()));
+  ok('...and says which feeds are never graded', /never graded|always this colour/i.test(await hostText()));
+}
+
+// ---------------------------------------------------------------------------------------
+// 3e. The Watchlist scope
+//
+// The scope is only as good as the thing it filters by, and that thing changed: the star used to
+// store whatever a table used as a ROW key — four different vocabularies across the tabs — and now
+// stores a company. Both halves are asserted: that the star records a company, and that every
+// scope-aware tab then narrows to it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— watchlist scope —');
+{
+  await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+
+  // EMPTY IS ITS OWN STATE, answered by the shell for every tab rather than by each tab's "no
+  // results match your filters", which would send the reader hunting for a filter to clear.
+  await go('/#/research/daily-alerts?scope=watchlist', 1500);
+  ok('an empty watchlist gets its own panel, not an empty table', (await page.locator('[data-watchlist-empty]').count()) === 1);
+  const emptyText = await hostText();
+  ok('...saying there are zero watchlist companies', /zero watchlist companies/i.test(emptyText));
+  ok('...and how to add one', /Universe/.test(emptyText) && /☆/.test(emptyText));
+  ok('...and it answers every tab, not just this one',
+    await (async () => {
+      for (const t of ['earnings-hub', 'breakouts', 'corp-announcements']) {
+        await go(`/#/research/${t}?scope=watchlist`, 1200);
+        if ((await page.locator('[data-watchlist-empty]').count()) !== 1) return false;
+      }
+      return true;
+    })());
+
+  // THE STAR RECORDS A COMPANY, AND THE ROW KEY IS NOT IT. The Earnings Hub keys its rows on
+  // Moneycontrol's scID; if the two were the same string the watchlist would be full of scIDs and
+  // the scope would have nothing to match.
+  await go('/#/research/earnings-hub?scope=universe', 3500);
+  const ehRow = page.locator('#content-host tbody tr').first();
+  const rowKey = await ehRow.getAttribute('data-row-key');
+  const watchKey = await ehRow.locator('[data-watch]').getAttribute('data-watch');
+  ok('the star marks the COMPANY, not the row it sits on', !!watchKey && watchKey !== rowKey, `row ${rowKey} vs company ${watchKey}`);
+  await ehRow.locator('[data-watch]').click();
+  await page.waitForTimeout(500);
+  ok('...and starring it stores that company', await page.evaluate((t) =>
+    JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === t), watchKey));
+
+  // ONE COMPANY, SEVERAL ROWS. Three announcements from one filer share a watch key, and starring
+  // any of them must fill the star on all three — invalidating only the clicked row would leave the
+  // others showing the opposite of what is stored.
+  await go('/#/research/corp-announcements?scope=universe', 4000);
+  const dupe = await evalSafe(() => {
+    const seen = new Map();
+    for (const btn of document.querySelectorAll('#content-host tbody tr [data-watch]')) {
+      const k = btn.dataset.watch;
+      if (!k) continue;
+      const n = (seen.get(k) || 0) + 1;
+      seen.set(k, n);
+      if (n > 1) return k;
+    }
+    return null;
+  });
+  if (!dupe) {
+    skip('starring one row of a company fills the star on its other rows', 'no company has two rows in the current capture');
+  } else {
+    await page.locator(`#content-host tbody tr [data-watch="${dupe}"]`).first().click();
+    await page.waitForTimeout(700);
+    const glyphs = await page.$$eval(`#content-host tbody tr [data-watch="${dupe}"]`, (bs) => bs.map((b) => b.innerText.trim()));
+    ok('starring one row of a company fills the star on its other rows', glyphs.length > 1 && glyphs.every((g) => g === '★'),
+      `${glyphs.length} rows: ${glyphs.join('')}`);
+    await page.locator(`#content-host tbody tr [data-watch="${dupe}"]`).first().click();
+    await page.waitForTimeout(400);
+  }
+
+  // THE SCOPE NARROWS EVERY FEED. `scopeTickers` is the one implementation behind all of them, so
+  // this is asserted through the modules rather than by counting rows on eight tabs.
+  const narrowing = await evalSafe(async () => {
+    const scope = await import('/js/data/scope.js');
+    const wl = await import('/js/core/watchlist.js');
+    const tech = await import('/js/data/technicals.js');
+    const cov = await import('/js/data/coverage.js');
+    await tech.load();
+    return {
+      scopes: scope.SCOPES,
+      watched: wl.all().map((e) => e.ticker),
+      universe: tech.forScope('universe', cov.holdings()).length,
+      portfolio: tech.forScope('portfolio', cov.holdings()).length,
+      watchlist: tech.forScope('watchlist', cov.holdings()).length,
+      // The distinction `null` vs an empty Set: an empty watchlist must narrow to NOTHING, not to
+      // everything. A scope that silently meant its own opposite is the failure being closed here.
+      emptyNarrowsToNothing: scope.scopeTickers('watchlist', cov.holdings()) !== null,
+    };
+  });
+  ok('the scope vocabulary is portfolio → watchlist → universe, widest last',
+    narrowing.scopes.join(',') === 'portfolio,watchlist,universe', narrowing.scopes.join(','));
+  ok('the watchlist scope narrows a feed to the starred companies',
+    narrowing.watchlist > 0 && narrowing.watchlist <= narrowing.watched.length && narrowing.watchlist < narrowing.portfolio,
+    `${narrowing.universe} universe → ${narrowing.portfolio} book → ${narrowing.watchlist} watched`);
+  ok('...and it is a real filter rather than "everything that is not the book"', narrowing.emptyNarrowsToNothing);
+
+  // The denominator, per the rule that a bare count invites the reading that it is complete — and
+  // worded as the watchlist's own gap, which is not the book's permanent one.
+  await go('/#/research/breakouts?scope=watchlist', 3000);
+  const wlText = await hostText();
+  ok('a watchlist-scoped pill prints its denominator', /Watchlist · \d+ of \d+/.test(wlText), (wlText.match(/Watchlist[^\n]*/) || [])[0]);
+
+  // A legacy set is PRUNED, not reinterpreted: a composite row key was never a company, and reading
+  // it back as one would file a value that meant something else as a measurement.
+  const pruned = await evalSafe(async () => {
+    localStorage.setItem('sattva:watchlist', JSON.stringify(['RELIANCE', 'RELIANCE-2026-08-12-7', 'ann:abc|def', 'tcs']));
+    localStorage.removeItem('sattva:watchlist:shape');
+    const wl = await import(`/js/core/watchlist.js?bust=${Date.now()}`);
+    return wl.all().map((e) => e.ticker);
+  });
+  ok('a legacy row key is dropped rather than filed as a company',
+    pruned.includes('RELIANCE') && pruned.includes('TCS') && !pruned.some((t) => /[|\-]\d/.test(t)), pruned.join(', '));
+
+  await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
 }
 
 // ---------------------------------------------------------------------------------------

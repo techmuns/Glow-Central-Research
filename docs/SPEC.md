@@ -27,11 +27,15 @@ A springy indigo→purple underline scales in under the active tab; active tab i
 inactive slate with hover. Order is fixed:
 
 **Research Central**
-1. Earnings Hub
-2. Con-call
-3. Public Chatter
-4. Breakouts / Technical
-5. Super Investors
+1. Daily Alerts *(the default landing tab)*
+2. Earnings Hub
+3. Con-call
+4. Public Chatter
+5. Breakouts / Technical
+6. Super Investors
+7. News
+8. Corp Announcements
+9. Insider Trades
 
 **Portfolio Analytics**
 1. Overview
@@ -46,18 +50,24 @@ optional right-aligned count badge.
 
 | Tab | Sub-views |
 | --- | --- |
+| Daily Alerts | *(none — one stream, so the rail is hidden)* |
 | Earnings Hub | *(none — one table, so the rail is hidden)* |
 | Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
 | Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
 | Breakouts / Technical | Technical Scanner · Strong Breakouts · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
-
-Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
-removed from the chrome, so Research Central's five tabs are the whole navigation for now.
+| News · Corp Announcements · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
 | Overview | Positions · Allocation |
 | Position By | Sector · Market Cap · Conviction |
 | Transaction History | All · Buys · Sells |
 | Drawdown | Portfolio · Per Position |
+
+Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
+removed from the chrome, so Research Central's tabs are the whole navigation for now.
+
+**Daily Alerts is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
+unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
+second place recording it that could disagree with the array.
 
 Under 1024px the rail collapses to a dropdown above the content.
 
@@ -96,13 +106,20 @@ analysis says so rather than showing a score of nil.
 
 ---
 
-## 2. Global scope toggle — Portfolio ⇄ Universe
+## 2. Global scope toggle — Portfolio · Watchlist · Universe
 
 A segmented control in the header (right side, before the Live pill). It is **global**: it
 applies to every tab in both workspaces.
 
-- Stored as `state.scope` (`"portfolio" | "universe"`), persisted to `localStorage`, and
-  carried in the URL as `?scope=`.
+**Three scopes, in priority order, widest last.** That order reads left to right as *mine, watched,
+everything*, and **Portfolio is the default** — the first question on opening a dashboard about your
+own money is what your own money did, and "every listed company" is the widest possible answer to
+that. The vocabulary lives in one place, `js/data/scope.js`; `state.js` and `router.js` import it
+rather than repeating the string pair, so a fourth scope is a change in one file.
+
+- Stored as `state.scope` (`"portfolio" | "watchlist" | "universe"`), persisted to `localStorage`,
+  and carried in the URL as `?scope=`. An unrecognised value in a shared link falls back to the
+  reader's own saved scope rather than silently redefining what is on screen.
 - Every tab module reads `ctx.scope` and must visibly reflect it — the scope chip in each
   panel header states which scope is active and how many rows it covers.
 - **Portfolio means the book**: `public/data/portfolio-companies.json`, the family office's
@@ -113,6 +130,20 @@ applies to every tab in both workspaces.
   142 reported"*. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger
   entities, BSE-only, unresolved); they are kept with a stated reason and shown as held-but-not-
   covered rather than dropped.
+- **Watchlist means the companies the reader starred**, read through `js/core/watchlist.js`. The
+  star in every `scoreTable` marks a **company**, not a row: `key(row)` identifies the row and
+  `watchKey(row)` the company, and the two are allowed to differ, so three announcements from one
+  filer are three rows and one watched company and starring any of them fills the star on all three.
+  Entries are `{ ticker, name, addedAt }`, so a watched company can be named even where the feed in
+  front of you does not carry it.
+- **An empty watchlist is answered by the shell, once, for every tab** — `watchlistEmptyPanel()`,
+  saying there are zero watchlist companies and how to add one. A table reading *"no results match
+  your filters"* over a list nobody has added to would send the reader hunting for a filter to clear.
+  The shell decides teardown against what it will actually mount, so the un-mounted tab is destroyed
+  rather than left painting into the content host.
+- A row with no company carries **no star at all** rather than one that files a row id, or a company
+  name, as though it were a symbol: Superstar Investors (whose upstream discloses names and no
+  symbols) and Public Chatter's unresolved half both opt out.
 - Changing scope never loses the current tab or sub-view.
 
 ---
@@ -122,12 +153,12 @@ applies to every tab in both workspaces.
 Hash-based and shareable:
 
 ```
-#/<workspace>/<tab>/<subview>?scope=<portfolio|universe>
+#/<workspace>/<tab>/<subview>?scope=<portfolio|watchlist|universe>
 #/research/breakouts/strong-breakouts?scope=portfolio
 ```
 
 - Unknown workspace / tab / sub-view falls back to the first valid option at that level;
-  a completely unknown route lands on `#/research/earnings-hub/latest-results`.
+  a completely unknown route lands on `#/research/daily-alerts`.
 - With no hash present, the last route is restored from `localStorage`.
 - Browser back/forward work; scope changes and route normalisation use `replaceState` so they
   don't pollute history.

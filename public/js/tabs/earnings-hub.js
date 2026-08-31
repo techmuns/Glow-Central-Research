@@ -49,6 +49,7 @@ import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 import * as calendar from '../data/earnings-calendar.js';
 import * as coverage from '../data/coverage.js';
+import { scopeTickers, scopePossessive } from '../data/scope.js';
 
 export const meta = {
   id: 'earnings-hub',
@@ -452,6 +453,11 @@ function renderLatest(ctx) {
   const table = scoreTable({
     rows,
     key: (r) => r.scId,
+    // THE STAR MARKS THE COMPANY, NOT THE ROW. `key` above identifies the row and is not a ticker
+    // here, so without this the watchlist would fill with row ids and the Watchlist scope — which
+    // narrows every feed on this dashboard by symbol — would have nothing it could match.
+    watchKey: (r) => r.ticker || null,
+    watchName: (r) => r.company || r.name || r.ticker,
     name: (r) => r.company,
     nameLabel: 'Company',
     sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || r.sectorSlug || '—'}`,
@@ -543,7 +549,7 @@ function renderLatest(ctx) {
     // No onRowClick, deliberately — see "WHY THERE IS NO DRILL PANEL" at the top of this file.
     exportName: 'sattva-earnings',
     onExport: (visible) => exportResults(visible, m),
-    emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has reported in this quarter yet.' : 'No results match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has reported in this quarter yet.` : 'No results match your filters.',
     initialView: tableView,
   });
   tableView = table.view;
@@ -871,7 +877,8 @@ function renderCalendar(ctx) {
   }
 
   const rows = mode === 'reported' ? feed.reportedOn(wanted) : payload?.rows || [];
-  const scoped = ctx.scope === 'portfolio' ? rows.filter((r) => holdings(ctx).has(String(r.ticker || '').toUpperCase())) : rows;
+  const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
+  const scoped = wantedTickers ? rows.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : rows;
   const err = calendar.errorFor(wanted);
   // A schedule failure is only fatal to the SCHEDULE half. With filings on screen it is a missing
   // strip, not a missing answer, so it must not take the table down with it.
@@ -938,7 +945,7 @@ function renderCalendar(ctx) {
                    </div>`
                 : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
                      <div class="text-3xl">🗓️</div>
-                     <div class="mt-2 text-sm font-semibold text-slate-700">${ctx.scope === 'portfolio' ? 'None of your holdings is scheduled on this date' : 'Nothing scheduled on this date'}</div>
+                     <div class="mt-2 text-sm font-semibold text-slate-700">${scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} is scheduled on this date` : 'Nothing scheduled on this date'}</div>
                      <div class="mt-1 text-xs text-slate-500">${escapeHtml(stripLabel(wanted))}${payload.scheduledCount ? ` · ${formatNumber(payload.scheduledCount)} companies report, none in this scope` : ''}</div>
                    </div>`
     }
@@ -965,7 +972,7 @@ function renderCalendar(ctx) {
  * same error class as reading a missing value as a zero.
  */
 function emptyReportedTitle(iso, today, filed, scope) {
-  if (filed) return scope === 'portfolio' ? 'None of your holdings filed on this date' : 'No results were filed on this date';
+  if (filed) return scopePossessive(scope) ? `None of ${scopePossessive(scope)} filed on this date` : 'No results were filed on this date';
   return iso === today ? 'Nothing filed yet today' : 'No results were filed on this date';
 }
 
@@ -1037,8 +1044,6 @@ function reportedNote(iso, filed) {
       Read from the live results feed, so this is every one of them, not a top-20.${sched}
     </div>`;
 }
-
-const holdings = (ctx) => new Set((coverage.holdings()).map((h) => String(h.ticker).toUpperCase()));
 
 /**
  * Three states, not two. The counts are always live; the LIST is live when the Worker can reach

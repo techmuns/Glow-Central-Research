@@ -15,12 +15,19 @@ no bundler, no npm dependency for the app itself. You open `public/index.html` a
 python3 -m http.server 8080 -d public     # that is the whole dev setup
 ```
 
-Two workspaces, nine tabs:
+Two workspaces, thirteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors |
+| Research Central | **Daily Alerts** · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
+
+**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads the feeds every
+other tab already reads, filters them to today's Indian trading date, and prints one stream —
+red for a direct negative reading, orange for anything else that arrived. See §4c.
+
+**Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
+Universe. Portfolio is the default. See §5a.
 
 ---
 
@@ -200,6 +207,8 @@ public/js/
     shell.js               header, rail, tab bar, the WORKSPACES registry
   data/                    one module per feed: load once, compute once, cache, expose accessors
                            coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
+                           scope.js — the three scopes in one place; every forScope() asks it
+                           daily-alerts.js — today's readings, taken across every feed (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
@@ -207,7 +216,8 @@ public/js/
                            deep-dive.js — the panel behind the Deep Dive column (a SEPARATE
                            dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
-  tabs/                    the five Research Central tabs
+  tabs/                    the Research Central tabs
+                           daily-alerts.js — the landing tab: today, consolidated (§4c)
 worker/
   index.js                 asset serving + the four /api routes
   http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
@@ -224,6 +234,59 @@ is lost by dropping the rail.
 
 **To add a data source:** three files, together — `docs/DATA-CONTRACTS.md`, the loader in
 `js/app.js` (or a lazy `js/data/*.js`), and the entry in `js/ui/sources.js` with an honest `status`.
+
+---
+
+## 4c. Daily Alerts — the landing tab
+
+Every other tab here is organised by SOURCE: this is what the results feed holds, this is what BSE
+filed, this is what the technicals scrape measured. That is right for research and wrong for the
+first thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
+happened, and does any of it need me*. Daily Alerts is organised by DAY.
+
+`js/data/daily-alerts.js` takes the readings; `js/tabs/daily-alerts.js` draws them. **It adds no
+data source** — every row comes from a feed that already has its own tab, filtered to today's
+**Indian trading date** (a UTC date names yesterday for the five and a half hours after 18:30 IST,
+which is exactly when someone opens an alerts page).
+
+**The two colours are measurements, not opinions.**
+
+| | Means | Set by |
+| --- | --- | --- |
+| **RED — alert** | a direct negative reading on the row itself | net profit fell / the loss widened / the company slipped into loss (read through `classifyChange`'s `kind`, so a *narrowing* loss is an improvement and not a fall); the price fell more than **5%** at today's close; the research provider's own tier for a con-call is one of their two lowest; the chatter source's own label is bearish |
+| **ORANGE — update** | something arrived today | everything else |
+
+Every red row prints the reading that made it red. A colour whose cause is not on screen beside it
+is a judgement, and this dashboard does not make those.
+
+**Two feeds are deliberately never red**, and it is the same rule from the other side. *Insider
+trades* carries no model at all — "no sentiment, no materiality flag" — because its columns are the
+upstream's own and unknown at build time, and deciding that "Pledge" is red *is* a materiality flag
+however obvious it looks. *Corporate announcements* are BSE's filing taxonomy, not a verdict.
+Both print the upstream's own wording instead.
+
+**The coverage panel is the half that makes an empty day readable.** Most of these feeds are
+captures committed on a best-effort schedule, so a bucket with nothing in it has two completely
+different meanings — *nobody filed*, and *nothing has looked at today yet*. `Feeds read for this
+day` states, per feed, when it last looked and whether that reaches today, and a feed nobody has
+heard from yet reads **pending**, never "nothing today". Same rule as the filings tabs' *"63
+companies have not been checked since"*: never claim nothing is new.
+
+**Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed
+snapshot and this device, no per-company request — which is deliberately separate from `load()` so
+that seeding here cannot discard the company list the Corporate Announcements tab will later
+refresh with. The header Refresh button re-reads the same files and reports what changed by
+**comparing event ids, never counts**: the day rolls over, captures land, stories drop off the end
+of a bounded cache, and a count cannot answer "did anything change" for a collection like that.
+
+**Feeds land one at a time and the page follows them.** The first version awaited all eight
+together and the landing page sat blank for as long as the slowest — measured at 10–15 seconds on a
+static origin, because the chatter API is a direct call to somebody else's service and an
+unreachable host takes its own time to say so. Seven feeds that had already answered were held
+hostage by the one that had not. Now each settles independently and paints as it lands, coalesced
+into at most one repaint per 250 ms (a trailing throttle, not a debounce — a debounce would keep
+deferring while feeds kept landing). Measured after the change: first paint at **~250 ms**,
+everything settled by 3 s.
 
 ---
 
@@ -364,8 +427,12 @@ Each carries the reason it has no symbol and the UI shows it as *held but not co
 them would have made "Portfolio" quietly mean *"the 123 we happen to have a feed for"*, with nothing
 on screen saying so.
 
-**Every scoped pill prints the denominator** — *"Portfolio · 123 of 142 companies"* — because no
-feed covers the whole book and a bare count invites the reading that it does. Measured against the
+**Every scoped pill prints the denominator** — *"Portfolio · 123 of 142 companies"*, and
+*"Watchlist · 12 of 20 companies"* — because no feed covers the whole of either list and a bare
+count invites the reading that it does. The two denominators mean different things and are worded
+differently: the book's gap is partly permanent (nineteen lines carry no NSE symbol, so no feed
+here can ever show them), while a watchlist entry came *from* a feed, so its gap is only ever
+"this particular feed does not carry it". Measured against the
 shipped data: **Breakouts 123** (every listed line; 121 score, and the two that do not are recent
 listings with too little history), Earnings Hub 103, Con-call 77 held calls plus scheduled, Public
 Chatter 4. `coverageNote()` in `js/data/coverage.js` is the one place that sentence is written.
@@ -548,8 +615,8 @@ against the nearest *scrolling* ancestor, and `overflow-x: auto` makes the wrapp
 both axes — so the `sticky top-0` that had always been on the `<thead>` was sticking to a box that
 never scrolled. `stickyHead` gives the wrapper a height; see CLAUDE.md.
 
-**The Workspace dropdown and the Universe/Portfolio toggle are different controls**, despite both
-saying "Portfolio". Workspace picks *which tabs exist* (Research Central's five, Portfolio
+**The Workspace dropdown and the scope toggle are different controls**, despite both
+saying "Portfolio". Workspace picks *which tabs exist* (Research Central's nine, Portfolio
 Analytics' four); scope picks *whose data* the open tab shows. Removing either strands the other.
 Both carry a tooltip saying so, and the scope toggle now has a "Scope" kicker to match the
 dropdown's "Workspace" one.

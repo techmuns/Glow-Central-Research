@@ -33,6 +33,7 @@
 import { conditionalJson, revalidatedJson, KEYS } from '../core/store.js';
 import { buildResolverIndex, resolveAll, fingerprint, normaliseDashboard, SOURCE_LABEL } from './sentiment-shared.js';
 import * as coverage from './coverage.js';
+import { filterByScope } from './scope.js';
 
 export const LIVE_ID = 'chatter-live';
 const POLL_MS = 60 * 60 * 1000; // hourly — see the header
@@ -269,9 +270,7 @@ export const sourceLabel = (k) => SOURCE_LABEL[k] || k;
  * could not tell. The tab keeps that section whole in both scopes and says so.
  */
 export function forScope(scope, rows = companies()) {
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(coverage.tracked().map((h) => h.ticker.toUpperCase()));
-  return rows.filter((r) => r.ticker && held.has(r.ticker.toUpperCase()));
+  return filterByScope(rows, scope, coverage.tracked());
 }
 
 // ---------------------------------------------------------------------------------------

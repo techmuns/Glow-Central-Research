@@ -3,8 +3,9 @@
 // resolves a raw parsed route against the registry and calls replaceRoute() to normalize it.
 
 import { getLastRoute } from './state.js';
+import { isScope } from '../data/scope.js';
 
-export const DEFAULT_ROUTE = { workspace: 'research', tab: 'earnings-hub', subview: 'latest-results' };
+export const DEFAULT_ROUTE = { workspace: 'research', tab: 'daily-alerts', subview: null };
 
 // "#/research/breakouts/strong-breakouts?scope=portfolio&vol=1.5"
 //   -> { workspace, tab, subview, scope, params }
@@ -19,7 +20,9 @@ export function parseHash(raw = location.hash) {
   const [workspace = null, tab = null, subview = null] = segments;
   const search = new URLSearchParams(queryPart || '');
   const rawScope = search.get('scope');
-  const scope = rawScope === 'portfolio' || rawScope === 'universe' ? rawScope : null;
+  // An unknown scope in a shared link comes back as null so the caller falls back to the reader's
+  // own saved scope, rather than a URL typo silently redefining what is on screen.
+  const scope = isScope(rawScope) ? rawScope : null;
   const params = {};
   for (const [k, v] of search.entries()) if (k !== 'scope') params[k] = v;
   return { workspace, tab, subview, scope, params };

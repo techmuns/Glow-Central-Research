@@ -718,11 +718,14 @@ function renderEarningsSurprise(ctx, rows) {
   // The honest join: mock earnings on the left, the REAL technical score on the right.
   // Deliberately NOT blended into a composite — the two sides have different provenance.
   const byTicker = new Map(rows.map((s) => [s.company.ticker, s]));
-  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || ctx.scope !== 'portfolio');
+  // `rows` arrived already narrowed to the scope, so under Portfolio or Watchlist an earnings row
+  // with no technical row is a company outside the scope — not a company with no technicals.
+  const narrowed = ctx.scope !== 'universe';
+  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || !narrowed);
 
   const joined = earnings
     .map((e) => ({ earnings: e, tech: byTicker.get(e.ticker) || null }))
-    .filter((j) => (ctx.scope === 'portfolio' ? !!j.tech : true))
+    .filter((j) => (narrowed ? !!j.tech : true))
     .sort((a, b) => b.earnings.surprisePct - a.earnings.surprisePct);
 
   const withTech = joined.filter((j) => j.tech && !j.tech.tickerError).length;

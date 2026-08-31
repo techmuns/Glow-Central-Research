@@ -8,9 +8,12 @@ import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import { tabBar, railNav, segmentedToggle, statusControl, emptyState } from './components.js';
-import { openModal, closeDrill, closeModal, closeWorkspace } from './screener.js';
+import { openModal, closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
 import { sourcesModalHtml } from './sources.js';
+import { SCOPES, scopeLabel } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
 
+import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
 import * as publicChatter from '../tabs/public-chatter.js';
@@ -35,8 +38,12 @@ import * as drawdown from '../portfolio/drawdown.js';
 // Hidden rather than removed from the array on purpose. Dropping the entry would make every
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
+//
+// DAILY ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// an unknown or absent tab, so the order of this array IS the default landing page — there is no
+// second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
@@ -61,6 +68,24 @@ export function mount(root) {
   // open, which is the only way an alert can fire while the reader is looking elsewhere.
   watch.start(live);
 
+  // WHILE THE WATCHLIST SCOPE IS OPEN, THE WATCHLIST IS THE ROW SET.
+  //
+  // Every other control that changes what a scoped tab shows goes through the router, so the tab
+  // re-renders. The star does not — it writes to `localStorage` from inside a table's own click
+  // handler — and under Watchlist scope the only thing you can do with it is UNSTAR, which takes a
+  // company out of the scope. Without this the row stayed on screen, hollow-starred, belonging to a
+  // scope it had just left: the state was right and only the screen disagreed, which is the shape
+  // of bug this codebase keeps finding.
+  //
+  // Deferred by a tick because the change arrives mid-`repaint()`, and remounting the tab out from
+  // under the handler that is painting it is a different bug for the same money.
+  watchlist.onChange(() => {
+    if (state.scope !== 'watchlist') return;
+    setTimeout(() => {
+      if (state.scope === 'watchlist') handleRoute(root, router.parseHash());
+    }, 0);
+  });
+
   router.start((rawRoute) => handleRoute(root, rawRoute));
 }
 
@@ -78,7 +103,7 @@ function shellTemplate() {
 
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
           <div class="flex items-center gap-1.5"
-               title="Data scope: whether the tab you are on covers every listed company or only your holdings. This is not the Workspace switcher on the left — that picks which tabs exist.">
+               title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
             <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
           </div>
@@ -160,11 +185,11 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
 
+  // Portfolio → Watchlist → Universe, widest last. That is the reader's own priority order and it
+  // reads left to right as "mine, watched, everything"; reversing it would put the least specific
+  // answer first, which is what the old two-option toggle did.
   const toggle = segmentedToggle({
-    options: [
-      { value: 'universe', label: 'Universe' },
-      { value: 'portfolio', label: 'Portfolio' },
-    ],
+    options: SCOPES.map((value) => ({ value, label: scopeLabel(value) })),
     activeValue: resolved.scope,
     onChange: goScope,
   });
@@ -249,14 +274,48 @@ function mountTab(tabModule, resolved) {
   closeModal();
   closeWorkspace({ silent: true });
 
-  if (currentTabModule && currentTabModule !== tabModule) {
+  // A SCOPE NARROWED TO NOTHING IS ANSWERED HERE, ONCE, FOR EVERY TAB.
+  //
+  // An empty watchlist is a fact about the SCOPE, not about any tab — nine tabs would otherwise
+  // each need their own version of the same sentence, and nine copies is nine chances for one of
+  // them to say something slightly different (or to render "no results match your filters" over a
+  // list the reader has simply never added to, which sends them hunting for a filter to clear).
+  //
+  // The shell stays generic: it is not interpreting the tab, it is answering a question the header
+  // control it owns has just been used to ask.
+  const mountable = !(resolved.scope === 'watchlist' && watchlist.size() === 0);
+  const nextModule = mountable ? tabModule : null;
+
+  // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route
+  // names — and the first version of this got that wrong in a way that was invisible until two
+  // navigations later.
+  //
+  // Landing on Daily Alerts with an empty watchlist takes the branch below, so the module was
+  // already `currentTabModule` and `currentTabModule !== tabModule` was false: nothing was
+  // destroyed. Its subscriptions stayed live, its in-flight collect finished, and it painted its
+  // own table into `contentHost` — which by then belonged to Breakouts. The reader saw Breakouts'
+  // chrome over Daily Alerts' rows, on a page where nothing had thrown and no state was wrong.
+  // Exactly the lifecycle failure the module contract in CLAUDE.md is written about, arrived at
+  // from the one direction the contract does not cover: a tab the shell decided not to mount.
+  if (currentTabModule && currentTabModule !== nextModule) {
     try {
       currentTabModule.destroy?.();
     } catch (err) {
       console.error(`[shell] destroy() failed for "${currentTabModule.meta?.id}"`, err);
     }
   }
-  currentTabModule = tabModule;
+  currentTabModule = nextModule;
+
+  if (!nextModule) {
+    // The way out lands on THIS tab under Universe, not on some other tab's universe: the reader
+    // chose this page, and sending them somewhere else to find a star to click is asking them to
+    // navigate back afterwards.
+    contentHost.innerHTML = watchlistEmptyPanel({
+      tabTitle: tabModule.meta.title,
+      universeHref: router.buildHash({ ...resolved, scope: 'universe' }),
+    });
+    return;
+  }
 
   const ctx = {
     scope: resolved.scope,

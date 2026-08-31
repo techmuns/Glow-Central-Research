@@ -15,6 +15,7 @@
 // model (all of them until prompt 3) render a clean table with no empty score furniture.
 
 import { escapeHtml } from '../core/dom.js';
+import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 
 // ---------------------------------------------------------------------------------------
@@ -80,40 +81,26 @@ function trapFocus(el, { label } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Watchlist — one shared, localStorage-backed set of company keys across every tab.
+// Watchlist — ONE SHARED SET OF COMPANIES across every tab.
+//
+// The store itself is `js/core/watchlist.js`, because the watchlist is no longer a property of
+// this table: it is a scope. `?scope=watchlist` narrows every feed in the dashboard to it, so it
+// has to be readable by `js/data/scope.js`, and a data module reaching into the UI layer for it
+// would be backwards.
+//
+// WHAT CHANGED IN HERE IS THE KEY. `key(row)` identifies a ROW and is whatever the tab needs it to
+// be — Moneycontrol's scID, `company|time|document`, a composite of the cells. `watchKey(row)`
+// identifies the COMPANY, and defaults to `key(row)` because on a screener the two are the same
+// ticker. Where they differ, three announcements from one company are three rows and one watched
+// company, and starring any of them fills the star on all three.
 // ---------------------------------------------------------------------------------------
 
-const WATCH_KEY = 'sattva:watchlist';
+/** The tracked companies as a Set of upper-case symbols — what every star and filter compares to. */
+const loadWatchlist = () => store.tickers();
 
-function loadWatchlist() {
-  try {
-    const raw = localStorage.getItem(WATCH_KEY);
-    return new Set(raw ? JSON.parse(raw) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveWatchlist(set) {
-  try {
-    localStorage.setItem(WATCH_KEY, JSON.stringify(Array.from(set)));
-  } catch {
-    // Private mode / quota — the toggle still works for this session, it just won't persist.
-  }
-}
-
-export const watchlist = {
-  get: loadWatchlist,
-  has: (key) => loadWatchlist().has(key),
-  toggle(key) {
-    const set = loadWatchlist();
-    if (set.has(key)) set.delete(key);
-    else set.add(key);
-    saveWatchlist(set);
-    return set.has(key);
-  },
-  size: () => loadWatchlist().size,
-};
+// Re-exported so the tabs and the verification suite keep one import path for this. The store is
+// the authority; this is a name, not a second copy.
+export const watchlist = store;
 
 // ---------------------------------------------------------------------------------------
 // (b) statStrip — the 4-up KPI row that opens every tab.
@@ -308,6 +295,17 @@ export function scoreTable(config) {
   const {
     rows = [],
     key = (r) => r.ticker,
+    // WHICH COMPANY THE STAR MARKS, which is not always which row it sits on.
+    //
+    // Defaults to `key` because on a screener a row IS a company and the key is already the
+    // ticker. A table whose rows are events — a filing, a result, a con-call — must pass the
+    // ticker here, or the watchlist fills up with row ids and the Watchlist scope has nothing it
+    // can narrow a feed by. A row with no company returns null and gets no star at all, which is
+    // right: there is nothing to track.
+    watchKey = null,
+    // The name recorded alongside the ticker, so the Watchlist scope can print "Reliance
+    // Industries" for a company whose feed has not loaded yet rather than echoing the symbol.
+    watchName = null,
     name = (r) => r.name,
     nameLabel = 'Company', // header for the identity column — set it when rows aren't companies
     sub = () => '',
@@ -360,6 +358,14 @@ export function scoreTable(config) {
     stickyHead = null,
   } = config;
 
+  // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
+  // defaults to the display name for the same reason.
+  const watchKeyOf = (row) => {
+    const raw = (watchKey || key)(row);
+    return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
+  };
+  const watchNameOf = (row) => String((watchName || name)(row) ?? '') || null;
+
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
   // into one dropdown would make them mutually exclusive for no reason.
@@ -406,7 +412,10 @@ export function scoreTable(config) {
     const watched = view.watchOnly ? loadWatchlist() : null;
     let out = rows.filter((row) => {
       if (view.q && !haystack(row).includes(view.q)) return false;
-      if (watched && !watched.has(String(key(row)))) return false;
+      if (watched) {
+        const wk = watchKeyOf(row);
+        if (!wk || !watched.has(wk)) return false;
+      }
       for (let i = 0; i < filterDefs.length; i++) {
         if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
       }
@@ -486,7 +495,8 @@ export function scoreTable(config) {
       const slug = String(key(row));
       let html = rowHtmlCache.get(slug);
       if (html === undefined) {
-        html = rowHtml(row, slug, watched.has(slug));
+        const wk = watchKeyOf(row);
+        html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
         rowHtmlCache.set(slug, html);
       }
       out.push(html);
@@ -494,14 +504,19 @@ export function scoreTable(config) {
     return out.join('');
   }
 
-  function rowHtml(row, slug, isWatched) {
+  function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null) {
         const label = String(name(row));
         const { color, initials } = avatarFor(label);
         const sc = showScore && score ? score(row) : null;
         const redFlag = !!(sc && sc.redFlag);
         const extraClass = rowClass ? rowClass(row) || '' : '';
-        const star = `<button type="button" data-watch="${escapeHtml(slug)}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}"
-                  class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`;
+        // A row with no company carries no star rather than a control that would file a row id as
+        // a company. The span keeps the cell's layout identical either way.
+        const star = watchSlug
+          ? `<button type="button" data-watch="${escapeHtml(watchSlug)}" data-watch-name="${escapeHtml(watchLabel || '')}"
+                  title="${isWatched ? `Remove ${escapeHtml(watchLabel || watchSlug)} from your watchlist` : `Add ${escapeHtml(watchLabel || watchSlug)} to your watchlist`}"
+                  class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`
+          : '<span class="watch-star flex-shrink-0 text-base leading-none text-transparent" aria-hidden="true">☆</span>';
         const dataTd = (c) =>
           `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
         return `
@@ -830,7 +845,8 @@ export function scoreTable(config) {
       for (const slug of wanted) {
         const row = byKey.get(slug);
         if (!row) continue;
-        const markup = rowHtml(row, slug, watched.has(slug));
+        const wk = watchKeyOf(row);
+        const markup = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
         rowHtmlCache.set(slug, markup); // so a later sort reorders the NEW markup, not the old
         const tr = trByKey.get(slug);
         if (!tr) continue; // filtered out of view — the cache above still has it right
@@ -869,10 +885,18 @@ export function scoreTable(config) {
       const star = e.target.closest('[data-watch]');
       if (star) {
         e.stopPropagation();
-        const slug = star.dataset.watch;
-        watchlist.toggle(slug);
-        rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
-        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+        const company = star.dataset.watch;
+        watchlist.toggle(company, star.dataset.watchName || null);
+        // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
+        // and each carries its own star, so invalidating only the row that was clicked would leave
+        // the other two showing the opposite of what is stored — the same disagreement between a
+        // control and its state that `staleKeys` exists to close, arrived at from the other side.
+        for (const r of rows) {
+          if (watchKeyOf(r) !== company) continue;
+          const slug = String(key(r));
+          rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+          staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+        }
         repaint();
         return;
       }
@@ -1364,6 +1388,35 @@ export function roadmapStrip(features = [], { note = 'Wiring roadmap', caption =
  * pendingPanel({ title, body, arriving }) — the honest placeholder used where a genuine data
  * feed has not landed yet. Never fabricate numbers into a chart; render this instead.
  */
+/**
+ * WHAT EVERY TAB SHOWS WHEN THE WATCHLIST SCOPE IS EMPTY.
+ *
+ * Not an error and not a "no results" — a scope narrowed to nothing is the reader's own list being
+ * empty, and a table reading "No companies match your filters" over it would send them looking for
+ * a filter to clear. It states the count (zero, said out loud), says exactly how a company gets
+ * onto the list, and offers the one-click way to go and do it.
+ *
+ * It lives here rather than in each tab because it is a property of the SCOPE, not of the tab, and
+ * nine copies of it is nine chances for one of them to say something slightly different.
+ */
+export function watchlistEmptyPanel({ tabTitle = 'This tab', universeHref = '#/research/breakouts?scope=universe' } = {}) {
+  return `
+    <div class="fade-in rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-watchlist-empty>
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl text-amber-400 ring-1 ring-amber-100">☆</div>
+      <h3 class="font-display mt-4 text-lg font-bold text-slate-900">There are zero watchlist companies right now</h3>
+      <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+        ${escapeHtml(tabTitle)} has nothing to show in this scope because nothing is being tracked yet.
+        Add companies to track on this scope view: switch to <strong class="font-semibold text-slate-700">Universe</strong>,
+        find a company on any tab, and click the ☆ beside its name. Every tab — and this scope — then follows that list.
+      </p>
+      <a href="${escapeHtml(universeHref)}"
+         class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+        Open ${escapeHtml(tabTitle)} in Universe and star a company
+      </a>
+      <p class="mt-4 text-xs text-slate-400">The watchlist is kept in this browser, so it is yours and it survives a reload.</p>
+    </div>`;
+}
+
 export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
   return `
     <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
