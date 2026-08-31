@@ -42,6 +42,9 @@ let failure = null;
 // value held on the input would be discarded the moment a capture landed.
 let listView = { q: '', section: 'all' };
 let fillStop = null;
+// Whether the provenance modal — which holds the Fetch control — is on screen, so a fetch's
+// progress can be re-rendered into it rather than reported to a panel nobody is looking at.
+let modalOpen = false;
 
 /** IST, because the market and the publisher are both there and the reader almost certainly is. */
 function istTime(iso) {
@@ -58,75 +61,37 @@ function istTime(iso) {
   });
 }
 
+// A capture younger than this is current: the job runs every 30 minutes across the window the
+// publisher answers and hourly outside it, so anything inside 90 minutes is the newest there is.
+const FRESH_MS = 90 * 60 * 1000;
+
+/**
+ * The whole of this tab's chrome: one small chip.
+ *
+ * IT REPLACED A FULL-WIDTH CARD — a button, a freshness sentence, a note about the scheduled job —
+ * which is a lot of furniture above a list whose headlines are the point. The same trade the
+ * Earnings Hub and Portfolio Analytics already made: **move the explanation behind a control that
+ * still states the claim, and never delete the claim.** So the chip opens the provenance modal, and
+ * the Fetch button now lives inside it. Nothing was removed except the chrome.
+ *
+ * "LIVE" IS A CLAIM ABOUT DATA AND MAY NOT BE PAINTED GREEN UNCONDITIONALLY. That is exactly what
+ * the header's old green chip did — it tracked a heartbeat that asked no server anything and read
+ * "just now" whether or not a byte had been confirmed in an hour (see CLAUDE.md, *The header, and
+ * the alert stack*). So green + `Live` appears only while the capture really is the newest the
+ * schedule can produce; past that the chip turns amber and prints the age instead, and with no
+ * capture at all it says so.
+ */
 function pill(m) {
-  const captured = m.capturedAt ? formatRelativeTime(Date.parse(m.capturedAt)) : null;
-  const label = m.reason ? 'No capture' : `Captured ${captured || 'unknown'}`;
-  const tone = m.reason ? 'bg-amber-50 text-amber-800 ring-amber-200' : 'bg-sky-50 text-sky-700 ring-sky-200';
-  return `<button type="button" data-mcnews-info
-      class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${tone} transition hover:brightness-95">
-      <span class="h-1.5 w-1.5 rounded-full ${m.reason ? 'bg-amber-500' : 'bg-sky-500'}"></span>
-      ${escapeHtml(label)}
-      <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.count))} stories</span>
+  const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
+  const age = Number.isFinite(at) ? Date.now() - at : null;
+  const fresh = age !== null && age < FRESH_MS;
+  const tone = fresh ? 'text-emerald-700' : 'text-amber-700';
+  const dot = fresh ? 'bg-emerald-500' : 'bg-amber-500';
+  const label = age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
+  return `<button type="button" data-mcnews-info title="Where this comes from, and how to fetch it now"
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+      <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
     </button>`;
-}
-
-/**
- * The freshness line and the one control.
- *
- * IT USED TO BE TWO, AND THE SPLIT WAS WRONG. "Check for new stories" made one conditional GET and
- * cost nothing; "Fetch from Moneycontrol" started a run on a GitHub runner. Keeping them apart came
- * from the Deep Dive rule — separate what costs from what does not — but that rule exists so a
- * reader is never FORCED to spend to get a free answer, and here they never were: the twenty-minute
- * poll already makes that cheap check unprompted, and the fetch has always ended by re-reading the
- * capture anyway. So the cheap button bought nothing a reader was not already getting for nothing,
- * and cost two controls that looked like they did the same job.
- *
- * The free read is not deleted, it is FOLDED IN: pressing this reads the capture first, and if a
- * newer one has already been published — the scheduled job having just run — it reports that and
- * spends no run at all. Strictly better than either button was alone.
- */
-function controls(m) {
-  const captured = m.capturedAt ? formatRelativeTime(Date.parse(m.capturedAt)) : 'never';
-  const result = lastResult
-    ? `<span class="ml-2 font-semibold ${lastResult.tone || 'text-slate-500'}">${escapeHtml(lastResult.text)}</span>`
-    : '';
-  return `
-    <div class="w-full rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
-      <div class="flex flex-wrap items-center gap-3">
-        <button type="button" data-mcnews-fetch ${busy ? 'disabled' : ''}
-          title="Asks the scheduled job to read moneycontrol.com now. It runs on a GitHub runner, because neither this browser nor the edge can fetch that host."
-          class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300">
-          ${busy ? SPINNER : '<span>↧</span>'}<span>${busy ? 'Fetching…' : 'Fetch latest news'}</span>
-        </button>
-        <p class="min-w-0 flex-1 text-xs leading-relaxed text-slate-500">
-          <strong class="text-slate-700">Moneycontrol last read ${escapeHtml(captured)}</strong>
-          · a scheduled job also reads it through the day.${result}
-        </p>
-      </div>
-      ${failureNote()}
-    </div>`;
-}
-
-const SPINNER = `<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
-  </svg>`;
-
-/**
- * A FAILURE STILL GETS A SENTENCE. Progress does not.
- *
- * The panel used to narrate every step — "the scrape run is in progress", a link out to the run, a
- * paragraph about publishing — which is a lot of small text for a reader who asked one question and
- * wants one answer. The button says `Fetching…` and the strip says how many stories came in, and
- * that is the whole of it for every successful case.
- *
- * What must not go with it is the failure text: `no-token` is a thing an operator fixes and the
- * command that fixes it is the only useful part of that state. So this renders for failures alone.
- */
-function failureNote() {
-  if (!failure) return '';
-  const fix = failure.fix ? ` <code class="rounded bg-white/70 px-1">${escapeHtml(failure.fix)}</code>` : '';
-  return `<p data-mcnews-failure class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 ring-1 ring-rose-100">${escapeHtml(failure.text)}${fix}</p>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -350,12 +315,34 @@ async function exportVisible(visible, m) {
   });
 }
 
+const SPINNER = `<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+  </svg>`;
+
 function provenance(m) {
+  const captured = m.capturedAt ? formatRelativeTime(Date.parse(m.capturedAt)) : 'never';
+  const result = lastResult ? `<span class="ml-2 text-xs font-semibold ${lastResult.tone || 'text-slate-500'}">${escapeHtml(lastResult.text)}</span>` : '';
+  const fix = failure?.fix ? ` <code class="rounded bg-white/70 px-1">${escapeHtml(failure.fix)}</code>` : '';
   return `<div class="px-7 py-6">
     <div class="mb-3 flex items-start justify-between gap-4">
       <h2 class="font-display text-xl font-bold text-slate-900">Market news</h2>
       <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
     </div>
+
+    <div class="mb-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" data-mcnews-fetch ${busy ? 'disabled' : ''}
+          class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300">
+          ${busy ? SPINNER : '<span>↧</span>'}<span>${busy ? 'Fetching…' : 'Fetch latest news'}</span>
+        </button>
+        <p class="min-w-0 flex-1 text-xs text-slate-500">
+          Moneycontrol last read <strong class="text-slate-700">${escapeHtml(captured)}</strong> · a scheduled job also reads it through the day.${result}
+        </p>
+      </div>
+      ${failure ? `<p data-mcnews-failure class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 ring-1 ring-rose-100">${escapeHtml(failure.text)}${fix}</p>` : ''}
+    </div>
+
     <div class="text-sm leading-relaxed text-slate-600">
       <p><strong>Real reporting, and not ours.</strong> Every story Moneycontrol publish to
          <code class="rounded bg-slate-100 px-1">/news/business/stocks/</code>. Headlines, standfirsts and section names are
@@ -367,10 +354,9 @@ function provenance(m) {
          <code class="rounded bg-slate-100 px-1">curl</code> with a browser user-agent gets <strong>200 and 598 KB</strong>;
          Node's <code class="rounded bg-slate-100 px-1">fetch</code> gets <strong>403 with a 24-byte body</strong> on every
          header set tried, including the full browser set; and a <strong>Cloudflare Worker gets 403 as well</strong>. So there
-         is no proxy route to build — a scheduled GitHub Action reads the page every twenty minutes and commits what it finds,
-         and this page reads that capture.</p>
-      <p class="mt-2 text-xs">That is why two times are shown and never combined: when the publisher was last
-         <em>read</em>, and when this browser last <em>confirmed</em> it holds the newest capture.</p>
+         is no proxy route to build — a scheduled GitHub Action reads the page and commits what it finds, and this page
+         reads that capture. The only time printed here is when the publisher was actually <em>read</em>; nothing on this
+         tab reports when the browser last checked, because that is a fact about us rather than about the news.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The schedule is best-effort, and this page used to overstate it</h3>
       <p class="mt-1 text-xs">It said <em>"refreshed automatically every 20 minutes"</em>. Measured over 41 hours, that was
@@ -382,9 +368,10 @@ function provenance(m) {
          <strong>7 were answered with HTTP 403</strong>, and the split by clock is total — every success fell between
          10:27 and 21:14 IST, every refusal between 20:28 and 05:29 IST. So the job now runs every 30 minutes across the
          window that works and hourly outside it, retries a 403 with a real backoff, and reports a refusal as a refusal
-         rather than as a broken scraper. <strong>None of that makes the cadence a promise</strong>, which is why the line
-         above states only when the publisher was actually last read — and why the Fetch button exists, since it is the
-         one path that does not wait for a schedule.</p>
+         rather than as a broken scraper. <strong>None of that makes the cadence a promise</strong>, which is why nothing
+         on this tab states one — and why the Fetch button exists, since it is the one path that does not wait for a
+         schedule. The chip in the heading turns green and reads <em>Live</em> only while the capture really is the newest
+         the schedule can produce; past that it turns amber and prints the age instead.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the Fetch button does</h3>
       <p class="mt-1 text-xs">It reads the committed capture first — free, and if a scheduled run has just published one
@@ -425,7 +412,7 @@ function paint(ctx) {
 
   if (!rows.length) {
     ctx.root.innerHTML = `
-      ${sectionHead({ title: 'News', description: DESCRIPTION, meta: pill(m), controls: controls(m) })}
+      ${sectionHead({ title: 'News', description: DESCRIPTION, meta: pill(m) })}
       <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
         <h3 class="font-display text-lg font-bold text-slate-900">No market-news capture yet</h3>
         <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
@@ -441,11 +428,18 @@ function paint(ctx) {
   const keep = ctx.root.querySelector('[data-news-scroll]')?.scrollTop || 0;
   const filtered = visibleRows(rows);
   ctx.root.innerHTML = `
-    ${sectionHead({ title: 'News', description: DESCRIPTION, meta: pill(m), controls: controls(m) })}
+    ${sectionHead({ title: 'News', description: DESCRIPTION, meta: pill(m) })}
     ${listHtml(filtered)}`;
   wireHead(ctx);
   wireList(ctx.root);
   fillStop = fillRest(ctx.root, filtered, keep);
+  if (modalOpen) {
+    const host = document.getElementById('modal-content');
+    if (host) {
+      host.innerHTML = provenance(marketNews.meta());
+      wireModal(ctx);
+    }
+  }
 }
 
 /**
@@ -479,11 +473,31 @@ function relist(root) {
   }
 }
 
-/** The section head: the provenance pill and the freshness/fetch row. */
+/** The section head is one chip now, and it opens everything else. */
 function wireHead(ctx) {
-  ctx.root.querySelector('[data-mcnews-info]')?.addEventListener('click', () => openModal(provenance(marketNews.meta()), { size: 'default' }));
+  ctx.root.querySelector('[data-mcnews-info]')?.addEventListener('click', () => openProvenance(ctx));
+}
+
+/**
+ * The provenance modal, which is also where the Fetch button lives.
+ *
+ * A fetch takes minutes and repaints as it goes, so the modal has to be re-rendered in place rather
+ * than left showing the state it opened in — and `modalOpen` is what tells `paint()` whether there
+ * is one to re-render. A reader who closes it mid-fetch loses nothing: the run carries on, the
+ * stories that arrive raise their own alerts, and the chip turns green when the capture lands.
+ */
+function openProvenance(ctx) {
+  modalOpen = true;
+  openModal(provenance(marketNews.meta()), { size: 'default' });
+  wireModal(ctx);
+}
+
+function wireModal(ctx) {
+  const host = document.getElementById('modal-content');
+  if (!host) return;
+  host.querySelectorAll('[data-modal-close]').forEach((b) => b.addEventListener('click', () => { modalOpen = false; }));
   // The ONLY caller of fetchLatest in the codebase. Nothing on a render, nothing on a poll.
-  ctx.root.querySelector('[data-mcnews-fetch]')?.addEventListener('click', () => fetchLatest(ctx));
+  host.querySelector('[data-mcnews-fetch]')?.addEventListener('click', () => fetchLatest(ctx));
 }
 
 /**
@@ -628,6 +642,7 @@ export function destroy() {
   // itself carries on: it is a GitHub Action, and leaving the tab does not cancel it.
   failure = null;
   busy = false;
+  modalOpen = false;
   // The filters are the reader's, and leaving the tab discards them deliberately: coming back to a
   // list silently narrowed by a search typed ten minutes ago reads as a feed that lost stories.
   listView = { q: '', section: 'all' };

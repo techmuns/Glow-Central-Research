@@ -760,6 +760,21 @@ that works, so the button now dispatches `market-news-refresh.yml` through
 `worker/github-actions.mjs` (`POST /api/market-news/refresh`) and watches it (`GET
 /api/market-news/run`, free).
 
+**AND THEN IT WAS NO BUTTONS ON THE PAGE AT ALL.** The freshness card — control, a sentence about
+the scheduled job, a result line — was a full-width white block above a list whose headlines are the
+whole point, and it went the way the Earnings Hub's ribbon and Portfolio's four-line block went:
+**move the explanation behind a control that still states the claim, and never delete the claim.**
+What is left in the heading is one chip. The provenance modal behind it carries every word, and the
+Fetch button now lives inside that modal — removed from the chrome, not from the app.
+
+**A GREEN "LIVE" IS A CLAIM ABOUT DATA AND MAY NOT BE PAINTED UNCONDITIONALLY.** That is precisely
+what the header's old green chip did: it tracked a heartbeat that asked no server anything and read
+*"just now"* whether or not a byte had been confirmed in an hour. So this chip is green and reads
+`Live` only while the capture is younger than the schedule's own worst case (90 minutes — the job
+runs half-hourly in the window that works and hourly outside it); past that it turns amber and
+prints the age instead, and with no capture it says so. The suite asserts the colour against the
+measured age, in both directions.
+
 **IT WAS TWO BUTTONS FOR A WHILE, AND THAT WAS THE WRONG READING OF THE DEEP DIVE RULE.** A free
 *Check for new stories* sat beside the metered *Fetch*, on the reasoning that what costs and what
 does not must be separate controls. But that rule exists so a reader is never *forced to spend* to

@@ -2324,7 +2324,12 @@ POST /api/market-news/refresh     starts a run. THE ONLY CALL HERE THAT COSTS AN
 GET  /api/market-news/run         how it is going. Free, and therefore the half that may be polled.
 ```
 
-**One button on the tab, not two.** A free *Check for new stories* used to sit beside it; it was
+**The tab's chrome is one chip.** The heading carries a small `● Live` in green — and only while the
+capture is younger than 90 minutes, the schedule's own worst case. Past that it is amber with the
+age; with no capture it says so. Everything else, including the Fetch button, lives in the
+provenance modal the chip opens: removed from the chrome, not from the app.
+
+**One button in that modal, not two.** A free *Check for new stories* used to sit beside it; it was
 removed because it did nothing a reader was not already getting for nothing — the 20-minute poll
 makes that check unprompted, and the fetch ends by making it too. The free read now happens *inside*
 the fetch: it reads the capture first and, if a scheduled run has already published one this browser

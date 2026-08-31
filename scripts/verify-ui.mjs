@@ -3495,21 +3495,48 @@ console.log('\n— news, announcements and insider trades —');
   })());
   await go('/#/research/news?scope=universe', 3500);
 
-  // ONE CONTROL, NOT TWO. The free "check for a newer capture" button was removed: the 20-minute
-  // poll already makes that check unprompted and the fetch ends by making it too, so it bought
-  // nothing a reader was not already getting for nothing — and two controls that do the same job
-  // read as two features. The free read survives INSIDE the fetch, where it cannot be confused
-  // for one.
-  const controlCount = await page.locator('[data-mcnews-fetch]').count();
-  const strip = (await page.locator('[data-mcnews-fetch]').locator('xpath=../..').innerText().catch(() => '')).replace(/\s+/g, ' ');
-  ok('the news tab carries exactly one fetch control', controlCount === 1, `${controlCount} control(s)`);
-  ok('...saying when Moneycontrol was last READ', /Moneycontrol last read/i.test(strip), strip.slice(0, 90));
-  ok('...and no leftover second button offering to "check for new stories"',
-    !/check for new/i.test(strip), strip.slice(0, 120));
-  // The progress narration is gone: a reader asked one question and gets one answer.
-  ok('...and the head carries no run link or step-by-step prose',
-    (await page.locator('[data-mcnews-scrape-note]').count()) === 0 && !/watch the run/i.test(strip),
-    strip.slice(0, 120));
+  // THE TAB'S CHROME IS ONE CHIP. The freshness card — a button, a sentence about the scheduled
+  // job, a result line — was a lot of furniture above a list whose headlines are the point, so it
+  // went the way the Earnings Hub's ribbon and Portfolio's went: the explanation moved behind a
+  // control that still states the claim. What must NOT have gone with it is the provenance or the
+  // fetch, so both are asserted to be one click away.
+  const headText = (await page.locator('#content-host').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  ok('the news head carries one small status chip and no freshness card',
+    (await page.locator('[data-mcnews-info]').count()) === 1 &&
+      (await page.locator('#content-host [data-mcnews-fetch]').count()) === 0 &&
+      !/a scheduled job also reads it/i.test(headText),
+    headText.slice(0, 110));
+
+  // "LIVE" IS A CLAIM ABOUT DATA. Green may appear only while the capture really is the newest the
+  // schedule can produce — the exact failure the header's old green chip made, reading "just now"
+  // off a heartbeat that asked no server anything.
+  const chip = await page.evaluate(async () => {
+    const el = document.querySelector('[data-mcnews-info]');
+    const mod = await import('/js/data/market-news.js');
+    const at = Date.parse(mod.meta().capturedAt || '');
+    return {
+      text: el?.innerText.trim() || '',
+      green: /emerald/.test(el?.className || '') || /text-emerald/.test(el?.className || ''),
+      ageMin: Number.isFinite(at) ? Math.round((Date.now() - at) / 60000) : null,
+      dot: !!el?.querySelector('span.rounded-full'),
+    };
+  });
+  const shouldBeGreen = chip.ageMin !== null && chip.ageMin < 90;
+  ok('...whose green "Live" is only shown when the capture really is current',
+    chip.dot && chip.green === shouldBeGreen && (shouldBeGreen ? /^Live$/i.test(chip.text) : !/^Live$/i.test(chip.text)),
+    `"${chip.text}" · ${chip.ageMin}m old · ${chip.green ? 'green' : 'amber'}`);
+
+  // Provenance and the fetch must still be reachable — one click, on the chip.
+  await page.locator('[data-mcnews-info]').click();
+  await page.waitForTimeout(600);
+  const modal = (await page.locator('#modal-content').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  ok('...and the chip opens the provenance, with the Fetch control inside it',
+    (await page.locator('#modal-content [data-mcnews-fetch]').count()) === 1 &&
+      /Moneycontrol last read/i.test(modal) && /TLS fingerprint/i.test(modal),
+    modal.slice(0, 110));
+  ok('...and no run link or step-by-step prose anywhere', !/watch the run/i.test(modal) && (await page.locator('[data-mcnews-scrape-note]').count()) === 0);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
 
   // -------------------------------------------------------------------------------------
   // THE UNIVERSE HALF IS AN EDITORIAL LIST, NOT A TABLE — thumbnail, headline, standfirst, in the
@@ -3696,9 +3723,13 @@ console.log('\n— news, announcements and insider trades —');
   await go('/#/research/news?scope=universe', 3000);
   const dispatchOnLoad = seen.marketNewsApi.length;
   ok('landing on the news tab dispatches nothing', dispatchOnLoad === 0, `${dispatchOnLoad} /api/market-news/ request(s) on load`);
+  await page.locator('[data-mcnews-info]').click();
+  await page.waitForTimeout(500);
   ok('...and the control says it fetches, not that it checks a file',
-    /fetch/i.test(await page.locator('[data-mcnews-fetch]').innerText().catch(() => '')),
-    (await page.locator('[data-mcnews-fetch]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
+    /fetch/i.test(await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '')),
+    (await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 
   // A GET must not be able to start a run: a prefetcher or a link preview would trip it.
   const dispatchGet = await evalSafe(async () => {
