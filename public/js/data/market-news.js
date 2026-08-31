@@ -364,10 +364,15 @@ export async function watchScrape({ onStep = () => {}, budgetMs = WATCH_BUDGET_M
 
 export const LIVE_ID = 'market-news';
 
-// TWENTY MINUTES, WHICH IS THE CADENCE OF THE THING BEING WATCHED, not a guess at tolerable
-// staleness. The scheduled Action reads Moneycontrol every twenty minutes, so polling faster than
-// that cannot surface a story sooner — it would only spend requests confirming the same capture.
-// An unchanged poll is a bodyless 304, which is why watching this app-wide is affordable at all.
+// TWENTY MINUTES, AND THE REASON IS NO LONGER "THAT IS THE ACTION'S CADENCE".
+//
+// It was, and the measurement killed that rationale: a `*/20` cron fired 12 times in 41 hours, and
+// the job now runs every 30 minutes across the window the publisher answers and hourly outside it.
+// So this interval is no longer matched to anything upstream — it is simply a floor on how stale a
+// mounted tab can be, chosen because an unchanged poll is a bodyless 304 and therefore nearly free.
+// Polling faster would not surface a story sooner; polling slower would only delay one that landed.
+// The capture's own `capturedAt` is what the page reports, so this number is never a freshness
+// claim — it only decides how quickly a published capture is noticed.
 export const POLL_MS = 20 * 60 * 1000;
 
 /**

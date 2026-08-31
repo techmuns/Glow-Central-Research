@@ -44,8 +44,8 @@ const execFileP = promisify(execFile);
 //
 // So this script shells out to curl. worker/mc-news.mjs stays pure and takes `fetchImpl` as a
 // parameter, which is what makes that possible without the parser knowing anything about it.
-const curlFetch = async (url, { headers = {} } = {}) => {
-  const args = ['-sSL', '--compressed', '--max-time', '45', '--retry', '3', '--retry-delay', '2', '--retry-all-errors', '--fail-with-body', '-w', '\n%{http_code}'];
+const curlOnce = async (url, { headers = {} } = {}) => {
+  const args = ['-sSL', '--compressed', '--max-time', '45', '--retry', '2', '--retry-delay', '2', '--retry-all-errors', '--fail-with-body', '-w', '\n%{http_code}'];
   for (const [k, v] of Object.entries({ ...HEADERS, ...headers })) args.push('-H', `${k}: ${v}`);
   args.push(url);
   try {
@@ -60,6 +60,38 @@ const curlFetch = async (url, { headers = {} } = {}) => {
     const status = Number(out.slice(cut + 1).trim()) || 0;
     return { ok: false, status, text: async () => out.slice(0, Math.max(0, cut)) };
   }
+};
+
+// A 403 IS A DIFFERENT ANIMAL FROM A TIMEOUT, AND `curl --retry` CANNOT HELP WITH IT.
+//
+// Measured over 41 hours of scheduled runs: 7 of 12 failed with **HTTP 403 on the listing page**,
+// and the split by clock is total —
+//
+//     every success   10:27 – 21:14 IST
+//     every failure   20:28 – 05:29 IST
+//
+// so the publisher's bot defence is tighter outside Indian peak hours. `--retry-delay 2` re-asks
+// the same blocked runner IP two seconds later and is refused again, which is why the failing runs
+// all took about seven seconds: three attempts, one outcome.
+//
+// A longer, JITTERED wait is worth the runner time — a 403 that is rate-shaped rather than
+// IP-shaped can clear in a minute, and the alternative is losing the whole run. It is not worth
+// much more than that: if the block is on the runner's address it will not clear at all, and the
+// on-demand button (which a reader presses during Indian hours) is the path that does not depend
+// on this. So: three attempts, ~20s then ~60s apart, and then an honest report.
+const BLOCKED_BACKOFF_MS = [20_000, 60_000];
+const jitter = (ms) => Math.round(ms * (0.75 + Math.random() * 0.5));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const curlFetch = async (url, opts = {}) => {
+  let res = await curlOnce(url, opts);
+  for (let i = 0; !res.ok && res.status === 403 && i < BLOCKED_BACKOFF_MS.length; i++) {
+    const wait = jitter(BLOCKED_BACKOFF_MS[i]);
+    console.log(`\n  403 from the publisher — waiting ${Math.round(wait / 1000)}s and asking once more (${i + 1}/${BLOCKED_BACKOFF_MS.length})`);
+    await sleep(wait);
+    res = await curlOnce(url, opts);
+  }
+  return res;
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -185,6 +217,27 @@ async function main() {
 }
 
 main().catch((err) => {
+  // TWO FAILURES THAT LOOK THE SAME IN A RUN LOG AND ARE NOT THE SAME PROBLEM.
+  //
+  //   403 on the listing   the publisher refused THIS RUNNER. Nothing here is broken; the
+  //                        capture on disk is untouched and still correct. Measured at 7 of 12
+  //                        scheduled runs, all of them outside Indian market hours.
+  //   anything else        the markup changed, the network died, or this script has a bug — a
+  //                        thing to go and look at.
+  //
+  // Reporting the first as a generic FAILED sends an operator to read a scraper that is working.
+  // Exit 2 marks it so the workflow can say which it was without parsing the message.
+  // `status` lives on `detail`, which is where McNewsError puts it — reading `err.status` here
+  // would have been undefined and this branch would never have fired.
+  const blocked = err.reason === 'upstream' && (err.detail?.status === 403 || err.status === 403);
+  if (blocked) {
+    console.error('\nBLOCKED: the publisher answered 403 to this runner, after retrying with a backoff.');
+    console.error('  Nothing is broken and nothing was overwritten — the committed capture is unchanged.');
+    console.error('  Measured: 7 of 12 scheduled runs are refused, and every one of them fell outside');
+    console.error('  Indian market hours (all successes 10:27-21:14 IST, all refusals 20:28-05:29 IST).');
+    console.error(`  ${err.message}`);
+    process.exit(2);
+  }
   console.error(`\nFAILED: ${err.reason ? `[${err.reason}] ` : ''}${err.message}`);
   if (err.detail) console.error(err.detail);
   process.exit(1);

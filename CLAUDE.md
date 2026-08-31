@@ -786,6 +786,40 @@ the first version of the check looked for 404/405 and reported the sandbox as an
 So 404, 405, 501 *and any non-JSON reply* all read as `no-worker`, which says the scheduled run
 every 20 minutes is unaffected rather than sending an operator after a token that was never missing.
 
+**AND THE SCHEDULE IS BEST-EFFORT TWICE OVER, WHICH THE PAGE USED TO OVERSTATE.** The tab said
+*"refreshed automatically every 20 minutes"*, and 41 hours of run history says it was wrong on two
+independent counts:
+
+1. **GitHub sheds most of a dense cron.** `*/20 * * * *` fired **12 times against 124 scheduled —
+   10%** — averaging one run every 3.8 hours. Their scheduler is best-effort on shared
+   infrastructure and drops the densest schedules first, so asking for 72 runs a day is how you get
+   six. **Never write a cadence into the UI from the cron expression**: the expression is a request,
+   not a promise, and the only honest number on screen is when the upstream was *actually* last read.
+2. **The publisher refuses the runner outside Indian hours.** Of those 12 runs, **7 were answered
+   403** on the listing page, and the split by clock is total — every success fell between 10:27 and
+   21:14 IST, every refusal between 20:28 and 05:29 IST. `curl --retry-delay 2` cannot help with
+   that: it re-asks the same blocked address two seconds later, which is why every failing run took
+   about seven seconds and produced one outcome three times.
+
+So the cron runs every 30 minutes across the window that works and hourly outside it, a 403 gets a
+real jittered backoff, and — the part that matters most — **a refusal is not a failed build.** The
+scraper exits **2** for it, the workflow turns that into a warning and skips the commit, and exit 1
+still means what it always meant: the markup changed, or this code is broken. Reporting a blocked
+runner as a broken scraper sends somebody to read working code, and makes the failure notification
+worthless when more than half of them are that.
+
+**A SECRET THE OPERATOR CANNOT CONVENIENTLY INSTALL IS A FEATURE THAT DOES NOT SHIP.** The Fetch
+button sat in `no-token` on a deployment that was otherwise fully configured, because
+`npx wrangler secret put` wants a terminal logged in to Cloudflare — a different place from the
+GitHub secret store where `CLOUDFLARE_API_TOKEN` already lived. `deploy.yml` now syncs
+`GH_DISPATCH_TOKEN` (and `MUNS_TOKEN`) from GitHub's own secrets on every deploy, so turning the
+button on is pasting a token into the page the operator already uses. Two rules if you touch it:
+the presence test is **shell, not a step-level `if:`** — the `secrets` context is not dependable
+there, which is why the job above it turns one into an output first — and an unset secret must
+**skip rather than push an empty string**, because a blank secret reads as configured and turns
+`no-token`, which names the fix, into `unauthorised`, which describes the same state and sends the
+reader to reissue a token that was never created.
+
 **RSS looks like the easy answer and is a trap.** `moneycontrol.com/rss/*.xml` still resolve with
 HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports.xml`,
 `latestnews.xml` — and every one is abandoned: the newest item in each is from **April 2024**, and
@@ -1702,7 +1736,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
-| Set up the news Fetch button on a deployment | `npx wrangler secret put GH_DISPATCH_TOKEN` — a fine-grained token on this repo alone with **Actions: read and write**, nothing more; `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc`. Without it the button says so and names the command |
+| Set up the news Fetch button on a deployment | add **`GH_DISPATCH_TOKEN`** under *Settings → Secrets and variables → Actions* — a fine-grained token on this repo alone with **Actions: read and write**, nothing more. `deploy.yml` syncs it to the Worker on the next deploy; `npx wrangler secret put GH_DISPATCH_TOKEN` still works if you have a Cloudflare terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
+| Change when the news scrape runs | the two crons in `.github/workflows/market-news-refresh.yml` — read *And the schedule is best-effort twice over* first; both windows come from measured run history, not preference |
 | Make a committed file reach the live site | `.github/workflows/deploy.yml` — needs `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*, not green |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |

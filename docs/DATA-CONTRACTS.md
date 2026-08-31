@@ -2281,7 +2281,16 @@ A normal run is one or two page reads. `MCNEWS_FULL=1` walks regardless, for the
 node scripts/scrape-mc-news.mjs                                  # top-up
 MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
 ```
-Scheduled by `.github/workflows/market-news-refresh.yml` every 20 minutes. **It only reaches readers
+Scheduled by `.github/workflows/market-news-refresh.yml` — **every 30 minutes across 03:00-14:59 UTC
+(08:30-20:29 IST) and hourly outside it**, and both windows are measured rather than chosen. Over 41
+hours a `*/20 * * * *` cron fired **12 times against 124 scheduled (10%)**: GitHub sheds the densest
+schedules first. Of those 12, **7 were answered HTTP 403** on the listing page, and every refusal
+fell between 20:28 and 05:29 IST while every success fell between 10:27 and 21:14 IST — the
+publisher's bot defence is tighter outside Indian hours. A 403 now gets a jittered backoff and, if
+it still fails, **exits 2**: the workflow reports that as a warning and skips the commit, because a
+refused runner is not a broken scraper and the capture on disk is untouched. **So the cadence is
+never stated as a promise in the UI** — the page prints when the publisher was actually last read,
+and the Fetch button is the path that does not wait for a schedule. It only reaches readers
 once `.github/workflows/deploy.yml` runs** — `public/` is served through the Worker's `assets`
 binding, so a commit alone changes nothing on the live site. That workflow needs
 `CLOUDFLARE_API_TOKEN`; without it the job renders as *Skipped*.
@@ -2329,8 +2338,8 @@ the route can point it at another workflow or another repository. `GH_API_BASE` 
 the way `MUNS_BASE` redirects Finology, so a verification run never dispatches against the real one.
 
 **Without the token nothing breaks.** The route answers `200` with `ok: false, reason: 'no-token'`
-and the command that fixes it; the page says so and adds that the scheduled run every 20 minutes is
-unaffected. That is true — the Action's own cron does not go through this route at all.
+and the command that fixes it; the page says so and adds that the scheduled job is unaffected. That
+is true — the Action's own cron does not go through this route at all.
 
 **Named failures, because the fixes differ** (the Finology rule):
 

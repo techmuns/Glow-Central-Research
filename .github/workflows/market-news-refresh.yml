@@ -18,10 +18,26 @@ name: Market news refresh
 
 on:
   schedule:
-    # Every 20 minutes. GitHub's scheduler is best-effort and often runs late under load; the page
-    # states when Moneycontrol was actually last read, so a late run shows as a stale capture rather
-    # than as fresh news that is not.
-    - cron: "*/20 * * * *"
+    # TWO SCHEDULES, BECAUSE THE MEASUREMENTS SAY SO. Both numbers below are observed, not guessed.
+    #
+    # 1. GITHUB DROPS MOST OF A HIGH-FREQUENCY CRON. Over a 41-hour window `*/20 * * * *` fired
+    #    **12 times against 124 scheduled — 10%** — averaging one run every 3.8 hours. Their
+    #    scheduler is best-effort on shared infrastructure and sheds the densest schedules first,
+    #    so asking for 72 runs a day is how you get 6. Asking for fewer does not fix that, but it
+    #    stops the schedule being the densest thing in the queue.
+    #
+    # 2. THE PUBLISHER REFUSES THIS RUNNER OUTSIDE INDIAN HOURS. Of those 12 runs, 7 failed with
+    #    HTTP 403 on the listing page, and the split by clock is total:
+    #
+    #        every success   10:27 - 21:14 IST   (04:57 - 15:44 UTC)
+    #        every refusal   20:28 - 05:29 IST   (14:58 - 23:59 UTC)
+    #
+    #    So a dense overnight schedule is not merely wasteful, it is runs spent being refused.
+    #
+    # Hence: every 30 minutes across the window that works, and hourly outside it so a recovery is
+    # noticed without hammering a door that is closed. UTC — 03:00-14:59 UTC is 08:30-20:29 IST.
+    - cron: "*/30 3-14 * * *"
+    - cron: "0 15-23,0-2 * * *"
   workflow_dispatch:
     inputs:
       full:
@@ -54,17 +70,35 @@ jobs:
 
       # No secret of any kind — the page is public. The scraper shells out to curl, which is on
       # every runner, because node's fetch cannot read this host.
+      #
+      # EXIT 2 MEANS THE PUBLISHER REFUSED THIS RUNNER, which is not a fault in anything here: the
+      # committed capture is untouched and still correct. Reporting that as a failed build sends
+      # somebody to read a scraper that is working, and — worse — makes the failure notification
+      # meaningless, because more than half of them are this. Exit 1 (markup changed, network died,
+      # a real bug) still fails the run loudly.
       - name: Capture market news
+        id: capture
         env:
           MCNEWS_FULL: ${{ github.event.inputs.full || '0' }}
           MCNEWS_PAGES: ${{ github.event.inputs.pages || '4' }}
-        run: node scripts/scrape-mc-news.mjs
+        run: |
+          set +e
+          node scripts/scrape-mc-news.mjs
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "2" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Publisher refused this runner::Moneycontrol answered 403. The committed capture is unchanged. Measured: this happens on ~7 of 12 runs, all outside Indian market hours."
+            exit 0
+          fi
+          exit $code
 
       # `if: success()` matters: the scraper exits non-zero when it read pages and parsed nothing,
       # which means the markup changed rather than the news being quiet. Committing then would
       # replace a good capture with an empty one that still looks valid.
       - name: Commit the capture
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -111,7 +111,7 @@ function controls(m) {
         <p class="min-w-0 flex-1 text-xs leading-relaxed text-slate-500">
           <strong class="text-slate-700">Moneycontrol last read ${escapeHtml(captured)}</strong>
           · this page checked for a newer capture ${escapeHtml(checked)}.
-          Refreshed automatically every 20 minutes.${result}
+          A scheduled job also reads it through the day.${result}
         </p>
       </div>
       ${scrapeNote()}
@@ -384,6 +384,20 @@ function provenance(m) {
       <p class="mt-2 text-xs">That is why two times are shown and never combined: when the publisher was last
          <em>read</em>, and when this browser last <em>confirmed</em> it holds the newest capture.</p>
 
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The schedule is best-effort, and this page used to overstate it</h3>
+      <p class="mt-1 text-xs">It said <em>"refreshed automatically every 20 minutes"</em>. Measured over 41 hours, that was
+         not happening on two counts, so the sentence is gone rather than reworded smaller.</p>
+      <p class="mt-2 text-xs"><strong>GitHub drops most of a dense cron.</strong> A 20-minute schedule fired
+         <strong>12 times against 124</strong> — about one run every 3.8 hours. Their scheduler is best-effort on shared
+         infrastructure and sheds the densest schedules first.</p>
+      <p class="mt-2 text-xs"><strong>And the publisher refuses the runner outside Indian hours.</strong> Of those 12 runs,
+         <strong>7 were answered with HTTP 403</strong>, and the split by clock is total — every success fell between
+         10:27 and 21:14 IST, every refusal between 20:28 and 05:29 IST. So the job now runs every 30 minutes across the
+         window that works and hourly outside it, retries a 403 with a real backoff, and reports a refusal as a refusal
+         rather than as a broken scraper. <strong>None of that makes the cadence a promise</strong>, which is why the line
+         above states only when the publisher was actually last read — and why the Fetch button exists, since it is the
+         one path that does not wait for a schedule.</p>
+
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The two buttons do different things</h3>
       <p class="mt-1 text-xs"><strong>Check for new stories</strong> asks whether a newer capture has been published —
          one conditional request, usually a bodyless 304, and it costs nothing. It cannot reach Moneycontrol.</p>
@@ -586,7 +600,7 @@ function outcomeResult(r) {
 function dispatchFailureText(out) {
   switch (out.reason) {
     case 'no-worker':
-      return 'This origin serves static files only, so there is no Worker to start a scrape. The scheduled run every 20 minutes is unaffected.';
+      return 'This origin serves static files only, so there is no Worker to start a scrape. The scheduled job is unaffected.';
     case 'no-token':
       return 'This deployment has no GitHub token, so it cannot start a scrape. An operator sets one with:';
     case 'no-repo':
@@ -596,16 +610,16 @@ function dispatchFailureText(out) {
     case 'forbidden':
       return 'The token is not allowed to start this workflow. It needs "Actions: read and write" on this repository.';
     case 'rate-limited':
-      return "GitHub's hourly limit for this token is spent; it resets on the hour. The scheduled run every 20 minutes is unaffected.";
+      return "GitHub's hourly limit for this token is spent; it resets on the hour. The scheduled job is unaffected.";
     case 'not-found':
       // The chatter-API lesson: a 404 with two readings must admit both, and name what was asked.
       return `GitHub answered 404 for ${out.requested || 'the workflow'}. That means EITHER the workflow file is not on the configured branch, OR the token cannot see this repository — GitHub answers 404 rather than 403 for a repository a token has no access to.`;
     case 'refused':
       return out.message || 'GitHub refused the request.';
     case 'timeout':
-      return 'GitHub did not answer in time. Nothing was started, and the scheduled run every 20 minutes is unaffected.';
+      return 'GitHub did not answer in time. Nothing was started, and the scheduled job is unaffected.';
     default:
-      return `The scrape could not be started (${out.reason || 'unknown'}). The scheduled run every 20 minutes is unaffected.`;
+      return `The scrape could not be started (${out.reason || 'unknown'}). The scheduled job is unaffected.`;
   }
 }
 

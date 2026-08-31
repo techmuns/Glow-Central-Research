@@ -57,3 +57,43 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4 deploy
+
+      # PUT THE WORKER'S SECRETS WHERE THE OPERATOR ALREADY KEEPS THEM.
+      #
+      # `npx wrangler secret put` needs a terminal logged in to Cloudflare, which is a different
+      # place from the one where CLOUDFLARE_API_TOKEN already lives — so the news Fetch button sat
+      # in its `no-token` state on a deployment that was otherwise fully configured, and the only
+      # instruction the page could give named a command the operator could not conveniently run.
+      #
+      # This syncs them from GitHub's own secret store on every deploy, using the Cloudflare token
+      # that is already here. To turn the button on, add GH_DISPATCH_TOKEN under
+      # Settings -> Secrets and variables -> Actions, beside CLOUDFLARE_API_TOKEN. Nothing else.
+      #
+      # THE PRESENCE TEST IS IN THE SHELL, NOT IN AN `if:`. The `secrets` context is not dependable
+      # in a step-level condition — which is exactly why the job above turns one into an output
+      # before using it — and a condition that silently evaluates false would skip this without
+      # saying so. `[ -n "$VAR" ]` cannot be ambiguous, and it can explain itself.
+      #
+      # AN UNSET SECRET MUST SKIP, NEVER PUSH AN EMPTY STRING. A blank secret reads as "configured"
+      # on the Worker, so `no-token` — which names the fix — would become `unauthorised`, which
+      # describes the same state and sends the reader to reissue a token that was never created.
+      # Values reach wrangler on stdin and are never echoed; GitHub masks them in the log anyway.
+      - name: Sync Worker secrets from the GitHub secret store
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          MUNS_TOKEN: ${{ secrets.MUNS_TOKEN }}
+        run: |
+          sync_one() {
+            name="$1"
+            value="$2"
+            if [ -z "$value" ]; then
+              echo "· $name is not set as a GitHub secret — skipping. The page names this state honestly."
+              return 0
+            fi
+            printf '%s' "$value" | npx --yes wrangler@4 secret put "$name"
+            echo "· $name synced to the Worker"
+          }
+          sync_one GH_DISPATCH_TOKEN "$GH_DISPATCH_TOKEN"
+          sync_one MUNS_TOKEN "$MUNS_TOKEN"
