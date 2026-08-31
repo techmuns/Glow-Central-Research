@@ -161,11 +161,23 @@ export function load() {
  * reaches the publisher.
  */
 export async function refresh() {
-  const before = state.articles.length;
+  // COUNT THE IDS THAT ARE NEW, NEVER THE DIFFERENCE IN LENGTH.
+  //
+  // The capture is trimmed to KEEP (600). Once it is full, one story arriving pushes the oldest
+  // off the end and the LENGTH DOES NOT MOVE — measured: capture 10:24 -> 10:41 added id
+  // 14019028, dropped one, count 600 both times. So `articles.length - before` is zero for every
+  // real arrival on a warm cache, and the button that exists to announce arrivals could never
+  // announce one. Same lesson this codebase already carries twice over (see *Performance on large
+  // tables* in CLAUDE.md): a count is not a comparison, and only a comparison can catch this.
+  const before = new Set(state.byId.keys());
   const changed = await read();
+  const added = [...state.byId.keys()].filter((k) => !before.has(k)).length;
   emit();
-  return { changed, added: Math.max(0, state.articles.length - before), total: state.articles.length, capturedAt: state.capturedAt };
+  return { changed, added, total: state.articles.length, capturedAt: state.capturedAt };
 }
+
+/** The ids currently held, for a caller that needs to compare two moments rather than count one. */
+export const idsHeld = () => new Set(state.byId.keys());
 
 export const isLoaded = () => state.loaded;
 export const rows = () => state.articles;
@@ -281,13 +293,16 @@ export function runStatus() {
  *
  * The outcome is a STATEMENT ABOUT WHAT WAS OBSERVED, never a freshness claim bought on credit:
  *
- *   'landed'     the capture moved. `added` says by how many stories.
- *   'nothing-new' the scrape finished and no deploy followed it, which is what happens when the
- *                run found nothing to commit. The strongest honest reading of that evidence.
+ *   'landed'     new article ids arrived. `added` counts them — BY IDENTITY, never by length,
+ *                because a full capture drops one story for each it gains.
+ *   'nothing-new' the run's own capture reached this browser and carried no id we did not already
+ *                hold. Measured, not inferred from the absence of a deploy — the scrape restamps
+ *                `capturedAt` and so commits on every run, which makes a following deploy evidence
+ *                of nothing at all.
  *   'publishing' the scrape finished and a deploy is running, so stories are on their way but are
  *                not on screen yet. Different from both of the above.
- *   'published'  the deploy finished and this browser still holds the old bytes. A real state, and
- *                neither "nothing new" (a deploy ran, so something WAS committed) nor "landed".
+ *   'published'  the run finished and its capture has not reached this browser inside the grace.
+ *                Neither "nothing new" (nothing measured that) nor "landed" (nothing arrived).
  *   'failed'     GitHub reports the run as failed. Theirs to fix, and it says so.
  *   'timed-out'  the budget ran out with the run still going. NOT a failure — see CLAUDE.md's
  *                "Still reading… is a fourth outcome": reporting an unfinished check as failed is
@@ -295,11 +310,11 @@ export function runStatus() {
  */
 export async function watchScrape({ onStep = () => {}, budgetMs = WATCH_BUDGET_MS, everyMs = WATCH_EVERY_MS, publishGraceMs = PUBLISH_GRACE_MS, now = Date.now } = {}) {
   const startedAt = now();
-  const before = state.articles.length;
-  // Once the deploy has finished, the file is published and only the edge stands between it and
-  // this browser. That is worth a bounded grace and no more — spinning to the whole budget would
-  // report a settled outcome as a timeout.
-  let publishDoneAt = null;
+  // Identity, not length — see `refresh()`. On a full capture a new story replaces an old one and
+  // the count never moves, so counting would report every arrival as "nothing new".
+  const idsBefore = new Set(state.byId.keys());
+  const capturedBefore = state.capturedAt;
+  let sawRunFinish = null;
 
   while (now() - startedAt < budgetMs) {
     await new Promise((r) => setTimeout(r, everyMs));
@@ -321,38 +336,33 @@ export async function watchScrape({ onStep = () => {}, budgetMs = WATCH_BUDGET_M
     if (scrape.conclusion && scrape.conclusion !== 'success') {
       return { outcome: 'failed', scrape, publish, message: `The scrape run finished as "${scrape.conclusion}".` };
     }
+    if (!sawRunFinish) sawRunFinish = now();
 
-    // The only question that matters to the reader, and it is answered by asking for the FILE
-    // rather than by inferring from a run's exit code.
     await refresh();
-    if (state.articles.length !== before) {
-      return { outcome: 'landed', added: Math.max(0, state.articles.length - before), scrape, publish };
-    }
+    const added = [...state.byId.keys()].filter((k) => !idsBefore.has(k)).length;
+    if (added > 0) return { outcome: 'landed', added, scrape, publish };
 
-    // A deploy that STARTED AFTER the scrape finished is the evidence that something was
-    // committed; its absence is the evidence that the run found nothing to commit. Without this
-    // the page would have to guess between "nothing was published" and "it is on its way", and
-    // those are different claims.
-    const scrapeEndedAt = Date.parse(scrape.updatedAt || scrape.createdAt || '');
-    const publishStartedAt = Date.parse(publish?.createdAt || '');
-    const publishFollowed = Number.isFinite(publishStartedAt) && Number.isFinite(scrapeEndedAt) && publishStartedAt >= scrapeEndedAt;
+    // ZERO NEW IDS IS ONLY AN ANSWER ONCE WE ARE LOOKING AT THIS RUN'S OWN OUTPUT.
+    //
+    // The scrape stamps `capturedAt` on every run and therefore commits on every run, so a deploy
+    // following the run proves nothing about whether stories were found — the first version read
+    // it as proof and concluded "nothing new" from its absence, seconds after the run ended and
+    // long before any deploy could have appeared. The honest gate is the capture itself: until
+    // `capturedAt` moves past what we held, the bytes on screen predate the run and say nothing
+    // about it.
+    const movedOn = state.capturedAt && state.capturedAt !== capturedBefore;
+    if (movedOn) return { outcome: 'nothing-new', scrape, publish };
 
-    if (!publishFollowed) return { outcome: 'nothing-new', scrape, publish };
-
-    if (publish.status !== 'completed') {
+    if (publish && publish.status !== 'completed') {
       onStep({ phase: 'publishing', scrape, publish });
       continue;
     }
-    if (publish.conclusion && publish.conclusion !== 'success') {
-      return { outcome: 'publish-failed', scrape, publish, message: `New stories were captured, but the deploy finished as "${publish.conclusion}", so they are not on the site yet.` };
+    if (publish && publish.conclusion && publish.conclusion !== 'success') {
+      return { outcome: 'publish-failed', scrape, publish, message: `The run finished, but the deploy after it finished as "${publish.conclusion}", so the new capture is not on the site yet.` };
     }
-    if (!publishDoneAt) publishDoneAt = now();
-    if (now() - publishDoneAt >= publishGraceMs) {
-      // Published, and this browser still has the old bytes. Stating that is the honest end —
-      // claiming "nothing new" would be wrong (a deploy ran, so something was committed) and
-      // claiming "landed" would be a freshness claim nothing measured.
-      return { outcome: 'published', scrape, publish };
-    }
+    // The run is done and its capture has not reached this browser. Give it a bounded grace, then
+    // say exactly that — neither "nothing new" (unmeasured) nor "landed" (untrue).
+    if (now() - sawRunFinish >= publishGraceMs) return { outcome: 'published', scrape, publish };
     onStep({ phase: 'publishing', scrape, publish });
   }
   return { outcome: 'timed-out' };

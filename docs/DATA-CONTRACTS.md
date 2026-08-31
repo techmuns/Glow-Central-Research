@@ -2364,10 +2364,10 @@ about what was observed* rather than an inference:
 
 | Outcome | What was observed |
 | --- | --- |
-| `landed` | the capture moved — `added` says by how many |
-| `nothing-new` | the run completed and **no deploy followed it**, which is what happens when it found nothing to commit. This is the one place on the tab that can honestly say the publisher was just read and had nothing new — the 20-minute poll never can, because it has no index to ask |
+| `landed` | new article ids arrived — `added` counts them **by identity, never by length**. The capture is trimmed to `KEEP` and in production is always full, so an arrival drops the oldest story and the count does not move: measured, 10:24 → 10:41 gained `14019028`, dropped one, 600 both times |
+| `nothing-new` | **this run's own capture reached the browser** and carried no id we did not already hold. Gated on `capturedAt` moving, not on a deploy: the scrape restamps `capturedAt` and therefore commits on *every* run, so a following deploy is evidence of nothing. This is the one place on the tab that can honestly say the publisher was just read and had nothing new — the 20-minute poll never can, because it has no index to ask |
 | `publishing` | a deploy started after the run finished, so stories were captured and are on their way |
-| `published` | the deploy finished and this browser still holds the old bytes |
+| `published` | the run finished and its capture has not reached this browser inside the grace — neither "nothing new" (nothing measured it) nor "landed" (nothing arrived) |
 | `publish-failed` | stories were captured but the deploy failed, so they are not on the site |
 | `failed` / `timed-out` | GitHub reports the run as failed / the watch budget ran out with it still going. **These are different**, and a run still going is never reported as a failure |
 

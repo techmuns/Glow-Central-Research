@@ -899,6 +899,20 @@ throw the reader back to the top, and a *new filter* must, because a new filter 
 **Do not read this as licence to hand-roll the next table.** The test is whether the row is a record
 with columns or a piece of editorial. Everything else in this dashboard is the first.
 
+**And the third time it bit, nothing was being drawn at all — it was a BUTTON counting.** The news
+Fetch button reports how many stories a run brought in, and measured it as
+`articles.length - before`. The capture is trimmed to `KEEP` (600) and in production it is always
+full, so **a story arriving pushes the oldest off the end and the length does not move**: live,
+capture 10:24 → 10:41 gained id `14019028`, dropped one, count 600 both times, and the button
+announced *"Moneycontrol was read just now — nothing new to publish"* over a story that had
+genuinely arrived. The one case the control exists for was the one case it could never report.
+
+So the rule generalises past tables: **wherever "did anything change" is asked of a bounded
+collection, compare identities — never sizes.** A cache with a ceiling makes the count a constant,
+and a constant cannot answer the question. The fixture must model the full cache too, or the test
+passes for the same wrong reason the code did: the suite now swaps three stories in and three out,
+asserts the count is unchanged, and would have failed the old logic.
+
 ### Work the reader has to ask for — the on-demand rule
 
 **A feed that costs one request PER COMPANY may not run on a page load.** News, Corporate

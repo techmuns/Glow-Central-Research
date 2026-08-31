@@ -3700,7 +3700,10 @@ console.log('\n— news, announcements and insider trades —');
   // them: "read it, nothing new" is a measurement, "publishing" is work in flight, "published"
   // says this browser has not received it, and "still running" is not a failure.
   const outcomes = await (async () => {
-    const script = async (runSeq, { captureGrows = false } = {}) => {
+    // `captureLands` is whether the run's own capture reaches this browser. It must be FALSE for
+    // the deploy cases: a fixture that both restamps the capture AND claims the deploy has not
+    // landed is describing two contradictory worlds, and the verdict it then draws is meaningless.
+    const script = async (runSeq, { captureGrows = false, captureLands = true } = {}) => {
       let i = 0;
       await page.route('**/api/market-news/run*', (route) =>
         route.fulfill({ status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(runSeq[Math.min(i++, runSeq.length - 1)]) }));
@@ -3708,16 +3711,36 @@ console.log('\n— news, announcements and insider trades —');
       // and the "landed" case can never be reached — which is what the first version of this did,
       // stamping both responses with the same tag and then blaming the module for reading them as
       // unchanged. The counter is the seq, taken BEFORE the body is decided.
+      // THE SECOND READ MODELS A FULL CAPTURE: one story in, one out, LENGTH UNCHANGED.
+      //
+      // This is the shape production is always in — `KEEP` is 600 and the file holds 600 — and it
+      // is what a length comparison cannot see. Measured on the live feed: capture 10:24 -> 10:41
+      // gained id 14019028, dropped one, count 600 both times, and the button said "nothing new to
+      // publish" over a story that had genuinely arrived. So the fixture must never let a count
+      // stand in for a comparison.
       let readN = 0;
       await page.route('**/data/market-news.json*', async (route) => {
         const seq = readN++;
         const upstream = await route.fetch();
         const body = await upstream.json();
-        // Read 0 is always short; later reads are full only when this case is meant to grow.
-        if (seq === 0 || !captureGrows) body.articles = (body.articles || []).slice(3);
+        const all = body.articles || [];
+        if (seq === 0 || !captureGrows) {
+          body.articles = all.slice(3); // the "before" capture: missing the three newest
+        } else {
+          // Same LENGTH as the before capture, with the three newest swapped in for the three
+          // oldest. A length check reports no change; an id comparison reports three.
+          body.articles = all.slice(0, 3).concat(all.slice(3, all.length - 3));
+        }
+        // EVERY RUN RESTAMPS `capturedAt`, EVEN ONE THAT FOUND NOTHING — that is what makes the
+        // file change, the ETag move, and the client re-read. Pinning the tag for the "nothing
+        // new" case modelled something production never does: the body was never re-read, so
+        // `capturedAt` could not move, and the honest `nothing-new` verdict was unreachable. The
+        // fixture must differ from the growing case in its ARTICLE IDS only.
+        const step = captureLands ? seq : 0;
+        body.capturedAt = new Date(Date.parse(body.capturedAt || Date.now()) + step * 60000).toISOString();
         await route.fulfill({
           status: 200,
-          headers: { 'content-type': 'application/json', etag: `"mcnews-${captureGrows ? 'grow' : 'same'}-${captureGrows ? seq : 0}"` },
+          headers: { 'content-type': 'application/json', etag: `"mcnews-${captureGrows ? 'grow' : 'same'}-${step}"` },
           body: JSON.stringify(body),
         });
       });
@@ -3725,7 +3748,9 @@ console.log('\n— news, announcements and insider trades —');
         const mod = await import('/js/data/market-news.js');
         mod.invalidate();
         await mod.load();
-        return await mod.watchScrape({ everyMs: 60, budgetMs: 4000, publishGraceMs: 300 });
+        const lenBefore = mod.rows().length;
+        const r = await mod.watchScrape({ everyMs: 60, budgetMs: 4000, publishGraceMs: 300 });
+        return { ...r, sameLength: mod.rows().length === lenBefore, lenBefore, lenAfter: mod.rows().length };
       });
       await page.unroute('**/api/market-news/run*').catch(() => {});
       await page.unroute('**/data/market-news.json*').catch(() => {});
@@ -3742,8 +3767,8 @@ console.log('\n— news, announcements and insider trades —');
     return {
       nothingNew: await script([done()]),
       landed: await script([done()], { captureGrows: true }),
-      publishFailed: await script([withPublish('completed', 'failure')]),
-      published: await script([withPublish('completed', 'success')]),
+      publishFailed: await script([withPublish('completed', 'failure')], { captureLands: false }),
+      published: await script([withPublish('completed', 'success')], { captureLands: false }),
       scrapeFailed: await script([done('failure')]),
       stillRunning: await script([{ ok: true, scrape: { status: 'in_progress', conclusion: null, url: null }, publish: null }]),
       noToken: await script([{ ok: false, reason: 'no-token', message: 'none configured', fix: 'npx wrangler secret put GH_DISPATCH_TOKEN' }]),
@@ -3752,8 +3777,12 @@ console.log('\n— news, announcements and insider trades —');
 
   ok('a run that finished with nothing to publish says the publisher WAS read',
     outcomes.nothingNew?.outcome === 'nothing-new', `outcome=${outcomes.nothingNew?.outcome}`);
-  ok('...and a capture that actually moved is reported as new stories, not as a finished run',
-    outcomes.landed?.outcome === 'landed' && outcomes.landed.added > 0, `outcome=${outcomes.landed?.outcome}, added=${outcomes.landed?.added}`);
+  // THE CASE PRODUCTION IS ALWAYS IN. The fixture swaps three stories in and three out, so the
+  // count is identical across the two captures — exactly what happened live, and exactly what a
+  // length comparison reports as "nothing new" over three real arrivals.
+  ok('...and stories arriving into a FULL capture are counted, though the length never moves',
+    outcomes.landed?.outcome === 'landed' && outcomes.landed.added === 3 && outcomes.landed.sameLength,
+    `outcome=${outcomes.landed?.outcome}, added=${outcomes.landed?.added}, length ${outcomes.landed?.sameLength ? 'unchanged (the trap)' : 'CHANGED — the fixture is not modelling a full capture'}`);
   ok('a deploy that failed says the stories exist but are not on the site — never "nothing new"',
     outcomes.publishFailed?.outcome === 'publish-failed', `outcome=${outcomes.publishFailed?.outcome}`);
   // A deploy RAN, so something was committed — "nothing new" would be wrong, and "landed" would be
