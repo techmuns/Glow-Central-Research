@@ -1159,6 +1159,31 @@ function parseQuote(str) {
 const DISPATCH_COOLDOWN_S = 120;
 const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
 
+/**
+ * What the Worker can actually SEE, for when `no-token` is the answer and nobody believes it.
+ *
+ * The operator added the secret, the route still said `no-token`, and there was no way to tell a
+ * typo in the name from a change that was never deployed from a secret on a different Worker.
+ * "It is not there" is a true statement that diagnoses nothing.
+ *
+ * NAMES ONLY, AND BOOLEANS FOR THE VALUES. Binding names are not secrets — `GH_REPO`, `GH_REF` and
+ * both token names are in the public repository already — while the values never appear. What this
+ * buys is the one thing guessing cannot: a key named `GH_DISPATH_TOKEN` shows up in `githubKeys`
+ * immediately, and `munsToken: true` beside `dispatchToken: false` proves dashboard secrets reach
+ * this Worker in general, so the fault is that one binding rather than the whole configuration.
+ */
+function visibleConfig(env) {
+  return {
+    githubKeys: Object.keys(env || {})
+      .filter((k) => /^(GH|GITHUB)/i.test(k))
+      .sort(),
+    dispatchToken: !!env?.GH_DISPATCH_TOKEN,
+    munsToken: !!env?.MUNS_TOKEN,
+    repo: env?.GH_REPO || null,
+    ref: env?.GH_REF || null,
+  };
+}
+
 /** Everything the two routes need, or a named reason they cannot run. */
 function githubConfig(env) {
   const token = env.GH_DISPATCH_TOKEN;
@@ -1168,6 +1193,7 @@ function githubConfig(env) {
         ok: false,
         reason: 'no-token',
         message: 'This deployment has no GitHub token, so it cannot start a scrape.',
+        visible: visibleConfig(env),
         // NAME THE PLACE THIS DEPLOYMENT ACTUALLY USES. This said `npx wrangler secret put …`,
         // which needs a terminal logged in to Cloudflare — and measured on the live deployment,
         // there isn't one: the site publishes through Cloudflare's own Git integration and the
