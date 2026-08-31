@@ -229,13 +229,23 @@ main().catch((err) => {
   // Exit 2 marks it so the workflow can say which it was without parsing the message.
   // `status` lives on `detail`, which is where McNewsError puts it — reading `err.status` here
   // would have been undefined and this branch would never have fired.
-  const blocked = err.reason === 'upstream' && (err.detail?.status === 403 || err.status === 403);
+  // A REFUSAL WEARS TWO DIFFERENT COSTUMES AND NEITHER IS A BUG IN THIS CODE.
+  //
+  //   403 on the listing        the plain version
+  //   200 with an interstitial  a body over 5 KB carrying no article links at all — measured, and
+  //                             answered in 0.6 seconds, while curl elsewhere got the full 600 KB
+  //
+  // `assertShape` names the second one `blocked` for exactly that reason, so both land here.
+  // Everything else — including a listing page that HAS article links but no `newslist` blocks —
+  // is a real change to go and look at, and still exits 1.
+  const blocked = err.reason === 'blocked' || (err.reason === 'upstream' && (err.detail?.status === 403 || err.status === 403));
   if (blocked) {
-    console.error('\nBLOCKED: the publisher answered 403 to this runner, after retrying with a backoff.');
-    console.error('  Nothing is broken and nothing was overwritten — the committed capture is unchanged.');
+    console.error('\nBLOCKED: the publisher refused this runner. Nothing here is broken.');
+    console.error('  The committed capture is unchanged and still correct — nothing was overwritten.');
     console.error('  Measured: 7 of 12 scheduled runs are refused, and every one of them fell outside');
     console.error('  Indian market hours (all successes 10:27-21:14 IST, all refusals 20:28-05:29 IST).');
     console.error(`  ${err.message}`);
+    if (err.detail) console.error(' ', JSON.stringify(err.detail));
     process.exit(2);
   }
   console.error(`\nFAILED: ${err.reason ? `[${err.reason}] ` : ''}${err.message}`);

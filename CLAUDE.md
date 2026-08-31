@@ -815,6 +815,21 @@ still means what it always meant: the markup changed, or this code is broken. Re
 runner as a broken scraper sends somebody to read working code, and makes the failure notification
 worthless when more than half of them are that.
 
+**AND A REFUSAL WEARS TWO COSTUMES, THE SECOND OF WHICH LOOKS EXACTLY LIKE YOUR BUG.** The plain one
+is a 403. The other is a **200 with an interstitial**: measured on a dispatched run, a body over
+5 KB carrying no article list at all, answered in **0.6 seconds**, while `curl` from elsewhere was
+getting the full 600 KB page at that same moment. `assertShape` called that *"the markup has
+changed"* — the loudest thing it could say, and wrong, sending somebody to rewrite a working parser.
+Same trap as BSE's `strCat=-1`: **a 200 that is not the page you asked for is not evidence about
+that page.**
+
+The discriminator has to be positive evidence rather than a guess about their challenge markup. A
+Moneycontrol article URL ends `-<id>.html`, so a real listing page — however they restyle it —
+carries dozens. **None at all means it is not a listing page in any form**, so it is a refusal
+(`blocked`, exit 2). **Article links but no `newslist` blocks IS a redesign** (`shape`, exit 1) and
+must still fail loudly, because that is the case a human has to look at. Both carry the status, the
+byte count and the link count into the message, so the next one is diagnosable from its own artefact.
+
 **A SECRET THE OPERATOR CANNOT INSTALL IS A FEATURE THAT DOES NOT SHIP, AND THE INSTRUCTION HAS TO
 NAME A ROUTE THEY ACTUALLY HAVE.** The Fetch button sat in `no-token` on a live deployment, and the
 only thing the page could tell them was `npx wrangler secret put …` — which wants a terminal logged

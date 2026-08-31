@@ -2288,7 +2288,11 @@ schedules first. Of those 12, **7 were answered HTTP 403** on the listing page, 
 fell between 20:28 and 05:29 IST while every success fell between 10:27 and 21:14 IST — the
 publisher's bot defence is tighter outside Indian hours. A 403 now gets a jittered backoff and, if
 it still fails, **exits 2**: the workflow reports that as a warning and skips the commit, because a
-refused runner is not a broken scraper and the capture on disk is untouched. **So the cadence is
+refused runner is not a broken scraper and the capture on disk is untouched. **A refusal can also
+arrive as a 200** — measured, a body over 5 KB with no article list, returned in 0.6 seconds — so
+`assertShape` separates the two by positive evidence: no `-<id>.html` article links anywhere means
+it is not a listing page in any form (`blocked`, exit 2), while article links present without
+`newslist` blocks is a genuine redesign (`shape`, exit 1) and still fails loudly. **So the cadence is
 never stated as a promise in the UI** — the page prints when the publisher was actually last read,
 and the Fetch button is the path that does not wait for a schedule. It only reaches readers
 once `.github/workflows/deploy.yml` runs** — `public/` is served through the Worker's `assets`

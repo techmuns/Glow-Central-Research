@@ -114,11 +114,44 @@ export function parseList(html) {
  * blocks at all on page 1 is the page having changed shape, and must fail loudly rather than commit
  * an empty file over a good one.
  */
-export function assertShape(html, { url, page }) {
+export function assertShape(html, { url, page, status = 200 } = {}) {
   const s = String(html || '');
-  if (!s || s.length < 5000) throw new McNewsError('shape', `Moneycontrol returned ${s.length} bytes for ${url} — that is not the listing page.`, { url, page });
+  const bytes = s.length;
+
+  // The real listing page is ~600 KB. Anything wildly short is not it.
+  if (bytes < 5000) {
+    throw new McNewsError('blocked', `Moneycontrol returned ${bytes} bytes for ${url} — too short to be the listing page.`, { url, page, status, bytes });
+  }
+
   if (page <= 1 && !/id="newslist-\d+"/i.test(s)) {
-    throw new McNewsError('shape', 'Moneycontrol\'s listing page carried no `newslist` blocks — the markup has changed.', { url, page });
+    // A 200 THAT IS NOT THE PAGE YOU ASKED FOR IS NOT EVIDENCE ABOUT THAT PAGE.
+    //
+    // Measured: a dispatched run was answered in 0.6 seconds with a body over 5 KB that carried no
+    // article list at all — an interstitial, served to that runner. The check called it "the markup
+    // has changed", which is the loudest thing it could have said and the wrong thing: the markup
+    // was fine, and `curl` from elsewhere was getting the full 600 KB page at the same moment. That
+    // diagnosis sends somebody to rewrite a working parser. Same trap as BSE's `strCat=-1`, which
+    // answers 200 with the string "No Record Found!".
+    //
+    // The discriminator is positive evidence rather than a guess about their challenge markup: a
+    // Moneycontrol article URL ends in `-<id>.html`, so a real listing page — however they restyle
+    // it — carries dozens. A page with NONE is not a listing page in any form, so it is a refusal
+    // wearing a 200. A page that HAS them but no `newslist` blocks is a genuine redesign, and that
+    // still fails loudly, because it is the case a human must look at.
+    const articleLinks = (s.match(/href="https:\/\/www\.moneycontrol\.com\/news\/[^"]*-\d{5,}\.html/gi) || []).length;
+    const detail = { url, page, status, bytes, articleLinks };
+    if (articleLinks === 0) {
+      throw new McNewsError(
+        'blocked',
+        `Moneycontrol served ${bytes} bytes with no article links at all for ${url}. That is an interstitial, not the listing page — the publisher refused this reader rather than changing its markup.`,
+        detail,
+      );
+    }
+    throw new McNewsError(
+      'shape',
+      `Moneycontrol's listing page carried ${articleLinks} article link(s) but no \`newslist\` blocks in ${bytes} bytes — the markup has changed.`,
+      detail,
+    );
   }
   return s;
 }
@@ -156,7 +189,7 @@ export async function fetchNews({ pages = 3, stopAtId = null }, { fetchImpl = fe
       if (page === 1) throw new McNewsError('upstream', `Moneycontrol answered HTTP ${res.status} for ${url}.`, { url, status: res.status });
       break; // a deeper page failing is the end of the walk, not the end of the run
     }
-    const html = assertShape(await res.text(), { url, page });
+    const html = assertShape(await res.text(), { url, page, status: res.status });
     const batch = parseList(html);
     if (!batch.length) break;
     for (const a of batch) {
