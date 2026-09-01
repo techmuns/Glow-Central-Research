@@ -1,6 +1,8 @@
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
 import { empty, el } from '../core/dom.js';
+import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 import { scopeLabel } from '../data/scope.js';
 import { buildResearchEvidence, researchSuggestions } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
@@ -142,6 +144,10 @@ function isBusy(session) {
   return generations.has(session.id);
 }
 
+function abortActiveGenerations() {
+  for (const generation of generations.values()) generation.controller.abort();
+}
+
 function template(scope) {
   return `
     <section class="research-workspace" data-research-workspace>
@@ -210,7 +216,7 @@ export function render(ctx) {
   // A scope change changes the evidence universe. Do not let an answer assembled under the old
   // scope land inside a workspace now labelled as the new one.
   if (ctxRef && ctxRef.scope !== ctx.scope) {
-    for (const generation of generations.values()) generation.controller.abort();
+    abortActiveGenerations();
   }
   ctxRef = ctx;
   ensureSession();
@@ -225,7 +231,7 @@ export function render(ctx) {
 export function destroy() {
   cleanupUi();
   ctxRef = null;
-  for (const generation of generations.values()) generation.controller.abort();
+  abortActiveGenerations();
 }
 
 function cleanupUi() {
@@ -239,6 +245,15 @@ function cleanupUi() {
 
 function wire(root) {
   const input = root.querySelector('[data-research-input]');
+  // Scope editors intentionally postpone the shell remount until they close. Listen to the stores
+  // as well as render() so a response cannot finish and enter conversation history while an open
+  // editor has already changed the company set behind its evidence packet.
+  const stopWatchlist = watchlist.onChange(() => {
+    if (ctxRef?.scope === 'watchlist') abortActiveGenerations();
+  });
+  const stopScopeLists = scopeLists.onChange((scope) => {
+    if (ctxRef?.scope === scope) abortActiveGenerations();
+  });
   const onClick = (event) => {
     const sessionButton = event.target.closest('[data-research-session]');
     const deleteButton = event.target.closest('[data-research-delete]');
@@ -289,6 +304,8 @@ function wire(root) {
     root.removeEventListener('click', onClick);
     input.removeEventListener('input', onInput);
     input.removeEventListener('keydown', onKeydown);
+    stopWatchlist();
+    stopScopeLists();
   };
 }
 

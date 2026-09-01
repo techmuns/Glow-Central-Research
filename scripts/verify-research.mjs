@@ -2,6 +2,7 @@
 // Focused unit/integration checks for Ask Research. Dependency-free by repository contract.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildOpenAIRequest,
   extractWebSources,
@@ -23,6 +24,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 });
 const { DASHBOARD_RESEARCH_SOURCES } = await import('../public/js/research/estate.js');
+const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
 
 let checks = 0;
 const ok = (label, fn) => {
@@ -37,6 +39,13 @@ ok('the runtime research catalog covers every visible research tab and hidden po
     assert.equal(tabs.has(title), true, title);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
+});
+
+ok('earnings calendar evidence waits for the shared live-results load before reading metadata', () => {
+  assert.match(
+    estateSource,
+    /id: 'earnings-calendar',[\s\S]*?async read\(\) \{[\s\S]*?await earningsLive\.load\(\);[\s\S]*?const range = earningsLive\.dateRange\(\);/
+  );
 });
 
 ok('configuration requires a non-trivial server-side API key', () => {

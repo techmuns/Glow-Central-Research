@@ -279,6 +279,9 @@ const BUILDERS = [
   {
     id: 'earnings-calendar',
     async read() {
+      // Builders run concurrently. The calendar's reported-date coverage and freshness come from
+      // the live results feed, so wait for that shared load before snapshotting its metadata.
+      await earningsLive.load();
       const range = earningsLive.dateRange();
       const strip = earningsCalendar.strip();
       return sourcePacket(this.id, {

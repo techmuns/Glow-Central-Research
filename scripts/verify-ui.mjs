@@ -1123,6 +1123,14 @@ console.log('\n— ask research and daily alerts —');
       });
     }
     askRequest = request.postDataJSON();
+    if (/stale scope test/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'STALE_SCOPE_ANSWER' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
     const events = [
       { type: 'start' },
       { type: 'phase', phase: 'Reconciling web sources with dashboard data' },
@@ -1212,6 +1220,32 @@ console.log('\n— ask research and daily alerts —');
     /dashboard \+ web research/i.test(combinedAnswer) &&
       (await page.locator('.research-source-chip-web[href="https://example.com/research"]').count()) === 1,
     combinedAnswer.replace(/\s+/g, ' ').slice(0, 240));
+
+  // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
+  // closes. The Ask workspace must cancel at the store boundary, before a response for the old
+  // membership can be committed to device history.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Stale scope test');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Sending /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 10000 });
+  const editedMember = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const scopeLists = await import('/js/core/scope-lists.js');
+    const base = coverage.baseHoldings();
+    const member = base[0];
+    scopeLists.remove('portfolio', member, base);
+    return member?.ticker || member?.name || null;
+  });
+  await page.waitForTimeout(1200);
+  ok('...cancels an in-flight answer when the active scope membership changes',
+    !!editedMember &&
+      (await page.locator('[data-research-input]').inputValue()) === 'Stale scope test' &&
+      !/STALE_SCOPE_ANSWER/.test(await page.locator('[data-research-transcript]').innerText()),
+    editedMember || 'no portfolio member available');
+  await page.evaluate(async () => {
+    const scopeLists = await import('/js/core/scope-lists.js');
+    scopeLists.reset('portfolio');
+  });
 
   await page.unroute('**/api/research');
 
