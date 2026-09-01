@@ -275,6 +275,24 @@ async function run(kind, list) {
     );
     return;
   }
+  // AND A COLLAPSE IN COMPANIES THAT HAD SOMETHING, which `covered` cannot see any more. Once
+  // `covered` counted answers rather than rows, an upstream timing out stopped looking like a bad
+  // run at all: every company answers "nothing", `empty` absorbs them, `covered` stays at the full
+  // list, and the guard waves through a snapshot with a third of the articles. Measured on the
+  // 06:30 scheduled run against a healthy 07:0x one: 77 companies with news -> 23, 1,536 rows ->
+  // 450, and `covered` was 123 both times.
+  //
+  // Proportional rather than absolute, because this number legitimately drifts — a company has news
+  // this week and none next — and a strict "never fewer" would block almost every honest run. Half
+  // is far outside that drift and squarely inside an outage.
+  const prevWithRows = previous ? (previous.withRows ?? Object.keys(previous.byTicker || {}).length) : 0;
+  if (previous && prevWithRows >= 8 && payload.withRows < prevWithRows / 2 && !process.env.FILINGS_FORCE) {
+    console.log(
+      `\r  ${kind}: only ${payload.withRows} companies had anything, against ${prevWithRows} in the committed ` +
+        'snapshot — that is an upstream problem, not a quiet week. Keeping it; set FILINGS_FORCE=1 to override.'
+    );
+    return;
+  }
 
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(

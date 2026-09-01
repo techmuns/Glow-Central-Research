@@ -629,12 +629,6 @@ function wireChipBar(root, groups, state, onChange) {
   });
 }
 
-// Breakout quality ranks strong > weak_base > low_volume > none; ties break on score.
-const QUALITY_RANK = { strong: 3, weak_base: 2, low_volume: 1, no_breakout: 0 };
-function breakoutRank(s) {
-  return QUALITY_RANK[s.company.consolidation_breakout?.quality] ?? 0;
-}
-
 function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
@@ -654,7 +648,11 @@ function renderStrongBreakouts(ctx, rows) {
 
   const filtered = withBreakout
     .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
-    .sort((a, b) => breakoutRank(b) - breakoutRank(a) || b.totalPoints - a.totalPoints);
+    // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
+    // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
+    // columns left on screen once the Quality column came off. The quality is still what the chip
+    // filters select on — it decides WHICH rows are here, and the score decides their order.
+    .sort((a, b) => b.totalPoints - a.totalPoints);
 
   const strongCount = filtered.filter((s) => s.company.consolidation_breakout?.quality === 'strong').length;
   const basingCount = withBreakout.filter((s) => s.company.consolidation_breakout?.quality === 'no_breakout').length;
@@ -688,14 +686,13 @@ function renderStrongBreakouts(ctx, rows) {
     showScore: true,
     score: scoreOf,
     columns: [
-      { label: 'Quality', get: (s) => qualityPill(s.company.consolidation_breakout?.quality), html: true, sortValue: (s) => breakoutRank(s) },
       { label: 'Base range %', get: (s) => `${num(s.company.consolidation_breakout?.base_range_pct, 1)}%`, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_range_pct ?? 999 },
       { label: 'Base high', get: (s) => formatRupee(s.company.consolidation_breakout?.base_max, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_max ?? 0 },
       { label: 'Today close', get: (s) => formatRupee(s.company.consolidation_breakout?.today_close, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_close ?? 0 },
       { label: 'Volume ratio', get: (s) => volRatioCell(s.company.consolidation_breakout?.today_volume_ratio), html: true, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? 0 },
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
     ],
-    initialSort: null, // pre-sorted by breakout quality then score
+    initialSort: null, // pre-sorted by score
     exportName: `sattva-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
@@ -703,7 +700,7 @@ function renderStrongBreakouts(ctx, rows) {
   ctx.root.innerHTML = `
     ${sectionHead({
       title: meta.title,
-      description: 'Companies breaking out of a 6-week base, ranked by breakout quality then technical score.',
+      description: 'Companies breaking out of a 6-week base, ranked by technical score.',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() })}</div>`,
     })}
     ${chipBar(BREAKOUT_FILTERS, state, counts)}
@@ -719,16 +716,6 @@ function renderStrongBreakouts(ctx, rows) {
   });
 }
 
-function qualityPill(q) {
-  const map = {
-    strong: ['Strong', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
-    weak_base: ['Weak base', 'bg-amber-50 text-amber-700 ring-amber-200'],
-    low_volume: ['Low volume', 'bg-amber-50 text-amber-700 ring-amber-200'],
-    no_breakout: ['No breakout', 'bg-slate-100 text-slate-600 ring-slate-200'],
-  };
-  const [label, cls] = map[q] || ['—', 'bg-slate-100 text-slate-500 ring-slate-200'];
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${label}</span>`;
-}
 function volRatioCell(r) {
   if (r == null) return '—';
   return toneSpan(`${num(r, 2)}×`, r >= 1.5 ? 'pos' : r >= 1 ? 'warn' : 'neg');

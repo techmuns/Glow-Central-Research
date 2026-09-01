@@ -1141,6 +1141,16 @@ number stays REACHABLE — 23 rows look complete until you know the book is 142 
 occupies the top of the page. `scopeTitle()` is the one place that wording lives now, and it still
 compares companies with companies.
 
+**AND `covered` COUNTING ANSWERS RE-OPENED THE HOLE THE GUARD WAS THERE TO CLOSE.** Once it meant
+"companies that answered" rather than "companies with rows", an upstream timing out stopped looking
+like a bad run: every company answers *nothing*, `empty` absorbs them all, `covered` stays at the
+full list, and the guard waves the snapshot through. Measured on one scheduled news run against a
+healthy one an hour earlier — **77 companies with news → 23, 1,536 rows → 450, and `covered` was
+123 both times.** So `withRows` is guarded too, proportionally (half) rather than absolutely,
+because that number legitimately drifts — a company has news this week and none next — and a strict
+"never fewer" would block almost every honest run. **Widening what a number means widens what it
+can hide**; check every guard that reads it.
+
 **A coverage gap the reader cannot account for reads as a broken fetch.** "Portfolio · 61 of 142
 companies with articles" is true and says nothing about whether the other 81 were searched — and
 they were. The strip states the account instead: *"123 of 123 companies in scope were searched, 46

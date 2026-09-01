@@ -2577,6 +2577,10 @@ public/data/news.json · insider-trades.json
   "headers": [],                       // insider trades only: the source's own column headings
   "byTicker": { "RELIANCE": [ … ] },   // had something in the window
   "empty":    [ "SKYGOLD", "OFSS" ],   // ASKED, and answered nothing — covered, and never re-walked
+  // news only: the article's own instant where the upstream gave one, null where it gave a day.
+  // A FIRST-CLASS FIELD because `raw` is stripped before writing — Daily Alerts read the time off
+  // `raw.page_age` and got undefined for every committed row, so the TIME column was an em dash for
+  // every company story while market-wide news showed times beside it.
   "failed":   { "XYZ": { "reason": "timeout", "message": "…" } }
 }
 ```

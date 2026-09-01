@@ -459,7 +459,10 @@ function fromCompanyNews({ day, wanted }) {
     // and a RELIANCE row and an HDFCBANK row about the same article are two rows, not one.
     id: `news:${r.ticker || '?'}|${r.url || `${r.date}|${i}`}`,
     severity: SEVERITY.UPDATE,
-    time: istTime(r.raw?.page_age) || null,
+    // `publishedAt`, NOT `raw.page_age` — `raw` is stripped before the snapshot is committed, so
+    // reading the time off it worked on a live walk and returned undefined for every row that came
+    // from the file. See `isoInstant` in filings-shared.js.
+    time: istTime(r.publishedAt) || null,
     at: r.date,
     ticker: r.ticker || null,
     company: r.ticker || '—',

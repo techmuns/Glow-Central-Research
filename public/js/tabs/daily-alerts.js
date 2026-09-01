@@ -458,7 +458,7 @@ export function feedState(f) {
 // order rather than by class order, which is a coin toss dressed up as a decision.
 const SEV = {
   alert: { label: 'Alert', chip: 'bg-rose-50 text-rose-700 ring-rose-200', row: 'bg-rose-50/40 shadow-[inset_3px_0_0_#e11d48]' },
-  update: { label: 'Update', chip: 'bg-amber-50 text-amber-700 ring-amber-200', row: 'bg-amber-50/20 shadow-[inset_3px_0_0_#d97706]' },
+  update: { label: 'General', chip: 'bg-amber-50 text-amber-700 ring-amber-200', row: 'bg-amber-50/20 shadow-[inset_3px_0_0_#d97706]' },
 };
 
 function eventsTable(ctx, events, day) {
@@ -481,7 +481,14 @@ function eventsTable(ctx, events, day) {
     nameAfter: 1,
     dense: true,
     wrapHeads: true,
-    stickyHead: 'max(320px, calc(100vh - 420px))',
+    // FILL THE VIEWPORT. The head above this is one line of chips now — no description, no stat
+    // strip, no legend below — so a reservation sized for the old chrome left a band of dead page
+    // under the table on every scope. The number is MEASURED, not guessed: the scroll container's
+    // top sits at a constant 534px here (app header, tab bar, section head, chip row, the table's
+    // own toolbar and its thead), and 24px keeps the card's bottom edge off the fold. Re-measure it
+    // if anything is added above — `[data-table-scroll]`'s `getBoundingClientRect().top` is the
+    // number, and the `max()` floor is what stops a short window collapsing the table to nothing.
+    stickyHead: 'max(320px, calc(100vh - 558px))',
     rowClass: (e) => SEV[e.severity]?.row || '',
     columns: [
       {
@@ -514,22 +521,26 @@ function eventsTable(ctx, events, day) {
       { label: 'Feed', get: (e) => e.feedLabel },
     ],
     link: (e) => e.url || null,
-    // The row takes you to the tab that owns the feed. That is the whole promise of a consolidated
-    // page — see one line here, go and read it properly there — and it is not a drill panel
-    // restating somebody else's analysis under our chrome, which is the thing this codebase does
-    // not do (see the con-call rule in CLAUDE.md).
+    // THE ROW OPENS THE SOURCE. It used to navigate to the tab that owns the feed, which put two
+    // clicks and a scan between the reader and the thing the row is about — they had already read
+    // the headline here. A row with no URL falls back to its tab, because a click that silently
+    // does nothing is worse than one that goes somewhere useful; nothing here reproduces the
+    // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
-      if (!e.tab) return;
-      location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
+      if (e.url) {
+        window.open(e.url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (e.tab) location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
     },
     searchable: (e) => `${e.company} ${e.ticker || ''} ${e.headline} ${e.detail || ''} ${e.feedLabel}`,
     filters: [
       {
         label: 'Signal',
         options: [
-          { value: 'all', label: 'Alerts and updates' },
+          { value: 'all', label: 'Alerts and general' },
           { value: 'alert', label: 'Alerts only' },
-          { value: 'update', label: 'Updates only' },
+          { value: 'update', label: 'General only' },
         ],
         match: (e, v) => e.severity === v,
       },

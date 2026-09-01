@@ -1337,6 +1337,92 @@ console.log('\n— daily alerts —');
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   ok('no legend strip competes with the stream', !/Red — alert/.test(await hostText()));
+
+  // ---- the stream's own furniture ------------------------------------------------------
+  await go('/#/research/daily-alerts?scope=portfolio', 5000);
+  await settleTables();
+  // THE TABLE FILLS THE PAGE. The head above it is one line of chips now, so a scroll container
+  // still sized for a description, four stat cards and a legend left a band of dead page beneath
+  // it. Measured against the viewport rather than against a magic number.
+  const fill = await evalSafe(() => {
+    const el = document.querySelector('[data-table-scroll]');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { bottom: Math.round(r.bottom), vh: window.innerHeight, height: Math.round(r.height) };
+  });
+  // Both directions: dead page below is what was reported, and a table hanging past the fold makes
+  // the page scroll as well as the table, which is worse than the gap it was meant to close.
+  ok('the stream fills the viewport rather than leaving dead page below it',
+    fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom < 120,
+    fill ? `table ends ${fill.vh - fill.bottom}px above the fold, ${fill.height}px tall` : 'no scroll container');
+
+  // THE NEWS TIME, ASSERTED AT THE RULE. Daily Alerts read it off `raw.page_age`, and `raw` is
+  // stripped before the snapshot is written — so it was present on a live walk and absent on every
+  // row that came from the file, which is all of them. It reads `publishedAt` now, a first-class
+  // field that survives the strip. That field only reaches the committed capture once the Worker
+  // deploying this normaliser has run, so what is checked here is the normaliser itself: the case
+  // that matters is a day-only value, which must NOT become midnight.
+  const instants = await evalSafe(async () => {
+    const { isoInstant } = await import('/js/data/filings-shared.js');
+    return {
+      full: isoInstant('2026-09-01T12:50:00Z'),
+      rfc: isoInstant('Mon, 01 Sep 2026 12:50:00 GMT'),
+      dayOnly: isoInstant('2026-09-01'),
+      bseDay: isoInstant('20260901'),
+      human: isoInstant('2 days ago'),
+      missing: isoInstant(null),
+    };
+  });
+  ok('a news row with a real timestamp keeps it as a committed field',
+    /^2026-09-01T12:50/.test(instants.full) && /^2026-09-01T12:50/.test(instants.rfc), `${instants.full} / ${instants.rfc}`);
+  ok('...and a day-only value stays null rather than becoming midnight',
+    instants.dayOnly === null && instants.bseDay === null && instants.human === null && instants.missing === null,
+    `day=${instants.dayOnly} bse=${instants.bseDay} human=${instants.human}`);
+  // The pill reads GENERAL, not UPDATE. `severity` stays `update` in the data — the label is what
+  // the reader sees, and renaming the key would be a data change dressed as a wording change.
+  // CASE-INSENSITIVE, because the pill is uppercased by CSS and `innerText` returns the source
+  // text. Matching the rendered look found nothing at all and reported "0 rows" — a check written
+  // against the screenshot rather than the DOM, which is a pass waiting to happen the day the word
+  // changes back.
+  const signals = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
+    rows.map((r) => (r.innerText.match(/\b(alert|general|update)\b/i) || [])[1]).filter(Boolean).map((x) => x.toLowerCase()));
+  ok('a non-alert row is signalled General, never Update',
+    signals.length > 0 && signals.every((x) => x === 'general' || x === 'alert') && !signals.includes('update'),
+    `${signals.length} rows: ${[...new Set(signals)].join(', ')}`);
+
+  // ---- a row goes to the SOURCE, not to another tab of ours ----------------------------
+  // The reader has already read the headline here; sending them to a tab to find it again is two
+  // clicks and a scan. Asserted as a popup to the row's own href AND as the hash staying put,
+  // because "it navigated somewhere" would pass on the old behaviour too.
+  // ASSERTED AT `window.open`, NOT AT A POPUP EVENT. Headless Chromium here does not materialise a
+  // window for an external host it cannot reach, so waiting for a `popup` event measures the
+  // sandbox rather than the page — it came back empty while the call was being made correctly.
+  // What the row promises is that it opens the SOURCE and does not navigate this dashboard, and
+  // both halves are checked: the URL passed to `window.open`, and the hash staying put.
+  await evalSafe(() => {
+    window.__opened = [];
+    const real = window.open;
+    window.open = (...a) => {
+      window.__opened.push(a[0]);
+      return real.call(window, ...a);
+    };
+  });
+  const rowHref = await evalSafe(() => {
+    const tr = document.querySelector('#content-host tbody tr[data-row-key]');
+    const a = tr?.querySelector('a[href^="http"]');
+    return a ? a.getAttribute('href') : null;
+  });
+  if (!rowHref) {
+    skip('clicking a row opens the source, not another tab of ours', 'no row in the current capture carries a URL');
+  } else {
+    const hashBefore = page.url();
+    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(3).click();
+    await page.waitForTimeout(800);
+    const opened = await evalSafe(() => window.__opened || []);
+    ok('clicking a row opens the source, not another tab of ours',
+      opened.length === 1 && opened[0] === rowHref && page.url() === hashBefore,
+      `${opened.length} open(s): ${(opened[0] || '(none)').slice(0, 58)} · hash unchanged=${page.url() === hashBefore}`);
+  }
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(500);
   const legendModal = await page.locator('#modal-content').innerText();
@@ -1740,6 +1826,23 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     modal.text.slice(0, 160));
   ok('...and the help the card\'s "?" used to open',
     /how breakout quality is graded/i.test(modal.text) && /tight base/i.test(modal.text));
+  // THE QUALITY COLUMN IS GONE AND THE RANKING IS THE SCORE. It used to lead on quality and break
+  // ties on the score, which put a "Weak base" above a stronger-scoring row — readable while the
+  // Quality column was on screen to explain it, and unreadable the moment it came off. Quality is
+  // still what the chips select on: it decides WHICH rows are here, the score decides their order.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await settleTables();
+  const bo = await evalSafe(() => ({
+    heads: [...document.querySelectorAll('#content-host thead th')].map((h) => h.innerText.trim()),
+    scores: [...document.querySelectorAll('#content-host tbody tr[data-row-key]')]
+      .map((r) => Number((r.innerText.match(/(\d+(?:\.\d+)?)\s*\/\s*24/) || [])[1]))
+      .filter((n) => !Number.isNaN(n)),
+  }));
+  ok('the breakout table has no Quality column', !bo.heads.some((h) => /^Quality$/i.test(h)), bo.heads.join(' | '));
+  ok('...and its rows are ranked on the score alone',
+    bo.scores.length > 1 && bo.scores.every((v, i) => i === 0 || bo.scores[i - 1] >= v),
+    bo.scores.slice(0, 6).join(' ≥ '));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 
