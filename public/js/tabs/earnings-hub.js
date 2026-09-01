@@ -40,7 +40,6 @@
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
-import { deliveryNote } from '../ui/sources.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
@@ -360,75 +359,6 @@ function wirePeriodToggle(root, ctx) {
       }
     });
   }
-}
-
-function wireLiveButton(root, m, rows) {
-  const btn = root.querySelector('[data-live-info]');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    const arrivals = feed.newArrivals();
-    const noTicker = rows.filter((r) => !r.ticker).length;
-    const noCap = rows.filter((r) => r.marketCap == null).length;
-    openModal(
-      `<div class="px-7 py-6">
-        <div class="mb-3 flex items-start justify-between gap-4">
-          <h2 class="font-display text-xl font-bold text-slate-900">${m.degraded ? 'Showing the last snapshot' : 'Live results feed'}</h2>
-          <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
-        </div>
-        <div class="text-sm leading-relaxed text-slate-600">
-          ${
-            m.degraded
-              ? `<p class="rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">${escapeHtml(m.degraded)}
-                   The figures below are real and were correct when captured, but they are not live right now.</p>`
-              : `<p><strong>Real reported figures</strong> from Moneycontrol Rapid Results, in ₹ crore, polled every
-                   ${feed.POLL_MS / 1000} seconds. A company that files now appears here within about a minute — no reload.</p>`
-          }
-          <p class="mt-2"><strong>${escapeHtml(m.quarter || '')}</strong> · comparing ${escapeHtml(m.currentPeriod || '')} against ${escapeHtml(m.priorPeriod || '')} ·
-             <strong>${escapeHtml(formatNumber(rows.length))}</strong> companies reported ·
-             last update ${escapeHtml(m.receivedAt ? formatRelativeTime(m.receivedAt) : '—')}.</p>
-
-          <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where each column comes from</h3>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>Rev / PAT, both periods</strong> — as published, in ₹ crore, unrounded. Both periods are shown
-                because the percentage alone hides the sign and the scale: "+43%" reads the same on ₹4 Cr and ₹4,000 Cr,
-                and on a loss that merely got smaller. Gross profit is in the feed and in the Excel export, but is not
-                a column — three metrics × three columns did not fit on screen.</li>
-            <li><strong>YoY / QoQ</strong> — the same filing, compared two ways. The ${escapeHtml(m.currentPeriod || 'current')}
-                figures are identical under both; only the comparison column and the percentage change.
-                YoY is ${escapeHtml(m.currentPeriod || '')} against the same quarter a year earlier, QoQ against the
-                quarter before it. The column headers name whichever is active, so a screenshot cannot mislead.</li>
-            <li><strong>Basis</strong> — CON is consolidated (the whole group), STD is standalone (the parent alone).
-                They are not comparable with each other, which is what the second dropdown is for.</li>
-            <li><strong>The % columns</strong> — as published. Where the sign flips between periods you get a labelled pill
-                instead of a percentage, because a change across zero is not a growth rate.</li>
-            <li><strong>Ticker and industry</strong> (under the company name) — resolved from Moneycontrol's own company
-                code; names are truncated to 15 characters upstream, so the code is the join key, never the name.
-                ${noTicker ? `<strong>${formatNumber(noTicker)}</strong> unresolved.` : 'All resolved.'}</li>
-            <li><strong>MCap</strong> — computed live as shares outstanding × the current price, so it is correct now rather
-                than as of the last data refresh. ${noCap ? `<strong>${formatNumber(noCap)}</strong> without a share count.` : ''}</li>
-          </ul>
-
-          ${deliveryNote(m, { poll: feed.POLL_MS / 1000 })}
-          <p class="mt-1 text-xs leading-relaxed text-slate-500">
-            The tick itself asks only for prices — about 30KB against 1.1MB for the feed — plus a fingerprint of the
-            reported figures. The table is rebuilt when that fingerprint moves, which is when a company has filed or
-            revised something, and not when someone merely traded.
-          </p>
-
-          ${
-            arrivals.length
-              ? `<h3 class="font-display mt-4 text-sm font-bold text-slate-900">Arrived while this tab was open</h3>
-                 <div class="mt-1 flex flex-wrap gap-1.5">
-                   ${arrivals.slice(0, 20).map((r) => `<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">${escapeHtml(r.ticker || r.shortName)}</span>`).join('')}
-                 </div>`
-              : ''
-          }
-          <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not joined</em> — never zero.</p>
-        </div>
-      </div>`,
-      { size: 'default' }
-    );
-  });
 }
 
 // ---------------------------------------------------------------------------------------
