@@ -612,6 +612,14 @@ counted as not comparable rather than reading as an investor who did nothing.
 scope "5 new across 87 comparable books" is true and sounds like 87 investors moved on five
 companies; *"across 33 of 87"* cannot be read that way.
 
+**Every company row opens the complete cross-investor detail.** The five-row cards abbreviate
+three names to `+1` and a largest-move row necessarily names only the investor who produced that
+move; neither is enough to answer who else holds the company. The popup reads `allHoldings()` and
+lists every tracked investor whose own latest/prior pair contains it, including unchanged holders,
+with the two filed stakes, derived change and current Finology value. A position absent from both
+comparison quarters is old history and stays out; a current one-quarter disclosure stays in and is
+labelled not comparable.
+
 **`scopeFilter(ctx)` is one predicate, used by the summary AND the table under it.** Two predicates
 over the same question is what had the filings tabs reporting different sets in two places on one
 screen.

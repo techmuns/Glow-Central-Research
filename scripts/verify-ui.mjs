@@ -3568,6 +3568,67 @@ if (siProbe.state === 'no-route') {
   ok('investor names come from the list, not the book\'s SEO page title',
     !summary.suffixed && !summary.tableSuffixed);
 
+  // A compact summary row is a lead, not the answer: "+1" cannot tell the reader who the third
+  // investor was, and one ranked mover says nothing about the other investors holding the same
+  // company. Every visible company therefore opens the complete latest/prior cross-book detail.
+  const companyButtons = page.locator('#content-host [data-quarter-summary] [data-ranked-idx]');
+  const companyButtonCount = await companyButtons.count();
+  ok('every visible Quarterly Changes company is a clickable detail control',
+    companyButtonCount > 0 &&
+      companyButtonCount === (await page.locator('#content-host [data-quarter-summary] [data-ranked-list] .divide-y > *').count()),
+    `${companyButtonCount} company buttons`);
+
+  if (companyButtonCount) {
+    const firstCompanyButton = companyButtons.first();
+    const company = await firstCompanyButton.locator('span.font-semibold').first().innerText();
+    const expectedInvestors = await page.evaluate(async (name) => {
+      const feed = await import('/js/data/super-investors.js');
+      return feed
+        .allHoldings()
+        .filter((r) => r.company === name)
+        .map((r) => {
+          const [latest, prior] = r.quarters || [];
+          return {
+            investor: r.investor,
+            now: latest ? r.quarterlyHoldings[latest] : null,
+            before: prior ? r.quarterlyHoldings[prior] : null,
+          };
+        })
+        .filter((r) => r.now != null || r.before != null)
+        .map((r) => r.investor)
+        .sort();
+    }, company);
+
+    await firstCompanyButton.click();
+    await page.waitForSelector('#modal-overlay.is-open [data-company-investor-detail]');
+    const companyDetail = await page.evaluate(() => {
+      const drill = document.querySelector('#modal-content [data-company-investor-detail]');
+      const headers = [...(drill?.querySelectorAll('th') || [])].map((h) => h.textContent.trim());
+      const rows = [...(drill?.querySelectorAll('[data-company-investor-row]') || [])];
+      return {
+        title: drill?.querySelector('h2')?.innerText.trim() || '',
+        headers,
+        investors: rows.map((r) => r.querySelector('td')?.innerText.trim() || '').sort(),
+        measures: rows.every((r) => r.querySelectorAll('td').length === 6),
+        hasStake: rows.some((r) => /\d+\.\d\d%/.test(r.innerText)),
+        note: (drill?.querySelector('p.mb-4')?.innerText || '').replace(/\s+/g, ' '),
+      };
+    });
+    ok('clicking a company opens its cross-investor popup', companyDetail.title === company, companyDetail.title);
+    ok('the popup lists every relevant superstar investor, not only the shortened card names',
+      JSON.stringify(companyDetail.investors) === JSON.stringify(expectedInvestors),
+      `${companyDetail.investors.length} shown vs ${expectedInvestors.length} expected`);
+    ok('the popup shows status, previous stake, current stake, derived change and current value',
+      companyDetail.measures && companyDetail.hasStake &&
+        companyDetail.headers.join('|') === 'Investor|Status|Previous stake|Current stake|Change (derived)|Current value (Finology)',
+      companyDetail.headers.join(' | '));
+    ok('the popup distinguishes current position value from an amount bought or sold',
+      /not an amount bought or sold/i.test(companyDetail.note) && /not disclosed, not zero/i.test(companyDetail.note),
+      companyDetail.note.slice(0, 150));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+  }
+
   // The summary and the table under it must narrow through ONE predicate. Two predicates over the
   // same question is what had the filings tabs reporting different sets in two places. They now
   // live in separate in-page tabs, so read each panel in turn and compare their complete sets.

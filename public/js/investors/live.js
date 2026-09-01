@@ -126,6 +126,7 @@ const andOthers = (names) => (names.length <= 2 ? names.join(' & ') : `${names[0
 function quarterSummaryBlock(ctx, m, rows) {
   const include = scopeFilter(ctx);
   const q = feed.quarterSummary({ include, limit: 5 });
+  const openCompany = (item) => openCompanyDetail(item.company || item.name);
 
   const panels = [
     rankedList({
@@ -134,12 +135,14 @@ function quarterSummaryBlock(ctx, m, rows) {
       note: 'Added to, or newly disclosed, by two or more tracked investors.',
       items: q.consensusBuys.map((c) => ({
         name: c.company,
+        company: c.company,
         sub: andOthers(c.investors.map((i) => i.investor)),
         value: `${c.count} investors`,
         badge: c.sized ? pp(c.sumPp) : null,
         tone: 'pos',
       })),
       empty: 'No company was bought by more than one tracked investor this quarter.',
+      onSelect: openCompany,
     }),
     rankedList({
       key: 'si-new',
@@ -147,18 +150,21 @@ function quarterSummaryBlock(ctx, m, rows) {
       note: 'First quarter disclosed. Ranked by the stake now held — an appearance has no trade size.',
       items: q.newEntrants.map((mv) => ({
         name: mv.company,
+        company: mv.company,
         sub: mv.investor,
         value: mv.now == null ? '—' : `${Number(mv.now).toFixed(2)}%`,
         tone: 'pos',
       })),
       empty: 'No new position was disclosed this quarter.',
+      onSelect: openCompany,
     }),
     rankedList({
       key: 'si-adds',
       title: 'Largest increases',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topAdds.map((mv) => ({ name: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'pos' })),
+      items: q.topAdds.map((mv) => ({ name: mv.company, company: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'pos' })),
       empty: 'No position was increased this quarter.',
+      onSelect: openCompany,
     }),
     rankedList({
       key: 'si-consensus-exits',
@@ -166,19 +172,22 @@ function quarterSummaryBlock(ctx, m, rows) {
       note: 'Trimmed, or no longer disclosed, by two or more tracked investors.',
       items: q.consensusExits.map((c) => ({
         name: c.company,
+        company: c.company,
         sub: andOthers(c.investors.map((i) => i.investor)),
         value: `${c.count} investors`,
         badge: c.sized ? pp(c.sumPp) : null,
         tone: 'neg',
       })),
       empty: 'No company was sold down by more than one tracked investor this quarter.',
+      onSelect: openCompany,
     }),
     rankedList({
       key: 'si-trims',
       title: 'Largest reductions',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topTrims.map((mv) => ({ name: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'neg' })),
+      items: q.topTrims.map((mv) => ({ name: mv.company, company: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'neg' })),
       empty: 'No position was reduced this quarter.',
+      onSelect: openCompany,
     }),
     rankedList({
       key: 'si-exits',
@@ -186,6 +195,7 @@ function quarterSummaryBlock(ctx, m, rows) {
       note: 'Off the shareholding pattern this quarter. Below the disclosure threshold that is not the same as sold.',
       items: q.exits.map((mv) => ({
         name: mv.company,
+        company: mv.company,
         sub: mv.investor,
         // The stake they last disclosed, labelled as the prior quarter's — NOT a size for the
         // exit, which has none. An em dash where even that is missing.
@@ -193,6 +203,7 @@ function quarterSummaryBlock(ctx, m, rows) {
         tone: 'neg',
       })),
       empty: 'Every position disclosed last quarter is still disclosed.',
+      onSelect: openCompany,
     }),
   ];
 
@@ -209,6 +220,113 @@ function quarterSummaryBlock(ctx, m, rows) {
   }
 
   return { html, wire };
+}
+
+const COMPANY_ACTION = {
+  new: ['Newly disclosed', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+  added: ['Increased', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+  held: ['Unchanged', 'bg-slate-100 text-slate-600 ring-slate-200'],
+  trimmed: ['Reduced', 'bg-amber-50 text-amber-800 ring-amber-200'],
+  exited: ['No longer disclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  unknown: ['One quarter only', 'bg-slate-100 text-slate-500 ring-slate-200'],
+};
+
+/**
+ * One company across every tracked book, opened from any Quarterly Changes row.
+ *
+ * The summary card is intentionally compact, so a consensus row shortens three names to "+1" and
+ * a largest-move row shows only the investor who produced that ranked move. The drill must not
+ * inherit either shortcut: it reads the full holdings set and includes every investor whose own
+ * latest/prior pair contains the company, including an unchanged holder. That is what answers
+ * "which investors hold this, and how much?" rather than merely expanding the text already shown.
+ */
+function openCompanyDetail(company) {
+  const details = feed
+    .allHoldings()
+    .filter((r) => r.company === company)
+    .map((r) => {
+      const [latest, prior] = r.quarters || [];
+      const now = latest ? r.quarterlyHoldings[latest] : null;
+      const before = prior ? r.quarterlyHoldings[prior] : null;
+      return { ...r, latest, prior, now, before, change: changeOf(r) };
+    })
+    // A disclosure that ended before both comparison quarters is real history, but it did not
+    // contribute to the quarter the reader clicked. Keeping it out prevents an old holder from
+    // looking like a current participant. A one-quarter book with a current stake still belongs.
+    .filter((r) => r.now != null || r.before != null)
+    .sort((a, b) => (b.now != null) - (a.now != null) || (b.now ?? -1) - (a.now ?? -1) || a.investor.localeCompare(b.investor));
+
+  const current = details.filter((r) => r.now != null).length;
+  const changed = details.filter((r) => r.change && r.change.action !== 'held').length;
+  const rows = details
+    .map((r) => {
+      const action = r.change?.action || 'unknown';
+      const [label, cls] = COMPANY_ACTION[action] || COMPANY_ACTION.unknown;
+      const delta = r.change?.deltaPp;
+      const deltaClass = delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-400';
+      const currentValue = r.now != null && r.valueCr != null ? formatCroreCompact(r.valueCr) : '—';
+      return `
+        <tr class="border-t border-slate-100" data-company-investor-row>
+          <td class="px-3 py-3 align-top">
+            <div class="font-semibold text-slate-900">${escapeHtml(r.investor)}</div>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 align-top">
+            <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${escapeHtml(label)}</span>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top">
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.prior || 'Not published')}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-700">${r.before == null ? dash : escapeHtml(`${Number(r.before).toFixed(2)}%`)}</span>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top">
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.latest || 'Not published')}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">${r.now == null ? dash : escapeHtml(`${Number(r.now).toFixed(2)}%`)}</span>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums ${deltaClass}">${delta == null ? dash : escapeHtml(pp(delta))}</td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums text-slate-700">${escapeHtml(currentValue)}</td>
+        </tr>`;
+    })
+    .join('');
+
+  openModal(
+    `<div class="scrollbar-thin max-h-[82vh] overflow-y-auto" data-company-investor-detail>
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur sm:px-7">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Across all superstar investors</p>
+            <h2 class="font-display mt-1 text-xl font-bold text-slate-900">${escapeHtml(company)}</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              ${escapeHtml(formatNumber(details.length))} tracked investor${details.length === 1 ? '' : 's'} in the latest comparison ·
+              ${escapeHtml(formatNumber(current))} currently disclosed · ${escapeHtml(formatNumber(changed))} changed
+            </p>
+          </div>
+          <button type="button" data-modal-close aria-label="Close" class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+      </div>
+      <div class="px-6 py-5 sm:px-7">
+        <p class="mb-4 text-xs leading-relaxed text-slate-500">
+          Percentages are the stakes disclosed in each investor's own latest and prior published quarters.
+          <strong class="text-slate-600">Current value is Finology's estimate of the position now, not an amount bought or sold.</strong>
+          A dash means not disclosed, not zero.
+        </p>
+        <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+          <table class="min-w-[850px] w-full text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">Investor</th>
+                <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">Status</th>
+                <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Previous stake</th>
+                <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current stake</th>
+                <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Change (derived)</th>
+                <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current value (Finology)</th>
+              </tr>
+            </thead>
+            <tbody>${rows || `<tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">No comparable investor disclosure is available for this company.</td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`,
+    { size: 'wide' }
+  );
 }
 
 /**

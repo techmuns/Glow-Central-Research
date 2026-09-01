@@ -2821,6 +2821,13 @@ The combined-book total sums only positions **still disclosed in the latest quar
 those carrying a value, and says how many of each. Summing all history produced a card reading
 `0 holdings` beside `₹793 Cr book`; the count and the total now use the same set.
 
+Clicking a company in the cross-book Quarterly Changes summary reads `allHoldings()` for that exact
+company and keeps each investor row whose own latest/prior pair contains a disclosure. The popup
+therefore includes unchanged current holders as well as movers, and prints investor, action, prior
+stake, latest stake, derived change and current `valueCr`. A row absent from both compared quarters
+is historical rather than part of this quarter and is excluded; a one-quarter current row remains
+with no fabricated comparison.
+
 ### Caching, and why the fan-out is on the client
 
 Each upstream call is a live scrape of finology.in, and shareholding data moves once a quarter. So

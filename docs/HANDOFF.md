@@ -795,6 +795,11 @@ against a stand-in instead of scraping their production.
   Neither a new position nor a vanished one carries a percentage-point figure, because printing
   ±the whole holding would invent a trade size.
 
+Every company row in **Quarterly Changes** is a button. It opens a cross-investor popup containing
+all tracked books that disclose that company in their own latest/prior comparison, not merely the
+one or two abbreviated names on the card. The table shows status, both stakes, the derived change
+and Finology's current position value; the value is explicitly not presented as a traded amount.
+
 **A caught bug worth remembering.** The card count used the latest quarter and the book total used
 all of history, so an investor with nothing currently disclosed rendered `0 holdings` beside
 `₹793 Cr book`. Both now describe the same set — `summarise()` in `finology-shared.js` — and the

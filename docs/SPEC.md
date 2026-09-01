@@ -392,6 +392,11 @@ The view stays intentionally quiet around that content: it renders no per-view c
 scope-count tag, progressive-reading strip, or source/action badge in an investor workspace. Scope
 and refresh already live in the global header; the workspace header is the investor name and tabs.
 
+Every company in Quarterly Changes is clickable. Its popup names every relevant superstar
+investor across the full book set and shows status, previous stake, current stake, derived change
+and current Finology position value, so abbreviated labels such as `+1` never hide the answer.
+The value is current position value, not a claim about how much was bought or sold.
+
 Increases and reductions are in **percentage points of the company** — the only size a filing
 states. A new or exited position carries **no size at all**, because a position appearing or
 vanishing is a change of disclosure rather than a move of the whole holding, and "exited" is
