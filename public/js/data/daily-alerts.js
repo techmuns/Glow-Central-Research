@@ -1,13 +1,15 @@
-// data/daily-alerts.js — TODAY, ACROSS FOUR OF THIS DASHBOARD'S TABS.
+// data/daily-alerts.js — A NEWEST-FIRST TIMELINE ACROSS FOUR OF THIS DASHBOARD'S TABS.
 //
 //   const day = today();                     // the IST trading date
-//   const report = await collect({ scope }); // { day, events, feeds, meta }
-//   report.events   one row per thing that happened today, newest first
+//   const report = await collect({ scope, includeHistory: true });
+//   report.events   one row per thing in the retained feed windows, newest first
 //   report.feeds    one row per feed: what it contributed, and WHETHER IT REACHES TODAY
 //
 // This module adds no source of its own. Every event on it is a reading taken from a feed that
 // already had a tab, which is the whole point: the tabs answer "what does this feed hold", and this
-// answers "what happened today" by asking several of them the same question at once.
+// answers "what happened" by asking several of them the same question at once. The landing tab
+// requests retained history; the default remains one day so callers that need a daily report keep
+// that exact contract.
 //
 // ---------------------------------------------------------------------------------------
 // WHICH TABS, AND — JUST AS IMPORTANTLY — WHICH NOT
@@ -27,7 +29,7 @@
 //
 //   RED (alert)    a direct negative reading on the row itself. On these four tabs there is exactly
 //                  one: the price fell more than MOVE_PCT at today's close.
-//   ORANGE (update) everything else that arrived today.
+//   ORANGE (update) everything else that arrived on the date carried by the row.
 //
 // Every red row carries the reading that made it red, in `reason`, in the row. A colour whose cause
 // is not on screen beside it is a judgement, and this dashboard does not make those (CLAUDE.md,
@@ -137,11 +139,11 @@ export const SEVERITY = { ALERT: 'alert', UPDATE: 'update' };
 // ---------------------------------------------------------------------------------------
 
 export const FEEDS = [
-  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies that moved more than ${MOVE_PCT}% at today’s close.` },
-  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE today, across the exchange.' },
-  { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Insider and promoter disclosures broadcast today.' },
-  { id: 'news', label: 'Company news', tab: 'news', what: 'Stories published today about a company in scope.' },
-  { id: 'market-news', label: 'Market news', tab: 'news', what: 'Market-wide stories published today. Carries no company, so it is Universe only.' },
+  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies that moved more than ${MOVE_PCT}% at the retained end-of-day snapshot's close.` },
+  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE in the retained exchange-wide capture.' },
+  { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Retained insider and promoter disclosures, under their broadcast dates.' },
+  { id: 'news', label: 'Company news', tab: 'news', what: 'Retained stories about a company in scope, under their published dates.' },
+  { id: 'market-news', label: 'Market news', tab: 'news', what: 'Retained market-wide stories. Carries no company, so it is Universe only.' },
 ];
 
 const feedById = new Map(FEEDS.map((f) => [f.id, f]));
@@ -151,18 +153,19 @@ const feedById = new Map(FEEDS.map((f) => [f.id, f]));
 // ---------------------------------------------------------------------------------------
 
 /**
- * Read every feed and return today's events plus a per-feed account of what was read.
+ * Read every feed and return the requested day (default) or retained history through it, plus a
+ * per-feed account of what was read.
  *
  * `Promise.allSettled`, never `all`: one feed being unreachable must cost that feed's rows and
  * nothing else. A failure becomes a `feeds[]` row saying so — the same rule as everywhere here, a
  * failed read is never an empty result.
  */
-export async function collect({ scope = 'universe', day = today(), holdings = null, onPartial = null } = {}) {
+export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, onPartial = null } = {}) {
   const book = holdings || coverage.holdings();
   const wanted = scopeTickers(scope, book);
 
   const settledFeeds = new Map(); // feed id -> the finished feed row
-  const build = () => assemble({ day, scope, settledFeeds });
+  const build = () => assemble({ day, scope, includeHistory, settledFeeds });
 
   // EACH FEED SETTLES ON ITS OWN AND THE PAGE PAINTS AS IT DOES.
   //
@@ -181,11 +184,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
       let out;
       try {
         await LOADERS[feed.id]();
-        out = COLLECTORS[feed.id]({ day, scope, wanted }) || {};
+        out = COLLECTORS[feed.id]({ day, scope, wanted, includeHistory }) || {};
       } catch (err) {
         out = { events: [], status: 'failed', reachesToday: false, asOf: null, note: String(err?.message || err) };
       }
-      settledFeeds.set(feed.id, toFeedRow(feed, out));
+      settledFeeds.set(feed.id, toFeedRow(feed, out, day));
       try {
         onPartial?.(build());
       } catch (err) {
@@ -213,12 +216,17 @@ const COLLECTORS = {
   'market-news': fromMarketNews,
 };
 
-function toFeedRow(feed, out) {
+function toFeedRow(feed, out, day) {
+  const events = (out.events || []).map((event) => ({ ...event, day: eventDay(event) }));
+  const days = events.map((event) => event.day).filter(Boolean).sort();
   return {
     ...feed,
     status: out.status || 'ok',
-    count: (out.events || []).length,
-    events: out.events || [],
+    count: events.length,
+    todayCount: events.filter((event) => event.day === day).length,
+    oldestDay: days[0] || null,
+    newestDay: days.at(-1) || null,
+    events,
     // Whether this feed's data actually extends to today. `null` where the feed cannot know.
     reachesToday: out.reachesToday ?? null,
     asOf: out.asOf ?? null,
@@ -234,7 +242,7 @@ function toFeedRow(feed, out) {
  * half-finished read must never be allowed to say. It carries no count at all, so the totals below
  * are of what has actually been read rather than of what is eventually expected.
  */
-function assemble({ day, scope, settledFeeds }) {
+function assemble({ day, scope, includeHistory, settledFeeds }) {
   const feeds = FEEDS.map(
     (feed) => settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null }
   );
@@ -243,11 +251,13 @@ function assemble({ day, scope, settledFeeds }) {
   for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
   events.sort(byNewestFirst);
   ensureUniqueIds(events);
+  const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
 
   const done = feeds.filter((f) => f.status === 'ok' || f.status === 'failed');
   return {
     day,
     scope,
+    includeHistory,
     events,
     feeds,
     pending: feeds.filter((f) => f.status === 'pending').length,
@@ -255,6 +265,9 @@ function assemble({ day, scope, settledFeeds }) {
       alerts: events.filter((e) => e.severity === SEVERITY.ALERT).length,
       updates: events.filter((e) => e.severity === SEVERITY.UPDATE).length,
       companies: new Set(events.map((e) => e.ticker).filter(Boolean)).size,
+      days: eventDays.length,
+      oldestEventDay: eventDays[0] || null,
+      newestEventDay: eventDays.at(-1) || null,
       // The FRESHEST feed and the STALEST feed, both, because one number cannot describe eight
       // captures taken at eight different times and picking the freshest would flatter the rest.
       newestRead: maxTime(done.map((f) => f.asOf)),
@@ -295,14 +308,32 @@ function ensureUniqueIds(events) {
   return events;
 }
 
-/** Newest first. A row with no clock time sorts after one that has it, never before. */
+/** Newest day first, then newest clock time. A row with no time follows timed rows on that day. */
 function byNewestFirst(a, b) {
+  const ad = eventDay(a) || '';
+  const bd = eventDay(b) || '';
+  if (ad !== bd) return bd.localeCompare(ad);
   const at = a.time || '';
   const bt = b.time || '';
   if (at && bt) return bt.localeCompare(at);
   if (at) return -1;
   if (bt) return 1;
   return String(a.company || '').localeCompare(String(b.company || ''));
+}
+
+/** The Indian trading date committed on the row, whether `at` is a day or a full instant. */
+function eventDay(event) {
+  if (event?.day && /^\d{4}-\d{2}-\d{2}$/.test(String(event.day))) return String(event.day);
+  const at = event?.at;
+  if (typeof at === 'string' && /^\d{4}-\d{2}-\d{2}/.test(at)) return at.slice(0, 10);
+  return istDay(at);
+}
+
+/** One-day mode matches exactly; history mode includes every retained row through the report day. */
+function inRequestedWindow(value, day, includeHistory) {
+  const rowDay = typeof value === 'string' ? value.slice(0, 10) : eventDay({ at: value });
+  if (!rowDay) return false;
+  return includeHistory ? rowDay <= day : rowDay === day;
 }
 
 const maxTime = (list) => list.filter(Boolean).sort().slice(-1)[0] || null;
@@ -324,10 +355,10 @@ const inScope = (wanted, ticker) => !wanted || (!!ticker && wanted.has(String(ti
  * some categories to red would be this dashboard editorialising over somebody else's index. The
  * category is printed instead, in their words, and the reader decides.
  */
-function fromAnnouncements({ day, wanted }) {
+function fromAnnouncements({ day, wanted, includeHistory }) {
   const m = announcements.meta();
   const capturedDay = istDay(m.capturedAt);
-  const rows = announcements.rows().filter((r) => r.date === day && inScope(wanted, r.ticker));
+  const rows = announcements.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
   const events = rows.map((r, i) => ({
     id: `ann:${r.newsId || `${r.ticker}|${r.date}|${i}`}`,
@@ -360,16 +391,18 @@ function fromAnnouncements({ day, wanted }) {
  * `detail` verbatim, under whatever it called the column, because renaming or grading it would put
  * our word on their data.
  */
-function fromInsider({ day, wanted }) {
+function fromInsider({ day, wanted, includeHistory }) {
   const m = insider.meta();
   const capturedDay = istDay(m.capturedAt);
-  const rows = insider.rows().filter((r) => r.date === day && inScope(wanted, r.ticker));
+  const rows = insider.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
   const events = rows.map((r, i) => {
     const cells = r.cells || {};
     const pick = (...names) => names.map((n) => cells[n]).find((v) => v != null && v !== '');
     return {
-      id: `insider:${r.ticker}|${r.date}|${i}`,
+      // Content-derived rather than position-derived: loading an older day must not rename every
+      // row after it, or a refresh would report the whole timeline as newly arrived.
+      id: `insider:${r.ticker}|${r.date}|${[pick('Insider'), pick('Transaction', 'Acq/Disp', 'Mode'), pick('Trade Shares'), pick('From Date'), pick('To Date')].filter(Boolean).join('|') || i}`,
       severity: SEVERITY.UPDATE,
       time: null,
       at: r.date,
@@ -449,10 +482,10 @@ function fromTechnicals({ day, wanted }) {
 }
 
 /** Company news published today. An article is not a measurement, so it is always an update. */
-function fromCompanyNews({ day, wanted }) {
+function fromCompanyNews({ day, wanted, includeHistory }) {
   const m = news.meta();
   const capturedDay = istDay(m.capturedAt);
-  const rows = news.rows().filter((r) => r.date === day && inScope(wanted, r.ticker));
+  const rows = news.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
   const events = rows.map((r, i) => ({
     // THE TICKER IS PART OF THE IDENTITY. One story is returned by several companies' searches,
@@ -488,7 +521,7 @@ function fromCompanyNews({ day, wanted }) {
  * the same rule the chatter tab follows for its unresolved half. They appear under Universe and the
  * feed row says why they do not appear under the other two.
  */
-function fromMarketNews({ day, scope }) {
+function fromMarketNews({ day, scope, includeHistory }) {
   const m = marketNews.meta();
   const capturedDay = istDay(m.capturedAt);
   const scopable = scope === 'universe';
@@ -496,7 +529,7 @@ function fromMarketNews({ day, scope }) {
   const events = scopable
     ? marketNews
         .rows()
-        .filter((a) => istDay(a.publishedAt) === day)
+        .filter((a) => inRequestedWindow(a.publishedAt, day, includeHistory))
         .map((a) => ({
           id: `mcnews:${a.id}`,
           severity: SEVERITY.UPDATE,

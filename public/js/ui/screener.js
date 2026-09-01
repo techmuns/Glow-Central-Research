@@ -356,6 +356,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  nameMaxPx     default null. Hard px cap on the identity column so long names/subs truncate
  *                instead of widening the table.
  *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
+ *  fillMode      'idle' (default) eventually paints every row; 'scroll' appends adaptive pages
+ *                only as the reader approaches the bottom of the table.
  *
  * Sorting, search, watchlist-only and the filter select are all handled internally; the table
  * re-renders its own tbody without the tab getting involved.
@@ -425,6 +427,10 @@ export function scoreTable(config) {
     // scrolled, while the page scrolled underneath it. Giving the wrapper a height makes it
     // actually scroll, which is what makes the head stay put. The toolbar above stays visible too.
     stickyHead = null,
+    // Long event timelines do not need thousands of off-screen <tr>s. In `scroll` mode the data
+    // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
+    // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
+    fillMode = 'idle',
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -667,7 +673,7 @@ export function scoreTable(config) {
   let updateRows = () => 0;
 
   const html = `
-    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
+    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' ? ' data-scroll-paged' : ''}${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <div class="relative max-w-md flex-1">
@@ -768,8 +774,11 @@ export function scoreTable(config) {
       const ms = performance.now() - started;
       if (ms > 24) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
       else if (ms < 8) slice = Math.min(MAX_SLICE, slice * 2);
-      if (filled < current.length) cancelFill = scheduleSlice(pumpFill);
-      else markPending(0);
+      if (filled < current.length) {
+        if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
+      } else {
+        markPending(0);
+      }
     }
 
     function startFill() {
@@ -780,7 +789,7 @@ export function scoreTable(config) {
       }
       markPending(current.length - filled);
       attachScroll();
-      cancelFill = scheduleSlice(pumpFill);
+      if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
     }
 
     /**
@@ -817,7 +826,10 @@ export function scoreTable(config) {
         scrollQueued = false;
         const last = body.lastElementChild;
         if (filled >= current.length || !last) return;
-        if (last.getBoundingClientRect().top < window.innerHeight * 2) flush();
+        if (last.getBoundingClientRect().top < window.innerHeight * 2) {
+          if (fillMode === 'scroll') pumpFill();
+          else flush();
+        }
       });
     }
 

@@ -147,12 +147,12 @@ export function sourceGroups() {
         {
           name: 'No source of its own — it reads four of the tabs below',
           feeds:
-            'The landing tab consolidates <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, filtered to today\'s Indian trading date, and adds no data of its own. ' +
+            'The landing tab consolidates the retained rows from <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time, and adds no data of its own. Its date filter narrows the already-loaded timeline without issuing another request. ' +
             'The Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not folded in — they keep their own tabs, and the alerts page says so rather than leaving an absent row to read as a fault. ' +
             `<strong>Red</strong> is a direct negative reading printed in the row that carries it, and across these four there is exactly one: the price fell more than ${DAILY_MOVE_PCT}% at the close. ` +
             '<strong>Orange</strong> is anything else that arrived. <strong>Announcements, insider disclosures and news are never graded</strong>: their categories, columns and headlines are the upstream\'s own, ' +
             'so grading one would be a flag we invented over somebody else\'s words. ' +
-            'Its own panel says, per feed, when that feed last looked and whether that reaches today — because an empty stream and a feed that has not run are not the same answer.',
+            'Its own panel keeps the retained row count separate from when that feed last looked and whether that reaches today — because historical rows and a feed that has run today are not the same answer.',
           cadence: 'Rebuilt on every visit and on Refresh; none of the four polls, and nothing on it walks per company',
           status: 'live',
           file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
