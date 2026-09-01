@@ -2277,9 +2277,9 @@ Three rules make that safe, and they are the same ones the store rests on genera
 - **`meta().origin` may never claim a freshness that has not been confirmed.** It distinguishes
   three: `snapshot` for the committed file, `store` for this device's cache, and `live` only once
   every painted book has been confirmed against the server **in this session**. A book the second
-  pass deliberately skipped is *unconfirmed*, not confirmed — see below. The pill follows it and
-  says *Captured* / *Cached* / *Live*; it used to say "Live" unconditionally, in emerald, which was
-  survivable only while every paint really was a fresh read of all ninety-one routes.
+  pass deliberately skipped is *unconfirmed*, not confirmed — see below. The value remains the
+  source of truth for stale handling, exports and verification, but Superstar Investors does not
+  repeat it as a per-view status pill; refresh status and control already live in the global header.
 - **A failed revalidation must not delete a book you already have.** The cached copy is a real read
   of a real filing; replacing it with "could not be read" because a later request timed out throws
   away good data to report a transient network event. Only a book with no cached copy becomes a
@@ -2551,7 +2551,8 @@ It covers, beyond the checklist below:
 - **a first visit does not fetch ninety-one books either**: the committed snapshot carries one per
   investor with a capture time on it and **no unread book written as an empty one**, a cold device
   paints the whole grid from it with no request per investor — on a static origin with no `/api/`
-  at all — and the pill says **Captured**, not Live, over bytes nobody confirmed this session
+  at all — while `origin` remains `snapshot` over bytes nobody confirmed this session and the view
+  adds no duplicate cache, scope or loading tags
 - **the Earnings Calendar opens on today**, in IST rather than UTC, with today's chip scrolled into
   view; a day still in progress reads *"nothing filed yet"* rather than *"no results were filed"*
 - **switching tabs does not block on building a table**: the initial markup carries a screenful and

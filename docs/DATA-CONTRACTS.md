@@ -2738,8 +2738,9 @@ Three rules, and they are the filings snapshot's rules:
   fallback during an outage; freezing that into a committed file would preserve somebody else's
   outage for a week.
 - **The device's copy always wins over the file**, because those bytes were confirmed later. The
-  snapshot only ever fills gaps, and `meta().origin` reads `snapshot` — the pill says *Captured* —
-  for anything nobody has confirmed in this session.
+  snapshot only ever fills gaps, and `meta().origin` reads `snapshot` for anything nobody has
+  confirmed in this session. That value remains available to stale handling, exports and tests;
+  Superstar Investors does not render a second cache/status tag beside the global header control.
 
 ### How often a book is worth asking about again
 
@@ -2759,10 +2760,9 @@ last quarter's book into the new one.
 and makes exactly **one** request — a conditional GET of the investor LIST, which is the one thing
 a snapshot cannot answer (an investor added or dropped). Confirming ninety books is ninety round
 trips, and it is work the reader asks for: `refresh()` is registered with `js/core/refresh.js`, so
-the header's Refresh button and *Re-read everything now* in the Live pill's modal both drive it. It
-ignores the window deliberately — a refresh that silently skipped every book because the capture was
-recent would be a button that does nothing on the one occasion the reader was sure something had
-changed.
+the header's Refresh button drives it. It ignores the window deliberately — a refresh that silently
+skipped every book because the capture was recent would be a button that does nothing on the one
+occasion the reader was sure something had changed.
 
 ### The Worker exists to hold the token
 
@@ -2844,8 +2844,7 @@ edge window, so the same bytes would come back; `REVALIDATE_AFTER_MS` in
 judgement about tolerable staleness. A book never read, and a book carrying `stale: true`, are
 always asked for. `meta().origin` stays `store` while any painted book is unconfirmed and
 `meta().checkedAt` reports the **oldest** confirmation on screen, so the skip cannot be mistaken for
-freshness; `refresh()` (the *Re-read everything now* control in the Live pill's modal) discards
-every confirmation.
+freshness; `refresh()` (the global header's Refresh button) discards every confirmation.
 
 ### `stale: true` — the last good read, when the upstream is down
 

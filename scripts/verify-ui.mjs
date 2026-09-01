@@ -3235,14 +3235,12 @@ const siProbe = await page.evaluate(async () => {
 
 if (siProbe.state === 'no-route') {
   // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
-  // route at all. This check used to assert the view said it needed the Worker, and that was the
-  // right assertion when nothing else could answer; now the honest outcome is the snapshot,
-  // labelled as such. Only a deployment with neither falls back to naming the missing route.
+  // route at all. Only a deployment with neither falls back to naming the missing route.
   const noWorker = await hostText();
   const fromFile = await page.locator('[data-open-investor]').count();
   ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
-    fromFile > 0 ? /Captured/.test(noWorker) : /needs the Worker/i.test(noWorker),
-    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the missing route');
+    fromFile > 0 || /needs the Worker/i.test(noWorker),
+    fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the missing route');
   skip('the live investor books render', 'no /api/super-investors on this origin');
 } else if (siProbe.state === 'error') {
   // AN UNREACHABLE LIVE ROUTE IS NOT AN EMPTY VIEW — the committed snapshot is a static file and
@@ -3250,15 +3248,15 @@ if (siProbe.state === 'no-route') {
   // which was right when nothing else could answer and became wrong the day the snapshot shipped:
   // running against `wrangler dev` with no MUNS_TOKEN is the first configuration that reaches it
   // WITH a snapshot present, and it reported the good fallback as a failure. Same resolution as
-  // the no-route branch above: with a snapshot the outcome is the snapshot, labelled `Captured`;
-  // only a deployment with neither falls through to naming the reason.
+  // the no-route branch above: with a snapshot the outcome is the snapshot; only a deployment with
+  // neither falls through to naming the reason.
   const errText = await hostText();
   const fromFile = await page.locator('[data-open-investor]').count();
   ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
     fromFile > 0
-      ? /Captured/.test(errText)
+      ? true
       : /token|could not be reached|returned an error|unreadable|does not have the super-investor endpoints|did not answer in time/i.test(errText),
-    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the reason');
+    fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the reason');
   // A 404 on the LIST route means the endpoint is absent, not that an investor is missing. The two
   // were once conflated, and the panel said "No such investor" while the real problem was that the
   // backend had never shipped the route — a diagnosis that sent the search in the wrong direction.
@@ -3278,9 +3276,7 @@ if (siProbe.state === 'no-route') {
   // "58 new · 400 exits" count. Two described the FEED rather than answering anything a reader
   // came for, and the third was a pair of numbers with no names attached — so the only way to act
   // on it was to open ninety books, which is the thing this page exists to avoid. The roll-up
-  // below replaced it. What the cards genuinely measured did not go: the combined value moved to
-  // the coverage line under the table, and the book counts are on the Live pill and the loading
-  // strip. Asserted as a pair, so removing the cards AND the figures would fail.
+  // below replaced it. The combined value survives in the coverage line under the table.
   const strip = await page.evaluate(() => ({
     cards: document.querySelectorAll('#content-host .stat-card').length,
     coverage: (document.querySelector('#content-host')?.innerText || '').replace(/\s+/g, ' '),
@@ -3456,6 +3452,23 @@ if (siProbe.state === 'no-route') {
   ok('All Investors is the default in-page tab',
     sectionTabs.selected === 'All Investors' && sectionTabs.panel === 'investors' && sectionTabs.cards > 0 && !sectionTabs.summary,
     JSON.stringify(sectionTabs));
+
+  await page.locator('#content-host [data-open-investor]').first().click();
+  await page.waitForSelector('#workspace-overlay.is-open');
+  const workspaceChrome = await page.evaluate(() => {
+    const header = document.querySelector('#workspace-content > div.sticky');
+    const text = header?.innerText || '';
+    return {
+      sourceSubtitle: /Ticker Finology\s*·/i.test(text),
+      filedBadge: /Filed holdings/i.test(text),
+      externalAction: /Open on Finology/i.test(text) || !!header?.querySelector('a[href*="ticker.finology.in/investor"]'),
+    };
+  });
+  ok('the investor workspace has no source subtitle, filed badge or Finology action',
+    !workspaceChrome.sourceSubtitle && !workspaceChrome.filedBadge && !workspaceChrome.externalAction,
+    JSON.stringify(workspaceChrome));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
 
   await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
   await page.waitForSelector('#content-host [data-quarter-summary]');
@@ -3753,47 +3766,26 @@ if (siProbe.state === 'live') {
     const painted = await page.evaluate(async () => {
       const m = (await import('/js/data/super-investors.js')).meta();
       return { total: m.total, loaded: m.loadedBooks, origin: m.origin, fromSnapshot: m.fromSnapshot, capturedAt: m.capturedAt,
-        pill: document.querySelector('[data-si-info]')?.innerText.replace(/\s+/g, ' ') || '' };
+        statusTags: document.querySelectorAll('[data-si-info]').length };
     });
     ok('a first visit paints the grid out of it', painted.loaded > painted.total * 0.9, `${painted.loaded} of ${painted.total} books`);
     ok('...with no request per investor', fresh.length < painted.total, `${fresh.length} requests for ${painted.total} investors`);
-    // The speed may not be bought with a freshness claim. Nobody confirmed these bytes in this
-    // session, so the pill may not say "Live" over them — the same rule the filings pills follow.
-    ok('...and the pill says Captured rather than Live', painted.origin === 'snapshot' && /Captured/.test(painted.pill), `origin=${painted.origin} pill="${painted.pill}"`);
+    ok('...and adds no per-view cache/status tag', painted.origin === 'snapshot' && painted.statusTags === 0, `origin=${painted.origin}, tags=${painted.statusTags}`);
   }
 }
 
-// The provenance modal has to say whose numbers these are, on any state.
-await page.locator('[data-si-info]').first().click().catch(() => {});
-await page.waitForTimeout(500);
-if (await page.locator('#modal-overlay.is-open').count()) {
-  const t = await page.locator('#modal-content').innerText();
-  ok('the Live pill says the percentages are filings and the value is theirs', /Not ours/i.test(t) && /Finology's own derivation/i.test(t));
-  ok('...and explains that a blank quarter is not a zero', /not disclosed/i.test(t) && /not zero/i.test(t));
-
-  // THE ESCAPE HATCH FOR THE REVALIDATION SKIP. Not asking is only defensible if the reader can
-  // ask; and because a re-read discards the state while ninety-one requests are still in flight,
-  // what it must not do is leave a failure state on screen for something that has not failed.
-  if (siProbe.state === 'live') {
-    ok('...and offers a re-read, so the six-hour skip is the reader’s to override', /re-read everything now/i.test(t));
-    await page.locator('#modal-content [data-si-reread]').click();
-    await page.waitForTimeout(1200);
-    await page
-      .waitForFunction(async () => (await import('/js/data/super-investors.js')).meta().pending === 0, null, { timeout: 45000 })
-      .catch(() => {});
-    await page.waitForTimeout(600);
-    const afterReread = await hostText();
-    ok('...and a re-read repaints the books rather than an error panel',
-      !/returned an error|could not be reached|No positions are shown/i.test(afterReread) && (await page.locator('[data-open-investor]').count()) > 0,
-      afterReread.slice(0, 70).replace(/\s+/g, ' '));
-  } else {
-    skip('...and offers a re-read, so the six-hour skip is the reader’s to override', `the upstream is ${siProbe.state}`);
-  }
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-} else {
-  skip('the Live pill says the percentages are filings and the value is theirs', 'the feed is unavailable, so there is no pill to open');
-}
+const cleanInvestorChrome = await page.evaluate(() => {
+  const host = document.getElementById('content-host');
+  const text = host?.innerText || '';
+  return {
+    statusTags: host?.querySelectorAll('[data-si-info]').length || 0,
+    scopeTag: /(?:Portfolio|Watchlist|Universe)\s*·\s*[\d,]+\s+investors/i.test(text),
+    loadingStrip: /Reading\s+[\d,]+\s+more\s+books?\s+from\s+Finology/i.test(text),
+  };
+});
+ok('Superstar Investors adds no cache, scope or loading tags',
+  cleanInvestorChrome.statusTags === 0 && !cleanInvestorChrome.scopeTag && !cleanInvestorChrome.loadingStrip,
+  JSON.stringify(cleanInvestorChrome));
 
 // ---------------------------------------------------------------------------------------
 // 10. Scope and exports on both new tabs
@@ -3825,7 +3817,8 @@ await go('/#/research/public-chatter?scope=portfolio', 1500);
   if (!/Portfolio/.test(settled)) ok('...and a failure names the URL it asked for', /https?:\/\//.test(settled));
 }
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
-ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
+ok('investors do not repeat the Portfolio scope as a content tag',
+  !/Portfolio\s*·\s*[\d,]+\s+investors/i.test(await hostText()));
 // Either the scope note, or — when the feed is unavailable on this origin — the named reason it
 // is unavailable. What must never happen is an empty panel that explains neither.
 {
