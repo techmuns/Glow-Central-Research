@@ -7,7 +7,7 @@
 //
 // This module adds no source of its own. Every event on it is a reading taken from a feed that
 // already had a tab, which is the whole point: the tabs answer "what does this feed hold", and this
-// answers "what happened" by asking several of them the same question at once. The landing tab
+// answers "what happened" by asking several of them the same question at once. The timeline tab
 // requests retained history; the default remains one day so callers that need a daily report keep
 // that exact contract.
 //
@@ -271,11 +271,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
 
   // EACH FEED SETTLES ON ITS OWN AND THE PAGE PAINTS AS IT DOES.
   //
-  // The first version awaited all eight together, and the landing page then sat blank for as long
+  // The first version awaited all eight together, and the timeline then sat blank for as long
   // as the SLOWEST of them — measured at 10-15 seconds on a static origin, because the chatter API
   // is a direct call to somebody else's service and an unreachable host takes its own time to say
   // so. Seven feeds that had already answered were held hostage by the one that had not, on the
-  // first tab a reader sees. `Promise.all` over independent reads is head-of-line blocking with a
+  // page. `Promise.all` over independent reads is head-of-line blocking with a
   // tidy syntax.
   //
   // So each feed loads, collects and reports independently, and `onPartial` fires every time one

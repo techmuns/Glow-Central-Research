@@ -3247,7 +3247,7 @@ also uses `fetchedAt`: reading the file today is not evidence that its upstream 
 snapshot and this device, no per-company request — which is deliberately separate from `load()`:
 `load()` memoises its promise, so a seed arriving first would hand the tab that owns the feed the
 seed's promise and silently discard its company list, and the Refresh button would then re-read an
-empty set and ask about nothing. Daily Alerts Refresh uses the one-shot earnings, con-call and
+empty set and ask about nothing. General Alerts Refresh uses the one-shot earnings, con-call and
 chatter revalidators plus one conditional read of the bulk investor snapshot. It never performs
 the Super Investors tab's ninety-one-book revalidation walk.
 

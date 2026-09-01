@@ -2,7 +2,7 @@
 
 An Indian-equities research and portfolio analytics dashboard. Static site, no build step,
 no framework, no npm dependencies for the app itself. Hosted as a Cloudflare Worker that
-serves `public/` and (later) a few `/api/*` routes.
+serves `public/` and the live `/api/*` routes.
 
 ---
 
@@ -29,14 +29,15 @@ inactive slate with hover. Order is fixed:
 **Research Central**
 1. AI Alerts *(the default landing tab)*
 2. General Alerts
-3. Earnings Hub
-4. Con-call
-5. Public Chatter
-6. Breakouts / Technical
-7. Super Investors
-8. News
-9. Corp Announcements
-10. Insider Trades
+3. Ask Research
+4. Earnings Hub
+5. Con-call
+6. Public Chatter
+7. Breakouts / Technical
+8. Super Investors
+9. News
+10. Corp Announcements
+11. Insider Trades
 
 **Portfolio Analytics**
 1. Overview
@@ -54,6 +55,7 @@ spans the full 1400px on every tab.
 | --- | --- |
 | AI Alerts | *(none — one ranked queue, so the picker is hidden)* |
 | General Alerts | *(none — one stream, so the picker is hidden)* |
+| Ask Research | *(none — one conversation workspace, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
 | Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
@@ -298,6 +300,20 @@ live.onGlobalTick(cb);    // header Live pill
 ---
 
 ## 7. Tabs and planned features
+
+### Ask Research — `ask-research` (server-configured, single view)
+A two-column conversation workspace and the default landing tab. Every question builds a bounded
+runtime packet through the canonical data modules behind the other nine Research Central tabs plus
+the hidden Portfolio Analytics workspace. Every registered source contributes its status, coverage,
+as-of metadata and provenance; question-matched rows are included within the Worker request bound,
+so one slow or unavailable feed is reported rather than silently omitted.
+
+The optional **Web research** button sends the same packet through the Worker and requires OpenAI's
+hosted web search. The answer distinguishes dashboard facts from current web findings, renders web
+links separately, and cites material dashboard claims by page. The API key is a Worker secret;
+responses use `store: false`, the browser never receives the key, and the paid route is same-origin,
+size-bounded and rate-limited. Conversation history stays in device `localStorage`, while each
+submitted question and evidence packet are sent to OpenAI to generate the answer.
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —

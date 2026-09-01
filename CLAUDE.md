@@ -98,7 +98,7 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     ai-alerts, daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
       ai-alerts.js            THE LANDING TAB — ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
@@ -1696,12 +1696,16 @@ rows says whose they are. Both keep the section whole and say why.
 a message that still reads *"None of your holdings has reported"* to a reader looking at their
 watchlist — a sentence quietly about a different list, on a page that is otherwise correct.
 
-### An empty watchlist is answered by the SHELL, once, for every tab
+### An empty watchlist is answered by the SHELL, once, for every tab except Ask Research
 
 `watchlistEmptyPanel()` says there are zero watchlist companies and how to add one. It lives in the
 shell rather than in nine tabs because an empty scope is a property of the scope, not of any tab —
 and because a table reading *"no results match your filters"* over a list nobody has added to sends
 the reader hunting for a filter to clear.
+
+Ask Research declares `meta.allowEmptyScope` because its catalog, per-source status and zero-row
+coverage remain useful even when the list is empty. Keep that exception explicit on the module;
+do not turn it into a shell-wide weakening of the empty-state rule.
 
 **The teardown is decided against what will actually be mounted, not against the tab the route
 names.** Getting that wrong was invisible until two navigations later: landing on an alerts tab with
@@ -1735,6 +1739,29 @@ and a link to General Alerts with the existing table search seeded for the ticke
 pure and exported; test its policy branches with fixtures rather than waiting for today's capture
 to happen to contain every case.
 
+## Ask Research — dashboard evidence first, optional web second
+
+`js/research/estate.js` is a runtime registry, not a second copy of the data. Every adapter reads
+the same module as its owning tab and always returns a catalog/status entry, even when that source
+cannot be read. Row samples are question-ranked and bounded, while coverage, units, periods, as-of
+metadata and live/snapshot/mock provenance remain attached. Adding or removing a dashboard source
+means changing this registry and the focused Ask Research checks together; a source may fail, but it
+may not disappear.
+
+`worker/research.mjs` is the provider boundary. `OPENAI_API_KEY` is a Worker secret and must never
+enter `public/`, browser storage, a request payload or a committed config file. The route is
+same-origin, request-bounded and rate-limited, uses `store: false`, and only adds `web_search` when
+the reader explicitly enables Web research. With that option enabled the tool is required, so a
+"dashboard + web" answer cannot quietly skip the web half.
+
+Conversation history is stored on the device, but each submitted question and bounded evidence
+packet are sent to OpenAI. The UI says both halves. Model prose is untrusted: render it through
+`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
+aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
+label.
+
+---
+
 ## General Alerts — the complete view, and the only one organised as a TIMELINE
 
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
@@ -1743,7 +1770,7 @@ happened, and does any of it need me*.
 
 `js/data/daily-alerts.js` takes the readings, `js/tabs/daily-alerts.js` draws them, and **the tab
 adds no data source**: every row comes from a feed that already has its own tab. The default data
-contract remains one Indian trading date; the landing view requests `includeHistory: true`, which
+contract remains one Indian trading date; the timeline requests `includeHistory: true`, which
 keeps every retained row through today, normalizes `day`, and sorts by date then available IST time.
 The table kit progressively paints that finite retained set inside its own fixed-height scroller, so
 scrolling reveals older dates without a per-company walk or a new API. Full shapes and retention
@@ -1873,10 +1900,10 @@ discard its company list, and the Refresh button would then re-read an empty set
 nothing. `seed()` never writes `wanted`.
 
 **`Promise.all` over independent reads is head-of-line blocking with a tidy syntax.** The first
-version awaited every feed together and the landing page sat blank for as long as the slowest —
+version awaited every feed together and the timeline sat blank for as long as the slowest —
 measured at 10–15 seconds on a static origin, because the chatter API is a direct call to somebody
 else's service and an unreachable host takes its own time to say so. Seven feeds that had already
-answered were held hostage by the one that had not, on the first tab a reader sees. Each feed now
+answered were held hostage by the one that had not. Each feed now
 settles independently and the page paints as it lands, coalesced at 250ms with a **trailing throttle,
 not a debounce** — a debounce would keep deferring while feeds kept landing and the page would sit
 still until the slowest finished, which is the thing this exists to stop. Measured after: first paint
@@ -2425,6 +2452,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
+| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are sent to OpenAI |
+| Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
+| Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side, `store: false`, same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
@@ -2479,7 +2509,7 @@ node scripts/verify-ui.mjs
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 14 tabs across both workspaces render their panel
+- all 15 tabs across both workspaces render their panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
@@ -2493,7 +2523,9 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on AI Alerts, in Portfolio scope**, with no sub-view picker; its cards are
   unique by ticker, score-descending, above the surfaced threshold and explain every point
-- **it reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
+- **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
+  and no empty-Watchlist shell replacement
+- **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
 - **it reads all eight research tabs**, with company and market-wide News as separate feeds
 - **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*

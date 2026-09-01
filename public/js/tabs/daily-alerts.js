@@ -107,7 +107,7 @@ export function render(ctx) {
   if (report && report.scope !== ctx.scope) report = null;
 
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
-  // until every feed has answered is a blank screen on the landing page.
+  // until every feed has answered is a blank timeline.
   paint(ctx);
   recollect(ctx);
 }
