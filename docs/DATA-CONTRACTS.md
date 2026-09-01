@@ -2113,8 +2113,8 @@ exactly where it would be read as a price move.
 
 ## News, Corporate Announcements and Insider Trades — LIVE, behind a credential
 
-Three feeds from the Muns API, behind three Worker routes, feeding three tabs. All need
-`Authorization: Bearer …`, so all three are proxied — the token lives in `env.MUNS_TOKEN` and never
+Three feeds and company search from the Muns API, behind Worker routes. All need
+`Authorization: Bearer …`, so all are proxied — the token lives in `env.MUNS_TOKEN` and never
 reaches the browser, exactly as the Finology feed does on the same host.
 
 | Route | Upstream | Cache | Window |
@@ -2122,6 +2122,7 @@ reaches the browser, exactly as the Finology feed does on the same host.
 | `GET /api/news?q=&from=&to=&country=` | `POST fastapi.muns.io/tools/news-search` | 180s | 30 days |
 | `GET /api/announcements/{ticker}?from=&to=` | `GET devde.muns.io/filings/corp/announcements/{ticker}` | 900s | 365 days |
 | `GET /api/insider-trades/{ticker}?from=&to=` | `POST devde.muns.io/filings/data/insider_trades` | 900s | 365 days |
+| `GET /api/stock-search?q=` | `POST birdnest.muns.io/stock/search` | 300s | Query body fixes `user_index` at `124` |
 
 **Modules** — `worker/muns.mjs` (clients) · `public/js/data/filings-shared.js` (pure parsers, shared
 with the Worker) · `public/js/data/filings.js` (browser feed) · `public/js/tabs/filings-tab.js` (the
@@ -3000,10 +3001,39 @@ write the file — and the UI says so rather than letting the work vanish silent
 
 ---
 
-## Browser-local state — the watchlist, and what the three scopes filter by
+## Browser-local state — editable scope lists, the watchlist, and the active scope
 
-Two things the reader owns are not files and never travel to a server. They are documented here
+Three things the reader owns are not files and never travel to a server. They are documented here
 because a scope filter is a data contract even when its storage is `localStorage`.
+
+### `sattva:scope-lists:v1` — Portfolio and Universe edits on this device
+
+```jsonc
+{
+  "version": 1,
+  "portfolio": {
+    "added": [{ "ticker": "RELIANCE", "name": "Reliance Industries Ltd", "addedAt": "2026-09-01T14:22:00.000Z" }],
+    "removed": [{ "ticker": "TCS", "name": "Tata Consultancy Services Ltd" }]
+  },
+  "universe": {
+    "added": [{ "ticker": "NEWCO", "name": "New Company Ltd", "addedAt": "2026-09-01T14:23:00.000Z" }],
+    "removed": [{ "ticker": "SBIN", "name": "State Bank of India" }]
+  }
+}
+```
+
+The committed book and technicals universe remain the defaults. `added` overlays a named NSE
+company; `removed` records the excluded default entry (including its upper-case ticker). Keeping
+the name lets the name-only super-investor feed honour the exclusion too. Adding a default company
+again clears its exclusion, and **Restore default** clears both arrays for that scope. Watchlist is
+not duplicated here: its editor calls the existing `sattva:watchlist` store, so stars and the
+header editor cannot disagree. All edits are device-local, and Portfolio edits affect research
+scope only — they do not invent quantities or costs in the Portfolio Analytics ledger.
+
+The browser calls `GET /api/stock-search?q=` after two characters. The Worker sends the exact Muns
+body `{ query, user_index: 124 }`, keeps `MUNS_TOKEN` out of the browser, and normalises the
+ticker-keyed upstream object to `{ ticker, country, name, industry, validTicker }[]`. The editor
+offers only Indian results with valid NSE-shaped tickers.
 
 ### `sattva:watchlist` — the companies the reader is tracking
 
@@ -3052,15 +3082,16 @@ stored one rather than letting a typo redefine what is on screen.
 
 | Scope | Filters by | Denominator the pill prints |
 | --- | --- | --- |
-| `portfolio` | `portfolio-companies.json` via `js/data/coverage.js` — 142 book lines, 123 with an NSE symbol | *"123 of 142 book companies"*. Part of that gap is permanent: nineteen lines carry no symbol, so no feed here can ever show them. |
+| `portfolio` | `portfolio-companies.json` via `js/data/coverage.js`, overlaid by `sattva:scope-lists:v1` | *"123 of 142 book companies"* before edits. Unresolved book lines stay in the denominator; device additions and exclusions update it. |
 | `watchlist` | `sattva:watchlist` above | *"12 of 20 watched companies"*. This gap is only ever *this feed does not carry it* — a watchlist entry came **from** a feed. |
-| `universe` | nothing — it is the denominator | plain count |
+| `universe` | the feed's full rows, minus local exclusions; local additions appear wherever that feed has data for their ticker | plain count |
 
 `scopeTickers(scope, holdings)` returns the `Set` to filter by, or **`null` for universe**. `null`
 and an empty `Set` are deliberately different: an empty `Set` is a real, correct answer (nothing is
 watched yet) and must narrow the feed to nothing, while `null` means *this scope does not narrow*.
 Collapsing the two would make an empty watchlist show the whole universe — a scope silently meaning
-its own opposite.
+its own opposite. `null` is retained for call-site compatibility; editable-aware consumers use
+`scopeAllowsTicker()` or `filterByScope()`, which apply Universe exclusions as well.
 
 **An empty watchlist is answered by the shell, once, for every tab.** `watchlistEmptyPanel()` says
 there are zero watchlist companies and how to add one; the tab is not mounted at all, and the shell

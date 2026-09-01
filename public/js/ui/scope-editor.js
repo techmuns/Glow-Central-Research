@@ -1,0 +1,258 @@
+// ui/scope-editor.js — edit the company list behind the active scope.
+
+import { escapeHtml } from '../core/dom.js';
+import { formatNumber } from '../core/format.js';
+import { openModal } from './screener.js';
+import { scopeLabel } from '../data/scope.js';
+import { searchCompanies } from '../data/stock-search.js';
+import * as coverage from '../data/coverage.js';
+import * as technicals from '../data/technicals.js';
+import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
+
+const SEARCH_DELAY_MS = 250;
+
+const clean = (v) => String(v ?? '').trim();
+const upper = (v) => clean(v).toUpperCase();
+
+function universeBase() {
+  const seen = new Set();
+  const out = [];
+  for (const row of technicals.all()) {
+    const c = row.company || {};
+    const ticker = upper(c.ticker);
+    if (!ticker || seen.has(ticker)) continue;
+    seen.add(ticker);
+    out.push({ ticker, name: c.name || ticker, sector: c.sector || c.industry || null, industry: c.industry || null, country: 'India' });
+  }
+  for (const h of coverage.holdings()) {
+    const ticker = upper(h.ticker);
+    if (!ticker || seen.has(ticker)) continue;
+    seen.add(ticker);
+    out.push({ ...h, ticker, country: h.country || 'India' });
+  }
+  return out;
+}
+
+function editorHtml(scope) {
+  return `
+    <div data-scope-editor="${escapeHtml(scope)}">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <div>
+          <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Scope list</div>
+          <h2 class="font-display mt-1 text-xl font-extrabold text-slate-900">Edit ${escapeHtml(scopeLabel(scope))}</h2>
+          <p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Search by company name or ticker, then add or remove it. Changes are kept on this device.
+          </p>
+        </div>
+        <button type="button" data-modal-close aria-label="Close scope editor" class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
+      </div>
+
+      <div class="px-6 py-5">
+        <div class="relative">
+          <label for="scope-company-search" class="sr-only">Search company name or ticker</label>
+          <div class="flex items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-300">
+            <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="8.5" cy="8.5" r="5.5"></circle><path d="m13 13 4 4"></path>
+            </svg>
+            <input id="scope-company-search" data-scope-search type="search" autocomplete="off"
+              placeholder="Search company name or ticker…"
+              class="min-w-0 flex-1 bg-transparent py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400" />
+          </div>
+          <div data-scope-search-results class="absolute left-0 right-0 z-20 mt-1 hidden max-h-72 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200"></div>
+        </div>
+
+        <div data-scope-loading class="py-12 text-center text-sm text-slate-400">Reading the ${escapeHtml(scopeLabel(scope).toLowerCase())} list…</div>
+        <div data-scope-list-panel class="mt-5 hidden">
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <div class="text-xs font-bold uppercase tracking-wider text-slate-400"><span data-scope-count>0</span> companies</div>
+            ${scope === 'watchlist' ? '' : '<button type="button" data-scope-reset class="text-xs font-semibold text-slate-400 transition hover:text-rose-600">Restore default</button>'}
+          </div>
+          <div data-scope-members class="scrollbar-thin max-h-[44vh] divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/60 px-3"></div>
+          <p data-scope-empty-filter class="hidden py-8 text-center text-sm text-slate-400">No current company matches this search.</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
+        <p class="max-w-xl text-xs leading-relaxed text-slate-500">
+          ${scope === 'universe'
+            ? 'Universe edits filter every ticker-based feed. A newly added company appears wherever that feed has data for it.'
+            : scope === 'portfolio'
+              ? 'This changes the Research Central Portfolio scope; it does not rewrite the separate Portfolio Analytics ledger.'
+              : 'This is the same list controlled by the ☆ beside company rows.'}
+        </p>
+        <button type="button" data-modal-close class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Done</button>
+      </div>
+    </div>`;
+}
+
+function memberHtml(entry) {
+  const ticker = upper(entry.ticker);
+  const key = scopeLists.keyFor(entry);
+  return `
+    <div class="flex items-center gap-3 py-2.5" data-scope-member="${escapeHtml(key)}">
+      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-[10px] font-extrabold text-indigo-600">${escapeHtml((ticker || entry.name || '?').slice(0, 2))}</div>
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-sm font-semibold text-slate-800">${escapeHtml(entry.name || ticker || 'Unnamed company')}</div>
+        <div class="truncate text-[11px] text-slate-400">${escapeHtml([ticker || 'no ticker', entry.industry || entry.sector].filter(Boolean).join(' · '))}</div>
+      </div>
+      <button type="button" data-scope-remove="${escapeHtml(key)}" aria-label="Remove ${escapeHtml(entry.name || ticker)}"
+        class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Remove</button>
+    </div>`;
+}
+
+function searchResultsHtml(results, current, loading, error) {
+  if (loading) return '<div class="px-3 py-4 text-center text-sm text-slate-400">Searching Muns…</div>';
+  if (error) return `<div class="px-3 py-4 text-sm text-rose-600">${escapeHtml(error)}</div>`;
+  if (!results.length) return '<div class="px-3 py-4 text-center text-sm text-slate-400">No matching Indian companies.</div>';
+  const memberKeys = new Set(current.map(scopeLists.keyFor));
+  return results
+    .map((entry, index) => {
+      const key = scopeLists.keyFor(entry);
+      const active = memberKeys.has(key);
+      const supported = entry.validTicker !== false && (!entry.country || /^india$/i.test(entry.country));
+      return `
+        <button type="button" data-scope-result="${index}" ${supported ? '' : 'disabled'}
+          class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${supported ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-45'}">
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="truncate text-sm font-semibold text-slate-800">${escapeHtml(entry.name || entry.ticker)}</span>
+              <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">${escapeHtml(entry.ticker)}</span>
+            </div>
+            <div class="mt-0.5 truncate text-[11px] text-slate-400">${escapeHtml([entry.country, entry.industry, entry.validTicker === false ? 'no usable ticker' : null].filter(Boolean).join(' · '))}</div>
+          </div>
+          <span class="shrink-0 text-xs font-bold ${active ? 'text-rose-600' : 'text-indigo-600'}">${active ? 'Remove' : 'Add'}</span>
+        </button>`;
+    })
+    .join('');
+}
+
+export function openScopeEditor({ scope, onChanged = null } = {}) {
+  let base = scope === 'portfolio' ? coverage.baseHoldings() : [];
+  let changed = false;
+  let searchResults = [];
+  let searchTimer = null;
+  let searchAbort = null;
+
+  openModal(editorHtml(scope), {
+    size: 'wide',
+    onClose: () => {
+      clearTimeout(searchTimer);
+      searchAbort?.abort();
+      if (changed) onChanged?.();
+    },
+  });
+
+  const root = document.querySelector(`[data-scope-editor="${scope}"]`);
+  if (!root) return;
+  const input = root.querySelector('[data-scope-search]');
+  const resultBox = root.querySelector('[data-scope-search-results]');
+  const membersBox = root.querySelector('[data-scope-members]');
+  const panel = root.querySelector('[data-scope-list-panel]');
+  const loading = root.querySelector('[data-scope-loading]');
+
+  const current = () => {
+    if (scope === 'watchlist') return watchlist.all();
+    return scopeLists.apply(scope, base);
+  };
+
+  function paintMembers() {
+    const query = clean(input.value).toLowerCase();
+    const entries = current();
+    const filtered = query
+      ? entries.filter((entry) => `${entry.ticker || ''} ${entry.name || ''} ${entry.industry || entry.sector || ''}`.toLowerCase().includes(query))
+      : entries;
+    root.querySelector('[data-scope-count]').textContent = formatNumber(entries.length);
+    membersBox.innerHTML = filtered.map(memberHtml).join('');
+    root.querySelector('[data-scope-empty-filter]').classList.toggle('hidden', filtered.length > 0 || !query);
+    membersBox.classList.toggle('hidden', filtered.length === 0 && !!query);
+  }
+
+  function paintSearch({ busy = false, error = '' } = {}) {
+    const open = clean(input.value).length >= 2;
+    resultBox.classList.toggle('hidden', !open);
+    if (open) resultBox.innerHTML = searchResultsHtml(searchResults, current(), busy, error);
+  }
+
+  function markChanged() {
+    changed = true;
+    paintMembers();
+    paintSearch();
+  }
+
+  function add(entry) {
+    if (scope === 'watchlist') watchlist.add(entry.ticker, entry.name);
+    else scopeLists.add(scope, { ...entry, source: 'muns-search' }, base);
+    markChanged();
+  }
+
+  function remove(entry) {
+    if (scope === 'watchlist') watchlist.remove(entry.ticker);
+    else scopeLists.remove(scope, entry, base);
+    markChanged();
+  }
+
+  input.addEventListener('input', () => {
+    paintMembers();
+    clearTimeout(searchTimer);
+    searchAbort?.abort();
+    searchResults = [];
+    const query = clean(input.value);
+    if (query.length < 2) {
+      paintSearch();
+      return;
+    }
+    paintSearch({ busy: true });
+    searchTimer = setTimeout(async () => {
+      searchAbort = new AbortController();
+      try {
+        searchResults = await searchCompanies(query, { signal: searchAbort.signal });
+        if (query === clean(input.value)) paintSearch();
+      } catch (err) {
+        if (err?.name !== 'AbortError' && query === clean(input.value)) paintSearch({ error: err?.message || 'Search failed.' });
+      }
+    }, SEARCH_DELAY_MS);
+  });
+
+  resultBox.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-scope-result]');
+    if (!button || button.disabled) return;
+    const entry = searchResults[Number(button.dataset.scopeResult)];
+    if (!entry) return;
+    if (current().some((item) => scopeLists.keyFor(item) === scopeLists.keyFor(entry))) remove(entry);
+    else add(entry);
+  });
+
+  membersBox.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-scope-remove]');
+    if (!button) return;
+    const entry = current().find((item) => scopeLists.keyFor(item) === button.dataset.scopeRemove);
+    if (entry) {
+      remove(entry);
+      // A member-row action means the reader has moved from autocomplete to the list. Collapse the
+      // floating result panel so it cannot cover Restore default or the next member action.
+      resultBox.classList.add('hidden');
+    }
+  });
+
+  root.querySelector('[data-scope-reset]')?.addEventListener('click', () => {
+    scopeLists.reset(scope);
+    changed = true;
+    paintMembers();
+    paintSearch();
+  });
+
+  Promise.resolve(scope === 'universe' ? technicals.load() : null)
+    .then(() => {
+      if (!document.body.contains(root)) return;
+      if (scope === 'universe') base = universeBase();
+      loading.classList.add('hidden');
+      panel.classList.remove('hidden');
+      paintMembers();
+      input.focus();
+    })
+    .catch((err) => {
+      if (!document.body.contains(root)) return;
+      loading.innerHTML = `<span class="text-rose-600">Could not read this list: ${escapeHtml(err?.message || err)}</span>`;
+    });
+}

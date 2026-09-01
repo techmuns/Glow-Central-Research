@@ -134,6 +134,11 @@ rather than repeating the string pair, so a fourth scope is a change in one file
   142-company direct-equity statement, read through `js/data/coverage.js`. The universe is
   `public/data/universe.json`. `portfolio.json` is the *ledger* — twelve positions with quantities
   and costs — and drives Portfolio Analytics only; the scope filter does not read it.
+- The pencil beside the segmented control edits whichever scope is active. Portfolio and Universe
+  keep device-local additions and exclusions over those committed defaults; Watchlist edits the
+  same company list as the stars in the tables. The search box calls the Worker, which adds the
+  Muns credential server-side and returns Indian company names and NSE tickers. Editing the
+  Portfolio scope never adds a quantity or cost to the separate Portfolio Analytics ledger.
 - **The chip states the denominator, because no feed covers the whole book** — *"Portfolio · 96 of
   142 reported"*. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger
   entities, BSE-only, unresolved); they are kept with a stated reason and shown as held-but-not-
