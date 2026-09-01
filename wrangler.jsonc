@@ -24,22 +24,28 @@
   "vars": {
     "GH_REPO": "techmuns/Sattva-Central-Research",
     "GH_REF": "main"
-  },
-
-  // THE NEWS CADENCE COMES FROM HERE, NOT FROM GITHUB'S `schedule:` BLOCK.
-  //
-  // Measured on this repository: a GitHub `*/20 * * * *` cron fired 12 times against 124 scheduled
-  // over 41 hours, and after being relaxed to `*/30` across a 12-hour window it fired ZERO times
-  // against ~11 scheduled in the next 5.7 hours. Their scheduler is best-effort and this repo is at
-  // the back of the queue. `workflow_dispatch`, by contrast, started a run within SECONDS on every
-  // one of six dispatches the same day.
-  //
-  // So a scheduler that works drives the trigger that works: this cron wakes the Worker, and
-  // `scheduled()` in worker/index.js dispatches market-news-refresh.yml. It ticks every 20 minutes
-  // and the handler drops to hourly outside the window the publisher answers in — see the comment
-  // there for both measurements. GitHub's own `schedule:` block stays as a fallback for a
-  // deployment that has no Worker.
-  "triggers": {
-    "crons": ["*/20 * * * *"]
   }
+
+  // NO CRON TRIGGER HERE, AND THE REASON IS AN ACCOUNT LIMIT RATHER THAN A CHOICE.
+  //
+  // A `triggers.crons` block was added to drive the news refresh from Cloudflare's scheduler,
+  // because GitHub's own `schedule:` measurably does not fire on this repository (12 runs against
+  // 124 over 41 hours, then ZERO against ~11 in the 5.7 hours after the cron was relaxed). It could
+  // not be registered, and the build log says exactly why:
+  //
+  //     Trigger configuration for "sattva-central-research" was only partially updated:
+  //       Cron schedules:
+  //         - This account has reached the Workers Free limit of 5 cron triggers per account.
+  //
+  // THE LIMIT IS PER ACCOUNT, NOT PER WORKER, and the account's five are spent on other Workers.
+  // So the trigger never existed, which is why the cron never fired — and worse, `wrangler deploy`
+  // exits NON-ZERO on that step, so every build went red. Note what that looks like: the script
+  // uploads first and the trigger step fails after it, so the code was live on a "failed" build
+  // and "Successful trigger changes were not rolled back". **A red build here does not mean the
+  // site is stale**, and a green one is not what proves a trigger registered.
+  //
+  // `scheduled()` in worker/index.js is left in place. It costs nothing without a trigger and
+  // starts working the moment one exists, so freeing a cron slot on the account (or upgrading) is
+  // the only step needed — no code change. Until then the cadence has to come from somewhere else;
+  // see docs/DATA-CONTRACTS.md, "Keeping the capture fresh".
 }

@@ -2281,8 +2281,32 @@ A normal run is one or two page reads. `MCNEWS_FULL=1` walks regardless, for the
 node scripts/scrape-mc-news.mjs                                  # top-up
 MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
 ```
-**The cadence is driven by a Cloudflare Cron Trigger, not by GitHub's scheduler.** `triggers.crons`
-in `wrangler.jsonc` wakes the Worker every 20 minutes and `scheduled()` dispatches the workflow —
+### Keeping the capture fresh — currently unsolved, and the reasons are measured
+
+**Nothing is refreshing this capture on a schedule today.** Both schedulers have been tried and both
+are ruled out by measurement, so the only thing that refreshes it is a reader pressing Fetch:
+
+| route | status |
+| --- | --- |
+| GitHub `schedule:` | fired **12 times against 124** over 41 hours; after being relaxed, **0 against ~11** in 5.7 hours |
+| Cloudflare Cron Trigger | **cannot be registered** — Workers Free allows 5 cron triggers *per account* and the account's five are already used by other Workers |
+| `workflow_dispatch` | **never late** — six dispatches in a day, each starting a run within seconds |
+
+So the mechanism works and only the *clock* is missing. `scheduled()` in `worker/index.js` is
+written, tested and deployed; it needs a trigger to call it. Any of these supplies one:
+
+1. **Free one of the account's five cron slots**, then add `"triggers": { "crons": ["*/20 * * * *"] }`
+   back to `wrangler.jsonc` (or add it in the Cloudflare dashboard). No code change.
+2. **Workers Paid** raises the limit.
+3. **Any external cron service** doing `POST /api/market-news/refresh` every 20 minutes. The route is
+   POST-only, has an edge cooldown, and declines when a run is already in flight, so it is safe to
+   call from anywhere.
+
+**`GET /api/market-news/run` answers whether any of it is working**, via `lastAutomatic`: the most
+recent run that something other than a person started. It reads `null` while nothing schedules.
+
+**The cadence WAS to be driven by a Cloudflare Cron Trigger.** `triggers.crons`
+in `wrangler.jsonc` would wake the Worker every 20 minutes and `scheduled()` dispatch the workflow —
 every 20 minutes across 03:00-14:59 UTC (08:30-20:29 IST, the window the publisher answers in) and
 hourly outside it: **48 dispatches a day**. That indirection exists because GitHub's `schedule:`
 trigger measurably does not fire on this repository: `*/20` managed 12 runs against 124 scheduled

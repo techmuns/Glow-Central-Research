@@ -871,12 +871,32 @@ it fired **zero times against ~11** in the next 5.7 hours. Tuning a schedule tha
 honoured is tuning the wrong thing.
 
 **`workflow_dispatch` is not throttled at all** — six dispatches in one day each started a run
-within *seconds* of the POST. So the cadence now comes from **a scheduler that works driving the
-trigger that works**: a Cloudflare Cron Trigger (`triggers.crons` in `wrangler.jsonc`) wakes the
-Worker every 20 minutes and `scheduled()` dispatches the workflow through the same
-`dispatchWorkflow` the button uses — which already declines when a run is in flight, so a tick
-landing on a reader's click costs no second run. GitHub's own `schedule:` block stays as a fallback
-for a deployment with no Worker, and is no longer what anyone should read the cadence from.
+within *seconds* of the POST. So the cadence should come from **a scheduler that works driving the
+trigger that works**: `scheduled()` in `worker/index.js` dispatches the workflow through the same
+`dispatchWorkflow` the button uses, which already declines when a run is in flight.
+
+**AND THE CLOUDFLARE CRON THAT WAS MEANT TO DRIVE IT COULD NOT BE REGISTERED — AN ACCOUNT LIMIT,
+NOT A PER-WORKER ONE.** `triggers.crons` was added and the build said:
+
+```
+✗ Trigger configuration for "sattva-central-research" was only partially updated:
+    Cron schedules:
+      - This account has reached the Workers Free limit of 5 cron triggers per ACCOUNT.
+```
+
+Five slots, shared across every Worker on the account, already spent. So the trigger never existed
+and the handler was never called — three ticks passed with `lastAutomatic: NONE`.
+
+**Two things in that failure are worth keeping.** First, the limit is per *account*: a Worker with
+no crons of its own can still be refused, so "this Worker has none" is not a reason to expect one to
+register. Second, **a red build here does not mean the site is stale.** `wrangler deploy` uploads
+the script and *then* configures triggers, so the code went live on a build that reported failure —
+the log even says "Successful trigger changes were not rolled back". The inverse holds too: a green
+build is not what proves a trigger registered. Check the thing itself (`lastAutomatic`), never the
+build's colour.
+
+`scheduled()` stays in place: it costs nothing without a trigger and starts working the moment a
+slot is freed or the plan is upgraded, with no code change.
 
 **The rule generalises: when a scheduler is not honouring you, stop negotiating with it.** Two
 rounds were spent on the cron expression before checking whether the expression was the variable at
