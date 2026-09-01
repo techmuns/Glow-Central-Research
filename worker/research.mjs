@@ -112,14 +112,16 @@ function cleanHistory(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
   let chars = 0;
-  for (const item of input.slice(-MAX_HISTORY_MESSAGES)) {
+  // Spend the bounded context window from the newest exchange backwards. A follow-up needs the
+  // immediately preceding answer more than an older turn that merely appeared first in the slice.
+  for (const item of input.slice(-MAX_HISTORY_MESSAGES).reverse()) {
     const role = item?.role === 'assistant' ? 'assistant' : item?.role === 'user' ? 'user' : null;
     const text = typeof item?.text === 'string' ? item.text.trim().slice(0, 4_000) : '';
     if (!role || !text || chars + text.length > MAX_HISTORY_CHARS) continue;
     chars += text.length;
     out.push({ role, content: [{ type: 'input_text', text }] });
   }
-  return out;
+  return out.reverse();
 }
 
 export function validateResearchBody(body) {

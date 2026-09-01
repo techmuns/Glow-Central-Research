@@ -48,6 +48,11 @@ ok('earnings calendar evidence waits for the shared live-results load before rea
   );
 });
 
+ok('Public Chatter evidence preserves failure state and separately samples unresolved topics', () => {
+  assert.match(estateSource, /if \(meta\.ok !== true\) throw new Error/);
+  assert.match(estateSource, /const unresolved = chatter\.uncovered\(\);[\s\S]*?unresolvedTopics: \{/);
+});
+
 ok('configuration requires a non-trivial server-side API key', () => {
   assert.equal(researchConfigured({}), false);
   assert.equal(researchConfigured({ OPENAI_API_KEY: 'short' }), false);
@@ -67,6 +72,23 @@ ok('request validation bounds and normalises history', () => {
   assert.equal(valid.history.length, 1);
   assert.equal(valid.webResearch, true);
   assert.equal(validateResearchBody({ evidence: {} }).error, 'missing_question');
+});
+
+const longHistory = Array.from({ length: 12 }, (_, index) => ({
+  role: index % 2 ? 'assistant' : 'user',
+  text: `m${String(index).padStart(2, '0')}-${'x'.repeat(3_996)}`,
+}));
+const boundedHistory = validateResearchBody({
+  question: 'Follow up',
+  scope: 'portfolio',
+  history: longHistory,
+  evidence: { catalog: [], sources: [] },
+}).history;
+ok('history budgeting retains the newest messages and restores chronological order', () => {
+  assert.deepEqual(
+    boundedHistory.map((message) => message.content[0].text.slice(0, 3)),
+    ['m06', 'm07', 'm08', 'm09', 'm10', 'm11']
+  );
 });
 
 ok('web mode requires hosted search and keeps provider storage off', () => {

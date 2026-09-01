@@ -320,7 +320,9 @@ function deleteSession(id) {
 }
 
 async function ensureConfig() {
-  if (configState) return configState;
+  // A confirmed 200 response is stable for this page session. Transport and 5xx failures are not:
+  // keep their explanatory state visible, but let the next mount retry instead of wedging the SPA.
+  if (configState && configState.retryable !== true) return configState;
   if (configPromise) return configPromise;
   configPromise = fetch('api/research', { headers: { accept: 'application/json' }, cache: 'no-store' })
     .then(async (response) => {
@@ -329,6 +331,7 @@ async function ensureConfig() {
       configState = {
         configured: body?.configured === true,
         webResearchAvailable: body?.webResearchAvailable === true,
+        retryable: false,
         message: body?.configured ? '' : 'Ask Research is not configured on this server. Add the server-side OpenAI key to enable answers.',
       };
       return configState;
@@ -337,9 +340,13 @@ async function ensureConfig() {
       configState = {
         configured: false,
         webResearchAvailable: false,
+        retryable: true,
         message: 'Ask Research needs the Cloudflare Worker runtime and its server-side OpenAI key.',
       };
       return configState;
+    })
+    .finally(() => {
+      configPromise = null;
     });
   return configPromise;
 }

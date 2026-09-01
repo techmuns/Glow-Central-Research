@@ -192,6 +192,18 @@ function alertRow(row) {
   };
 }
 
+function chatterRow(row) {
+  return {
+    ticker: row.ticker || null,
+    topic: clipped(row.name || row.slug, 120),
+    mentions: row.mentions ?? null,
+    mentionCountChangePct: row.mentionsChangePct ?? null,
+    sentiment: row.sentiment ?? row.sentimentLabel ?? null,
+    sentimentScore: row.sentimentScore ?? null,
+    sources: row.sources || row.sourceTotals || null,
+  };
+}
+
 function filingRow(row) {
   return {
     date: row.date || null,
@@ -255,6 +267,48 @@ function portfolioRow(row) {
     unrealisedPnlPct: round(row.unrealisedPct),
     realisedPnlRupees: round(row.realised),
     totalPnlRupees: round(row.totalPnl),
+  };
+}
+
+function portfolioScopeSummary(rows) {
+  const open = rows.filter((row) => row.qty > 0);
+  const total = (set, key) => round(set.reduce((sum, row) => sum + (Number(row[key]) || 0), 0));
+  const invested = total(open, 'invested');
+  const marketValue = total(open, 'marketValue');
+  const unrealised = total(open, 'unrealised');
+  const realised = total(rows, 'realised');
+  const dividends = total(rows, 'dividends');
+  const charges = total(rows, 'charges');
+  const totalPnl = round(unrealised + realised + dividends);
+  const unpriced = open.filter((row) => !row.priced);
+  return {
+    invested,
+    marketValue,
+    unrealised,
+    unrealisedPct: invested ? round((unrealised / invested) * 100) : 0,
+    realised,
+    realisedShort: total(rows, 'realisedShort'),
+    realisedLong: total(rows, 'realisedLong'),
+    dividends,
+    charges,
+    totalPnl,
+    totalPnlPct: invested ? round((totalPnl / invested) * 100) : 0,
+    positionCount: open.length,
+    closedCount: rows.filter((row) => row.isClosed).length,
+    winnerCount: open.filter((row) => row.priced && row.unrealised > 0).length,
+    loserCount: open.filter((row) => row.priced && row.unrealised < 0).length,
+    unpricedCount: unpriced.length,
+    lotCount: open.reduce((sum, row) => sum + (row.lots?.length || 0), 0),
+    reconciliation: {
+      realised,
+      unrealised,
+      dividends,
+      totalPnl,
+      residual: round(totalPnl - (realised + unrealised + dividends)),
+      lotsBalance: rows.every((row) => (row.lots || []).reduce((sum, lot) => sum + (lot.openQty || 0), 0) === row.qty),
+      unpricedCount: unpriced.length,
+      unpricedTickers: unpriced.map((row) => row.ticker),
+    },
   };
 }
 
@@ -324,23 +378,24 @@ const BUILDERS = [
     id: 'public-chatter',
     async read({ scope, tokens }) {
       await chatter.load();
-      const rows = chatter.forScope(scope);
-      const picked = chooseRows(rows, tokens, (row) => ({
-        ticker: row.ticker || null,
-        topic: clipped(row.name || row.slug, 120),
-        mentions: row.mentions ?? null,
-        mentionCountChangePct: row.mentionsChangePct ?? null,
-        sentiment: row.sentiment ?? row.sentimentLabel ?? null,
-        sentimentScore: row.sentimentScore ?? null,
-        sources: row.sources || row.sourceTotals || null,
-      }), (a, b) => (b.mentions ?? 0) - (a.mentions ?? 0));
       const meta = chatter.meta() || {};
+      if (meta.ok !== true) throw new Error(`Public Chatter could not be read (${meta.reason || 'unknown upstream state'}).`);
+      const rows = chatter.forScope(scope);
+      const unresolved = chatter.uncovered();
+      const picked = chooseRows(rows, tokens, chatterRow, (a, b) => (b.mentions ?? 0) - (a.mentions ?? 0));
+      const unresolvedPicked = chooseRows(unresolved, tokens, chatterRow, (a, b) => (b.mentions ?? 0) - (a.mentions ?? 0));
       return sourcePacket(this.id, {
         source: 'SentimentDash — ValuePickr, TradingQnA and Google News',
         asOf: meta.generatedAt || meta.checkedAt || null,
-        rowCount: rows.length,
-        coverage: { scope, coveredCompanies: meta.companies, unresolvedTopics: meta.uncovered, totalTopics: meta.total, window: meta.window },
-        definition: 'mentionsChangePct is a change in mention count between scrapes, not a price return; sparkline points are scrape runs, not days.',
+        rowCount: rows.length + unresolved.length,
+        coverage: { scope, coveredRowsInScope: rows.length, coveredCompanies: meta.companies, unresolvedTopics: unresolved.length, totalTopics: meta.total, window: meta.window },
+        definition: 'mentionsChangePct is a change in mention count between scrapes, not a price return; sparkline points are scrape runs, not days. Unresolved topics have no reliable dashboard ticker, so they remain separately labelled and are not silently assigned to a company scope.',
+        unresolvedTopics: {
+          status: 'unresolved-company-mapping',
+          rowCount: unresolved.length,
+          note: 'Shown by the owning Public Chatter page in every scope because these topics cannot be reliably narrowed by ticker.',
+          ...unresolvedPicked,
+        },
         ...picked,
       });
     },
@@ -471,13 +526,14 @@ const BUILDERS = [
       const rows = wanted ? base.filter((row) => wanted.has(row.ticker)) : base;
       const picked = chooseRows(rows, tokens, portfolioRow, (a, b) => (b.marketValueRupees ?? 0) - (a.marketValueRupees ?? 0));
       const meta = portfolio.meta() || {};
+      const summary = scope === 'watchlist' ? portfolioScopeSummary(rows) : portfolio.summary();
       return sourcePacket(this.id, {
         source: `Portfolio ledger + ${meta.priceSource || 'technical marks'} + ${meta.historySource || 'price history'}`,
         asOf: meta.asOf || meta.pricedAt || null,
         rowCount: rows.length,
-        coverage: { scope, openPositions: portfolio.summary()?.positionCount, unpricedPositions: portfolio.summary()?.unpricedCount, tradingDays: meta.tradingDays, curveCoveragePct: round(meta.coverage) },
-        summary: { ...portfolio.summary(), reconciliation: portfolio.summary()?.reconciliation },
-        definition: 'The ledger is mock; execution prices and the price history are real closes; current marks come from the technicals feed. Unpriced positions are carried at cost, not zero.',
+        coverage: { scope, openPositions: summary?.positionCount, unpricedPositions: summary?.unpricedCount, tradingDays: meta.tradingDays, curveCoveragePct: scope === 'watchlist' ? null : round(meta.coverage) },
+        summary,
+        definition: `The ledger is mock; execution prices and the price history are real closes; current marks come from the technicals feed. Unpriced positions are carried at cost, not zero.${scope === 'watchlist' ? ' Watchlist totals are recomputed only from its filtered ticker rows; portfolio-wide XIRR, TWR, benchmark and drawdown are omitted.' : ''}`,
         dataQuality: 'mixed real and mock, explicitly separated',
         ...picked,
       });

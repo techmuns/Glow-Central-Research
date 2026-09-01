@@ -1113,9 +1113,19 @@ await go('/#/research/breakouts?scope=universe', 2500);
 console.log('\n— ask research and daily alerts —');
 {
   let askRequest = null;
+  let configShouldFail = true;
+  let configGets = 0;
   await page.route('**/api/research', async (route) => {
     const request = route.request();
     if (request.method() === 'GET') {
+      configGets++;
+      if (configShouldFail) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'temporary' }),
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -1186,6 +1196,16 @@ console.log('\n— ask research and daily alerts —');
   ok('...and keeps web research optional by default',
     (await page.locator('[data-research-web]').getAttribute('aria-pressed')) === 'false' &&
       /Combine dashboard \+ web/.test(await page.locator('[data-research-web]').innerText()));
+  const failedConfigGets = configGets;
+  ok('...fails closed when the configuration check is temporarily unavailable',
+    failedConfigGets > 0 && (await page.locator('[data-research-input]').isDisabled()));
+  configShouldFail = false;
+  await go('/#/research/daily-alerts?scope=portfolio', 300);
+  await go('/#/research/ask-research?scope=portfolio', 500);
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 10000 });
+  ok('...retries a transient configuration failure on the next mount',
+    configGets > failedConfigGets && !(await page.locator('[data-research-input]').isDisabled()),
+    `${failedConfigGets} failed check(s), ${configGets - failedConfigGets} recovery check(s)`);
 
   const evidenceAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
@@ -1199,6 +1219,7 @@ console.log('\n— ask research and daily alerts —');
       ready: packet.selection.sourcesReady,
       statuses: packet.sources.map((source) => `${source.id}:${source.status}`),
       chars: JSON.stringify(packet).length,
+      unresolvedChatter: packet.sources.find((source) => source.id === 'public-chatter')?.unresolvedTopics?.rowCount || 0,
     };
   });
   ok('...assembles one status-bearing packet from all fourteen dashboard sources',
@@ -1207,6 +1228,37 @@ console.log('\n— ask research and daily alerts —');
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the real evidence packet inside the Worker request bound',
     evidenceAudit.chars < 120000, `${evidenceAudit.chars.toLocaleString()} chars`);
+  ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+    evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+
+  const watchlistPortfolioAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const portfolio = await import('/js/data/portfolio.js');
+    const watchlist = await import('/js/core/watchlist.js');
+    await portfolio.load();
+    const member = portfolio.forScope('portfolio')[0];
+    watchlist.add(member.ticker, member.name);
+    try {
+      const packet = await buildResearchEvidence({ question: `Summarise ${member.ticker}`, scope: 'watchlist' });
+      const source = packet.sources.find((item) => item.id === 'portfolio');
+      return {
+        ticker: member.ticker,
+        rowCount: source.rowCount,
+        positionCount: source.summary?.positionCount,
+        marketValue: source.summary?.marketValue,
+        expectedMarketValue: member.marketValue,
+        carriesWholeBookReturn: source.summary?.xirr != null || source.summary?.twr != null || source.summary?.maxDrawdown != null,
+      };
+    } finally {
+      watchlist.remove(member.ticker);
+    }
+  });
+  ok('...recomputes Watchlist portfolio totals from only the filtered ticker rows',
+    watchlistPortfolioAudit.rowCount === 1 &&
+      watchlistPortfolioAudit.positionCount === 1 &&
+      Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
+      watchlistPortfolioAudit.carriesWholeBookReturn === false,
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
 
   await page.locator('[data-research-web]').click();
   await page.locator('[data-research-input]').fill('Combine the dashboard evidence with current web context.');
