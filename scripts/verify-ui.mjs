@@ -2776,6 +2776,9 @@ const chatterState = await evalSafe(async () => {
     statCards: host.querySelectorAll('.stat-card').length,
     footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     headings: [...host.querySelectorAll('h2')].map((h) => h.textContent.trim()),
+    tabs: [...host.querySelectorAll('[data-chatter-section-tabs] [role="tab"]')].map((b) => b.textContent.trim()),
+    selectedTab: host.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.textContent?.trim() || '',
+    panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
     resolvedSample: c.companies().slice(0, 5).map((r) => `${r.slug}->${r.ticker}`),
     unresolvedAllNull: c.uncovered().every((r) => r.ticker === null && !!r.unresolvedReason),
   };
@@ -2792,11 +2795,12 @@ if (!chatterState.ok) {
   ok('the chatter feed is live', chatterState.total > 0, `${chatterState.total} entries`);
   ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,
     `${chatterState.companies} covered + ${chatterState.uncovered} not = ${chatterState.total}`);
-  ok('...rendered as two tables in one view', chatterState.tables === 2, `${chatterState.tables} tables`);
+  ok('...offers simple Coverage and Not in coverage tabs', chatterState.tabs.join(' | ') === 'Coverage | Not in coverage', chatterState.tabs.join(' | '));
+  ok('...opens on Coverage with only its table visible', chatterState.selectedTab === 'Coverage' && chatterState.panel === 'coverage' && chatterState.tables === 1,
+    `${chatterState.selectedTab} · ${chatterState.panel} · ${chatterState.tables} table(s)`);
   ok('...with the four summary cards removed', chatterState.statCards === 0, `${chatterState.statCards} stat cards`);
   ok('...and their coverage, posts, mood and scrape facts retained as footnotes',
     /Footnotes.*Coverage:.*Posts:.*Market mood:.*Last scrape:/i.test(chatterState.footnotes), chatterState.footnotes);
-  ok('...the second section says it is about OUR coverage', /not in our coverage/i.test(chatterState.headings.join(' ')), chatterState.headings.join(' · '));
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
@@ -2829,6 +2833,30 @@ if (!chatterState.ok) {
   // The column heading has to say what the number is, because the tooltip is not always read.
   const heads = await evalSafe(() => [...document.querySelectorAll('#content-host thead th')].map((th) => th.textContent.trim()));
   ok('the column says "Mentions", not "Change" or "Return"', heads.some((h) => /mentions/i.test(h)) && !heads.some((h) => /\breturn\b|\bprice\b/i.test(h)), heads.join(' | '));
+
+  await page.locator('[data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
+  await page.waitForTimeout(300);
+  const notCoveredTab = await evalSafe(() => {
+    const host = document.querySelector('#content-host');
+    return {
+      panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
+      selected: host.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.textContent?.trim() || '',
+      tables: host.querySelectorAll('[data-table-scroll]').length,
+      rows: host.querySelectorAll('tbody tr').length,
+      mostDiscussed: /Most discussed/i.test(host.textContent || ''),
+      footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent || '',
+    };
+  });
+  ok('Not in coverage replaces the covered-company view with its own table',
+    notCoveredTab.panel === 'not-in-coverage' && notCoveredTab.selected === 'Not in coverage' && notCoveredTab.tables === 1 && notCoveredTab.rows > 0,
+    `${notCoveredTab.selected} · ${notCoveredTab.tables} table · ${notCoveredTab.rows} rows`);
+  ok('...does not repeat the Most Discussed ranking', !notCoveredTab.mostDiscussed);
+  ok('...and retains the shared footnotes', /Coverage:.*Posts:.*Market mood:.*Last scrape:/is.test(notCoveredTab.footnotes));
+
+  await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').click();
+  await page.waitForTimeout(300);
+  ok('returning to Coverage restores its selected tab',
+    await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').getAttribute('aria-selected') === 'true');
 
   // Scope. The covered half narrows to the book; the uncovered half cannot and must not pretend to.
   await go('/#/research/public-chatter?scope=portfolio', 5000);

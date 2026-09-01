@@ -1,6 +1,6 @@
 // tabs/public-chatter.js — retail chatter across ValuePickr, TradingQnA and Google News.
 //
-// ONE VIEW, TWO SECTIONS, ONE PROVENANCE.
+// ONE PAGE, TWO SIMPLE IN-PAGE TABS, ONE PROVENANCE.
 //   Covered companies    entries whose slug resolves to an NSE symbol we cover. Scope-aware,
 //                        joined to the technicals feed, rows open the technicals drill.
 //   Not in our coverage  everything else, whole, in both scopes.
@@ -22,7 +22,7 @@
 // the column says "Mentions Δ". `sparkline` is per-SCRAPE, not per-day, so it carries no time axis.
 
 import { topCards, scoreTable, sectionHead } from '../ui/screener.js';
-import { scopeSummary, pill } from '../ui/components.js';
+import { scopeSummary, pill, tabBar } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import * as chatter from '../data/chatter-live.js';
@@ -34,14 +34,21 @@ export const meta = {
   id: 'public-chatter',
   title: 'Public Chatter',
   subtitle: 'What retail is actually discussing, across ValuePickr, TradingQnA and Google News.',
-  // No rail: one view. The two sections are a coverage statement about one list, not two feeds,
-  // and splitting them across sub-views would invite the reading that they are separate sources.
+  // No shell sub-view picker: Coverage and Not in coverage are simple tabs inside this page.
+  // They remain one feed and one provenance.
   subviews: [],
 };
 
 let renderToken = 0;
 let disposers = [];
+let paintDisposers = [];
 let tableViews = { covered: null, other: null };
+let chatterSection = 'coverage';
+
+const SECTIONS = [
+  { id: 'coverage', label: 'Coverage' },
+  { id: 'not-in-coverage', label: 'Not in coverage' },
+];
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -78,9 +85,11 @@ export function render(ctx) {
 export function destroy() {
   renderToken++;
   cleanup();
+  chatterSection = 'coverage';
 }
 
 function cleanup() {
+  clearPaint();
   for (const d of disposers.splice(0)) {
     try {
       d?.();
@@ -89,6 +98,16 @@ function cleanup() {
     }
   }
   tableViews = { covered: null, other: null };
+}
+
+function clearPaint() {
+  for (const d of paintDisposers.splice(0)) {
+    try {
+      d?.();
+    } catch (err) {
+      console.error('[chatter] paint cleanup failed', err);
+    }
+  }
 }
 
 /**
@@ -115,6 +134,7 @@ const loadingHtml = () => `
 // ---------------------------------------------------------------------------------------
 
 function paint(ctx) {
+  clearPaint();
   const m = chatter.meta();
 
   // A failed read is not an empty result. `unavailablePanel` names the state and, where an
@@ -129,9 +149,28 @@ function paint(ctx) {
 
   const covered = chatter.forScope(ctx.scope);
   const other = chatter.uncovered();
-  const cards = buildTopCards(covered);
-  const coveredTable = buildCoveredTable(ctx, covered);
-  const otherTable = buildOtherTable(other);
+  const activeSection = SECTIONS.some((item) => item.id === chatterSection) ? chatterSection : SECTIONS[0].id;
+  const sectionTabs = tabBar({
+    tabs: SECTIONS,
+    activeId: activeSection,
+    onSelect: (section) => {
+      if (section === chatterSection) return;
+      chatterSection = section;
+      paint(ctx);
+      ctx.root.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
+  const cards = activeSection === 'coverage' ? buildTopCards(covered) : null;
+  const coveredTable = activeSection === 'coverage' ? buildCoveredTable(ctx, covered) : null;
+  const otherTable = activeSection === 'not-in-coverage' ? buildOtherTable(other) : null;
+  const panel =
+    activeSection === 'coverage'
+      ? `${cards ? cards.html : ''}${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}`
+      : `${sectionHead({
+          title: 'Not in our coverage',
+          description:
+            'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in every scope, because a holding cannot be filtered out of a list that has no tickers.',
+        })}${otherTable.html}`;
 
   ctx.root.innerHTML = `
     ${sectionHead({
@@ -139,19 +178,18 @@ function paint(ctx) {
       description: `Mention counts and sentiment over a rolling ${escapeHtml(m.window)}, computed by SentimentDash across ValuePickr, TradingQnA and Google News. The counts and the sentiment are theirs; the NSE symbol is ours.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`,
     })}
-    ${cards ? cards.html : ''}
-    ${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}
-    ${sectionHead({
-      title: 'Not in our coverage',
-      description:
-        'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in both scopes, because a holding cannot be filtered out of a list that has no tickers.',
-    })}
-    ${otherTable.html}
-    ${chatterFootnotes(m)}`;
+    <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-chatter-section-tabs>
+      ${sectionTabs.html}
+    </div>
+    <div role="tabpanel" aria-label="${escapeHtml(SECTIONS.find((item) => item.id === activeSection)?.label || '')}" data-chatter-panel="${escapeHtml(activeSection)}">
+      ${panel}
+      ${chatterFootnotes(m)}
+    </div>`;
 
+  paintDisposers.push(sectionTabs.wire(ctx.root.querySelector('[data-chatter-section-tabs]')));
   if (cards) cards.wire(ctx.root);
-  if (coveredTable) disposers.push(coveredTable.wire(ctx.root));
-  disposers.push(otherTable.wire(ctx.root));
+  if (coveredTable) paintDisposers.push(coveredTable.wire(ctx.root));
+  if (otherTable) paintDisposers.push(otherTable.wire(ctx.root));
 }
 
 /**

@@ -54,7 +54,7 @@ spans the full 1400px on every tab.
 | Daily Alerts | *(none — one stream, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
-| Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
+| Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
 | Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
 | News · Corp Announcements · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
@@ -333,6 +333,7 @@ Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.m
 
 ### Public Chatter — `public-chatter`
 Community sentiment.
+- Simple in-page tabs: **Coverage** (default) and **Not in coverage**, each owning its table
 - No summary-card row; coverage, posts, market mood and scrape timing appear as footnotes below the tables
 - Real-time ValuePickr thread crawler with dedup
 - Telegram channel ingestion via bot API

@@ -1996,7 +1996,8 @@ twice a day. A side-benefit: Public Chatter is now the one live feed that works 
 served as **plain static files**, with no Worker at all.
 
 The UI does not render these aggregate facts as a KPI strip. Coverage, total posts and source
-split, market mood and scrape timing are printed as one footnote after both chatter tables.
+split, market mood and scrape timing are printed as one footnote beneath the active in-page tab.
+Coverage is the default; Not in coverage replaces it with the unresolved-entry table.
 
 ### Four traps, and what this repo does about each
 

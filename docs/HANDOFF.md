@@ -377,11 +377,14 @@ COUNT, not a price: there is no price anywhere in that API. It is renamed `menti
 *Mentions Δ*, and the suite asserts it is never coloured like a P&L and never carries a currency
 symbol. `sparkline` is a per-**scrape** series, not per-day, so nothing puts a time axis under it.
 
-**The tab is one view with two sections**, because their `ticker` is a forum-topic slug
+**The tab is one page with two simple in-page tabs**, because their `ticker` is a forum-topic slug
 (`tata-motors`, `fiis`, `3b-blackbio-dx`) and entries are discovered bottom-up, so about four
 fifths of the list is not something we cover. An entry lands in the first section when its slug
 resolves to a symbol in `universe.json`, the book, or `mc-ticker-map.json`. On a real 219-entry
 run: **45 covered, 174 not, 8 of them in the book.**
+
+**Coverage** is the default and owns Most Discussed plus the resolved-company table. **Not in
+coverage** replaces that content with the unresolved table; the two tables never stack on one page.
 
 The four summary cards are deliberately absent. Their coverage count, post/source totals, market
 mood split and scrape timing are retained in one compact footnote below both tables.
