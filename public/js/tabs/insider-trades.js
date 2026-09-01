@@ -18,6 +18,7 @@ import { formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
+import { pickField } from '../data/filings-shared.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
@@ -39,6 +40,43 @@ function directionTint(v) {
   return 'text-slate-600';
 }
 
+// The upstream owns both the headings and the values, so these filters only locate likely heading
+// variants and reproduce the cell text as-is. In particular, "Transaction" is presented as
+// "Transaction type" on the control because that is the question the reader is asking; its option
+// values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
+const FILTER_FIELDS = [
+  { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
+  {
+    label: 'Transaction type',
+    allLabel: 'All transaction types',
+    keys: ['transaction', 'transaction type', 'acq/disp', 'acquisition/disposal'],
+    maxWidthPx: 200,
+  },
+  { label: 'Mode', allLabel: 'All modes', keys: ['mode', 'transaction mode', 'method'], maxWidthPx: 240 },
+];
+
+const filterCell = (row, keys) => {
+  const value = pickField(row?.cells, keys);
+  return value == null ? null : String(value).trim() || null;
+};
+
+function tradeFilters(rows) {
+  return FILTER_FIELDS.map((field) => {
+    // A numeric/date-only value under Transaction or Mode is a ragged upstream markdown row, not
+    // a transaction choice. It remains visible under "All" but is not promoted into a misleading
+    // dropdown option. Every genuine value in this feed contains a word.
+    const values = [...new Set(rows.map((r) => filterCell(r, field.keys)).filter((v) => v && /[A-Za-z]/.test(v)))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }),
+    );
+    return {
+      label: field.label,
+      maxWidthPx: field.maxWidthPx,
+      options: [{ value: 'all', label: field.allLabel }, ...values.map((value) => ({ value, label: value }))],
+      match: (row, value) => filterCell(row, field.keys) === value,
+    };
+  });
+}
+
 const tab = makeFilingsTab({
   id: 'insider-trades',
   title: 'Insider Trades',
@@ -58,6 +96,7 @@ const tab = makeFilingsTab({
   // on one day by two people are a legitimate pair. NEVER the row's index — see the note beside the
   // key builder in filings-tab.js for what that cost the News tab.
   keyFor: (r) => `${r.ticker || ''}|${r.date || ''}|${Object.values(r.cells || {}).join('|')}`,
+  filters: tradeFilters,
   // THE COLUMN SET IS THE SOURCE'S. Built from the headers the markdown table declared, minus the
   // two already shown in the identity cell. A source that adds a column gets a column.
   columns: (m) => {
