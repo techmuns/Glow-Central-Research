@@ -385,6 +385,8 @@ run: **45 covered, 174 not, 8 of them in the book.**
 
 **Coverage** is the default and owns Most Discussed plus the resolved-company table. **Not in
 coverage** replaces that content with the unresolved table; the two tables never stack on one page.
+Each active table owns its own sentiment selector, so choosing Bullish, Bearish or Neutral filters
+the rows immediately below it and each tab retains its own choice.
 
 The four summary cards are deliberately absent. Their coverage count, post/source totals, market
 mood split and scrape timing are retained in one compact footnote below both tables.

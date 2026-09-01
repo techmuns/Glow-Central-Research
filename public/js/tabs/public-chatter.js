@@ -294,6 +294,19 @@ const sourceCell = (r) =>
     ? `<span class="text-xs text-slate-500">${escapeHtml(r.sourceLabel)}</span>`
     : '<span class="text-slate-300">—</span>';
 
+// Each in-page tab mounts a different table, so each table must own its own filter definition.
+// Returning a fresh object also prevents one table's live view state from leaking into the other.
+const sentimentFilter = () => ({
+  label: 'Sentiment',
+  options: [
+    { value: 'all', label: 'All sentiment' },
+    { value: 'bullish', label: 'Bullish' },
+    { value: 'bearish', label: 'Bearish' },
+    { value: 'neutral', label: 'Neutral' },
+  ],
+  match: (r, v) => r.sentiment.label === v,
+});
+
 function buildCoveredTable(ctx, rows) {
   if (!rows.length) return null;
   const table = scoreTable({
@@ -308,18 +321,7 @@ function buildCoveredTable(ctx, rows) {
     initialView: tableViews.covered,
     exportName: 'chatter-companies',
     onRowClick: (r) => openRow(r.ticker),
-    filters: [
-      {
-        label: 'Sentiment',
-        options: [
-          { value: 'all', label: 'All sentiment' },
-          { value: 'bullish', label: 'Bullish' },
-          { value: 'bearish', label: 'Bearish' },
-          { value: 'neutral', label: 'Neutral' },
-        ],
-        match: (r, v) => r.sentiment.label === v,
-      },
-    ],
+    filters: [sentimentFilter()],
     columns: [
       { label: 'Mentions', get: (r) => r.mentions, align: 'right', sortable: true, sortValue: (r) => r.mentions },
       {
@@ -384,7 +386,7 @@ const emptyCovered = (scope) => `
   </div>`;
 
 function buildOtherTable(rows) {
-  return scoreTable({
+  const table = scoreTable({
     rows,
     key: (r) => r.slug,
     // The uncovered half is BY DEFINITION the entries that resolved to no company — that is what
@@ -401,6 +403,7 @@ function buildOtherTable(rows) {
     initialView: tableViews.other,
     exportName: 'chatter-uncovered',
     stickyHead: 'max(320px, calc(100vh - 420px))',
+    filters: [sentimentFilter()],
     columns: [
       { label: 'Mentions', get: (r) => r.mentions, align: 'right', sortable: true, sortValue: (r) => r.mentions },
       { label: 'Mentions Δ', get: mentionsDeltaCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentionsChangePct ?? -Infinity },
@@ -408,6 +411,16 @@ function buildOtherTable(rows) {
       { label: 'Sources', get: sourceCell, html: true },
     ],
   });
+  return {
+    html: table.html,
+    wire: (root) => {
+      const off = table.wire(root);
+      return () => {
+        tableViews.other = table.view ?? tableViews.other;
+        off?.();
+      };
+    },
+  };
 }
 
 function unavailablePanel(reason, url) {

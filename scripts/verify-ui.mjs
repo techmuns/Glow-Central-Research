@@ -2834,6 +2834,24 @@ if (!chatterState.ok) {
   const heads = await evalSafe(() => [...document.querySelectorAll('#content-host thead th')].map((th) => th.textContent.trim()));
   ok('the column says "Mentions", not "Change" or "Return"', heads.some((h) => /mentions/i.test(h)) && !heads.some((h) => /\breturn\b|\bprice\b/i.test(h)), heads.join(' | '));
 
+  const visibleChatterSentiments = async () => evalSafe(() => {
+    const table = document.querySelector('#content-host [data-chatter-panel] table');
+    const headings = [...(table?.querySelectorAll('thead th') || [])].map((th) => th.textContent.trim().toLowerCase());
+    const sentimentIndex = headings.findIndex((heading) => heading === 'sentiment');
+    if (!table || sentimentIndex < 0) return [];
+    return [...table.querySelectorAll('tbody tr')]
+      .map((tr) => tr.querySelectorAll('td')[sentimentIndex]?.textContent?.trim().toLowerCase() || '')
+      .filter(Boolean);
+  });
+
+  const coverageSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
+  await coverageSentiment.selectOption('bullish');
+  await page.waitForTimeout(150);
+  const coverageBullishRows = await visibleChatterSentiments();
+  ok('Coverage Bullish selector shows only bullish companies in its table',
+    coverageBullishRows.length > 0 && coverageBullishRows.every((sentiment) => sentiment === 'bullish'),
+    coverageBullishRows.join(' | '));
+
   await page.locator('[data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
   await page.waitForTimeout(300);
   const notCoveredTab = await evalSafe(() => {
@@ -2853,10 +2871,24 @@ if (!chatterState.ok) {
   ok('...does not repeat the Most Discussed ranking', !notCoveredTab.mostDiscussed);
   ok('...and retains the shared footnotes', /Coverage:.*Posts:.*Market mood:.*Last scrape:/is.test(notCoveredTab.footnotes));
 
+  const uncoveredSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
+  await uncoveredSentiment.selectOption('bullish');
+  await page.waitForTimeout(150);
+  const uncoveredBullishRows = await visibleChatterSentiments();
+  ok('Not in coverage owns a Bullish selector that shows only bullish companies in its table',
+    uncoveredBullishRows.length > 0 && uncoveredBullishRows.every((sentiment) => sentiment === 'bullish'),
+    uncoveredBullishRows.join(' | '));
+
   await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').click();
   await page.waitForTimeout(300);
   ok('returning to Coverage restores its selected tab',
     await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').getAttribute('aria-selected') === 'true');
+  const restoredCoverageSentiments = await visibleChatterSentiments();
+  ok('...and restores Coverage\'s own Bullish filter state',
+    await page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]').inputValue() === 'bullish' &&
+      restoredCoverageSentiments.length > 0 && restoredCoverageSentiments.every((sentiment) => sentiment === 'bullish'),
+    restoredCoverageSentiments.join(' | '));
+  await page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]').selectOption('all');
 
   // Scope. The covered half narrows to the book; the uncovered half cannot and must not pretend to.
   await go('/#/research/public-chatter?scope=portfolio', 5000);
