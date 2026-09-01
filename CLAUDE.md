@@ -1694,6 +1694,27 @@ It is computed differently depending on what the feed IS, and the distinction ma
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
 
+**THE CHIPS ARE ALSO THE FILTER, and `All` is `null` rather than "every box ticked".** Ticking
+narrows the stream to the ticked feeds; the two states look identical on screen and diverge the
+moment a feed appears or disappears, which is the same distinction `scopeTickers()` draws between
+`null` and a full Set, for the same reason. Two behaviours follow: ticking every feed individually
+collapses back to `All` rather than leaving a filter that only looks like one, and **unticking the
+last feed returns to `All` rather than emptying the stream** — a reader who has unticked their way
+to a blank page has no control on screen saying why it is blank, and *nothing today* is a claim
+this page may not make on the strength of a filter the reader set. The counts on the chips describe
+the FEED, not the selection, so they never move when you tick.
+
+**Market-wide news is not offered as a filter on a narrowed scope at all.** It carries no company,
+so under Portfolio or Watchlist it contributes nothing — and a permanently dead tick box is worse
+than an absent one. The reason it is absent stays in the provenance modal, which lists every feed
+in every scope: *the exclusion must be stated*, which was always the rule, and never that it must
+be stated in the body.
+
+**There is no legend strip.** *Red — alert* / *Orange — update* and the note that three of the four
+tabs are never graded live in the modal's *What the colours mean*. A colour whose cause the reader
+cannot look up is a judgement, and this page makes none — but the lookup is a click, not a
+permanent block under the stream.
+
 **THE PANEL IS ONE ROW OF CHIPS — a dot, a name, a number — and the number is the part that has to
 be guarded.** It was five cards in a white block, each with a sentence and a last-read time, and it
 cost about 300px above the stream it describes; it is 19px now, identical across all three scopes.

@@ -1137,12 +1137,16 @@ console.log('\n— daily alerts —');
   // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
   // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
   // back.
+  // FOUR ON A NARROWED SCOPE, FIVE ON UNIVERSE. Market-wide news carries no company, so under
+  // Portfolio it contributes nothing and is not offered as a filter; the reason it is absent stays
+  // in the provenance modal, which lists every feed in every scope. Asserted exactly rather than as
+  // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the five feeds behind those four tabs', feedRows === 5, `${feedRows} feed rows`);
+  ok('the coverage panel accounts for exactly the four feeds that can be narrowed', feedRows === 4, `${feedRows} feed rows`);
   ok('...and they are the four tabs asked for, and only those',
-    ['Price moves', 'Announcements', 'Insider trades', 'Company news', 'Market news'].every((n) => panel.includes(n)) &&
+    ['Price moves', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)) &&
       !/Results|Con-calls|Public chatter|Superstar/.test(panel),
-    panel.split('\n').filter((l) => l.trim()).slice(1, 3).join(' / '));
+    panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
   // the confusion this panel exists to prevent. The full wording lives in the chip's tooltip and in
@@ -1154,7 +1158,7 @@ console.log('\n— daily alerts —');
     behind.every((c) => /not checked/.test(c.text) && !/\b\d+\b/.test(c.text)),
     behind.length ? behind.map((c) => c.text).join(' | ') : 'every feed has looked at today');
   ok('...and every chip carries the sentence its row used to print',
-    chipStates.length === 5 && chipStates.every((c) => c.title.length > 20),
+    chipStates.length === 4 && chipStates.every((c) => c.title.length > 20),
     `${chipStates.length} chips, shortest title ${Math.min(...chipStates.map((c) => c.title.length))} chars`);
   // AND ASSERTED AT THE RULE, because the check above passes vacuously on any day every feed has
   // looked at today — which is most days. `feedState` is exported for exactly this reason, the same
@@ -1271,14 +1275,75 @@ console.log('\n— daily alerts —');
   // Market-wide news has no company on it, so it cannot be narrowed BY one — the same rule the
   // chatter tab follows for its unresolved half. It must say so rather than filter to nothing.
   await go('/#/research/daily-alerts?scope=portfolio', 5000);
-  // The reason moved into that feed's chip tooltip when the panel was compressed to one row. It is
-  // still STATED — which is the rule — rather than the feed silently filtering to nothing.
-  const scopedTitles = (await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.getAttribute('title') || ''))).join(' ');
+  // THE FEED IS NOT OFFERED AS A FILTER HERE, so the reason lives where every feed is still listed
+  // in every scope: the provenance modal. The rule is that the exclusion is STATED rather than the
+  // feed silently filtering to nothing — not that it is stated in any particular place.
+  const scopedFeeds = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.dataset.feed));
+  ok('market-wide news is not offered as a filter on a narrowed scope', !scopedFeeds.includes('market-news'), scopedFeeds.join(', '));
+  await page.locator('[data-alerts-info]').first().click();
+  await page.waitForTimeout(500);
+  const scopedModal = await page.locator('#modal-content').innerText();
   ok('market-wide news is excluded from a narrowed scope WITH A STATED REASON',
-    /carr(y|ies) no company/i.test(scopedTitles) && /Switch to Universe/i.test(scopedTitles));
+    /Market news/.test(scopedModal) && /carr(y|ies) no company/i.test(scopedModal) && /Universe/i.test(scopedModal));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 
-  ok('the legend explains both colours', /Red — alert/.test(await hostText()) && /Orange — update/.test(await hostText()));
-  ok('...and says which feeds are never graded', /never graded|always this colour/i.test(await hostText()));
+  // THE LEGEND STRIP IS GONE FROM THE BODY, and what it said is in the modal's "What the colours
+  // mean" section — the same trade as the description and the stat cards. The claim may not go:
+  // a colour whose cause the reader cannot look up is a judgement, and this page makes none.
+  // ---- the feed tick boxes -----------------------------------------------------------
+  // ALL IS THE DEFAULT, AND `All` IS NOT "EVERY BOX TICKED". The two look identical on screen and
+  // behave differently the moment a feed appears or disappears, which is why `picked` is null
+  // rather than a full Set — the same distinction `scopeTickers` draws, for the same reason.
+  await go('/#/research/daily-alerts?scope=universe', 5500);
+  await settleTables();
+  const allChecked = await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked');
+  ok('the feed filter opens on All', allChecked === 'true');
+  const allRows = await rowCount();
+  // THE NUMBER ON THE CHIP IS THE CONTRACT. Deriving the per-feed split from the row keys would
+  // have measured the wrong thing — those carry short prefixes (`tech:`, `ann:`, `mcnews:`), not
+  // the feed ids the filter uses — and comparing against `undefined` would have made every
+  // expected count 0. Reading the chip's own printed count instead ties the filter to the figure
+  // the reader is looking at when they tick it, which is the invariant that actually matters.
+  const perFeed = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) =>
+    Object.fromEntries(els.map((e) => [e.dataset.feed, Number((e.innerText.match(/(\d[\d,]*)\s*$/) || [])[1]?.replace(/,/g, '') ?? NaN)])));
+  // Tick ONE: the stream must narrow to that feed, not merely reorder. Compared against the feed's
+  // own share of the unfiltered stream rather than against a hard-coded number.
+  await page.locator('[data-feed-toggle="technicals"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const oneRows = await rowCount();
+  ok('ticking one feed narrows the stream to it', oneRows < allRows && oneRows === (perFeed.technicals || 0),
+    `${allRows} all → ${oneRows} ticked, feed holds ${perFeed.technicals || 0}`);
+  // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
+  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const twoRows = await rowCount();
+  ok('...and a second tick adds to it rather than replacing it',
+    twoRows === (perFeed.technicals || 0) + (perFeed.insider || 0) && twoRows > oneRows,
+    `${oneRows} + insider ${perFeed.insider || 0} = ${twoRows}`);
+  // UNTICKING THE LAST ONE RETURNS TO ALL, never to an empty stream. A reader who has unticked
+  // their way to a blank page has no control on screen saying why it is blank, and "nothing today"
+  // is a claim this page may not make on the strength of a filter the reader set.
+  await page.locator('[data-feed-toggle="technicals"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  ok('unticking the last feed returns to All rather than emptying the stream',
+    (await rowCount()) === allRows && (await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked')) === 'true',
+    `${await rowCount()} rows back`);
+  await go('/#/research/daily-alerts?scope=portfolio', 4500);
+
+  ok('no legend strip competes with the stream', !/Red — alert/.test(await hostText()));
+  await page.locator('[data-alerts-info]').first().click();
+  await page.waitForTimeout(500);
+  const legendModal = await page.locator('#modal-content').innerText();
+  ok('the legend explains both colours', /Red/.test(legendModal) && /Orange/.test(legendModal) && /What the colours mean/i.test(legendModal));
+  ok('...and says which feeds are never graded', /never red|never graded|always this colour/i.test(legendModal));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 }
 
 // ---------------------------------------------------------------------------------------

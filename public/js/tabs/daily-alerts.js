@@ -64,6 +64,11 @@ let report = null; // the last collected report
 let loadToken = 0;
 let unsubs = [];
 let tableView = null; // the reader's search / filters / sort, carried across repaints
+// WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
+// those are different claims the moment a feed appears or disappears: All keeps meaning all, while
+// a full Set silently becomes a partial filter when a sixth feed is added. The same distinction
+// `scopeTickers` draws between `null` and an empty Set, for the same reason.
+let picked = null;
 
 export function render(ctx) {
   ctxRef = ctx;
@@ -188,8 +193,24 @@ function paint(ctx) {
   const feeds = report?.feeds || [];
   const m = report?.meta || {};
 
+  // THE FEEDS ON OFFER, AND THEN THE ONES TICKED. Market-wide news carries no company, so under a
+  // narrowed scope it contributes nothing and is not shown as a filter — the reason it is absent
+  // stays in the provenance modal's table, which lists every feed in every scope. Dropping the
+  // chip is not dropping the claim.
+  const shown = feeds.filter((f) => ctx.scope === 'universe' || f.scopable !== false);
+  const available = shown.map((f) => f.id);
+  // A SELECTION THAT SURVIVES A REPAINT BUT NOT A VANISHED FEED. Rows land while feeds settle and
+  // every arrival repaints, so the ticks live in the module; but a scope change can take a feed
+  // off the page entirely, and a tick on a feed that is no longer offered would filter the stream
+  // to nothing with no visible control explaining why.
+  if (picked) {
+    picked = new Set([...picked].filter((id) => available.includes(id)));
+    if (!picked.size || picked.size === available.length) picked = null;
+  }
+  const visible = picked ? events.filter((e) => picked.has(e.feed)) : events;
+
   const focus = captureFocus(ctx.root);
-  const table = eventsTable(ctx, events, day);
+  const table = eventsTable(ctx, visible, day);
   tableView = table.view;
 
   // NO DESCRIPTION, NO STAT STRIP, AND THE TWO CHIPS ARE ONE PILL. What they said is all still
@@ -208,12 +229,12 @@ function paint(ctx) {
         book: coverage.meta(),
       })}</div>`,
     })}
-    ${coveragePanel(feeds, day, ctx.scope)}
-    ${table.html}
-    ${legend()}`;
+    ${coveragePanel(shown, day, ctx.scope)}
+    ${table.html}`;
 
   table.wire(ctx.root);
   wireProvenance(ctx.root, feeds, day, ctx.scope);
+  wireFeedFilter(ctx, available);
   restoreFocus(ctx.root, focus);
 }
 
@@ -308,33 +329,85 @@ function coveragePanel(feeds, day, scope) {
     return `<div class="mb-5 text-xs text-slate-400" data-alerts-coverage>Reading the feeds…</div>`;
   }
 
-  const chip = (f) => {
+  const box = (on) => `
+    <span class="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border transition-colors ${
+      on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-transparent'
+    }">
+      <svg viewBox="0 0 12 12" class="h-2.5 w-2.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5 4.7 9 10 3.5"/></svg>
+    </span>`;
+
+  const total = feeds.reduce((a, f) => a + (f.count || 0), 0);
+  const allOn = !picked;
+  const chips = [
+    `<button type="button" data-feed-toggle="__all" role="checkbox" aria-checked="${allOn}"
+       title="Show every feed on this page. This is the default."
+       class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-0.5 transition-colors hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+       ${box(allOn)}
+       <span class="font-semibold ${allOn ? 'text-slate-800' : 'text-slate-500'}">All</span>
+       <span class="font-semibold text-slate-400">${escapeHtml(formatNumber(total))}</span>
+     </button>`,
+  ];
+
+  for (const f of feeds) {
     const st = feedState(f);
+    const on = !!picked && picked.has(f.id);
     // THE TOOLTIP CARRIES THE SENTENCE THE ROW USED TO PRINT, and the modal carries all of it in a
     // table. Compressing the panel may not compress what it is accountable for.
     const title = [
       `${f.label}: ${st.label}.`,
       f.note || f.what,
       f.asOf ? `Last read ${formatRelativeTime(f.asOf)}.` : null,
-      f.scopable === false && scope !== 'universe'
-        ? 'Market-wide stories carry no company, so they cannot be narrowed to a book or a watchlist. Switch to Universe to see them.'
-        : null,
+      'Tick to show only the ticked feeds.',
     ]
       .filter(Boolean)
       .join(' ');
-    return `
-      <span data-feed="${escapeHtml(f.id || f.label)}" title="${escapeHtml(title)}"
-        class="inline-flex items-center gap-1.5 whitespace-nowrap">
+    chips.push(`
+      <button type="button" data-feed-toggle="${escapeHtml(f.id)}" data-feed="${escapeHtml(f.id)}"
+        role="checkbox" aria-checked="${on}" title="${escapeHtml(title)}"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-0.5 transition-colors hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+        ${box(on)}
         <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full ${st.dot}"></span>
-        <span class="font-semibold text-slate-700">${escapeHtml(f.label)}</span>
+        <span class="font-semibold ${on || allOn ? 'text-slate-700' : 'text-slate-400'}">${escapeHtml(f.label)}</span>
         <span class="font-semibold ${st.text}">${escapeHtml(st.short(f))}</span>
-      </span>`;
-  };
+      </button>`);
+  }
 
   return `
-    <section class="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs" data-alerts-coverage>
-      ${feeds.map(chip).join('')}
+    <section class="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" data-alerts-coverage>
+      ${chips.join('')}
     </section>`;
+}
+
+/**
+ * The tick boxes, which filter the stream by the feed a row came from.
+ *
+ * `All` IS `null`, NOT "every id ticked" — see the declaration of `picked`. Two behaviours follow
+ * and both are deliberate: ticking every feed individually collapses back to All rather than
+ * leaving a filter that only looks like one, and unticking the last feed returns to All rather
+ * than emptying the stream. A reader who has just unticked their way to a blank page has no
+ * control on screen saying why it is blank, and "no events today" is a claim this page may not
+ * make on the strength of a filter the reader set.
+ */
+function wireFeedFilter(ctx, available) {
+  const root = ctx.root.querySelector('[data-alerts-coverage]');
+  if (!root) return;
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-feed-toggle]');
+    if (!btn) return;
+    const id = btn.dataset.feedToggle;
+    if (id === '__all') {
+      picked = null;
+    } else {
+      const next = new Set(picked || available);
+      // From All, the first tick means "only this one" — ticking one box out of an implicit
+      // everything and getting everything-minus-nothing would be a control that does nothing.
+      if (!picked) next.clear();
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      picked = next.size && next.size < available.length ? next : null;
+    }
+    paint(ctx);
+  });
 }
 
 /**
@@ -489,21 +562,6 @@ const feedOptions = (events) => {
 function emptyMessageFor(scope, day) {
   const where = scope === 'universe' ? 'across the market' : `for your ${scopeLabel(scope).toLowerCase()}`;
   return `Nothing has reached this page ${where} on ${day}. The feed panel above says which feeds have actually looked at today — an empty stream is not the same as a quiet day.`;
-}
-
-function legend() {
-  const swatch = (cls, label, body) => `
-    <div class="flex items-start gap-2">
-      <span class="mt-1 h-3 w-3 flex-shrink-0 rounded ${cls}"></span>
-      <div><span class="text-xs font-bold text-slate-700">${escapeHtml(label)}</span><p class="text-xs leading-relaxed text-slate-500">${escapeHtml(body)}</p></div>
-    </div>`;
-  return `
-    <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-      <div class="grid gap-3 sm:grid-cols-2">
-        ${swatch('bg-rose-500', 'Red — alert', `A direct negative reading on the row, printed in the row. Across these four tabs there is one: the price fell more than ${alerts.MOVE_PCT}% at today’s close.`)}
-        ${swatch('bg-amber-500', 'Orange — update', 'Everything else that arrived. Announcements, insider disclosures and news are always this colour: their columns and headlines are the upstream’s own, and nothing here reads them as good or bad.')}
-      </div>
-    </div>`;
 }
 
 // ---------------------------------------------------------------------------------------
