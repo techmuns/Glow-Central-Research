@@ -22,9 +22,9 @@ import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
-// NOT TYPED OUT. The threshold is stated in three places on the Daily Alerts tab and here; all
-// four read the same constant, so changing it cannot leave one of them describing the old filter.
-import { MOVE_PCT as DAILY_MOVE_PCT } from '../data/daily-alerts.js';
+// NOT TYPED OUT. The threshold is stated in the Daily Alerts row reasons, its export and here; all
+// three read the same constant, so changing it cannot leave one of them describing the old filter.
+import * as dailyAlerts from '../data/daily-alerts.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -145,15 +145,13 @@ export function sourceGroups() {
       tabs: 'Daily Alerts',
       items: [
         {
-          name: 'No source of its own — it reads four of the tabs below',
+          name: 'No source of its own — it consolidates the research feeds below',
           feeds:
-            'The Daily Alerts timeline consolidates the retained rows from <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time, and adds no data of its own. Its date filter narrows the already-loaded timeline without issuing another request. ' +
-            'The Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not folded in — they keep their own tabs, and the alerts page says so rather than leaving an absent row to read as a fault. ' +
-            `<strong>Red</strong> is a direct negative reading printed in the row that carries it, and across these four there is exactly one: the price fell more than ${DAILY_MOVE_PCT}% at the close. ` +
-            '<strong>Orange</strong> is anything else that arrived. <strong>Announcements, insider disclosures and news are never graded</strong>: their categories, columns and headlines are the upstream\'s own, ' +
-            'so grading one would be a flag we invented over somebody else\'s words. ' +
+            'The Daily Alerts timeline consolidates <strong>Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            '<strong>Positive / Negative / Neutral</strong> direction and <strong>High / Low</strong> importance are separate, and every row prints both reasons. Source sentiment is reproduced where it exists; insider and investor transactions use their own direction; announcements use the narrow rules documented here; news remains neutral. ' +
+            `High thresholds include ±${dailyAlerts.MOVE_PCT}% price moves, ${dailyAlerts.INSIDER_HIGH_PCT}% or ₹${dailyAlerts.INSIDER_HIGH_VALUE / 10_000_000} crore insider activity, ${dailyAlerts.INVESTOR_HIGH_PP}pp investor changes, and ${dailyAlerts.CHATTER_HIGH_MENTIONS} mentions or ${dailyAlerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
             'Its own panel keeps the retained row count separate from when that feed last looked and whether that reaches today — because historical rows and a feed that has run today are not the same answer.',
-          cadence: 'Rebuilt on every visit and on Refresh; none of the four polls, and nothing on it walks per company',
+          cadence: 'Rebuilt on every visit and on Refresh from each owning feed; nothing on it walks per company',
           status: 'live',
           file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
         },

@@ -99,9 +99,8 @@ public/
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      daily-alerts.js         THE LANDING TAB — one newest-first historical stream from four tabs, red = a
-                              price fall past MOVE_PCT, orange = an update, plus the panel
-                              saying which feeds have looked
+      daily-alerts.js         THE LANDING TAB — one newest-first historical stream across the research
+                              feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
@@ -1754,42 +1753,36 @@ The table kit progressively paints that finite retained set inside its own fixed
 scrolling reveals older dates without a per-company walk or a new API. Full shapes and retention
 bounds are in `docs/DATA-CONTRACTS.md`.
 
-**It reads FOUR tabs, and the ones it does not read are named on its face.** Breakouts / Technical,
-News, Corp Announcements and Insider Trades. News contributes twice, because that tab is two feeds
-behind one name — the per-company search and the market-wide capture. The Earnings Hub, Con-call,
-Public Chatter and Super Investors are deliberately out of scope, and the description, the alert
-card's modal, the provenance modal and the Sources entry all say so — otherwise a reader who knows
-this dashboard has an earnings tab and sees no earnings row would reasonably conclude the page was
-broken. **An absent row has to read as a decision, not a fault.** Adding one back is an entry in
-`FEEDS` plus a collector; nothing else is special-cased by feed id.
+**It reads every research tab.** Earnings Hub, Con-call, Public Chatter, Breakouts / Technical,
+Super Investors, News, Corp Announcements and Insider Trades. News contributes twice because the
+tab owns both company and market-wide feeds. Adding a source is an entry in `FEEDS` plus a collector;
+nothing else is special-cased by feed id.
 
-### The two colours are measurements, not opinions
+### Direction and importance are separate, inspectable readings
 
-**RED is a direct negative reading on the row itself, and the row prints the reading.** Across the
-four tabs this page reads there is exactly one such reading: **the price fell more than `MOVE_PCT`
-at the retained snapshot's close**, from the end-of-day scrape behind Breakouts. **ORANGE is
-everything else that arrived on the date printed on its row.**
+Every event carries `direction` (`positive | negative | neutral`) and `importance` (`high | low`),
+plus `signalReason` and `importanceReason`. Direction is not importance: a large disposal can be
+Negative and High; a small acquisition can be Positive and Low. A badge without its reason beside
+it would be an unexplained judgement.
 
-A colour whose cause is not on screen beside it is a judgement, and this dashboard does not make
-those — so `reason` is mandatory on an alert and absent on an update.
+Source-provided readings win: earnings uses the filed revenue/net-profit comparison, con-calls and
+chatter reproduce their source's own bands, and price moves use the stated ±`MOVE_PCT` threshold.
+Insider/investor direction is derived from the upstream transaction or disclosed holding change.
+Announcements use the small exported `announcementSignal()` keyword policy and BSE's own critical
+flag. Publisher news stays Neutral because a headline is not structured sentiment data.
+Earnings sign changes remain words — *to profit*, *to loss*, *loss narrowed/widened* — rather than
+being turned back into a misleading growth percentage. An explicit insider Transaction outranks
+conflicting Mode text, and a bare regulatory “order received” is not treated as commercial work won.
+Approval needs a regulator or exchange on the filing; the BSE noun forms “Receipt of … Approval”
+and “Commencement of Commercial Production” are recognized without broadening that rule.
 
-**The other three tabs are deliberately never red, and it is the same rule from the other side.**
-Insider trades carries no model — *"no sentiment, no materiality flag"*, because its columns are the
-upstream's own and unknown at build time — and deciding that "Pledge" is red **is** a materiality
-flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. A headline
-is editorial, and reading a sentiment off it would put a model this dashboard does not have over
-somebody else's words. All three print the upstream's own wording and let the reader read it.
+High thresholds are stated in the source registry and export: ±5% price moves; every earnings
+filing; non-neutral/extreme con-call analysis; 10 chatter mentions or 100% absolute mention change;
+insider activity at 1% or ₹10 crore; investor appearance/disappearance or a 1pp change; a BSE
+critical filing or material announcement-rule match. “No longer disclosed” is never renamed
+“sold”; public chatter is dated to its rolling snapshot, not presented as individual posts.
 
-**So a quiet day is a page of orange, and that is the honest rendering** rather than a page with
-something missing. The feeds that DO carry models are on their own tabs, and the alert card's help
-modal says where they went — filed figures on the Earnings Hub, the provider's call tiers on
-Con-call, source-labelled sentiment on Public Chatter.
-
-**The threshold is printed** — on the tab, in the help modal, in the provenance modal and in row 1
-of the export, all four reading the one constant. A page that quietly dropped everything below a
-number the reader cannot see would be deciding what counts as news in secret.
-
-**`moveSeverity(pct)` is exported because it IS the alert rule.** A rule that only runs inside a
+**`moveSeverity(pct)` is exported because it is the price-move entry rule.** A rule that only runs inside a
 collector can only be tested on days the data happens to contain a big faller, which is most days
 not at all — the shipped 31 Aug snapshot has seven moves past the threshold and not one of them
 down. The suite asserts the predicate directly instead of hoping for a red row.
@@ -1803,11 +1796,23 @@ companies have not been checked since"*: **never claim nothing is new.**
 
 It is computed differently depending on what the feed IS, and the distinction matters:
 
-- feeds whose ROWS carry their own date (announcements, insider, news, market news) use
+- feeds whose ROWS carry their own date (earnings, con-calls, announcements, insider, news, market news) use
   `capturedDay >= day` — a later capture still covers an earlier day;
-- feeds that are ONE SNAPSHOT of one day (price moves, chatter) use **`snapshotDay === day`**,
+- feeds that are ONE SNAPSHOT of one day (price moves and chatter) use **`snapshotDay === day`**,
   equals and not `>=`. `pct_change_today` is *that* day's move and no other, so reporting it under a
   different date would stamp one day's measurement with another day's label.
+- investor activity is dated per investor book, using the confirmation represented by the current
+  book rather than the older committed capture that may have seeded it.
+
+Tickerless investor moves remain visible in Universe and are excluded from ticker-narrowed scopes.
+Missing investor books and degraded earnings/con-call fallbacks are reported as incomplete/failed;
+stale last-good investor books are treated the same way. None is allowed to make the coverage chip
+claim the feed is current. Reading a committed earnings/con-call file dates freshness to the
+upstream `fetchedAt`, not to the moment this browser read the file.
+
+The Daily Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
+one conditional request for the bulk investor snapshot. It never turns the landing page into the
+Super Investors tab's ninety-one-book upstream walk.
 
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
@@ -1820,7 +1825,7 @@ thirty days or older rows; it never triggers a fetch.
 
 **AND THE STREAM'S HEIGHT IS MEASURED AT RUNTIME, NOT WRITTEN INTO A `calc()`.** `calc(100vh -
 558px)` encodes the height of everything above the table, and that is not a constant: the chip row
-wraps with the window, there are four feeds under a narrowed scope and five under Universe, and the
+wraps with the window, there are eight feeds under a narrowed scope and nine under Universe, and the
 reader's zoom moves it too. Measured against one window it was exact; on a wider one the table
 stopped ~110px short. `fitStreamToViewport()` reads `[data-table-scroll]`'s own top after the paint
 and re-applies on resize, with the listener in `unsubs` so it dies with the tab.
@@ -1844,14 +1849,11 @@ the FEED, not the selection, so they never move when you tick.
 
 **Market-wide news is not offered as a filter on a narrowed scope at all.** It carries no company,
 so under Portfolio or Watchlist it contributes nothing — and a permanently dead tick box is worse
-than an absent one. The reason it is absent stays in the provenance modal, which lists every feed
-in every scope: *the exclusion must be stated*, which was always the rule, and never that it must
-be stated in the body.
+than an absent one. The reason it is absent stays in the source registry: *the exclusion must be
+stated*, which was always the rule, and never that it must be stated in the body.
 
-**There is no legend strip.** *Red — alert* / *Orange — update* and the note that three of the four
-tabs are never graded live in the modal's *What the colours mean*. A colour whose cause the reader
-cannot look up is a judgement, and this page makes none — but the lookup is a click, not a
-permanent block under the stream.
+**There is no legend strip.** Direction and importance are named directly on every row, with both
+reasons alongside them; thresholds and rule provenance remain in the source registry and export.
 
 **THE PANEL IS ONE ROW OF CHIPS — a dot, a name, a number — and the number is the part that has to
 be guarded.** In history mode the number is the retained row count used by the feed filter, while
@@ -1862,10 +1864,9 @@ What compressing it may NOT do is let a state print as a count: **a number is a 
 "has not looked at today" is the absence of one**, so that state prints the word *not checked* and
 `could not be read` prints *unread*, never `0`. `feedState()` returns `short()` beside `label` for
 exactly this reason, and the two are read from one place so they cannot drift. The sentence each
-card used to carry moved to the chip's `title`, and the whole table — state, description, last read
-— is in the provenance modal, which is also where the market-wide feed's *"carries no company, so
-it cannot be narrowed"* reason now lives. The suite asserts that a behind feed's chip contains no
-digit at all.
+card used to carry moved to the chip's `title`; full source descriptions and the market-wide feed's
+*"carries no company, so it cannot be narrowed"* reason remain in the source registry. The suite
+asserts that a behind feed's chip contains no digit at all.
 
 ### Nothing on it walks, and nothing on it blocks on the slowest feed
 
@@ -2427,9 +2428,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
 | Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side, `store: false`, same-origin, bounded and rate-limited |
 | Change the Daily Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *Daily Alerts* above first. It has **no feed of its own** and must never send a request per company |
-| Change what makes a Daily Alerts row RED | the per-feed collectors in `js/data/daily-alerts.js` — every alert must carry the `reason` that made it one, and Insider / Announcements stay ungraded |
-| Change the Daily Alerts threshold | `MOVE_PCT` in `js/data/daily-alerts.js` — it is the whole alert rule (via the exported `moveSeverity`), and it is printed on the tab, in two modals and in row 1 of the export, all reading the constant |
-| Change which tabs Daily Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector, and then update the sentence naming what is deliberately excluded; nothing is special-cased by feed id |
+| Change Daily Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
+| Change a Daily Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
+| Change which tabs Daily Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
@@ -2498,16 +2499,14 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**, with all fourteen evidence sources
   represented, an optional combined web request, and no empty-Watchlist shell replacement
-- **it reads exactly the five feeds behind those four tabs** — asserted as an equality, not a floor,
+- **Daily Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
-- **it reads exactly four tabs** — Breakouts, News, Corp Announcements, Insider Trades — and says
-  on its face which tabs it deliberately does not consolidate
+- **it reads all eight research tabs**, with company and market-wide News as separate feeds
 - **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*
   from *nothing today* from *could not be read* from *reading…*
-- **every Daily Alerts alert prints the reading that made it one** and no update carries one;
-  announcements, insider disclosures and news are never graded red; `moveSeverity` is asserted
-  directly at and either side of the threshold, because the shipped data has no down-move to
-  produce a red row; every event id is unique (compared, not counted); and mounting the tab sends
+- **every Daily Alerts row carries valid direction and importance plus both reasons**;
+  announcement and insider classifiers and `moveSeverity` are asserted directly at their
+  boundaries; every event id is unique (compared, not counted); and mounting the tab sends
   **zero** per-company filings requests
 - **Daily Alerts history is complete in the table model but paged in the DOM**: the suite asserts
   more than one retained date, stable unique ids, newest-first date/time order, an 80-row initial

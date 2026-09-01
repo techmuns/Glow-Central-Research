@@ -1328,18 +1328,14 @@ console.log('\n— ask research and daily alerts —');
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
-  // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
-  // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
-  // back.
-  // FOUR ON A NARROWED SCOPE, FIVE ON UNIVERSE. Market-wide news carries no company, so under
+  // EIGHT ON A NARROWED SCOPE, NINE ON UNIVERSE. Market-wide news carries no company, so under
   // Portfolio it contributes nothing and is not offered as a filter; the reason it is absent stays
   // in the registered source metadata. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the four feeds that can be narrowed', feedRows === 4, `${feedRows} feed rows`);
-  ok('...and they are the four tabs asked for, and only those',
-    ['Price moves', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)) &&
-      !/Results|Con-calls|Public chatter|Superstar/.test(panel),
+  ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
+  ok('...and every research tab asked for is represented',
+    ['Price moves', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
@@ -1352,7 +1348,7 @@ console.log('\n— ask research and daily alerts —');
     behind.every((c) => /not checked/.test(c.text) && !/\b\d+\b/.test(c.text)),
     behind.length ? behind.map((c) => c.text).join(' | ') : 'every feed has looked at today');
   ok('...and every chip carries the sentence its row used to print',
-    chipStates.length === 4 && chipStates.every((c) => c.title.length > 20),
+    chipStates.length === 8 && chipStates.every((c) => c.title.length > 20),
     `${chipStates.length} chips, shortest title ${Math.min(...chipStates.map((c) => c.title.length))} chars`);
   // AND ASSERTED AT THE RULE, because the check above passes vacuously on any day every feed has
   // looked at today — which is most days. `feedState` is exported for exactly this reason, the same
@@ -1391,39 +1387,83 @@ console.log('\n— ask research and daily alerts —');
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
-  // THE COLOURS. Every red row must print the reading that made it red — that is the whole basis
-  // for a colour on this page not being a judgement.
+  // DIRECTION AND IMPORTANCE. Every badge must print the reading that made it so.
   const report = await evalSafe(async () => {
     const da = await import('/js/data/daily-alerts.js');
     // A day the results feed actually holds, so the profit-reading branches are exercised on a
     // static origin too. Today is frequently quiet, and a check that only passes on a busy day is
     // a check that does not run.
-    // A day these four feeds actually hold. The technicals half is a single end-of-day snapshot
+    // A day the retained row-dated feeds actually hold. The technicals half is a single end-of-day snapshot
     // matched by EQUALITY, so it only ever contributes on its own capture date.
     const r = await da.collect({ scope: 'universe', day: '2026-08-31' });
-    const alerts = r.events.filter((e) => e.severity === 'alert');
     return {
       total: r.events.length,
-      alerts: alerts.length,
-      everyAlertHasReason: alerts.every((e) => typeof e.reason === 'string' && e.reason.length > 0),
-      noUpdateHasReason: r.events.filter((e) => e.severity === 'update').every((e) => !e.reason),
-      gradedFeeds: [...new Set(alerts.map((e) => e.feed))],
-      severities: [...new Set(r.events.map((e) => e.severity))],
+      everySignalHasReasons: r.events.every((e) => typeof e.signalReason === 'string' && e.signalReason.length > 0 && typeof e.importanceReason === 'string' && e.importanceReason.length > 0),
+      directions: [...new Set(r.events.map((e) => e.direction))],
+      importance: [...new Set(r.events.map((e) => e.importance))],
       uniqueIds: new Set(r.events.map((e) => e.id)).size,
       feeds: r.feeds.map((f) => ({ id: f.id, status: f.status, reaches: f.reachesToday, n: f.count })),
     };
   });
   ok('the collector reads something across the feeds', report.total > 0, `${report.total} events`);
-  ok('every severity is one of the two documented ones',
-    report.severities.every((v) => v === 'alert' || v === 'update'), report.severities.join('/'));
-  ok('EVERY alert prints the reading that made it one', report.everyAlertHasReason, `${report.alerts} alerts`);
-  ok('...and no update carries one, so the colour and the reason cannot drift apart', report.noUpdateHasReason);
-  // THE THREE FEEDS THAT MUST NEVER BE GRADED. CLAUDE.md is explicit that the insider feed carries
-  // no model — "no sentiment, no materiality flag" — BSE's category is a taxonomy rather than a
-  // verdict, and a headline is editorial.
-  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', ') || 'none graded');
-  ok('...and neither are corporate announcements', !report.gradedFeeds.includes('announcements'));
-  ok('...and neither is news', !report.gradedFeeds.includes('news') && !report.gradedFeeds.includes('market-news'));
+  ok('every direction is one of the three documented values',
+    report.directions.every((v) => ['positive', 'negative', 'neutral'].includes(v)), report.directions.join('/'));
+  ok('every importance is High or Low',
+    report.importance.every((v) => ['high', 'low'].includes(v)), report.importance.join('/'));
+  ok('EVERY row prints both readings that made its badges', report.everySignalHasReasons, `${report.total} events`);
+
+  const rules = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const ann = (title, critical = false) => da.announcementSignal({ title, critical });
+    const inside = (Transaction, pct, value, Mode = '') => da.insiderSignal({ Transaction, Mode, 'Trade %': pct, 'Trade Value': value });
+    return {
+      annUpgrade: ann('Credit rating upgraded'),
+      annDefault: ann('Notice of loan default'),
+      annGeneral: ann('Notice of annual general meeting'),
+      annCritical: ann('Notice of annual general meeting', true),
+      annAuditor: ann('Resignation of Statutory Auditors'),
+      annRegulatoryOrder: ann('Adjudication order received from the Registrar of Companies'),
+      annApprovalReceipt: ann('Receipt of In-Principle Approval from the Stock Exchanges for Preferential Issue'),
+      annInternalApproval: ann('Receipt of approval from the customer for revised drawings'),
+      annProductionCommencement: ann('Commencement of Commercial Production at the new facility'),
+      unreadInvestorList: da.investorCoverageState({ ok: false, reason: 'no-route', total: 0, loadedBooks: 0 }),
+      buySmall: inside('Acquisition', '0.20', '1000'),
+      sellPct: inside('Disposal', '1.00', '1000'),
+      disposalByPurchase: inside('Disposal', '', '', 'Market Purchase'),
+      pledge: inside('Pledge', '', '', 'Creation Of Pledge'),
+      release: inside('Revoke', '', '', 'Revocation Of Pledge'),
+      bareRelease: inside('Revoke', '', '', ''),
+    };
+  });
+  ok('announcement rules distinguish upgrade, default and unmatched text',
+    rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
+      rules.annRegulatoryOrder.direction !== 'positive');
+  ok('BSE critical and material announcement matches are High',
+    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  ok('regulatory approval and commercial-production noun forms are Positive and High',
+    rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
+      rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
+      rules.annInternalApproval.direction === 'neutral');
+  ok('an unread investor list is incomplete even when there are no books to count',
+    rules.unreadInvestorList.incomplete === true && /investor list could not be read/.test(rules.unreadInvestorList.problems.join(' ')));
+  ok('insider rules distinguish acquisition, disposal, pledge and release',
+    rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' &&
+      rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive' && rules.disposalByPurchase.direction === 'negative');
+  ok('insider importance changes exactly at the stated one-percent boundary',
+    rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
+
+  const structuralRefresh = await evalSafe(async () => {
+    const e = await import('/js/data/earnings-live.js');
+    const good = { status: 200, fromStore: false, value: { rows: [{ scId: 'A' }], meta: { subType: 'yoy', structureTag: 'new' } } };
+    return {
+      failed: e.structuralRefreshFailure({ status: 503, value: null }, 'yoy', 'new'),
+      stale304: e.structuralRefreshFailure({ status: 304, fromStore: true, value: good.value }, 'yoy', 'new'),
+      valid: e.structuralRefreshFailure(good, 'yoy', 'new'),
+    };
+  });
+  ok('a failed full earnings refresh cannot bless rows a changed structure tag proved stale',
+    !!structuralRefresh.failed && !!structuralRefresh.stale304 && structuralRefresh.valid === null);
 
   // THE ALERT RULE, ASSERTED DIRECTLY. It is the only thing on this page that can make a red row,
   // and the shipped snapshot has seven moves past the threshold with not one of them down — so a
@@ -1450,12 +1490,41 @@ console.log('\n— ask research and daily alerts —');
   const historyReport = await evalSafe(async () => {
     const da = await import('/js/data/daily-alerts.js');
     const r = await da.collect({ scope: 'portfolio', includeHistory: true });
+    const universe = await da.collect({ scope: 'universe', includeHistory: true });
+    const earnings = await import('/js/data/earnings-live.js');
+    const concalls = await import('/js/data/concall-scans.js');
+    const eventByRow = new Map(universe.events.filter((e) => e.feed === 'earnings').map((e) => [e.id, e]));
+    const kindLabel = {
+      turnaround: 'to profit',
+      'slipped-to-loss': 'to loss',
+      'loss-narrowed': 'loss narrowed',
+      'loss-widened': 'loss widened',
+      'loss-flat': 'loss flat',
+    };
+    const dishonestKinds = earnings.all().flatMap((row) => [row.revenue, row.netProfit].map((metric) => ({ row, metric })))
+      .filter(({ metric }) => kindLabel[metric?.kind])
+      .filter(({ row, metric }) => {
+        const id = `earnings:${row.scId || row.ticker}:${row.resultDate}:${String(earnings.meta()?.subType || 'yoy').toUpperCase()}`;
+        const event = eventByRow.get(id);
+        return event && !event.detail.toLowerCase().includes(kindLabel[metric.kind]);
+      }).length;
+    const investorFeed = universe.feeds.find((f) => f.id === 'investors');
+    const earningsFeed = universe.feeds.find((f) => f.id === 'earnings');
+    const concallFeed = universe.feeds.find((f) => f.id === 'concalls');
     return {
       events: r.events.length,
       days: r.meta.days,
       oldest: r.meta.oldestEventDay,
       newest: r.meta.newestEventDay,
       unique: new Set(r.events.map((e) => e.id)).size,
+      scorelessNonNeutralLow: r.events.filter((e) => e.feed === 'concalls' && e.direction !== 'neutral' && /analysis pending/.test(e.detail) && e.importance !== 'high').length,
+      universeTickerlessInvestors: universe.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      portfolioTickerlessInvestors: r.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      investorCoverageExplicit: investorFeed?.status === 'failed' && /\d+ of \d+ investor books/.test(investorFeed.note || ''),
+      snapshotFreshnessHonest:
+        (earnings.meta()?.origin !== 'snapshot' || earningsFeed?.asOf === earnings.meta()?.fetchedAt) &&
+        (concalls.meta()?.origin !== 'snapshot' || concallFeed?.asOf === concalls.meta()?.fetchedAt),
+      dishonestKinds,
       ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
     };
   });
@@ -1463,6 +1532,15 @@ console.log('\n— ask research and daily alerts —');
     historyReport.events > report.total && historyReport.days > 1 && historyReport.unique === historyReport.events,
     `${historyReport.events} events across ${historyReport.days} dates (${historyReport.oldest} → ${historyReport.newest})`);
   ok('...and orders the data by date and time before the table sees it', historyReport.ordered);
+  ok('scoreless con-calls retain High importance when source sentiment is non-neutral', historyReport.scorelessNonNeutralLow === 0,
+    `${historyReport.scorelessNonNeutralLow} misclassified row(s)`);
+  ok('Universe retains tickerless investor moves while Portfolio excludes them',
+    historyReport.universeTickerlessInvestors > 0 && historyReport.portfolioTickerlessInvestors === 0,
+    `${historyReport.universeTickerlessInvestors} Universe / ${historyReport.portfolioTickerlessInvestors} Portfolio`);
+  ok('an incomplete investor snapshot is named rather than presented as fully current', historyReport.investorCoverageExplicit);
+  ok('reading a committed earnings/con-call file does not advance source freshness', historyReport.snapshotFreshnessHonest);
+  ok('earnings turnaround and loss kinds are named instead of restored as growth rates', historyReport.dishonestKinds === 0,
+    `${historyReport.dishonestKinds} dishonest metric label(s)`);
 
   // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
   // and this tab reads three of those feeds.
@@ -1535,6 +1613,7 @@ console.log('\n— ask research and daily alerts —');
       top: scroller?.scrollTop || 0,
       scrollHeight: scroller?.scrollHeight || 0,
       clientHeight: scroller?.clientHeight || 0,
+      lastKey: document.querySelectorAll('#content-host tbody tr[data-row-key]')?.[document.querySelectorAll('#content-host tbody tr[data-row-key]').length - 1]?.dataset.rowKey || null,
     };
   });
   await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = el.scrollHeight; });
@@ -1548,6 +1627,7 @@ console.log('\n— ask research and daily alerts —');
       pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
       top: scroller?.scrollTop || 0,
       oldestPaintedDay: rows.at(-1)?.querySelector('[data-event-day]')?.dataset.eventDay || null,
+      lastKey: rows.at(-1)?.dataset.rowKey || null,
     };
   });
   ok('the history table starts with one page instead of painting its full data set',
@@ -1556,7 +1636,7 @@ console.log('\n— ask research and daily alerts —');
   ok('scrolling the internal table appends the next chronological page',
     scrollHistory.top > scrollBefore.top && scrollBefore.scrollHeight > scrollBefore.clientHeight &&
       scrollHistory.painted > scrollBefore.painted && scrollHistory.painted < allRows &&
-      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.oldestPaintedDay < currentAlertDay,
+      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.lastKey !== scrollBefore.lastKey,
     `painted ${scrollBefore.painted} → ${scrollHistory.painted}; reached ${scrollHistory.oldestPaintedDay}; ${scrollHistory.pending} pending`);
   await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = 0; });
 
@@ -1567,40 +1647,39 @@ console.log('\n— ask research and daily alerts —');
   await settleTables();
   const todayRows = await alertDataCount();
   const todayDays = await page.$$eval('[data-event-day]', (els) => [...new Set(els.map((el) => el.dataset.eventDay))]);
-  ok('Today only narrows the history without changing the feed', todayRows > 0 && todayRows < allRows && todayDays.length === 1 && todayDays[0] === currentAlertDay,
+  // A committed capture can legitimately lag the Indian calendar between scheduled runs. In that
+  // case Today must be an honest empty result, not a reason for this check to demand invented rows.
+  ok('Today only narrows the history without changing the feed', todayRows < allRows && todayDays.every((day) => day === currentAlertDay),
     `${allRows} history → ${todayRows} today (${todayDays.join(', ')})`);
   await dateFilter.selectOption('all');
   await page.waitForTimeout(400);
   await settleTables();
-  // THE NUMBER ON THE CHIP IS THE CONTRACT. Deriving the per-feed split from the row keys would
-  // have measured the wrong thing — those carry short prefixes (`tech:`, `ann:`, `mcnews:`), not
-  // the feed ids the filter uses — and comparing against `undefined` would have made every
-  // expected count 0. Reading the chip's own printed count instead ties the filter to the figure
-  // the reader is looking at when they tick it, which is the invariant that actually matters.
-  const perFeed = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) =>
-    Object.fromEntries(els.map((e) => [e.dataset.feed, Number((e.innerText.match(/(\d[\d,]*)\s*$/) || [])[1]?.replace(/,/g, '') ?? NaN)])));
-  // Tick ONE: the stream must narrow to that feed, not merely reorder. Compared against the feed's
-  // own share of the unfiltered stream rather than against a hard-coded number.
-  await page.locator('[data-feed-toggle="technicals"]').click();
+  // Use two feeds whose retained snapshots carry history. The coverage chips answer the separate
+  // "looked today?" question, so their current-day figures must not be reused as history totals.
+  await page.locator('[data-feed-toggle="insider"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   const oneRows = await alertDataCount();
-  ok('ticking one feed narrows the stream to it', oneRows < allRows && oneRows === (perFeed.technicals || 0),
-    `${allRows} all → ${oneRows} ticked, feed holds ${perFeed.technicals || 0}`);
+  ok('ticking one feed narrows the stream to it', oneRows > 0 && oneRows < allRows,
+    `${allRows} all → ${oneRows} insider rows`);
   // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
-  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.locator('[data-feed-toggle="announcements"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   const twoRows = await alertDataCount();
+  // Leave the second feed selected by unticking the first, which measures its full retained count
+  // independently without reaching into collector internals or depending on the capture date.
+  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const secondRows = await alertDataCount();
   ok('...and a second tick adds to it rather than replacing it',
-    twoRows === (perFeed.technicals || 0) + (perFeed.insider || 0) && twoRows > oneRows,
-    `${oneRows} + insider ${perFeed.insider || 0} = ${twoRows}`);
+    secondRows > 0 && twoRows === oneRows + secondRows,
+    `${oneRows} insider + ${secondRows} announcements = ${twoRows}`);
   // UNTICKING THE LAST ONE RETURNS TO ALL, never to an empty stream. A reader who has unticked
   // their way to a blank page has no control on screen saying why it is blank, and "nothing today"
   // is a claim this page may not make on the strength of a filter the reader set.
-  await page.locator('[data-feed-toggle="technicals"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.locator('[data-feed-toggle="announcements"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   ok('unticking the last feed returns to All rather than emptying the stream',
@@ -1625,8 +1704,8 @@ console.log('\n— ask research and daily alerts —');
   // Both directions: dead page below is what was reported, and a table hanging past the fold makes
   // the page scroll as well as the table, which is worse than the gap it was meant to close. The
   // height is MEASURED at runtime rather than written into a `calc()`, because the head above it
-  // is not a fixed size — the chip row wraps with the window, and there are four feeds under a
-  // narrowed scope against five under Universe. A constant was exact on one window and left the
+  // is not a fixed size — the chip row wraps with the window, and there are eight feeds under a
+  // narrowed scope against nine under Universe. A constant was exact on one window and left the
   // table ~110px short on a wider one.
   ok('the stream fills the viewport rather than leaving dead page below it',
     fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom <= 48,
@@ -1682,17 +1761,14 @@ console.log('\n— ask research and daily alerts —');
   ok('...and a day-only value stays null rather than becoming midnight',
     instants.dayOnly === null && instants.bseDay === null && instants.human === null && instants.missing === null,
     `day=${instants.dayOnly} bse=${instants.bseDay} human=${instants.human}`);
-  // The pill reads GENERAL, not UPDATE. `severity` stays `update` in the data — the label is what
-  // the reader sees, and renaming the key would be a data change dressed as a wording change.
-  // CASE-INSENSITIVE, because the pill is uppercased by CSS and `innerText` returns the source
-  // text. Matching the rendered look found nothing at all and reported "0 rows" — a check written
-  // against the screenshot rather than the DOM, which is a pass waiting to happen the day the word
-  // changes back.
-  const signals = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
-    rows.map((r) => (r.innerText.match(/\b(alert|general|update)\b/i) || [])[1]).filter(Boolean).map((x) => x.toLowerCase()));
-  ok('a non-alert row is signalled General, never Update',
-    signals.length > 0 && signals.every((x) => x === 'general' || x === 'alert') && !signals.includes('update'),
-    `${signals.length} rows: ${[...new Set(signals)].join(', ')}`);
+  const badges = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
+    rows.map((r) => ({
+      direction: (r.innerText.match(/\b(positive|negative|neutral)\b/i) || [])[1]?.toLowerCase(),
+      importance: (r.innerText.match(/\b(high|low)\b/i) || [])[1]?.toLowerCase(),
+    })));
+  ok('every painted row shows both direction and importance badges',
+    badges.length > 0 && badges.every((x) => ['positive', 'negative', 'neutral'].includes(x.direction) && ['high', 'low'].includes(x.importance)),
+    `${badges.length} rows`);
 
   // ---- a row goes to the SOURCE, not to another tab of ours ----------------------------
   // The reader has already read the headline here; sending them to a tab to find it again is two
@@ -1720,7 +1796,7 @@ console.log('\n— ask research and daily alerts —');
     skip('clicking a row opens the source, not another tab of ours', 'no row in the current capture carries a URL');
   } else {
     const hashBefore = page.url();
-    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(3).click();
+    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(4).click();
     await page.waitForTimeout(800);
     const opened = await evalSafe(() => window.__opened || []);
     ok('clicking a row opens the source, not another tab of ours',
@@ -5615,7 +5691,7 @@ console.log('\n— news, announcements and insider trades —');
   const insiderFilters = await page.evaluate(async () => {
     const selects = [...document.querySelectorAll('[data-table-filter]')];
     const countText = document.querySelector('[data-row-count]')?.textContent || '';
-    const total = Number((countText.match(/\d+/) || ['0'])[0]);
+    const total = Number((countText.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
     const results = [];
     for (const select of selects) {
       const choice = [...select.options].find((o) => o.value !== 'all');

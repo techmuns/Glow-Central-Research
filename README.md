@@ -13,11 +13,12 @@ dashboard packet to the server-side assistant and requires hosted web search, so
 context and dashboard facts are combined in one answer without exposing the provider key.
 
 **Daily Alerts** is one newest-first, internally scrollable timeline consolidated
-from four of the tabs — Breakouts / Technical, News, Corp Announcements and Insider Trades — red
-for a price fall past 5% and orange for everything else. It reuses each feed's retained history,
-shows every row's Indian date and available clock time, and offers All / today / 7-day / 30-day
-filters. It adds no data source of its own and separately says whether each feed has actually looked
-at today, because historical rows do not prove that today's scrape ran.
+from Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corporate
+Announcements and Insider Trades. Every event has separate Positive / Negative / Neutral direction
+and High / Low importance readings with the reasons shown in the row. It reuses each feed's retained
+history, shows every row's Indian date and available clock time, and offers direction, importance,
+feed and date filters. It adds no data source of its own and separately says whether each feed has
+actually looked at today, because historical rows do not prove that today's scrape ran.
 
 Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
@@ -113,7 +114,7 @@ public/
     data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
                       scope.js — the three scopes; every forScope() is built on it
-                      daily-alerts.js — retained chronological readings across four tabs
+                      daily-alerts.js — retained chronological readings across the research feeds
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
     research/         bounded cross-dashboard evidence catalog + safe answer renderer

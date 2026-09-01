@@ -334,8 +334,15 @@ export function startLive(live) {
       if (feed.fromStore) {
         // Revalidated, unchanged. Move "last checked" and nothing else — that is a different fact
         // from "last scraped", and conflating them would age the data backwards.
-        if (cache) cache.meta.checkedAt = feed.checkedAt || Date.now();
-        return null;
+        // A failed first load also creates a cache object, but it does not contain the stored rows.
+        // Recover that case by ingesting the confirmed device payload rather than blessing the
+        // empty failure shell as though it were the payload that received the 304.
+        if (cache?.meta?.ok === true) {
+          cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
+          return null;
+        }
+        ingest(feed, { origin: 'store' });
+        return cache;
       }
       const before = cache ? fingerprint(cache.entries) : null;
       ingest(feed);
@@ -359,6 +366,43 @@ export function startLive(live) {
     off();
     live.stop(LIVE_ID);
   };
+}
+
+/** Revalidate once for Daily Alerts without mounting the hourly poller. */
+export async function refresh() {
+  await buildIndex();
+  const feed = await fetchFeed();
+  if (!feed.ok) {
+    if (!cache) ingest(feed, { origin: 'live' });
+    else {
+      // Keep the last good rows visible, but make the failed confirmation explicit to consumers.
+      cache.meta = {
+        ...cache.meta,
+        ok: false,
+        reason: feed.reason || 'upstream',
+        url: feed.url || cache.meta.url || null,
+        checkedAt: Date.now(),
+      };
+    }
+    return cache;
+  }
+  if (feed.fromStore) {
+    if (cache?.meta?.ok === true) cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
+    else ingest(feed, { origin: 'store' });
+    return cache;
+  }
+  const before = cache ? fingerprint(cache.entries) : null;
+  ingest(feed, { origin: 'live' });
+  if (before !== fingerprint(cache.entries)) {
+    for (const fn of listeners) {
+      try {
+        fn(cache);
+      } catch (err) {
+        console.error('[chatter-live] listener failed', err);
+      }
+    }
+  }
+  return cache;
 }
 
 export function stopLive(live) {
