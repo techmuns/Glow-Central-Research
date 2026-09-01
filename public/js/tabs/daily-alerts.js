@@ -481,14 +481,12 @@ function eventsTable(ctx, events, day) {
     nameAfter: 1,
     dense: true,
     wrapHeads: true,
-    // FILL THE VIEWPORT. The head above this is one line of chips now — no description, no stat
-    // strip, no legend below — so a reservation sized for the old chrome left a band of dead page
-    // under the table on every scope. The number is MEASURED, not guessed: the scroll container's
-    // top sits at a constant 534px here (app header, tab bar, section head, chip row, the table's
-    // own toolbar and its thead), and 24px keeps the card's bottom edge off the fold. Re-measure it
-    // if anything is added above — `[data-table-scroll]`'s `getBoundingClientRect().top` is the
-    // number, and the `max()` floor is what stops a short window collapsing the table to nothing.
-    stickyHead: 'max(320px, calc(100vh - 558px))',
+    // FILL THE VIEWPORT. The scroll container begins about 327px below the top after the description
+    // and stat strip were removed. The previous 558px reservation still counted that deleted chrome,
+    // leaving roughly 200px of dead page below the table — especially obvious inside the shorter
+    // embedded dashboard panel. Reserve the measured 327px plus a 24px breathing gap; the `max()`
+    // floor keeps a short window from collapsing the table to nothing.
+    stickyHead: 'max(320px, calc(100vh - 351px))',
     rowClass: (e) => SEV[e.severity]?.row || '',
     columns: [
       {
