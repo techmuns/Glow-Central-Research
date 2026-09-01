@@ -1,18 +1,18 @@
 # Sattva Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (daily alerts, earnings, con-calls, public chatter, technical breakouts,
+**Research Central** (AI and general alerts, earnings, con-calls, public chatter, technical breakouts,
 superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**Daily Alerts** is the landing tab: one newest-first, internally scrollable timeline consolidated
-from Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corporate
-Announcements and Insider Trades. Every event has separate Positive / Negative / Neutral direction
-and High / Low importance readings with the reasons shown in the row. It reuses each feed's retained
-history, shows every row's Indian date and available clock time, and offers direction, importance,
-feed and date filters. It adds no data source of its own and separately says whether each feed has
-actually looked at today, because historical rows do not prove that today's scrape ran.
+**AI Alerts** is the landing tab: an explainable seven-day priority queue that groups events by
+portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
+real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
+the score printed on every card; stale feeds are penalised. **General Alerts** keeps the complete
+newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
+Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
+importance and feed filters. Both views reuse the same feeds and add no source of their own.
 
 Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
@@ -23,7 +23,7 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**All thirteen tabs across both workspaces are built.** See
+**All fourteen tabs across both workspaces are built.** See
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
@@ -102,9 +102,10 @@ public/
                       coverage.js — the 142-company book the Portfolio scope filters by
                       scope.js — the three scopes; every forScope() is built on it
                       daily-alerts.js — retained chronological readings across the research feeds
+                      ai-alerts.js — explainable seven-day company ranking over those readings
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    tabs/             daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    tabs/             ai-alerts, daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),

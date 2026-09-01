@@ -15,18 +15,18 @@ no bundler, no npm dependency for the app itself. You open `public/index.html` a
 python3 -m http.server 8080 -d public     # that is the whole dev setup
 ```
 
-Two workspaces, thirteen tabs:
+Two workspaces, fourteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **Daily Alerts** · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | **AI Alerts** · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads all eight research
-tabs above (News contributes company and market-wide feeds) and prints their retained rows as one
-newest-first stream. Direction (Positive / Negative / Neutral) and importance (High / Low) are
-separate, and every row states both reasons. Today remains a first-class date filter and a separate
-freshness question. See §4c.
+**AI Alerts is the landing tab.** It ranks the last seven days of company-specific events from all
+nine alert feeds into an explainable portfolio priority queue. **General Alerts** keeps the complete
+newest-first stream (News contributes company and market-wide feeds). Direction and importance stay
+separate, every General row states both reasons, and every AI card shows its score breakdown. Both
+are derived views with no data source of their own. See §4c.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
@@ -250,21 +250,38 @@ all.
 
 ---
 
-## 4c. Daily Alerts — the landing tab
+## 4c. AI Alerts and General Alerts
+
+**AI Alerts is the default, prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
+days of company-specific General Alerts by ticker. It ranks materiality, recency, direction, real
+Portfolio membership, independent-feed corroboration, repeated high-importance events,
+directional conflict and negative clusters inside a portfolio sector. A stale, failed or unread
+feed subtracts points. Cards are sorted by score, show the exact point breakdown and the strongest
+three source events, and link to General Alerts pre-filtered for that company.
+
+The model is deliberately deterministic rather than generative: the feeds already carry the
+structured facts needed to prioritise them, so a repeatable rule cannot invent a filing or silently
+change its mind. Single-feed neutral news noise stays below the threshold, and tickerless market
+news stays in General Alerts because it cannot honestly be attributed to a portfolio company.
+Portfolio Analytics position weights and conviction are not used because that ledger is explicitly
+illustrative; `coverage.js` supplies the real 142-company membership and sector context.
+
+**General Alerts is the complete timeline.** Its route id remains `daily-alerts` so saved links keep
+working; only the user-facing name changed.
 
 Every other tab here is organised by SOURCE: this is what the results feed holds, this is what BSE
 filed, this is what the technicals scrape measured. That is right for research and wrong for the
 first thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
-happened, and does any of it need me*. Daily Alerts is organised as one chronological timeline.
+happened, and does any of it need me*. General Alerts is organised as one chronological timeline.
 
-`js/data/daily-alerts.js` takes the readings; `js/tabs/daily-alerts.js` draws them. **It adds no
+`js/data/daily-alerts.js` takes the General readings; `js/tabs/daily-alerts.js` draws them. **It adds no
 data source** — every row comes from a feed that already has its own tab. The landing view asks for
 each feed's retained window, orders it newest-first by **Indian trading date and time**, and relies
 on the table kit's progressive body fill so the fixed-height internal scroller reaches older rows
 without blocking first paint. The date filter narrows that loaded history to today, 7 days, 30 days
 or older rows; it does not issue a new request.
 
-**All eight research tabs are represented.** Earnings Hub, Con-call, Public Chatter, Breakouts /
+**All eight source tabs are represented.** Earnings Hub, Con-call, Public Chatter, Breakouts /
 Technical, Super Investors, News, Corp Announcements and Insider Trades. News contributes two feeds:
 the per-company search and the market-wide capture. Adding a source remains an entry in `FEEDS` plus
 a collector; no rendering behaviour is special-cased by feed id.
@@ -311,7 +328,7 @@ earnings/con-call fallback, is named as incomplete rather than presented as a cu
 last-good investor books are incomplete too. A committed file read retains the source's
 `fetchedAt` rather than turning the browser's file-read time into upstream freshness.
 
-**Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed
+**Nothing on either alerts view walks.** The three filings feeds are seeded through `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()` so
 that seeding here cannot discard the company list the Corporate Announcements tab will later
 refresh with. The header Refresh button performs bounded revalidation for earnings, con-calls and

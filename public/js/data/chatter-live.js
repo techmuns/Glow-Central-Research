@@ -368,7 +368,7 @@ export function startLive(live) {
   };
 }
 
-/** Revalidate once for Daily Alerts without mounting the hourly poller. */
+/** Revalidate once for General Alerts without mounting the hourly poller. */
 export async function refresh() {
   await buildIndex();
   const feed = await fetchFeed();

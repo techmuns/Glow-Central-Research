@@ -14,6 +14,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
 
+import * as aiAlerts from '../tabs/ai-alerts.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -40,11 +41,11 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// DAILY ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// AI ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
@@ -323,11 +324,11 @@ function mountTab(tabModule, resolved) {
   // names — and the first version of this got that wrong in a way that was invisible until two
   // navigations later.
   //
-  // Landing on Daily Alerts with an empty watchlist takes the branch below, so the module was
+  // Landing on an alerts tab with an empty watchlist takes the branch below, so the module was
   // already `currentTabModule` and `currentTabModule !== tabModule` was false: nothing was
   // destroyed. Its subscriptions stayed live, its in-flight collect finished, and it painted its
   // own table into `contentHost` — which by then belonged to Breakouts. The reader saw Breakouts'
-  // chrome over Daily Alerts' rows, on a page where nothing had thrown and no state was wrong.
+  // chrome over General Alerts' rows, on a page where nothing had thrown and no state was wrong.
   // Exactly the lifecycle failure the module contract in CLAUDE.md is written about, arrived at
   // from the one direction the contract does not cover: a tab the shell decided not to mount.
   if (currentTabModule && currentTabModule !== nextModule) {

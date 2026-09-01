@@ -318,7 +318,7 @@ export function createFeed(kind) {
    * The committed snapshot and this device, and NOTHING ELSE — no walk, and no claim on `wanted`.
    *
    * For a reader that wants the rows this feed already holds without being the tab that owns it.
-   * The Daily Alerts tab is the one consumer: it consolidates today's filings across every feed,
+   * General Alerts is the one consumer: it consolidates today's filings across every feed,
    * and it must not be the thing that decides which companies the Corporate Announcements tab will
    * later refresh.
    *

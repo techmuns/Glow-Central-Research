@@ -75,7 +75,8 @@ public/
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
-      daily-alerts.js         RETAINED HISTORY across FOUR tabs. Derived: no file, no route of its own
+      daily-alerts.js         RETAINED HISTORY across NINE feeds. Derived: no file, no route of its own
+      ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -97,9 +98,10 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    tabs/                     ai-alerts, daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      daily-alerts.js         THE LANDING TAB — one newest-first historical stream across the research
+      ai-alerts.js            THE LANDING TAB — ranked company insight cards, strongest evidence first
+      daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
@@ -187,7 +189,7 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**Daily Alerts is first, and first is the default landing page.** `handleRoute` falls back to
+**AI Alerts is first, and first is the default landing page.** `handleRoute` falls back to
 `ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
@@ -283,7 +285,7 @@ either. Listing a gap in the spec is the rule that survives.
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
 and nothing else: no stat cards, no ribbon, no sub-view picker. Public Chatter also omits its four
 summary cards; coverage, post count/source split, mood and scrape timing now sit in a muted footnote
-after both tables. **Daily Alerts is the third**, and
+after both tables. **General Alerts is the third**, and
 it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
@@ -1702,7 +1704,7 @@ and because a table reading *"no results match your filters"* over a list nobody
 the reader hunting for a filter to clear.
 
 **The teardown is decided against what will actually be mounted, not against the tab the route
-names.** Getting that wrong was invisible until two navigations later: landing on Daily Alerts with
+names.** Getting that wrong was invisible until two navigations later: landing on an alerts tab with
 an empty watchlist took the short-circuit branch, so `currentTabModule !== tabModule` was false and
 nothing was destroyed. The module's subscriptions stayed live, its in-flight collect finished, and
 it painted its own table into `contentHost` — which by then belonged to Breakouts. **Nothing threw
@@ -1712,7 +1714,27 @@ contract does not cover: a tab the shell decided not to mount.
 
 ---
 
-## Daily Alerts — the landing tab, and the only one organised as a TIMELINE
+## AI Alerts — the explainable priority layer
+
+`js/data/ai-alerts.js` reads `daily-alerts.js` once in retained-history mode, then groups the last
+seven Indian dates by ticker. It adds no source and generates no fact. The ranking is deliberately
+deterministic: importance, source materiality, recency, explicit direction, real Portfolio
+membership, independent-feed corroboration, repeated material events, directional conflict and a
+small negative-sector cluster adjustment. Stale, incomplete and unread feeds lose points. Every
+contribution is rendered from `scoreBreakdown`, so the order can be audited rather than trusted as
+an opaque AI opinion.
+
+`coverage.js` is the only portfolio input. Do **not** use `portfolio.js` weights or conviction here:
+that ledger is explicitly illustrative, and an invented position weight must never decide what a
+real reader is told is urgent. Tickerless market-wide news stays in General Alerts; it cannot be
+honestly assigned to a company. Single-source neutral news stays below the surfaced threshold.
+
+Cards show the strongest three events first, a templated insight and review action, source links,
+and a link to General Alerts with the existing table search seeded for the ticker. `rankReport()` is
+pure and exported; test its policy branches with fixtures rather than waiting for today's capture
+to happen to contain every case.
+
+## General Alerts — the complete view, and the only one organised as a TIMELINE
 
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
 thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
@@ -1783,7 +1805,7 @@ stale last-good investor books are treated the same way. None is allowed to make
 claim the feed is current. Reading a committed earnings/con-call file dates freshness to the
 upstream `fetchedAt`, not to the moment this browser read the file.
 
-The Daily Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
+The General Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
 one conditional request for the bulk investor snapshot. It never turns the landing page into the
 Super Investors tab's ninety-one-book upstream walk.
 
@@ -2397,10 +2419,11 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
-| Change the Daily Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *Daily Alerts* above first. It has **no feed of its own** and must never send a request per company |
-| Change Daily Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
-| Change a Daily Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
-| Change which tabs Daily Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
+| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, explain every point, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
+| Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
+| Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
+| Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
+| Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
@@ -2455,7 +2478,7 @@ node scripts/verify-ui.mjs
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 13 tabs across both workspaces render their panel
+- all 14 tabs across both workspaces render their panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
@@ -2467,18 +2490,18 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
-- **the dashboard opens on Daily Alerts, in Portfolio scope**, with no stat strip or competing
-  description, no sub-view picker, and the Indian trading date stated rather than a UTC one
+- **the dashboard opens on AI Alerts, in Portfolio scope**, with no sub-view picker; its cards are
+  unique by ticker, score-descending, above the surfaced threshold and explain every point
 - **it reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
 - **it reads all eight research tabs**, with company and market-wide News as separate feeds
 - **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*
   from *nothing today* from *could not be read* from *reading…*
-- **every Daily Alerts row carries valid direction and importance plus both reasons**;
+- **every General Alerts row carries valid direction and importance plus both reasons**;
   announcement and insider classifiers and `moveSeverity` are asserted directly at their
   boundaries; every event id is unique (compared, not counted); and mounting the tab sends
   **zero** per-company filings requests
-- **Daily Alerts history is complete in the table model but paged in the DOM**: the suite asserts
+- **General Alerts history is complete in the table model but paged in the DOM**: the suite asserts
   more than one retained date, stable unique ids, newest-first date/time order, an 80-row initial
   paint, the next chronological page on internal scroll, full-data counts under the Today filter,
   and an explicit date/time resolution on every painted row

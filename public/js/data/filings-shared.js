@@ -74,7 +74,7 @@ export function isoDate(v) {
 /**
  * The same value as a full instant, or null — for upstreams that carry a TIME as well as a date.
  *
- * IT HAS TO BE ITS OWN COMMITTED FIELD, and that is the whole point of it. Daily Alerts read the
+ * IT HAS TO BE ITS OWN COMMITTED FIELD, and that is the whole point of it. General Alerts read the
  * news time off `raw.page_age`, and `raw` is the upstream record again — deliberately stripped by
  * `scrape-filings.mjs` before writing, because committing it would multiply the snapshot several
  * times over. So the time was present on a live-walked row and absent on every row that came from
