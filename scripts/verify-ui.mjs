@@ -2653,9 +2653,17 @@ if (!chatterState.ok) {
   await go('/#/research/public-chatter?scope=portfolio', 5000);
   const scoped = await evalSafe(async () => {
     const c = await import('/js/data/chatter-live.js');
-    return { covered: c.forScope('portfolio').length, uncovered: c.uncovered().length, all: c.companies().length };
+    return {
+      covered: c.forScope('portfolio').length,
+      uncovered: c.uncovered().length,
+      all: c.companies().length,
+      window: c.meta()?.window || '30d',
+      text: document.querySelector('#content-host')?.textContent || '',
+    };
   });
   ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
+  ok('...and labels the overlap in short, customer-facing language',
+    scoped.text.includes(`Portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
   ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
     `${scoped.uncovered} rows in both scopes`);
 
