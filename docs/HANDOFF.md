@@ -30,7 +30,11 @@ Con-call, Public Chatter and Super Investors are deliberately not folded in, and
 See §4c.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
-Universe. Portfolio is the default. See §5a.
+Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
+device: Watchlist uses the existing starred-company store, while Portfolio and Universe keep a
+local overlay over their committed defaults. Company lookup is proxied through the Worker to Muns,
+so `MUNS_TOKEN` never reaches the browser. Portfolio scope edits do not change the Analytics
+ledger. See §5a.
 
 ---
 

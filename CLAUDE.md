@@ -1597,6 +1597,12 @@ reconciles against it, and `verify-ui.mjs` asserts two identities numerically; w
 lines would break both and invent quantities nobody supplied. The statement gave names only —
 value and weight were explicitly out of scope. See the table in `docs/DATA-CONTRACTS.md`.
 
+The pencil beside the header scope toggle edits a **device-local overlay**, not either committed
+file. Portfolio and Universe additions/exclusions live in `sattva:scope-lists:v1`; Watchlist edits
+the same `sattva:watchlist` store as table stars. Search is a same-origin call through
+`/api/stock-search`, and only the Worker reads `MUNS_TOKEN`. A Portfolio edit changes research
+filters and denominators only; it must never create a ledger position, quantity or cost.
+
 Three rules:
 
 1. **A line with no ticker is still a holding.** Nineteen of the 142 have no NSE symbol: five
@@ -2383,7 +2389,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
-| Add or remove a company from the book | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Add or remove a company from the committed book default | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |

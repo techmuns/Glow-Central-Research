@@ -76,7 +76,7 @@
 import * as technicals from './technicals.js';
 import * as marketNews from './market-news.js';
 import { announcements, insider, news } from './filings.js';
-import { scopeTickers } from './scope.js';
+import { scopeMatcher } from './scope.js';
 import * as coverage from './coverage.js';
 
 // ---------------------------------------------------------------------------------------
@@ -162,7 +162,7 @@ const feedById = new Map(FEEDS.map((f) => [f.id, f]));
  */
 export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, onPartial = null } = {}) {
   const book = holdings || coverage.holdings();
-  const wanted = scopeTickers(scope, book);
+  const wanted = scopeMatcher(scope, book);
 
   const settledFeeds = new Map(); // feed id -> the finished feed row
   const build = () => assemble({ day, scope, includeHistory, settledFeeds });

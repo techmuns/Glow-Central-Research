@@ -21,6 +21,7 @@
 
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 
 export const PORTFOLIO = 'portfolio';
 export const WATCHLIST = 'watchlist';
@@ -50,6 +51,23 @@ export function scopeTickers(scope, holdings = null) {
 }
 
 /**
+ * A scope predicate for consumers that need Universe exclusions as well as narrowed-scope sets.
+ * `scopeTickers('universe')` deliberately remains null for its long-standing "not narrowed"
+ * contract; this predicate is the editable-list-aware form new code should use.
+ */
+export function scopeAllowsTicker(scope, ticker, holdings = null) {
+  const t = String(ticker || '').trim().toUpperCase();
+  if (!t) return false;
+  const wanted = scopeTickers(scope, holdings);
+  if (wanted) return wanted.has(t);
+  return !scopeLists.isRemoved('universe', { ticker: t });
+}
+
+export function scopeMatcher(scope, holdings = null) {
+  return { has: (ticker) => scopeAllowsTicker(scope, ticker, holdings) };
+}
+
+/**
  * Filter any ticker-bearing row set by a scope. The single implementation every `forScope()` uses.
  *
  * A row with no ticker cannot be matched, so it drops out of a narrowed scope — which is right,
@@ -58,11 +76,12 @@ export function scopeTickers(scope, holdings = null) {
  * than filtering them to nothing.
  */
 export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.ticker) {
-  const wanted = scopeTickers(scope, holdings);
-  if (!wanted) return rows;
   return rows.filter((r) => {
     const t = tickerOf(r);
-    return t && wanted.has(String(t).toUpperCase());
+    // A tickerless row cannot match a narrowed list, but it remains part of Universe: there is no
+    // symbol by which the editor could exclude it, and dropping it would turn an edit feature into
+    // a silent data-loss rule for unresolved fund holdings and chatter rows.
+    return t ? scopeAllowsTicker(scope, t, holdings) : scope === UNIVERSE;
   });
 }
 

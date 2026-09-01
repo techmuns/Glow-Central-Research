@@ -25,8 +25,9 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
-import { scopeTickers, scopePossessive } from '../data/scope.js';
+import { filterByScope, scopePossessive } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
 
 const REASONS = {
@@ -107,7 +108,7 @@ export function makeFilingsTab(cfg) {
         out.push({ ticker: t, name: null });
       }
     }
-    return out;
+    return scopeLists.apply('universe', out);
   }
 
   function render(ctx) {
@@ -188,8 +189,7 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
-    const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
-    const rows = wantedTickers ? all.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : all;
+    const rows = filterByScope(all, ctx.scope, coverage.holdings());
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -277,6 +277,22 @@ export function makeFilingsTab(cfg) {
       link: (r) => r.url || null,
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
+      // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
+      // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
+      // Recompute both figures from the visible row DATA whenever search or a filter changes.
+      countLabel: (visible) => {
+        const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+        const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
+        const companyNoun =
+          ctx.scope === 'portfolio'
+            ? `portfolio ${companies === 1 ? 'company' : 'companies'}`
+            : ctx.scope === 'watchlist'
+              ? `watchlist ${companies === 1 ? 'company' : 'companies'}`
+              : companies === 1
+                ? 'company'
+                : 'companies';
+        return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
+      },
       exportName: `sattva-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no

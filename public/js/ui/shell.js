@@ -11,6 +11,8 @@ import { tabBar, segmentedToggle, statusControl, emptyState } from './components
 import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
+import { openScopeEditor } from './scope-editor.js';
 
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
@@ -80,8 +82,18 @@ export function mount(root) {
   // under the handler that is painting it is a different bug for the same money.
   watchlist.onChange(() => {
     if (state.scope !== 'watchlist') return;
+    // The editor deliberately batches its repaint until it closes, so several additions can be
+    // made without the route remount closing the modal after the first click.
+    if (document.querySelector('[data-scope-editor]')) return;
     setTimeout(() => {
       if (state.scope === 'watchlist') handleRoute(root, router.parseHash());
+    }, 0);
+  });
+
+  scopeLists.onChange((scope) => {
+    if (state.scope !== scope || document.querySelector('[data-scope-editor]')) return;
+    setTimeout(() => {
+      if (state.scope === scope) handleRoute(root, router.parseHash());
     }, 0);
   });
 
@@ -105,6 +117,7 @@ function shellTemplate() {
                title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
             <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
+            <div id="scope-edit-mount"></div>
           </div>
           <div id="status-mount"></div>
         </div>
@@ -191,6 +204,27 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   const toggleMount = $('#scope-toggle-mount', root);
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
+
+  const editMount = $('#scope-edit-mount', root);
+  editMount.innerHTML = `
+    <button type="button" data-scope-edit aria-label="Edit ${escapeHtml(scopeLabel(resolved.scope))} companies"
+      title="Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m11.5 5.5 3 3" stroke-linecap="round"></path>
+      </svg>
+    </button>`;
+  const editButton = editMount.querySelector('[data-scope-edit]');
+  const onEdit = () =>
+    openScopeEditor({
+      scope: resolved.scope,
+      // Closing the editor commits one route repaint. A zero-delay deferral lets the generic modal
+      // finish clearing its own focus trap before the tab starts creating new controls.
+      onChanged: () => setTimeout(() => handleRoute(root, router.parseHash()), 0),
+    });
+  editButton.addEventListener('click', onEdit);
+  chromeDisposers.push(() => editButton.removeEventListener('click', onEdit));
 
   // THE WORKSPACE SWITCHER IS GONE FROM THE CHROME.
   //

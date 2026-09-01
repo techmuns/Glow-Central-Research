@@ -48,7 +48,7 @@ import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 import * as calendar from '../data/earnings-calendar.js';
 import * as coverage from '../data/coverage.js';
-import { scopeTickers, scopePossessive } from '../data/scope.js';
+import { filterByScope, scopePossessive } from '../data/scope.js';
 
 export const meta = {
   id: 'earnings-hub',
@@ -873,8 +873,7 @@ function renderCalendar(ctx) {
   }
 
   const rows = mode === 'reported' ? feed.reportedOn(wanted) : payload?.rows || [];
-  const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
-  const scoped = wantedTickers ? rows.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : rows;
+  const scoped = filterByScope(rows, ctx.scope, coverage.holdings());
   const err = calendar.errorFor(wanted);
   // A schedule failure is only fatal to the SCHEDULE half. With filings on screen it is a missing
   // strip, not a missing answer, so it must not take the table down with it.
