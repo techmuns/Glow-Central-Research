@@ -235,6 +235,7 @@ function paint(ctx) {
   table.wire(ctx.root);
   wireProvenance(ctx.root, feeds, day, ctx.scope);
   wireFeedFilter(ctx, available);
+  fitStreamToViewport(ctx.root);
   restoreFocus(ctx.root, focus);
 }
 
@@ -379,6 +380,58 @@ function coveragePanel(feeds, day, scope) {
 }
 
 /**
+ * Size the stream so its bottom edge lands just above the fold, whatever is above it.
+ *
+ * THE HEIGHT OF THE HEAD IS NOT A CONSTANT, which is what a `calc(100vh - 558px)` assumes. It
+ * changes with the window width (the chip row wraps), with how many feeds are on offer (four under
+ * a narrowed scope, five under Universe), and with the reader's zoom. Measured against one window
+ * the constant was exact and the table ended 24px above the fold; on a wider one it stopped about
+ * 110px short, which is the dead band this exists to remove. So the number is read from the
+ * element itself, after the paint, rather than written down.
+ *
+ * Re-applied on resize, and the listener is returned to `unsubs` so it dies with the tab — a
+ * window listener re-registered on every repaint is a leak that grows with every feed that lands.
+ */
+let unfit = null;
+function fitStreamToViewport(root) {
+  if (unfit) {
+    unfit();
+    unfit = null;
+  }
+  const el = root.querySelector('[data-table-scroll]');
+  if (!el) return;
+  const set = (h) => {
+    el.style.maxHeight = `${h}px`;
+    el.style.height = `${h}px`;
+  };
+  const apply = () => {
+    if (!el.isConnected) return;
+    // Viewport-relative, and only meaningful at the top of the page — which is where the reader is
+    // when this matters, because a table that fills the viewport leaves the page nothing to scroll.
+    const top = el.getBoundingClientRect().top;
+    let h = Math.max(MIN_STREAM_PX, Math.round(window.innerHeight - top - STREAM_BOTTOM_GAP_PX));
+    set(h);
+    // NO "CORRECT FOR THE RESIDUAL PAGE SCROLL" PASS HERE, and that is deliberate. There is a 16px
+    // overflow in a sandbox with no Tailwind — `body` keeps the browser's default 8px margin
+    // because preflight never loads, on top of a `min-height: 100vh` — and shrinking the table by
+    // it changed the document height not at all, because the floor is the min-height rather than
+    // the content. Compensating would have made the table 16px short for every real reader to fix
+    // something only the sandbox has. Measure what the element needs; do not chase the page.
+
+  };
+  apply();
+  const onResize = () => apply();
+  window.addEventListener('resize', onResize);
+  unfit = () => window.removeEventListener('resize', onResize);
+  unsubs.push(unfit);
+}
+
+// Enough table to be worth having on a short window, and enough margin to keep the card's bottom
+// edge and its shadow off the fold.
+const MIN_STREAM_PX = 320;
+const STREAM_BOTTOM_GAP_PX = 24;
+
+/**
  * The tick boxes, which filter the stream by the feed a row came from.
  *
  * `All` IS `null`, NOT "every id ticked" — see the declaration of `picked`. Two behaviours follow
@@ -462,6 +515,16 @@ const SEV = {
 };
 
 function eventsTable(ctx, events, day) {
+  // A COLUMN OF EM DASHES SAYS "WE ASKED AND WERE REFUSED"; AN ABSENT ONE SAYS THIS FEED DOES NOT
+  // ANSWER THAT. Only two of the five feeds carry a clock — announcements, and the market-wide news
+  // capture — so under Portfolio or Watchlist on a day nothing was filed, every row is an em dash
+  // and the column is pure furniture.
+  //
+  // DRIVEN BY THE ROWS, NOT BY THE SCOPE, and the difference is not cosmetic: all 1,199
+  // announcements in the shipped capture carry a real time, so hiding the column whenever the scope
+  // is narrowed would blank a genuine timestamp the day a book company files. Asking what is
+  // actually on screen gives the same result on the day this was reported and the right one after.
+  const anyTime = events.some((e) => e.time);
   return scoreTable({
     rows: events,
     // Content-derived and unique per event — never a position. The stream grows while feeds land,
@@ -477,25 +540,34 @@ function eventsTable(ctx, events, day) {
     nameMaxPx: 220,
     sub: (e) => [e.ticker, e.section, e.feedLabel].filter(Boolean).join(' · '),
     showRank: false,
-    // Time leads: this is a stream, and the first thing a reader wants from a stream is when.
-    nameAfter: 1,
+    // Time leads where there is one: this is a stream, and the first thing a reader wants from a
+    // stream is when. Where the column is not rendered at all the identity leads instead.
+    nameAfter: anyTime ? 1 : 0,
     dense: true,
     wrapHeads: true,
-    // FILL THE VIEWPORT. The scroll container begins about 327px below the top after the description
-    // and stat strip were removed. The previous 558px reservation still counted that deleted chrome,
-    // leaving roughly 200px of dead page below the table — especially obvious inside the shorter
-    // embedded dashboard panel. Reserve the measured 327px plus a 24px breathing gap; the `max()`
-    // floor keeps a short window from collapsing the table to nothing.
-    stickyHead: 'max(320px, calc(100vh - 351px))',
+    // A FIRST-FRAME FALLBACK ONLY — `fitStreamToViewport` sets the real height after the paint.
+    // A `calc(100vh - <constant>)` cannot do this job: the constant IS the height of everything
+    // above the table, and that varies with the window width (the chip row wraps), with the
+    // number of feeds on offer, and with the reader's zoom. Measured against my own window it was
+    // exact, and on a wider one the table stopped ~110px short — a magic number that was only ever
+    // right for the geometry it was measured on.
+    stickyHead: 'max(320px, calc(100vh - 560px))',
     rowClass: (e) => SEV[e.severity]?.row || '',
     columns: [
-      {
-        label: 'Time',
-        align: 'left',
-        get: (e) => (e.time ? `<span class="tabular-nums text-slate-600">${escapeHtml(e.time)}</span>` : `<span class="text-slate-300" title="This feed dates the event to the day, not to the minute.">—</span>`),
-        html: true,
-        sortValue: (e) => e.time || '',
-      },
+      ...(anyTime
+        ? [
+            {
+              label: 'Time',
+              align: 'left',
+              get: (e) =>
+                e.time
+                  ? `<span class="tabular-nums text-slate-600">${escapeHtml(e.time)}</span>`
+                  : `<span class="text-slate-300" title="This feed dates the event to the day, not to the minute.">—</span>`,
+              html: true,
+              sortValue: (e) => e.time || '',
+            },
+          ]
+        : []),
       {
         label: 'Signal',
         get: (e) => {
