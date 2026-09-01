@@ -1306,9 +1306,25 @@ function githubFailure(err) {
   };
 }
 
+/**
+ * Who asked for this run, for the workflow's own run name.
+ *
+ * AN ALLOWLIST, NOT THE CALLER'S STRING. The value ends up in `run-name`, which GitHub renders in
+ * their UI and which `lastAutomatic` matches on — so an arbitrary value from an unauthenticated
+ * route would be somebody else's text in our run list, and could forge the "this was automatic"
+ * label. Two words are the whole vocabulary; anything else is a button press.
+ *
+ * It is SELF-REPORTED and that is fine for a label: the route is safe whatever it claims, because
+ * the repository, the workflow and the ref are fixed server-side and a run in flight is declined.
+ * The only thing a lie costs is a wrong word in a run name.
+ */
+const SOURCES = new Set(['cron', 'button']);
+const sourceOf = (url) => (SOURCES.has(url.searchParams.get('source')) ? url.searchParams.get('source') : 'button');
+
 async function handleNewsDispatch(request, env, ctx) {
   const cfg = githubConfig(env);
   if (cfg.error) return json(cfg.error, 200);
+  const source = sourceOf(new URL(request.url));
 
   const cache = caches.default;
   const key = edgeKey('mcnews-dispatch');
@@ -1321,13 +1337,14 @@ async function handleNewsDispatch(request, env, ctx) {
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source: 'button' });
+    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source });
     const payload = {
       ok: true,
       dispatched: out.dispatched,
       reason: out.dispatched ? 'dispatched' : 'already-running',
       run: out.run,
       workflow: NEWS_WORKFLOW,
+      source,
       requestedAt: new Date().toISOString(),
     };
     ctx.waitUntil(

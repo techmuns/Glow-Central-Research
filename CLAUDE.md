@@ -898,6 +898,14 @@ build's colour.
 `scheduled()` stays in place: it costs nothing without a trigger and starts working the moment a
 slot is freed or the plan is upgraded, with no code change.
 
+**SO THE CLOCK COMES FROM OUTSIDE.** An external cron service posts to
+`/api/market-news/refresh?source=cron` every 20 minutes — the settings are in
+`docs/DATA-CONTRACTS.md`. That is safe to expose because nothing in the request chooses what runs:
+repository, workflow and ref are fixed on the Worker, a run in flight is declined, and the edge
+cooldown absorbs a stuck pinger. `?source=` is an **allowlist of two words**, because it reaches the
+workflow's `run-name` and an arbitrary string would be somebody else's text in our run list — and
+because `lastAutomatic` matches on it, which is the field that answers *is the cadence holding*.
+
 **The rule generalises: when a scheduler is not honouring you, stop negotiating with it.** Two
 rounds were spent on the cron expression before checking whether the expression was the variable at
 all. The tell was in the data the whole time — every *dispatched* run started instantly while every

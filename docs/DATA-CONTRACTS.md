@@ -2283,8 +2283,8 @@ MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
 ```
 ### Keeping the capture fresh — currently unsolved, and the reasons are measured
 
-**Nothing is refreshing this capture on a schedule today.** Both schedulers have been tried and both
-are ruled out by measurement, so the only thing that refreshes it is a reader pressing Fetch:
+**An external cron service drives this, because both built-in schedulers are ruled out by
+measurement:**
 
 | route | status |
 | --- | --- |
@@ -2298,9 +2298,26 @@ written, tested and deployed; it needs a trigger to call it. Any of these suppli
 1. **Free one of the account's five cron slots**, then add `"triggers": { "crons": ["*/20 * * * *"] }`
    back to `wrangler.jsonc` (or add it in the Cloudflare dashboard). No code change.
 2. **Workers Paid** raises the limit.
-3. **Any external cron service** doing `POST /api/market-news/refresh` every 20 minutes. The route is
-   POST-only, has an edge cooldown, and declines when a run is already in flight, so it is safe to
-   call from anywhere.
+3. **Any external cron service** doing `POST /api/market-news/refresh?source=cron` every 20 minutes.
+   **This is the route in use.** Settings, in full:
+
+   ```
+   URL      https://sattva-central-research.tech-441.workers.dev/api/market-news/refresh?source=cron
+   Method   POST          (a GET is refused with 405 — see below)
+   Body     none          no headers, no auth
+   Every    20 minutes
+   ```
+
+   Safe to call from anywhere, because nothing about the request chooses what runs: the repository,
+   the workflow and the ref are fixed on the Worker, a run already in flight is declined, and a
+   `DISPATCH_COOLDOWN_S` window at the edge absorbs a stuck pinger. The worst a hostile caller can
+   do is cause the same scrape that a reader's button causes.
+
+   `?source=` is an **allowlist of two words** — `cron` and `button`, anything else becomes
+   `button`. It reaches the workflow's `run-name`, which GitHub renders and which `lastAutomatic`
+   matches on, so an arbitrary string would be somebody else's text in the run list. It is
+   self-reported and that is fine for a label: a lie costs one wrong word in a run name and nothing
+   else.
 
 **`GET /api/market-news/run` answers whether any of it is working**, via `lastAutomatic`: the most
 recent run that something other than a person started. It reads `null` while nothing schedules.

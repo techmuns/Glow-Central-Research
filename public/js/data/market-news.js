@@ -236,7 +236,9 @@ export function invalidate() {
 //      operator; `unauthorised` is a token to reissue; `no-worker` means this origin is a plain
 //      static server. Those have different fixes and the view says which.
 
-const DISPATCH_ROUTE = 'api/market-news/refresh';
+// `?source=button` so the run name says a person asked. An external scheduler sends
+// `?source=cron`, which is what `lastAutomatic` looks for — see worker/index.js.
+const DISPATCH_ROUTE = 'api/market-news/refresh?source=button';
 const RUN_ROUTE = 'api/market-news/run';
 
 // Long enough for a queue, a ~40s scrape and a ~90s deploy, and no longer: past this the watch
