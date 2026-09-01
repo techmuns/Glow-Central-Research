@@ -2446,8 +2446,8 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
-- **the dashboard opens on Daily Alerts, in Portfolio scope**, with four stat cards and the
-  gradient hero fourth, no sub-view picker, and the Indian trading date stated rather than a UTC one
+- **the dashboard opens on Daily Alerts, in Portfolio scope**, with no stat strip or competing
+  description, no sub-view picker, and the Indian trading date stated rather than a UTC one
 - **it reads exactly the five feeds behind those four tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
 - **it reads exactly four tabs** — Breakouts, News, Corp Announcements, Insider Trades — and says
@@ -2459,6 +2459,10 @@ It covers, beyond the checklist below:
   directly at and either side of the threshold, because the shipped data has no down-move to
   produce a red row; every event id is unique (compared, not counted); and mounting the tab sends
   **zero** per-company filings requests
+- **Daily Alerts history is complete in the table model but paged in the DOM**: the suite asserts
+  more than one retained date, stable unique ids, newest-first date/time order, an 80-row initial
+  paint, the next chronological page on internal scroll, full-data counts under the Today filter,
+  and an explicit date/time resolution on every painted row
 - market-wide news is excluded from a narrowed scope **with the reason stated**, not filtered to
   nothing
 - **an empty watchlist gets its own panel on every tab**, saying there are zero watchlist companies

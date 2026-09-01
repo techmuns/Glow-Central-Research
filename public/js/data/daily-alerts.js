@@ -153,7 +153,8 @@ const feedById = new Map(FEEDS.map((f) => [f.id, f]));
 // ---------------------------------------------------------------------------------------
 
 /**
- * Read every feed and return today's events plus a per-feed account of what was read.
+ * Read every feed and return the requested day (default) or retained history through it, plus a
+ * per-feed account of what was read.
  *
  * `Promise.allSettled`, never `all`: one feed being unreachable must cost that feed's rows and
  * nothing else. A failure becomes a `feeds[]` row saying so — the same rule as everywhere here, a

@@ -3092,32 +3092,32 @@ an entry in `FEEDS` plus a collector — nothing else in the module is special-c
 
 ```jsonc
 {
-  "day": "2026-08-31",
-  "scope": "portfolio",
+  "day": "2026-09-01",
+  "scope": "universe",
   "includeHistory": true,
   "pending": 0,                       // feeds that have not answered YET — never "nothing today"
   "events": [{
-    "id": "tech:RELIANCE:2026-08-31", // content-derived and unique; never a position
+    "id": "tech:PRAXIS:2026-09-01",   // content-derived and unique; never a position
     "feed": "technicals", "feedLabel": "Price moves", "tab": "breakouts",
     "severity": "alert",              // "alert" (red) | "update" (orange)
     "time": null,                     // HH:MM IST, or null where the feed dates to the day only
-    "day": "2026-08-31",             // normalized Indian date used for ordering and filtering
-    "at": "2026-08-31",
-    "ticker": "RELIANCE", "company": "Reliance Industries",
-    "headline": "Fell 6.2% at the close",
-    "detail": "Close ₹1,412 · RSI 31 · below its 200-day average",
-    "reason": "Down 6.2% on the day, past the 5% threshold this page states",
+    "day": "2026-09-01",             // normalized Indian date used for ordering and filtering
+    "at": "2026-09-01",
+    "ticker": "PRAXIS", "company": "Praxis Home Retails",
+    "headline": "Fell 5.2% at the close",
+    "detail": "Close ₹4.70 · RSI 23.2 · below its 200-day average",
+    "reason": "Down 5.2% on the day, past the 5% threshold this page states",
     "url": "https://…"                // ALWAYS a reason on an alert, never on an update
   }],
   "feeds": [{
     "id": "technicals", "label": "Price moves", "tab": "breakouts",
     "status": "ok",                   // ok | failed | pending
-    "count": 418,                      // retained rows in this feed and scope
-    "todayCount": 7,                   // rows on report.day; freshness is still separate
-    "oldestDay": "2025-09-02",
-    "newestDay": "2026-08-31",
+    "count": 13,                       // this one-snapshot feed has one retained day
+    "todayCount": 13,                  // rows on report.day; freshness is still separate
+    "oldestDay": "2026-09-01",
+    "newestDay": "2026-09-01",
     "reachesToday": true,             // HAS THIS FEED LOOKED AT THIS DAY — null where it cannot know
-    "asOf": "2026-08-31T07:13:59.909Z",
+    "asOf": "2026-09-01T07:13:59.909Z",
     "note": null
   }]
 }
