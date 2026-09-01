@@ -3107,23 +3107,25 @@ than left painting into the content host.
 
 ## Daily Alerts history — DERIVED, no file and no route of its own
 
-`js/data/daily-alerts.js` writes nothing and fetches nothing new. It calls the loaders of **four**
-tabs and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
+`js/data/daily-alerts.js` writes nothing and introduces no route of its own. It calls the loaders of
+all eight research tabs and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
 for every retained row through the requested **Indian trading date**. The landing tab uses history
 mode; its table progressively paints the rows inside one fixed-height scroller, newest first.
 
 | Feed id | Tab | Contributes |
 | --- | --- | --- |
 | `technicals` | Breakouts / Technical | companies that moved more than `MOVE_PCT` at the retained snapshot's close; this source has one day only |
+| `earnings` | Earnings Hub | filed quarterly results; direction from the revenue/net-profit comparison |
+| `concalls` | Con-call | held calls using StockScans' own result/sentiment bands |
+| `chatter` | Public Chatter | one event per covered company in the rolling source snapshot; not individual posts |
+| `investors` | Super Investors | quarter-over-quarter disclosed holding changes; dated to the snapshot capture |
 | `announcements` | Corp Announcements | every BSE filing retained by the exchange-wide capture |
 | `insider` | Insider Trades | retained insider and promoter disclosures (up to 365 days in the current source contract) |
 | `news` | News | retained stories about a company in scope (30-day source window) |
 | `market-news` | News | retained market-wide stories — no company, so Universe only; bounded by the capture's keep limit |
 
-News appears twice because that tab is two feeds behind one name. **The Earnings Hub, Con-call,
-Public Chatter and Super Investors are deliberately not consolidated here**, and the tab says so on
-its face: an absent earnings row has to read as a decision rather than a fault. Adding one back is
-an entry in `FEEDS` plus a collector — nothing else in the module is special-cased by feed id.
+News appears twice because that tab owns company and market-wide feeds. Adding a source is an entry
+in `FEEDS` plus a collector — nothing else in the module is special-cased by feed id.
 
 ```jsonc
 {
@@ -3134,15 +3136,18 @@ an entry in `FEEDS` plus a collector — nothing else in the module is special-c
   "events": [{
     "id": "tech:PRAXIS:2026-09-01",   // content-derived and unique; never a position
     "feed": "technicals", "feedLabel": "Price moves", "tab": "breakouts",
-    "severity": "alert",              // "alert" (red) | "update" (orange)
+    "direction": "negative",          // positive | negative | neutral
+    "importance": "high",             // high | low, independent of direction
+    "severity": "alert",              // compatibility alias for notifications
     "time": null,                     // HH:MM IST, or null where the feed dates to the day only
     "day": "2026-09-01",             // normalized Indian date used for ordering and filtering
     "at": "2026-09-01",
     "ticker": "PRAXIS", "company": "Praxis Home Retails",
     "headline": "Fell 5.2% at the close",
     "detail": "Close ₹4.70 · RSI 23.2 · below its 200-day average",
-    "reason": "Down 5.2% on the day, past the 5% threshold this page states",
-    "url": "https://…"                // ALWAYS a reason on an alert, never on an update
+    "signalReason": "Down 5.2% on the day, past the 5% threshold this page states.",
+    "importanceReason": "High: the absolute day move reached the stated 5% threshold.",
+    "url": "https://…"
   }],
   "feeds": [{
     "id": "technicals", "label": "Price moves", "tab": "breakouts",
@@ -3158,23 +3163,13 @@ an entry in `FEEDS` plus a collector — nothing else in the module is special-c
 }
 ```
 
-**`reason` is the contract that makes the colour honest.** A red row without one would be this
-dashboard grading a company, which it does not do. Severity comes from:
+**`signalReason` and `importanceReason` are mandatory on every row.** Direction comes from source
+figures/bands where carried, transaction direction for insider and investor activity, and the
+exported conservative announcement rules. Importance uses the exported numeric thresholds and
+BSE's own critical flag. Unmatched announcements and publisher news remain Neutral; neither is
+forced into a directional claim the source does not support.
 
-| Feed | Red when | Whose reading |
-| --- | --- | --- |
-| Price moves | `pct_change_today <= -MOVE_PCT` (5%) | ours, one figure, stated on screen |
-| Announcements, Insider, News, Market news | **never** | — |
-
-**One feed can make a red row, and that is a consequence of the scope rather than a gap.** Three of
-these four tabs carry no model at all. `CLAUDE.md` is explicit that the insider feed has *"no
-sentiment, no materiality flag"* — its columns are the upstream's own and unknown at build time, so
-deciding that "Pledge" is red **is** a materiality flag however obvious it looks. BSE's
-`CATEGORYNAME` is a filing taxonomy, not a verdict. A headline is editorial, and reading a sentiment
-off it would put a model this dashboard does not have over somebody else's words. All of them print
-the upstream's own wording instead, and a quiet day is a page of orange.
-
-`moveSeverity(pct)` is **exported** for that reason: it is the whole alert rule, and a rule that
+`moveSeverity(pct)` remains **exported** as the price-move entry rule, and a rule that
 only runs inside a collector can only be tested on days the data happens to contain a big faller.
 It returns `'alert'` below `-MOVE_PCT`, `'update'` above `+MOVE_PCT`, and `null` in between or for a
 missing value — so a company with no move is not an event at all rather than a neutral one.
@@ -3184,8 +3179,8 @@ depending on what the feed is:
 
 | Feed | Test | Why |
 | --- | --- | --- |
-| Announcements, Insider, News, Market news | `capturedDay >= day` | rows carry their own date, so a later capture still covers an earlier day |
-| Price moves | `snapshotDay === day`, **equals, not `>=`** | one snapshot, one day: `pct_change_today` is *that* day's move and no other, so reporting it under a different date would stamp one day's measurement with another day's label |
+| Earnings, Con-calls, Announcements, Insider, News, Market news | `capturedDay >= day` | rows carry their own date, so a later capture still covers an earlier day |
+| Price moves, Chatter, Investor activity | `snapshotDay === day`, **equals, not `>=`** | these are single capture views; investor moves are quarterly disclosure comparisons and chatter is a rolling snapshot |
 
 A feed nobody has heard from yet is `pending`, which the panel draws as *reading…* and never as
 *nothing today* — a half-finished read must not be allowed to give a finished answer.

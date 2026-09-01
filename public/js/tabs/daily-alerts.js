@@ -10,15 +10,9 @@
 // readings are taken and where the rule for each one is written down.
 //
 // ---------------------------------------------------------------------------------------
-// THE TWO COLOURS
-//
-//   RED   an alert: a direct negative reading, named in the row that carries it.
-//   ORANGE an update: something arrived on the date printed on its row.
-//
-// The colours are the semantic tokens, used semantically — `--negative` and `--caution` — never the
-// brand ramp, which would make "an event happened" look like a verdict. And a red row always shows
-// the reading that made it red, because a colour whose cause is not on screen beside it is this
-// dashboard making a judgement, which it does not do.
+// DIRECTION AND IMPORTANCE ARE SEPARATE. Green/red/grey reproduce an explicit source band,
+// transaction direction, or the conservative rule printed beside the row. High/Low is a second
+// badge driven by the stated thresholds in data/daily-alerts.js. Neither is left unexplained.
 //
 // ---------------------------------------------------------------------------------------
 // THE COVERAGE PANEL IS NOT DECORATION — IT IS THE HALF THAT MAKES AN EMPTY DAY READABLE
@@ -74,10 +68,8 @@ export function render(ctx) {
   ctxRef = ctx;
 
   if (!unsubs.length) {
-    // NOTHING SUBSCRIBED, BECAUSE NOTHING THIS PAGE READS POLLS. All four tabs behind it are
-    // scheduled captures, not live routes — so the page is built on mount and rebuilt when the
-    // reader presses Refresh, and it must not be dressed up as a feed that arrives on its own.
-    // (It used to watch the results and con-call pollers; both of those tabs are out of scope now.)
+    // NOTHING SUBSCRIBED. The owning tabs may poll while mounted, but this consolidated page takes
+    // one cached/snapshot reading on mount and another only when the reader presses Refresh.
     unsubs.push(
       refresh.register(REFRESH_ID, {
         label: 'Daily Alerts',
@@ -522,13 +514,18 @@ export function feedState(f) {
 // The stream
 // ---------------------------------------------------------------------------------------
 
-// The row tint plus a 3px left edge in the semantic token's own colour: `--negative` for an alert,
-// `--caution` for an update. NO `hover:` class here — `scoreTable` appends its own `hover:bg-slate-50`
+// The row tint plus a 3px left edge in the direction's semantic colour. NO `hover:` class here —
+// `scoreTable` appends its own `hover:bg-slate-50`
 // after whatever `rowClass` returns, and two hover rules on one element are decided by stylesheet
 // order rather than by class order, which is a coin toss dressed up as a decision.
-const SEV = {
-  alert: { label: 'Alert', chip: 'bg-rose-50 text-rose-700 ring-rose-200', row: 'bg-rose-50/40 shadow-[inset_3px_0_0_#e11d48]' },
-  update: { label: 'General', chip: 'bg-amber-50 text-amber-700 ring-amber-200', row: 'bg-amber-50/20 shadow-[inset_3px_0_0_#d97706]' },
+const DIR = {
+  positive: { label: 'Positive', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', row: 'bg-emerald-50/30 shadow-[inset_3px_0_0_#059669]', reason: 'text-emerald-700' },
+  negative: { label: 'Negative', chip: 'bg-rose-50 text-rose-700 ring-rose-200', row: 'bg-rose-50/40 shadow-[inset_3px_0_0_#e11d48]', reason: 'text-rose-700' },
+  neutral: { label: 'Neutral', chip: 'bg-slate-100 text-slate-600 ring-slate-200', row: 'shadow-[inset_3px_0_0_#94a3b8]', reason: 'text-slate-500' },
+};
+const IMP = {
+  high: 'bg-violet-50 text-violet-700 ring-violet-200',
+  low: 'bg-slate-50 text-slate-500 ring-slate-200',
 };
 
 function eventsTable(ctx, events, day) {
@@ -563,7 +560,7 @@ function eventsTable(ctx, events, day) {
     // complete data set in the table model, but append DOM rows only as the internal scroller nears
     // its end. Search, filters, counts and export still operate over every retained event.
     fillMode: 'scroll',
-    rowClass: (e) => SEV[e.severity]?.row || '',
+    rowClass: (e) => DIR[e.direction]?.row || DIR.neutral.row,
     columns: [
       {
         label: 'Date / time',
@@ -576,13 +573,19 @@ function eventsTable(ctx, events, day) {
         sortValue: (e) => `${e.day || ''}T${e.time || ''}`,
       },
       {
-        label: 'Signal',
+        label: 'Direction',
         get: (e) => {
-          const s = SEV[e.severity] || SEV.update;
+          const s = DIR[e.direction] || DIR.neutral;
           return `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${s.chip}">${s.label}</span>`;
         },
         html: true,
-        sortValue: (e) => (e.severity === 'alert' ? 1 : 0),
+        sortValue: (e) => e.direction,
+      },
+      {
+        label: 'Importance',
+        get: (e) => `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${IMP[e.importance] || IMP.low}">${escapeHtml(e.importance || 'low')}</span>`,
+        html: true,
+        sortValue: (e) => (e.importance === 'high' ? 1 : 0),
       },
       {
         label: 'What happened',
@@ -590,7 +593,8 @@ function eventsTable(ctx, events, day) {
           <div class="max-w-[560px]">
             <div class="truncate font-medium text-slate-800" title="${escapeHtml(e.headline)}">${escapeHtml(e.headline)}</div>
             <div class="truncate text-xs text-slate-500" title="${escapeHtml(e.detail || '')}">${escapeHtml(e.detail || '')}</div>
-            ${e.reason ? `<div class="mt-0.5 truncate text-xs font-semibold text-rose-700" title="${escapeHtml(e.reason)}">▲ ${escapeHtml(e.reason)}</div>` : ''}
+            <div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}">${escapeHtml(e.signalReason || '')}</div>
+            <div class="truncate text-[11px] text-slate-400" title="${escapeHtml(e.importanceReason || '')}">${escapeHtml(e.importanceReason || '')}</div>
           </div>`,
         html: true,
         sortValue: (e) => String(e.headline || '').toLowerCase(),
@@ -610,16 +614,26 @@ function eventsTable(ctx, events, day) {
       }
       if (e.tab) location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
     },
-    searchable: (e) => `${e.day || ''} ${e.time || ''} ${e.company} ${e.ticker || ''} ${e.headline} ${e.detail || ''} ${e.feedLabel}`,
+    searchable: (e) => `${e.day || ''} ${e.time || ''} ${e.company} ${e.ticker || ''} ${e.direction || ''} ${e.importance || ''} ${e.headline} ${e.detail || ''} ${e.signalReason || ''} ${e.importanceReason || ''} ${e.feedLabel}`,
     filters: [
       {
-        label: 'Signal',
+        label: 'Direction',
         options: [
-          { value: 'all', label: 'Alerts and general' },
-          { value: 'alert', label: 'Alerts only' },
-          { value: 'update', label: 'General only' },
+          { value: 'all', label: 'Every direction' },
+          { value: 'positive', label: 'Positive only' },
+          { value: 'negative', label: 'Negative only' },
+          { value: 'neutral', label: 'Neutral only' },
         ],
-        match: (e, v) => e.severity === v,
+        match: (e, v) => e.direction === v,
+      },
+      {
+        label: 'Importance',
+        options: [
+          { value: 'all', label: 'High and low' },
+          { value: 'high', label: 'High only' },
+          { value: 'low', label: 'Low only' },
+        ],
+        match: (e, v) => e.importance === v,
       },
       {
         label: 'Feed',
@@ -682,7 +696,7 @@ const feedOptions = (events) => {
  */
 function emptyMessageFor(scope, day) {
   const where = scope === 'universe' ? 'across the market' : `for your ${scopeLabel(scope).toLowerCase()}`;
-  return `No loaded event ${where} matches the current search, feed, signal and date filters through ${day}. The feed panel above still says which sources have checked today.`;
+  return `No loaded event ${where} matches the current search, feed, direction, importance and date filters through ${day}. The feed panel above still says which sources have checked today.`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -720,21 +734,28 @@ function provenanceHtml(feeds, day, scope) {
       </div>
 
       <div class="text-sm leading-relaxed text-slate-600">
-        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab. The stream is newest first through each feed's retained history; scrolling reveals older dates without sending a request per company. Nothing here is scored, ranked, summarised or re-banded.</p>
+        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab. The stream is newest first through each feed's retained history; scrolling reveals older dates without sending a request per company.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">Which tabs it reads</h3>
-        <p>Four: <strong class="text-slate-800">Breakouts / Technical, News, Corp Announcements and Insider Trades.</strong> News appears twice below because that tab is two feeds behind one name — the per-company search and the market-wide capture.</p>
-        <p class="mt-2">The <strong>Earnings Hub</strong>, <strong>Con-call</strong>, <strong>Public Chatter</strong> and <strong>Super Investors</strong> are not consolidated here. That is a chosen scope rather than a gap, and it is stated so that an absent earnings row reads as a decision rather than a fault.</p>
+        <p><strong class="text-slate-800">Earnings Hub, Con-call, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades.</strong> News appears as separate company and market-wide feeds below.</p>
 
-        <h3 class="mt-4 font-bold text-slate-800">What the colours mean</h3>
-        <p><span class="font-semibold text-rose-700">Red</span> is a direct negative reading, and the reading is printed in the row that carries it. On these four tabs there is exactly one such reading: a price fall of more than ${alerts.MOVE_PCT}% at today's close, from the end-of-day scrape behind Breakouts / Technical.</p>
-        <p class="mt-2"><span class="font-semibold text-amber-700">Orange</span> is everything else that arrived on the date printed on its row. <strong class="text-slate-800">Three of the four tabs are never red.</strong> Insider trades and corporate announcements carry the upstream's own columns and categories, so grading one would be a materiality flag we invented; a news headline is editorial, and reading a sentiment off it would put a model we do not have over somebody else's words. A day with no big faller is therefore a page of orange, which is the honest rendering rather than a page with something missing.</p>
+        <h3 class="mt-4 font-bold text-slate-800">Direction and importance</h3>
+        <p><span class="font-semibold text-emerald-700">Positive</span>, <span class="font-semibold text-rose-700">negative</span> and <span class="font-semibold text-slate-600">neutral</span> are directional readings. <strong class="text-slate-800">High / Low is separate</strong>: it describes the event's measured importance threshold, not whether it is good or bad. Both reasons are printed on every row.</p>
+        <p class="mt-2">Earnings use the filed revenue and net-profit comparison. Con-calls and chatter reproduce their source's own sentiment bands. Insider and investor activity use the transaction direction. Announcements use the narrow rules below. News remains neutral because a publisher headline is not structured sentiment data.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">Thresholds, stated</h3>
-        <p>A price move reaches this page at <strong>±${alerts.MOVE_PCT}%</strong> on the day. It is a filter applied on your behalf, so it is printed rather than left implicit — here, in the row, in the alert card's explainer, and in row 1 of any exported sheet, all four reading one constant.</p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>Price moves enter at <strong>±${alerts.MOVE_PCT}%</strong> and are High.</li>
+          <li>Insider activity is High at <strong>${alerts.INSIDER_HIGH_PCT}%</strong> of shares or <strong>₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore</strong>.</li>
+          <li>Investor activity is High for a new/no-longer-disclosed position or a change of at least <strong>${alerts.INVESTOR_HIGH_PP} percentage point</strong>.</li>
+          <li>Public chatter is High at <strong>${alerts.CHATTER_HIGH_MENTIONS} mentions</strong> or <strong>${alerts.CHATTER_HIGH_CHANGE_PCT}%</strong> absolute mention change.</li>
+          <li>Con-calls are High for non-neutral source sentiment or an extreme source result band; earnings filings are High.</li>
+        </ul>
 
-        <h3 class="mt-4 font-bold text-slate-800">Whose judgement is on screen</h3>
-        <p>Announcement categories are BSE's own filing taxonomy. Insider-trade columns are the upstream's, under its own headings. Headlines and standfirsts belong to their publishers, and the article stays where it was published. This dashboard adds no judgement to any of them.</p>
+        <h3 class="mt-4 font-bold text-slate-800">Announcement rules</h3>
+        <p>Negative: rating downgrade, default/insolvency, fraud/enforcement, contract cancellation/suspension, or auditor resignation. Positive: rating upgrade, dividend/bonus/buyback, order award, approval/patent grant, or commercial-production start. BSE's own critical flag is always High. Everything unmatched stays neutral and Low. These are rule-derived labels, not BSE sentiment.</p>
+
+        <p class="mt-3 text-xs text-slate-500">Directional activity is not an investment recommendation. “No longer disclosed” in investor data does not prove a complete sale; the holding may have fallen below the disclosure threshold. Public Chatter is a rolling snapshot, not a post-by-post event log.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">What was read, and whether it reaches today</h3>
         <table class="mt-2 w-full text-left">
@@ -766,10 +787,10 @@ function exportStream(visible, day, scope) {
     __banner: true,
     line:
       `SATTVA CENTRAL RESEARCH — DAILY ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
-      `"Alert" is a direct negative reading printed in the Reading column, never a judgement about the company; "Update" is everything else that arrived. ` +
-      `Rows come from four tabs only: Breakouts / Technical, News, Corp Announcements and Insider Trades. ` +
-      `Announcements, insider disclosures and news are NEVER graded here — their columns, categories and headlines are the upstream's own. ` +
-      `The one negative reading on this sheet is a price fall past ${alerts.MOVE_PCT}% at the close, which is also the only thing that can mark a row "Alert". ` +
+      `Rows consolidate Earnings, Con-calls, Public Chatter, Price moves, Investor activity, Announcements, Insider trades and News. ` +
+      `Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. ` +
+      `High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
+      `Announcement direction is rule-derived and unmatched filings stay neutral; news stays neutral. ` +
       (behind.length
         ? `NOT EVERY FEED HAS LOOKED AT THIS DAY: ${behind.join(', ')} last read earlier, so an absence here is not evidence that nothing happened.`
         : `Every daily feed on this dashboard had read this day when the sheet was written.`),
@@ -782,13 +803,15 @@ function exportStream(visible, day, scope) {
     columns: [
       { header: 'Date (IST)', key: 'date', width: 14, get: (r) => (r.__banner ? r.line : r.day || '') },
       { header: 'Time (IST)', key: 'time', width: 12, get: cell((r) => r.time || '') },
-      { header: 'Signal', key: 'sev', width: 10, get: cell((r) => (r.severity === 'alert' ? 'Alert' : 'Update')) },
+      { header: 'Direction', key: 'direction', width: 12, get: cell((r) => r.direction || 'neutral') },
+      { header: 'Importance', key: 'importance', width: 12, get: cell((r) => r.importance || 'low') },
       { header: 'Feed', key: 'feed', width: 18, get: cell((r) => r.feedLabel) },
       { header: 'Ticker', key: 'ticker', width: 14, get: cell((r) => r.ticker || '') },
       { header: 'Company', key: 'company', width: 32, get: cell((r) => r.company) },
       { header: 'What happened', key: 'headline', width: 60, get: cell((r) => r.headline) },
       { header: 'Detail', key: 'detail', width: 50, get: cell((r) => r.detail || '') },
-      { header: 'Reading behind the alert', key: 'reason', width: 44, get: cell((r) => r.reason || '') },
+      { header: 'Direction reason', key: 'signalReason', width: 48, get: cell((r) => r.signalReason || '') },
+      { header: 'Importance reason', key: 'importanceReason', width: 48, get: cell((r) => r.importanceReason || '') },
       { header: 'Source link', key: 'url', width: 44, get: cell((r) => r.url || '') },
     ],
     rows: [banner, ...visible],

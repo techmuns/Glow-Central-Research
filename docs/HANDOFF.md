@@ -22,12 +22,11 @@ Two workspaces, thirteen tabs:
 | Research Central | **Daily Alerts** · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads **four** of the
-tabs above — Breakouts / Technical, News, Corp Announcements, Insider Trades — and prints their
-retained rows as one newest-first stream: red for a price fall past 5%, orange for everything else.
-Today remains a first-class date filter and a separate freshness question. The Earnings Hub,
-Con-call, Public Chatter and Super Investors are deliberately not folded in, and the page says so.
-See §4c.
+**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads all eight research
+tabs above (News contributes company and market-wide feeds) and prints their retained rows as one
+newest-first stream. Direction (Positive / Negative / Neutral) and importance (High / Low) are
+separate, and every row states both reasons. Today remains a first-class date filter and a separate
+freshness question. See §4c.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
@@ -215,7 +214,7 @@ public/js/
   data/                    one module per feed: load once, compute once, cache, expose accessors
                            coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
                            scope.js — the three scopes in one place; every forScope() asks it
-                           daily-alerts.js — retained chronological readings across four tabs (§4c)
+                           daily-alerts.js — retained chronological readings across the research feeds (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
@@ -258,34 +257,33 @@ on the table kit's progressive body fill so the fixed-height internal scroller r
 without blocking first paint. The date filter narrows that loaded history to today, 7 days, 30 days
 or older rows; it does not issue a new request.
 
-**Four tabs, and it names the ones it leaves out.** Breakouts / Technical, News, Corp Announcements,
-Insider Trades — News twice, because that tab is two feeds behind one name. The Earnings Hub,
-Con-call, Public Chatter and Super Investors are deliberately not consolidated, and the description,
-both modals and the Sources entry say so: an absent earnings row has to read as a decision, not as a
-fault. Adding one back is an entry in `FEEDS` plus a collector.
+**All eight research tabs are represented.** Earnings Hub, Con-call, Public Chatter, Breakouts /
+Technical, Super Investors, News, Corp Announcements and Insider Trades. News contributes two feeds:
+the per-company search and the market-wide capture. Adding a source remains an entry in `FEEDS` plus
+a collector; no rendering behaviour is special-cased by feed id.
 
-**The two colours are measurements, not opinions.**
+**Direction and importance are independent readings.**
 
-| | Means | Set by |
+| Reading | Values | Set by |
 | --- | --- | --- |
-| **RED — alert** | a direct negative reading on the row itself | across these four tabs there is exactly one: **the price fell more than 5% at today's close**, from the end-of-day scrape behind Breakouts |
-| **ORANGE — update** | something arrived on the date printed on its row | everything else |
+| Direction | Positive / Negative / Neutral | source sentiment or figures where carried; transaction direction for insider/investor activity; a narrow announcement rule; Neutral for news |
+| Importance | High / Low | stated objective thresholds printed in the row and provenance modal |
 
-Every red row prints the reading that made it red. A colour whose cause is not on screen beside it
-is a judgement, and this dashboard does not make those.
+Every row prints `signalReason` and `importanceReason`; a badge whose cause cannot be inspected would
+be an unexplained judgement.
 
-**The other three tabs are never red**, and it is the same rule from the other side. *Insider
-trades* carries no model at all — "no sentiment, no materiality flag" — because its columns are the
-upstream's own and unknown at build time, and deciding that "Pledge" is red *is* a materiality flag
-however obvious it looks. *Corporate announcements* are BSE's filing taxonomy, not a verdict. A
-*news* headline is editorial, and reading a sentiment off it would put a model this dashboard does
-not have over somebody else's words. All three print the upstream's own wording instead.
+Earnings direction uses the revenue/net-profit comparison; con-calls and chatter reproduce their
+source's sentiment bands. Insider direction comes from acquisition/disposal and pledge wording;
+investor direction comes from newly disclosed/added versus trimmed/no-longer-disclosed positions.
+Announcements match a small exported policy: downgrade/default/enforcement/cancellation/suspension/
+auditor resignation are Negative, while upgrade/distribution/order award/approval/patent/production
+start are Positive. Unmatched announcements and publisher news stay Neutral.
 
-So **a quiet day is a page of orange**, which is the honest rendering rather than a page with
-something missing — and the alert card's explainer says where the model-bearing feeds went. The
-threshold is the whole rule, so it is exported as `moveSeverity(pct)` and asserted directly by the
-suite: the shipped 31 Aug snapshot has seven moves past 5% and not one of them down, so a test that
-waited for a red row would never run.
+High thresholds are: ±5% price move; an earnings filing; non-neutral/extreme con-call analysis;
+10 public-chatter mentions or 100% absolute mention change; insider activity of at least 1% or ₹10
+crore; investor position appearance/disappearance or a one-percentage-point change; a BSE critical
+announcement or a material announcement-rule match. Directional activity is not an investment
+recommendation, and “no longer disclosed” does not prove a complete sale.
 
 **The coverage panel is the half that makes today readable beside history.** Most of these feeds are
 captures committed on a best-effort schedule, so a bucket with nothing in it has two completely

@@ -1173,18 +1173,14 @@ console.log('\n— daily alerts —');
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
-  // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
-  // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
-  // back.
-  // FOUR ON A NARROWED SCOPE, FIVE ON UNIVERSE. Market-wide news carries no company, so under
+  // EIGHT ON A NARROWED SCOPE, NINE ON UNIVERSE. Market-wide news carries no company, so under
   // Portfolio it contributes nothing and is not offered as a filter; the reason it is absent stays
   // in the provenance modal, which lists every feed in every scope. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the four feeds that can be narrowed', feedRows === 4, `${feedRows} feed rows`);
-  ok('...and they are the four tabs asked for, and only those',
-    ['Price moves', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)) &&
-      !/Results|Con-calls|Public chatter|Superstar/.test(panel),
+  ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
+  ok('...and every research tab asked for is represented',
+    ['Price moves', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
@@ -1197,7 +1193,7 @@ console.log('\n— daily alerts —');
     behind.every((c) => /not checked/.test(c.text) && !/\b\d+\b/.test(c.text)),
     behind.length ? behind.map((c) => c.text).join(' | ') : 'every feed has looked at today');
   ok('...and every chip carries the sentence its row used to print',
-    chipStates.length === 4 && chipStates.every((c) => c.title.length > 20),
+    chipStates.length === 8 && chipStates.every((c) => c.title.length > 20),
     `${chipStates.length} chips, shortest title ${Math.min(...chipStates.map((c) => c.title.length))} chars`);
   // AND ASSERTED AT THE RULE, because the check above passes vacuously on any day every feed has
   // looked at today — which is most days. `feedState` is exported for exactly this reason, the same
@@ -1228,53 +1224,66 @@ console.log('\n— daily alerts —');
     `nothing -> "${states.nothing.short}", 30 events -> "${states.some.short}"`);
   ok('...and all five states stay distinguishable by their full wording',
     new Set([states.behind.label, states.failed.label, states.pending.label, states.unscoped.label, states.nothing.label]).size === 5);
-  // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
-  // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
-  // It moved with the description, from the page body into the provenance modal the pill opens.
-  // The CLAIM survives the decluttering; only where you read it changed.
+  // EVERY RESEARCH TAB IS INCLUDED. The modal is the accountable inventory after the body was
+  // compressed to feed chips.
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(500);
   const daModal = await page.locator('#modal-content').innerText();
-  ok('the page names the tabs it deliberately does NOT consolidate',
-    /Earnings Hub/.test(daModal) && /not consolidated here|keep their own tabs/i.test(daModal));
+  ok('the provenance names all eight research tabs it consolidates',
+    ['Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades'].every((n) => daModal.includes(n)));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
-  // THE COLOURS. Every red row must print the reading that made it red — that is the whole basis
-  // for a colour on this page not being a judgement.
+  // DIRECTION AND IMPORTANCE. Every badge must print the reading that made it so.
   const report = await evalSafe(async () => {
     const da = await import('/js/data/daily-alerts.js');
     // A day the results feed actually holds, so the profit-reading branches are exercised on a
     // static origin too. Today is frequently quiet, and a check that only passes on a busy day is
     // a check that does not run.
-    // A day these four feeds actually hold. The technicals half is a single end-of-day snapshot
+    // A day the retained row-dated feeds actually hold. The technicals half is a single end-of-day snapshot
     // matched by EQUALITY, so it only ever contributes on its own capture date.
     const r = await da.collect({ scope: 'universe', day: '2026-08-31' });
-    const alerts = r.events.filter((e) => e.severity === 'alert');
     return {
       total: r.events.length,
-      alerts: alerts.length,
-      everyAlertHasReason: alerts.every((e) => typeof e.reason === 'string' && e.reason.length > 0),
-      noUpdateHasReason: r.events.filter((e) => e.severity === 'update').every((e) => !e.reason),
-      gradedFeeds: [...new Set(alerts.map((e) => e.feed))],
-      severities: [...new Set(r.events.map((e) => e.severity))],
+      everySignalHasReasons: r.events.every((e) => typeof e.signalReason === 'string' && e.signalReason.length > 0 && typeof e.importanceReason === 'string' && e.importanceReason.length > 0),
+      directions: [...new Set(r.events.map((e) => e.direction))],
+      importance: [...new Set(r.events.map((e) => e.importance))],
       uniqueIds: new Set(r.events.map((e) => e.id)).size,
       feeds: r.feeds.map((f) => ({ id: f.id, status: f.status, reaches: f.reachesToday, n: f.count })),
     };
   });
   ok('the collector reads something across the feeds', report.total > 0, `${report.total} events`);
-  ok('every severity is one of the two documented ones',
-    report.severities.every((v) => v === 'alert' || v === 'update'), report.severities.join('/'));
-  ok('EVERY alert prints the reading that made it one', report.everyAlertHasReason, `${report.alerts} alerts`);
-  ok('...and no update carries one, so the colour and the reason cannot drift apart', report.noUpdateHasReason);
-  // THE THREE FEEDS THAT MUST NEVER BE GRADED. CLAUDE.md is explicit that the insider feed carries
-  // no model — "no sentiment, no materiality flag" — BSE's category is a taxonomy rather than a
-  // verdict, and a headline is editorial.
-  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', ') || 'none graded');
-  ok('...and neither are corporate announcements', !report.gradedFeeds.includes('announcements'));
-  ok('...and neither is news', !report.gradedFeeds.includes('news') && !report.gradedFeeds.includes('market-news'));
+  ok('every direction is one of the three documented values',
+    report.directions.every((v) => ['positive', 'negative', 'neutral'].includes(v)), report.directions.join('/'));
+  ok('every importance is High or Low',
+    report.importance.every((v) => ['high', 'low'].includes(v)), report.importance.join('/'));
+  ok('EVERY row prints both readings that made its badges', report.everySignalHasReasons, `${report.total} events`);
+
+  const rules = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const ann = (title, critical = false) => da.announcementSignal({ title, critical });
+    const inside = (Transaction, pct, value, Mode = '') => da.insiderSignal({ Transaction, Mode, 'Trade %': pct, 'Trade Value': value });
+    return {
+      annUpgrade: ann('Credit rating upgraded'),
+      annDefault: ann('Notice of loan default'),
+      annGeneral: ann('Notice of annual general meeting'),
+      annCritical: ann('Notice of annual general meeting', true),
+      buySmall: inside('Acquisition', '0.20', '1000'),
+      sellPct: inside('Disposal', '1.00', '1000'),
+      pledge: inside('Pledge', '', '', 'Creation Of Pledge'),
+      release: inside('Revoke', '', '', 'Revocation Of Pledge'),
+    };
+  });
+  ok('announcement rules distinguish upgrade, default and unmatched text',
+    rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral');
+  ok('BSE critical and material announcement matches are High',
+    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annGeneral.importance === 'low');
+  ok('insider rules distinguish acquisition, disposal, pledge and release',
+    rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' && rules.release.direction === 'positive');
+  ok('insider importance changes exactly at the stated one-percent boundary',
+    rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
 
   // THE ALERT RULE, ASSERTED DIRECTLY. It is the only thing on this page that can make a red row,
   // and the shipped snapshot has seven moves past the threshold with not one of them down — so a
@@ -1391,6 +1400,7 @@ console.log('\n— daily alerts —');
       top: scroller?.scrollTop || 0,
       scrollHeight: scroller?.scrollHeight || 0,
       clientHeight: scroller?.clientHeight || 0,
+      lastKey: document.querySelectorAll('#content-host tbody tr[data-row-key]')?.[document.querySelectorAll('#content-host tbody tr[data-row-key]').length - 1]?.dataset.rowKey || null,
     };
   });
   await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = el.scrollHeight; });
@@ -1404,6 +1414,7 @@ console.log('\n— daily alerts —');
       pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
       top: scroller?.scrollTop || 0,
       oldestPaintedDay: rows.at(-1)?.querySelector('[data-event-day]')?.dataset.eventDay || null,
+      lastKey: rows.at(-1)?.dataset.rowKey || null,
     };
   });
   ok('the history table starts with one page instead of painting its full data set',
@@ -1412,7 +1423,7 @@ console.log('\n— daily alerts —');
   ok('scrolling the internal table appends the next chronological page',
     scrollHistory.top > scrollBefore.top && scrollBefore.scrollHeight > scrollBefore.clientHeight &&
       scrollHistory.painted > scrollBefore.painted && scrollHistory.painted < allRows &&
-      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.oldestPaintedDay < currentAlertDay,
+      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.lastKey !== scrollBefore.lastKey,
     `painted ${scrollBefore.painted} → ${scrollHistory.painted}; reached ${scrollHistory.oldestPaintedDay}; ${scrollHistory.pending} pending`);
   await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = 0; });
 
@@ -1481,8 +1492,8 @@ console.log('\n— daily alerts —');
   // Both directions: dead page below is what was reported, and a table hanging past the fold makes
   // the page scroll as well as the table, which is worse than the gap it was meant to close. The
   // height is MEASURED at runtime rather than written into a `calc()`, because the head above it
-  // is not a fixed size — the chip row wraps with the window, and there are four feeds under a
-  // narrowed scope against five under Universe. A constant was exact on one window and left the
+  // is not a fixed size — the chip row wraps with the window, and there are eight feeds under a
+  // narrowed scope against nine under Universe. A constant was exact on one window and left the
   // table ~110px short on a wider one.
   ok('the stream fills the viewport rather than leaving dead page below it',
     fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom <= 48,
@@ -1538,17 +1549,14 @@ console.log('\n— daily alerts —');
   ok('...and a day-only value stays null rather than becoming midnight',
     instants.dayOnly === null && instants.bseDay === null && instants.human === null && instants.missing === null,
     `day=${instants.dayOnly} bse=${instants.bseDay} human=${instants.human}`);
-  // The pill reads GENERAL, not UPDATE. `severity` stays `update` in the data — the label is what
-  // the reader sees, and renaming the key would be a data change dressed as a wording change.
-  // CASE-INSENSITIVE, because the pill is uppercased by CSS and `innerText` returns the source
-  // text. Matching the rendered look found nothing at all and reported "0 rows" — a check written
-  // against the screenshot rather than the DOM, which is a pass waiting to happen the day the word
-  // changes back.
-  const signals = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
-    rows.map((r) => (r.innerText.match(/\b(alert|general|update)\b/i) || [])[1]).filter(Boolean).map((x) => x.toLowerCase()));
-  ok('a non-alert row is signalled General, never Update',
-    signals.length > 0 && signals.every((x) => x === 'general' || x === 'alert') && !signals.includes('update'),
-    `${signals.length} rows: ${[...new Set(signals)].join(', ')}`);
+  const badges = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
+    rows.map((r) => ({
+      direction: (r.innerText.match(/\b(positive|negative|neutral)\b/i) || [])[1]?.toLowerCase(),
+      importance: (r.innerText.match(/\b(high|low)\b/i) || [])[1]?.toLowerCase(),
+    })));
+  ok('every painted row shows both direction and importance badges',
+    badges.length > 0 && badges.every((x) => ['positive', 'negative', 'neutral'].includes(x.direction) && ['high', 'low'].includes(x.importance)),
+    `${badges.length} rows`);
 
   // ---- a row goes to the SOURCE, not to another tab of ours ----------------------------
   // The reader has already read the headline here; sending them to a tab to find it again is two
@@ -1576,7 +1584,7 @@ console.log('\n— daily alerts —');
     skip('clicking a row opens the source, not another tab of ours', 'no row in the current capture carries a URL');
   } else {
     const hashBefore = page.url();
-    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(3).click();
+    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(4).click();
     await page.waitForTimeout(800);
     const opened = await evalSafe(() => window.__opened || []);
     ok('clicking a row opens the source, not another tab of ours',
@@ -1586,8 +1594,8 @@ console.log('\n— daily alerts —');
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(500);
   const legendModal = await page.locator('#modal-content').innerText();
-  ok('the legend explains both colours', /Red/.test(legendModal) && /Orange/.test(legendModal) && /What the colours mean/i.test(legendModal));
-  ok('...and says which feeds are never graded', /never red|never graded|always this colour/i.test(legendModal));
+  ok('the legend explains direction and independent importance', /Positive/i.test(legendModal) && /Negative/i.test(legendModal) && /Neutral/i.test(legendModal) && /High \/ Low|High.*Low/is.test(legendModal));
+  ok('...and states announcement and numeric thresholds', /Announcement rules/i.test(legendModal) && /₹10 crore/.test(legendModal) && /10 mentions/.test(legendModal));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 }
@@ -5193,7 +5201,7 @@ console.log('\n— news, announcements and insider trades —');
   const insiderFilters = await page.evaluate(async () => {
     const selects = [...document.querySelectorAll('[data-table-filter]')];
     const countText = document.querySelector('[data-row-count]')?.textContent || '';
-    const total = Number((countText.match(/\d+/) || ['0'])[0]);
+    const total = Number((countText.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
     const results = [];
     for (const select of selects) {
       const choice = [...select.options].find((o) => o.value !== 'all');
