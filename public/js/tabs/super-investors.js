@@ -48,12 +48,19 @@ let disposers = [];
 let liveUnsub = null;
 let liveUnregister = null;
 let liveView = null;
+// The Superstar sub-view has two in-page destinations of its own. Keep the reader on the one they
+// chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
+// leaving Super Investors resets it.
+let liveSection = 'investors';
 
 // ---------------------------------------------------------------------------------------
 // Entry
 // ---------------------------------------------------------------------------------------
 
 export function render(ctx) {
+  // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
+  // Investors so returning from Institutions opens on the documented All Investors default.
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';
   renderToken++;
   ctxRef = ctx;
   const view = { institutions: renderInstitutions }[ctx.subview] || renderIndividuals;
@@ -74,6 +81,7 @@ export function destroy() {
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
+  liveSection = 'investors';
 }
 
 function loadingHtml() {
@@ -110,7 +118,7 @@ function renderIndividuals(ctx) {
     return;
   }
 
-  renderLive(ctx, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+  paintIndividuals(ctx);
 
   // Repaint as each book lands. The subscription is a mount-lifetime thing, so it is released in
   // destroy() and not by the next repaint — otherwise the first arrival would tear down the
@@ -140,9 +148,28 @@ function renderIndividuals(ctx) {
         ctxRef.root.innerHTML = loadingHtml();
         return;
       }
-      renderLive(ctxRef, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+      paintIndividuals(ctxRef);
     });
   }
+}
+
+function paintIndividuals(ctx) {
+  disposers.forEach((d) => d && d());
+  disposers = [];
+  renderLive(ctx, {
+    disposers,
+    section: liveSection,
+    tableView: liveView,
+    onView: (v) => (liveView = v),
+    onSection: (section) => {
+      if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;
+      liveSection = section;
+      paintIndividuals(ctxRef);
+      // The click removed the button that held focus when it repainted the root. Put focus on its
+      // selected replacement so a keyboard reader can continue from the in-page tabs.
+      ctxRef.root.querySelector('[data-live-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------------------
