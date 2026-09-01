@@ -934,9 +934,22 @@ the page-load walk all over again.
 `/api/market-news/refresh?source=cron` every 20 minutes — the settings are in
 `docs/DATA-CONTRACTS.md`. That is safe to expose because nothing in the request chooses what runs:
 repository, workflow and ref are fixed on the Worker, a run in flight is declined, and the edge
-cooldown absorbs a stuck pinger. `?source=` is an **allowlist of two words**, because it reaches the
-workflow's `run-name` and an arbitrary string would be somebody else's text in our run list — and
-because `lastAutomatic` matches on it, which is the field that answers *is the cadence holding*.
+cooldown absorbs a stuck pinger. `?source=` is an **allowlist of three words**, because it reaches
+the workflow's `run-name` and an arbitrary string would be somebody else's text in our run list —
+and because `lastAutomatic` matches on it, which is the field that answers *is the cadence holding*.
+
+**AND A REFRESH NOBODY PRESSED HAS TO BE FILED AS ONE, OR THE FIELD MEASURING THEM CANNOT SEE IT.**
+The three words are `cron` (an external scheduler), `auto` (the tab fetching for a reader who opened
+it on a stale capture) and `button` (a person who had to notice the staleness first).
+`lastAutomatic` counts the first two, because only the third is the page failing at its job. Filing
+an auto-fetch under `button` — which is what it did for one commit — would make every unattended
+refresh invisible to the one field that measures them: the same measurement gap, one layer down,
+that `?source=` was added to close.
+
+**And a cadence cannot be computed from one sample.** `lastAutomatic` searched a list of *one* run,
+so it could only ever be non-null when the newest run happened to be automatic — a single button
+press hid a cron that had fired minutes earlier, and the field read as though nothing unattended had
+ever run. It searches `RUN_WINDOW` (10) now, about a day at the schedule's own cadence.
 
 **The rule generalises: when a scheduler is not honouring you, stop negotiating with it.** Two
 rounds were spent on the cron expression before checking whether the expression was the variable at

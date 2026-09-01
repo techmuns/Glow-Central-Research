@@ -236,9 +236,12 @@ export function invalidate() {
 //      operator; `unauthorised` is a token to reissue; `no-worker` means this origin is a plain
 //      static server. Those have different fixes and the view says which.
 
-// `?source=button` so the run name says a person asked. An external scheduler sends
-// `?source=cron`, which is what `lastAutomatic` looks for — see worker/index.js.
-const DISPATCH_ROUTE = 'api/market-news/refresh?source=button';
+// WHO ASKED, CARRIED INTO THE RUN NAME. `button` is a person pressing Fetch; `auto` is this tab
+// fetching for a reader who opened it on a stale capture; an external scheduler sends `cron`. The
+// last two are what `lastAutomatic` counts — see worker/index.js, which allowlists all three, so a
+// value invented here would silently become `button` rather than reaching GitHub.
+const DISPATCH_BASE = 'api/market-news/refresh';
+const DISPATCH_SOURCES = new Set(['button', 'auto']);
 const RUN_ROUTE = 'api/market-news/run';
 
 // Long enough for a queue, a ~40s scrape and a ~90s deploy, and no longer: past this the watch
@@ -287,8 +290,11 @@ async function askWorker(path, { method = 'GET' } = {}) {
 }
 
 /** Ask the runner to read Moneycontrol. THE ONE CALL HERE THAT STARTS WORK. */
-export function startScrape() {
-  return askWorker(DISPATCH_ROUTE, { method: 'POST' });
+export function startScrape(source = 'button') {
+  const who = DISPATCH_SOURCES.has(source) ? source : 'button';
+  // The route owns its own query string, so it is built here and never patched onto by a caller —
+  // the two-question-marks bug that made every News search ask for the same thing.
+  return askWorker(`${DISPATCH_BASE}?source=${who}`, { method: 'POST' });
 }
 
 /** How the run is going. Free, so this is the half that may be polled. */

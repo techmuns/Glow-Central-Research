@@ -504,7 +504,7 @@ function wireModal(ctx) {
   if (!host) return;
   host.querySelectorAll('[data-modal-close]').forEach((b) => b.addEventListener('click', () => { modalOpen = false; }));
   // The ONLY caller of fetchLatest in the codebase. Nothing on a render, nothing on a poll.
-  host.querySelector('[data-mcnews-fetch]')?.addEventListener('click', () => fetchLatest(ctx));
+  host.querySelector('[data-mcnews-fetch]')?.addEventListener('click', () => fetchLatest(ctx, 'button'));
 }
 
 /**
@@ -519,7 +519,7 @@ function wireModal(ctx) {
  * story we lack does this dispatch — which is all the second button ever did, folded in where it
  * cannot be mistaken for a different feature.
  */
-async function fetchLatest(ctx) {
+async function fetchLatest(ctx, source = 'button') {
   if (busy) return;
   busy = true;
   failure = null;
@@ -533,7 +533,7 @@ async function fetchLatest(ctx) {
       return;
     }
 
-    const out = await marketNews.startScrape();
+    const out = await marketNews.startScrape(source);
     if (out.ok === false) {
       failure = { text: failureText(out), fix: out.fix || null };
       return;
@@ -654,7 +654,10 @@ function maybeAutoFetch(ctx) {
   // One attempt per window per page, so a dispatch that fails cannot become a loop.
   if (Date.now() - autoAt < AUTO_AFTER_MS) return;
   autoAt = Date.now();
-  fetchLatest(ctx);
+  // `auto`, NOT `button`. The run name is how `lastAutomatic` answers "is this refreshing without
+  // anyone pressing anything", and a fetch nobody pressed filed under `button` would make every
+  // unattended refresh invisible to the one field that measures them.
+  fetchLatest(ctx, 'auto');
 }
 
 export function render(ctx) {

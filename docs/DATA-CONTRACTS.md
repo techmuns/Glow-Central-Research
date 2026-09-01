@@ -2313,11 +2313,22 @@ written, tested and deployed; it needs a trigger to call it. Any of these suppli
    `DISPATCH_COOLDOWN_S` window at the edge absorbs a stuck pinger. The worst a hostile caller can
    do is cause the same scrape that a reader's button causes.
 
-   `?source=` is an **allowlist of two words** — `cron` and `button`, anything else becomes
-   `button`. It reaches the workflow's `run-name`, which GitHub renders and which `lastAutomatic`
-   matches on, so an arbitrary string would be somebody else's text in the run list. It is
-   self-reported and that is fine for a label: a lie costs one wrong word in a run name and nothing
-   else.
+   `?source=` is an **allowlist of three words**, anything else becomes `button`. It reaches the
+   workflow's `run-name`, which GitHub renders and which `lastAutomatic` matches on, so an arbitrary
+   string would be somebody else's text in the run list. It is self-reported and that is fine for a
+   label: a lie costs one wrong word in a run name and nothing else.
+
+   | `source` | what started the run | counted by `lastAutomatic` |
+   | --- | --- | --- |
+   | `cron` | an external scheduler pinged the route | yes |
+   | `auto` | a reader opened the News tab on a stale capture and it fetched unprompted | yes |
+   | `button` | a person pressed Fetch, having noticed the staleness themselves | no |
+
+   **The split is the whole point of the field.** `lastAutomatic` answers *is this refreshing
+   without anybody having to notice*, and only the third of those is the page failing at that. An
+   auto-fetch filed under `button` would make every unattended refresh invisible to the one thing
+   that measures them — the same measurement gap, one layer down, that `?source=` was added to
+   close. GitHub's own schedule appears as `github-cron` and counts too.
 
 **The page does not depend on any of it any more.** Opening the News tab on a capture older than
 twenty minutes starts one fetch by itself — one request, gated by the capture's age, declined at the
@@ -2327,6 +2338,12 @@ other tabs; it is a safety net now rather than the only mechanism.
 
 **`GET /api/market-news/run` answers whether any of it is working**, via `lastAutomatic`: the most
 recent run that something other than a person started. It reads `null` while nothing schedules.
+
+**It searches a WINDOW of runs, not the latest one.** With `per_page=1` the field could only be
+non-null when the newest run happened to be automatic, so a single button press hid a cron that had
+fired minutes earlier and the answer read as though nothing unattended had ever run — a field that
+measures a cadence cannot be computed from one sample. `RUN_WINDOW` is 10, about a day at the
+schedule's own cadence.
 
 **The cadence WAS to be driven by a Cloudflare Cron Trigger.** `triggers.crons`
 in `wrangler.jsonc` would wake the Worker every 20 minutes and `scheduled()` dispatch the workflow —

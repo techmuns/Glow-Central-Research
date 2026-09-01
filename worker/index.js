@@ -1222,6 +1222,11 @@ function parseQuote(str) {
 
 const DISPATCH_COOLDOWN_S = 120;
 const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
+// How far back `lastAutomatic` looks. Ten runs is about a day at the schedule's own cadence.
+const RUN_WINDOW = 10;
+// A run nobody had to press a button for: an external scheduler (`cron`), or the tab fetching for
+// a reader who opened it on a stale capture (`auto`). `github-cron` is GitHub's own schedule.
+const AUTOMATIC_RUN = /\((?:github-)?cron\)|\(auto\)/i;
 
 /**
  * What the Worker can actually SEE, for when `no-token` is the answer and nobody believes it.
@@ -1312,13 +1317,21 @@ function githubFailure(err) {
  * AN ALLOWLIST, NOT THE CALLER'S STRING. The value ends up in `run-name`, which GitHub renders in
  * their UI and which `lastAutomatic` matches on — so an arbitrary value from an unauthenticated
  * route would be somebody else's text in our run list, and could forge the "this was automatic"
- * label. Two words are the whole vocabulary; anything else is a button press.
+ * label. Three words are the whole vocabulary; anything else is a button press.
  *
- * It is SELF-REPORTED and that is fine for a label: the route is safe whatever it claims, because
- * the repository, the workflow and the ref are fixed server-side and a run in flight is declined.
- * The only thing a lie costs is a wrong word in a run name.
+ * THE THREE ARE THREE DIFFERENT ANSWERS TO "IS THIS REFRESHING BY ITSELF", which is the question
+ * this label exists for and the one that has been answered wrongly twice here:
+ *
+ *   cron    an external scheduler pinged the route — the cadence holds with nobody watching
+ *   auto    a reader opened the tab on a stale capture and the page fetched without being asked
+ *   button  a person pressed Fetch, having noticed the staleness themselves
+ *
+ * Only the last of those is the page failing at its job, so `lastAutomatic` counts the first two
+ * and not the third. Folding `auto` into `button` would have made every unattended refresh
+ * invisible to the one field that measures them — the same measurement gap, one layer down, that
+ * `?source=` was added to close.
  */
-const SOURCES = new Set(['cron', 'button']);
+const SOURCES = new Set(['cron', 'auto', 'button']);
 const sourceOf = (url) => (SOURCES.has(url.searchParams.get('source')) ? url.searchParams.get('source') : 'button');
 
 async function handleNewsDispatch(request, env, ctx) {
@@ -1375,16 +1388,22 @@ async function handleNewsRunStatus(request, env, ctx) {
   if (held) return new Response(held.body, { status: 200, headers: { ...Object.fromEntries(held.headers), ...CORS, 'x-sattva-cache': 'hit' } });
 
   try {
+    // A WINDOW, NOT THE LATEST RUN, FOR THE SCRAPE. `lastAutomatic` searches this list, so asking
+    // for one run made it answerable only when the newest run happened to be automatic: a single
+    // button press hid a cron that had fired minutes earlier, and the field read as though nothing
+    // unattended had ever run. Ten covers about a day at the schedule's own cadence.
     const [scrapeRuns, deployRuns] = await Promise.all([
-      latestRun(fetch, cfg, NEWS_WORKFLOW, { perPage: 1 }),
+      latestRun(fetch, cfg, NEWS_WORKFLOW, { perPage: RUN_WINDOW }),
       latestRun(fetch, cfg, DEPLOY_WORKFLOW, { perPage: 1 }).catch(() => []),
     ]);
     const payload = {
       ok: true,
       scrape: scrapeRuns[0] || null,
       publish: deployRuns[0] || null,
-      // Whether the cadence is holding on its own, answerable without opening a run.
-      lastAutomatic: (scrapeRuns.find((r) => /github-cron|\(cron\)/i.test(r.title || '')) || null),
+      // Whether the cadence is holding on its own, answerable without opening a run. Matches on
+      // the run NAME rather than on `event`, because every dispatch carries event=workflow_dispatch
+      // and a scheduler's dispatch is indistinguishable from a reader's by that field alone.
+      lastAutomatic: scrapeRuns.find((r) => AUTOMATIC_RUN.test(r.title || '')) || null,
       inFlight: isInFlight(scrapeRuns[0]) || isInFlight(deployRuns[0]),
       servedAt: new Date().toISOString(),
     };

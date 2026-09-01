@@ -4118,11 +4118,26 @@ console.log('\n— news, announcements and insider trades —');
   await page.goto(`${BASE}/#/research/news?scope=universe`, { waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4000);
-  const dispatchOnLoad = seen.marketNewsApi.filter((u) => /POST/.test(u)).length;
+  const dispatchesOnLoad = seen.marketNewsApi.filter((u) => /POST/.test(u));
+  const dispatchOnLoad = dispatchesOnLoad.length;
   const shouldDispatch = capturedAgeMin !== null && capturedAgeMin >= 20;
   ok(shouldDispatch ? 'a stale capture makes opening the news tab fetch one' : 'a fresh capture makes opening the news tab fetch nothing',
     shouldDispatch ? dispatchOnLoad >= 1 : dispatchOnLoad === 0,
     `capture ${capturedAgeMin === null ? 'unknown' : capturedAgeMin.toFixed(0) + ' min'} old, ${dispatchOnLoad} POST(s)`);
+
+  // A REFRESH NOBODY PRESSED MUST BE FILED AS ONE. `?source=` reaches the workflow's run name and
+  // `lastAutomatic` counts `cron` and `auto` but not `button` — so an auto-fetch labelled `button`
+  // would leave the one field that answers "is this refreshing on its own" reading as though
+  // nothing unattended had ever run. That is the measurement gap `?source=` exists to close,
+  // arriving one layer down, so it is asserted on the wire rather than in the source.
+  if (shouldDispatch && dispatchOnLoad >= 1) {
+    ok('...and files itself as `auto`, not as a button press nobody made',
+      dispatchesOnLoad.every((u) => /[?&]source=auto\b/.test(u)),
+      dispatchesOnLoad.join(' | ') || '(none)');
+  } else {
+    skip('...and files itself as `auto`, not as a button press nobody made',
+      'the shipped capture is fresh, so no auto-fetch to inspect');
+  }
 
   // Whatever the age, a second open inside the window must NOT dispatch again — otherwise a failing
   // dispatch becomes a loop that spends a run on every navigation.
@@ -4150,6 +4165,27 @@ console.log('\n— news, announcements and insider trades —');
   } else {
     skip('a GET can never start a scrape — the route is POST-only', 'no Worker on this origin — run against `npx wrangler dev`');
   }
+
+  // THE LABEL IS AN ALLOWLIST ON BOTH SIDES. The Worker clamps an unknown `source` to `button` so
+  // an unauthenticated route cannot forge "this was automatic"; the client clamps it too, so a
+  // caller inventing a word gets the honest label rather than one the Worker will silently rewrite.
+  const dispatchLabels = await (async () => {
+    const asked = [];
+    await page.route('**/api/market-news/refresh*', (route) => {
+      asked.push(route.request().url());
+      return route.fulfill({ status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ok: true, dispatched: true }) });
+    });
+    await evalSafe(async () => {
+      const mod = await import('/js/data/market-news.js');
+      await mod.startScrape('auto');
+      await mod.startScrape('button');
+      await mod.startScrape('whatever-it-likes');
+    });
+    await page.unroute('**/api/market-news/refresh*').catch(() => {});
+    return asked.map((u) => (/[?&]source=([a-z-]+)/.exec(u) || [])[1] || '(none)');
+  })();
+  ok('a dispatch always carries a source, and an invented one becomes `button`',
+    dispatchLabels.join(',') === 'auto,button,button', dispatchLabels.join(', ') || '(no request made)');
 
   // Every named outcome, scripted. Each is a DIFFERENT STATEMENT and the wording must not merge
   // them: "read it, nothing new" is a measurement, "publishing" is work in flight, "published"

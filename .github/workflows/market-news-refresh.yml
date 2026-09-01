@@ -49,7 +49,7 @@ on:
         required: false
         default: "4"
       source:
-        description: "Who asked for this run — cron, button, or manual"
+        description: "Who asked for this run — cron, auto, button, or manual"
         required: false
         default: "manual"
 
