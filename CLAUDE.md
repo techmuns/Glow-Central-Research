@@ -1073,6 +1073,24 @@ Two things follow that are easy to get wrong:
   straight back into the file under the predicate added to remove them, and the run reported
   "123 of 123 companies" — a number that looked like the fix working.
 
+**THE FILINGS HEAD IS ONE CHIP, AND ITS GREEN IS CONDITIONAL.** The three filings tabs carry the
+same chip the market-news half of the News tab already wore — a dot and a word, no pill chrome, no
+scope summary beside it — because that is what it was asked to look like and because two chips at
+the top of three tabs across three scopes is furniture. Green + `Live` appears only while the
+capture is still the newest the schedule can produce (`STALE_AFTER_MS`, 72h: the scrape runs
+weekdays 07:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
+same reasoning and the same number as Breakouts). Past that it turns amber and prints the AGE;
+failures outrank freshness and read `Partial`. **"Show a green Live" and "never paint a green Live
+you have not earned" are only compatible because the green is conditional** — and the suite asserts
+the colour against the measured age, in both directions, so a chip made unconditionally green would
+fail rather than quietly start lying.
+
+**The denominator moved into that chip; it was not dropped.** `scopeSummary`'s sentence is
+reproduced whole in the chip's `title` and again in its modal, because the rule was always that the
+number stays REACHABLE — 23 rows look complete until you know the book is 142 — and never that it
+occupies the top of the page. `scopeTitle()` is the one place that wording lives now, and it still
+compares companies with companies.
+
 **A coverage gap the reader cannot account for reads as a broken fetch.** "Portfolio · 61 of 142
 companies with articles" is true and says nothing about whether the other 81 were searched — and
 they were. The strip states the account instead: *"123 of 123 companies in scope were searched, 46

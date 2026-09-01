@@ -1271,7 +1271,21 @@ console.log('\n— watchlist scope —');
   // Moneycontrol's scID; if the two were the same string the watchlist would be full of scIDs and
   // the scope would have nothing to match.
   await go('/#/research/earnings-hub?scope=universe', 3500);
-  const ehRow = page.locator('#content-host tbody tr').first();
+  // STAR A COMPANY THE FEED BELOW ACTUALLY CARRIES. The narrowing assertion a few lines down counts
+  // TECHNICALS rows in watchlist scope, so starring the Earnings Hub's first row made this check
+  // depend on which company Moneycontrol happened to list first — a live feed that reorders between
+  // runs. When that company was not among technicals' 603 the count was legitimately 0 and the
+  // check failed with nothing wrong. Pick the first row whose company IS in the technicals
+  // universe; the claim being tested (row key ≠ watch key) is unchanged.
+  const pickIdx = await evalSafe(async () => {
+    const tech = await import('/js/data/technicals.js');
+    await tech.load();
+    // The ticker lives on `company`, not on the scored row — `forScope` reads `s.company?.ticker`.
+    const known = new Set(tech.all().map((c) => String(c.company?.ticker || '').toUpperCase()));
+    const rows = [...document.querySelectorAll('#content-host tbody tr')];
+    return rows.findIndex((r) => known.has(String(r.querySelector('[data-watch]')?.dataset.watch || '').toUpperCase()));
+  });
+  const ehRow = page.locator('#content-host tbody tr').nth(pickIdx >= 0 ? pickIdx : 0);
   const rowKey = await ehRow.getAttribute('data-row-key');
   const watchKey = await ehRow.locator('[data-watch]').getAttribute('data-watch');
   ok('the star marks the COMPANY, not the row it sits on', !!watchKey && watchKey !== rowKey, `row ${rowKey} vs company ${watchKey}`);
@@ -3921,10 +3935,29 @@ console.log('\n— news, announcements and insider trades —');
   // for as one row with every field null; rendering those put 62 "(untitled)" rows on screen.
   ok('...and a searched-but-empty company is not rendered as an untitled article',
     !(await page.locator('#content-host tbody tr[data-row-key]').allInnerTexts()).some((t) => /\(untitled\)/.test(t)));
-  // The pill's denominator is the book's COMPANIES, so its numerator has to be companies too —
-  // "1,279 of 142 articles" is two different units either side of an "of".
-  const newsPill = (await hostText()).match(/Portfolio · [\d,]+ of [\d,]+ [^\n]*/)?.[0] || '';
-  ok('...and the scope pill compares companies with companies', /companies/.test(newsPill), newsPill);
+  // THE DENOMINATOR MOVED TO THE CHIP, IT DID NOT GO. The head is one chip now, matching the
+  // market-news half of this same tab; the scope summary it replaced is reproduced whole in the
+  // chip's tooltip and again in its modal. What must still be true is the rule that sentence
+  // exists for: 23 rows look complete until you know the book is 142, so the number has to be
+  // reachable — and it has to compare COMPANIES with companies, never rows with companies
+  // ("1,279 of 142 articles" is two different units either side of an "of").
+  ok('the head is one chip, with no scope pill competing with it',
+    !/Portfolio · [\d,]+ of [\d,]+/.test(await hostText()));
+  const chipTitle = (await page.locator('[data-filings-info]').first().getAttribute('title')) || '';
+  ok('...and the chip still reaches the denominator, in companies',
+    /of the book's [\d,]+ companies/.test(chipTitle), chipTitle.slice(0, 110));
+  // Green `Live` is CONDITIONAL, exactly as the market-news chip's is: it may only appear while the
+  // capture is still the newest the schedule can produce. Asserted against the measured age rather
+  // than assumed, so a chip that went unconditionally green would fail here.
+  const chipState = await evalSafe(async () => {
+    const m = (await import('/js/data/filings.js')).news.meta();
+    const el = document.querySelector('[data-filings-info]');
+    return { age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null, cls: el?.className || '', txt: el?.innerText.trim() || '' };
+  });
+  const chipFresh = chipState.age !== null && chipState.age < 72 * 3600 * 1000;
+  ok('...and its green Live is earned by the capture\u2019s age, not painted unconditionally',
+    chipFresh ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
+    `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} chip="${chipState.txt}"`);
 
   // ---- the walk: still one request per company, and only when asked ------------------------
   const picked = (book?.fresh || []).map((b) => b.ticker);

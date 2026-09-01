@@ -21,7 +21,6 @@
 // companies were asked about.
 
 import { scoreTable, sectionHead, openModal, closeModal } from '../ui/screener.js';
-import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
@@ -223,7 +222,7 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({
           title: cfg.title,
           description: cfg.subtitle,
-          meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'companies with ' + cfg.noun, book: coverage.meta() }),
+          meta: pill(m, ctx.scope, []),
         })}
         ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
       wireRefresh(ctx.root);
@@ -296,17 +295,13 @@ export function makeFilingsTab(cfg) {
       ${sectionHead({
         title: cfg.title,
         description: cfg.subtitle,
-        // COUNT COMPANIES, NOT ROWS. `scopeSummary`'s denominator is the book's 142 companies (or
-        // the watchlist's N), so passing a row count printed "Portfolio · 1,279 of 142 articles" —
-        // two different units either side of an "of", which is not a ratio of anything. The table's
-        // own "N of M shown" already reports the rows; what the pill is for is the denominator the
-        // scope owes the reader, and that is measured in companies.
-        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({
-          scope: ctx.scope,
-          count: new Set(rows.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
-          noun: 'companies with ' + cfg.noun,
-          book: coverage.meta(),
-        })}</div>`,
+        // ONE CHIP, THE SAME ONE THE MARKET-NEWS HALF OF THIS TAB ALREADY WEARS. The scope summary
+        // that used to sit beside it — "Portfolio · 23 of 142 companies with articles" — has moved
+        // into the modal, whole and worded exactly as it was. The DENOMINATOR RULE is not waived by
+        // that: 23 rows still look complete until you know the book is 142, so the number still has
+        // to be reachable, and the chip is what reaches it. What it stops doing is competing with
+        // the table for the top of the page on every one of three tabs and three scopes.
+        meta: pill(m, ctx.scope, rows),
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
@@ -322,7 +317,7 @@ export function makeFilingsTab(cfg) {
     // Portfolio's four-line block and the market-news freshness card all made. What stays on the
     // face is the claim: a pill whose colour and word are earned by the data. What moves behind
     // the click is the explanation, and the Refresh control with it.
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openProvenance(m, cov));
+    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openProvenance(m, cov, ctx.scope, rows));
     wireRefresh(ctx.root);
   }
 
@@ -394,33 +389,65 @@ const loadingHtml = () => `
   <div class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"></div>`;
 
 /**
- * The pill, which is the one always-visible statement of where this came from.
+ * The section head is one chip, and it opens everything else.
  *
- * Sky for a snapshot, emerald for live, amber where some companies could not be read. It never says
- * "Live" for rows that came off a committed file — the same rule the calendar follows.
+ * SAME CONTRACT AS THE MARKET-NEWS CHIP on the other half of the News tab, deliberately — that is
+ * the one this was asked to look like, and it is worth being precise about what it does, because
+ * "just show green Live" and "never paint a green Live you have not earned" are only compatible
+ * if the green is conditional. It is: green + `Live` appears while the capture is still the newest
+ * the schedule can produce, and past that the chip turns amber and prints the AGE instead. So the
+ * normal state is green, and a feed that has quietly stopped refreshing cannot wear it.
+ *
+ * `STALE_AFTER_MS` is the schedule's own worst case rather than its period. The scrape runs
+ * weekdays at 07:00 IST, so Friday's capture is still the newest thing that exists on Monday
+ * morning — three days is the widest legitimate gap, the same reasoning and the same number as
+ * Breakouts' pill. Keying it to the period instead would sit amber all weekend with nothing wrong,
+ * which teaches the reader to ignore the one chip that is supposed to mean something.
+ *
+ * FAILURES OUTRANK FRESHNESS. A capture taken a minute ago that could not read eighteen companies
+ * is not "Live" — amber and `Partial` is the honest word, and the modal names them.
  */
-function pill(m) {
+const STALE_AFTER_MS = 72 * 60 * 60 * 1000;
+
+function pill(m, scope, rows) {
+  const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
+  const age = Number.isFinite(at) ? Date.now() - at : null;
   const bad = m.failed > 0 || !!m.reason;
-  // `store` counts as a snapshot for colour AND for wording: those rows are bytes this device kept
-  // from an earlier visit, and the server has not confirmed them in this session. Saying "Live"
-  // over them is the one thing a freshness control may not do.
-  const snap = m.origin === 'snapshot' || m.origin === 'store';
-  const cls = bad
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : snap
-      ? 'bg-sky-50 text-sky-800 ring-sky-300 hover:bg-sky-100'
-      : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
-  const dot = bad
-    ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
-    : snap
-      ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
-      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
-  const label = bad ? 'Partial' : m.origin === 'snapshot' ? 'Captured' : m.origin === 'store' ? 'Cached' : m.origin === 'mixed' ? 'Captured + live' : 'Live';
-  return `
-    <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
-      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
-      ${dot}<span>${escapeHtml(label)}</span>
+  const fresh = age !== null && age < STALE_AFTER_MS;
+  const tone = bad || !fresh ? 'text-amber-700' : 'text-emerald-700';
+  const dot = bad || !fresh ? 'bg-amber-500' : 'bg-emerald-500';
+  const label = m.reason ? 'Unavailable' : bad ? 'Partial' : age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
+  return `<button type="button" data-filings-info
+      title="${escapeHtml(scopeTitle(scope, rows, m))}"
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+      <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
     </button>`;
+}
+
+/**
+ * The denominator, as the chip's tooltip and as a line in its modal.
+ *
+ * THE RULE IS THAT THE NUMBER STAYS REACHABLE, not that it stays on the page. Twenty-three rows
+ * look complete until you know the book is a hundred and forty-two, and that is still true — so
+ * `scopeSummary`'s sentence is reproduced here whole rather than dropped when its pill came off
+ * the head. What changed is that it is one hover or one click away instead of occupying the top
+ * of three tabs across three scopes.
+ */
+function scopeTitle(scope, rows, m) {
+  const n = new Set((rows || []).map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+  const book = coverage.meta();
+  if (scope === 'portfolio' && book?.count) {
+    return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
+      (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
+      ' Click for where this comes from.';
+  }
+  if (scope === 'watchlist') {
+    const tracked = watchlist.size();
+    return tracked
+      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed. Click for where this comes from.`
+      : 'Nothing tracked yet. Click for where this comes from.';
+  }
+  return `${formatNumber(n)} companies appear on this feed. Click for where this comes from.`;
 }
 
 /**
@@ -509,11 +536,12 @@ function coverageSentence(m, cov) {
  * one way this could be worse than the strip it replaces.
  */
 function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
-  return function openProvenance(m, cov) {
+  return function openProvenance(m, cov, scope, rows) {
     openModal(
       `${cfg.provenance(m)}
        <div class="border-t border-slate-100 px-7 py-5">
          <p class="text-xs leading-relaxed text-slate-600">${freshnessLine(m)}${coverageSentence(m, cov)}</p>
+         <p class="mt-2 text-xs leading-relaxed text-slate-600">${escapeHtml(scopeTitle(scope, rows, m).replace(' Click for where this comes from.', ''))}</p>
          <button type="button" data-filings-refresh
            class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
            ${m.pending || m.inFlight ? 'disabled' : ''}>
