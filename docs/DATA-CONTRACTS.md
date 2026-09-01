@@ -3132,7 +3132,7 @@ than left painting into the content host.
 
 `js/data/daily-alerts.js` writes nothing and introduces no route of its own. It calls the loaders of
 all eight research tabs and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
-for every retained row through the requested **Indian trading date**. The landing tab uses history
+for every retained row through the requested **Indian trading date**. The Daily Alerts tab uses history
 mode; its table progressively paints the rows inside one fixed-height scroller, newest first.
 
 | Feed id | Tab | Contributes |

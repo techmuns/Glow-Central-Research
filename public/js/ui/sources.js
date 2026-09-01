@@ -137,9 +137,9 @@ export function sourceGroups() {
 
     return [
     {
-      // DAILY ALERTS COMES FIRST BECAUSE IT IS THE FIRST TAB, and it is the only group here whose
-      // whole point is that it introduces NOTHING. A reader opening this modal from the landing tab
-      // is owed the answer "this page has no feed of its own" before they go looking for one.
+      // Daily Alerts is the only group here whose whole point is that it introduces NOTHING. A
+      // reader auditing that timeline is owed the answer "this page has no feed of its own" before
+      // they go looking for one.
       title: 'Daily Alerts',
       icon: '🔔',
       tabs: 'Daily Alerts',
@@ -147,7 +147,7 @@ export function sourceGroups() {
         {
           name: 'No source of its own — it consolidates the research feeds below',
           feeds:
-            'The landing tab consolidates <strong>Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            'The Daily Alerts timeline consolidates <strong>Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
             '<strong>Positive / Negative / Neutral</strong> direction and <strong>High / Low</strong> importance are separate, and every row prints both reasons. Source sentiment is reproduced where it exists; insider and investor transactions use their own direction; announcements use the narrow rules documented here; news remains neutral. ' +
             `High thresholds include ±${dailyAlerts.MOVE_PCT}% price moves, ${dailyAlerts.INSIDER_HIGH_PCT}% or ₹${dailyAlerts.INSIDER_HIGH_VALUE / 10_000_000} crore insider activity, ${dailyAlerts.INVESTOR_HIGH_PP}pp investor changes, and ${dailyAlerts.CHATTER_HIGH_MENTIONS} mentions or ${dailyAlerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
             'Its own panel keeps the retained row count separate from when that feed last looked and whether that reaches today — because historical rows and a feed that has run today are not the same answer.',

@@ -316,6 +316,7 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
       'tabs/concall.js',
@@ -341,7 +342,8 @@ const routes = await page.evaluate(async () => {
 
 // The watchlist scope is swept too, but with the list EMPTY it is answered by the shell for every
 // tab and there is nothing tab-specific left to break; the dedicated block below drives it with a
-// company actually starred. Sweeping it empty here would assert the same panel thirteen times.
+// company actually starred. Sweeping it empty here would mostly assert the same shell panel; Ask
+// Research is the deliberate exception and gets an explicit empty-watchlist check below.
 let broken = [];
 for (const [ws, tab, sub] of routes) {
   for (const scope of ['universe', 'portfolio']) {
@@ -1102,14 +1104,57 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Daily Alerts — the landing tab
+// 3d. Ask Research is the landing tab; Daily Alerts retains its focused feed checks
 //
 // Three things it has to get right: consolidate every feed, keep today's freshness distinct from
 // retained history, and reveal older dates through the table's own scroller in strict chronological
 // order. So the assertions here cover the coverage panel, the date filter and the stream.
 // ---------------------------------------------------------------------------------------
-console.log('\n— daily alerts —');
+console.log('\n— ask research and daily alerts —');
 {
+  let askRequest = null;
+  let configShouldFail = true;
+  let configGets = 0;
+  await page.route('**/api/research', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      configGets++;
+      if (configShouldFail) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'temporary' }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true, webResearchAvailable: true, history: 'device' }),
+      });
+    }
+    askRequest = request.postDataJSON();
+    if (/stale scope test/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'STALE_SCOPE_ANSWER' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
+    const events = [
+      { type: 'start' },
+      { type: 'phase', phase: 'Reconciling web sources with dashboard data' },
+      { type: 'text', text: '## Combined view\nDashboard evidence remains traceable. [Dashboard: Earnings Hub]\n\nCurrent web context is linked separately.' },
+      { type: 'sources', sources: [{ title: 'Current research source', url: 'https://example.com/research' }] },
+      { type: 'done' },
+    ];
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/x-ndjson',
+      body: `${events.map((event) => JSON.stringify(event)).join('\n')}\n`,
+    });
+  });
+
   // THE DEFAULT LANDING TAB. The order of WORKSPACES[0].tabs is the only thing that decides this,
   // so a reorder that moved it would surface here rather than in a bug report.
   // A FRESH READER, not this run's accumulated state. Two things have to be true for that:
@@ -1135,11 +1180,128 @@ console.log('\n— daily alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  ok('the dashboard opens on Daily Alerts', /daily-alerts/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Daily Alerts');
+  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  const askText = await hostText();
+  ok('Ask Research renders as a complete workspace',
+    (await page.locator('[data-research-workspace]').count()) === 1 && /Research the whole picture/.test(askText));
+  ok('...makes dashboard-wide coverage explicit',
+    /Reads the whole dashboard/.test(askText) && /Every tab/.test(askText) && /Traceable/.test(askText));
+  ok('...offers four scope-aware starting questions',
+    (await page.locator('[data-research-suggestion]').count()) === 4);
+  ok('...and keeps web research optional by default',
+    (await page.locator('[data-research-web]').getAttribute('aria-pressed')) === 'false' &&
+      /Combine dashboard \+ web/.test(await page.locator('[data-research-web]').innerText()));
+  const failedConfigGets = configGets;
+  ok('...fails closed when the configuration check is temporarily unavailable',
+    failedConfigGets > 0 && (await page.locator('[data-research-input]').isDisabled()));
+  configShouldFail = false;
+  await go('/#/research/daily-alerts?scope=portfolio', 300);
+  await go('/#/research/ask-research?scope=portfolio', 500);
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 10000 });
+  ok('...retries a transient configuration failure on the next mount',
+    configGets > failedConfigGets && !(await page.locator('[data-research-input]').isDisabled()),
+    `${failedConfigGets} failed check(s), ${configGets - failedConfigGets} recovery check(s)`);
+
+  const evidenceAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const packet = await buildResearchEvidence({
+      question: 'What needs attention across earnings, calls, chatter, technicals, filings and holdings?',
+      scope: 'portfolio',
+    });
+    return {
+      catalog: packet.catalog.length,
+      sources: packet.sources.length,
+      ready: packet.selection.sourcesReady,
+      statuses: packet.sources.map((source) => `${source.id}:${source.status}`),
+      chars: JSON.stringify(packet).length,
+      unresolvedChatter: packet.sources.find((source) => source.id === 'public-chatter')?.unresolvedTopics?.rowCount || 0,
+    };
+  });
+  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
+      evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
+    `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
+  ok('...and keeps the real evidence packet inside the Worker request bound',
+    evidenceAudit.chars < 120000, `${evidenceAudit.chars.toLocaleString()} chars`);
+  ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+    evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+
+  const watchlistPortfolioAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const portfolio = await import('/js/data/portfolio.js');
+    const watchlist = await import('/js/core/watchlist.js');
+    await portfolio.load();
+    const member = portfolio.forScope('portfolio')[0];
+    watchlist.add(member.ticker, member.name);
+    try {
+      const packet = await buildResearchEvidence({ question: `Summarise ${member.ticker}`, scope: 'watchlist' });
+      const source = packet.sources.find((item) => item.id === 'portfolio');
+      return {
+        ticker: member.ticker,
+        rowCount: source.rowCount,
+        positionCount: source.summary?.positionCount,
+        marketValue: source.summary?.marketValue,
+        expectedMarketValue: member.marketValue,
+        carriesWholeBookReturn: source.summary?.xirr != null || source.summary?.twr != null || source.summary?.maxDrawdown != null,
+      };
+    } finally {
+      watchlist.remove(member.ticker);
+    }
+  });
+  ok('...recomputes Watchlist portfolio totals from only the filtered ticker rows',
+    watchlistPortfolioAudit.rowCount === 1 &&
+      watchlistPortfolioAudit.positionCount === 1 &&
+      Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
+      watchlistPortfolioAudit.carriesWholeBookReturn === false,
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
+
+  await page.locator('[data-research-web]').click();
+  await page.locator('[data-research-input]').fill('Combine the dashboard evidence with current web context.');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Current web context is linked separately/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
+  const combinedAnswer = await page.locator('[data-research-transcript]').innerText();
+  ok('...submits dashboard and web research as one explicit combined request',
+    askRequest?.webResearch === true && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
+    `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
+  ok('...renders the streamed combined answer and linked web provenance',
+    /dashboard \+ web research/i.test(combinedAnswer) &&
+      (await page.locator('.research-source-chip-web[href="https://example.com/research"]').count()) === 1,
+    combinedAnswer.replace(/\s+/g, ' ').slice(0, 240));
+
+  // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
+  // closes. The Ask workspace must cancel at the store boundary, before a response for the old
+  // membership can be committed to device history.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Stale scope test');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Sending /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 10000 });
+  const editedMember = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const scopeLists = await import('/js/core/scope-lists.js');
+    const base = coverage.baseHoldings();
+    const member = base[0];
+    scopeLists.remove('portfolio', member, base);
+    return member?.ticker || member?.name || null;
+  });
+  await page.waitForTimeout(1200);
+  ok('...cancels an in-flight answer when the active scope membership changes',
+    !!editedMember &&
+      (await page.locator('[data-research-input]').inputValue()) === 'Stale scope test' &&
+      !/STALE_SCOPE_ANSWER/.test(await page.locator('[data-research-transcript]').innerText()),
+    editedMember || 'no portfolio member available');
+  await page.evaluate(async () => {
+    const scopeLists = await import('/js/core/scope-lists.js');
+    scopeLists.reset('portfolio');
+  });
+
+  await page.unroute('**/api/research');
+
+  await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   const daText = await hostText();
   // THE FOUR CARDS AND THE PARAGRAPH ARE ONE PILL NOW. Three of the cards counted rows the table
@@ -1485,40 +1647,39 @@ console.log('\n— daily alerts —');
   await settleTables();
   const todayRows = await alertDataCount();
   const todayDays = await page.$$eval('[data-event-day]', (els) => [...new Set(els.map((el) => el.dataset.eventDay))]);
-  ok('Today only narrows the history without changing the feed', todayRows > 0 && todayRows < allRows && todayDays.length === 1 && todayDays[0] === currentAlertDay,
+  // A committed capture can legitimately lag the Indian calendar between scheduled runs. In that
+  // case Today must be an honest empty result, not a reason for this check to demand invented rows.
+  ok('Today only narrows the history without changing the feed', todayRows < allRows && todayDays.every((day) => day === currentAlertDay),
     `${allRows} history → ${todayRows} today (${todayDays.join(', ')})`);
   await dateFilter.selectOption('all');
   await page.waitForTimeout(400);
   await settleTables();
-  // THE NUMBER ON THE CHIP IS THE CONTRACT. Deriving the per-feed split from the row keys would
-  // have measured the wrong thing — those carry short prefixes (`tech:`, `ann:`, `mcnews:`), not
-  // the feed ids the filter uses — and comparing against `undefined` would have made every
-  // expected count 0. Reading the chip's own printed count instead ties the filter to the figure
-  // the reader is looking at when they tick it, which is the invariant that actually matters.
-  const perFeed = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) =>
-    Object.fromEntries(els.map((e) => [e.dataset.feed, Number((e.innerText.match(/(\d[\d,]*)\s*$/) || [])[1]?.replace(/,/g, '') ?? NaN)])));
-  // Tick ONE: the stream must narrow to that feed, not merely reorder. Compared against the feed's
-  // own share of the unfiltered stream rather than against a hard-coded number.
-  await page.locator('[data-feed-toggle="technicals"]').click();
+  // Use two feeds whose retained snapshots carry history. The coverage chips answer the separate
+  // "looked today?" question, so their current-day figures must not be reused as history totals.
+  await page.locator('[data-feed-toggle="insider"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   const oneRows = await alertDataCount();
-  ok('ticking one feed narrows the stream to it', oneRows < allRows && oneRows === (perFeed.technicals || 0),
-    `${allRows} all → ${oneRows} ticked, feed holds ${perFeed.technicals || 0}`);
+  ok('ticking one feed narrows the stream to it', oneRows > 0 && oneRows < allRows,
+    `${allRows} all → ${oneRows} insider rows`);
   // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
-  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.locator('[data-feed-toggle="announcements"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   const twoRows = await alertDataCount();
+  // Leave the second feed selected by unticking the first, which measures its full retained count
+  // independently without reaching into collector internals or depending on the capture date.
+  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const secondRows = await alertDataCount();
   ok('...and a second tick adds to it rather than replacing it',
-    twoRows === (perFeed.technicals || 0) + (perFeed.insider || 0) && twoRows > oneRows,
-    `${oneRows} + insider ${perFeed.insider || 0} = ${twoRows}`);
+    secondRows > 0 && twoRows === oneRows + secondRows,
+    `${oneRows} insider + ${secondRows} announcements = ${twoRows}`);
   // UNTICKING THE LAST ONE RETURNS TO ALL, never to an empty stream. A reader who has unticked
   // their way to a blank page has no control on screen saying why it is blank, and "nothing today"
   // is a claim this page may not make on the strength of a filter the reader set.
-  await page.locator('[data-feed-toggle="technicals"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.locator('[data-feed-toggle="announcements"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   ok('unticking the last feed returns to All rather than emptying the stream',
@@ -1659,6 +1820,13 @@ console.log('\n— daily alerts —');
 console.log('\n— watchlist scope —');
 {
   await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+
+  // Ask remains useful in an empty watchlist: its catalog and source-status evidence still explain
+  // what is and is not available, so the shell must not replace it with the generic empty panel.
+  await go('/#/research/ask-research?scope=watchlist', 1200);
+  ok('Ask Research remains available with an empty watchlist',
+    (await page.locator('[data-research-workspace]').count()) === 1 &&
+      (await page.locator('[data-watchlist-empty]').count()) === 0);
 
   // EMPTY IS ITS OWN STATE, answered by the shell for every tab rather than by each tab's "no
   // results match your filters", which would send the reader hunting for a filter to clear.

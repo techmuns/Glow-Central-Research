@@ -15,18 +15,25 @@ no bundler, no npm dependency for the app itself. You open `public/index.html` a
 python3 -m http.server 8080 -d public     # that is the whole dev setup
 ```
 
-Two workspaces, thirteen tabs:
+Two workspaces, fourteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **Daily Alerts** · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | **Ask Research** · Daily Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads all eight research
-tabs above (News contributes company and market-wide feeds) and prints their retained rows as one
-newest-first stream. Direction (Positive / Negative / Neutral) and importance (High / Low) are
-separate, and every row states both reasons. Today remains a first-class date filter and a separate
-freshness question. See §4c.
+**Ask Research is the landing tab.** It builds one bounded evidence packet from the runtime data
+modules behind every other research tab plus Portfolio Analytics, recording a status for each source
+so an unavailable feed cannot disappear silently. Its optional Web research mode requires hosted
+search and combines linked current context with the dashboard evidence. The browser holds no provider
+credential; set `OPENAI_API_KEY` as a Worker secret. Conversation history is device-local, but each
+submitted question and evidence packet are sent to OpenAI with response storage disabled. See §4c.
+
+**Daily Alerts remains the timeline tab.** It has no data source of its own: it re-reads all eight
+research tabs above (News contributes company and market-wide feeds) and prints their retained rows
+as one newest-first stream. Direction (Positive / Negative / Neutral) and importance (High / Low)
+are separate, and every row states both reasons. Today remains a first-class date filter and a
+separate freshness question. See §4d.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
@@ -221,7 +228,7 @@ public/js/
   data/                    one module per feed: load once, compute once, cache, expose accessors
                            coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
                            scope.js — the three scopes in one place; every forScope() asks it
-                           daily-alerts.js — retained chronological readings across the research feeds (§4c)
+                           daily-alerts.js — retained chronological readings across the research feeds (§4d)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table, without
@@ -229,10 +236,13 @@ public/js/
                            deep-dive.js — the panel behind the Deep Dive column (a SEPARATE
                            dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
+  research/                bounded dashboard evidence catalog + safe answer renderer (§4c)
   tabs/                    the Research Central tabs
-                           daily-alerts.js — the landing tab: retained history, newest first (§4c)
+                           ask-research.js — the landing conversation workspace (§4c)
+                           daily-alerts.js — retained history, newest first (§4d)
 worker/
-  index.js                 asset serving + the four /api routes
+  index.js                 asset serving + live /api routes, including /api/research
+  research.mjs             server-only OpenAI stream, hosted web search and request limits (§4c)
   http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
                            stand-in, so the caching semantics under test are the shipped ones
   mc.mjs                   Moneycontrol client + normaliser, shared with scripts/
@@ -250,7 +260,35 @@ all.
 
 ---
 
-## 4c. Daily Alerts — the landing tab
+## 4c. Ask Research — the landing tab
+
+`js/tabs/ask-research.js` owns the conversation UI and device-local library.
+`js/research/estate.js` is the registry: fourteen adapters read the same modules as Earnings Hub,
+Con-call, Public Chatter, Breakouts, both Super Investor disclosures, both News feeds, exchange
+filings, Insider Trades, Daily Alerts and Portfolio Analytics. Each adapter contributes coverage,
+as-of metadata, units and a question-ranked row sample; the catalog and a ready/unavailable status
+always include every source. The packet is bounded before it leaves the browser and currently
+measures about 55K characters for the default Portfolio question.
+
+`POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
+`OPENAI_API_KEY` server-side, sets `store: false`, rejects cross-origin and oversized requests,
+rate-limits the paid upstream, and streams normalized NDJSON back to the browser. With Web research
+enabled, the Responses request sets `web_search` and requires the tool; web URLs render as separate
+source chips. Model text is rendered through a small DOM-based Markdown subset and never reaches
+`innerHTML`.
+
+An empty Watchlist does not replace this tab with the shell's generic empty panel. The source
+catalog and its zero-row coverage are still useful evidence, so this module declares
+`meta.allowEmptyScope`; every other tab retains the shared empty-Watchlist behavior.
+
+Local static serving shows the complete workspace but disables the composer. To exercise answers,
+run `npx wrangler dev` with `OPENAI_API_KEY=…` in the gitignored `.dev.vars`. Production uses
+`npx wrangler secret put OPENAI_API_KEY`. Never put that value in `public/`, `wrangler.jsonc` or
+browser storage.
+
+---
+
+## 4d. Daily Alerts — the timeline tab
 
 Every other tab here is organised by SOURCE: this is what the results feed holds, this is what BSE
 filed, this is what the technicals scrape measured. That is right for research and wrong for the
@@ -258,7 +296,7 @@ first thirty seconds of a morning, when the question is not *what does Moneycont
 happened, and does any of it need me*. Daily Alerts is organised as one chronological timeline.
 
 `js/data/daily-alerts.js` takes the readings; `js/tabs/daily-alerts.js` draws them. **It adds no
-data source** — every row comes from a feed that already has its own tab. The landing view asks for
+data source** — every row comes from a feed that already has its own tab. The timeline asks for
 each feed's retained window, orders it newest-first by **Indian trading date and time**, and relies
 on the table kit's progressive body fill so the fixed-height internal scroller reaches older rows
 without blocking first paint. The date filter narrows that loaded history to today, 7 days, 30 days
@@ -321,7 +359,7 @@ ids, never counts**: the day rolls over, captures land, stories drop off the end
 and a count cannot answer "did anything change" for a collection like that.
 
 **Feeds land one at a time and the page follows them.** The first version awaited all eight
-together and the landing page sat blank for as long as the slowest — measured at 10–15 seconds on a
+together and the timeline sat blank for as long as the slowest — measured at 10–15 seconds on a
 static origin, because the chatter API is a direct call to somebody else's service and an
 unreachable host takes its own time to say so. Seven feeds that had already answered were held
 hostage by the one that had not. Now each settles independently and paints as it lands, coalesced
