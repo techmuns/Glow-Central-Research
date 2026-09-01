@@ -278,6 +278,9 @@ investor direction comes from newly disclosed/added versus trimmed/no-longer-dis
 Announcements match a small exported policy: downgrade/default/enforcement/cancellation/suspension/
 auditor resignation are Negative, while upgrade/distribution/order award/approval/patent/production
 start are Positive. Unmatched announcements and publisher news stay Neutral.
+Earnings sign changes are labelled *to profit*, *to loss* or *loss narrowed/widened*, never restored
+as a percentage across zero. Explicit insider Transaction wording outranks Mode, and commercial
+context is required before “order received” is treated as an award.
 
 High thresholds are: ±5% price move; an earnings filing; non-neutral/extreme con-call analysis;
 10 public-chatter mentions or 100% absolute mention change; insider activity of at least 1% or ₹10
@@ -292,6 +295,10 @@ day` states, per feed, when it last looked and whether that reaches today, while
 under their actual dates. A feed nobody has heard from yet reads **pending**, never "nothing
 today". Same rule as the filings tabs' *"63
 companies have not been checked since"*: never claim nothing is new.
+
+Universe retains investor rows whose upstream identifier cannot be resolved to a ticker; Portfolio
+and Watchlist cannot match them and exclude them. A missing investor book, or a degraded
+earnings/con-call fallback, is named as incomplete rather than presented as a current all-clear.
 
 **Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()` so

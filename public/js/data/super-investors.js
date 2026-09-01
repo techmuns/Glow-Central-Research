@@ -326,10 +326,41 @@ export async function refreshSnapshot() {
   if (!body || !Array.isArray(body.investors) || !body.investors.length || !Number.isFinite(incomingAt)) return state;
   if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
 
+  const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
+  const incomingBooks = new Set(Object.entries(body.books || {}).filter(([, value]) => value && value.ok !== false).map(([slug]) => slug));
+  // The list in the newer capture is authoritative for this replacement. Keeping a book whose
+  // investor disappeared would leave `allMoves()` emitting rows the current source no longer
+  // contains. Clear every piece of per-book state together so provenance cannot outlive the data;
+  // the union includes failed books, which have no entry in `state.books` to drive the cleanup.
+  const knownSlugs = new Set([
+    ...state.books.keys(),
+    ...state.confirmedAt.keys(),
+    ...state.failures.keys(),
+    ...state.fromSnapshot,
+    ...state.unconfirmed,
+    ...state.staleBooks,
+  ]);
+  for (const slug of knownSlugs) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    const removedInvestor = !incomingSlugs.has(slug);
+    const unreadInCapture = !incomingBooks.has(slug) && (!Number.isFinite(confirmed) || confirmed <= incomingAt);
+    if (!removedInvestor && !unreadInCapture) continue;
+    state.books.delete(slug);
+    state.confirmedAt.delete(slug);
+    state.fromSnapshot.delete(slug);
+    state.unconfirmed.delete(slug);
+    state.failures.delete(slug);
+    state.staleBooks.delete(slug);
+  }
+
   state.capturedAt = body.capturedAt;
   state.investors = body.investors;
   state.listOk = true;
   state.dropped = body.dropped || 0;
+  // `oldestCheckedAt()` starts with this feed-wide floor. Every book accepted below is confirmed
+  // at the capture or is a device book confirmed later, so leaving the old floor in place would
+  // make a fully replaced snapshot look stale after a successful refresh.
+  state.checkedAt = incomingAt;
   for (const [slug, value] of Object.entries(body.books || {})) {
     if (!value || value.ok === false) continue;
     const confirmed = Number(state.confirmedAt.get(slug));
@@ -338,6 +369,13 @@ export async function refreshSnapshot() {
     state.confirmedAt.set(slug, incomingAt);
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
+    state.failures.delete(slug);
+    if (value.stale === true) state.staleBooks.add(slug);
+    else state.staleBooks.delete(slug);
+  }
+  for (const slug of state.books.keys()) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed < state.checkedAt) state.checkedAt = confirmed;
   }
   bump();
   emit({ now: true });

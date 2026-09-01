@@ -1271,21 +1271,24 @@ console.log('\n— daily alerts —');
       annGeneral: ann('Notice of annual general meeting'),
       annCritical: ann('Notice of annual general meeting', true),
       annAuditor: ann('Resignation of Statutory Auditors'),
+      annRegulatoryOrder: ann('Adjudication order received from the Registrar of Companies'),
       buySmall: inside('Acquisition', '0.20', '1000'),
       sellPct: inside('Disposal', '1.00', '1000'),
+      disposalByPurchase: inside('Disposal', '', '', 'Market Purchase'),
       pledge: inside('Pledge', '', '', 'Creation Of Pledge'),
       release: inside('Revoke', '', '', 'Revocation Of Pledge'),
       bareRelease: inside('Revoke', '', '', ''),
     };
   });
   ok('announcement rules distinguish upgrade, default and unmatched text',
-    rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral');
+    rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
+      rules.annRegulatoryOrder.direction !== 'positive');
   ok('BSE critical and material announcement matches are High',
     rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
       rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
   ok('insider rules distinguish acquisition, disposal, pledge and release',
     rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' &&
-      rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive');
+      rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive' && rules.disposalByPurchase.direction === 'negative');
   ok('insider importance changes exactly at the stated one-percent boundary',
     rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
 
@@ -1314,6 +1317,24 @@ console.log('\n— daily alerts —');
   const historyReport = await evalSafe(async () => {
     const da = await import('/js/data/daily-alerts.js');
     const r = await da.collect({ scope: 'portfolio', includeHistory: true });
+    const universe = await da.collect({ scope: 'universe', includeHistory: true });
+    const earnings = await import('/js/data/earnings-live.js');
+    const eventByRow = new Map(universe.events.filter((e) => e.feed === 'earnings').map((e) => [e.id, e]));
+    const kindLabel = {
+      turnaround: 'to profit',
+      'slipped-to-loss': 'to loss',
+      'loss-narrowed': 'loss narrowed',
+      'loss-widened': 'loss widened',
+      'loss-flat': 'loss flat',
+    };
+    const dishonestKinds = earnings.all().flatMap((row) => [row.revenue, row.netProfit].map((metric) => ({ row, metric })))
+      .filter(({ metric }) => kindLabel[metric?.kind])
+      .filter(({ row, metric }) => {
+        const id = `earnings:${row.scId || row.ticker}:${row.resultDate}:${String(earnings.meta()?.subType || 'yoy').toUpperCase()}`;
+        const event = eventByRow.get(id);
+        return event && !event.detail.toLowerCase().includes(kindLabel[metric.kind]);
+      }).length;
+    const investorFeed = universe.feeds.find((f) => f.id === 'investors');
     return {
       events: r.events.length,
       days: r.meta.days,
@@ -1321,6 +1342,10 @@ console.log('\n— daily alerts —');
       newest: r.meta.newestEventDay,
       unique: new Set(r.events.map((e) => e.id)).size,
       scorelessNonNeutralLow: r.events.filter((e) => e.feed === 'concalls' && e.direction !== 'neutral' && /analysis pending/.test(e.detail) && e.importance !== 'high').length,
+      universeTickerlessInvestors: universe.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      portfolioTickerlessInvestors: r.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      investorCoverageExplicit: investorFeed?.status === 'failed' && /\d+ of \d+ investor books/.test(investorFeed.note || ''),
+      dishonestKinds,
       ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
     };
   });
@@ -1330,6 +1355,12 @@ console.log('\n— daily alerts —');
   ok('...and orders the data by date and time before the table sees it', historyReport.ordered);
   ok('scoreless con-calls retain High importance when source sentiment is non-neutral', historyReport.scorelessNonNeutralLow === 0,
     `${historyReport.scorelessNonNeutralLow} misclassified row(s)`);
+  ok('Universe retains tickerless investor moves while Portfolio excludes them',
+    historyReport.universeTickerlessInvestors > 0 && historyReport.portfolioTickerlessInvestors === 0,
+    `${historyReport.universeTickerlessInvestors} Universe / ${historyReport.portfolioTickerlessInvestors} Portfolio`);
+  ok('an incomplete investor snapshot is named rather than presented as fully current', historyReport.investorCoverageExplicit);
+  ok('earnings turnaround and loss kinds are named instead of restored as growth rates', historyReport.dishonestKinds === 0,
+    `${historyReport.dishonestKinds} dishonest metric label(s)`);
 
   // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
   // and this tab reads three of those feeds.

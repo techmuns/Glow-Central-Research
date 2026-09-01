@@ -3169,6 +3169,11 @@ exported conservative announcement rules. Importance uses the exported numeric t
 BSE's own critical flag. Unmatched announcements and publisher news remain Neutral; neither is
 forced into a directional claim the source does not support.
 
+Earnings metric kinds survive consolidation: `turnaround`, `slipped-to-loss`, `loss-narrowed`,
+`loss-widened` and `loss-flat` are written as words, not recomputed from `reportedPct`. Insider
+`Transaction` is authoritative over a conflicting `Mode`, and the order-award rule requires
+commercial context rather than treating a regulatory “order received” as business won.
+
 `moveSeverity(pct)` remains **exported** as the price-move entry rule, and a rule that
 only runs inside a collector can only be tested on days the data happens to contain a big faller.
 It returns `'alert'` below `-MOVE_PCT`, `'update'` above `+MOVE_PCT`, and `null` in between or for a
@@ -3185,6 +3190,11 @@ depending on what the feed is:
 
 A feed nobody has heard from yet is `pending`, which the panel draws as *reading…* and never as
 *nothing today* — a half-finished read must not be allowed to give a finished answer.
+
+Tickerless Super Investor moves are retained under Universe and excluded from Portfolio/Watchlist.
+If any current investor book is missing, the feed is marked incomplete and `reachesToday` is false.
+Likewise, a degraded earnings or con-call response uses the retained snapshot's `fetchedAt`, carries
+failed status, and cannot turn the failed confirmation attempt into a current coverage claim.
 
 **Nothing on this tab walks.** The three filings feeds are seeded with `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()`:

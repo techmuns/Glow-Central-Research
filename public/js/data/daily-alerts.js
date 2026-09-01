@@ -137,7 +137,9 @@ export function announcementSignal(row = {}) {
   const positive = [
     ['rating upgrade', /\b(?:rating\s+)?upgrad(?:e|ed|ing)\b/],
     ['shareholder distribution', /\bdividend\b|\bbonus (?:issue|share)\b|\bbuyback\b/],
-    ['order or contract award', /\b(?:order|contract)\s+(?:award\w*|won|received|secured)\b|\bawarded (?:an? )?(?:order|contract)\b/],
+    // A bare "order received" is also how adjudication, court and regulator notices are titled.
+    // Commercial context is required before that phrase can be called business won.
+    ['order or contract award', /\bcontract\s+(?:award\w*|won|received|secured)\b|\b(?:purchase|work|supply|export)\s+order\s+(?:award\w*|won|received|secured)\b|\border\s+(?:award\w*|won|secured)\b|\bawarded (?:an? )?(?:order|contract)\b/],
     ['regulatory approval or patent grant', /\bapproval (?:received|granted)\b|\bapproved by\b|\bpatent (?:granted|received)\b/],
     ['commercial production start', /\bcommercial production (?:commenced|started|began)\b/],
   ].find(([, re]) => re.test(text));
@@ -167,21 +169,43 @@ export function insiderSignal(cells = {}) {
   const transaction = String(cells.Transaction ?? cells['Acq/Disp'] ?? '').trim();
   const mode = String(cells.Mode ?? '').trim();
   const transactionWords = transaction.toLowerCase();
-  const words = `${transaction} ${mode}`.toLowerCase();
+  const modeWords = mode.toLowerCase();
   let direction = DIRECTION.NEUTRAL;
   let basis = 'No recognised directional transaction word was carried; shown as neutral.';
-  if (/\b(?:revoke|revocation|release)\w*\b/.test(transactionWords) || /\b(?:revoke|revocation|release)\w*\b.*\bpledge\b|\bpledge\b.*\b(?:revoke|revocation|release)\w*\b/.test(words)) {
+  // Transaction is the authoritative action. Mode describes how it happened and is consulted
+  // only for a generic/pledge transaction; otherwise "Disposal · Market Purchase" becomes a buy.
+  if (/\b(?:revoke|revocation|release)\w*\b/.test(transactionWords)) {
     direction = DIRECTION.POSITIVE;
     basis = 'Pledge release/revocation in the upstream transaction wording.';
-  } else if (/\binvoke\w*\b/.test(transactionWords) || /\b(?:invoke\w*|creat\w*)\b.*\bpledge\b|\bpledge\b/.test(words)) {
+  } else if (/\binvoke\w*\b/.test(transactionWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Pledge creation/invocation in the upstream transaction wording.';
-  } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(words)) {
-    direction = DIRECTION.POSITIVE;
-    basis = 'Acquisition/purchase in the upstream transaction wording.';
-  } else if (/\b(?:disposal|dispose\w*|sell|sale)\b/.test(words)) {
+  } else if (/\b(?:disposal|dispose\w*|sell|sale)\b/.test(transactionWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Disposal/sale in the upstream transaction wording.';
+  } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(transactionWords)) {
+    direction = DIRECTION.POSITIVE;
+    basis = 'Acquisition/purchase in the upstream transaction wording.';
+  } else if (/\bpledge\b/.test(transactionWords)) {
+    if (/\b(?:revoke|revocation|release)\w*\b/.test(modeWords)) {
+      direction = DIRECTION.POSITIVE;
+      basis = 'Pledge release/revocation in the upstream mode wording.';
+    } else {
+      direction = DIRECTION.NEGATIVE;
+      basis = 'Pledge creation/invocation in the upstream transaction wording.';
+    }
+  } else if (/\b(?:revoke|revocation|release)\w*\b.*\bpledge\b|\bpledge\b.*\b(?:revoke|revocation|release)\w*\b/.test(modeWords)) {
+    direction = DIRECTION.POSITIVE;
+    basis = 'Pledge release/revocation in the upstream mode wording.';
+  } else if (/\b(?:invoke\w*|creat\w*)\b.*\bpledge\b|\bpledge\b/.test(modeWords)) {
+    direction = DIRECTION.NEGATIVE;
+    basis = 'Pledge creation/invocation in the upstream mode wording.';
+  } else if (/\b(?:disposal|dispose\w*|sell|sale)\b/.test(modeWords)) {
+    direction = DIRECTION.NEGATIVE;
+    basis = 'Disposal/sale in the upstream mode wording.';
+  } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(modeWords)) {
+    direction = DIRECTION.POSITIVE;
+    basis = 'Acquisition/purchase in the upstream mode wording.';
   }
 
   const pct = numeric(cells['Trade %']);
@@ -460,15 +484,23 @@ const inScope = (wanted, ticker) => !wanted || (!!ticker && wanted.has(String(ti
 
 const metricText = (metric) => {
   if (!metric) return null;
-  const pct = numeric(metric.pct ?? metric.reportedPct);
-  if (pct == null) return `${metric.label || 'Metric'} comparison unavailable`;
-  return `${metric.label || 'Metric'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+  const label = metric.label || 'Metric';
+  const pct = numeric(metric.pct);
+  if (metric.kind === 'turnaround') return `${label} to profit`;
+  if (metric.kind === 'slipped-to-loss') return `${label} to loss`;
+  if (metric.kind === 'loss-narrowed') return `${label} loss narrowed${pct == null ? '' : ` ${Math.abs(pct).toFixed(1)}%`}`;
+  if (metric.kind === 'loss-widened') return `${label} loss widened${pct == null ? '' : ` ${Math.abs(pct).toFixed(1)}%`}`;
+  if (metric.kind === 'loss-flat') return `${label} loss flat`;
+  if (metric.kind === 'flat') return `${label} 0%`;
+  if (metric.kind !== 'normal' || pct == null) return `${label} comparison unavailable`;
+  return `${label} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
 };
 
 /** Filed results. Direction uses the source's YoY/QoQ revenue and net-profit comparisons. */
 function fromEarnings({ day, wanted, includeHistory }) {
   const m = earnings.meta() || {};
-  const confirmedAt = latestConfirmation(m.checkedAt, m.fetchedAt);
+  const degraded = !!m.degraded;
+  const confirmedAt = degraded ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
   const fetchedDay = istDay(confirmedAt);
   const basis = String(m.subType || 'yoy').toUpperCase();
   const rows = earnings.all().filter((r) => inRequestedWindow(r.resultDate, day, includeHistory) && inScope(wanted, r.ticker));
@@ -499,16 +531,20 @@ function fromEarnings({ day, wanted, includeHistory }) {
   });
   return {
     events,
-    reachesToday: !!fetchedDay && fetchedDay >= day,
+    status: degraded ? 'failed' : 'ok',
+    reachesToday: !degraded && !!fetchedDay && fetchedDay >= day,
     asOf: confirmedAt,
-    note: fetchedDay && fetchedDay >= day ? null : `The earnings feed was last read on ${fetchedDay || 'an unknown date'}.`,
+    note: degraded
+      ? `The earnings feed is using its retained snapshot because the live read degraded (${m.degraded}).`
+      : fetchedDay && fetchedDay >= day ? null : `The earnings feed was last read on ${fetchedDay || 'an unknown date'}.`,
   };
 }
 
 /** Held con-calls, reproducing StockScans' own sentiment and result bands. */
 function fromConcalls({ day, wanted, includeHistory }) {
   const m = concalls.meta() || {};
-  const confirmedAt = latestConfirmation(m.checkedAt, m.fetchedAt);
+  const degraded = !!m.degraded;
+  const confirmedAt = degraded ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
   const fetchedDay = istDay(confirmedAt);
   const rows = concalls.all().filter((r) => inRequestedWindow(r.date || r.when, day, includeHistory) && inScope(wanted, r.ticker));
   const events = rows.map((r) => {
@@ -542,9 +578,12 @@ function fromConcalls({ day, wanted, includeHistory }) {
   });
   return {
     events,
-    reachesToday: !!fetchedDay && fetchedDay >= day,
+    status: degraded ? 'failed' : 'ok',
+    reachesToday: !degraded && !!fetchedDay && fetchedDay >= day,
     asOf: confirmedAt,
-    note: fetchedDay && fetchedDay >= day ? null : `The con-call feed was last read on ${fetchedDay || 'an unknown date'}.`,
+    note: degraded
+      ? `The con-call feed is using its retained snapshot because the live read degraded (${m.degraded}).`
+      : fetchedDay && fetchedDay >= day ? null : `The con-call feed was last read on ${fetchedDay || 'an unknown date'}.`,
   };
 }
 
@@ -607,14 +646,15 @@ const investorTicker = (move) => {
 };
 
 /** Quarterly disclosed holding changes. A disappearance is labelled, not overstated as a sale. */
-function fromInvestors({ day, wanted, includeHistory }) {
+function fromInvestors({ day, scope, wanted, includeHistory }) {
   const m = investors.meta() || {};
   const confirmedAt = (move) => investors.confirmedAtFor(move.slug) || m.checkedAt || m.capturedAt || m.fetchedAt;
   const moves = investors.allMoves().filter((move) => {
     const confirmedDay = istDay(confirmedAt(move));
+    const ticker = investorTicker(move);
     return move.action !== 'held'
       && inRequestedWindow(confirmedDay, day, includeHistory)
-      && inScope(wanted, investorTicker(move));
+      && (ticker ? inScope(wanted, ticker) : scope === 'universe');
   });
   const events = moves.map((move) => {
     const ticker = investorTicker(move);
@@ -658,11 +698,16 @@ function fromInvestors({ day, wanted, includeHistory }) {
   // different moments; individual rows above keep the confirmation for their own investor book.
   const coverageAt = m.checkedAt || m.capturedAt || m.fetchedAt;
   const coverageDay = istDay(coverageAt);
+  const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
+  const incomplete = missingBooks > 0;
   return {
     events,
-    reachesToday: coverageDay === day,
+    status: incomplete ? 'failed' : 'ok',
+    reachesToday: !incomplete && coverageDay === day,
     asOf: coverageAt || null,
-    note: coverageDay === day
+    note: incomplete
+      ? `${m.loadedBooks || 0} of ${m.total || 0} investor books are available; ${missingBooks} could not be included in this reading.`
+      : coverageDay === day
       ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
       : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,
   };

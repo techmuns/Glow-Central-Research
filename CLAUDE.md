@@ -1723,6 +1723,9 @@ chatter reproduce their source's own bands, and price moves use the stated ±`MO
 Insider/investor direction is derived from the upstream transaction or disclosed holding change.
 Announcements use the small exported `announcementSignal()` keyword policy and BSE's own critical
 flag. Publisher news stays Neutral because a headline is not structured sentiment data.
+Earnings sign changes remain words — *to profit*, *to loss*, *loss narrowed/widened* — rather than
+being turned back into a misleading growth percentage. An explicit insider Transaction outranks
+conflicting Mode text, and a bare regulatory “order received” is not treated as commercial work won.
 
 High thresholds are stated in the provenance modal and export: ±5% price moves; every earnings
 filing; non-neutral/extreme con-call analysis; 10 chatter mentions or 100% absolute mention change;
@@ -1751,6 +1754,10 @@ It is computed differently depending on what the feed IS, and the distinction ma
   different date would stamp one day's measurement with another day's label.
 - investor activity is dated per investor book, using the confirmation represented by the current
   book rather than the older committed capture that may have seeded it.
+
+Tickerless investor moves remain visible in Universe and are excluded from ticker-narrowed scopes.
+Missing investor books and degraded earnings/con-call fallbacks are reported as incomplete/failed;
+neither is allowed to make the coverage chip claim the feed is current.
 
 The Daily Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
 one conditional request for the bulk investor snapshot. It never turns the landing page into the
