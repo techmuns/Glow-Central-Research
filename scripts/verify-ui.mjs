@@ -1137,14 +1137,54 @@ console.log('\n— daily alerts —');
   // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
   // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
   // back.
-  const feedRows = await page.locator('[data-alerts-coverage] > div > div').count();
+  const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
   ok('the coverage panel accounts for exactly the five feeds behind those four tabs', feedRows === 5, `${feedRows} feed rows`);
   ok('...and they are the four tabs asked for, and only those',
     ['Price moves', 'Announcements', 'Insider trades', 'Company news', 'Market news'].every((n) => panel.includes(n)) &&
       !/Results|Con-calls|Public chatter|Superstar/.test(panel),
     panel.split('\n').filter((l) => l.trim()).slice(1, 3).join(' / '));
-  ok('...and a feed that has not read today says so in those words rather than showing a zero',
-    /has not looked at today/.test(panel) || /reading…/.test(panel) || /every daily feed/i.test(daText), panel.slice(0, 90));
+  // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
+  // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
+  // the confusion this panel exists to prevent. The full wording lives in the chip's tooltip and in
+  // the modal's table; what is asserted here is that a behind feed never renders as a count.
+  const chipStates = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) =>
+    els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' ').trim(), title: e.getAttribute('title') || '' })));
+  const behind = chipStates.filter((c) => /has not looked at today/.test(c.title));
+  ok('...and a feed that has not read today says so in a word rather than showing a zero',
+    behind.every((c) => /not checked/.test(c.text) && !/\b\d+\b/.test(c.text)),
+    behind.length ? behind.map((c) => c.text).join(' | ') : 'every feed has looked at today');
+  ok('...and every chip carries the sentence its row used to print',
+    chipStates.length === 5 && chipStates.every((c) => c.title.length > 20),
+    `${chipStates.length} chips, shortest title ${Math.min(...chipStates.map((c) => c.title.length))} chars`);
+  // AND ASSERTED AT THE RULE, because the check above passes vacuously on any day every feed has
+  // looked at today — which is most days. `feedState` is exported for exactly this reason, the same
+  // reason `moveSeverity` and `freshnessOf` are: a branch the shipped data cannot reach is a branch
+  // the suite cannot claim to have tested.
+  const states = await evalSafe(async () => {
+    const { feedState } = await import('/js/tabs/daily-alerts.js');
+    const of = (f) => { const st = feedState(f); return { label: st.label, short: st.short(f) }; };
+    return {
+      behind: of({ reachesToday: false, count: 0 }),
+      behindWithRows: of({ reachesToday: false, count: 7 }),
+      failed: of({ status: 'failed', count: 0 }),
+      pending: of({ status: 'pending' }),
+      unscoped: of({ scopable: false, count: 3 }),
+      nothing: of({ reachesToday: true, count: 0 }),
+      some: of({ reachesToday: true, count: 30 }),
+    };
+  });
+  ok('a feed that has not looked at today never renders as a count, whatever it holds',
+    !/\d/.test(states.behind.short) && !/\d/.test(states.behindWithRows.short),
+    `count 0 -> "${states.behind.short}", count 7 -> "${states.behindWithRows.short}"`);
+  ok('...nor does one that could not be read, or one still reading',
+    !/\d/.test(states.failed.short) && !/\d/.test(states.pending.short) && !/\d/.test(states.unscoped.short),
+    `failed "${states.failed.short}", pending "${states.pending.short}", unscoped "${states.unscoped.short}"`);
+  // The one case that IS a number, and the one zero that is a real measurement rather than a gap.
+  ok('...while a feed that looked and found nothing prints a real zero',
+    states.nothing.short === '0' && states.some.short === '30',
+    `nothing -> "${states.nothing.short}", 30 events -> "${states.some.short}"`);
+  ok('...and all five states stay distinguishable by their full wording',
+    new Set([states.behind.label, states.failed.label, states.pending.label, states.unscoped.label, states.nothing.label]).size === 5);
   // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
   // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
   // It moved with the description, from the page body into the provenance modal the pill opens.
@@ -1231,9 +1271,11 @@ console.log('\n— daily alerts —');
   // Market-wide news has no company on it, so it cannot be narrowed BY one — the same rule the
   // chatter tab follows for its unresolved half. It must say so rather than filter to nothing.
   await go('/#/research/daily-alerts?scope=portfolio', 5000);
-  const scopedPanel = await page.locator('[data-alerts-coverage]').innerText();
+  // The reason moved into that feed's chip tooltip when the panel was compressed to one row. It is
+  // still STATED — which is the rule — rather than the feed silently filtering to nothing.
+  const scopedTitles = (await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.getAttribute('title') || ''))).join(' ');
   ok('market-wide news is excluded from a narrowed scope WITH A STATED REASON',
-    /carr(y|ies) no company/i.test(scopedPanel) && /Switch to Universe/i.test(scopedPanel));
+    /carr(y|ies) no company/i.test(scopedTitles) && /Switch to Universe/i.test(scopedTitles));
 
   ok('the legend explains both colours', /Red — alert/.test(await hostText()) && /Orange — update/.test(await hostText()));
   ok('...and says which feeds are never graded', /never graded|always this colour/i.test(await hostText()));

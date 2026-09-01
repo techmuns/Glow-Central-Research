@@ -305,54 +305,74 @@ function pendingPill(rep) {
 
 function coveragePanel(feeds, day, scope) {
   if (!feeds.length) {
-    return `<div class="mb-6 rounded-2xl bg-white p-5 text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">Reading the feeds…</div>`;
+    return `<div class="mb-5 text-xs text-slate-400" data-alerts-coverage>Reading the feeds…</div>`;
   }
-  const row = (f) => {
-    const state = feedState(f);
+
+  const chip = (f) => {
+    const st = feedState(f);
+    // THE TOOLTIP CARRIES THE SENTENCE THE ROW USED TO PRINT, and the modal carries all of it in a
+    // table. Compressing the panel may not compress what it is accountable for.
+    const title = [
+      `${f.label}: ${st.label}.`,
+      f.note || f.what,
+      f.asOf ? `Last read ${formatRelativeTime(f.asOf)}.` : null,
+      f.scopable === false && scope !== 'universe'
+        ? 'Market-wide stories carry no company, so they cannot be narrowed to a book or a watchlist. Switch to Universe to see them.'
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
     return `
-      <div class="flex items-start gap-3 rounded-xl px-3 py-2.5 ring-1 ${state.ring} ${state.bg}">
-        <span class="mt-1 h-2 w-2 flex-shrink-0 rounded-full ${state.dot}"></span>
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-baseline gap-x-2">
-            <span class="text-sm font-semibold text-slate-800">${escapeHtml(f.label)}</span>
-            <span class="text-xs font-semibold ${state.text}">${escapeHtml(state.label)}</span>
-            ${f.count ? `<span class="text-xs text-slate-500">· ${formatNumber(f.count)} today</span>` : ''}
-          </div>
-          <div class="mt-0.5 text-xs leading-relaxed text-slate-500">
-            ${escapeHtml(f.note || f.what)}
-            ${f.asOf ? ` <span class="text-slate-400">Last read ${escapeHtml(formatRelativeTime(f.asOf))}.</span>` : ''}
-          </div>
-        </div>
-      </div>`;
+      <span data-feed="${escapeHtml(f.id || f.label)}" title="${escapeHtml(title)}"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full ${st.dot}"></span>
+        <span class="font-semibold text-slate-700">${escapeHtml(f.label)}</span>
+        <span class="font-semibold ${st.text}">${escapeHtml(st.short(f))}</span>
+      </span>`;
   };
 
   return `
-    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100" data-alerts-coverage>
-      <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Feeds read for ${escapeHtml(day)}</h3>
-        <p class="text-xs text-slate-400">A feed that has not looked at today cannot say nothing happened — so it says when it last looked instead.</p>
-      </div>
-      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">${feeds.map(row).join('')}</div>
-      ${scope !== 'universe' ? `<p class="mt-3 text-xs text-slate-400">Narrowed to ${escapeHtml(scopeLabel(scope))}. Market-wide news carries no company, so it is excluded here rather than filtered to nothing — see its row above.</p>` : ''}
+    <section class="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs" data-alerts-coverage>
+      ${feeds.map(chip).join('')}
     </section>`;
 }
 
 /**
  * The four states a feed can be in, kept apart deliberately.
  *
+ * EXPORTED BECAUSE IT IS THE RULE, not because a tab needs it — the same reason `moveSeverity` is.
+ * The branch that matters most here is the one that must never print a number, and it can only be
+ * reached on a day a feed is actually behind, which most days it is not: asserting it through the
+ * rendered panel passes vacuously and proves nothing. The suite calls this directly instead.
+ *
  * "Behind" and "failed" are different things an operator does different things about, and neither
  * is "no events" — collapsing any two of them would throw away the only information that makes the
  * panel worth having.
  */
-function feedState(f) {
+export function feedState(f) {
+  // `label` is the full wording, still printed in the provenance modal's table. `short` is what the
+  // compact chip shows, and the two must agree: a chip that reads `0` under a feed whose state is
+  // "has not looked at today" would be the exact confusion this panel exists to prevent — a count
+  // is a finished answer and that state is the absence of one, so it prints a WORD, never a number.
+  const n = (x) => formatNumber(x || 0);
   // PENDING IS ITS OWN STATE. A feed nobody has heard from yet must never be drawn as "nothing
   // today" — that is a finished answer, and this is the absence of one.
-  if (f.status === 'pending') return { label: 'reading…', dot: 'bg-slate-300 animate-pulse', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-400' };
-  if (f.status === 'failed') return { label: 'could not be read', dot: 'bg-rose-500', ring: 'ring-rose-100', bg: 'bg-rose-50/40', text: 'text-rose-700' };
-  if (f.scopable === false) return { label: 'not in this scope', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-slate-50/50', text: 'text-slate-500' };
-  if (f.reachesToday === false) return { label: 'has not looked at today', dot: 'bg-amber-500', ring: 'ring-amber-100', bg: 'bg-amber-50/40', text: 'text-amber-700' };
-  if (f.count) return { label: 'current', dot: 'bg-emerald-500', ring: 'ring-emerald-100', bg: 'bg-emerald-50/40', text: 'text-emerald-700' };
-  return { label: 'current · nothing today', dot: 'bg-emerald-500', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-emerald-700' };
+  if (f.status === 'pending') {
+    return { label: 'reading…', short: () => 'reading…', dot: 'bg-slate-300 animate-pulse', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-400' };
+  }
+  if (f.status === 'failed') {
+    return { label: 'could not be read', short: () => 'unread', dot: 'bg-rose-500', ring: 'ring-rose-100', bg: 'bg-rose-50/40', text: 'text-rose-700' };
+  }
+  if (f.scopable === false) {
+    return { label: 'not in this scope', short: () => 'not in scope', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-slate-50/50', text: 'text-slate-400' };
+  }
+  if (f.reachesToday === false) {
+    return { label: 'has not looked at today', short: () => 'not checked', dot: 'bg-amber-500', ring: 'ring-amber-100', bg: 'bg-amber-50/40', text: 'text-amber-700' };
+  }
+  if (f.count) {
+    return { label: 'current', short: (x) => n(x.count), dot: 'bg-emerald-500', ring: 'ring-emerald-100', bg: 'bg-emerald-50/40', text: 'text-emerald-700' };
+  }
+  return { label: 'current · nothing today', short: () => '0', dot: 'bg-emerald-500', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-emerald-700' };
 }
 
 // ---------------------------------------------------------------------------------------

@@ -1694,6 +1694,18 @@ It is computed differently depending on what the feed IS, and the distinction ma
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
 
+**THE PANEL IS ONE ROW OF CHIPS — a dot, a name, a number — and the number is the part that has to
+be guarded.** It was five cards in a white block, each with a sentence and a last-read time, and it
+cost about 300px above the stream it describes; it is 19px now, identical across all three scopes.
+What compressing it may NOT do is let a state print as a count: **a number is a finished answer and
+"has not looked at today" is the absence of one**, so that state prints the word *not checked* and
+`could not be read` prints *unread*, never `0`. `feedState()` returns `short()` beside `label` for
+exactly this reason, and the two are read from one place so they cannot drift. The sentence each
+card used to carry moved to the chip's `title`, and the whole table — state, description, last read
+— is in the provenance modal, which is also where the market-wide feed's *"carries no company, so
+it cannot be narrowed"* reason now lives. The suite asserts that a behind feed's chip contains no
+digit at all.
+
 ### Nothing on it walks, and nothing on it blocks on the slowest feed
 
 The three filings feeds are seeded with **`feed.seed()`** — the committed snapshot and this device,
