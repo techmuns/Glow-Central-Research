@@ -383,6 +383,9 @@ fifths of the list is not something we cover. An entry lands in the first sectio
 resolves to a symbol in `universe.json`, the book, or `mc-ticker-map.json`. On a real 219-entry
 run: **45 covered, 174 not, 8 of them in the book.**
 
+The four summary cards are deliberately absent. Their coverage count, post/source totals, market
+mood split and scrape timing are retained in one compact footnote below both tables.
+
 That split is a statement about *our* coverage, never a taxonomy. The second section mixes Indian
 companies we do not carry, foreign names (`cisco`, `spacex`, `ubs`) and bare themes (`fiis`,
 `income`), and we do not guess which is which — the heading says so.

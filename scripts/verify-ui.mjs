@@ -2773,6 +2773,8 @@ const chatterState = await evalSafe(async () => {
     generatedAt: m?.generatedAt || null,
     ageSeconds: m?.ageSeconds ?? null,
     tables: host.querySelectorAll('[data-table-scroll]').length,
+    statCards: host.querySelectorAll('.stat-card').length,
+    footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     headings: [...host.querySelectorAll('h2')].map((h) => h.textContent.trim()),
     resolvedSample: c.companies().slice(0, 5).map((r) => `${r.slug}->${r.ticker}`),
     unresolvedAllNull: c.uncovered().every((r) => r.ticker === null && !!r.unresolvedReason),
@@ -2791,6 +2793,9 @@ if (!chatterState.ok) {
   ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,
     `${chatterState.companies} covered + ${chatterState.uncovered} not = ${chatterState.total}`);
   ok('...rendered as two tables in one view', chatterState.tables === 2, `${chatterState.tables} tables`);
+  ok('...with the four summary cards removed', chatterState.statCards === 0, `${chatterState.statCards} stat cards`);
+  ok('...and their coverage, posts, mood and scrape facts retained as footnotes',
+    /Footnotes.*Coverage:.*Posts:.*Market mood:.*Last scrape:/i.test(chatterState.footnotes), chatterState.footnotes);
   ok('...the second section says it is about OUR coverage', /not in our coverage/i.test(chatterState.headings.join(' ')), chatterState.headings.join(' · '));
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));

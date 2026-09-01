@@ -282,7 +282,9 @@ content. `roadmapStrip()` and the older `comingSoonStrip()` are both deleted; do
 either. Listing a gap in the spec is the rule that survives.
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
-and nothing else: no stat cards, no ribbon, no sub-view picker. **Daily Alerts is the third**, and
+and nothing else: no stat cards, no ribbon, no sub-view picker. Public Chatter also omits its four
+summary cards; coverage, post count/source split, mood and scrape timing now sit in a muted footnote
+after both tables. **Daily Alerts is the third**, and
 it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.

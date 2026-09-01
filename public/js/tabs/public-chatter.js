@@ -21,7 +21,7 @@
 // is mention volume between scrapes, never a price move, so it is never coloured like a P&L and
 // the column says "Mentions Δ". `sparkline` is per-SCRAPE, not per-day, so it carries no time axis.
 
-import { statStrip, topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { topCards, scoreTable, sectionHead } from '../ui/screener.js';
 import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -129,7 +129,6 @@ function paint(ctx) {
 
   const covered = chatter.forScope(ctx.scope);
   const other = chatter.uncovered();
-  const stats = buildStats(ctx, m, covered);
   const cards = buildTopCards(covered);
   const coveredTable = buildCoveredTable(ctx, covered);
   const otherTable = buildOtherTable(other);
@@ -140,7 +139,6 @@ function paint(ctx) {
       description: `Mention counts and sentiment over a rolling ${escapeHtml(m.window)}, computed by SentimentDash across ValuePickr, TradingQnA and Google News. The counts and the sentiment are theirs; the NSE symbol is ours.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`,
     })}
-    ${stats.html}
     ${cards ? cards.html : ''}
     ${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}
     ${sectionHead({
@@ -148,9 +146,9 @@ function paint(ctx) {
       description:
         'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in both scopes, because a holding cannot be filtered out of a list that has no tickers.',
     })}
-    ${otherTable.html}`;
+    ${otherTable.html}
+    ${chatterFootnotes(m)}`;
 
-  stats.wire(ctx.root);
   if (cards) cards.wire(ctx.root);
   if (coveredTable) disposers.push(coveredTable.wire(ctx.root));
   disposers.push(otherTable.wire(ctx.root));
@@ -177,46 +175,22 @@ function openRow(ticker) {
 // Chrome
 // ---------------------------------------------------------------------------------------
 
-function buildStats(ctx, m, covered) {
+function chatterFootnotes(m) {
   const mood = chatter.overview()?.marketMood;
-  return statStrip([
-    {
-      label: 'Companies we cover',
-      value: formatNumber(m.companies),
-      note: `of ${formatNumber(m.total)} entries in the feed`,
-      help: {
-        title: 'Why only some of them',
-        body:
-          'SentimentDash discovers entries bottom-up from forum topics, so the feed carries companies, brokers, themes and bare words together. ' +
-          'An entry lands in the first section when its slug resolves to a symbol in universe.json, the book, or the Moneycontrol ticker map — ' +
-          `on this run ${m.companies} of ${m.total} did. The rest are not rejected, they are shown below with the reason. ` +
-          'We deliberately do not keep a hand-written list of "brokers and themes to exclude": such a list cannot be checked, rots silently, ' +
-          'and would make the answer depend on what somebody remembered to type.',
-      },
-    },
-    {
-      label: 'Posts in the window',
-      value: m.totalPosts == null ? '—' : formatNumber(m.totalPosts),
-      note: `across ${escapeHtml(sourceSummary(m.sourceTotals))}`,
-    },
-    {
-      label: 'Market mood',
-      value: mood ? mood.labelText : '—',
-      note: mood ? `${mood.percent.bullish}% bullish · ${mood.percent.bearish}% bearish · ${mood.percent.neutral}% neutral` : 'not reported',
-      help: {
-        title: "SentimentDash's sentiment, reproduced",
-        body:
-          'Keyword-scored by them, not by us, and not re-banded here — the same rule the Con-call tab follows with its result score. ' +
-          'A typical run is around 80% neutral, so treat it as a coarse signal: it separates loud enthusiasm from loud complaint, not much finer than that.',
-      },
-    },
-    {
-      hero: true,
-      label: 'Last scrape',
-      value: m.generatedAt ? formatRelativeTime(new Date(m.generatedAt)) : '—',
-      note: `${m.ageSeconds != null ? `${Math.round(m.ageSeconds / 3600)}h old by their clock · ` : ''}re-scraped 01:30 and 13:30 UTC`,
-    },
-  ]);
+  const moodText = mood
+    ? `${escapeHtml(mood.labelText)} (${escapeHtml(String(mood.percent.bullish))}% bullish, ${escapeHtml(String(mood.percent.bearish))}% bearish, ${escapeHtml(String(mood.percent.neutral))}% neutral)`
+    : 'not reported';
+  const scrapeText = m.generatedAt ? formatRelativeTime(new Date(m.generatedAt)) : 'not reported';
+  const sourceAge = m.ageSeconds != null ? `${Math.round(m.ageSeconds / 3600)}h old by the source clock` : 'source age unavailable';
+  return `
+    <div data-chatter-footnotes class="mt-4 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+      <p><strong class="font-semibold text-slate-600">Footnotes.</strong>
+        Coverage: ${escapeHtml(formatNumber(m.companies))} of ${escapeHtml(formatNumber(m.total))} feed entries resolve to a company we cover.
+        Posts: ${m.totalPosts == null ? 'not reported' : escapeHtml(formatNumber(m.totalPosts))} over ${escapeHtml(m.window)}, across ${escapeHtml(sourceSummary(m.sourceTotals))}.
+        Market mood: ${moodText}; keyword-scored by SentimentDash and reproduced unchanged.
+        Last scrape: ${escapeHtml(scrapeText)} (${escapeHtml(sourceAge)}); scheduled at 01:30 and 13:30 UTC.
+      </p>
+    </div>`;
 }
 
 const sourceSummary = (totals) => {
@@ -252,36 +226,6 @@ const livePill = (m) => `
     <span>Live</span>
     <span class="font-medium text-emerald-600">${escapeHtml(formatNumber(m.total))} entries · ${escapeHtml(m.window)}</span>
   </span>`;
-
-function wireLivePill(root, m) {
-  root.querySelector('[data-chatter-live]')?.addEventListener('click', () => {
-    openModal(
-      `<div class="p-6 sm:p-8">
-        <h3 class="font-display text-xl font-bold text-slate-900">Where this comes from</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-600">
-          Live from the <strong>SentimentDash</strong> API, called <strong>directly from your browser</strong> rather than
-          through this site's Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy
-          returned 404 while the API was perfectly healthy. It counts mentions across <strong>ValuePickr</strong>,
-          <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling ${escapeHtml(m.window)} and scores each
-          post's sentiment by keyword.
-        </p>
-        <dl class="mt-5 space-y-3 text-sm">
-          <div><dt class="font-semibold text-slate-800">Theirs, reproduced unchanged</dt>
-            <dd class="text-slate-600">Mentions, the mention change, the sentiment split and its label, the source breakdown, and the sparkline. None of it is re-banded or recomputed here.</dd></div>
-          <div><dt class="font-semibold text-slate-800">Ours, derived</dt>
-            <dd class="text-slate-600">The NSE symbol. Their payload has no exchange symbol — its <code>ticker</code> is a forum-topic slug like <code>tata-motors</code> — so the symbol is resolved against universe.json, the book and the Moneycontrol ticker map. ${escapeHtml(String(m.companies))} of ${escapeHtml(String(m.total))} entries resolved.</dd></div>
-          <div><dt class="font-semibold text-slate-800">"Mentions Δ" is not a price move</dt>
-            <dd class="text-slate-600">It is the change in mention count between this scrape and the previous one. There is no price, market cap or return anywhere in this feed.</dd></div>
-          <div><dt class="font-semibold text-slate-800">The sparkline has no time axis</dt>
-            <dd class="text-slate-600">Its points are scrape runs, not days. Runs are twice daily but not evenly spaced.</dd></div>
-          <div><dt class="font-semibold text-slate-800">Freshness</dt>
-            <dd class="text-slate-600">Scraped ${m.generatedAt ? escapeHtml(new Date(m.generatedAt).toLocaleString()) : '—'}${m.ageSeconds != null ? `, ${escapeHtml(String(Math.round(m.ageSeconds / 3600)))} hours ago by their own clock` : ''}. This page polls hourly; the upstream refreshes twice a day.</dd></div>
-        </dl>
-      </div>`,
-      { size: 'wide' },
-    );
-  });
-}
 
 // ---------------------------------------------------------------------------------------
 // Tables

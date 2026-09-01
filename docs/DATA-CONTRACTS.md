@@ -1995,6 +1995,9 @@ Their own `max-age` does the politeness work the edge cache was there for, over 
 twice a day. A side-benefit: Public Chatter is now the one live feed that works when the site is
 served as **plain static files**, with no Worker at all.
 
+The UI does not render these aggregate facts as a KPI strip. Coverage, total posts and source
+split, market mood and scrape timing are printed as one footnote after both chatter tables.
+
 ### Four traps, and what this repo does about each
 
 1. **`changePct` is a change in MENTION COUNT, not a price move.** There is no price, market cap
