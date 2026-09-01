@@ -334,6 +334,7 @@ Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.m
 ### Public Chatter — `public-chatter`
 Community sentiment.
 - Simple in-page tabs: **Coverage** (default) and **Not in coverage**, each owning its table and its own sentiment selector
+- Clicking a company or its mention count opens the underlying mentions, newest first, with a direct link to every source item
 - No summary-card row; coverage, posts, market mood and scrape timing appear as footnotes below the tables
 - Real-time ValuePickr thread crawler with dedup
 - Telegram channel ingestion via bot API

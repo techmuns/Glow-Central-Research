@@ -116,6 +116,13 @@ const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-t
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
 const page = await context.newPage();
 
+// The route sweep reaches Public Chatter long before its dedicated block. Install the local feed
+// override before the first document loads so the dashboard and its lazy /posts detail requests
+// are guaranteed to come from the same captured test source.
+if (process.env.CHATTER_STUB) {
+  await context.addInitScript((base) => localStorage.setItem('sattva:chatter-base', base), process.env.CHATTER_STUB);
+}
+
 const errors = [];
 // Record the RESOURCE URL alongside the message. "Failed to load resource: net::ERR_CONNECTION_
 // RESET" names nothing, so without the URL there is no way to tell the Tailwind CDN this sandbox
@@ -2870,6 +2877,46 @@ if (!chatterState.ok) {
     `${notCoveredTab.selected} · ${notCoveredTab.tables} table · ${notCoveredTab.rows} rows`);
   ok('...does not repeat the Most Discussed ranking', !notCoveredTab.mostDiscussed);
   ok('...and retains the shared footnotes', /Coverage:.*Posts:.*Market mood:.*Last scrape:/is.test(notCoveredTab.footnotes));
+
+  const mentionTarget = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    const row = c.uncovered()[0];
+    return { slug: row.slug, name: row.name, mentions: row.mentions };
+  });
+  ok('every Not in coverage row makes its mention count visibly clickable',
+    (await page.locator('#content-host [data-chatter-mentions-trigger]').count()) === notCoveredTab.rows,
+    `${await page.locator('#content-host [data-chatter-mentions-trigger]').count()} of ${notCoveredTab.rows}`);
+  await page.locator(`#content-host tr[data-row-key="${mentionTarget.slug}"]`).click();
+  await page.locator('[data-chatter-mention-row]').first().waitFor({ state: 'visible' });
+  const mentionDetail = await evalSafe(() => {
+    const modal = document.querySelector('#modal-content [data-chatter-mentions-dialog]');
+    const rows = [...(modal?.querySelectorAll('[data-chatter-mention-row]') || [])];
+    const links = [...(modal?.querySelectorAll('[data-chatter-mention-link]') || [])];
+    const count = modal?.querySelector('[data-chatter-mention-total]');
+    const detailTotal = Number(count?.dataset.detailTotal);
+    const snapshotTotal = Number(count?.dataset.snapshotTotal);
+    return {
+      heading: modal?.querySelector('h2')?.textContent?.trim() || '',
+      slug: modal?.dataset.chatterSlug || '',
+      rows: rows.length,
+      detailTotal,
+      snapshotTotal,
+      changedIsNamed: detailTotal === snapshotTotal || /changed since/i.test(count?.textContent || ''),
+      links: links.length,
+      safeLinks: links.every((a) => /^https?:\/\//.test(a.href) && a.target === '_blank' && /noopener/.test(a.rel)),
+      shortExcerpts: rows.every((row) => (row.querySelector('p')?.textContent?.trim().split(/\s+/).length || 0) <= 25),
+    };
+  });
+  ok('clicking a company opens every mention currently returned by the detail feed',
+    mentionDetail.heading === mentionTarget.name && mentionDetail.slug === mentionTarget.slug && mentionDetail.rows === mentionDetail.detailTotal,
+    `${mentionDetail.heading} · ${mentionDetail.rows} detail rows · snapshot ${mentionTarget.mentions}`);
+  ok('a detail count that moved since the dashboard snapshot is named, not shown as missing rows', mentionDetail.changedIsNamed,
+    `${mentionDetail.snapshotTotal} snapshot · ${mentionDetail.detailTotal} detail`);
+  ok('every returned mention has a direct, safely opened source link',
+    mentionDetail.links === mentionDetail.rows && mentionDetail.safeLinks,
+    `${mentionDetail.links} links for ${mentionDetail.rows} mentions`);
+  ok('the popup shows only short excerpts rather than copying full posts', mentionDetail.shortExcerpts);
+  await page.locator('#modal-content [data-modal-close]').click();
 
   const uncoveredSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
   await uncoveredSentiment.selectOption('bullish');

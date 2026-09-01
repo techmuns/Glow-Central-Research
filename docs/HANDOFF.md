@@ -388,6 +388,10 @@ coverage** replaces that content with the unresolved table; the two tables never
 Each active table owns its own sentiment selector, so choosing Bullish, Bearish or Neutral filters
 the rows immediately below it and each tab retains its own choice.
 
+Every company row and mention count opens a lazy-loaded detail modal from SentimentDash's
+`/stocks/{slug}/posts` route. It shows a short identifying excerpt, source, author, timestamp and
+sentiment, with a direct link to the original item; the full post remains on its publisher's site.
+
 The four summary cards are deliberately absent. Their coverage count, post/source totals, market
 mood split and scrape timing are retained in one compact footnote below both tables.
 

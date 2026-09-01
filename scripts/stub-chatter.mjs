@@ -65,6 +65,47 @@ const health = JSON.stringify({
   upstreamLatencyMs: 1,
 });
 
+// The dashboard fixture is verbatim. Detail rows are a deterministic local-only companion built
+// from each captured count, so the UI suite can exercise the lazy /posts route without copying a
+// changing set of third-party headlines into the repository.
+const postsFor = (slug) => {
+  const stock = (parsed.stocks || []).find((row) => row.ticker === slug);
+  if (!stock) return null;
+  const sentiments = Object.entries(stock.sentiment || {})
+    .filter(([key, count]) => ['bullish', 'bearish', 'neutral'].includes(key) && Number.isFinite(Number(count)))
+    .flatMap(([key, count]) => Array(Math.max(0, Number(count))).fill(key));
+  const sources = Object.entries(stock.sources || {})
+    .filter(([, count]) => Number(count) > 0)
+    .flatMap(([key, count]) => Array(Number(count)).fill(key));
+  const total = Number(stock.mentions) || 0;
+  const posts = Array.from({ length: total }, (_, index) => {
+    const source = sources[index] || stock.activeSources?.[0] || 'news';
+    return {
+      id: `fixture-${slug}-${index + 1}`,
+      source,
+      author: `Fixture ${source}`,
+      handle: `fixture-${source}`,
+      community: source === 'news' ? 'Google News' : source,
+      timestamp: new Date(Date.parse(generatedAt) - index * 60000).toISOString(),
+      text: `Captured mention ${index + 1} for ${stock.name}`,
+      url: `https://example.com/chatter/${encodeURIComponent(slug)}/${index + 1}`,
+      sentiment: sentiments[index] || stock.sentiment?.label || 'neutral',
+      likes: 0,
+      comments: 0,
+      ticker: slug,
+      sourceLabel: source === 'news' ? 'Google News' : source === 'valuepickr' ? 'ValuePickr' : source === 'tradingqna' ? 'TradingQnA' : 'Reddit',
+    };
+  });
+  return JSON.stringify({
+    ticker: slug,
+    name: stock.name,
+    generatedAt,
+    counts: { total, filtered: total },
+    pagination: { total, count: total, limit: 1000, offset: 0, hasMore: false },
+    posts,
+  });
+};
+
 // Exactly what the live API returns, confirmed with `curl -D-`.
 const CORS = {
   'access-control-allow-origin': '*',
@@ -94,6 +135,14 @@ createServer((req, res) => {
     }
     res.writeHead(200, { ...CORS, 'content-type': 'application/json', etag: ETAG, 'cache-control': 'public, max-age=60' });
     return res.end(dashboard);
+  }
+  const postsMatch = path.match(/^\/stocks\/([^/]+)\/posts$/);
+  if (postsMatch) {
+    const body = postsFor(decodeURIComponent(postsMatch[1]));
+    if (body) {
+      res.writeHead(200, { ...CORS, 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
+      return res.end(body);
+    }
   }
   res.writeHead(404, { ...CORS, 'content-type': 'application/json' });
   res.end(JSON.stringify({ error: { status: 404, code: 'unknown_route', message: path } }));

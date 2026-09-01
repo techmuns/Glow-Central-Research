@@ -166,8 +166,8 @@ export function normaliseDashboard(body) {
  * One post. These are REAL posts by REAL forum members, which is the opposite of the constraint
  * the synthetic chatter set was built under — there, handles had to be fictional because
  * inventing words for a named person is not something a label can make acceptable. Here the words
- * are genuinely theirs, so the rule that applies instead is the StockScans one: LINK, DO NOT
- * REPRODUCE. `url` is mandatory-ish for that reason; a post without one cannot be attributed.
+ * are genuinely theirs, so the UI shows only a short identifying excerpt and links to the
+ * original. `url` is mandatory-ish for that reason; a post without one cannot be attributed.
  */
 export function normalisePost(raw) {
   const id = str(raw?.id);
