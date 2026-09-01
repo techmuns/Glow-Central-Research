@@ -2528,10 +2528,24 @@ walks **the book first** and commits the result, so those rows are in `news.json
 conditional GET. Measured on the shipped capture — 123 book tickers, 1,217 articles, no failures. So
 News loads like the other two feeds and the walk stays behind Refresh.
 
-**An all-null row is not an article.** A company the scrape searched and found nothing for is
-recorded as one row with every field null (62 of them in the shipped capture). It is a statement
-about the search, so it is dropped from the row set by `keepRow` while the company still counts as
-covered — searched-and-empty, never-asked and could-not-be-read are three different answers.
+**A company that answered "nothing" is listed in `empty`, and that is what makes it COVERED.**
+The scrape used to write only companies that had something, so one with no trades vanished from the
+file — indistinguishable from one the run never reached. The browser counted those outstanding for
+ever: measured on the shipped insider capture, the tab reported **51 companies "have not been
+checked since"** that had all been checked and genuinely have no trades, and the strip kept offering
+to re-search them. `empty` closes that, `outstanding()` excludes it, and the four answers are now
+distinct in the file: **in `byTicker`** had something, **in `empty`** was asked and had nothing,
+**in `failed`** could not be read, **in none of the three** was never reached.
+
+**So `covered` counts companies that ANSWERED, not companies that had something to say** —
+`withRows` is the second number and sits beside it, so neither has to be derived by subtraction.
+The regression guard that refuses to overwrite a good snapshot compares `covered`, which is the
+measure of the run rather than of the news.
+
+**An all-null row is not an article.** The news route answers a company it found nothing for with a
+single row carrying only the query. Those are no longer written — the company goes to `empty`
+instead — but `keepRow` still drops them on the way to the table, because a capture taken before
+this change is still a valid file and still holds 62 of them.
 
 ```
 public/data/news.json · insider-trades.json
@@ -2539,8 +2553,10 @@ public/data/news.json · insider-trades.json
   "kind": "announcements",
   "capturedAt": "2026-08-14T…Z", "from": "2025-08-14", "to": "2026-08-14", "windowDays": 365,
   "scope": "universe", "asked": 603, "covered": 561, "rowCount": 18422, "failedCount": 42,
+  "withRows": 519, "emptyCount": 42,   // covered = withRows + emptyCount; never derive by subtraction
   "headers": [],                       // insider trades only: the source's own column headings
-  "byTicker": { "RELIANCE": [ … ] },   // absent = nothing in the window, OR unread — see `failed`
+  "byTicker": { "RELIANCE": [ … ] },   // had something in the window
+  "empty":    [ "SKYGOLD", "OFSS" ],   // ASKED, and answered nothing — covered, and never re-walked
   "failed":   { "XYZ": { "reason": "timeout", "message": "…" } }
 }
 ```
@@ -2556,9 +2572,10 @@ says where the paint came from.
 at 40 companies and 4 at a time. **The shortfall is printed on screen** rather than left to look
 like completeness.
 
-**A company absent from `byTicker` is not a company with nothing.** `failed` is what distinguishes
-"no announcements in this window" from "we could not read it", the pill counts them separately, and
-the two must never be conflated — the same error class as a count of zero from a failing endpoint.
+**A company absent from `byTicker` is not a company with nothing.** `empty` and `failed` are what
+distinguish "asked, and there were none in this window" from "we could not read it" from "never
+reached", the strip counts them separately, and they must never be conflated — the same error class
+as a count of zero from a failing endpoint.
 
 **One definition of "still needs asking about", used by the queue and by the request.** There were
 two and they disagreed: `load()` queued every company whose rows were older than the feed's window,

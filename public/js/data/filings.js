@@ -169,6 +169,12 @@ export function createFeed(kind) {
       // source and is refreshed on a schedule, and its age is reported as `capturedAt` rather than
       // hidden by 603 live requests.
       fromSnapshot: new Set(),
+      // ASKED, AND THE ANSWER WAS "NOTHING". A different fact from a company with rows and a very
+      // different one from a company nobody reached, and it used to be recorded as neither: the
+      // scrape wrote only companies that had something, so one with no trades vanished from the
+      // file and `outstanding()` counted it unchecked for ever. Measured on the shipped insider
+      // capture: 51 companies reported as "not been checked since" that had all been checked.
+      askedEmpty: new Set(),
       // ticker -> when the SERVER last confirmed those rows, whether that was this session or an
       // earlier one. A company inside its window is not re-asked; one never read always is.
       confirmedAt: new Map(),
@@ -248,6 +254,9 @@ export function createFeed(kind) {
       truncated: state.truncated,
       rowCount: [...state.rows.values()].reduce((a, r) => a + r.length, 0),
       snapshotCount: state.snapshotCount,
+      // Asked, and answered nothing. The coverage sentence needs this to say "searched, and these
+      // genuinely have none" rather than leaving the reader to read a gap as a failure to fetch.
+      askedEmpty: state.askedEmpty.size,
       coversUniverse: state.coversUniverse,
       exchangeCompanies: state.exchangeCompanies,
       unnamedRows: state.unnamedRows,
@@ -283,6 +292,8 @@ export function createFeed(kind) {
   }
 
   const forTicker = (t) => state.rows.get(String(t || '').toUpperCase()) || [];
+  /** Was this company asked, and did it answer nothing? Not the same as "we have no rows for it". */
+  const wasAskedEmpty = (t) => state.askedEmpty.has(String(t || '').toUpperCase());
   const failureFor = (t) => state.failures.get(String(t || '').toUpperCase()) || null;
 
   /**
@@ -420,7 +431,8 @@ export function createFeed(kind) {
   /** The companies in scope whose rows nobody has confirmed inside the feed's window. */
   // A universe-covering snapshot was never asked company by company, so no company is waiting to be
   // asked about. Reporting a backlog there would invent one.
-  const outstanding = () => (state.coversUniverse ? [] : state.wanted.filter((t) => !state.fromSnapshot.has(t) && stale(t)));
+  const outstanding = () =>
+    state.coversUniverse ? [] : state.wanted.filter((t) => !state.fromSnapshot.has(t) && !state.askedEmpty.has(t) && stale(t));
 
   function walkMissing() {
     const missing = outstanding();
@@ -546,8 +558,21 @@ export function createFeed(kind) {
       state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
       state.fromSnapshot.add(t);
     }
+    // Companies the capture ASKED and that answered nothing. They get no rows — there are none —
+    // but they are covered, so they must not be reported as waiting to be asked about.
+    for (const t of Array.isArray(body.empty) ? body.empty : []) {
+      if (typeof t === 'string' && t) state.askedEmpty.add(t.toUpperCase());
+    }
+    // Companies the capture ASKED and could not read. A third answer again, distinct from having
+    // rows and from having none: the pill turns amber for these, the coverage sentence names them
+    // rather than leaving the reader to reach them by subtraction, and Refresh retries them. Never
+    // over a company that has since been read live — that answer is newer than the file's.
+    for (const [ticker, info] of Object.entries(body.failed || {})) {
+      const t = String(ticker || '').toUpperCase();
+      if (t && !state.rows.has(t) && !state.failures.has(t)) state.failures.set(t, { ...info, fromSnapshot: true });
+    }
     state.snapshotCount = state.fromSnapshot.size;
-    return state.rows.size > 0;
+    return state.rows.size > 0 || state.askedEmpty.size > 0;
   }
 
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
@@ -632,6 +657,7 @@ export function createFeed(kind) {
     refresh,
     rows,
     forTicker,
+    wasAskedEmpty,
     failureFor,
     meta,
     isLoaded: () => state.loaded,

@@ -3738,7 +3738,13 @@ console.log('\n— news, announcements and insider trades —');
     const cov = await import('/js/data/coverage.js');
     const uniMod = await import('/js/data/universe.js');
     const snap = await fetch('data/news.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({}));
-    const covered = new Set(Object.keys(snap.byTicker || {}).map((t) => t.toUpperCase()));
+    // COVERED MEANS ASKED, NOT "HAD SOMETHING TO SAY". A company the capture searched and that
+    // answered nothing is recorded in `empty` and carries no rows — it is covered, the walk
+    // deliberately skips it, and picking one here would measure zero requests and blame the code.
+    const covered = new Set([
+      ...Object.keys(snap.byTicker || {}),
+      ...(Array.isArray(snap.empty) ? snap.empty : []),
+    ].map((t) => t.toUpperCase()));
     const held = cov.holdings().filter((h) => h.ticker);
     // THE BOOK CANNOT EXERCISE THE WALK. Every one of its 123 companies is already in the snapshot,
     // which is the zero-request path asserted just below. To make the walk send anything, the

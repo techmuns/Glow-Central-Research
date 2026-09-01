@@ -162,6 +162,13 @@ async function run(kind, list) {
   const to = iso(Date.now());
 
   const byTicker = {};
+  // AN ANSWER OF "NOTHING" IS STILL AN ANSWER, and it has to be recorded as one. The news route
+  // answers a company it found nothing for with a single all-null row carrying only the query; the
+  // insider route answers with an empty list. Neither was written to `byTicker`, so the company
+  // vanished from the file — indistinguishable from one the run never reached, and the browser
+  // counted it outstanding for ever: measured, the tab said "51 companies have not been checked
+  // since" about 51 companies that HAD been checked and genuinely have no trades.
+  const empty = [];
   const failed = {};
   const headers = new Set();
   let done = 0;
@@ -187,7 +194,17 @@ async function run(kind, list) {
         const rows = res[rowsKey] || [];
         // `raw` is for the browser's drill, not for a committed file — it is the whole upstream
         // record again and would multiply the snapshot several times over for nothing.
-        if (rows.length) byTicker[c.ticker] = rows.map(({ raw, ...rest }) => rest);
+        // STRIP `raw` FIRST, THEN ASK WHETHER THE ROW CARRIES ANYTHING. `raw` is the whole upstream
+        // record again — it is never committed, and it is never null, so testing before stripping it
+        // says every row carries something and the test passes for the wrong reason. Measured: 46
+        // all-null placeholders went straight back into the file under a predicate written to catch
+        // exactly them. `query` is the term we sent rather than anything the upstream published, so
+        // a row left carrying only that is the news API saying it found nothing — not an article.
+        const published = rows.map(({ raw, ...rest }) => rest);
+        const carries = (r) => r && Object.entries(r).some(([k, v]) => k !== 'query' && v !== null && v !== undefined && v !== '');
+        const usable = published.filter(carries);
+        if (usable.length) byTicker[c.ticker] = usable;
+        else empty.push(c.ticker);
         for (const h of res.headers || []) headers.add(h);
       } catch (err) {
         const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
@@ -212,7 +229,8 @@ async function run(kind, list) {
     _provenance:
       `REAL DATA, NOT OURS. ${kind} for Indian listed companies via the Muns API, reaching back ${windowDays} days. ` +
       'Headlines, subjects, column headings and wording are the source\'s own, reproduced unchanged and never summarised. ' +
-      'A company absent from `byTicker` had nothing in this window OR could not be read — `failed` says which, and the two must not be conflated.',
+      'A company in `byTicker` had something; one in `empty` was asked and answered nothing; one in `failed` could not be read; ' +
+      'one in none of the three was never reached. Those are four different answers and must not be conflated.',
     kind,
     source: VIA_WORKER ? 'Muns filings/news API, read through this dashboard’s Worker' : 'Muns filings/news API',
     generator: 'scripts/scrape-filings.mjs',
@@ -222,11 +240,17 @@ async function run(kind, list) {
     windowDays,
     scope: SCOPE,
     asked: list.length,
-    covered: Object.keys(byTicker).length,
+    // COMPANIES THAT ANSWERED, not companies that had something to say — different numbers, and
+    // only the first one measures the run. `withRows` is the second, kept beside it so neither has
+    // to be derived by subtraction.
+    covered: Object.keys(byTicker).length + empty.length,
+    withRows: Object.keys(byTicker).length,
+    emptyCount: empty.length,
     rowCount,
     failedCount: Object.keys(failed).length,
     headers: [...headers],
     byTicker,
+    empty,
     failed,
   };
   // A BAD RUN MUST NOT REPLACE A GOOD SNAPSHOT. The insider-trades upstream was measured returning
@@ -254,7 +278,8 @@ async function run(kind, list) {
 
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(
-    `\r  ${kind}: ${rowCount} rows across ${payload.covered} of ${list.length} companies` +
+    `\r  ${kind}: ${rowCount} rows across ${payload.withRows} of ${list.length} companies` +
+      `${payload.emptyCount ? `, ${payload.emptyCount} asked and had nothing` : ''}` +
       `${payload.failedCount ? `, ${payload.failedCount} could not be read` : ''} -> public/data/${file}`
   );
 }

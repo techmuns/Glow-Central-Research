@@ -1027,6 +1027,38 @@ which is a different fact and one the coverage note still counts: **searched-and
 and could-not-be-read are three different answers** and none of them is an article. `keepRow` on the
 shared renderer is where a tab says what a row of its own has to carry.
 
+**AND A COMPANY THAT ANSWERED "NOTHING" HAS TO BE WRITTEN DOWN, OR IT READS AS ONE YOU NEVER
+ASKED.** The scrape wrote only companies that had something — `if (rows.length) byTicker[t] = …` —
+so a company with no trades vanished from the file entirely, indistinguishable from one the run
+never reached. `outstanding()` then counted it unchecked for ever. Measured on the shipped insider
+capture: the tab said **"51 companies have not been checked since"** about 51 companies that had
+all been checked and genuinely have no trades, and offered to re-search them on every visit. It is
+the *third* answer going missing, and the honest fix is to record it: `empty: [tickers]` in the
+snapshot, excluded from `outstanding()`, so the four states are distinct in the file — **in
+`byTicker`** had something, **in `empty`** was asked and had nothing, **in `failed`** could not be
+read, **in none of the three** was never reached. Insider's outstanding fell 51 → 3, and the 3 are
+real failures.
+
+Two things follow that are easy to get wrong:
+
+- **`covered` counts companies that ANSWERED, not companies that had something to say.** Those are
+  different numbers, `withRows` is the second, and both are written so neither has to be reached by
+  subtraction. The guard that stops a bad run overwriting a good snapshot compares `covered`,
+  because that measures the run rather than the news.
+- **Strip the upstream's `raw` field BEFORE asking whether a row carries anything.** `raw` is the
+  whole record again, it is never committed and it is never null, so a predicate written to catch
+  all-null placeholders passes every row when it runs first. Measured: 46 placeholders went
+  straight back into the file under the predicate added to remove them, and the run reported
+  "123 of 123 companies" — a number that looked like the fix working.
+
+**A coverage gap the reader cannot account for reads as a broken fetch.** "Portfolio · 61 of 142
+companies with articles" is true and says nothing about whether the other 81 were searched — and
+they were. The strip states the account instead: *"123 of 123 companies in scope were searched, 46
+of them had no articles in the last 30 days. A further 19 book lines carry no NSE symbol."* Every
+clause drops out when its number is zero rather than printing a nil, and a date-indexed capture
+says something different in its own words, because it asked the exchange rather than the companies
+and "searched" is the wrong verb for it.
+
 **A company that could not be read is not a company with nothing.** Failures are kept per ticker,
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
 report an outage as an absence of events — the same error class as a count of zero from a failing
