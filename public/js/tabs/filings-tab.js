@@ -26,7 +26,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
-import { scopeTickers } from '../data/scope.js';
+import { scopeTickers, scopePossessive } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as refreshRegistry from '../core/refresh.js';
 
@@ -111,211 +111,6 @@ export function makeFilingsTab(cfg) {
     return out;
   }
 
-  // ---------------------------------------------------------------------------------------
-  // The company picker (news only)
-  // ---------------------------------------------------------------------------------------
-
-  /** How many companies one search may ask about. Each is a live request against a ~60/min cap. */
-  const MAX_PICK = 20;
-
-  /**
-   * Everything the reader may pick from: the book first, then the rest of the coverage universe.
-   *
-   * THE NAME IS THE POINT, not the ticker. The news upstream is searched by company NAME —
-   * `?q=JAYNECOIND` returns three results, most of them quote pages, while
-   * `?q=Jayaswal Neco Industries` returns twenty about the company. A candidate with no name is
-   * still offered, and searches by its symbol, which is a worse search and still a search.
-   */
-  function candidatesFor(ctx) {
-    const out = [];
-    const seen = new Set();
-    for (const h of coverage.holdings()) {
-      const t = String(h.ticker || '').toUpperCase();
-      if (!t || seen.has(t)) continue;
-      seen.add(t);
-      out.push({ ticker: t, name: h.name || t, held: true });
-    }
-    for (const u of ctx.data?.universe || []) {
-      const t = String(u.ticker || '').toUpperCase();
-      if (!t || seen.has(t)) continue;
-      seen.add(t);
-      out.push({ ticker: t, name: u.name || t, held: false });
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  /**
-   * The current selection, read from the URL so a search is shareable and survives a reload.
-   *
-   * A ticker in the URL that is not in the candidate list is KEPT rather than dropped — the list is
-   * this dashboard's coverage, and a reader who pasted a symbol we do not track has still asked a
-   * real question. It searches by symbol and the chip says so by carrying no name.
-   */
-  function selectionFrom(ctx) {
-    const raw = String(ctx.params?.co || '').trim();
-    if (!raw) return [];
-    const byTicker = new Map(candidatesFor(ctx).map((c) => [c.ticker, c]));
-    const out = [];
-    const seen = new Set();
-    for (const part of raw.split(',')) {
-      const t = part.trim().toUpperCase();
-      if (!t || seen.has(t)) continue;
-      seen.add(t);
-      const hit = byTicker.get(t);
-      out.push({ ticker: t, name: hit?.name || null, known: !!hit });
-      if (out.length >= MAX_PICK) break;
-    }
-    return out;
-  }
-
-  const chip = (c) => `
-    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-1 pl-2.5 pr-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-      <span title="${escapeHtml(c.name || 'Not in this dashboard\'s coverage — searched by symbol')}">${escapeHtml(c.ticker)}</span>
-      <button type="button" data-pick-remove="${escapeHtml(c.ticker)}" aria-label="Remove ${escapeHtml(c.ticker)}"
-              class="flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700">&times;</button>
-    </span>`;
-
-  function pickerHtml(ctx, selected) {
-    const n = selected.length;
-    return `
-      <div data-picker class="w-full rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Companies</span>
-          <div data-pick-chips class="flex flex-wrap items-center gap-1.5">${selected.map(chip).join('') || '<span class="text-xs text-slate-400">none selected</span>'}</div>
-        </div>
-        <div class="relative mt-2 flex flex-wrap items-center gap-2">
-          <div class="relative min-w-[240px] flex-1">
-            <input type="text" data-pick-search autocomplete="off" placeholder="Search a company by name or symbol…"
-                   class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
-            <div data-pick-list class="absolute left-0 right-0 top-full z-20 mt-1 hidden max-h-72 overflow-y-auto rounded-xl bg-white py-1 shadow-lg ring-1 ring-slate-200 scrollbar-thin"></div>
-          </div>
-          <button type="button" data-pick-go
-                  class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
-            Search news
-          </button>
-          <button type="button" data-pick-clear
-                  class="rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 ${n ? '' : 'hidden'}">Clear</button>
-          <span data-pick-count class="text-xs text-slate-400">${n} of ${MAX_PICK} max</span>
-        </div>
-      </div>`;
-  }
-
-  /**
-   * Selection is edited in the DOM and committed to the URL only on "Search news".
-   *
-   * Writing every add straight to `ctx.setParams` would re-mount the tab on each keystroke's worth
-   * of clicking, tearing down the input the reader is typing into — and would fire a search for a
-   * half-built list. The two-step is what the reader asked for: choose, then search.
-   */
-  function wirePicker(ctx, selected) {
-    const root = ctx.root.querySelector('[data-picker]');
-    if (!root) return;
-    const pending = selected.map((c) => ({ ...c }));
-    const chips = root.querySelector('[data-pick-chips]');
-    const search = root.querySelector('[data-pick-search]');
-    const list = root.querySelector('[data-pick-list]');
-    const go = root.querySelector('[data-pick-go]');
-    const clear = root.querySelector('[data-pick-clear]');
-    const count = root.querySelector('[data-pick-count]');
-    const candidates = candidatesFor(ctx);
-    const current = selected.map((c) => c.ticker).join(',');
-
-    const paintChips = () => {
-      chips.innerHTML = pending.map(chip).join('') || '<span class="text-xs text-slate-400">none selected</span>';
-      count.textContent = `${pending.length} of ${MAX_PICK} max`;
-      clear.classList.toggle('hidden', !pending.length);
-      // Disabled when nothing is selected, and when the selection is what is already on screen —
-      // re-running an identical search would spend the budget to redraw the same rows.
-      go.disabled = !pending.length || pending.map((c) => c.ticker).join(',') === current;
-    };
-
-    const closeList = () => {
-      list.classList.add('hidden');
-      list.innerHTML = '';
-    };
-
-    const openList = (q) => {
-      const term = q.trim().toLowerCase();
-      if (!term) return closeList();
-      const picked = new Set(pending.map((c) => c.ticker));
-      const hits = candidates
-        .filter((c) => !picked.has(c.ticker) && (c.name.toLowerCase().includes(term) || c.ticker.toLowerCase().includes(term)))
-        .slice(0, 50);
-      if (!hits.length) {
-        list.innerHTML = `<div class="px-3 py-2 text-xs text-slate-400">No company in coverage matches “${escapeHtml(q)}”.</div>`;
-        list.classList.remove('hidden');
-        return;
-      }
-      list.innerHTML = hits
-        .map(
-          (c) => `<button type="button" data-pick-add="${escapeHtml(c.ticker)}" data-pick-name="${escapeHtml(c.name)}"
-                    class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-indigo-50">
-                    <span class="truncate text-slate-700">${escapeHtml(c.name)}</span>
-                    <span class="flex-shrink-0 text-[11px] font-semibold text-slate-400">${escapeHtml(c.ticker)}${c.held ? ' · held' : ''}</span>
-                  </button>`,
-        )
-        .join('');
-      list.classList.remove('hidden');
-    };
-
-    const onSearch = () => openList(search.value);
-    const onListClick = (e) => {
-      const btn = e.target.closest('[data-pick-add]');
-      if (!btn) return;
-      const ticker = btn.getAttribute('data-pick-add');
-      if (pending.length >= MAX_PICK || pending.some((c) => c.ticker === ticker)) return;
-      pending.push({ ticker, name: btn.getAttribute('data-pick-name'), known: true });
-      search.value = '';
-      closeList();
-      paintChips();
-      search.focus();
-    };
-    const onChipClick = (e) => {
-      const btn = e.target.closest('[data-pick-remove]');
-      if (!btn) return;
-      const ticker = btn.getAttribute('data-pick-remove');
-      const i = pending.findIndex((c) => c.ticker === ticker);
-      if (i >= 0) pending.splice(i, 1);
-      paintChips();
-    };
-    const commit = () => {
-      const next = { ...(ctx.params || {}) };
-      if (pending.length) next.co = pending.map((c) => c.ticker).join(',');
-      else delete next.co;
-      ctx.setParams(next);
-    };
-    const onClear = () => {
-      pending.length = 0;
-      paintChips();
-      commit();
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') return closeList();
-      if (e.key === 'Enter') {
-        const first = list.querySelector('[data-pick-add]');
-        if (first) {
-          e.preventDefault();
-          first.click();
-        } else if (!go.disabled) commit();
-      }
-    };
-    const onDocClick = (e) => {
-      if (!root.contains(e.target)) closeList();
-    };
-
-    search.addEventListener('input', onSearch);
-    search.addEventListener('keydown', onKey);
-    list.addEventListener('click', onListClick);
-    chips.addEventListener('click', onChipClick);
-    go.addEventListener('click', commit);
-    clear.addEventListener('click', onClear);
-    document.addEventListener('click', onDocClick);
-
-    paintChips();
-    // The document listener is global, so it must be released when the tab goes away.
-    disposers.push(() => document.removeEventListener('click', onDocClick));
-  }
-
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
@@ -353,40 +148,24 @@ export function makeFilingsTab(cfg) {
       });
     }
 
-    // NEWS ASKS BEFORE IT SEARCHES, AND THAT IS NOT A LIMITATION DRESSED AS A FEATURE.
-    //
-    // The news upstream is a SEARCH endpoint — one request per company name — so "the whole
-    // universe" is 603 requests against a sixty-a-minute cap, which is why this tab used to walk a
-    // bounded forty and report the rest as unread. Announcements moved to a date-indexed source and
-    // stopped needing a walk at all; news has no such index, because there is no "everyone's news
-    // today" endpoint to ask. So the request budget goes where the reader actually wants it: they
-    // name the companies, and every one they named is searched in full rather than forty arbitrary
-    // ones being searched on their behalf.
-    if (cfg.requireSelection) {
-      const selected = selectionFrom(ctx);
-      if (!selected.length) {
-        ctx.root.innerHTML = `
-          ${sectionHead({ title: cfg.title, description: cfg.subtitle, controls: pickerHtml(ctx, selected) })}
-          ${chooseCompaniesPanel(cfg)}`;
-        wirePicker(ctx, selected);
-        return;
-      }
-      const items = selected.map((t2) => ({ ticker: t2.ticker, name: t2.name }));
-      ctx.root.innerHTML = `
-        ${sectionHead({ title: cfg.title, description: cfg.subtitle, controls: pickerHtml(ctx, selected) })}
-        ${loadingHtml()}`;
-      wirePicker(ctx, selected);
-      // `walkWanted` because this IS the reader asking — they named these companies and pressed
-      // Search. The no-walk-on-load rule is about landings nobody requested, not about this.
-      cfg.feed.load(items, { walkWanted: true }).then(() => {
-        if (t === token) paint(ctx);
-      });
-      return;
-    }
+    // ALL THREE TABS LOAD THE SAME WAY: the committed snapshot and this device, no per-company
+    // request. News used to be the exception — it made the reader name companies before it would
+    // show anything, because a live walk of the universe is one search per company against a
+    // sixty-a-minute cap. But the scrape already walks the book on a schedule and commits the
+    // result, so the rows for a scoped view are sitting in the snapshot and cost one conditional
+    // GET to paint. Asking the reader to pick first was spending their attention to avoid a cost
+    // that had already been paid. The walk still exists for whatever the snapshot misses, and it is
+    // still the Refresh button that starts it.
+    // THE SCOPE IS RE-DECLARED ON EVERY RENDER, not just the first. The feed loads once and lives
+    // at module level, but which companies are in scope changes with the toggle — and `wanted` is
+    // what the freshness strip counts as unchecked and what Refresh walks. Setting it only inside
+    // `load()` let the first scope to mount own the list for the life of the page.
+    const items = tickersFor(ctx);
+    cfg.feed.setWanted(items);
 
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
-      cfg.feed.load(tickersFor(ctx)).then(() => {
+      cfg.feed.load(items).then(() => {
         if (t === token) paint(ctx);
       });
       return;
@@ -398,15 +177,18 @@ export function makeFilingsTab(cfg) {
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
-    // THE FEED OUTLIVES THE SELECTION, so the rows must be narrowed to what was asked for.
+    // THE FEED OUTLIVES THE SCOPE, so the rows are narrowed by the scope on every paint.
     // `createFeed` is module-level and keeps every company it has ever loaded — which is what makes
-    // a second visit instant. Painting all of it after the reader narrowed to two companies would
-    // show them rows they did not ask for and count them in the pill.
-    const selected = cfg.requireSelection ? selectionFrom(ctx) : null;
-    if (selected) {
-      const want = new Set(selected.map((s2) => s2.ticker));
-      all = all.filter((r) => r.ticker && want.has(String(r.ticker).toUpperCase()));
-    }
+    // a second visit instant, and which would otherwise paint a book company's rows into a
+    // watchlist view long after the reader switched.
+    // AN EMPTY SEARCH RESULT IS NOT AN ARTICLE. The news scrape writes one all-null row for a
+    // company it searched and found nothing for — 62 of them in the shipped capture — and rendering
+    // those as rows put 62 "(untitled)" articles in front of the reader that no upstream ever
+    // published. The company was still COVERED, which is a different fact and one the coverage note
+    // below still counts: searched-and-empty is not the same as never-asked, and neither is an
+    // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
+    if (cfg.keepRow) all = all.filter(cfg.keepRow);
+
     const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
     const rows = wantedTickers ? all.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : all;
 
@@ -422,12 +204,10 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({
           title: cfg.title,
           description: cfg.subtitle,
-          meta: scopeSummary({ scope: ctx.scope, count: 0, noun: cfg.noun, book: coverage.meta() }),
-          controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
+          meta: scopeSummary({ scope: ctx.scope, count: 0, noun: 'companies with ' + cfg.noun, book: coverage.meta() }),
         })}
         ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
       wireRefresh(ctx.root);
-      if (cfg.requireSelection) wirePicker(ctx, selected || []);
       return;
     }
 
@@ -481,12 +261,15 @@ export function makeFilingsTab(cfg) {
       initialView: view,
       exportName: `sattva-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
-      emptyMessage:
-        ctx.scope === 'portfolio'
-          ? `No ${cfg.noun} for your holdings in the last ${m.windowDays} days.`
-          : ctx.scope === 'watchlist'
-            ? `No ${cfg.noun} for your watchlist in the last ${m.windowDays} days.`
-            : `No ${cfg.noun} matches your filters.`,
+      // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
+      // articles in the last 30 days" is a claim about the upstream that nobody measured — these
+      // routes have no index, so the only honest statement is how many were not asked about. The
+      // strip above says the same thing; this stops the table contradicting it at a glance.
+      emptyMessage: m.outstanding
+        ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
+        : scopePossessive(ctx.scope)
+          ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
+          : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
 
@@ -494,18 +277,26 @@ export function makeFilingsTab(cfg) {
       ${sectionHead({
         title: cfg.title,
         description: cfg.subtitle,
-        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`,
+        // COUNT COMPANIES, NOT ROWS. `scopeSummary`'s denominator is the book's 142 companies (or
+        // the watchlist's N), so passing a row count printed "Portfolio · 1,279 of 142 articles" —
+        // two different units either side of an "of", which is not a ratio of anything. The table's
+        // own "N of M shown" already reports the rows; what the pill is for is the denominator the
+        // scope owes the reader, and that is measured in companies.
+        meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${scopeSummary({
+          scope: ctx.scope,
+          count: new Set(rows.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
+          noun: 'companies with ' + cfg.noun,
+          book: coverage.meta(),
+        })}</div>`,
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
         // moves when you use it reads as a different page.
-        controls: cfg.requireSelection ? pickerHtml(ctx, selected || []) : '',
       })}
       ${freshnessStrip(m, refreshLabel)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
-    if (cfg.requireSelection) wirePicker(ctx, selected || []);
     ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
     wireRefresh(ctx.root);
   }
@@ -560,27 +351,6 @@ export function makeFilingsTab(cfg) {
 // Shared furniture
 // ---------------------------------------------------------------------------------------
 
-/**
- * The empty state before a company has been chosen.
- *
- * IT SAYS WHY, because a screen that asks for input without explaining itself reads as broken. The
- * reason is real and worth one sentence: the news upstream is a per-company search with no
- * "everyone's news" index to ask, so the choice is between forty arbitrary companies searched on
- * the reader's behalf and the ones they actually want, searched in full.
- */
-const chooseCompaniesPanel = (cfg) => `
-  <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
-    <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-xl">🔍</div>
-    <h3 class="font-display text-lg font-bold text-slate-900">Choose the companies to search</h3>
-    <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
-      ${escapeHtml(cfg.title)} is searched one company at a time — the upstream is a search endpoint, not a feed of
-      everything published today, so there is no “all companies” request to make. Pick the companies you want and each one
-      is searched in full.
-    </p>
-    <p class="mx-auto mt-3 max-w-xl text-xs text-slate-400">
-      Your selection rides in the address bar, so a search can be bookmarked or shared.
-    </p>
-  </div>`;
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">

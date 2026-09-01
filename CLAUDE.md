@@ -972,10 +972,28 @@ HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports
 
 **And the third feed did not get this treatment, because it cannot.** News is a *search* endpoint —
 there is no "everything published today" request to make, only "what has been written about this
-company". No axis to switch to. So it changed shape instead: the reader names the companies and each
-one is searched in full, rather than forty being chosen on their behalf and the rest reported as
-unread. A tab that asks before it acts is the honest answer when the budget genuinely cannot cover
-the universe — and it must say **why** it is asking, or it reads as broken.
+company". No axis to switch to.
+
+**It once made the reader name the companies before it would show anything, and that was solving
+the wrong half.** The reasoning was sound as far as it went — a live walk of the universe is 603
+searches against a sixty-a-minute cap, so a tab that asks before it acts beats one that spends the
+budget on forty companies chosen for the reader. What it missed is that the rows for a *scoped* view
+are not a live walk at all: `scrape-filings.mjs` walks **the book first** on a schedule and commits
+the result, so they are already in `news.json` and cost one conditional GET. Measured on the shipped
+capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was charging the reader
+attention to avoid a cost that had already been paid.
+
+So News now loads like the other two — snapshot on mount, nothing per company — and the walk is
+still the Refresh button's. **The rule that survives is the one that was always doing the work: a
+landing sends no per-company request.** Asking the reader first is the answer when there is nothing
+to paint, not when there is.
+
+**An empty search result is not an article.** The scrape records a company it searched and found
+nothing for as a single all-null row — 62 of them in the shipped capture — and rendering those put
+62 "(untitled)" articles on screen that no upstream ever published. The company is still *covered*,
+which is a different fact and one the coverage note still counts: **searched-and-empty, never-asked,
+and could-not-be-read are three different answers** and none of them is an article. `keepRow` on the
+shared renderer is where a tab says what a row of its own has to carry.
 
 **A company that could not be read is not a company with nothing.** Failures are kept per ticker,
 counted in the pill, and written into the snapshot under `failed`. Rendering them as zero rows would
@@ -2067,7 +2085,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
-| Change which companies News searches | the picker in `js/tabs/filings-tab.js` (`requireSelection`, `MAX_PICK`) — News asks before it searches, deliberately. That is the **Portfolio** half only |
+| Change which companies News searches | `tickersFor()` in `js/tabs/filings-tab.js` — the scope decides, and the committed snapshot is what paints. The picker is gone: read *And the third feed did not get this treatment* first |
 | Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
@@ -2232,8 +2250,12 @@ It covers, beyond the checklist below:
 - **a landing costs no per-company request**: with a committed snapshot present, mounting a filings
   tab sends **zero** `/api/` requests, registers itself with the Refresh button instead, says how
   current the data is and how many companies have not been checked — and never claims nothing is new
+- **all three filings tabs paint themselves from the snapshot and send nothing per company doing
+  it** — News included, which used to open on a picker and is now the same deal as the other two;
+  its scope pill compares companies with companies rather than articles with companies, and a
+  company the scrape searched and found nothing for is **not** rendered as an untitled article
 - **the three filings tabs ask the right questions and keep painting the answers**: every news
-  request carries exactly one query string, a readable date range and a `q` that is a book company's
+  request carries exactly one query string, a readable date range and a `q` that is a company's
   **name** with no part of the URL folded into it; all three walks send one request per company
   rather than counting a queue down without asking anything; a repaint still reaches the screen
   **after a scope toggle**, which is the re-render that used to kill the subscription silently; and

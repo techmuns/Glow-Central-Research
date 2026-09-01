@@ -2512,12 +2512,20 @@ stops for the day, which is why it is not a step in the 07:00 data refresh.
 
 These two are still per-ticker, capped at ~60 requests a minute.
 
-**News additionally asks before it searches.** It is a *search* endpoint — there is no "everything
-published today" request to make — so there is no axis to switch to the way announcements had one.
-The reader names the companies (up to `MAX_PICK`, 20) and each is searched in full, rather than forty
-being chosen for them and the rest reported as unread. The selection rides in `?co=` so a search is
-shareable and survives a reload, and **the picker stays on screen through the failure states**, since
-a control that selects the thing that failed must outlive the failure.
+**News is a search endpoint** — there is no "everything published today" request to make — so there
+is no axis to switch to the way announcements had one. It used to make the reader name companies
+before it would show anything, on the reasoning that a live walk of the universe is 603 searches
+against a sixty-a-minute cap.
+
+That is still true of the *walk*, and irrelevant to what a scoped view paints: `scrape-filings.mjs`
+walks **the book first** and commits the result, so those rows are in `news.json` and cost one
+conditional GET. Measured on the shipped capture — 123 book tickers, 1,217 articles, no failures. So
+News loads like the other two feeds and the walk stays behind Refresh.
+
+**An all-null row is not an article.** A company the scrape searched and found nothing for is
+recorded as one row with every field null (62 of them in the shipped capture). It is a statement
+about the search, so it is dropped from the row set by `keepRow` while the company still counts as
+covered — searched-and-empty, never-asked and could-not-be-read are three different answers.
 
 ```
 public/data/news.json · insider-trades.json

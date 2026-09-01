@@ -3709,92 +3709,88 @@ console.log('\n— news, announcements and insider trades —');
   // empty set, concluded every held company was uncovered, and picked three that were in the file.
   // The check then measured zero requests and blamed the code. Ask the artefact, not the module
   // that has not read it yet.
+  // NEWS LOADS ITSELF NOW. It used to open on a company picker and send nothing until the reader
+  // named companies. The budget argument behind that is still true of the WALK and was never true
+  // of the paint: the scrape walks the book first and commits the result, so a scoped view's rows
+  // are in the snapshot and cost one conditional GET. What has to stay true — and is the first
+  // assertion below — is that a landing sends no per-company request.
   const book = await evalSafe(async () => {
     const cov = await import('/js/data/coverage.js');
     const uniMod = await import('/js/data/universe.js');
     const snap = await fetch('data/news.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({}));
     const covered = new Set(Object.keys(snap.byTicker || {}).map((t) => t.toUpperCase()));
     const held = cov.holdings().filter((h) => h.ticker);
-    // THE BOOK IS NOT ENOUGH TO EXERCISE THIS. Every one of the book's 123 companies is in the news
-    // snapshot, so a selection drawn from it can only ever measure the zero-request path — which is
-    // real, and is asserted separately below, but leaves the walk untested. The picker offers the
-    // whole coverage universe, so draw the walk's test subjects from there.
+    // THE BOOK CANNOT EXERCISE THE WALK. Every one of its 123 companies is already in the snapshot,
+    // which is the zero-request path asserted just below. To make the walk send anything, the
+    // watchlist is loaded with companies the capture has never seen — that is also the real case a
+    // reader hits, since a watchlist can hold anything.
     const uni = uniMod.adaptUniverse(await fetch('data/universe.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => []));
-    const pool = [...held.map((h) => ({ ticker: h.ticker, name: h.name })), ...uni.map((u) => ({ ticker: u.ticker, name: u.name }))];
     const seenT = new Set();
-    const fresh = pool.filter((c) => {
-      const t = String(c.ticker || '').toUpperCase();
-      if (!t || seenT.has(t) || covered.has(t)) return false;
-      seenT.add(t);
-      return true;
-    });
-    const anyCovered = held.find((h) => covered.has(String(h.ticker).toUpperCase()));
-    return {
-      fresh: fresh.slice(0, 3),
-      coveredCount: covered.size,
-      heldCount: held.length,
-      poolCount: pool.length,
-      anyCovered: anyCovered ? anyCovered.ticker : null,
-    };
+    const fresh = uni
+      .map((u) => ({ ticker: String(u.ticker || '').toUpperCase(), name: u.name }))
+      .filter((c) => {
+        if (!c.ticker || !c.name || seenT.has(c.ticker) || covered.has(c.ticker)) return false;
+        seenT.add(c.ticker);
+        return true;
+      });
+    return { fresh: fresh.slice(0, 3), coveredCount: covered.size, heldCount: held.length };
   });
   const bookNames = (book?.fresh || []).map((b) => b.name);
 
+  // ---- the landing: rows, and not one request ---------------------------------------------
   seen.news.length = 0;
-  await go('/#/research/news?scope=portfolio', 3500);
-  ok('news sends no request until companies are chosen', seen.news.length === 0, `${seen.news.length} request(s) before any selection`);
-  ok('...and says so rather than rendering an empty table',
-    await page.locator('text=Choose the companies to search').count() > 0,
-    'empty state shown');
-  ok('...with the picker on screen to act on', await page.locator('[data-picker]').count() > 0);
+  await go('/#/research/news?scope=portfolio', 4500);
+  await settleTables();
+  ok('news paints on its own, with no company to pick first',
+    (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 && (await page.locator('[data-picker]').count()) === 0,
+    `${await page.locator('#content-host tbody tr[data-row-key]').count()} rows, ${await page.locator('[data-picker]').count()} picker(s)`);
+  ok('...and sends NO per-company request to do it', seen.news.length === 0, `${seen.news.length} request(s) on load`);
+  // AN ALL-NULL ROW IS NOT AN ARTICLE. The scrape records a company it searched and found nothing
+  // for as one row with every field null; rendering those put 62 "(untitled)" rows on screen.
+  ok('...and a searched-but-empty company is not rendered as an untitled article',
+    !(await page.locator('#content-host tbody tr[data-row-key]').allInnerTexts()).some((t) => /\(untitled\)/.test(t)));
+  // The pill's denominator is the book's COMPANIES, so its numerator has to be companies too —
+  // "1,279 of 142 articles" is two different units either side of an "of".
+  const newsPill = (await hostText()).match(/Portfolio · [\d,]+ of [\d,]+ [^\n]*/)?.[0] || '';
+  ok('...and the scope pill compares companies with companies', /companies/.test(newsPill), newsPill);
 
-  seen.news.length = 0;
+  // ---- the walk: still one request per company, and only when asked ------------------------
   const picked = (book?.fresh || []).map((b) => b.ticker);
-  await go(`/#/research/news?scope=portfolio&co=${picked.join(',')}`, 4000);
-  const newsUrls = seen.news.map((u) => new URL(u));
-  // EXACTLY one each. A gate that leaks one extra request per render is the failure mode here, and
-  // it would be invisible against the old "more than one" assertion.
   if (!picked.length) {
-    skip('...then exactly one request per company named', `every held company is already in the committed snapshot (${book?.coveredCount} of ${book?.heldCount})`);
+    skip('a Refresh walks the companies the capture has not covered', 'every company in coverage is already in the snapshot');
   } else {
-    ok('...then exactly one request per company named', newsUrls.length === picked.length, `${newsUrls.length} request(s) for ${picked.length} companies`);
-  }
-  ok('...and no company was asked about twice', new Set(newsUrls.map((u) => u.href)).size === newsUrls.length, `${new Set(newsUrls.map((u) => u.href)).size} distinct`);
-  // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
-  ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
-  ok('...carrying a date range the Worker can read',
-    newsUrls.every((u) => /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('from') || '') && /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('to') || '')),
-    newsUrls[0] ? `from=${newsUrls[0].searchParams.get('from')} to=${newsUrls[0].searchParams.get('to')}` : '');
-  const queries = newsUrls.map((u) => u.searchParams.get('q') || '');
-  // Not "no punctuation" — a real book line is `J&K Bank Limited`, and an ampersand that survives
-  // `encodeURIComponent` and comes back out of `searchParams` is the layer working. What must never
-  // appear inside the search term is a fragment of the URL that was supposed to sit beside it.
-  const folded = queries.find((q) => !q || /\b(from|to)=\d{4}-\d{2}-\d{2}/.test(q));
-  ok('...and a query with no part of the URL folded into it', !folded, folded ? `q=${folded}` : `${queries.length} clean, e.g. ${queries[0]}`);
-  // Searching the SYMBOL finds quote pages; searching the NAME finds the company. Measured on one
-  // book line: 3 results against 20, and the three were mostly price widgets.
-  const named = queries.filter((q) => bookNames.includes(q)).length;
-  if (!queries.length) skip('news searches the company name, not the ticker symbol', 'no request was sent — the snapshot already covered every company picked');
-  else ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a book name`);
-  // The selection is the state, so it has to survive the round trip that makes it shareable.
-  // The other half of the same fact: a company the file already covers is painted, not re-fetched.
-  const covered = book?.anyCovered || null;
-  if (!covered) skip('...and a company the snapshot already covers costs no request at all', 'no held company is in the snapshot');
-  else {
+    await page.evaluate((cs) => localStorage.setItem('sattva:watchlist', JSON.stringify(cs.map((c) => ({ ticker: c.ticker, name: c.name, addedAt: new Date().toISOString() })))), book.fresh);
     seen.news.length = 0;
-    await go(`/#/research/news?scope=portfolio&co=${covered}`, 3500);
-    ok('...and a company the snapshot already covers costs no request at all', seen.news.length === 0, `${covered}: ${seen.news.length} request(s)`);
-    await go(`/#/research/news?scope=portfolio&co=${picked.join(',') || covered}`, 3500);
-  }
+    await go('/#/research/news?scope=watchlist', 4000);
+    ok('a watchlist of uncaptured companies still sends nothing on load', seen.news.length === 0, `${seen.news.length} request(s)`);
+    ok('...and says how many have not been checked rather than claiming there is no news',
+      /ha(s|ve) not been checked/.test(await hostText()));
 
-  // `> 0` as well as the equality: with an empty selection this check would otherwise be satisfied
-  // by 0 === 0, which is a pass over nothing rather than a restored selection.
-  const restored = await (async () => {
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
-    return page.locator('[data-pick-remove]').count();
-  })();
-  if (!picked.length) skip('...and the selection survives a reload', 'nothing was selected to restore');
-  else ok('...and the selection survives a reload', restored === picked.length && restored > 0, `${restored} of ${picked.length} chip(s) restored from the URL`);
+    seen.news.length = 0;
+    await page.locator('[data-filings-refresh]').first().click();
+    await page.waitForTimeout(6000);
+    const newsUrls = seen.news.map((u) => new URL(u));
+    // EXACTLY one each. A walk that leaks an extra request per render is the failure mode here.
+    ok('...then Refresh sends exactly one request per uncovered company', newsUrls.length === picked.length,
+      `${newsUrls.length} request(s) for ${picked.length} companies`);
+    ok('...and no company was asked about twice', new Set(newsUrls.map((u) => u.href)).size === newsUrls.length, `${new Set(newsUrls.map((u) => u.href)).size} distinct`);
+    // The whole bug in one assertion: a URL with two `?` parses, fetches, and returns 200 nonsense.
+    ok('...each with exactly one query string', newsUrls.every((u) => (u.href.match(/\?/g) || []).length === 1), newsUrls[0]?.href.slice(-90) || '');
+    ok('...carrying a date range the Worker can read',
+      newsUrls.every((u) => /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('from') || '') && /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get('to') || '')),
+      newsUrls[0] ? `from=${newsUrls[0].searchParams.get('from')} to=${newsUrls[0].searchParams.get('to')}` : '');
+    const queries = newsUrls.map((u) => u.searchParams.get('q') || '');
+    // Not "no punctuation" — a real book line is `J&K Bank Limited`, and an ampersand that survives
+    // `encodeURIComponent` and comes back out of `searchParams` is the layer working. What must
+    // never appear inside the search term is a fragment of the URL meant to sit beside it.
+    const folded = queries.find((q) => !q || /\b(from|to)=\d{4}-\d{2}-\d{2}/.test(q));
+    ok('...and a query with no part of the URL folded into it', !folded, folded ? `q=${folded}` : `${queries.length} clean, e.g. ${queries[0]}`);
+    // Searching the SYMBOL finds quote pages; searching the NAME finds the company. Measured on one
+    // book line: 3 results against 20, and the three were mostly price widgets.
+    const named = queries.filter((q) => bookNames.includes(q)).length;
+    ok('news searches the company name, not the ticker symbol', named > 0 && named === queries.length, `${named}/${queries.length} matched a coverage name`);
+    await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+  }
 
   // ---------------------------------------------------------------------------------------
   // ANNOUNCEMENTS ASK THE EXCHANGE, NOT THE COMPANIES.
@@ -3844,10 +3840,13 @@ console.log('\n— news, announcements and insider trades —');
   const mkt = await evalSafe(async () => (await import('/js/data/market-news.js')).meta());
   ok('Universe news reads the market-wide capture, not the per-company API', seen.news.length === 0 && (mkt?.count || 0) > 0,
     `${seen.news.length} /api/news request(s), ${mkt?.count} stories`);
-  ok('...and the per-company picker is not on screen', (await page.locator('[data-picker]').count()) === 0);
-  ok('...while Portfolio scope still gets the picker and no market table', await (async () => {
-    await go('/#/research/news?scope=portfolio', 3000);
-    return (await page.locator('[data-picker]').count()) === 1 && (await page.locator('[data-mcnews-fetch]').count()) === 0;
+  ok('...and it is the editorial card list, not the per-company table', (await page.locator('#content-host tbody tr[data-row-key]').count()) === 0);
+  // THE TWO HALVES MUST NOT BLEED. Universe is the market-wide capture; a narrowed scope is the
+  // per-company table. Each renders the other's chrome nowhere.
+  ok('...while a narrowed scope gets the per-company table and no market fetch control', await (async () => {
+    await go('/#/research/news?scope=portfolio', 4000);
+    await settleTables();
+    return (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 && (await page.locator('[data-mcnews-fetch]').count()) === 0;
   })());
   await go('/#/research/news?scope=universe', 3500);
 

@@ -1,5 +1,22 @@
 // tabs/news.js — recent news for the companies in scope.
 //
+// IT LOADS ON ITS OWN, AND IT DID NOT USED TO. This tab once opened on a company picker: the news
+// upstream is a per-company SEARCH with no date index to flip to (announcements had one and moved
+// to it), so a live walk of the universe is 603 requests against a sixty-a-minute cap, and asking
+// the reader to name companies was the honest way to spend a budget that could not cover everyone.
+//
+// What changed is not the budget but where the rows come from. `scripts/scrape-filings.mjs` already
+// walks THE BOOK FIRST on a schedule and commits the result, so the rows a scoped view needs are in
+// `public/data/news.json` and cost one conditional GET — the same deal Corp Announcements and
+// Insider Trades get. Measured on the shipped capture: all 123 book tickers covered, 1,217 articles,
+// no failures. Making the reader pick first was spending their attention to avoid a cost that had
+// already been paid.
+//
+// The on-demand rule is intact, which is the part worth checking if you touch this: NOTHING WALKS
+// ON A PAGE LOAD. The snapshot paints, the strip says how many companies the capture has not
+// checked since, and the header's Refresh button is still the only thing that sends a request per
+// company.
+//
 // The articles are somebody else's and stay that way: the headline, the outlet and the date are
 // reproduced, the article is linked, and nothing is summarised into our own words. See the header
 // of tabs/filings-tab.js for the machinery all three of these tabs share.
@@ -21,13 +38,15 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 const tab = makeFilingsTab({
   id: 'news',
   title: 'News',
-  subtitle: 'Portfolio scope searches company by company — choose one or more and each is searched in full. Switch to Universe for everything Moneycontrol publish, market-wide.',
+  subtitle:
+    'The latest stories for every company in scope, from the scheduled capture — no company to pick first. ' +
+    'Refresh re-searches whatever the capture has not covered. Switch to Universe for everything Moneycontrol publish, market-wide.',
   feed,
-  // THE READER NAMES THE COMPANIES. See the header of filings-tab.js: the news upstream is a
-  // per-company search with no date index to flip to, so the request budget goes where it was
-  // asked to go rather than to forty companies chosen for the reader.
-  requireSelection: true,
   noun: 'articles',
+  // The scrape records a company it searched and found nothing for as a single all-null row. That
+  // is a statement about the SEARCH, not an article, and it must not become a row: the company is
+  // still counted as covered by the note under the table.
+  keepRow: (r) => !!(r.title || r.url),
   nameLabel: 'Headline',
   // WIDE, BECAUSE THE HEADLINE IS THE ROW. At 520px two genuinely different stories truncated to
   // the same string — "Buy Prestige Estates Projects; target of Rs 1…" was Prabhudas Lilladher at

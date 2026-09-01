@@ -344,17 +344,40 @@ export function createFeed(kind) {
    *
    * `items` may be tickers or `{ ticker, name }`. The name is what the news search uses.
    */
+  /**
+   * WHICH COMPANIES ARE IN SCOPE RIGHT NOW — and it is NOT a one-time fact.
+   *
+   * `wanted` decides two things: what `outstanding()` reports as unchecked, and what `refresh()`
+   * walks. Both are properties of the view on screen, and the view changes with the scope toggle
+   * while the feed is loaded exactly once.
+   *
+   * It used to be set only inside `load()`, which memoises — so the first scope to mount won the
+   * list for the life of the page. Measured after News lost its picker: mounting under Portfolio
+   * and then switching to Watchlist left `wanted` holding the book, so the strip reported nothing
+   * outstanding for the watched companies and Refresh walked **40 book companies instead of the 3
+   * watched ones**. Nothing threw; the button simply asked about somebody else's list.
+   *
+   * So recording the scope is separate from loading the data, and the tab does it on every render.
+   */
+  function setWanted(items = []) {
+    const wanted = [];
+    for (const item of items) {
+      const t = String(item?.ticker ?? item ?? '').toUpperCase();
+      if (!t || wanted.includes(t)) continue;
+      wanted.push(t);
+      // Names accumulate across scopes rather than being replaced: the news search needs a name for
+      // any company it may walk, and a company can leave the current scope while its name stays
+      // true. The list is per-scope; the lookup is not.
+      if (item?.name) state.names.set(t, String(item.name));
+    }
+    state.wanted = wanted;
+    return wanted;
+  }
+
   function load(items = [], { walkWanted = false } = {}) {
     if (loading) return loading;
     loading = (async () => {
-      const wanted = [];
-      for (const item of items) {
-        const t = String(item?.ticker ?? item ?? '').toUpperCase();
-        if (!t || wanted.includes(t)) continue;
-        wanted.push(t);
-        if (item?.name) state.names.set(t, String(item.name));
-      }
-      state.wanted = wanted;
+      const wanted = setWanted(items);
 
       // The committed snapshot and this device, with no per-company request at all. A seed already
       // in flight is awaited rather than raced: both read the same file, and letting them overlap
@@ -603,6 +626,7 @@ export function createFeed(kind) {
 
   return {
     seed,
+    setWanted,
     load,
     loadOne,
     refresh,
