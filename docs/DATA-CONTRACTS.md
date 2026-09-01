@@ -3141,7 +3141,8 @@ The score begins with the strongest event and then adds smaller company-level co
 - event importance, source materiality, recency and explicit Positive / Negative direction;
 - membership in `coverage.js`'s real Portfolio list (not the illustrative Analytics ledger);
 - independent feed corroboration, repeated high-importance events and directional conflict;
-- a small negative-sector-cluster adjustment among real portfolio companies;
+- a small negative-sector-cluster adjustment where multiple real portfolio companies carry
+  high-importance negative evidence (routine small activity cannot create the cluster);
 - a penalty where the source is stale, failed, incomplete or unread.
 
 Every contribution is returned as `{ label, points }` in `scoreBreakdown` and rendered on the card.

@@ -1720,7 +1720,8 @@ contract does not cover: a tab the shell decided not to mount.
 seven Indian dates by ticker. It adds no source and generates no fact. The ranking is deliberately
 deterministic: importance, source materiality, recency, explicit direction, real Portfolio
 membership, independent-feed corroboration, repeated material events, directional conflict and a
-small negative-sector cluster adjustment. Stale, incomplete and unread feeds lose points. Every
+small sector-cluster adjustment that requires high-importance negative evidence. Stale, incomplete
+and unread feeds lose points. Every
 contribution is rendered from `scoreBreakdown`, so the order can be audited rather than trusted as
 an opaque AI opinion.
 

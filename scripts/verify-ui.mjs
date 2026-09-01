@@ -1186,6 +1186,15 @@ console.log('\n— AI alerts —');
       event({ id: 'n1', headline: 'Same story' }), event({ id: 'n2', headline: 'Same story' }),
       event({ id: 'wide', ticker: null, company: 'Market', headline: 'Market-wide story' }),
     ], [feed('news')]);
+    const weakSector = rank([
+      event({ id: 'weak1', feed: 'insider', ticker: 'GOLD', headline: 'Small disposal', direction: 'negative' }),
+      event({ id: 'weak2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Another small disposal', direction: 'negative' }),
+    ], [feed('insider')]);
+    const materialSector = rank([
+      event({ id: 'risk1', feed: 'insider', ticker: 'GOLD', headline: 'Material disposal', direction: 'negative', importance: 'high' }),
+      event({ id: 'risk2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Material pledge', direction: 'negative', importance: 'high' }),
+    ], [feed('insider')]);
+    const { safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
     return {
       min: ai.MIN_SCORE,
       mustSee: ai.MUST_SEE_SCORE,
@@ -1198,6 +1207,9 @@ console.log('\n— AI alerts —');
       duplicateEvents: duplicate.allCards[0]?.events.length,
       marketWideExcluded: duplicate.meta.marketWideExcluded,
       arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
+      weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      materialSectorBoosted: materialSector.allCards.every((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      sourceUrlsSafe: safeSourceUrl('javascript:alert(1)') === null && /^https:/.test(safeSourceUrl('https://example.com/filing')),
     };
   });
   ok('single-source neutral news is suppressed below the published threshold',
@@ -1211,6 +1223,9 @@ console.log('\n— AI alerts —');
     policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
     `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
   ok('the visible score breakdown adds exactly to the visible score', policy.arithmetic);
+  ok('sector context requires material negative evidence rather than tiny negative activity',
+    !policy.weakSectorBoosted && policy.materialSectorBoosted);
+  ok('AI card source links reject executable URL schemes', policy.sourceUrlsSafe);
 
   const firstTicker = renderedCards[0].ticker;
   await aiCards.first().locator('[data-open-general]').click();

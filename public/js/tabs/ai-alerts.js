@@ -191,6 +191,7 @@ function cardMarkup(card) {
   const positiveParts = card.scoreBreakdown.filter((part) => part.points > 0);
   const negativeParts = card.scoreBreakdown.filter((part) => part.points < 0);
   const events = card.events.slice(0, 3);
+  const topSourceUrl = safeSourceUrl(card.topEvent?.url);
   return `
     <article data-ai-card data-ticker="${escapeHtml(card.ticker)}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"
       class="overflow-hidden rounded-2xl border-l-4 ${tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
@@ -235,7 +236,7 @@ function cardMarkup(card) {
       <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
         <span class="text-xs text-slate-500">${escapeHtml(formatNumber(card.feedCount))} ${card.feedCount === 1 ? 'feed' : 'feeds'} · ${escapeHtml(formatNumber(card.events.length))} recent ${card.events.length === 1 ? 'event' : 'events'}${card.mixed ? ' · conflicting direction' : ''}</span>
         <div class="flex flex-wrap items-center gap-3">
-          ${card.topEvent?.url ? `<a href="${escapeHtml(card.topEvent.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-slate-600 hover:text-indigo-700">Open top source ↗</a>` : ''}
+          ${topSourceUrl ? `<a href="${escapeHtml(topSourceUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-slate-600 hover:text-indigo-700">Open top source ↗</a>` : ''}
           <button type="button" data-open-general data-ticker="${escapeHtml(card.ticker)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">See all for ${escapeHtml(card.ticker)} in General Alerts →</button>
         </div>
       </footer>
@@ -266,6 +267,17 @@ function scorePart(part, negative) {
     <span class="leading-relaxed ${negative ? 'text-amber-700' : 'text-slate-600'}">${escapeHtml(part.label)}</span>
     <span class="shrink-0 font-bold tabular-nums ${negative ? 'text-amber-700' : 'text-indigo-700'}">${part.points > 0 ? '+' : ''}${escapeHtml(formatNumber(part.points))}</span>
   </div>`;
+}
+
+/** Source URLs originate upstream. Render only ordinary web links, never an executable scheme. */
+export function safeSourceUrl(value) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(String(value), location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function filteredCards(cards) {

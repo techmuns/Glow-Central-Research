@@ -255,7 +255,7 @@ all.
 **AI Alerts is the default, prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
 days of company-specific General Alerts by ticker. It ranks materiality, recency, direction, real
 Portfolio membership, independent-feed corroboration, repeated high-importance events,
-directional conflict and negative clusters inside a portfolio sector. A stale, failed or unread
+directional conflict and high-importance negative clusters inside a portfolio sector. A stale, failed or unread
 feed subtracts points. Cards are sorted by score, show the exact point breakdown and the strongest
 three source events, and link to General Alerts pre-filtered for that company.
 

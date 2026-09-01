@@ -154,6 +154,7 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
     const feeds = [...new Set(events.map((event) => event.feed))];
     const feedLabels = [...new Set(events.map((event) => event.feedLabel || event.feed))];
     const highCount = events.filter((event) => event.importance === 'high').length;
+    const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
     const holding = holdingByTicker.get(ticker) || null;
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
@@ -179,6 +180,7 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
       directions,
       mixed,
       highCount,
+      hasMaterialNegative,
       feedCount: feeds.length,
       feeds,
       feedLabels,
@@ -192,12 +194,12 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
   // isolated company event. The boost is intentionally small: it changes ordering, not truth.
   const negativeBySector = new Map();
   for (const card of cards) {
-    if (!card.holding || !card.sector || card.directions.negative === 0) continue;
+    if (!card.holding || !card.sector || !card.hasMaterialNegative) continue;
     negativeBySector.set(card.sector, (negativeBySector.get(card.sector) || 0) + 1);
   }
   cards = cards.map((card) => {
     const peers = card.sector ? negativeBySector.get(card.sector) || 0 : 0;
-    if (card.directions.negative > 0 && peers > 1) {
+    if (card.hasMaterialNegative && peers > 1) {
       card.scoreBreakdown.push({ label: `${peers} portfolio companies in ${card.sector} have negative signals`, points: 3 });
       card.sectorCluster = peers;
       card.score += 3;
