@@ -1754,6 +1754,28 @@ It is computed differently depending on what the feed IS, and the distinction ma
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
 
+**A COLUMN OF EM DASHES IS FURNITURE, AND WHETHER TO DRAW IT IS A QUESTION ABOUT THE ROWS.** Only
+two of the five feeds carry a clock — announcements, and the market-wide capture — so under a
+narrowed scope on a day nothing was filed, every cell in the Time column is a dash. It is dropped
+when **no row on screen has a time**, and that is deliberately not "dropped under Portfolio and
+Watchlist": all 1,199 announcements in the shipped capture carry a real time, so hiding it by scope
+would blank a genuine timestamp the day a book company files. Ask what is on screen, not what scope
+is selected.
+
+**AND THE STREAM'S HEIGHT IS MEASURED AT RUNTIME, NOT WRITTEN INTO A `calc()`.** `calc(100vh -
+558px)` encodes the height of everything above the table, and that is not a constant: the chip row
+wraps with the window, there are four feeds under a narrowed scope and five under Universe, and the
+reader's zoom moves it too. Measured against one window it was exact; on a wider one the table
+stopped ~110px short. `fitStreamToViewport()` reads `[data-table-scroll]`'s own top after the paint
+and re-applies on resize, with the listener in `unsubs` so it dies with the tab.
+
+**Do NOT correct it against `document.scrollHeight`.** There is a permanent 16px page overflow in a
+sandbox with no Tailwind — `body` keeps the browser's default 8px margin because preflight never
+loads, over a `min-height: 100vh` — and shrinking the table by it changes the document height not at
+all, because the floor is the min-height rather than the content. Compensating bakes a sandbox
+artefact into the layout and costs every real reader 16px. Measure what the element needs; do not
+chase the page.
+
 **THE CHIPS ARE ALSO THE FILTER, and `All` is `null` rather than "every box ticked".** Ticking
 narrows the stream to the ticked feeds; the two states look identical on screen and diverge the
 moment a feed appears or disappears, which is the same distinction `scopeTickers()` draws between

@@ -1351,10 +1351,43 @@ console.log('\n— daily alerts —');
     return { bottom: Math.round(r.bottom), vh: window.innerHeight, height: Math.round(r.height) };
   });
   // Both directions: dead page below is what was reported, and a table hanging past the fold makes
-  // the page scroll as well as the table, which is worse than the gap it was meant to close.
+  // the page scroll as well as the table, which is worse than the gap it was meant to close. The
+  // height is MEASURED at runtime rather than written into a `calc()`, because the head above it
+  // is not a fixed size — the chip row wraps with the window, and there are four feeds under a
+  // narrowed scope against five under Universe. A constant was exact on one window and left the
+  // table ~110px short on a wider one.
   ok('the stream fills the viewport rather than leaving dead page below it',
-    fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom < 120,
+    fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom <= 48,
     fill ? `table ends ${fill.vh - fill.bottom}px above the fold, ${fill.height}px tall` : 'no scroll container');
+  // ...and it still fits after the window changes, which is the case a fixed calc() cannot serve.
+  await page.setViewportSize({ width: 1680, height: 940 });
+  await page.waitForTimeout(500);
+  const refit = await evalSafe(() => {
+    const el = document.querySelector('[data-table-scroll]');
+    const r = el.getBoundingClientRect();
+    return { gap: Math.round(window.innerHeight - r.bottom), h: Math.round(r.height) };
+  });
+  ok('...and re-fits when the window is resized', refit && refit.gap >= 0 && refit.gap <= 48, `${refit?.gap}px above the fold at 1680x940`);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.waitForTimeout(400);
+
+  // THE TIME COLUMN IS DRIVEN BY THE ROWS, NOT BY THE SCOPE. Only announcements and the market-wide
+  // capture carry a clock, so under a narrowed scope on a day nothing was filed every cell is an em
+  // dash and the column is furniture. Hiding it by SCOPE would have been wrong: all 1,199
+  // announcements in the shipped capture carry a real time, so a book company filing would have had
+  // its timestamp blanked. Asserted as the invariant rather than as "portfolio has no Time column".
+  for (const sc of ['portfolio', 'universe']) {
+    await go(`/#/research/daily-alerts?scope=${sc}`, 4800);
+    await settleTables();
+    const t = await evalSafe(() => ({
+      hasCol: [...document.querySelectorAll('#content-host thead th')].some((h) => h.innerText.trim() === 'Time'),
+      anyTime: [...document.querySelectorAll('#content-host tbody tr[data-row-key] td:first-child')].some((td) => /\d{1,2}:\d{2}/.test(td.innerText)),
+    }));
+    ok(`the Time column appears exactly when a row in scope has one (${sc})`, t.hasCol === t.anyTime,
+      `column=${t.hasCol} rows-with-a-time=${t.anyTime}`);
+  }
+  await go('/#/research/daily-alerts?scope=portfolio', 4500);
+  await settleTables();
 
   // THE NEWS TIME, ASSERTED AT THE RULE. Daily Alerts read it off `raw.page_age`, and `raw` is
   // stripped before the snapshot is written — so it was present on a live walk and absent on every
