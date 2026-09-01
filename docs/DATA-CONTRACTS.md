@@ -2124,6 +2124,11 @@ reaches the browser, exactly as the Finology feed does on the same host.
 | `GET /api/insider-trades/{ticker}?from=&to=` | `POST devde.muns.io/filings/data/insider_trades` | 900s | 365 days |
 | `GET /api/stock-search?q=` | `POST birdnest.muns.io/stock/search` | 300s | Query body fixes `user_index` at `124` |
 
+On Insider Trades, the toolbar count is a count of **trade-disclosure rows**, not companies: one
+company can contribute many rows. It therefore reads *"1,295 of 1,295 trades shown"*. Company
+coverage is reported separately in the scope/provenance text, so a Portfolio view never implies
+that the portfolio contains 1,295 companies.
+
 **Modules** — `worker/muns.mjs` (clients) · `public/js/data/filings-shared.js` (pure parsers, shared
 with the Worker) · `public/js/data/filings.js` (browser feed) · `public/js/tabs/filings-tab.js` (the
 one renderer) · `scripts/scrape-filings.mjs` (the scheduled walk).
