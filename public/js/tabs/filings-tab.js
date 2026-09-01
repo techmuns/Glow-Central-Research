@@ -192,6 +192,25 @@ export function makeFilingsTab(cfg) {
     const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
     const rows = wantedTickers ? all.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : all;
 
+    // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
+    // with articles" cannot tell whether the other 81 were searched and had nothing or were never
+    // searched at all — and those are opposite claims: one is the feed working, the other is the
+    // feed incomplete. Measured on the shipped captures: news asked all 123 listed book companies
+    // and 62 genuinely had none, while insider looked short only because a company answering "no
+    // trades" was written nowhere. So the strip states the breakdown rather than leaving a
+    // subtraction on screen for the reader to misread.
+    const scoped = tickersFor(ctx);
+    const cov = {
+      inScope: scoped.length,
+      withRows: new Set(rows.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
+      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.ticker)).length,
+      failed: scoped.filter((c) => cfg.feed.failureFor(c.ticker)).length,
+      unlisted: ctx.scope === 'portfolio' ? coverage.meta().uncovered || 0 : 0,
+      noun: cfg.noun,
+      windowDays: m.windowDays,
+      coversUniverse: m.coversUniverse,
+    };
+
     // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
     // real answer and renders as an empty table with its own message.
     if (!rows.length && m.reason) {
@@ -293,7 +312,7 @@ export function makeFilingsTab(cfg) {
         // the description happen to be, and both change as companies are added. A control that
         // moves when you use it reads as a different page.
       })}
-      ${freshnessStrip(m, refreshLabel)}
+      ${freshnessStrip(m, refreshLabel, cov)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
@@ -402,7 +421,63 @@ function pill(m) {
  * and it was also the problem: it described work nobody had asked for, and when the upstream was
  * down it counted forty companies down for a quarter of an hour over an empty table.
  */
-function freshnessStrip(m, label = 'Check for new') {
+/**
+ * How many companies in scope were actually asked, and what they answered.
+ *
+ * THE FAILURE THIS CLOSES is a reader counting the gap themselves and reading it as a fetch that
+ * did not happen. "Portfolio · 61 of 142 companies with articles" is true and says nothing about
+ * whether the other 81 were searched — and on the shipped captures they were: 123 of the book's
+ * 142 lines carry an NSE symbol, all 123 were searched, and 62 genuinely had no news in the
+ * window. The other 19 hold no symbol at all, so no feed here can ever reach them.
+ *
+ * Every clause is dropped when its number is zero rather than printed as a nil — a sentence built
+ * around a number reads as broken prose the moment the number is not there, and a nil reads as a
+ * measurement. A date-indexed capture says something different and says it in its own words: it
+ * asked the exchange, not the companies, so "asked" is the wrong verb for it entirely.
+ */
+function coverageSentence(m, cov) {
+  if (!cov || !cov.inScope) return '';
+  const n = (x) => escapeHtml(formatNumber(x));
+  const co = (x, one, many) => `${x === 1 ? one : many}`;
+
+  if (cov.coversUniverse) {
+    // Nothing was asked company by company here, so there is no company that went unasked. What
+    // the reader is owed instead is that an absence in this feed is a real answer.
+    return ` The capture reads the whole exchange by date, so a company with nothing here filed
+      nothing in the last ${n(m.windowDays)} days — ${n(cov.withRows)} of ${n(cov.inScope)}
+      ${co(cov.inScope, 'company', 'companies')} in scope filed something.`;
+  }
+
+  const parts = [];
+  const asked = cov.withRows + cov.askedEmpty;
+  if (asked) {
+    parts.push(`<strong>${n(asked)}</strong> of ${n(cov.inScope)} ${co(cov.inScope, 'company', 'companies')} in scope
+      ${co(asked, 'was', 'were')} searched`);
+  }
+  if (cov.askedEmpty) {
+    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} in the last ${n(m.windowDays)} days`);
+  }
+  // TRIED AND FAILED IS NOT NEVER REACHED, and saying both about the same company says nothing
+  // twice. The strip used to print "3 companies have not been checked since" and then "3 could not
+  // be read" in the next breath — one backlog, two names for it, and the reader left to work out
+  // whether that was three companies or six.
+  if (cov.failed) parts.push(`${n(cov.failed)} could not be read and will be retried`);
+  const unreached = Math.max(0, (m.outstanding || 0) - cov.failed);
+  if (unreached) {
+    parts.push(`${n(unreached)} ${co(unreached, 'has', 'have')} not been asked about since — these routes
+      answer one company at a time and have no index, so that can only be found out by asking`);
+  }
+  if (!parts.length) return '';
+
+  // The book's permanent gap, and only under Portfolio — a watchlist entry came from a feed, so
+  // its gap is never "this line has no symbol".
+  const unlisted = cov.unlisted
+    ? ` A further ${n(cov.unlisted)} book ${co(cov.unlisted, 'line carries', 'lines carry')} no NSE symbol, so no feed here can show ${co(cov.unlisted, 'it', 'them')}.`
+    : '';
+  return ` ${parts.join(', ')}.${unlisted}`;
+}
+
+function freshnessStrip(m, label = 'Check for new', cov = null) {
   const busy = !!(m.pending || m.inFlight);
 
   // THE BUTTON IS IN BOTH BRANCHES. It used to be in neither while a walk ran, so the control the
@@ -435,16 +510,23 @@ function freshnessStrip(m, label = 'Check for new') {
   const when = [refreshed, captured].filter(Boolean).join(' · ');
   if (!when && !m.outstanding) return '';
 
+  // THE ANSWER TO "WHY ONLY SOME OF MY COMPANIES". Stated positively — how many were asked — with
+  // the companies that answered nothing named as such, because an absence the reader cannot
+  // account for reads as a broken fetch. Every clause drops out when its number is zero rather
+  // than printing a nil, and the whole sentence drops when there is nothing to account for.
+  const coverage = coverageSentence(m, cov);
+
   return `
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
       <p class="text-xs leading-relaxed text-slate-600">
         ${when ? `Showing the ${escapeHtml(m.kind === 'news' ? 'news' : 'filings')} ${when}.` : ''}
         ${
-          m.outstanding
+          m.outstanding && !coverage
             ? ` <strong>${escapeHtml(formatNumber(m.outstanding))}</strong> ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since.
                 These routes answer one company at a time and have no index, so whether anything new has been filed can only be found by asking.`
             : ''
         }
+        ${coverage}
       </p>
       ${button}
     </div>`;
