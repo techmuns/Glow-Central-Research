@@ -77,6 +77,41 @@ const downloadOrSkip = async (label, file) => {
   return ok(label, false, 'no download fired');
 };
 
+// The browser never sees MUNS_TOKEN. Prove the Worker client sends the exact stock-search contract
+// the upstream documents — especially static user_index 124 — against a stand-in, never production.
+{
+  const { searchStocks } = await import('../worker/muns.mjs');
+  const realFetch = globalThis.fetch;
+  let requestSeen = null;
+  globalThis.fetch = async (url, init) => {
+    requestSeen = { url: String(url), method: init?.method, headers: init?.headers, body: JSON.parse(init?.body || '{}') };
+    return new Response(JSON.stringify({
+      data: {
+        total_results: 2,
+        results: {
+          RELIANCE: ['India', 'Reliance Industries Ltd', 'Refineries & Marketing'],
+          'Reliance Media': ['India', 'Reliance Media', null],
+        },
+      },
+      success: true,
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const found = await searchStocks({ query: 'RELIAN' }, { MUNS_TOKEN: 'test-token', MUNS_SEARCH_BASE: 'https://search.invalid' });
+    ok('stock search stays behind the Worker and sends query + static user_index 124',
+      requestSeen?.url === 'https://search.invalid/stock/search' && requestSeen?.method === 'POST' &&
+        requestSeen?.body?.query === 'RELIAN' && requestSeen?.body?.user_index === 124 &&
+        requestSeen?.headers?.authorization === 'Bearer test-token' &&
+        requestSeen?.headers?.accept === 'application/json' &&
+        requestSeen?.headers?.['content-type'] === 'application/json');
+    ok('...and normalises the ticker-keyed response for the autocomplete',
+      found.results.length === 2 && found.results[0].ticker === 'RELIANCE' && found.results[0].name === 'Reliance Industries Ltd');
+    ok('...while flagging a company-name key that cannot be used as a ticker', found.results[1].validTicker === false);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-type'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
 const page = await context.newPage();
@@ -1683,6 +1718,97 @@ console.log('\n— watchlist scope —');
     pruned.includes('RELIANCE') && pruned.includes('TCS') && !pruned.some((t) => /[|\-]\d/.test(t)), pruned.join(', '));
 
   await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+}
+
+// ---------------------------------------------------------------------------------------
+// 3f. Editable Portfolio, Watchlist and Universe lists
+//
+// The committed book/universe remain the defaults; edits are a browser-local overlay. The search
+// itself is intercepted here so verification never spends the user's Muns token or calls their
+// production registry.
+// ---------------------------------------------------------------------------------------
+console.log('\n— editable scope lists —');
+{
+  await page.evaluate(() => {
+    localStorage.removeItem('sattva:scope-lists:v1');
+    localStorage.removeItem('sattva:watchlist');
+  });
+  await page.route('**/api/stock-search*', async (route) => {
+    const query = new URL(route.request().url()).searchParams.get('q') || '';
+    const reliance = /relian/i.test(query);
+    const result = reliance
+      ? { ticker: 'RELIANCE', country: 'India', name: 'Reliance Industries Ltd', industry: 'Refineries & Marketing', validTicker: true }
+      : { ticker: 'ALPHACO', country: 'India', name: 'Alpha Company Ltd', industry: 'Industrials', validTicker: true };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, query, totalResults: 1, results: [result] }),
+    });
+  });
+
+  await go('/#/research/insider-trades?scope=portfolio', 1800);
+  ok('the scope control has an editor for the active list', (await page.locator('[data-scope-edit]').count()) === 1);
+  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 4000 });
+  ok('Portfolio opens with the committed 142-company default', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+
+  const listSearch = page.locator('[data-scope-search]');
+  await listSearch.fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('a Muns search result can be added to Portfolio',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '143' &&
+      await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:scope-lists:v1') || '{}').portfolio?.added?.some((e) => e.ticker === 'ALPHACO')));
+  await page.locator('[data-scope-result="0"]').click();
+  ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+
+  await listSearch.fill('IIFL');
+  await page.locator('[data-scope-remove="ticker:IIFL"]').click();
+  ok('a committed Portfolio company can be removed through the local overlay',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
+  await listSearch.fill('');
+  await page.locator('[data-scope-reset]').click();
+  ok('Restore default clears Portfolio edits without rewriting the source file',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await go('/#/research/daily-alerts?scope=watchlist', 900);
+  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-search]').fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('the same editor adds a company to Watchlist',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '1' &&
+      await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === 'ALPHACO')));
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.waitForTimeout(500);
+  ok('closing the editor repaints an empty Watchlist scope into the newly populated scope',
+    (await page.locator('[data-watchlist-empty]').count()) === 0);
+
+  await go('/#/research/breakouts?scope=universe', 2200);
+  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 10000 });
+  const universeBefore = Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, ''));
+  await page.locator('[data-scope-search]').fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('Universe accepts a company not present in the committed technicals set',
+    Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, '')) === universeBefore + 1);
+  await page.locator('[data-scope-search]').fill('RELIAN');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('a base Universe company can be excluded from ticker-based feeds', await page.evaluate(async () => {
+    const scope = await import('/js/data/scope.js');
+    return !scope.scopeAllowsTicker('universe', 'RELIANCE');
+  }));
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.unroute('**/api/stock-search*').catch(() => {});
+  await page.evaluate(() => {
+    localStorage.removeItem('sattva:scope-lists:v1');
+    localStorage.removeItem('sattva:watchlist');
+  });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -5058,7 +5184,8 @@ console.log('\n— news, announcements and insider trades —');
   await go('/#/research/insider-trades?scope=portfolio', 2500);
   const insiderFilters = await page.evaluate(async () => {
     const selects = [...document.querySelectorAll('[data-table-filter]')];
-    const total = Number((document.querySelector('[data-row-count]')?.textContent || '').match(/\d+/)?.[0] || 0);
+    const countText = document.querySelector('[data-row-count]')?.textContent || '';
+    const total = Number((countText.match(/\d+/) || ['0'])[0]);
     const results = [];
     for (const select of selects) {
       const choice = [...select.options].find((o) => o.value !== 'all');
@@ -5074,10 +5201,13 @@ console.log('\n— news, announcements and insider trades —');
     return {
       labels: selects.map((s) => s.getAttribute('aria-label')),
       optionCounts: selects.map((s) => s.options.length),
+      countText,
       total,
       results,
     };
   });
+  ok('the Insider Trades toolbar separates trade rows from portfolio companies',
+    /^[\d,]+ trades from [\d,]+ portfolio companies$/i.test(insiderFilters.countText.trim()), insiderFilters.countText.trim());
   ok('insider trades offers Category, Transaction type and Mode filters',
     ['Category', 'Transaction type', 'Mode'].every((label) => insiderFilters.labels.includes(label)),
     insiderFilters.labels.join(' · '));

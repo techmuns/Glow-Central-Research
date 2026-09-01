@@ -1,7 +1,7 @@
 // Cloudflare Worker entry point.
 //
 // The dashboard is static assets (./public), served through the ASSETS binding. This Worker
-// adds two routes on top:
+// adds API routes on top:
 //
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
@@ -11,6 +11,7 @@
 //   GET  /api/concalls                         ->  the live StockScans con-call scan
 //   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
+//   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
 //
 // None writes anything back to the repo; all are read-through overlays on committed data.
 //
@@ -28,7 +29,7 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, MunsError } from './muns.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 import { dispatchWorkflow, latestRun, parseRepo, isInFlight, NEWS_WORKFLOW, DEPLOY_WORKFLOW } from './github-actions.mjs';
 
@@ -105,6 +106,9 @@ export default {
     }
     if (url.pathname.startsWith('/api/super-investors/')) {
       return handleInvestorPortfolio(request, env, ctx, url.pathname.slice('/api/super-investors/'.length));
+    }
+    if (url.pathname === '/api/stock-search') {
+      return handleStockSearch(request, env, ctx);
     }
     if (url.pathname === '/api/news') {
       return handleMuns(request, env, ctx, 'news');
@@ -543,6 +547,37 @@ async function handleCalendar(request, env, ctx) {
 // ---------------------------------------------------------------------------------------
 const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900 };
 const MUNS_FAIL_TTL_S = 15;
+
+// Company names move much less often than filings. Cache each query at the edge so ten readers
+// typing the same ticker spend one authenticated upstream search, not ten.
+const STOCK_SEARCH_TTL_S = 300;
+
+async function handleStockSearch(request, env, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'Search with GET.' }, 405);
+  const url = new URL(request.url);
+  const query = (url.searchParams.get('q') || '').trim().slice(0, 80);
+  if (query.length < 2) return json({ ok: false, reason: 'shape', message: 'Search needs at least two characters.' }, 400);
+
+  const cacheKey = edgeKey(`stock-search?q=${encodeURIComponent(query.toLowerCase())}`);
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return revalidate(request, hit, 'hit');
+
+  let payload;
+  let ttl = STOCK_SEARCH_TTL_S;
+  try {
+    payload = { ok: true, ...(await searchStocks({ query }, env)) };
+  } catch (err) {
+    const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
+    payload = { ok: false, reason: e.reason, message: e.message, status: e.status, requestedUrl: e.url, query };
+    ttl = MUNS_FAIL_TTL_S;
+  }
+  payload.fetchedAt = new Date().toISOString();
+  const { body, tag } = withTag(payload);
+  const res = tagged(body, tag, ttl);
+  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+  return revalidate(request, res, 'miss');
+}
 
 async function handleMuns(request, env, ctx, kind, rawTicker = '') {
   if (request.method !== 'GET') return json({ error: 'GET only' }, 405);

@@ -1,7 +1,8 @@
 // data/coverage.js — WHAT THE FAMILY ACTUALLY OWNS, and what the Portfolio toggle means.
 //
 //   prime(payload)     seeded from portfolio-companies.json at bootstrap
-//   holdings()         every book line, in the shape every forScope() expects
+//   baseHoldings()     the committed book, before this device's edits
+//   holdings()         the committed book plus this device's additions/removals
 //   tracked()          only the lines that carry an NSE ticker — what a feed can match
 //   uncovered()        the lines no NSE-keyed feed can ever carry, each with its reason
 //   meta()             counts, as-of date and provenance for the "N of 142" notes
@@ -19,6 +20,8 @@
 //   have a feed for", and nothing on screen would say so. They travel with a `reason` instead, and
 //   the tabs surface them as held-but-not-covered.
 
+import * as scopeLists from '../core/scope-lists.js';
+
 let raw = null;
 
 export function prime(payload) {
@@ -34,7 +37,10 @@ export const isLoaded = () => !!raw;
  * skips a null one, which is correct: they cannot match a feed. `uncovered()` is how they are
  * shown rather than lost.
  */
-export const holdings = () => (raw ? raw.holdings : []);
+export const baseHoldings = () => (raw ? raw.holdings : []);
+
+/** The book the reader asked to use on this device. The committed file remains the reset point. */
+export const holdings = () => scopeLists.apply('portfolio', baseHoldings());
 
 /** The subset a feed can actually match. */
 export const tracked = () => holdings().filter((h) => h.ticker);
@@ -50,15 +56,19 @@ export function has(ticker) {
 }
 
 export function meta() {
+  const current = holdings();
+  const currentUncovered = current.filter((h) => !h.ticker);
   return {
     asOf: raw?.asOf || null,
     source: raw?.source || null,
-    count: raw?.count ?? holdings().length,
-    tracked: tracked().length,
-    uncovered: uncovered().length,
-    unlisted: raw?.unlisted ?? 0,
-    bseOnly: raw?.bseOnly ?? 0,
-    unresolved: raw?.unresolved ?? 0,
+    count: current.length,
+    tracked: current.length - currentUncovered.length,
+    uncovered: currentUncovered.length,
+    // The committed source's three reason buckets are only exact before a reader edits it. Once
+    // edited, keep the honest total above and do not pretend the old split still describes it.
+    unlisted: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
+    bseOnly: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
+    unresolved: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
   };
 }
 

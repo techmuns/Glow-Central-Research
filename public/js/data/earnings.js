@@ -208,6 +208,7 @@ export function isLoaded() {
  */
 export function forScope(scope, holdings = []) {
   const rows = all();
+  if (scope === 'universe') return filterByScope(rows, scope, holdings, (r) => r.company?.ticker);
   const wanted = scopeTickers(scope, holdings);
   if (!wanted) return rows;
 

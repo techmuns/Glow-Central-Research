@@ -34,6 +34,7 @@ import { exportSheets, todayStamp } from '../ui/export.js';
 import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 import { scopePossessive } from '../data/scope.js';
 
 const SOURCE = 'Ticker Finology, read live through this dashboard’s Worker.';
@@ -716,7 +717,11 @@ function profilePanel() {
  * tabs reporting different sets in two places on one screen.
  */
 function scopeFilter(ctx) {
-  if (ctx.scope === 'universe') return null;
+  if (ctx.scope === 'universe') {
+    const removed = scopeLists.removed('universe').map((entry) => String(entry.name || '').toLowerCase()).filter(Boolean);
+    if (!removed.length) return null;
+    return (company) => !removed.some((name) => String(company).toLowerCase().includes(name.slice(0, 12)));
+  }
   const names = (
     ctx.scope === 'watchlist'
       ? watchlist.all().map((w) => String(w.name || ''))
