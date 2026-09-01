@@ -69,10 +69,8 @@ const FRESH_MS = 90 * 60 * 1000;
  * The whole of this tab's chrome: one small chip.
  *
  * IT REPLACED A FULL-WIDTH CARD — a button, a freshness sentence, a note about the scheduled job —
- * which is a lot of furniture above a list whose headlines are the point. The same trade the
- * Earnings Hub and Portfolio Analytics already made: **move the explanation behind a control that
- * still states the claim, and never delete the claim.** So the chip opens the provenance modal, and
- * the Fetch button now lives inside it. Nothing was removed except the chrome.
+ * which is a lot of furniture above a list whose headlines are the point. The chip now states the
+ * material status directly and is intentionally passive; it opens no provenance dialog.
  *
  * "LIVE" IS A CLAIM ABOUT DATA AND MAY NOT BE PAINTED GREEN UNCONDITIONALLY. That is exactly what
  * the header's old green chip did — it tracked a heartbeat that asked no server anything and read
@@ -88,10 +86,10 @@ function pill(m) {
   const tone = fresh ? 'text-emerald-700' : 'text-amber-700';
   const dot = fresh ? 'bg-emerald-500' : 'bg-amber-500';
   const label = age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
-  return `<button type="button" data-mcnews-info title="Where this comes from, and how to fetch it now"
-      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+  return `<span data-mcnews-info title="Market-news capture status"
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
       <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
-    </button>`;
+    </span>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -481,9 +479,7 @@ function relist(root) {
 }
 
 /** The section head is one chip now, and it opens everything else. */
-function wireHead(ctx) {
-  ctx.root.querySelector('[data-mcnews-info]')?.addEventListener('click', () => openProvenance(ctx));
-}
+function wireHead() {}
 
 /**
  * The provenance modal, which is also where the Fetch button lives.

@@ -834,8 +834,8 @@ The rules that make it safe to trust:
 - **Two freshness facts, never merged.** `meta.fetchedAt` is when the upstream was read;
   `meta.checkedAt` is when we last confirmed that reading was still current. A 304 moves the
   second and not the first. `meta.origin` (`live` / `store` / `snapshot`) says where the paint on
-  screen came from, and `deliveryNote()` in `js/ui/sources.js` renders all three behind each
-  tab's Live pill.
+  screen came from, and `deliveryNote()` in `js/ui/sources.js` retains all three for the source
+  registry. Live status labels themselves are passive and open no delivery popup.
 - **The client must not send `If-None-Match` itself.** Chromium aborts a hand-rolled conditional
   fetch whose response is a 304 with `net::ERR_ABORTED`; because pollers swallow optional errors,
   the symptom is a feed that quietly stops updating rather than an error. `conditionalJson` uses
@@ -2407,10 +2407,10 @@ POST /api/market-news/refresh     starts a run. THE ONLY CALL HERE THAT COSTS AN
 GET  /api/market-news/run         how it is going. Free, and therefore the half that may be polled.
 ```
 
-**The tab's chrome is one chip.** The heading carries a small `● Live` in green — and only while the
+**The tab's chrome is one passive chip.** The heading carries a small `● Live` in green — and only while the
 capture is younger than 90 minutes, the schedule's own worst case. Past that it is amber with the
-age; with no capture it says so. Everything else, including the Fetch button, lives in the
-provenance modal the chip opens: removed from the chrome, not from the app.
+age; with no capture it says so. The chip does not open a provenance popup. Scheduled polling and
+the global refresh path remain responsible for acquiring newer captures.
 
 **One button in that modal, not two.** A free *Check for new stories* used to sit beside it; it was
 removed because it did nothing a reader was not already getting for nothing — the 20-minute poll

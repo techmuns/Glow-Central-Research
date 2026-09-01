@@ -317,7 +317,6 @@ export function makeFilingsTab(cfg) {
     // Portfolio's four-line block and the market-news freshness card all made. What stays on the
     // face is the claim: a pill whose colour and word are earned by the data. What moves behind
     // the click is the explanation, and the Refresh control with it.
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openProvenance(m, cov, ctx.scope, rows));
     wireRefresh(ctx.root);
   }
 
@@ -417,11 +416,11 @@ function pill(m, scope, rows) {
   const tone = bad || !fresh ? 'text-amber-700' : 'text-emerald-700';
   const dot = bad || !fresh ? 'bg-amber-500' : 'bg-emerald-500';
   const label = m.reason ? 'Unavailable' : bad ? 'Partial' : age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
-  return `<button type="button" data-filings-info
+  return `<span data-filings-info
       title="${escapeHtml(scopeTitle(scope, rows, m))}"
-      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
       <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
-    </button>`;
+    </span>`;
 }
 
 /**
@@ -439,15 +438,15 @@ function scopeTitle(scope, rows, m) {
   if (scope === 'portfolio' && book?.count) {
     return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
       (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
-      ' Click for where this comes from.';
+      '';
   }
   if (scope === 'watchlist') {
     const tracked = watchlist.size();
     return tracked
-      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed. Click for where this comes from.`
-      : 'Nothing tracked yet. Click for where this comes from.';
+      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed.`
+      : 'Nothing tracked yet.';
   }
-  return `${formatNumber(n)} companies appear on this feed. Click for where this comes from.`;
+  return `${formatNumber(n)} companies appear on this feed.`;
 }
 
 /**

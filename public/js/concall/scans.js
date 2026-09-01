@@ -99,25 +99,25 @@ function whenCell(iso) {
 }
 
 // ---------------------------------------------------------------------------------------
-// The Live pill and its provenance modal
+// The passive Live/Snapshot status pill
 // ---------------------------------------------------------------------------------------
 export function livePill(m) {
   if (!m) return '';
   const degraded = !!m.degraded;
   const cls = degraded
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+    ? 'bg-amber-50 text-amber-800 ring-amber-300'
+    : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
   const dot = degraded
     ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
     : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
   const fresh = feed.newArrivals().length;
   return `
-    <button type="button" data-cs-info title="Where this comes from, and what is ours versus theirs"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+    <span data-cs-info title="Current con-call feed status"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
       ${dot}<span>${degraded ? 'Snapshot' : 'Live'}</span>
       <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.count || 0))} calls</span>
       ${fresh ? `<span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">+${fresh} new</span>` : ''}
-    </button>`;
+    </span>`;
 }
 
 export function wireLivePill(root, m) {
@@ -306,7 +306,6 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     })}
     ${table.html}
   `;
-  wireLivePill(ctx.root, m);
   ctx.root.querySelector('[data-open-schedule]')?.addEventListener('click', () => openScheduleModal(scheduled, { scope: ctx.scope }));
   disposers.push(table.wire(ctx.root));
 

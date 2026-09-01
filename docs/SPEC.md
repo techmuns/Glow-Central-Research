@@ -89,9 +89,8 @@ Brand, the scope toggle, one status pill and a refresh button — nothing else.
   reached a server. It replaced a green "Live · just now" chip and a white "Updated 52 minutes
   ago" chip, which claimed different things about the same subject; the green one tracked a
   heartbeat that asks nothing of any server, so it read "just now" regardless.
-- **Clicking the pill opens the data-sources modal.** There is no separate Sources button; the
-  provenance it opened has to stay reachable from every screen, and a freshness control is its
-  natural home.
+- **The status pill is passive.** It reports freshness without opening a provenance or delivery
+  explainer. Detailed source metadata remains in the source registry for audits and exports.
 - **A refresh button** re-checks every live feed on demand and reports what it found — "Up to
   date" or "3 new" — rather than spinning and vanishing.
 - **No global search box.** A company is reached from its own tab's table.
@@ -183,9 +182,8 @@ layout.
 
 - **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
   "Sattva Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
-- **Right** — the Portfolio/Universe segmented toggle, then the status pill (pulsing dot,
-  `Live · updated <relative time>`, opens the data-sources modal on click), then the refresh
-  button.
+- **Right** — the Portfolio/Universe segmented toggle, then the passive status pill (pulsing dot,
+  `Live · updated <relative time>`), then the refresh button.
 - **Centre** — nothing. The global search box, the separate Sources button and the second
   "Updated …" chip were removed; the middle of the header is deliberately empty so the brand and
   the two live controls are the only things competing for attention.
@@ -259,11 +257,12 @@ Presentation must never imply data the dashboard does not have:
 3. Derived figures say they are derived, and say how.
 4. Help modals state what is mock, what is live, and which prompt wires it.
 
-### The Sources modal
+### Source registry
 
-The header's "Sources" button opens a modal generated from `public/js/ui/sources.js`, listing
-every source grouped by the tabs it serves, with what it feeds, its refresh cadence, a link,
-and an honest status (`live` / `static` / `mock` / `pending`). Adding a data source means updating
+`public/js/ui/sources.js` remains the canonical source registry, listing every source grouped by
+the tabs it serves, with what it feeds, its refresh cadence, a link, and an honest status
+(`live` / `static` / `mock` / `pending`). The registry is data for audits and export disclosures;
+passive status labels do not open it in a popup. Adding a data source means updating
 `docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
 ---
@@ -352,8 +351,7 @@ Yahoo Finance EOD scrape of the NSE 500 plus NSE bhavcopy delivery data. A close
 | Risk | Beta (1) · ATR Stability (1) |
 
 No sub-view here carries a stat strip: the two or three counts and the gradient freshness hero
-became one small **Live** pill in the section head, whose modal carries the capture time, the
-source and every figure the cards printed. The pill is green only while the capture is inside the
+became one small passive **Live** pill in the section head. The pill is green only while the capture is inside the
 schedule's worst case (72 hours — Friday's capture is still current on Monday); past that it is
 amber and prints the age, and on Earnings Surprise it is amber regardless, reading *Mock earnings ·
 live technicals*.

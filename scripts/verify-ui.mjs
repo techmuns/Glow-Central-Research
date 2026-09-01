@@ -330,9 +330,9 @@ ok('Latest Results renders the full listed universe', latestRows > 1000, `${late
 const ehText = await hostText();
 ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\bvs\b/i.test(ehText));
 ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
-// This tab deliberately has no stat strip and no sub-view picker: one table, one small Live button.
+// This tab deliberately has no stat strip and no sub-view picker: one table, one passive Live label.
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
-ok('a single small Live button instead', (await page.locator('[data-live-info]').count()) === 1);
+ok('a single small passive Live label instead', (await page.locator('[data-live-info]').count()) === 1);
 ok('the sub-view picker is hidden for this single-view tab', await page.evaluate(() => {
   const m = document.getElementById('subview-mount');
   return !m || m.classList.contains('hidden') || !m.innerText.trim();
@@ -494,14 +494,12 @@ const ehRecon = await page.evaluate(() => {
 });
 ok('the figure columns reconcile with the growth column', ehRecon.checked > 100 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
 
-// The provenance did not vanish with the ribbon — it moved behind the button.
+// Status is visible without turning into another wall of explanatory chrome.
 await page.locator('[data-live-info]').click();
-await page.waitForTimeout(500);
-const liveModal = await page.locator('#modal-content').innerText();
-ok('the Live button opens the provenance', /moneycontrol/i.test(liveModal) && /polled every/i.test(liveModal));
-ok('...and still states the dash rule', /not joined/i.test(liveModal));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.waitForTimeout(200);
+ok('the results status is a passive label, not a provenance popup trigger',
+  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // THE HONESTY CHECK. A percentage across a sign change is not a growth rate, and about 13% of
 // companies have one. These must render as labelled pills, never as a coloured number.
@@ -749,14 +747,12 @@ if (past?.busiest) {
   // difference between them would name a set of companies that does not exist.
   ok('...and never differences "due" against "filed"', !/\d+\s+(did not|failed to|yet to|missing|outstanding)/i.test(shown.text), 'no subtraction of the two counts');
 
-  // The modal behind the pill must answer for THIS table. The schedule's caveats are about a cap
-  // this one does not have, so reusing them would warn about something that is not happening.
+  // The status remains a compact label and no longer opens a verbose explainer.
   await page.locator('[data-cal-info]').first().click();
-  await page.waitForTimeout(400);
-  const repModal = await page.locator('#modal-content').innerText();
-  ok('...and its provenance modal describes filings, not the schedule', /have filed/i.test(repModal) && /not a top-20|no such cap/i.test(repModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the Reported label opens no explainer popup',
+    (await page.locator('[data-cal-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 } else {
   skip('a date that has already reported lists every company that filed', 'the results feed carries no dated rows');
 }
@@ -893,15 +889,6 @@ if (calReady.failed) {
     calSource.count == null || calSource.count >= calSource.rows || calHonesty.total == null,
     `payload: ${calSource.count} scheduled vs ${calSource.rows} named — pill reads "${calHonesty.pill}"`
   );
-  if (calSource.count != null && calSource.count < calSource.rows) {
-    // ...and the reader is told why the number is missing, rather than left with a bare word.
-    await page.locator('[data-cal-info]').first().click();
-    await page.waitForTimeout(400);
-    const why = await page.locator('#modal-content').innerText();
-    ok('...and the modal explains the two exchanges behind it', /same exchanges/i.test(why) && /NSE/.test(why));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-  }
   // The strip going uniformly flat is the endpoint failing, not a quiet fortnight. The Worker
   // substitutes the committed capture's counts; if it ever stops, this catches the dashes.
   if (calSource.found) {
@@ -911,18 +898,15 @@ if (calReady.failed) {
   }
   if (calSource.countSrc === 'snapshot') ok('...with the substituted counts named as a capture', calSource.pill === 'Captured');
   else skip('...with the substituted counts named as a capture', 'the count endpoint is answering live');
-  // The 20-row cap used to be spelled out in a paragraph under the table; that paragraph is gone
-  // and the caveat moved into the pill's modal, which is where "what does this not show" belongs.
-  // The check follows it rather than the prose.
+  // The calendar status is passive in every branch, including a capped schedule.
   if (calHonesty.total != null && calHonesty.rows < calHonesty.total) {
     await page.locator('[data-cal-info]').first().click();
-    await page.waitForTimeout(500);
-    const modal = await page.locator('#modal-content').innerText();
-    ok('...and the modal says the list is a top-N when it is one', /not the full list/i.test(modal) && /largest by market cap/i.test(modal), `${calHonesty.rows} named of ${calHonesty.total}`);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(200);
+    ok('...and the calendar label opens no explainer popup',
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0,
+      `${calHonesty.rows} named of ${calHonesty.total}`);
   } else {
-    skip('...and the modal says the list is a top-N when it is one', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
+    skip('...and the calendar label opens no explainer popup', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
   }
   } // end of the future-dated (schedule) branch
 
@@ -1132,7 +1116,9 @@ console.log('\n— daily alerts —');
   const dayPillText = await page.locator('[data-alerts-info]').first().innerText();
   ok('it states the Indian trading date rather than a UTC one',
     /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
-  ok('...and the provenance is still one click away', (await page.locator('[data-alerts-info]').count()) === 1);
+  ok('...and the date/status control is a passive label',
+    (await page.locator('[data-alerts-info]').count()) === 1 &&
+      (await page.locator('[data-alerts-info]').evaluate((el) => el.tagName)) === 'SPAN');
   const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
   ok('the landing states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
 
@@ -1143,7 +1129,7 @@ console.log('\n— daily alerts —');
   // back.
   // FOUR ON A NARROWED SCOPE, FIVE ON UNIVERSE. Market-wide news carries no company, so under
   // Portfolio it contributes nothing and is not offered as a filter; the reason it is absent stays
-  // in the provenance modal, which lists every feed in every scope. Asserted exactly rather than as
+  // in the registered source metadata. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
   ok('the coverage panel accounts for exactly the four feeds that can be narrowed', feedRows === 4, `${feedRows} feed rows`);
@@ -1193,17 +1179,11 @@ console.log('\n— daily alerts —');
     `nothing -> "${states.nothing.short}", 30 events -> "${states.some.short}"`);
   ok('...and all five states stay distinguishable by their full wording',
     new Set([states.behind.label, states.failed.label, states.pending.label, states.unscoped.label, states.nothing.label]).size === 5);
-  // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
-  // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
-  // It moved with the description, from the page body into the provenance modal the pill opens.
-  // The CLAIM survives the decluttering; only where you read it changed.
+  // The status label must not bring back the long explainer overlay.
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const daModal = await page.locator('#modal-content').innerText();
-  ok('the page names the tabs it deliberately does NOT consolidate',
-    /Earnings Hub/.test(daModal) && /not consolidated here|keep their own tabs/i.test(daModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the Daily Alerts status opens no explainer popup',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
@@ -1295,18 +1275,13 @@ console.log('\n— daily alerts —');
   // Market-wide news has no company on it, so it cannot be narrowed BY one — the same rule the
   // chatter tab follows for its unresolved half. It must say so rather than filter to nothing.
   await go('/#/research/daily-alerts?scope=portfolio', 5000);
-  // THE FEED IS NOT OFFERED AS A FILTER HERE, so the reason lives where every feed is still listed
-  // in every scope: the provenance modal. The rule is that the exclusion is STATED rather than the
-  // feed silently filtering to nothing — not that it is stated in any particular place.
+  // The feed is not offered as a filter here, and the status remains passive.
   const scopedFeeds = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.dataset.feed));
   ok('market-wide news is not offered as a filter on a narrowed scope', !scopedFeeds.includes('market-news'), scopedFeeds.join(', '));
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const scopedModal = await page.locator('#modal-content').innerText();
-  ok('market-wide news is excluded from a narrowed scope WITH A STATED REASON',
-    /Market news/.test(scopedModal) && /carr(y|ies) no company/i.test(scopedModal) && /Universe/i.test(scopedModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the narrowed-scope status opens no explainer popup',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE LEGEND STRIP IS GONE FROM THE BODY, and what it said is in the modal's "What the colours
   // mean" section — the same trade as the description and the stat cards. The claim may not go:
@@ -1549,12 +1524,9 @@ console.log('\n— daily alerts —');
       `${opened.length} open(s): ${(opened[0] || '(none)').slice(0, 58)} · hash unchanged=${page.url() === hashBefore}`);
   }
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const legendModal = await page.locator('#modal-content').innerText();
-  ok('the legend explains both colours', /Red/.test(legendModal) && /Orange/.test(legendModal) && /What the colours mean/i.test(legendModal));
-  ok('...and says which feeds are never graded', /never red|never graded|always this colour/i.test(legendModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the alert-stream status remains popup-free after table interaction',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1740,9 +1712,8 @@ const ehDrillOpen = await page.evaluate(() => {
   return !!d && d.classList.contains('translate-x-0');
 });
 ok('...and clicking one opens no drill', !ehDrillOpen);
-// The provenance the drill used to carry has to still be reachable, or this is just deletion.
-// It lives behind the Live pill — verified above — which is one click from anywhere on the page.
-ok('...because the provenance moved to the Live pill', (await page.locator('[data-live-info]').count()) === 1);
+// The passive Live label stays visible, but it no longer acts as a route to an explainer dialog.
+ok('...and keeps one passive Live status label', (await page.locator('[data-live-info]').count()) === 1);
 
 // The drill itself still has to work where it IS used. Breakouts is the reference consumer: a
 // scored row with per-rule provenance behind it.
@@ -1859,11 +1830,8 @@ console.log('\n— breakouts: default view and filters —');
 // most of it was already on screen a few pixels lower — "Breakout candidates 21 of 586" is the
 // line under the chip bar, and "Strong breakouts 0" is the count on the Strong chip itself.
 //
-// So it went the way the Earnings Hub's strip and Portfolio's four-line block went, and the rule
-// that survives is the same one: DECLUTTERING A PAGE IS FINE, DELETING ITS ACCOUNTABILITY IS NOT.
-// Which is why the checks come in pairs — the cards are gone AND the modal behind the pill still
-// carries the capture time, the source and every figure they printed. A check that only asserted
-// their removal would pass just as happily for a change that threw the provenance away.
+// So it went the way the Earnings Hub's strip and Portfolio's four-line block went: a compact,
+// passive status label remains while the explanatory popup is removed.
 //
 // The green is the other half. "A green Live is a claim about data and may not be painted
 // unconditionally" is in CLAUDE.md because the header once had a chip reading "just now" whether
@@ -1930,33 +1898,18 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
   ok('the half-mock sub-view is amber instead, and says so on the chip itself',
     es.amber && !es.green && /mock/i.test(es.face), `"${es.face}"`);
 
-  // THE ACCOUNTABILITY HALF. Removing the cards is only correct if what they said is still one
-  // click away.
+  // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
   await page.locator('#content-host [data-live-info]').click();
   await page.waitForTimeout(500);
-  const modal = await page.evaluate(() => {
-    const c = document.getElementById('modal-content');
-    return {
-      open: !document.getElementById('modal-overlay').classList.contains('hidden'),
-      text: (c?.innerText || '').replace(/\s+/g, ' '),
-    };
-  });
-  ok('clicking the pill opens the provenance modal', modal.open && modal.text.length > 200);
-  ok('...which still names the source and the capture time',
-    /Yahoo Finance/i.test(modal.text) && /captured/i.test(modal.text) && /IST/.test(modal.text));
-  ok('...and still carries every figure the four cards printed',
-    /breakout candidates/i.test(modal.text) && /strong breakouts/i.test(modal.text) && /filters active/i.test(modal.text),
-    modal.text.slice(0, 160));
-  ok('...and the help the card\'s "?" used to open',
-    /how breakout quality is graded/i.test(modal.text) && /tight base/i.test(modal.text));
+  ok('clicking a Breakouts status label opens no provenance popup',
+    (await page.locator('#content-host [data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   // THE QUALITY COLUMN IS GONE AND THE RANKING IS THE SCORE. It used to lead on quality and break
   // ties on the score, which put a "Weak base" above a stronger-scoring row — readable while the
   // Quality column was on screen to explain it, and unreadable the moment it came off. Quality is
   // still what the chips select on: it decides WHICH rows are here, the score decides their order.
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
   await settleTables();
   const bo = await evalSafe(() => ({
     heads: [...document.querySelectorAll('#content-host thead th')].map((h) => h.innerText.trim()),
@@ -2137,17 +2090,25 @@ console.log('\n— provenance —');
 await go('/#/research/earnings-hub?scope=universe', 1800);
 ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
 // The coverage note and the roadmap card were removed from this tab deliberately — one table,
-// nothing under it. The dash rule they carried lives in the Live pill's modal, checked above.
+// nothing under it. The passive status label must not reintroduce an explainer modal.
 ok('no roadmap placeholder under the table', !/wiring roadmap/i.test(await hostText()));
 ok('...and no coverage paragraph either', !/resolved to an NSE ticker/i.test(await hostText()));
 
-// The Sources button is gone from the header; the provenance it opened is not. The status pill
-// carries it now — freshness and provenance are one question — and the rule that survives is that
-// it stays reachable from every screen.
+// The header status is passive; clicking it must never cover the current task with an explainer.
 await page.locator('[data-status-pill]').first().click();
-await page.waitForTimeout(600);
-const sources = await page.locator('#modal-content').innerText();
-ok('Sources modal lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
+await page.waitForTimeout(200);
+ok('the global Live status opens no sources popup',
+  (await page.locator('[data-status-pill]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+
+// The source registry remains data-driven even though it is no longer rendered as a popup.
+const sources = await page.evaluate(async () => {
+  const { sourcesModalHtml } = await import('/js/ui/sources.js');
+  const el = document.createElement('div');
+  el.innerHTML = sourcesModalHtml();
+  return el.innerText;
+});
+ok('the source registry still lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
 ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
 
 // NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
@@ -2169,7 +2130,6 @@ if (srcLive.reported > 0) {
 }
 // A count that cannot be read must LOSE ITS CLAUSE, not print a zero or a leftover fragment.
 ok('no source describes itself with a zero count', !/\b0 (companies|holdings|lines|in the current pull)/.test(sources), (sources.match(/\b0 \w+/) || [''])[0]);
-await page.keyboard.press('Escape');
 
 // ---------------------------------------------------------------------------------------
 // 6. Export — the workbook must carry its own provenance
@@ -2307,18 +2267,12 @@ ok('analysed rows carry a summary link', csLink.n > 100, `${csLink.n} links`);
 ok('...on the document route, which needs no period', /\/document\/[^/]+\.pdf$/.test(csLink.sample), csLink.sample);
 ok('...never on the company route, which does', !/\/company\//.test(csLink.sample), csLink.sample);
 
-// The attribution the drill used to carry has to still be reachable, or this is just deletion.
-// It lives behind the Live pill — the same resolution the Earnings Hub took. The provider's BRAND
-// is deliberately absent from every customer-facing surface, so the pair is asserted together:
-// the disclaimer everywhere, the trade name nowhere.
+// The provider status stays compact and passive; task-oriented schedule and Deep Dive dialogs stay.
 await page.locator('[data-cs-info]').first().click();
-await page.waitForTimeout(600);
-const csProv = await page.locator('#modal-content').innerText();
-ok('the Live pill attributes the score to a third party', /third-party|provider/i.test(csProv) && /not this dashboard/i.test(csProv));
-ok('...without printing the provider\'s brand', !/stockscans/i.test(csProv), csProv.match(/StockScans/i)?.[0] || '');
-ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csProv));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(400);
+await page.waitForTimeout(200);
+ok('the Con-call Live/Snapshot label opens no explainer popup',
+  (await page.locator('[data-cs-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
 // 6c. The schedule, as an overlay — "Upcoming Concalls"
@@ -2716,6 +2670,11 @@ if (!chatterState.ok) {
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+  await page.locator('[data-chatter-live]').click();
+  await page.waitForTimeout(200);
+  ok('the Public Chatter Live label opens no explainer popup',
+    (await page.locator('[data-chatter-live]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE CENTRAL HONESTY CHECK. A mention delta must never be styled like a return: no emerald, no
   // rose, no currency. Those are what make a reader parse it as money.
@@ -2961,15 +2920,12 @@ if (filedData) {
   // A row awaiting its filing shows a dash for the percentage and says WHY in the change column —
   // Trendlyne's own label. A zero there would report a live position as sold.
   ok('...and a holding awaiting its filing says so rather than showing zero', filedData.awaiting === 0 || /Filing Awaited/i.test(inst));
-  // The paragraph that used to spell this out under the table is gone; the explanation moved into
-  // the pill's modal, where "what does this number mean" already lived. The check follows it —
-  // asserting the prose is still on screen would be asserting the layout, not the disclosure.
+  // The disclosure chip is now a passive label rather than a verbose explainer trigger.
   await page.locator('[data-filed-info]').first().click();
-  await page.waitForTimeout(500);
-  const dashProv = await page.locator('#modal-content').innerText();
-  ok('...and the provenance modal explains what the dash means', /not filed/i.test(dashProv) && /(never sold|as sold|still held)/i.test(dashProv));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the Filed label opens no explainer popup',
+    (await page.locator('[data-filed-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE COLUMN SET IS TRENDLYNE'S: Stock, Holding Value, Qty Held, the latest quarter's change and
   // holding percentage, then the eight prior quarters. Thirteen columns, every one sortable.
@@ -3007,12 +2963,8 @@ if (filedData) {
   ok('the thirteen columns fit at 1440 with no scrollbar of their own', filedFit.over <= 0, `${filedFit.over}px over`);
   ok('...and the page never scrolls sideways', filedFit.page <= 0, `${filedFit.page}px`);
 
-  await page.locator('[data-filed-info]').click();
-  await page.waitForTimeout(500);
-  const prov = await page.locator('#modal-content').innerText();
-  ok('the Filed pill explains which numbers are filings', /filing/i.test(prov) && /derivation/i.test(prov));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  ok('the Filed label still names the disclosure on its face',
+    /Filed/i.test(await page.locator('[data-filed-info]').innerText()));
 } else {
   skip('the filed-holdings file loads', 'public/data/institution-holdings.json is not present');
 }
@@ -3171,14 +3123,12 @@ ok('...and separates the AMC\'s figures from the one we compute', /only figure c
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 
-// THE PROVENANCE MODAL, which is where the two disclosures are set against each other.
+// The AMC disclosure label is also passive; the table and drill retain the useful distinctions.
 await page.locator('[data-filed-info]').first().click();
-await page.waitForTimeout(500);
-const amcProv = await page.locator('#modal-content').innerText();
-ok('the Disclosed pill contrasts % to NAV with a shareholding percentage', /% to NAV/i.test(amcProv) && /how much of the company/i.test(amcProv));
-ok('...and says the value is published rather than derived', /published rather than derived/i.test(amcProv));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.waitForTimeout(200);
+ok('the Disclosed label opens no explainer popup',
+  /Disclosed/i.test(await page.locator('[data-filed-info]').innerText()) &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
 // 9b-iii. QUARTERLY CHANGES ACROSS INSTITUTION BOOKS.
@@ -4208,8 +4158,7 @@ ok('excluded tickers are named, and coverage is reported', curveChecks.coverage 
 // generator script, the mark's age, the curve's window and the excluded tickers. It was the
 // first thing anyone saw here, above the money, on every view. The Earnings Hub rule applies —
 // decluttering a page is fine, deleting its accountability is not — so what is asserted is the
-// pair: the paragraph is gone from the body, and the CLAIM is still on the face of a pill on
-// every sub-view with the whole paragraph one click behind it.
+// pair: the paragraph is gone from the body, and the claim stays on the face as a passive label.
 // ---------------------------------------------------------------------------------------
 console.log('\n— portfolio: provenance —');
 for (const [route, label] of [
@@ -4228,15 +4177,10 @@ for (const [route, label] of [
 }
 {
   await page.locator('#content-host [data-pf-info]').first().click();
-  await page.waitForTimeout(600);
-  const pfModal = await page.locator('#modal-content').innerText();
-  ok('the pill opens the provenance in full', /gen-mock-transactions/.test(pfModal) && /synthetic/i.test(pfModal));
-  ok('...still separating the invented trades from the real prices', /Every price in it is real/i.test(pfModal));
-  const pfExcluded = await page.evaluate(async () => (await import('/js/data/portfolio.js')).meta()?.excluded?.length || 0);
-  if (pfExcluded) ok('...and still names what the equity curve cannot value', /Excluded from the equity curve/i.test(pfModal));
-  else skip('...and still names what the equity curve cannot value', 'nothing is excluded in this data');
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the portfolio provenance label opens no explainer popup',
+    (await page.locator('#content-host [data-pf-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -4254,7 +4198,7 @@ console.log('\n— portfolio: no-live-price fallback —');
   await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
   await fb.waitForTimeout(2200);
   const t = await fb.locator('#content-host').innerText();
-  // The pill's FACE changes in this state, not just the modal behind it: a position shown at
+  // The label's FACE changes in this state: a position shown at
   // cost reports a P&L of exactly zero, and a zero meaning "no price" must not look like a zero
   // meaning "flat". A caveat one click away would not be read in time to stop that.
   ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
@@ -4672,15 +4616,18 @@ console.log('\n— news, announcements and insider trades —');
     seen.news.length = 0;
     await go('/#/research/news?scope=watchlist', 4000);
     ok('a watchlist of uncaptured companies still sends nothing on load', seen.news.length === 0, `${seen.news.length} request(s)`);
-    // The account lives in the provenance modal now, not in a paragraph under the heading — and so
-    // does the control that acts on it. Both are opened here, which is also what a reader does.
+    // The status label stays passive; the header Refresh control performs the requested walk.
     await page.locator('[data-filings-info]').first().click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
     ok('...and says how many have not been asked about rather than claiming there is no news',
-      /ha(s|ve) not been asked about|were searched/.test(await page.locator('#modal-content').innerText()));
+      /of the \d+ companies you track appear on this feed|Nothing tracked yet/i.test(
+        (await page.locator('[data-filings-info]').getAttribute('title')) || ''
+      ));
+    ok('...and the filings status opens no explainer popup',
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
     seen.news.length = 0;
-    await page.locator('#modal-content [data-filings-refresh]').first().click();
+    await page.locator('[data-header-refresh]').click();
     await page.waitForTimeout(6000);
     const newsUrls = seen.news.map((u) => new URL(u));
     // EXACTLY one each. A walk that leaks an extra request per render is the failure mode here.
@@ -4763,11 +4710,7 @@ console.log('\n— news, announcements and insider trades —');
   })());
   await go('/#/research/news?scope=universe', 3500);
 
-  // THE TAB'S CHROME IS ONE CHIP. The freshness card — a button, a sentence about the scheduled
-  // job, a result line — was a lot of furniture above a list whose headlines are the point, so it
-  // went the way the Earnings Hub's ribbon and Portfolio's went: the explanation moved behind a
-  // control that still states the claim. What must NOT have gone with it is the provenance or the
-  // fetch, so both are asserted to be one click away.
+  // The tab keeps one passive status chip and no freshness-card or popup furniture.
   const headText = (await page.locator('#content-host').innerText().catch(() => '')).replace(/\s+/g, ' ');
   ok('the news head carries one small status chip and no freshness card',
     (await page.locator('[data-mcnews-info]').count()) === 1 &&
@@ -4794,17 +4737,12 @@ console.log('\n— news, announcements and insider trades —');
     chip.dot && chip.green === shouldBeGreen && (shouldBeGreen ? /^Live$/i.test(chip.text) : !/^Live$/i.test(chip.text)),
     `"${chip.text}" · ${chip.ageMin}m old · ${chip.green ? 'green' : 'amber'}`);
 
-  // Provenance and the fetch must still be reachable — one click, on the chip.
+  // The status chip must not open the removed provenance/fetch popup.
   await page.locator('[data-mcnews-info]').click();
-  await page.waitForTimeout(600);
-  const modal = (await page.locator('#modal-content').innerText().catch(() => '')).replace(/\s+/g, ' ');
-  ok('...and the chip opens the provenance, with the Fetch control inside it',
-    (await page.locator('#modal-content [data-mcnews-fetch]').count()) === 1 &&
-      /Moneycontrol last read/i.test(modal) && /TLS fingerprint/i.test(modal),
-    modal.slice(0, 110));
-  ok('...and no run link or step-by-step prose anywhere', !/watch the run/i.test(modal) && (await page.locator('[data-mcnews-scrape-note]').count()) === 0);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(200);
+  ok('...and the market-news status opens no explainer popup',
+    (await page.locator('[data-mcnews-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // -------------------------------------------------------------------------------------
   // THE UNIVERSE HALF IS AN EDITORIAL LIST, NOT A TABLE — thumbnail, headline, standfirst, in the
@@ -5035,12 +4973,9 @@ console.log('\n— news, announcements and insider trades —');
   ok('...and re-opening it inside the same window dispatches nothing more', secondOpen === 0,
     `${secondOpen} POST(s) on the second open`);
   await page.locator('[data-mcnews-info]').click();
-  await page.waitForTimeout(500);
-  ok('...and the control says it fetches, not that it checks a file',
-    /fetch/i.test(await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '')),
-    (await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the reopened status remains popup-free',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // A GET must not be able to start a run: a prefetcher or a link preview would trip it.
   const dispatchGet = await evalSafe(async () => {
@@ -5332,29 +5267,23 @@ console.log('\n— news, announcements and insider trades —');
     // statement nobody can make without asking every company — the honest line is about US.
     const strip = await hostText();
     if (st.rows) {
-      // THE ACCOUNT MOVED BEHIND THE PILL, SO THAT IS WHERE IT IS ASSERTED. A permanent grey
-      // paragraph under the heading was competing with the table it qualifies; what may not move
-      // is the claim itself, so the pill must exist on the face and the modal must still carry
-      // how current this is, the per-company account, and the control that asks.
+      // The compact feed status remains on the face and never launches an explainer overlay.
       ok('the page body carries no permanent freshness paragraph', !/Showing the (news|filings)/i.test(strip));
       ok('...and the provenance pill is on the face instead', (await page.locator('[data-filings-info]').count()) > 0);
       await page.locator('[data-filings-info]').first().click();
-      await page.waitForTimeout(500);
-      const modalText = await page.locator('#modal-content').innerText();
-      ok('...and says how current it is rather than claiming nothing is new',
-        /Showing the (news|filings)/i.test(modalText) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(modalText),
-        (modalText.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
-      ok('...and accounts for the companies in scope rather than leaving a gap to misread',
-        /were searched|filed nothing in the last|whole exchange by date/i.test(modalText));
-      ok('...and offers a control that asks', (await page.locator('#modal-content [data-filings-refresh]').count()) > 0);
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(200);
+      ok('...and opens no provenance popup',
+        (await page.locator('[data-filings-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+          (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+      ok('...and accounts for the companies in scope on its tooltip',
+        /companies appear on this feed/i.test((await page.locator('[data-filings-info]').getAttribute('title')) || ''));
+      ok('...and the global Refresh control remains available', (await page.locator('[data-header-refresh]').count()) === 1);
     } else {
       skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');
       skip('...and the provenance pill is on the face instead', 'no rows cached on this origin');
-      skip('...and says how current it is rather than claiming nothing is new', 'no rows cached on this origin');
+      skip('...and opens no provenance popup', 'no rows cached on this origin');
       skip('...and accounts for the companies in scope rather than leaving a gap to misread', 'no rows cached on this origin');
-      skip('...and offers a control that asks', 'no rows cached on this origin');
+      skip('...and the global Refresh control remains available', 'no rows cached on this origin');
     }
   }
 
@@ -5566,14 +5495,11 @@ const freshness = await page.evaluate(async () => {
 });
 ok('the feed records where this paint came from', !!freshness?.origin, `origin=${freshness?.origin}`);
 ok('...and when the server last confirmed it', Number.isFinite(freshness?.checkedAt), String(freshness?.checkedAt));
-const provenance = await page.evaluate(() => {
-  document.querySelector('[data-live-info]')?.click();
-  return new Promise((r) => setTimeout(() => r(document.querySelector('#modal-content')?.innerText || ''), 400));
-});
-ok('the Live pill says where the figures came from', /Painted from/.test(provenance));
-ok('...and never presents a cached copy as a live one', !/Painted from this device/.test(provenance) || /last confirmed|could not be reached/.test(provenance));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.locator('[data-live-info]').click();
+await page.waitForTimeout(200);
+ok('the feed status stays passive when the paint came from cache',
+  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // Con-call: same contract, one channel — nothing on a con-call row moves on a tick, so the
 // conditional GET does the whole job there and no projection exists.

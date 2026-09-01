@@ -152,7 +152,7 @@ priced in it is real:
 A flat "mock data" ribbon would understate those numbers and a "live" badge would overstate them,
 so the disclosure is split — the ledger is illustrative, the marks are live — and every sub-view
 carries it as a pill in its section head reading *Illustrative ledger · live marks*, amber, with the
-full explanation in the modal one click behind. With no mark the same pill turns rose and reads
+full explanation retained in export disclosures rather than a popup. With no mark the same pill turns rose and reads
 *Marks unavailable · shown at cost*, because a P&L of zero for want of a price must not look like a
 P&L of zero for want of a move. `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` render
 it; `exportBanner()` still puts the whole disclosure in row 1 of every workbook.
@@ -329,9 +329,9 @@ whether or not a byte of data had been confirmed in an hour.
 - One pill now, `● Live · updated 4m ago`, reading `live.getLastDataTick()`: the last tick of a
   poller that actually talked to a server. `live.register(id, { synthetic: true })` is what keeps
   the heartbeat out of that clock.
-- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
-  has to stay reachable from every screen, and *how current is this* / *where did it come from* are
-  one question. `verify-ui.mjs` still opens the modal, now via the pill.
+- **The Sources button and its popup are gone from the chrome.** The status pill is a passive
+  freshness label. The canonical source registry remains available to audits and export paths,
+  and `verify-ui.mjs` asserts that clicking status labels opens no modal.
 - The refresh button calls `live.refreshAll()` and **reports a result** — `Up to date` or `3 new`.
   A spinner that simply vanishes leaves the reader unsure anything was checked.
 - **The global search is gone with the box.** Nothing else used it; a company is reached from its
@@ -626,9 +626,9 @@ likewise in the feed and the export but not on screen.
 
 **There is no drill panel, and re-adding one would be a regression.** There was one; six reported
 figures were the bulk of what it said, so once those became columns it was restating the row you
-clicked. Rows are not clickable. The provenance it carried moved behind the Live pill, which is one
-click from anywhere on the page rather than one click per row. If a number wants to be in a drill,
-make it a column instead.
+clicked. Rows are not clickable. The status pill is passive and the source registry retains the
+provenance previously carried by the drill. If a number wants to be in a drill, make it a column
+instead.
 
 **"Latest" means the upstream's order, not ours.** `resultDate` is a date; filings arrive through
 the day. Rows carry `seq` (the upstream index) and sort `(date desc, seq asc)`, which is the only

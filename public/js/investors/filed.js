@@ -157,7 +157,6 @@ export function renderFiled(ctx, { disposers = [], section = 'institutions', onS
       disposers.push(sectionTabs.wire(root.querySelector('[data-filed-section-tabs]')));
       const off = table.wire(root);
       if (off) disposers.push(off);
-      root.querySelector('[data-filed-info]')?.addEventListener('click', () => openProvenance(fund, m));
       for (const btn of root.querySelectorAll('[data-fund]')) {
         btn.addEventListener('click', () => ctx.setParams({ ...ctx.params, fund: btn.dataset.fund }));
       }
@@ -650,12 +649,12 @@ function fundPicker(funds, active) {
 function disclosurePill(fund) {
   const filing = isFiling(fund);
   return `
-    <button type="button" data-filed-info title="Where these figures come from, and what the percentage measures"
-      class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+    <span data-filed-info title="${filing ? 'Exchange-filed shareholdings' : 'AMC portfolio disclosure'}"
+      class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300">
       <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
       <span>${filing ? 'Filed' : 'Disclosed'}</span>
       <span class="font-normal opacity-70">${escapeHtml(fund.periodLabels[0])} · ${filing ? 'exchange filings' : '% to NAV, AMC portfolio'}</span>
-    </button>`;
+    </span>`;
 }
 
 // THERE IS NO FOOTNOTE UNDER THIS TABLE, AND THAT IS A DELIBERATE MOVE, NOT A LOSS.

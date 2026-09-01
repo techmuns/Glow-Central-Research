@@ -154,7 +154,6 @@ function paint(ctx) {
   if (cards) cards.wire(ctx.root);
   if (coveredTable) disposers.push(coveredTable.wire(ctx.root));
   disposers.push(otherTable.wire(ctx.root));
-  wireLivePill(ctx.root, m);
 }
 
 /**
@@ -245,14 +244,14 @@ function buildTopCards(rows) {
   });
 }
 
-/** The green Live pill, and the modal behind it that says exactly whose each column is. */
+/** The passive green Live status label. */
 const livePill = (m) => `
-  <button type="button" data-chatter-live
-    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+  <span data-chatter-live
+    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
     <span>Live</span>
     <span class="font-medium text-emerald-600">${escapeHtml(formatNumber(m.total))} entries · ${escapeHtml(m.window)}</span>
-  </button>`;
+  </span>`;
 
 function wireLivePill(root, m) {
   root.querySelector('[data-chatter-live]')?.addEventListener('click', () => {

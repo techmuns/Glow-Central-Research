@@ -452,17 +452,15 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
  *
  * One pill, one honest timestamp: `getTimestamp` is wired to the last tick of a poller that
  * actually talked to a server (`live.getLastDataTick()`), falling back to when the page loaded its
- * data. Clicking it opens the provenance modal, which is where the removed "Sources" button went —
- * the button is gone from the chrome, the accountability behind it is one click from every screen.
+ * data. It is a passive status label; the old source/freshness popup is intentionally gone.
  *
  * `onRefresh` returns `{ announced }` so the button can report a result instead of just spinning.
  */
-export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null, onOpenSources = null }) {
+export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null }) {
   const html = `
     <div class="flex items-center gap-1.5">
-      <button type="button" data-status-pill
-        title="When a feed last confirmed its data with the server. Click for every source this dashboard uses."
-        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+      <span data-status-pill title="When a feed last confirmed its data with the server"
+        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
         <span class="relative flex h-1.5 w-1.5">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -470,7 +468,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
         <span>Live</span>
         <span class="text-emerald-300">·</span>
         <span data-live-time class="tabular-nums font-medium text-emerald-600">—</span>
-      </button>
+      </span>
       <button type="button" data-header-refresh title="Check every live feed for new data now"
         class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
         <svg data-header-refresh-icon width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -482,7 +480,6 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
 
   function wire(root) {
     const timeEl = root.querySelector('[data-live-time]');
-    const pill = root.querySelector('[data-status-pill]');
     const btn = root.querySelector('[data-header-refresh]');
     const icon = root.querySelector('[data-header-refresh-icon]');
     const label = root.querySelector('[data-header-refresh-label]');
@@ -494,7 +491,6 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
     refresh();
     const interval = setInterval(refresh, 15000);
     const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
-    pill.addEventListener('click', () => onOpenSources?.());
 
     // A REFRESH THAT NEVER RETURNS IS THE EXACT FAILURE THIS BUTTON EXISTS TO PREVENT.
     //

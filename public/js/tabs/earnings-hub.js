@@ -34,9 +34,8 @@
 //   There was one, and the six reported figures were the bulk of what it said — so once those
 //   became columns it was mostly restating the row you clicked. Rows are not clickable now.
 //   Nothing accountable was lost with it: the return-since-result figure it explained is no
-//   longer a column at all, and the provenance it carried (what is live, where each column is
-//   joined from, how market cap is computed, what a dash means) lives behind the Live pill,
-//   which is one click from anywhere on the page rather than one click per row.
+//   longer a column at all, and the passive Live label reports status without opening a dialog.
+//   Detailed source metadata remains in the canonical registry.
 //
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
@@ -291,36 +290,34 @@ function basisPill(basis) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Chrome — one small live button, and the provenance behind it on click.
+// Chrome — one small passive live status label.
 //
 // This page used to open with a green ribbon, a "just reported" strip and a 4-card stat row
 // before you reached a single result. That is a lot of furniture in front of the thing people
 // came for. It is now a pill in the section head.
 //
-// The provenance did NOT go away — it moved behind the pill. What is live, what is joined, what
-// is missing and how the return is measured are all one click away. Deleting them outright would
-// have made the page cleaner and the numbers less accountable.
+// The compact label reports whether the feed is live or a snapshot without opening an explainer
+// dialog. Task-oriented dialogs, such as the schedule, remain separate controls.
 // ---------------------------------------------------------------------------------------
 function liveButton(m, rows) {
   if (!m) return '';
   const degraded = !!m.degraded;
   const cls = degraded
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+    ? 'bg-amber-50 text-amber-800 ring-amber-300'
+    : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
   const dot = degraded
     ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
     : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
 
   const arrivals = feed.newArrivals().length;
   return `
-    <button type="button" data-live-info
-      title="What this feed is, and how fresh"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+    <span data-live-info title="Current results-feed status"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
       ${dot}
       <span>${degraded ? 'Snapshot' : 'Live'}</span>
       <span class="font-normal opacity-70">${escapeHtml(m.quarter || '')} · ${escapeHtml(formatNumber(rows.length))} reported</span>
       ${arrivals ? `<span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">+${arrivals} new</span>` : ''}
-    </button>`;
+    </span>`;
 }
 
 /**
@@ -572,7 +569,6 @@ function renderLatest(ctx) {
   `;
   wireViewToggle(ctx.root, ctx);
   wirePeriodToggle(ctx.root, ctx);
-  wireLiveButton(ctx.root, m, rows);
   disposers.push(table.wire(ctx.root));
 }
 
@@ -951,7 +947,6 @@ function renderCalendar(ctx) {
     }
   `;
   wireViewToggle(ctx.root, ctx);
-  wireCalendarPill(ctx.root, payload, wanted, mode);
   for (const btn of ctx.root.querySelectorAll('[data-date]')) {
     btn.addEventListener('click', () => {
       calendarDate = btn.dataset.date;
@@ -1058,12 +1053,12 @@ function reportedNote(iso, filed) {
 function calendarPill(payload, err, { mode = 'scheduled', filed = 0 } = {}) {
   if (mode === 'reported') {
     return `
-      <button type="button" data-cal-info title="Where these companies come from, and what the count beside them means"
-        class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <span data-cal-info title="Reported results for this date"
+        class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300">
         <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>
         <span>Reported</span>
         <span class="font-normal opacity-70">${escapeHtml(formatNumber(filed))} filed</span>
-      </button>`;
+      </span>`;
   }
   const bad = !!err || !!payload?.degraded;
   // Either half can be a capture and either makes the pill say so. The list and the counts fail
@@ -1072,10 +1067,10 @@ function calendarPill(payload, err, { mode = 'scheduled', filed = 0 } = {}) {
   // BOTH were read live.
   const captured = payload?.listSource === 'snapshot' || payload?.countSource === 'snapshot';
   const cls = bad
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
+    ? 'bg-amber-50 text-amber-800 ring-amber-300'
     : captured
-      ? 'bg-sky-50 text-sky-800 ring-sky-300 hover:bg-sky-100'
-      : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+      ? 'bg-sky-50 text-sky-800 ring-sky-300'
+      : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
   const dot = bad
     ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
     : captured
@@ -1085,11 +1080,11 @@ function calendarPill(payload, err, { mode = 'scheduled', filed = 0 } = {}) {
   // day. Say "schedule" rather than assert a number we do not believe.
   const count = believableCount(payload);
   return `
-    <button type="button" data-cal-info title="Where this calendar comes from, and what it does not show"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+    <span data-cal-info title="Current calendar-feed status"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
       ${dot}<span>${bad ? 'Partial' : captured ? 'Captured' : 'Live'}</span>
       <span class="font-normal opacity-70">${count != null ? `${escapeHtml(formatNumber(count))} scheduled` : 'schedule'}</span>
-    </button>`;
+    </span>`;
 }
 
 // THE PARAGRAPH THAT USED TO SIT UNDER THIS TABLE IS GONE, AND ITS CONTENT IS NOT.
@@ -1347,5 +1342,3 @@ async function exportResults(rows, m) {
     rows: [banner, ...rows],
   });
 }
-
-

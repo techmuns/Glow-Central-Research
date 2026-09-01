@@ -8,8 +8,7 @@ import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { openModal, closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
-import { sourcesModalHtml } from './sources.js';
+import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 
@@ -136,16 +135,14 @@ function shellTemplate() {
  * time a poller actually confirmed something — with the page-load time as the fallback for before
  * any poller has ticked.
  *
- * The Sources button is gone from the chrome, not the app: the pill opens it. Provenance has to
- * stay reachable from every screen (see the honesty rules in CLAUDE.md), and a freshness control
- * is the right place for it — "how current is this, and where did it come from" is one question.
+ * The pill is deliberately passive. Source/freshness explainer popups were removed from the
+ * dashboard; Refresh remains the only action in this compact header cluster.
  */
 function wireStaticHeader(root) {
   const status = statusControl({
     getTimestamp: () => live.getLastDataTick() ?? state.dataLoadedAt,
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow(),
-    onOpenSources: () => openModal(sourcesModalHtml(), { size: 'magazine' }),
   });
   $('#status-mount', root).innerHTML = status.html;
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part

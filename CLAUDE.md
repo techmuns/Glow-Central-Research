@@ -286,16 +286,16 @@ and nothing else: no stat cards, no ribbon, no sub-view picker. **Daily Alerts i
 it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
-The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY
-and a screenshot travels without the modal. **Breakouts / Technical is the second, on all four
+The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY.
+**Breakouts / Technical is the second, on all four
 sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*
 is the count on the Strong chip itself. The rule that survives is not
-"every tab has a stat strip" — it is **the provenance must always be reachable**. There it lives behind a small Live
-pill in the section head, which opens a modal with what is live, what each column is joined from,
-what is missing and what a dash means. Decluttering a page is fine; deleting its accountability is
-not. A tab with `subviews: []` gets no sub-view picker — the shell hides that row and skips
+"every tab has a stat strip" — it is **status should be legible without another interaction**.
+There it lives in a small passive Live label in the section head. It does not open a provenance
+popup; full source metadata remains in the source registry and export disclosures. A tab with
+`subviews: []` gets no sub-view picker — the shell hides that row and skips
 wiring it.
 
 The standard tab body, in order:
@@ -1941,18 +1941,11 @@ Three things that make the trade honest rather than a deletion:
    drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
    the page without its chrome, and it is the one artefact nobody can see a pill on.
 
-**Prefer this shape whenever a caveat is competing with the content it qualifies.** Four times now
-the right answer to "this block is too loud" has been to move the explanation behind a control that
-still states the claim — and never to delete the claim, and never to write a smaller version of the
-block. The fourth is the filings tabs' freshness strip: a permanent grey paragraph under the
-heading — how old the capture is, how many companies were searched, what they answered — with the
-Refresh control inside it. All of it now lives in the provenance modal, the pill on the face keeps
-the claim, and **the only thing left in the body is a strip that appears while a walk is actually
-running**, because progress on work the reader just asked for is feedback rather than chrome. The
-Refresh button moved with the explanation (the market-news Fetch button's shape: wired on
-`#modal-content`, not on the tab root) — but the **failure** panel keeps its own retry control in
-the body, since a reader whose feed could not be read must not have to open a modal to find the
-thing that retries it.
+**Prefer a passive status label whenever a caveat is competing with the content it qualifies.**
+The label must state the material condition on its face and must not open a provenance explainer.
+Full source detail belongs in the registry and export disclosures. Progress on work the reader
+just asked for may still appear in the body because it is feedback rather than permanent chrome;
+failure panels keep their own retry control so recovery never depends on a hidden dialog.
 
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
@@ -2118,9 +2111,8 @@ or not a byte had been confirmed in an hour.
 - `live.register(id, { synthetic: true })` keeps a poller out of `getLastDataTick()`. The heartbeat
   is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
   server does not get to move that clock.
-- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
-  must stay reachable from every screen (see the honesty rules above), and a freshness control is
-  the right home: *how current is this* and *where did it come from* are one question.
+- **The Sources button and its popup are gone from the chrome.** The status pill is passive.
+  Canonical provenance remains in the source registry and export disclosures.
 - `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
   It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
 
@@ -2509,10 +2501,10 @@ It covers, beyond the checklist below:
   that needs a period we do not have — the shape every link 404'd with
 - the con-call panel and drill say the analysis is a third party's and **never print the
   provider's brand**
-- **the Sources modal contains no hand-typed figure**: the book count, the uncovered-lines count
+- **the source registry contains no hand-typed figure**: the book count, the uncovered-lines count
   and the reported-companies count each match what the modules report, and no source describes
   itself with a zero
-- the Sources modal opens off the status pill and lists every documented source
+- the status pill is passive and opens no modal; the source registry still lists every documented source
 - the header carries no search box and no Sources button, exactly one status pill reading
   "Live · updated <when>", and a refresh button that reports a result
 - an alert renders in the lower-right corner, never announces the same event twice, caps its stack,
