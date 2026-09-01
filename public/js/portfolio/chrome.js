@@ -15,10 +15,9 @@
 //   money, on every view, every time. Correct, and far too loud: a caveat that big reads as a
 //   warning about the page rather than a note about one input to it.
 //
-//   So it went the way the Earnings Hub's ribbon went — behind a pill in the section head, which
-//   opens a modal carrying every word of it. The Earnings Hub rule applies verbatim: decluttering
-//   a page is fine, deleting its accountability is not. What may NOT move behind a click is the
-//   claim itself, so the pill still says "illustrative ledger" on its face, in amber, on every
+//   So it became a passive label in the section head. Decluttering a page is fine, deleting its
+//   accountability is not: the full explanation remains in exports and the canonical source
+//   metadata. The label still says "illustrative ledger" on its face, in amber, on every
 //   sub-view — and when the mark is missing it says THAT on its face instead, because a position
 //   shown at cost reads as a position that has not moved.
 //
@@ -31,8 +30,8 @@ import { formatDate, formatPct, formatRupee, formatRelativeTime, toneForValue } 
 import { sectionHead, openModal } from '../ui/screener.js';
 
 /**
- * The provenance pill. Every sub-view renders this in its section head, beside the scope summary.
- * Pair it with `wireProvenancePill(root, meta)`.
+ * The passive provenance label. Every sub-view renders this in its section head, beside the
+ * scope summary. It reports status without opening an explainer dialog.
  */
 export function provenancePill(meta) {
   if (!meta) return '';
@@ -40,17 +39,17 @@ export function provenancePill(meta) {
   // must know is that the trades are invented; if the mark is missing, the one thing they must
   // know is that every P&L on screen is zero for want of a price, not for want of a move.
   const cls = meta.marksAreLive
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : 'bg-rose-50 text-rose-800 ring-rose-300 hover:bg-rose-100';
+    ? 'bg-amber-50 text-amber-800 ring-amber-300'
+    : 'bg-rose-50 text-rose-800 ring-rose-300';
   const face = meta.marksAreLive
     ? 'Illustrative ledger · live marks'
     : 'Marks unavailable · shown at cost';
   return `
-    <button type="button" data-pf-info title="What is real on this page, and what is not"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+    <span data-pf-info title="Portfolio data status"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
       <span class="h-1.5 w-1.5 rounded-full ${meta.marksAreLive ? 'bg-amber-500' : 'bg-rose-500'}"></span>
       <span>${escapeHtml(face)}</span>
-    </button>`;
+    </span>`;
 }
 
 /**
@@ -67,9 +66,7 @@ export function headMeta(meta, scopeHtml = '') {
 }
 
 export function wireProvenancePill(root, meta) {
-  const btn = root.querySelector('[data-pf-info]');
-  if (!btn || !meta) return;
-  btn.addEventListener('click', () => openModal(provenanceModalHtml(meta), { size: 'default' }));
+  // Passive status only. The verbose provenance popup was intentionally removed.
 }
 
 function provenanceModalHtml(meta) {

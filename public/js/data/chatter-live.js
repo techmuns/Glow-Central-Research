@@ -31,7 +31,7 @@
 //   whose answer cannot have changed, and an unchanged poll is a bodyless 304 against their ETag.
 
 import { conditionalJson, revalidatedJson, KEYS } from '../core/store.js';
-import { buildResolverIndex, resolveAll, fingerprint, normaliseDashboard, SOURCE_LABEL } from './sentiment-shared.js';
+import { buildResolverIndex, resolveAll, fingerprint, normaliseDashboard, normalisePosts, SOURCE_LABEL } from './sentiment-shared.js';
 import * as coverage from './coverage.js';
 import { filterByScope } from './scope.js';
 
@@ -82,6 +82,8 @@ let resolverIndex = null;
 let seenSlugs = null; // populated on first load; anything new after that is an arrival
 let arrivals = [];
 const listeners = new Set();
+const postsCache = new Map();
+const postsInFlight = new Map();
 
 export function load() {
   if (cache) return Promise.resolve(cache);
@@ -200,6 +202,7 @@ async function buildIndex() {
 function ingest(payload, { origin, checkedAt } = {}) {
   const ok = !!payload?.ok;
   const entries = ok ? resolveAll(payload.entries || [], resolverIndex) : [];
+  if (cache?.meta?.generatedAt && payload?.generatedAt && cache.meta.generatedAt !== payload.generatedAt) postsCache.clear();
 
   // Arrivals: an entry the feed did not carry last time we looked. The first load seeds the set
   // rather than announcing 219 things that have been sitting there for a fortnight — the same
@@ -261,6 +264,47 @@ export const meta = () => (cache ? cache.meta : null);
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
 export const newArrivals = () => arrivals;
 export const sourceLabel = (k) => SOURCE_LABEL[k] || k;
+
+/**
+ * Load the actual items behind one dashboard mention count, only after the reader asks for them.
+ * The detail endpoint is public and already linked by every dashboard row. A per-slug in-memory
+ * cache keeps reopening a row instant without turning a table paint into hundreds of requests.
+ */
+export function postsFor(slug) {
+  const key = String(slug || '').trim().toLowerCase();
+  if (!key) return Promise.reject(new Error('No chatter topic was supplied.'));
+  if (postsCache.has(key)) return Promise.resolve(postsCache.get(key));
+  if (postsInFlight.has(key)) return postsInFlight.get(key);
+
+  const pending = fetchPosts(key).finally(() => postsInFlight.delete(key));
+  postsInFlight.set(key, pending);
+  return pending;
+}
+
+async function fetchPosts(slug) {
+  const base = baseUrl();
+  if (!/^https?:\/\//i.test(base)) throw new Error('The chatter feed has no usable address.');
+
+  const url = `${base}/stocks/${encodeURIComponent(slug)}/posts?limit=1000&sort=newest`;
+  let response;
+  try {
+    response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-cache' });
+  } catch {
+    throw new Error('The mentions could not be reached.');
+  }
+  if (!response.ok) throw new Error(`The mentions endpoint returned HTTP ${response.status}.`);
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error('The mentions endpoint returned an unreadable response.');
+  }
+  const normalised = normalisePosts(body);
+  const result = { ...normalised, slug: normalised.slug || slug, endpoint: url };
+  postsCache.set(slug, result);
+  return result;
+}
 
 /**
  * Portfolio scope narrows the COVERED half only.

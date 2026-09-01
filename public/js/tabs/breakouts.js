@@ -219,9 +219,9 @@ function freshness() {
 }
 
 const TONE = {
-  live: 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100',
-  stale: 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100',
-  unknown: 'bg-slate-100 text-slate-600 ring-slate-300 hover:bg-slate-200',
+  live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  stale: 'bg-amber-50 text-amber-800 ring-amber-300',
+  unknown: 'bg-slate-100 text-slate-600 ring-slate-300',
 };
 const DOT = {
   live: '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>',
@@ -259,22 +259,12 @@ function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {})
         : 'This feed carries no capture time — click for what is known';
 
   const html = `
-    <button type="button" data-live-info title="${escapeHtml(title)}"
-      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${TONE[tone]}">
+    <span data-live-info title="${escapeHtml(title.replace(/\s*— click.*$/i, ''))}"
+      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${TONE[tone]}">
       ${DOT[tone]}<span>${escapeHtml(face)}</span>
-    </button>`;
+    </span>`;
 
-  function wire(root) {
-    const btn = root.querySelector('[data-live-info]');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      openModal(pillModalBody({ f, facts, bodyHtml, more, mock }), { size: 'wide' });
-      // Wired on the modal's OWN content, which openModal has just replaced — never on document.
-      // render() runs again on every scope and sub-view change, so a document-level listener here
-      // would stack up one per render and outlive the pill that added it.
-      if (more) document.getElementById('modal-content')?.querySelector('[data-live-more]')?.addEventListener('click', more.open);
-    });
-  }
+  function wire() {}
 
   return { html, wire };
 }

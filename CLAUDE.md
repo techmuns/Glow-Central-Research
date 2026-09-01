@@ -66,7 +66,7 @@ public/
       shell.js                header + tabs + sub-view picker + content host + tab registry
     concall/
       scans.js                the WHOLE Con-call tab, live off StockScans (scores are THEIRS)
-                              — the scan table plus the "Upcoming Concalls" schedule overlay
+                              — the scan table, with no schedule or feed-status header chips
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
     investors/
@@ -282,20 +282,22 @@ content. `roadmapStrip()` and the older `comingSoonStrip()` are both deleted; do
 either. Listing a gap in the spec is the rule that survives.
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
-and nothing else: no stat cards, no ribbon, no sub-view picker. **Daily Alerts is the third**, and
+and nothing else: no stat cards, no ribbon, no sub-view picker. Public Chatter also omits its four
+summary cards; coverage, post count/source split, mood and scrape timing now sit in a muted footnote
+after both tables. **Daily Alerts is the third**, and
 it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
-The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY
-and a screenshot travels without the modal. **Breakouts / Technical is the second, on all four
+The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY.
+**Breakouts / Technical is the second, on all four
 sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*
 is the count on the Strong chip itself. The rule that survives is not
-"every tab has a stat strip" — it is **the provenance must always be reachable**. There it lives behind a small Live
-pill in the section head, which opens a modal with what is live, what each column is joined from,
-what is missing and what a dash means. Decluttering a page is fine; deleting its accountability is
-not. A tab with `subviews: []` gets no sub-view picker — the shell hides that row and skips
+"every tab has a stat strip" — it is **status should be legible without another interaction**.
+There it lives in a small passive Live label in the section head. It does not open a provenance
+popup; full source metadata remains in the source registry and export disclosures. A tab with
+`subviews: []` gets no sub-view picker — the shell hides that row and skips
 wiring it.
 
 The standard tab body, in order:
@@ -580,10 +582,13 @@ on that feed is the quarter-over-quarter change, and it is headed *Change (deriv
 
 The Quarterly Changes in-page tab exists so a reader does not open ninety books one at a time. It
 is a cross-book roll-up: who bought what, who sold what, and where more than one tracked investor
-moved on the same company. *All Investors* is the default beside it, containing the cards and the
-full holdings table. The roll-up replaced three stat cards, two of which described the *feed* (how
-many books loaded, what they total) rather than answering anything, and a third that was a pair of
-counts with no names attached — so the only way to act on it was to open the books.
+moved on the same company. *All Investors* is the default before it and contains only the investor
+cards. *Data Table* follows Quarterly Changes and contains the full disclosed-positions table with
+its search, filters, watchlist control and export. Keeping those three jobs in separate tabs avoids
+making the investor directory a long preamble to a wide table. The roll-up replaced three stat
+cards, two of which described the *feed* (how many books loaded, what they total) rather than
+answering anything, and a third that was a pair of counts with no names attached — so the only way
+to act on it was to open the books.
 
 `quarterSummary({ include, limit })` in `js/data/super-investors.js` is the whole of it, and it is
 a roll-up of `deriveMoves` rather than a new model. **Four numbers it refuses to invent**, each of
@@ -611,6 +616,14 @@ counted as not comparable rather than reading as an investor who did nothing.
 **The head prints how many books CONTRIBUTED, out of how many are comparable.** Under a narrowed
 scope "5 new across 87 comparable books" is true and sounds like 87 investors moved on five
 companies; *"across 33 of 87"* cannot be read that way.
+
+**Every company row opens the complete cross-investor detail.** The five-row cards abbreviate
+three names to `+1` and a largest-move row necessarily names only the investor who produced that
+move; neither is enough to answer who else holds the company. The popup reads `allHoldings()` and
+lists every tracked investor whose own latest/prior pair contains it, including unchanged holders,
+with the two filed stakes, derived change and current Finology value. A position absent from both
+comparison quarters is old history and stays out; a current one-quarter disclosure stays in and is
+labelled not comparable.
 
 **`scopeFilter(ctx)` is one predicate, used by the summary AND the table under it.** Two predicates
 over the same question is what had the filings tabs reporting different sets in two places on one
@@ -663,6 +676,13 @@ Two things follow that are easy to get wrong the other way:
 **Those shared names describe the shape, not the meaning** — `columnsFor()` in `js/investors/filed.js`
 is the single place that decides what a percentage is called, and every consumer must branch on
 `disclosure` before writing a heading.
+
+**The Institutions Quarterly Changes tab branches before it aggregates.** It mirrors Superstar
+Investors' six-panel cross-book view, but `quarterlySummary()` admits only shareholding books; AMC
+portfolio weights stay under All Institutions. Every company button opens
+`quarterlyCompany(key)`, which includes all relevant quarterly institution books with prior/current
+stake, status, derived pp change, Trendlyne value and shares held. `Filing Awaited` is retained as a
+current pending disclosure and excluded from move counts — never turned into no longer disclosed.
 
 ### An upstream you CANNOT proxy — the same-zone Worker rule
 
@@ -1412,8 +1432,8 @@ gives us full transcript text. Holding that line took an amber ribbon on one hal
 pill on the other, `LIVE_SUBVIEWS` routing the two through separate code paths, and a rule that
 neither half's poller could repaint the other.
 
-The four synthetic views are gone, and so is the machinery: the tab is one live table plus the
-schedule overlay, `subviews: []`, no picker, no ribbon. **That is the preferred resolution whenever
+The four synthetic views are gone, and so is the machinery: the tab is one live table,
+`subviews: []`, no picker, no ribbon, and no schedule/status chips. **That is the preferred resolution whenever
 a tab acquires two provenances** — not a better ribbon. If the real transcript feed is ever wired
 (BSE publishes filed transcript PDFs), the keyword engine and the Deep Dive workspace are in git
 history at `8e31eec..` and would come back pointed at real text.
@@ -1929,18 +1949,11 @@ Three things that make the trade honest rather than a deletion:
    drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
    the page without its chrome, and it is the one artefact nobody can see a pill on.
 
-**Prefer this shape whenever a caveat is competing with the content it qualifies.** Four times now
-the right answer to "this block is too loud" has been to move the explanation behind a control that
-still states the claim — and never to delete the claim, and never to write a smaller version of the
-block. The fourth is the filings tabs' freshness strip: a permanent grey paragraph under the
-heading — how old the capture is, how many companies were searched, what they answered — with the
-Refresh control inside it. All of it now lives in the provenance modal, the pill on the face keeps
-the claim, and **the only thing left in the body is a strip that appears while a walk is actually
-running**, because progress on work the reader just asked for is feedback rather than chrome. The
-Refresh button moved with the explanation (the market-news Fetch button's shape: wired on
-`#modal-content`, not on the tab root) — but the **failure** panel keeps its own retry control in
-the body, since a reader whose feed could not be read must not have to open a modal to find the
-thing that retries it.
+**Prefer a passive status label whenever a caveat is competing with the content it qualifies.**
+The label must state the material condition on its face and must not open a provenance explainer.
+Full source detail belongs in the registry and export disclosures. Progress on work the reader
+just asked for may still appear in the body because it is feedback rather than permanent chrome;
+failure panels keep their own retry control so recovery never depends on a hidden dialog.
 
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
@@ -2106,9 +2119,8 @@ or not a byte had been confirmed in an hour.
 - `live.register(id, { synthetic: true })` keeps a poller out of `getLastDataTick()`. The heartbeat
   is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
   server does not get to move that clock.
-- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
-  must stay reachable from every screen (see the honesty rules above), and a freshness control is
-  the right home: *how current is this* and *where did it come from* are one question.
+- **The Sources button and its popup are gone from the chrome.** The status pill is passive.
+  Canonical provenance remains in the source registry and export disclosures.
 - `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
   It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
 
@@ -2319,8 +2331,9 @@ Three things keep that from being a freshness claim bought on credit, and all th
   needs a way for them to ask it anyway.
 
 **A repaint is not free either, and per-arrival repainting is the other half of "slow".** The tab
-rebuilds its whole panel — stat strip, ninety cards, a table of every disclosed position — from one
-`onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most one
+rebuilds whichever of its investor cards, quarterly roll-up or disclosed-positions table is active
+from one `onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most
+one
 repaint per `EMIT_COALESCE_MS` (a trailing throttle, **not** a debounce — a debounce would keep
 deferring while books kept landing and the grid would sit still until the walk finished), and the
 derived views are memoised behind a version counter so they are built once per change rather than
@@ -2370,7 +2383,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
-| Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
+| Change the Con-call tab | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
 | Change what a Deep Dive report keeps on the device | the saved-report block in `js/data/deep-dive.js` + `KEYS.deepDiveReport` — a report costs a metered run, so read rule 5 there before shortening anything |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
@@ -2497,10 +2510,10 @@ It covers, beyond the checklist below:
   that needs a period we do not have — the shape every link 404'd with
 - the con-call panel and drill say the analysis is a third party's and **never print the
   provider's brand**
-- **the Sources modal contains no hand-typed figure**: the book count, the uncovered-lines count
+- **the source registry contains no hand-typed figure**: the book count, the uncovered-lines count
   and the reported-companies count each match what the modules report, and no source describes
   itself with a zero
-- the Sources modal opens off the status pill and lists every documented source
+- the status pill is passive and opens no modal; the source registry still lists every documented source
 - the header carries no search box and no Sources button, exactly one status pill reading
   "Live · updated <when>", and a refresh button that reports a result
 - an alert renders in the lower-right corner, never announces the same event twice, caps its stack,
