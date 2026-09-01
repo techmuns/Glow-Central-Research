@@ -296,17 +296,14 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   });
   onView?.(table.view);
 
-  const scheduled = feed.forScope(ctx.scope, coverage.holdings(), feed.upcoming());
-
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Concall Scans',
       description: `Every earnings call held this quarter, newest first. Times are IST. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${scheduleButton(scheduled.length)}${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() })}</div>`,
+      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() }),
     })}
     ${table.html}
   `;
-  ctx.root.querySelector('[data-open-schedule]')?.addEventListener('click', () => openScheduleModal(scheduled, { scope: ctx.scope }));
   disposers.push(table.wire(ctx.root));
 
   // Delegated on the host rather than per button: the table body is rebuilt on every sort, filter

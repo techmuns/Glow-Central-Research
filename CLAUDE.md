@@ -66,7 +66,7 @@ public/
       shell.js                header + tabs + sub-view picker + content host + tab registry
     concall/
       scans.js                the WHOLE Con-call tab, live off StockScans (scores are THEIRS)
-                              — the scan table plus the "Upcoming Concalls" schedule overlay
+                              — the scan table, with no schedule or feed-status header chips
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
     investors/
@@ -1430,8 +1430,8 @@ gives us full transcript text. Holding that line took an amber ribbon on one hal
 pill on the other, `LIVE_SUBVIEWS` routing the two through separate code paths, and a rule that
 neither half's poller could repaint the other.
 
-The four synthetic views are gone, and so is the machinery: the tab is one live table plus the
-schedule overlay, `subviews: []`, no picker, no ribbon. **That is the preferred resolution whenever
+The four synthetic views are gone, and so is the machinery: the tab is one live table,
+`subviews: []`, no picker, no ribbon, and no schedule/status chips. **That is the preferred resolution whenever
 a tab acquires two provenances** — not a better ribbon. If the real transcript feed is ever wired
 (BSE publishes filed transcript PDFs), the keyword engine and the Deep Dive workspace are in git
 history at `8e31eec..` and would come back pointed at real text.
@@ -2381,7 +2381,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
-| Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
+| Change the Con-call tab | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
 | Change what a Deep Dive report keeps on the device | the saved-report block in `js/data/deep-dive.js` + `KEYS.deepDiveReport` — a report costs a metered run, so read rule 5 there before shortening anything |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |

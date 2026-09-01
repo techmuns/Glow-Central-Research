@@ -225,8 +225,8 @@ public/js/
                            daily-alerts.js — retained chronological readings across four tabs (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
-  concall/                 scans.js — the whole Con-call tab: the live scan table and the
-                           "Upcoming Concalls" schedule overlay
+  concall/                 scans.js — the whole Con-call tab: the live scan table, without
+                           schedule or feed-status header chips
                            deep-dive.js — the panel behind the Deep Dive column (a SEPARATE
                            dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
@@ -719,8 +719,8 @@ this live feed is the obvious next piece of work.**
 
 The tab is the StockScans con-call scan — every earnings call held this quarter with **their**
 result score (0–100), **their** sentiment tier and **their** highlight bullets — plus the schedule
-of calls not yet held, behind an **Upcoming Concalls** button that opens an overlay grouped by
-date, the same shape StockScans give it.
+data retained in the feed. The visible section heading deliberately omits both the Upcoming
+Concalls control and the Live/call-count chip so the scan table starts cleanly.
 
 **Reproducing someone else's analysis is allowed; blurring whose it is, is not.** The rules, in
 full in CLAUDE.md: do not re-band or recompute their score, say whose it is on every surface

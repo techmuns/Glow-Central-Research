@@ -53,7 +53,7 @@ spans the full 1400px on every tab.
 | --- | --- |
 | Daily Alerts | *(none — one stream, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
-| Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
+| Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
 | Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
 | Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
@@ -319,8 +319,8 @@ the selected date, because that is all Moneycontrol publishes — and says so un
 
 ### Con-call — `concall`
 One screen, live off StockScans: every earnings call held this quarter with their result score,
-sentiment tier and highlight bullets, reproduced unchanged and attributed. The schedule of calls
-not yet held sits behind an **Upcoming Concalls** button that opens an overlay grouped by date.
+sentiment tier and highlight bullets, reproduced unchanged and attributed. The section heading has
+no Upcoming Concalls or Live/call-count chips; the table is the view.
 
 Four sub-views that ran on a synthetic transcript corpus — Live Feed, Keyword Scan, Catalysts and
 Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.md` §5c.

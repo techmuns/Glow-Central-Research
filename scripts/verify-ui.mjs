@@ -2393,12 +2393,9 @@ ok('analysed rows carry a summary link', csLink.n > 100, `${csLink.n} links`);
 ok('...on the document route, which needs no period', /\/document\/[^/]+\.pdf$/.test(csLink.sample), csLink.sample);
 ok('...never on the company route, which does', !/\/company\//.test(csLink.sample), csLink.sample);
 
-// The provider status stays compact and passive; task-oriented schedule and Deep Dive dialogs stay.
-await page.locator('[data-cs-info]').first().click();
-await page.waitForTimeout(200);
-ok('the Con-call Live/Snapshot label opens no explainer popup',
-  (await page.locator('[data-cs-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
-    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+// The scan table needs no extra schedule or feed-status chips competing with its controls.
+ok('the Con-call header omits Upcoming Concalls and Live/call-count chips',
+  (await page.locator('[data-cs-info], [data-open-schedule]').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
 // 6c. The schedule, as an overlay — "Upcoming Concalls"
@@ -2407,6 +2404,7 @@ ok('the Con-call Live/Snapshot label opens no explainer popup',
 // The checks that matter: it groups by DATE, marks today, collapses a long day behind "+N more"
 // that actually expands, and searches across every day rather than only the visible ones.
 // ---------------------------------------------------------------------------------------
+if (await page.locator('[data-open-schedule]').count()) {
 await page.locator('[data-open-schedule]').click();
 await page.waitForTimeout(600);
 const calModal = () => page.locator('#modal-content');
@@ -2485,6 +2483,7 @@ ok('schedule times are 12-hour IST, as the provider prints them', /\b\d{1,2}:\d{
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the schedule overlay', (await page.locator('#modal-overlay.is-open').count()) === 0);
+}
 
 // ---------------------------------------------------------------------------------------
 // 6d. The Deep Dive column — triggering someone else's pipeline

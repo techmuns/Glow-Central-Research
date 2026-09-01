@@ -863,12 +863,11 @@ The rules that make it safe to trust:
 }
 ```
 
-`upcoming` is what the **Upcoming Concalls** overlay renders: every call StockScans have listed
-but not yet seen held, grouped by `date` in the browser and shown newest-day-first. `today` is a
+`upcoming` retains every call StockScans have listed but not yet seen held. It is no longer exposed
+as a Con-call header control or overlay. `today` is a
 strict SUBSET of `upcoming`'s entries for the current date — the ones still ahead of now (43 of
-today's 64, in the pull above) — so the overlay uses `upcoming` alone. Merging them would
-double-count and then need de-duplicating for nothing: the 09:00 call still belongs on today's
-page at 15:00, it has simply already happened.
+today's 64, in the pull above). Consumers must not merge it back into `upcoming`; that would
+double-count and then need de-duplicating for nothing.
 
 The body carries **no "served at" stamp**, deliberately: it would differ on every request while
 the content did not, so the ETag would never match and the 304 this route depends on would never
@@ -935,8 +934,8 @@ the call and found it worthless.
 on `www.stockscans.in`. No auth, no bot wall, `robots.txt: Allow: /` — it answers a Cloudflare
 Worker the same way it answers a laptop, unlike the Moneycontrol calendar page.
 
-**Consumed by** — `js/data/concall-scans.js` → the Con-call tab: the scan table, and the
-**Upcoming Concalls** overlay built from `upcoming`.
+**Consumed by** — `js/data/concall-scans.js` → the Con-call scan table. `upcoming` remains in the
+feed contract but is not rendered in the tab chrome.
 
 ---
 
@@ -1588,8 +1587,8 @@ editor, the Con-call Deep Dive workspace and `scripts/gen-mock-concalls.mjs`.
 They powered four sub-views of the Con-call tab — Live Feed, Keyword Scan, Catalysts, Deep Dive —
 on invented speech attributed to fictional speakers, because no open source publishes full
 transcript text. That put a synthetic half and a live half in one tab, held apart by an amber
-ribbon. The tab is now one live table off StockScans plus the schedule overlay, with one
-provenance and no ribbon.
+ribbon. The tab is now one live table off StockScans, with no schedule/status header chips and no
+ribbon.
 
 **If a real transcript feed is ever wired**, BSE's filed transcript PDFs are the source, and the
 engine and workspace are recoverable from git history — pointed at real text rather than
