@@ -3368,12 +3368,19 @@ if (siProbe.state === 'no-route') {
 
   const cards = await page.locator('[data-open-investor]').count();
   ok('an investor card renders for every investor in their list', cards === siProbe.count, `${cards} cards for ${siProbe.count} investors`);
+  ok('All Investors keeps the directory separate from the disclosed-positions table',
+    (await page.locator('#content-host [data-live-panel="investors"] [data-table-scroll]').count()) === 0 &&
+      (await page.locator('#content-host tr[data-row-key]').count()) === 0);
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+  await page.waitForSelector('#content-host [data-live-panel="data-table"] [data-table-scroll]');
+  await settleTables();
 
   // NO STAT STRIP AT ALL NOW. It was three cards: investors tracked, combined book value, and a
   // "58 new · 400 exits" count. Two described the FEED rather than answering anything a reader
   // came for, and the third was a pair of numbers with no names attached — so the only way to act
   // on it was to open ninety books, which is the thing this page exists to avoid. The roll-up
-  // below replaced it. The combined value survives in the coverage line under the table.
+  // below replaced it. The combined value survives in the Data Table coverage line.
   const strip = await page.evaluate(() => ({
     cards: document.querySelectorAll('#content-host .stat-card').length,
     coverage: (document.querySelector('#content-host')?.innerText || '').replace(/\s+/g, ' '),
@@ -3486,6 +3493,8 @@ if (siProbe.state === 'no-route') {
   else skip('a book that could not be read says so rather than showing as empty', 'every book loaded in this run');
 
   // The workspace: three panels, every API field reachable.
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="investors"]').click();
+  await page.waitForSelector('#content-host [data-open-investor]');
   await page.locator('[data-open-investor]').first().click();
   await page.waitForSelector('#workspace-panel', { timeout: 15000 });
   await page.waitForTimeout(400);
@@ -3542,12 +3551,13 @@ if (siProbe.state === 'no-route') {
       panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
       cards: host.querySelectorAll('[data-open-investor]').length,
       summary: !!host.querySelector('[data-quarter-summary]'),
+      table: !!host.querySelector('[data-table-scroll]'),
     };
   });
-  ok('Superstar Investors contains All Investors and Quarterly Changes tabs',
-    sectionTabs.labels.join('|') === 'All Investors|Quarterly Changes', sectionTabs.labels.join(' | '));
+  ok('Superstar Investors contains All Investors, Quarterly Changes and Data Table tabs in that order',
+    sectionTabs.labels.join('|') === 'All Investors|Quarterly Changes|Data Table', sectionTabs.labels.join(' | '));
   ok('All Investors is the default in-page tab',
-    sectionTabs.selected === 'All Investors' && sectionTabs.panel === 'investors' && sectionTabs.cards > 0 && !sectionTabs.summary,
+    sectionTabs.selected === 'All Investors' && sectionTabs.panel === 'investors' && sectionTabs.cards > 0 && !sectionTabs.summary && !sectionTabs.table,
     JSON.stringify(sectionTabs));
 
   await page.locator('#content-host [data-open-investor]').first().click();
@@ -3566,6 +3576,32 @@ if (siProbe.state === 'no-route') {
     JSON.stringify(workspaceChrome));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+  await page.waitForSelector('#content-host [data-live-panel="data-table"] [data-table-scroll]');
+  await settleTables();
+  const dataTable = await page.evaluate(() => {
+    const host = document.getElementById('content-host');
+    return {
+      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
+      heading: /All disclosed positions/i.test(host.innerText),
+      rows: host.querySelectorAll('tr[data-row-key]').length,
+      cards: host.querySelectorAll('[data-open-investor]').length,
+      summary: !!host.querySelector('[data-quarter-summary]'),
+      search: !!host.querySelector('input[placeholder*="Search"]'),
+      filters: host.querySelectorAll('select').length,
+      watchlistButton: [...host.querySelectorAll('button')].some((b) => /Watchlist/i.test(b.innerText)),
+      exportButton: [...host.querySelectorAll('button')].some((b) => /Export Excel/i.test(b.innerText)),
+    };
+  });
+  ok('Data Table owns the complete disclosed-positions table, separate from cards and the quarterly roll-up',
+    dataTable.panel === 'data-table' && dataTable.heading && dataTable.rows > 0 && dataTable.cards === 0 && !dataTable.summary,
+    JSON.stringify(dataTable));
+  ok('Data Table keeps the table search, investor/change filters and export action',
+    dataTable.search && dataTable.filters >= 2 && dataTable.watchlistButton && dataTable.exportButton,
+    JSON.stringify(dataTable));
+  ok('switching to Data Table leaves focus on its selected tab',
+    await page.evaluate(() => document.activeElement?.matches('[data-live-section-tabs] [data-tab-id="data-table"]')));
 
   await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
   await page.waitForSelector('#content-host [data-quarter-summary]');
@@ -3742,7 +3778,7 @@ if (siProbe.state === 'no-route') {
     };
   });
 
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="investors"]').click();
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
   // The table streams its rows in, so a comparison against it has to wait for the settled set —
   // otherwise a company the summary names could be absent purely because its row had not been
   // appended yet, which would fail for a reason that is not about scope at all.
@@ -3977,6 +4013,9 @@ await go('/#/research/public-chatter?scope=portfolio', 1500);
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
 ok('investors do not repeat the Portfolio scope as a content tag',
   !/Portfolio\s*·\s*[\d,]+\s+investors/i.test(await hostText()));
+await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+await page.waitForSelector('#content-host [data-live-panel="data-table"]');
+await settleTables();
 // Either the scope note, or — when the feed is unavailable on this origin — the named reason it
 // is unavailable. What must never happen is an empty panel that explains neither.
 {
@@ -3996,6 +4035,11 @@ for (const [hash, label] of [
   ['/#/research/super-investors/superstar-investors?scope=universe', 'investors'],
 ]) {
   await go(hash, 2500);
+  if (label === 'investors' && (await page.locator('#content-host [data-tab-id="data-table"]').count())) {
+    await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+    await page.waitForSelector('#content-host [data-live-panel="data-table"]');
+    await settleTables();
+  }
   // A view with no data has no table and therefore no export button — that is the correct
   // behaviour, not a missing feature, so it reports SKIP rather than hanging on a click.
   const btn = page.locator('#content-host button:has-text("Export")').first();

@@ -48,7 +48,7 @@ let disposers = [];
 let liveUnsub = null;
 let liveUnregister = null;
 let liveView = null;
-// The Superstar sub-view has two in-page destinations of its own. Keep the reader on the one they
+// The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
 let liveSection = 'investors';

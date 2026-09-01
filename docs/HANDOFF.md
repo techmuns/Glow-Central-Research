@@ -791,6 +791,12 @@ echo 'MUNS_TOKEN="…"' >> .dev.vars     # local, gitignored
 `env.MUNS_BASE` redirects the upstream, which is how a verification run drives the whole path
 against a stand-in instead of scraping their production.
 
+The Superstar surface is split into three in-page tabs in this order: **All Investors** for the
+card directory, **Quarterly Changes** for the six cross-book summaries, and **Data Table** for every
+disclosed investor-company position. Data Table retains the wide quarter history, search,
+investor/change filters, watchlist control and Excel export; do not put that table back underneath
+the directory cards.
+
 **Three things about the data that are easy to get wrong:**
 
 - **A blank quarter is not a zero.** Indian companies name only holders above a threshold, so a

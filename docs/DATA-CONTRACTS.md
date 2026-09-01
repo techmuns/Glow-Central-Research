@@ -2836,6 +2836,11 @@ stake, latest stake, derived change and current `valueCr`. A row absent from bot
 is historical rather than part of this quarter and is excluded; a one-quarter current row remains
 with no fabricated comparison.
 
+The complete `allHoldings()` result renders in the separate **Data Table** tab, positioned after
+Quarterly Changes. **All Investors** contains the investor-card directory only. Search, investor
+and change filters, watchlist state, table sort and Excel export belong to Data Table and persist
+through live-book repaints in the same `liveView` state as before the visual split.
+
 ### Caching, and why the fan-out is on the client
 
 Each upstream call is a live scrape of finology.in, and shareholding data moves once a quarter. So

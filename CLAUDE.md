@@ -580,10 +580,13 @@ on that feed is the quarter-over-quarter change, and it is headed *Change (deriv
 
 The Quarterly Changes in-page tab exists so a reader does not open ninety books one at a time. It
 is a cross-book roll-up: who bought what, who sold what, and where more than one tracked investor
-moved on the same company. *All Investors* is the default beside it, containing the cards and the
-full holdings table. The roll-up replaced three stat cards, two of which described the *feed* (how
-many books loaded, what they total) rather than answering anything, and a third that was a pair of
-counts with no names attached — so the only way to act on it was to open the books.
+moved on the same company. *All Investors* is the default before it and contains only the investor
+cards. *Data Table* follows Quarterly Changes and contains the full disclosed-positions table with
+its search, filters, watchlist control and export. Keeping those three jobs in separate tabs avoids
+making the investor directory a long preamble to a wide table. The roll-up replaced three stat
+cards, two of which described the *feed* (how many books loaded, what they total) rather than
+answering anything, and a third that was a pair of counts with no names attached — so the only way
+to act on it was to open the books.
 
 `quarterSummary({ include, limit })` in `js/data/super-investors.js` is the whole of it, and it is
 a roll-up of `deriveMoves` rather than a new model. **Four numbers it refuses to invent**, each of
@@ -2328,8 +2331,9 @@ Three things keep that from being a freshness claim bought on credit, and all th
   needs a way for them to ask it anyway.
 
 **A repaint is not free either, and per-arrival repainting is the other half of "slow".** The tab
-rebuilds its whole panel — stat strip, ninety cards, a table of every disclosed position — from one
-`onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most one
+rebuilds whichever of its investor cards, quarterly roll-up or disclosed-positions table is active
+from one `onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most
+one
 repaint per `EMIT_COALESCE_MS` (a trailing throttle, **not** a debounce — a debounce would keep
 deferring while books kept landing and the grid would sit still until the walk finished), and the
 derived views are memoised behind a version counter so they are built once per change rather than

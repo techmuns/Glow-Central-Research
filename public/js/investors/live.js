@@ -50,6 +50,7 @@ const cr = (v) => (v == null ? dash : formatCroreCompact(v));
 const SECTIONS = [
   { id: 'investors', label: 'All Investors' },
   { id: 'quarterly-changes', label: 'Quarterly Changes' },
+  { id: 'data-table', label: 'Data Table' },
 ];
 
 export function renderLive(ctx, { disposers = [], section = 'investors', tableView, onView, onSection } = {}) {
@@ -64,19 +65,20 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
   const sectionTabs = tabBar({ tabs: SECTIONS, activeId: activeSection, onSelect: onSection || (() => {}) });
 
   const summary = activeSection === 'quarterly-changes' ? quarterSummaryBlock(ctx, m, rows) : null;
-  const table = activeSection === 'investors' ? holdingsTable(ctx, rows, quarters, tableView) : null;
+  const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView) : null;
   if (table) onView?.(table.view);
 
   const panel =
     activeSection === 'quarterly-changes'
       ? summary.html
-      : `
-        <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>
+      : activeSection === 'data-table'
+        ? `
         <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
           <span class="text-xs font-bold uppercase tracking-wider text-slate-500">All disclosed positions</span>
           <span class="text-[11px] text-slate-400">${escapeHtml(coverageNote(rows, quarters))}</span>
         </div>
-        ${table.html}`;
+        ${table.html}`
+        : `<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>`;
 
   ctx.root.innerHTML = `
     ${sectionHead({
