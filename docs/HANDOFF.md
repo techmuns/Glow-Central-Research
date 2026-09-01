@@ -23,10 +23,11 @@ Two workspaces, thirteen tabs:
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
 **Daily Alerts is the landing tab.** It has no data source of its own: it re-reads **four** of the
-tabs above — Breakouts / Technical, News, Corp Announcements, Insider Trades — filters them to
-today's Indian trading date, and prints one stream: red for a price fall past 5%, orange for
-anything else that arrived. The Earnings Hub, Con-call, Public Chatter and Super Investors are
-deliberately not folded in, and the page says so. See §4c.
+tabs above — Breakouts / Technical, News, Corp Announcements, Insider Trades — and prints their
+retained rows as one newest-first stream: red for a price fall past 5%, orange for everything else.
+Today remains a first-class date filter and a separate freshness question. The Earnings Hub,
+Con-call, Public Chatter and Super Investors are deliberately not folded in, and the page says so.
+See §4c.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. See §5a.
@@ -210,7 +211,7 @@ public/js/
   data/                    one module per feed: load once, compute once, cache, expose accessors
                            coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
                            scope.js — the three scopes in one place; every forScope() asks it
-                           daily-alerts.js — today's readings, taken across four tabs (§4c)
+                           daily-alerts.js — retained chronological readings across four tabs (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
@@ -219,7 +220,7 @@ public/js/
                            dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
   tabs/                    the Research Central tabs
-                           daily-alerts.js — the landing tab: today, consolidated (§4c)
+                           daily-alerts.js — the landing tab: retained history, newest first (§4c)
 worker/
   index.js                 asset serving + the four /api routes
   http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
@@ -244,12 +245,14 @@ all.
 Every other tab here is organised by SOURCE: this is what the results feed holds, this is what BSE
 filed, this is what the technicals scrape measured. That is right for research and wrong for the
 first thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
-happened, and does any of it need me*. Daily Alerts is organised by DAY.
+happened, and does any of it need me*. Daily Alerts is organised as one chronological timeline.
 
 `js/data/daily-alerts.js` takes the readings; `js/tabs/daily-alerts.js` draws them. **It adds no
-data source** — every row comes from a feed that already has its own tab, filtered to today's
-**Indian trading date** (a UTC date names yesterday for the five and a half hours after 18:30 IST,
-which is exactly when someone opens an alerts page).
+data source** — every row comes from a feed that already has its own tab. The landing view asks for
+each feed's retained window, orders it newest-first by **Indian trading date and time**, and relies
+on the table kit's progressive body fill so the fixed-height internal scroller reaches older rows
+without blocking first paint. The date filter narrows that loaded history to today, 7 days, 30 days
+or older rows; it does not issue a new request.
 
 **Four tabs, and it names the ones it leaves out.** Breakouts / Technical, News, Corp Announcements,
 Insider Trades — News twice, because that tab is two feeds behind one name. The Earnings Hub,
@@ -262,7 +265,7 @@ fault. Adding one back is an entry in `FEEDS` plus a collector.
 | | Means | Set by |
 | --- | --- | --- |
 | **RED — alert** | a direct negative reading on the row itself | across these four tabs there is exactly one: **the price fell more than 5% at today's close**, from the end-of-day scrape behind Breakouts |
-| **ORANGE — update** | something arrived today | everything else |
+| **ORANGE — update** | something arrived on the date printed on its row | everything else |
 
 Every red row prints the reading that made it red. A colour whose cause is not on screen beside it
 is a judgement, and this dashboard does not make those.
@@ -280,11 +283,12 @@ threshold is the whole rule, so it is exported as `moveSeverity(pct)` and assert
 suite: the shipped 31 Aug snapshot has seven moves past 5% and not one of them down, so a test that
 waited for a red row would never run.
 
-**The coverage panel is the half that makes an empty day readable.** Most of these feeds are
+**The coverage panel is the half that makes today readable beside history.** Most of these feeds are
 captures committed on a best-effort schedule, so a bucket with nothing in it has two completely
 different meanings — *nobody filed*, and *nothing has looked at today yet*. `Feeds read for this
-day` states, per feed, when it last looked and whether that reaches today, and a feed nobody has
-heard from yet reads **pending**, never "nothing today". Same rule as the filings tabs' *"63
+day` states, per feed, when it last looked and whether that reaches today, while older rows remain
+under their actual dates. A feed nobody has heard from yet reads **pending**, never "nothing
+today". Same rule as the filings tabs' *"63
 companies have not been checked since"*: never claim nothing is new.
 
 **Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed

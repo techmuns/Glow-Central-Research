@@ -3070,18 +3070,20 @@ than left painting into the content host.
 
 ---
 
-## Daily Alerts — DERIVED, no file and no route of its own
+## Daily Alerts history — DERIVED, no file and no route of its own
 
 `js/data/daily-alerts.js` writes nothing and fetches nothing new. It calls the loaders of **four**
-tabs, filters each to one **Indian trading date**, and returns readings.
+tabs and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
+for every retained row through the requested **Indian trading date**. The landing tab uses history
+mode; its table progressively paints the rows inside one fixed-height scroller, newest first.
 
 | Feed id | Tab | Contributes |
 | --- | --- | --- |
-| `technicals` | Breakouts / Technical | companies that moved more than `MOVE_PCT` at today's close |
-| `announcements` | Corp Announcements | everything filed to BSE today, across the exchange |
-| `insider` | Insider Trades | insider and promoter disclosures broadcast today |
-| `news` | News | stories published today about a company in scope |
-| `market-news` | News | market-wide stories today — no company, so Universe only |
+| `technicals` | Breakouts / Technical | companies that moved more than `MOVE_PCT` at the retained snapshot's close; this source has one day only |
+| `announcements` | Corp Announcements | every BSE filing retained by the exchange-wide capture |
+| `insider` | Insider Trades | retained insider and promoter disclosures (up to 365 days in the current source contract) |
+| `news` | News | retained stories about a company in scope (30-day source window) |
+| `market-news` | News | retained market-wide stories — no company, so Universe only; bounded by the capture's keep limit |
 
 News appears twice because that tab is two feeds behind one name. **The Earnings Hub, Con-call,
 Public Chatter and Super Investors are deliberately not consolidated here**, and the tab says so on
@@ -3092,12 +3094,14 @@ an entry in `FEEDS` plus a collector — nothing else in the module is special-c
 {
   "day": "2026-08-31",
   "scope": "portfolio",
+  "includeHistory": true,
   "pending": 0,                       // feeds that have not answered YET — never "nothing today"
   "events": [{
     "id": "tech:RELIANCE:2026-08-31", // content-derived and unique; never a position
     "feed": "technicals", "feedLabel": "Price moves", "tab": "breakouts",
     "severity": "alert",              // "alert" (red) | "update" (orange)
     "time": null,                     // HH:MM IST, or null where the feed dates to the day only
+    "day": "2026-08-31",             // normalized Indian date used for ordering and filtering
     "at": "2026-08-31",
     "ticker": "RELIANCE", "company": "Reliance Industries",
     "headline": "Fell 6.2% at the close",
@@ -3108,7 +3112,10 @@ an entry in `FEEDS` plus a collector — nothing else in the module is special-c
   "feeds": [{
     "id": "technicals", "label": "Price moves", "tab": "breakouts",
     "status": "ok",                   // ok | failed | pending
-    "count": 7,
+    "count": 418,                      // retained rows in this feed and scope
+    "todayCount": 7,                   // rows on report.day; freshness is still separate
+    "oldestDay": "2025-09-02",
+    "newestDay": "2026-08-31",
     "reachesToday": true,             // HAS THIS FEED LOOKED AT THIS DAY — null where it cannot know
     "asOf": "2026-08-31T07:13:59.909Z",
     "note": null

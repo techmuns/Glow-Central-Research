@@ -152,12 +152,14 @@ const setHidden = (hidden) =>
  * `scoreTable` paints a screenful and appends the rest while the browser is idle, which is what
  * took a tab switch from ~900ms of blocked main thread to ~60ms. It marks the section
  * `data-rows-pending="N"` while rows are outstanding and drops the attribute when none are — so a
- * check that counts rows waits for that rather than racing it. Every assertion here is about the
- * settled table; the streaming itself is asserted separately in section 11.
+ * check that counts rows waits for that rather than racing it. A `data-scroll-paged` history table
+ * deliberately keeps rows pending until the reader scrolls, so it is excluded here and its model
+ * count is read from the toolbar instead. Every other assertion here is about the settled table;
+ * the streaming itself is asserted separately in section 11.
  */
 const settleTables = () =>
   page
-    .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]'), null, { timeout: 20000 })
+    .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]:not([data-scroll-paged])'), null, { timeout: 20000 })
     .catch(() => {});
 const rowCount = async () => {
   await settleTables();
@@ -1076,9 +1078,9 @@ await go('/#/research/breakouts?scope=universe', 2500);
 // ---------------------------------------------------------------------------------------
 // 3d. Daily Alerts — the landing tab
 //
-// Two things it has to get right, and they pull in opposite directions: it must consolidate every
-// feed, and it must never let a feed that has not looked at today read as a feed with nothing to
-// report. So the assertions here are as much about the coverage panel as about the stream.
+// Three things it has to get right: consolidate every feed, keep today's freshness distinct from
+// retained history, and reveal older dates through the table's own scroller in strict chronological
+// order. So the assertions here cover the coverage panel, the date filter and the stream.
 // ---------------------------------------------------------------------------------------
 console.log('\n— daily alerts —');
 {
@@ -1131,6 +1133,8 @@ console.log('\n— daily alerts —');
   ok('it states the Indian trading date rather than a UTC one',
     /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
   ok('...and the provenance is still one click away', (await page.locator('[data-alerts-info]').count()) === 1);
+  const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
+  ok('the landing states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
@@ -1259,6 +1263,22 @@ console.log('\n— daily alerts —');
   // A key that means two rows is the failure this dashboard has hit twice; it is never caught by
   // counting, so it is compared.
   ok('every event id is unique', report.uniqueIds === report.total, `${report.uniqueIds} ids for ${report.total} events`);
+  const historyReport = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const r = await da.collect({ scope: 'portfolio', includeHistory: true });
+    return {
+      events: r.events.length,
+      days: r.meta.days,
+      oldest: r.meta.oldestEventDay,
+      newest: r.meta.newestEventDay,
+      unique: new Set(r.events.map((e) => e.id)).size,
+      ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
+    };
+  });
+  ok('history mode retains multiple dates with stable unique ids',
+    historyReport.events > report.total && historyReport.days > 1 && historyReport.unique === historyReport.events,
+    `${historyReport.events} events across ${historyReport.days} dates (${historyReport.oldest} → ${historyReport.newest})`);
+  ok('...and orders the data by date and time before the table sees it', historyReport.ordered);
 
   // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
   // and this tab reads three of those feeds.
@@ -1297,9 +1317,82 @@ console.log('\n— daily alerts —');
   // rather than a full Set — the same distinction `scopeTickers` draws, for the same reason.
   await go('/#/research/daily-alerts?scope=universe', 5500);
   await settleTables();
+  // A historical alert stream deliberately keeps only the rows the reader has reached in the
+  // DOM. Its toolbar count is the complete filtered DATA set — the same set search, filters and
+  // export use — whereas `rowCount()` is only the current scroll page.
+  const alertDataCount = async () => {
+    const text = await page.locator('[data-score-table] [data-row-count]').innerText();
+    return Number((text.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
+  };
   const allChecked = await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked');
   ok('the feed filter opens on All', allChecked === 'true');
-  const allRows = await rowCount();
+  const allRows = await alertDataCount();
+  const currentAlertDay = await evalSafe(async () => (await import('/js/data/daily-alerts.js')).today());
+  const timeline = await evalSafe(() => {
+    const rows = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')];
+    const when = rows.map((row) => {
+      const el = row.querySelector('[data-event-day]');
+      const text = el?.innerText || '';
+      const time = (text.match(/(\d{2}:\d{2}) IST/) || [])[1] || '';
+      return { day: el?.dataset.eventDay || '', time };
+    });
+    return {
+      headers: [...document.querySelectorAll('#content-host thead th')].map((h) => h.innerText.trim()),
+      rows: when.length,
+      days: [...new Set(when.map((x) => x.day).filter(Boolean))],
+      everyResolved: when.every((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.day)),
+      ordered: when.every((x, i) => !i || `${when[i - 1].day}T${when[i - 1].time}` >= `${x.day}T${x.time}`),
+    };
+  });
+  ok('the stream carries an explicit Date / time column', timeline.headers.some((h) => /^DATE \/ TIME/.test(h)), timeline.headers.join(' | '));
+  ok('every row carries its date resolution and the timeline is newest-first', timeline.everyResolved && timeline.ordered,
+    `${timeline.everyResolved ? 'all dated' : 'missing date'} · ordered=${timeline.ordered}`);
+
+  const scrollBefore = await evalSafe(() => {
+    const scroller = document.querySelector('[data-table-scroll]');
+    return {
+      painted: document.querySelectorAll('#content-host tbody tr[data-row-key]').length,
+      pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
+      top: scroller?.scrollTop || 0,
+      scrollHeight: scroller?.scrollHeight || 0,
+      clientHeight: scroller?.clientHeight || 0,
+    };
+  });
+  await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await page.waitForFunction((before) => document.querySelectorAll('#content-host tbody tr[data-row-key]').length > before,
+    scrollBefore.painted, { timeout: 3000 });
+  const scrollHistory = await evalSafe(() => {
+    const scroller = document.querySelector('[data-table-scroll]');
+    const rows = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')];
+    return {
+      painted: rows.length,
+      pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
+      top: scroller?.scrollTop || 0,
+      oldestPaintedDay: rows.at(-1)?.querySelector('[data-event-day]')?.dataset.eventDay || null,
+    };
+  });
+  ok('the history table starts with one page instead of painting its full data set',
+    scrollBefore.painted > 0 && scrollBefore.painted < allRows && scrollBefore.pending === allRows - scrollBefore.painted,
+    `${scrollBefore.painted} painted · ${scrollBefore.pending} pending · ${allRows} total`);
+  ok('scrolling the internal table appends the next chronological page',
+    scrollHistory.top > scrollBefore.top && scrollBefore.scrollHeight > scrollBefore.clientHeight &&
+      scrollHistory.painted > scrollBefore.painted && scrollHistory.painted < allRows &&
+      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.oldestPaintedDay < currentAlertDay,
+    `painted ${scrollBefore.painted} → ${scrollHistory.painted}; reached ${scrollHistory.oldestPaintedDay}; ${scrollHistory.pending} pending`);
+  await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = 0; });
+
+  const dateFilter = page.locator('select[aria-label="Date range"]');
+  ok('the date filter opens on all available dates', (await dateFilter.inputValue()) === 'all');
+  await dateFilter.selectOption('today');
+  await page.waitForTimeout(400);
+  await settleTables();
+  const todayRows = await alertDataCount();
+  const todayDays = await page.$$eval('[data-event-day]', (els) => [...new Set(els.map((el) => el.dataset.eventDay))]);
+  ok('Today only narrows the history without changing the feed', todayRows > 0 && todayRows < allRows && todayDays.length === 1 && todayDays[0] === currentAlertDay,
+    `${allRows} history → ${todayRows} today (${todayDays.join(', ')})`);
+  await dateFilter.selectOption('all');
+  await page.waitForTimeout(400);
+  await settleTables();
   // THE NUMBER ON THE CHIP IS THE CONTRACT. Deriving the per-feed split from the row keys would
   // have measured the wrong thing — those carry short prefixes (`tech:`, `ann:`, `mcnews:`), not
   // the feed ids the filter uses — and comparing against `undefined` would have made every
@@ -1312,14 +1405,14 @@ console.log('\n— daily alerts —');
   await page.locator('[data-feed-toggle="technicals"]').click();
   await page.waitForTimeout(700);
   await settleTables();
-  const oneRows = await rowCount();
+  const oneRows = await alertDataCount();
   ok('ticking one feed narrows the stream to it', oneRows < allRows && oneRows === (perFeed.technicals || 0),
     `${allRows} all → ${oneRows} ticked, feed holds ${perFeed.technicals || 0}`);
   // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
   await page.locator('[data-feed-toggle="insider"]').click();
   await page.waitForTimeout(700);
   await settleTables();
-  const twoRows = await rowCount();
+  const twoRows = await alertDataCount();
   ok('...and a second tick adds to it rather than replacing it',
     twoRows === (perFeed.technicals || 0) + (perFeed.insider || 0) && twoRows > oneRows,
     `${oneRows} + insider ${perFeed.insider || 0} = ${twoRows}`);
@@ -1332,8 +1425,8 @@ console.log('\n— daily alerts —');
   await page.waitForTimeout(700);
   await settleTables();
   ok('unticking the last feed returns to All rather than emptying the stream',
-    (await rowCount()) === allRows && (await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked')) === 'true',
-    `${await rowCount()} rows back`);
+    (await alertDataCount()) === allRows && (await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked')) === 'true',
+    `${await alertDataCount()} rows back`);
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   ok('no legend strip competes with the stream', !/Red — alert/.test(await hostText()));
@@ -1371,20 +1464,19 @@ console.log('\n— daily alerts —');
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.waitForTimeout(400);
 
-  // THE TIME COLUMN IS DRIVEN BY THE ROWS, NOT BY THE SCOPE. Only announcements and the market-wide
-  // capture carry a clock, so under a narrowed scope on a day nothing was filed every cell is an em
-  // dash and the column is furniture. Hiding it by SCOPE would have been wrong: all 1,199
-  // announcements in the shipped capture carry a real time, so a book company filing would have had
-  // its timestamp blanked. Asserted as the invariant rather than as "portfolio has no Time column".
+  // DATE IS ALWAYS PRESENT; CLOCK RESOLUTION IS PER ROW. Some feeds publish a minute, others only a
+  // day, and both must remain readable while the history spans many dates.
   for (const sc of ['portfolio', 'universe']) {
     await go(`/#/research/daily-alerts?scope=${sc}`, 4800);
     await settleTables();
     const t = await evalSafe(() => ({
-      hasCol: [...document.querySelectorAll('#content-host thead th')].some((h) => h.innerText.trim() === 'Time'),
-      anyTime: [...document.querySelectorAll('#content-host tbody tr[data-row-key] td:first-child')].some((td) => /\d{1,2}:\d{2}/.test(td.innerText)),
+      hasCol: [...document.querySelectorAll('#content-host thead th')].some((h) => /^Date \/ time/i.test(h.innerText.trim())),
+      rows: [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].length,
+      dated: [...document.querySelectorAll('#content-host [data-event-day]')].filter((el) => /^\d{4}-\d{2}-\d{2}$/.test(el.dataset.eventDay || '')).length,
+      resolution: [...document.querySelectorAll('#content-host [data-event-day]')].every((el) => /\d{2}:\d{2} IST|Day only/.test(el.innerText)),
     }));
-    ok(`the Time column appears exactly when a row in scope has one (${sc})`, t.hasCol === t.anyTime,
-      `column=${t.hasCol} rows-with-a-time=${t.anyTime}`);
+    ok(`every historical row states its date and time resolution (${sc})`, t.hasCol && t.rows > 0 && t.dated === t.rows && t.resolution,
+      `column=${t.hasCol} dated=${t.dated}/${t.rows} resolution=${t.resolution}`);
   }
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
   await settleTables();

@@ -75,7 +75,7 @@ public/
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
-      daily-alerts.js         TODAY, across FOUR tabs. Derived: no file, no route of its own
+      daily-alerts.js         RETAINED HISTORY across FOUR tabs. Derived: no file, no route of its own
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -99,7 +99,7 @@ public/
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      daily-alerts.js         THE LANDING TAB — one stream of today from four tabs, red = a
+      daily-alerts.js         THE LANDING TAB — one newest-first historical stream from four tabs, red = a
                               price fall past MOVE_PCT, orange = an update, plus the panel
                               saying which feeds have looked
       filings-tab.js          the shared body of the last three — one renderer, three column sets
@@ -1686,15 +1686,19 @@ contract does not cover: a tab the shell decided not to mount.
 
 ---
 
-## Daily Alerts — the landing tab, and the only one organised by DAY
+## Daily Alerts — the landing tab, and the only one organised as a TIMELINE
 
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
 thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
 happened, and does any of it need me*.
 
 `js/data/daily-alerts.js` takes the readings, `js/tabs/daily-alerts.js` draws them, and **the tab
-adds no data source**: every row comes from a feed that already has its own tab, filtered to today's
-**Indian trading date**. Full shapes in `docs/DATA-CONTRACTS.md`.
+adds no data source**: every row comes from a feed that already has its own tab. The default data
+contract remains one Indian trading date; the landing view requests `includeHistory: true`, which
+keeps every retained row through today, normalizes `day`, and sorts by date then available IST time.
+The table kit progressively paints that finite retained set inside its own fixed-height scroller, so
+scrolling reveals older dates without a per-company walk or a new API. Full shapes and retention
+bounds are in `docs/DATA-CONTRACTS.md`.
 
 **It reads FOUR tabs, and the ones it does not read are named on its face.** Breakouts / Technical,
 News, Corp Announcements and Insider Trades. News contributes twice, because that tab is two feeds
@@ -1709,8 +1713,8 @@ broken. **An absent row has to read as a decision, not a fault.** Adding one bac
 
 **RED is a direct negative reading on the row itself, and the row prints the reading.** Across the
 four tabs this page reads there is exactly one such reading: **the price fell more than `MOVE_PCT`
-at today's close**, from the end-of-day scrape behind Breakouts. **ORANGE is everything else that
-arrived today.**
+at the retained snapshot's close**, from the end-of-day scrape behind Breakouts. **ORANGE is
+everything else that arrived on the date printed on its row.**
 
 A colour whose cause is not on screen beside it is a judgement, and this dashboard does not make
 those — so `reason` is mandatory on an alert and absent on an update.
@@ -1754,13 +1758,11 @@ It is computed differently depending on what the feed IS, and the distinction ma
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
 
-**A COLUMN OF EM DASHES IS FURNITURE, AND WHETHER TO DRAW IT IS A QUESTION ABOUT THE ROWS.** Only
-two of the five feeds carry a clock — announcements, and the market-wide capture — so under a
-narrowed scope on a day nothing was filed, every cell in the Time column is a dash. It is dropped
-when **no row on screen has a time**, and that is deliberately not "dropped under Portfolio and
-Watchlist": all 1,199 announcements in the shipped capture carry a real time, so hiding it by scope
-would blank a genuine timestamp the day a book company files. Ask what is on screen, not what scope
-is selected.
+**EVERY HISTORICAL ROW STATES ITS DATE RESOLUTION.** `Date / time` always leads the row. A feed that
+publishes a clock shows `HH:MM IST`; a feed that publishes only a date says `Day only` rather than
+rendering an em dash that could mean missing data. The default sort is the normalized day plus that
+time, newest first. The date dropdown narrows the already-loaded stream to today, seven days,
+thirty days or older rows; it never triggers a fetch.
 
 **AND THE STREAM'S HEIGHT IS MEASURED AT RUNTIME, NOT WRITTEN INTO A `calc()`.** `calc(100vh -
 558px)` encodes the height of everything above the table, and that is not a constant: the chip row
@@ -1798,7 +1800,9 @@ cannot look up is a judgement, and this page makes none — but the lookup is a 
 permanent block under the stream.
 
 **THE PANEL IS ONE ROW OF CHIPS — a dot, a name, a number — and the number is the part that has to
-be guarded.** It was five cards in a white block, each with a sentence and a last-read time, and it
+be guarded.** In history mode the number is the retained row count used by the feed filter, while
+the tooltip separately names how many are on today. It was five cards in a white block, each with a
+sentence and a last-read time, and it
 cost about 300px above the stream it describes; it is 19px now, identical across all three scopes.
 What compressing it may NOT do is let a state print as a count: **a number is a finished answer and
 "has not looked at today" is the absence of one**, so that state prints the word *not checked* and
