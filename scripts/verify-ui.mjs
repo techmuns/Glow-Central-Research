@@ -1261,6 +1261,10 @@ console.log('\n— daily alerts —');
       annCritical: ann('Notice of annual general meeting', true),
       annAuditor: ann('Resignation of Statutory Auditors'),
       annRegulatoryOrder: ann('Adjudication order received from the Registrar of Companies'),
+      annApprovalReceipt: ann('Receipt of In-Principle Approval from the Stock Exchanges for Preferential Issue'),
+      annInternalApproval: ann('Receipt of approval from the customer for revised drawings'),
+      annProductionCommencement: ann('Commencement of Commercial Production at the new facility'),
+      unreadInvestorList: da.investorCoverageState({ ok: false, reason: 'no-route', total: 0, loadedBooks: 0 }),
       buySmall: inside('Acquisition', '0.20', '1000'),
       sellPct: inside('Disposal', '1.00', '1000'),
       disposalByPurchase: inside('Disposal', '', '', 'Market Purchase'),
@@ -1275,11 +1279,29 @@ console.log('\n— daily alerts —');
   ok('BSE critical and material announcement matches are High',
     rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
       rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  ok('regulatory approval and commercial-production noun forms are Positive and High',
+    rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
+      rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
+      rules.annInternalApproval.direction === 'neutral');
+  ok('an unread investor list is incomplete even when there are no books to count',
+    rules.unreadInvestorList.incomplete === true && /investor list could not be read/.test(rules.unreadInvestorList.problems.join(' ')));
   ok('insider rules distinguish acquisition, disposal, pledge and release',
     rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' &&
       rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive' && rules.disposalByPurchase.direction === 'negative');
   ok('insider importance changes exactly at the stated one-percent boundary',
     rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
+
+  const structuralRefresh = await evalSafe(async () => {
+    const e = await import('/js/data/earnings-live.js');
+    const good = { status: 200, fromStore: false, value: { rows: [{ scId: 'A' }], meta: { subType: 'yoy', structureTag: 'new' } } };
+    return {
+      failed: e.structuralRefreshFailure({ status: 503, value: null }, 'yoy', 'new'),
+      stale304: e.structuralRefreshFailure({ status: 304, fromStore: true, value: good.value }, 'yoy', 'new'),
+      valid: e.structuralRefreshFailure(good, 'yoy', 'new'),
+    };
+  });
+  ok('a failed full earnings refresh cannot bless rows a changed structure tag proved stale',
+    !!structuralRefresh.failed && !!structuralRefresh.stale304 && structuralRefresh.valid === null);
 
   // THE ALERT RULE, ASSERTED DIRECTLY. It is the only thing on this page that can make a red row,
   // and the shipped snapshot has seven moves past the threshold with not one of them down — so a

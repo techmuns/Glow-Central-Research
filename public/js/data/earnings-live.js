@@ -440,8 +440,12 @@ export function startLive(live) {
       // Either a company has filed or revised, or we have nothing to compare against yet (the
       // committed snapshot carries no structure tag). Now — and only now — pull the full feed.
       const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
-      if (!full.value?.rows?.length) return null;
-      if (st !== subType || (full.value.meta?.subType || st) !== st) return null;
+      if (st !== subType) return null;
+      const failure = structuralRefreshFailure(full, st, out.value.structureTag);
+      if (failure) {
+        const healthChanged = markStructuralRefreshFailed(failure, full.checkedAt || out.checkedAt);
+        return healthChanged ? cache : null;
+      }
       const structural = hasStructuralChange(full.value);
       ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
       return structural ? cache : null;
@@ -485,11 +489,51 @@ export async function refresh() {
   }
 
   const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
-  if (!full.value?.rows?.length || st !== subType || (full.value.meta?.subType || st) !== st) return cache;
+  if (st !== subType) return cache;
+  const failure = structuralRefreshFailure(full, st, out.value.structureTag);
+  if (failure) {
+    const healthChanged = markStructuralRefreshFailed(failure, full.checkedAt || out.checkedAt);
+    if (healthChanged) notify();
+    return cache;
+  }
   const changed = hasStructuralChange(full.value);
   ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
   if (changed) notify();
   return cache;
+}
+
+/**
+ * A projection with a different structure tag proves the held rows are old. Only a fresh, full
+ * response can clear that condition; a 304/store replay or a degraded/empty response cannot.
+ */
+export function structuralRefreshFailure(out, expectedSubType, projectedStructureTag = null) {
+  if (!out || out.status !== 200 || out.fromStore) {
+    return `the full results refresh failed${out?.status ? ` (HTTP ${out.status})` : ''}`;
+  }
+  const payload = out.value;
+  if (!payload?.rows?.length) return 'the full results refresh returned no rows';
+  if ((payload.meta?.subType || expectedSubType) !== expectedSubType) {
+    return `the full results refresh answered with ${(payload.meta?.subType || 'an unknown comparison').toUpperCase()}`;
+  }
+  if (payload.degraded) return `the full results refresh degraded (${payload.degraded})`;
+  const fullTag = payload.meta?.structureTag || payload.structureTag || null;
+  if (projectedStructureTag && fullTag && fullTag !== projectedStructureTag) {
+    return 'the full results refresh did not contain the structure reported by the prices feed';
+  }
+  return null;
+}
+
+function markStructuralRefreshFailed(reason, at) {
+  if (!cache) return false;
+  const changed = String(cache.meta.degraded || '') !== String(reason || '');
+  cache.meta = {
+    ...cache.meta,
+    degraded: reason,
+    isLive: false,
+    origin: 'live',
+    checkedAt: at || Date.now(),
+  };
+  return changed;
 }
 
 /** Record whether the lightweight price read itself reached the upstream. */

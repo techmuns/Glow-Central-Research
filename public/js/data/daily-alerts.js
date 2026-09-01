@@ -134,15 +134,22 @@ export function announcementSignal(row = {}) {
     ['contract cancellation or suspension', /\b(?:order|contract)\s+(?:cancel\w*|terminat\w*)\b|\bsuspension\b/],
     ['auditor resignation', /\bauditor\w*.{0,80}\bresign\w*\b|\bresign\w*.{0,80}\bauditor\w*\b/],
   ].find(([, re]) => re.test(text));
+  // An approval is directional only when the filing also names a regulator or exchange. A client
+  // approving a drawing or an internal proposal is not the same event. BSE titles commonly put
+  // the noun first ("Receipt of In-Principle Approval from the Stock Exchanges"), so the action
+  // accepts both word orders while the context guard keeps the rule narrow.
+  const regulatoryApproval =
+    /\b(?:approval (?:received|granted)|approved by|receipt of.{0,80}\bapproval)\b/.test(text) &&
+    /\b(?:bse|nse|stock exchanges?|sebi|rbi|government|ministr(?:y|ies)|authorit(?:y|ies)|regulator\w*|nclt|courts?|drug controller|usfda|fda)\b/.test(text);
   const positive = [
-    ['rating upgrade', /\b(?:rating\s+)?upgrad(?:e|ed|ing)\b/],
-    ['shareholder distribution', /\bdividend\b|\bbonus (?:issue|share)\b|\bbuyback\b/],
+    ['rating upgrade', /\b(?:rating\s+)?upgrad(?:e|ed|ing)\b/.test(text)],
+    ['shareholder distribution', /\bdividend\b|\bbonus (?:issue|share)\b|\bbuyback\b/.test(text)],
     // A bare "order received" is also how adjudication, court and regulator notices are titled.
     // Commercial context is required before that phrase can be called business won.
-    ['order or contract award', /\bcontract\s+(?:award\w*|won|received|secured)\b|\b(?:purchase|work|supply|export)\s+order\s+(?:award\w*|won|received|secured)\b|\border\s+(?:award\w*|won|secured)\b|\bawarded (?:an? )?(?:order|contract)\b/],
-    ['regulatory approval or patent grant', /\bapproval (?:received|granted)\b|\bapproved by\b|\bpatent (?:granted|received)\b/],
-    ['commercial production start', /\bcommercial production (?:commenced|started|began)\b/],
-  ].find(([, re]) => re.test(text));
+    ['order or contract award', /\bcontract\s+(?:award\w*|won|received|secured)\b|\b(?:purchase|work|supply|export)\s+order\s+(?:award\w*|won|received|secured)\b|\border\s+(?:award\w*|won|secured)\b|\bawarded (?:an? )?(?:order|contract)\b/.test(text)],
+    ['regulatory approval or patent grant', regulatoryApproval || /\bpatent (?:granted|received)\b/.test(text)],
+    ['commercial production start', /\bcommercial production (?:commenc(?:ed|ement)|started|began)\b|\b(?:start|commencement) of (?:the )?commercial production\b/.test(text)],
+  ].find(([, matched]) => matched);
   const matched = negative || positive;
   const direction = negative ? DIRECTION.NEGATIVE : positive ? DIRECTION.POSITIVE : DIRECTION.NEUTRAL;
   const importance = row.critical === true || matched ? IMPORTANCE.HIGH : IMPORTANCE.LOW;
@@ -647,6 +654,26 @@ const investorTicker = (move) => {
   return slug && !slug.startsWith('SCRIP-') ? slug : null;
 };
 
+/** The complete/incomplete rule for the investor feed, exported so an outage is testable. */
+export function investorCoverageState(m = {}) {
+  const listFailed = m.ok === false;
+  const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
+  const staleBooks = Number(m.staleBooks || 0);
+  const incomplete = listFailed || missingBooks > 0 || m.stale === true || staleBooks > 0;
+  const problems = [
+    listFailed
+      ? `the investor list could not be read${m.reason || m.message ? ` (${m.reason || m.message})` : ''}`
+      : null,
+    missingBooks > 0 ? `${m.loadedBooks || 0} of ${m.total || 0} investor books are available; ${missingBooks} could not be included` : null,
+    staleBooks > 0
+      ? `${staleBooks} investor book${staleBooks === 1 ? ' is' : 's are'} last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
+      : m.stale === true
+        ? `the investor list is last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
+        : null,
+  ].filter(Boolean);
+  return { incomplete, missingBooks, staleBooks, problems };
+}
+
 /** Quarterly disclosed holding changes. A disappearance is labelled, not overstated as a sale. */
 function fromInvestors({ day, scope, wanted, includeHistory }) {
   const m = investors.meta() || {};
@@ -700,24 +727,14 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   // different moments; individual rows above keep the confirmation for their own investor book.
   const coverageAt = m.checkedAt || m.capturedAt || m.fetchedAt;
   const coverageDay = istDay(coverageAt);
-  const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
-  const staleBooks = Number(m.staleBooks || 0);
-  const incomplete = missingBooks > 0 || m.stale === true || staleBooks > 0;
-  const coverageProblems = [
-    missingBooks > 0 ? `${m.loadedBooks || 0} of ${m.total || 0} investor books are available; ${missingBooks} could not be included` : null,
-    staleBooks > 0
-      ? `${staleBooks} investor book${staleBooks === 1 ? ' is' : 's are'} last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
-      : m.stale === true
-        ? `the investor list is last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
-        : null,
-  ].filter(Boolean);
+  const coverage = investorCoverageState(m);
   return {
     events,
-    status: incomplete ? 'failed' : 'ok',
-    reachesToday: !incomplete && coverageDay === day,
+    status: coverage.incomplete ? 'failed' : 'ok',
+    reachesToday: !coverage.incomplete && coverageDay === day,
     asOf: coverageAt || null,
-    note: incomplete
-      ? `${coverageProblems.join('; ')}. This reading is incomplete.`
+    note: coverage.incomplete
+      ? `${coverage.problems.join('; ')}. This reading is incomplete.`
       : coverageDay === day
       ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
       : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,

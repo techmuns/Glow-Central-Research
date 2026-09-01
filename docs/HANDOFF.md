@@ -283,11 +283,13 @@ Earnings direction uses the revenue/net-profit comparison; con-calls and chatter
 source's sentiment bands. Insider direction comes from acquisition/disposal and pledge wording;
 investor direction comes from newly disclosed/added versus trimmed/no-longer-disclosed positions.
 Announcements match a small exported policy: downgrade/default/enforcement/cancellation/suspension/
-auditor resignation are Negative, while upgrade/distribution/order award/approval/patent/production
-start are Positive. Unmatched announcements and publisher news stay Neutral.
+auditor resignation are Negative, while upgrade/distribution/order award/regulatory approval/patent/
+production start are Positive. Unmatched announcements and publisher news stay Neutral.
 Earnings sign changes are labelled *to profit*, *to loss* or *loss narrowed/widened*, never restored
 as a percentage across zero. Explicit insider Transaction wording outranks Mode, and commercial
-context is required before “order received” is treated as an award.
+context is required before “order received” is treated as an award. Approval requires regulatory or
+exchange context; noun-first BSE wording such as “Receipt of … Approval” and “Commencement of
+Commercial Production” remains covered.
 
 High thresholds are: ±5% price move; an earnings filing; non-neutral/extreme con-call analysis;
 10 public-chatter mentions or 100% absolute mention change; insider activity of at least 1% or ₹10

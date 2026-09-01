@@ -1746,6 +1746,8 @@ flag. Publisher news stays Neutral because a headline is not structured sentimen
 Earnings sign changes remain words — *to profit*, *to loss*, *loss narrowed/widened* — rather than
 being turned back into a misleading growth percentage. An explicit insider Transaction outranks
 conflicting Mode text, and a bare regulatory “order received” is not treated as commercial work won.
+Approval needs a regulator or exchange on the filing; the BSE noun forms “Receipt of … Approval”
+and “Commencement of Commercial Production” are recognized without broadening that rule.
 
 High thresholds are stated in the source registry and export: ±5% price moves; every earnings
 filing; non-neutral/extreme con-call analysis; 10 chatter mentions or 100% absolute mention change;
