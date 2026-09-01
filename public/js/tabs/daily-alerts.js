@@ -30,10 +30,10 @@
 // per feed, when it last looked and whether that reaches today. It is the same rule as the filings
 // tabs' "63 companies have not been checked since": never claim nothing is new.
 
-import { scoreTable, statStrip, sectionHead, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatNumber, formatRelativeTime, formatDate } from '../core/format.js';
+import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/daily-alerts.js';
@@ -189,23 +189,29 @@ function paint(ctx) {
   const m = report?.meta || {};
 
   const focus = captureFocus(ctx.root);
-  const stats = statStrip(cards(ctx, m, feeds, day));
   const table = eventsTable(ctx, events, day);
   tableView = table.view;
 
+  // NO DESCRIPTION, NO STAT STRIP, AND THE TWO CHIPS ARE ONE PILL. What they said is all still
+  // said — behind the pill, which is the resolution this codebase reaches every time a caveat
+  // starts competing with the content it qualifies. The four cards were the loudest version of
+  // the problem: three of them counted rows the table beneath them already lists, and the fourth
+  // printed a date the pill now carries. What may NOT go is the provenance, so the pill is the
+  // control that keeps it one click away — see the stat-strip opt-out rule in CLAUDE.md.
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Daily Alerts',
-      description: `Today across four tabs — Breakouts / Technical, News, Corp Announcements and Insider Trades — in one stream. Red is an alert: a price fall past ${alerts.MOVE_PCT}%, named in the row, which is the only negative reading these four feeds carry. Orange is everything else that arrived. Nothing here is scored or ranked, and the Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not consolidated here — they keep their own tabs.`,
-      meta: scopeSummary({ scope: ctx.scope, count: m.companies || 0, noun: 'companies with events', book: coverage.meta() }),
-      controls: `${dayPill(day)}${provenanceButton()}${pendingPill(report)}`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+        scope: ctx.scope,
+        count: m.companies || 0,
+        noun: 'companies with events',
+        book: coverage.meta(),
+      })}</div>`,
     })}
-    ${stats.html}
     ${coveragePanel(feeds, day, ctx.scope)}
     ${table.html}
     ${legend()}`;
 
-  stats.wire(ctx.root);
   table.wire(ctx.root);
   wireProvenance(ctx.root, feeds, day, ctx.scope);
   restoreFocus(ctx.root, focus);
@@ -242,67 +248,44 @@ function restoreFocus(root, focus) {
   }
 }
 
-function cards(ctx, m, feeds, day) {
-  const behind = feeds.filter((f) => f.reachesToday === false);
-  const failed = feeds.filter((f) => f.status === 'failed');
-  const reading = feeds.filter((f) => f.reachesToday === true).length;
-  const daily = feeds.length;
-  const pending = feeds.filter((f) => f.status === 'pending').length;
-  // Before the first feed has answered there is no measurement, and "0 of 0" reads like one. An em
-  // dash is the honest placeholder for a count nobody has taken yet. Once SOME feeds have answered
-  // the counts are real — they are just not final, which the pill above says in words.
-  const noneYet = !feeds.length || pending === daily;
-
-  return [
-    {
-      label: 'Alerts',
-      value: noneYet ? '—' : formatNumber(m.alerts ?? 0),
-      note: noneYet ? 'reading the feeds…' : m.alerts ? 'negative readings today' : 'no negative readings reached this page',
-      help: {
-        title: 'What makes a row an alert',
-        body: `<p>An alert is a <strong>direct negative reading on the row itself</strong>, never a judgement about the company. This page reads four tabs, and between them they carry exactly one such reading:</p>
-          <ul class="mt-2 list-disc space-y-1 pl-5">
-            <li><strong>the price fell more than ${alerts.MOVE_PCT}% at today's close</strong> — from the end-of-day scrape behind Breakouts / Technical.</li>
-          </ul>
-          <p class="mt-3">Every alert row prints that reading. <strong>The other three are never red, and that is deliberate.</strong> Insider trades and corporate announcements carry the upstream's own columns and categories — BSE's filing taxonomy is not a verdict, and grading a "Pledge" would be a materiality flag this dashboard invented. A news headline is editorial, and reading a sentiment off it would be inventing a model we do not have over somebody else's words.</p>
-          <p class="mt-3">So a day with no big faller is a page of orange, and that is the honest rendering — not a page with something missing. The feeds that <em>do</em> carry models live on their own tabs: filed figures on the <strong>Earnings Hub</strong>, the research provider's call tiers on <strong>Con-call</strong>, source-labelled sentiment on <strong>Public Chatter</strong>.</p>`,
-      },
-    },
-    {
-      label: 'Updates',
-      value: noneYet ? '—' : formatNumber(m.updates ?? 0),
-      note: noneYet ? 'reading the feeds…' : 'other events today',
-      help: {
-        title: 'What counts as an update',
-        body: `<p>Everything else that arrived today on these four tabs: an exchange filing, an insider disclosure, a story published, or a price rise past ${alerts.MOVE_PCT}%.</p>
-          <p class="mt-3">That threshold is stated because it is a filter applied on your behalf — a page that quietly dropped everything below a number you could not see would be deciding what counts as news without telling you. It is the same number in the row, in this modal, and in row 1 of the exported sheet, because all three read one constant.</p>`,
-      },
-    },
-    {
-      label: 'Feeds reaching today',
-      value: noneYet ? '—' : `${reading} of ${daily}`,
-      note: noneYet
-        ? 'reading the feeds…'
-        : pending
-          ? `${pending} still reading`
-          : behind.length ? `${behind.length} behind${failed.length ? `, ${failed.length} failed` : ''}` : failed.length ? `${failed.length} could not be read` : 'every daily feed is current',
-      help: {
-        title: 'Why this number matters more than the two beside it',
-        body: `<p>All four of these tabs are captures committed on a schedule, and a schedule is best-effort — GitHub sheds most of a dense cron, and some upstreams refuse a runner outside Indian hours.</p>
-          <p class="mt-3">So an empty bucket has two meanings that look identical: <em>nobody filed</em>, and <em>nothing has looked at today yet</em>. This counts how many feeds have actually looked. The panel below names them one by one, with the time each last read its source.</p>
-          <p class="mt-3">A feed that is behind is not broken and its rows are not wrong — they are simply about an earlier day, so they are not shown here.</p>`,
-      },
-    },
-    {
-      hero: true,
-      label: 'Today',
-      value: formatDate(`${day}T00:00:00Z`),
-      note: m.newestRead ? `newest read ${formatRelativeTime(m.newestRead)}` : 'nothing read yet',
-    },
-  ];
+/**
+ * The one always-visible statement of what this page is and where it came from.
+ *
+ * IT CARRIES THE DATE ON ITS FACE, and that is not decoration: this is the one tab defined by a
+ * DAY, the date is in IST rather than UTC (a UTC date names yesterday for five and a half hours
+ * every evening), and a screenshot travels without the modal. Everything else the two chips and
+ * the four cards used to say is behind it.
+ *
+ * IT IS GREEN ONLY WHEN THE DATA EARNS IT. Every feed reaching today is the claim; one behind is
+ * amber and says so, because a chip that reads Live over a feed that has not looked at today is
+ * the same false freshness claim as the header chip that tracked a heartbeat and asked no server
+ * anything.
+ */
+function livePill(rep, day) {
+  const feeds = rep?.feeds || [];
+  const behind = feeds.filter((f) => f.reachesToday === false).length;
+  const reading = rep?.pending ?? 0;
+  const label = `${fmtDay(day)}`;
+  if (behind || reading) {
+    return `<button type="button" data-alerts-info
+       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300 transition-colors hover:bg-amber-100"
+       title="${escapeHtml(behind ? `${behind} feed${behind === 1 ? ' has' : 's have'} not looked at today yet.` : 'Still reading.')}">
+       <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> ${escapeHtml(label)}
+     </button>`;
+  }
+  return `<button type="button" data-alerts-info
+     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-100"
+     title="Every feed on this page has looked at today. Indian trading date, not UTC.">
+     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Live · ${escapeHtml(label)}
+   </button>`;
 }
 
-const dayPill = (day) => pill({ label: `Indian trading date · ${day}`, tone: 'brand', title: 'Today in IST, not UTC — a company files at 14:32 IST and the exchange calendar is Indian, so a UTC date would name yesterday all evening.' });
+/** `2026-09-01` -> `01 Sept 2026`, so the chip reads as a date rather than as an id. */
+function fmtDay(day) {
+  const d = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
 /**
  * How many feeds have not answered yet — a statement about US, not about the day.
  *
@@ -315,12 +298,6 @@ function pendingPill(rep) {
   if (!n) return '';
   return pill({ label: `Reading ${n} more ${n === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' });
 }
-
-const provenanceButton = () =>
-  `<button type="button" data-alerts-info
-     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-100">
-     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Where this comes from
-   </button>`;
 
 // ---------------------------------------------------------------------------------------
 // The coverage panel — one row per feed

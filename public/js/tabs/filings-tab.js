@@ -20,7 +20,7 @@
 // three print their denominator — a list of 40 rows looks complete until you know how many
 // companies were asked about.
 
-import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, openModal, closeModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -312,11 +312,17 @@ export function makeFilingsTab(cfg) {
         // the description happen to be, and both change as companies are added. A control that
         // moves when you use it reads as a different page.
       })}
-      ${freshnessStrip(m, refreshLabel, cov)}
+      ${busyStrip(m)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
+    // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
+    // heading — how old the capture is, how many companies were searched, what they answered —
+    // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
+    // Portfolio's four-line block and the market-news freshness card all made. What stays on the
+    // face is the claim: a pill whose colour and word are earned by the data. What moves behind
+    // the click is the explanation, and the Refresh control with it.
+    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openProvenance(m, cov));
     wireRefresh(ctx.root);
   }
 
@@ -327,23 +333,33 @@ export function makeFilingsTab(cfg) {
    * leaves the reader unsure whether anything was checked — the same rule the header button follows,
    * and the reason the label is restored on a timer rather than immediately.
    */
+  /**
+   * ONE refresh action, reached from two places: the button inside the provenance modal, and the
+   * one on the failure panel — which stays in the page body, because a reader whose feed could not
+   * be read must not have to open a modal to find the control that retries it.
+   */
+  async function doRefresh() {
+    clearTimeout(labelReset);
+    const out = await refreshRegistry.refreshOne(cfg.id);
+    // THE RESULT LIVES IN `refreshLabel`, NOT ON A NODE. Rows land while the walk runs and every
+    // arrival repaints the panel, so whichever button was pressed is long gone by the time there
+    // is anything to report.
+    refreshLabel = out.error ? 'Couldn’t check' : out.added ? `${formatNumber(out.added)} new` : 'Up to date';
+    if (ctxRef) paint(ctxRef);
+    labelReset = setTimeout(() => {
+      refreshLabel = 'Check for new';
+      if (ctxRef) paint(ctxRef);
+    }, 6000);
+  }
+
+  const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
+
   function wireRefresh(root) {
     const btn = root.querySelector('[data-filings-refresh]');
     if (!btn) return;
     const onClick = async () => {
       if (btn.disabled) return;
-      clearTimeout(labelReset);
-      const out = await refreshRegistry.refreshOne(cfg.id);
-      // THE RESULT LIVES IN `refreshLabel`, NOT ON THIS NODE. Rows land while the walk runs and
-      // every arrival repaints the panel, so the button this handler is bound to is long gone by
-      // the time there is anything to report. Holding the label in the module and letting the next
-      // paint render it is the only version that survives its own repaints.
-      refreshLabel = out.error ? 'Couldn’t check' : out.added ? `${formatNumber(out.added)} new` : 'Up to date';
-      if (ctxRef) paint(ctxRef);
-      labelReset = setTimeout(() => {
-        refreshLabel = 'Check for new';
-        if (ctxRef) paint(ctxRef);
-      }, 6000);
+      await doRefresh();
     };
     btn.addEventListener('click', onClick);
     disposers.push(() => btn.removeEventListener('click', onClick));
@@ -402,9 +418,8 @@ function pill(m) {
   const label = bad ? 'Partial' : m.origin === 'snapshot' ? 'Captured' : m.origin === 'store' ? 'Cached' : m.origin === 'mixed' ? 'Captured + live' : 'Live';
   return `
     <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
       ${dot}<span>${escapeHtml(label)}</span>
-      <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.covered))} companies · ${escapeHtml(String(m.windowDays))}d</span>
     </button>`;
 }
 
@@ -477,58 +492,64 @@ function coverageSentence(m, cov) {
   return ` ${parts.join(', ')}.${unlisted}`;
 }
 
-function freshnessStrip(m, label = 'Check for new', cov = null) {
-  const busy = !!(m.pending || m.inFlight);
+/**
+ * The ONLY thing left in the page body, and only while a walk is actually running.
+ *
+ * A permanent freshness paragraph is chrome; a progress line for work the reader just asked for is
+ * feedback, and without it a Refresh press would have no visible effect at all until rows landed.
+ * It disappears the moment the walk settles, which is what makes it not the thing that was removed.
+ */
+/**
+ * The provenance modal, which is now also where the freshness line and the Refresh control live.
+ *
+ * The button is wired on `#modal-content` rather than on the tab root, because `openModal` mounts
+ * outside it — the same shape `market-news-view.js` uses for its Fetch control. Pressing it closes
+ * the modal, so the reader is returned to the page where the progress strip and the arriving rows
+ * actually are; leaving them looking at a static panel while the work happened behind it was the
+ * one way this could be worse than the strip it replaces.
+ */
+function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
+  return function openProvenance(m, cov) {
+    openModal(
+      `${cfg.provenance(m)}
+       <div class="border-t border-slate-100 px-7 py-5">
+         <p class="text-xs leading-relaxed text-slate-600">${freshnessLine(m)}${coverageSentence(m, cov)}</p>
+         <button type="button" data-filings-refresh
+           class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
+           ${m.pending || m.inFlight ? 'disabled' : ''}>
+           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+           </svg>
+           <span>${escapeHtml(m.pending || m.inFlight ? 'Checking…' : refreshLabelRef())}</span>
+         </button>
+       </div>`,
+      { size: 'default' }
+    );
+    const host = document.getElementById('modal-content');
+    host?.querySelector('[data-filings-refresh]')?.addEventListener('click', () => {
+      closeModal();
+      onRefresh();
+    });
+  };
+}
 
-  // THE BUTTON IS IN BOTH BRANCHES. It used to be in neither while a walk ran, so the control the
-  // reader had just pressed vanished, came back when the walk ended, and came back reading "Check
-  // for new" — the one thing it could not truthfully say, because the check had just happened and
-  // nothing on screen reported what it found.
-  const button = `
-    <button type="button" data-filings-refresh ${busy ? 'disabled' : ''}
-      class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="${busy ? 'spin-slow' : ''}">
-        <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
-      </svg>
-      <span data-filings-refresh-label>${escapeHtml(busy ? 'Checking…' : label)}</span>
-    </button>`;
-
-  if (busy) {
-    return `
-      <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
-        <p class="text-xs leading-relaxed text-slate-600">
-          Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.
-          ${m.coldStart ? ' Nothing was cached for this deployment yet, so this first read is automatic.' : ''}
-          ${m.truncated ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'is' : 'are'} in scope and will not be asked about in this pass.` : ''}
-        </p>
-        ${button}
-      </div>`;
-  }
-
+/** How old this is, in one clause, with nothing claimed that was not measured. */
+function freshnessLine(m) {
   const captured = m.capturedAt ? `captured ${escapeHtml(formatRelativeTime(Date.parse(m.capturedAt)))}` : null;
   const refreshed = m.lastRefreshAt ? `read live ${escapeHtml(formatRelativeTime(m.lastRefreshAt))}` : null;
   const when = [refreshed, captured].filter(Boolean).join(' · ');
-  if (!when && !m.outstanding) return '';
+  return when ? `Showing the ${escapeHtml(m.kind === 'news' ? 'news' : 'filings')} ${when}.` : '';
+}
 
-  // THE ANSWER TO "WHY ONLY SOME OF MY COMPANIES". Stated positively — how many were asked — with
-  // the companies that answered nothing named as such, because an absence the reader cannot
-  // account for reads as a broken fetch. Every clause drops out when its number is zero rather
-  // than printing a nil, and the whole sentence drops when there is nothing to account for.
-  const coverage = coverageSentence(m, cov);
-
+function busyStrip(m) {
+  if (!(m.pending || m.inFlight)) return '';
   return `
-    <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
       <p class="text-xs leading-relaxed text-slate-600">
-        ${when ? `Showing the ${escapeHtml(m.kind === 'news' ? 'news' : 'filings')} ${when}.` : ''}
-        ${
-          m.outstanding && !coverage
-            ? ` <strong>${escapeHtml(formatNumber(m.outstanding))}</strong> ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since.
-                These routes answer one company at a time and have no index, so whether anything new has been filed can only be found by asking.`
-            : ''
-        }
-        ${coverage}
+        Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.
+        ${m.coldStart ? ' Nothing was cached for this deployment yet, so this first read is automatic.' : ''}
+        ${m.truncated ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'is' : 'are'} in scope and will not be asked about in this pass.` : ''}
       </p>
-      ${button}
     </div>`;
 }
 

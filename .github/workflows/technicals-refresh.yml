@@ -123,12 +123,19 @@ jobs:
       # three tabs are painted from these files, and the live routes are what the reader's Refresh
       # button asks — a walk of forty companies is not work to do on a page load.
       #
-      # The book first, so a run cut short by the Action's time budget has covered the holdings. It
-      # refuses to write a snapshot covering nobody, and refuses to replace one covering more, so an
-      # upstream outage leaves the previous capture in place rather than committing an empty file.
+      # THE WHOLE UNIVERSE, NOT JUST THE BOOK. This pinned `FILINGS_SCOPE=book`, so the committed
+      # snapshot only ever held the 123 book companies and the Universe scope had nothing beyond
+      # the book to show — Insider Trades reported "70 companies with trades" for a 603-company
+      # universe, which reads as a broken feed and was a one-word setting. The scope the tab offers
+      # and the scope the capture covers have to be the same scope.
+      #
+      # `companies()` still walks the book FIRST, so a run cut short by the Action's time budget or
+      # the rate limit has covered the holdings before the index. It refuses to write a snapshot
+      # covering nobody, and refuses to replace one covering more, so an upstream outage leaves the
+      # previous capture in place rather than committing an empty file.
       - name: Run filings snapshots
         continue-on-error: true
-        run: FILINGS_SCOPE=book node scripts/scrape-filings.mjs
+        run: FILINGS_SCOPE=universe node scripts/scrape-filings.mjs
 
       - name: Upload technicals data (artifact)
         if: always()

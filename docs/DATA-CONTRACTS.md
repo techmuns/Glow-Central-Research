@@ -2570,6 +2570,9 @@ public/data/news.json · insider-trades.json
   "kind": "announcements",
   "capturedAt": "2026-08-14T…Z", "from": "2025-08-14", "to": "2026-08-14", "windowDays": 365,
   "scope": "universe", "asked": 603, "covered": 561, "rowCount": 18422, "failedCount": 42,
+  // `scope` MUST match the widest scope the tab offers. It was pinned to "book" in the scheduled
+  // workflow, so the capture held 123 companies while Universe offered 603 and Insider Trades read
+  // as a feed that had stopped working. Measured after: 603 asked, 226 with trades, 359 with none.
   "withRows": 519, "emptyCount": 42,   // covered = withRows + emptyCount; never derive by subtraction
   "headers": [],                       // insider trades only: the source's own column headings
   "byTicker": { "RELIANCE": [ … ] },   // had something in the window

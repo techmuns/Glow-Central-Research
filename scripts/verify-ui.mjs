@@ -1114,14 +1114,23 @@ console.log('\n— daily alerts —');
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
 
   const daText = await hostText();
-  ok('the stat strip carries four cards', (await page.locator('#content-host .stat-card').count()) === 4);
-  ok('...with the gradient freshness hero as the fourth',
-    await page.locator('#content-host .stat-card').nth(3).evaluate((el) => el.className.includes('from-indigo-500')));
+  // THE FOUR CARDS AND THE PARAGRAPH ARE ONE PILL NOW. Three of the cards counted rows the table
+  // beneath them already lists and the fourth printed the date; the description restated what the
+  // coverage panel says per feed. What may not be lost with them is the provenance and the day, so
+  // both are asserted here rather than the furniture that used to carry them.
+  ok('the landing carries no stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
+  ok('...and no description paragraph competing with the stream',
+    !/in one stream\. Red is an alert/.test(daText));
   ok('the sub-view picker is hidden for this single-stream tab', await page.evaluate(() => {
     const m = document.getElementById('subview-mount');
     return !m || m.classList.contains('hidden') || !m.innerText.trim();
   }));
-  ok('it states the Indian trading date rather than a UTC one', /Indian trading date · \d{4}-\d{2}-\d{2}/.test(daText));
+  // The date is IST, and it is on the FACE of the pill: this is the one tab defined by a day, and
+  // a screenshot travels without the modal behind it.
+  const dayPillText = await page.locator('[data-alerts-info]').first().innerText();
+  ok('it states the Indian trading date rather than a UTC one',
+    /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
+  ok('...and the provenance is still one click away', (await page.locator('[data-alerts-info]').count()) === 1);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
@@ -1138,8 +1147,15 @@ console.log('\n— daily alerts —');
     /has not looked at today/.test(panel) || /reading…/.test(panel) || /every daily feed/i.test(daText), panel.slice(0, 90));
   // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
   // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
+  // It moved with the description, from the page body into the provenance modal the pill opens.
+  // The CLAIM survives the decluttering; only where you read it changed.
+  await page.locator('[data-alerts-info]').first().click();
+  await page.waitForTimeout(500);
+  const daModal = await page.locator('#modal-content').innerText();
   ok('the page names the tabs it deliberately does NOT consolidate',
-    /Earnings Hub/.test(daText) && /not consolidated here|keep their own tabs/i.test(daText));
+    /Earnings Hub/.test(daModal) && /not consolidated here|keep their own tabs/i.test(daModal));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
@@ -3919,11 +3935,15 @@ console.log('\n— news, announcements and insider trades —');
     seen.news.length = 0;
     await go('/#/research/news?scope=watchlist', 4000);
     ok('a watchlist of uncaptured companies still sends nothing on load', seen.news.length === 0, `${seen.news.length} request(s)`);
-    ok('...and says how many have not been checked rather than claiming there is no news',
-      /ha(s|ve) not been checked/.test(await hostText()));
+    // The account lives in the provenance modal now, not in a paragraph under the heading — and so
+    // does the control that acts on it. Both are opened here, which is also what a reader does.
+    await page.locator('[data-filings-info]').first().click();
+    await page.waitForTimeout(500);
+    ok('...and says how many have not been asked about rather than claiming there is no news',
+      /ha(s|ve) not been asked about|were searched/.test(await page.locator('#modal-content').innerText()));
 
     seen.news.length = 0;
-    await page.locator('[data-filings-refresh]').first().click();
+    await page.locator('#modal-content [data-filings-refresh]').first().click();
     await page.waitForTimeout(6000);
     const newsUrls = seen.news.map((u) => new URL(u));
     // EXACTLY one each. A walk that leaks an extra request per render is the failure mode here.
@@ -4544,12 +4564,28 @@ console.log('\n— news, announcements and insider trades —');
     // statement nobody can make without asking every company — the honest line is about US.
     const strip = await hostText();
     if (st.rows) {
+      // THE ACCOUNT MOVED BEHIND THE PILL, SO THAT IS WHERE IT IS ASSERTED. A permanent grey
+      // paragraph under the heading was competing with the table it qualifies; what may not move
+      // is the claim itself, so the pill must exist on the face and the modal must still carry
+      // how current this is, the per-company account, and the control that asks.
+      ok('the page body carries no permanent freshness paragraph', !/Showing the (news|filings)/i.test(strip));
+      ok('...and the provenance pill is on the face instead', (await page.locator('[data-filings-info]').count()) > 0);
+      await page.locator('[data-filings-info]').first().click();
+      await page.waitForTimeout(500);
+      const modalText = await page.locator('#modal-content').innerText();
       ok('...and says how current it is rather than claiming nothing is new',
-        /Showing the (news|filings)/i.test(strip) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(strip),
-        (strip.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
-      ok('...and offers a control that asks', (await page.locator('[data-filings-refresh]').count()) > 0);
+        /Showing the (news|filings)/i.test(modalText) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(modalText),
+        (modalText.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
+      ok('...and accounts for the companies in scope rather than leaving a gap to misread',
+        /were searched|filed nothing in the last|whole exchange by date/i.test(modalText));
+      ok('...and offers a control that asks', (await page.locator('#modal-content [data-filings-refresh]').count()) > 0);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
     } else {
+      skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');
+      skip('...and the provenance pill is on the face instead', 'no rows cached on this origin');
       skip('...and says how current it is rather than claiming nothing is new', 'no rows cached on this origin');
+      skip('...and accounts for the companies in scope rather than leaving a gap to misread', 'no rows cached on this origin');
       skip('...and offers a control that asks', 'no rows cached on this origin');
     }
   }

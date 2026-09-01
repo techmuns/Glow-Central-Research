@@ -281,8 +281,13 @@ content. `roadmapStrip()` and the older `comingSoonStrip()` are both deleted; do
 either. Listing a gap in the spec is the rule that survives.
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
-and nothing else: no stat cards, no ribbon, no sub-view picker. **Breakouts / Technical is the
-second, on all four sub-views** — each opened with two or three counts plus the gradient freshness
+and nothing else: no stat cards, no ribbon, no sub-view picker. **Daily Alerts is the third**, and
+it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
+table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
+date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
+The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY
+and a screenshot travels without the modal. **Breakouts / Technical is the second, on all four
+sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*
 is the count on the Strong chip itself. The rule that survives is not
@@ -1780,10 +1785,18 @@ Three things that make the trade honest rather than a deletion:
    drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
    the page without its chrome, and it is the one artefact nobody can see a pill on.
 
-**Prefer this shape whenever a caveat is competing with the content it qualifies.** Three times now
+**Prefer this shape whenever a caveat is competing with the content it qualifies.** Four times now
 the right answer to "this block is too loud" has been to move the explanation behind a control that
 still states the claim — and never to delete the claim, and never to write a smaller version of the
-block.
+block. The fourth is the filings tabs' freshness strip: a permanent grey paragraph under the
+heading — how old the capture is, how many companies were searched, what they answered — with the
+Refresh control inside it. All of it now lives in the provenance modal, the pill on the face keeps
+the claim, and **the only thing left in the body is a strip that appears while a walk is actually
+running**, because progress on work the reader just asked for is feedback rather than chrome. The
+Refresh button moved with the explanation (the market-news Fetch button's shape: wired on
+`#modal-content`, not on the tab root) — but the **failure** panel keeps its own retry control in
+the body, since a reader whose feed could not be read must not have to open a modal to find the
+thing that retries it.
 
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
@@ -2200,7 +2213,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change when the news scrape runs | **`triggers.crons` in `wrangler.jsonc` + `scheduled()` in `worker/index.js`** — that is what actually drives the cadence. The `schedule:` block in `.github/workflows/market-news-refresh.yml` is a fallback and is measurably not firing on this repo; read *And in the end GitHub's scheduler had to be taken off the critical path* first |
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
-| Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` (`FILINGS_LIMIT=20` for a smoke run, `FILINGS_SCOPE=book` for the holdings only) — it reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
+| Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` — **universe scope is the default and the scheduled job now uses it**; `FILINGS_SCOPE=book` narrows to the holdings, `FILINGS_LIMIT=20` for a smoke run. It reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
+| Change which companies a filings snapshot covers | `FILINGS_SCOPE` in `.github/workflows/technicals-refresh.yml` — it was pinned to `book`, so the capture held 123 companies while the tab offered a 603-company Universe scope and Insider Trades read as a broken feed. **The scope the tab offers and the scope the capture covers have to be the same scope**; `companies()` still walks the book first, so a truncated run has covered the holdings |
 | Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |
 | Change what the Refresh button drives | `js/core/refresh.js` (the registry) + `refreshNow()` in `js/core/watch.js` — read *Work the reader has to ask for* first; a per-company feed must never be registered with `live.js` |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
