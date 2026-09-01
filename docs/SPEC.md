@@ -27,16 +27,17 @@ A springy indigo→purple underline scales in under the active tab; active tab i
 inactive slate with hover. Order is fixed:
 
 **Research Central**
-1. Ask Research *(the default landing tab)*
-2. Daily Alerts
-3. Earnings Hub
-4. Con-call
-5. Public Chatter
-6. Breakouts / Technical
-7. Super Investors
-8. News
-9. Corp Announcements
-10. Insider Trades
+1. AI Alerts *(the default landing tab)*
+2. General Alerts
+3. Ask Research
+4. Earnings Hub
+5. Con-call
+6. Public Chatter
+7. Breakouts / Technical
+8. Super Investors
+9. News
+10. Corp Announcements
+11. Insider Trades
 
 **Portfolio Analytics**
 1. Overview
@@ -52,8 +53,9 @@ spans the full 1400px on every tab.
 
 | Tab | Sub-views |
 | --- | --- |
+| AI Alerts | *(none — one ranked queue, so the picker is hidden)* |
+| General Alerts | *(none — one stream, so the picker is hidden)* |
 | Ask Research | *(none — one conversation workspace, so the picker is hidden)* |
-| Daily Alerts | *(none — one stream, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
 | Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
@@ -68,7 +70,7 @@ spans the full 1400px on every tab.
 Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
 removed from the chrome, so Research Central's tabs are the whole navigation for now.
 
-**Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
+**AI Alerts is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
 second place recording it that could disagree with the array.
 
@@ -172,7 +174,7 @@ Hash-based and shareable:
 ```
 
 - Unknown workspace / tab / sub-view falls back to the first valid option at that level;
-  a completely unknown route lands on `#/research/daily-alerts`.
+  a completely unknown route lands on `#/research/ai-alerts`.
 - With no hash present, the last route is restored from `localStorage`.
 - Browser back/forward work; scope changes and route normalisation use `replaceState` so they
   don't pollute history.

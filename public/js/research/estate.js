@@ -24,7 +24,7 @@ import * as marketNews from '../data/market-news.js';
 import * as portfolio from '../data/portfolio.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
-  { id: 'daily-alerts', tab: 'Daily Alerts', route: '#/research/daily-alerts', description: 'Derived timeline across price moves, company news, market news, announcements and insider disclosures.' },
+  { id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts', description: 'Derived timeline across earnings, con-calls, chatter, technicals, investor activity, news, announcements and insider disclosures.' },
   { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns.' },
   { id: 'earnings-calendar', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported-date coverage and the currently loaded forward results calendar.' },
   { id: 'concall', tab: 'Con-call', route: '#/research/concall', description: 'Held and scheduled earnings calls with StockScans scores, sentiment tiers and source tags.' },

@@ -316,6 +316,7 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/ai-alerts.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
@@ -1104,13 +1105,9 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Ask Research is the landing tab; Daily Alerts retains its focused feed checks
-//
-// Three things it has to get right: consolidate every feed, keep today's freshness distinct from
-// retained history, and reveal older dates through the table's own scroller in strict chronological
-// order. So the assertions here cover the coverage panel, the date filter and the stream.
+// 3d. AI Alerts is the landing tab; Ask Research and General Alerts retain their focused checks
 // ---------------------------------------------------------------------------------------
-console.log('\n— ask research and daily alerts —');
+console.log('\n— AI alerts —');
 {
   let askRequest = null;
   let configShouldFail = true;
@@ -1180,11 +1177,116 @@ console.log('\n— ask research and daily alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
+  await page.getByText('Ranking complete', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+  ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  const aiCards = page.locator('[data-ai-card]');
+  const aiCount = await aiCards.count();
+  ok('the landing page surfaces a deliberately short first page', aiCount > 0 && aiCount <= 8, `${aiCount} cards`);
+  const renderedCards = await aiCards.evaluateAll((els) => els.map((el) => ({
+    ticker: el.dataset.ticker,
+    score: Number(el.dataset.score),
+    priority: el.dataset.priority,
+    insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
+    why: el.querySelectorAll('[data-ai-why] > div').length,
+    action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
+    events: el.querySelectorAll('[data-ai-event]').length,
+  })));
+  ok('AI cards are unique by company and ordered highest score first',
+    new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
+      renderedCards.every((card, i) => !i || renderedCards[i - 1].score >= card.score),
+    renderedCards.map((card) => `${card.ticker}:${card.score}`).join(', '));
+  ok('every surfaced card explains the insight, score and next review action',
+    renderedCards.every((card) => card.insight && card.why > 0 && card.action && card.events > 0));
+
+  const policy = await evalSafe(async () => {
+    const ai = await import('/js/data/ai-alerts.js');
+    const feed = (id, reachesToday = true) => ({ id, label: id, status: 'ok', reachesToday });
+    const event = (overrides = {}) => ({
+      id: 'e1', feed: 'news', feedLabel: 'Company news', day: '2026-09-01', time: null,
+      ticker: 'GOLD', company: 'Gold Ltd', headline: 'Routine publisher story',
+      direction: 'neutral', importance: 'low', signalReason: 'Publisher headline.',
+      importanceReason: 'Low.', url: null, ...overrides,
+    });
+    const holdings = [
+      { ticker: 'GOLD', name: 'Gold Ltd', sector: 'Industrials' },
+      { ticker: 'PEER', name: 'Peer Ltd', sector: 'Industrials' },
+    ];
+    const rank = (events, feeds) => ai.rankReport({ day: '2026-09-01', scope: 'portfolio', events, feeds }, { holdings });
+    const noise = rank([event()], [feed('news')]);
+    const material = rank([
+      event({ id: 'earn', feed: 'earnings', feedLabel: 'Earnings', headline: 'Quarterly result filed', direction: 'positive', importance: 'high' }),
+    ], [feed('earnings')]);
+    const corroborated = rank([
+      event({ id: 'earn', feed: 'earnings', feedLabel: 'Earnings', headline: 'Quarterly result filed', direction: 'positive', importance: 'high' }),
+      event({ id: 'ann', feed: 'announcements', feedLabel: 'Announcements', headline: 'Regulatory approval received', direction: 'positive', importance: 'high' }),
+    ], [feed('earnings'), feed('announcements')]);
+    const current = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider')]);
+    const stale = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider', false)]);
+    const duplicate = rank([
+      event({ id: 'n1', headline: 'Same story' }), event({ id: 'n2', headline: 'Same story' }),
+      event({ id: 'wide', ticker: null, company: 'Market', headline: 'Market-wide story' }),
+    ], [feed('news')]);
+    const weakSector = rank([
+      event({ id: 'weak1', feed: 'insider', ticker: 'GOLD', headline: 'Small disposal', direction: 'negative' }),
+      event({ id: 'weak2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Another small disposal', direction: 'negative' }),
+    ], [feed('insider')]);
+    const materialSector = rank([
+      event({ id: 'risk1', feed: 'insider', ticker: 'GOLD', headline: 'Material disposal', direction: 'negative', importance: 'high' }),
+      event({ id: 'risk2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Material pledge', direction: 'negative', importance: 'high' }),
+    ], [feed('insider')]);
+    const { safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
+    return {
+      min: ai.MIN_SCORE,
+      mustSee: ai.MUST_SEE_SCORE,
+      noiseSurfaced: noise.cards.length,
+      noiseScore: noise.allCards[0]?.score,
+      material: material.allCards[0]?.score,
+      corroborated: corroborated.allCards[0]?.score,
+      current: current.allCards[0]?.score,
+      stale: stale.allCards[0]?.score,
+      duplicateEvents: duplicate.allCards[0]?.events.length,
+      marketWideExcluded: duplicate.meta.marketWideExcluded,
+      arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
+      weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      materialSectorBoosted: materialSector.allCards.every((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      sourceUrlsSafe: safeSourceUrl('javascript:alert(1)') === null && /^https:/.test(safeSourceUrl('https://example.com/filing')),
+    };
+  });
+  ok('single-source neutral news is suppressed below the published threshold',
+    policy.noiseSurfaced === 0 && policy.noiseScore < policy.min, `${policy.noiseScore}/${policy.min}`);
+  ok('a material event can qualify alone, while independent corroboration ranks higher',
+    policy.material >= policy.min && policy.corroborated > policy.material,
+    `${policy.material} → ${policy.corroborated}`);
+  ok('stale-source evidence receives the documented score penalty',
+    policy.current > policy.stale, `${policy.current} current vs ${policy.stale} stale`);
+  ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
+    policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
+    `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
+  ok('the visible score breakdown adds exactly to the visible score', policy.arithmetic);
+  ok('sector context requires material negative evidence rather than tiny negative activity',
+    !policy.weakSectorBoosted && policy.materialSectorBoosted);
+  ok('AI card source links reject executable URL schemes', policy.sourceUrlsSafe);
+
+  const firstTicker = renderedCards[0].ticker;
+  await aiCards.first().locator('[data-open-general]').click();
+  await page.waitForTimeout(5000);
+  ok('a card drills into General Alerts without changing the selected scope',
+    /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
+  const seeded = await page.locator('#content-host [data-table-search]').inputValue();
+  const drilledRows = await page.locator('#content-host tbody tr').allTextContents();
+  ok('...and seeds the complete stream to that company',
+    seeded === firstTicker && drilledRows.length > 0,
+    `${seeded}; ${drilledRows.length} visible rows`);
+// ---------------------------------------------------------------------------------------
+// 3e. Ask Research — dashboard-wide evidence and optional hosted web research
+// ---------------------------------------------------------------------------------------
+  console.log('\n— ask research —');
+  await go('/#/research/ask-research?scope=portfolio', 500);
 
   const askText = await hostText();
   ok('Ask Research renders as a complete workspace',
@@ -1301,6 +1403,13 @@ console.log('\n— ask research and daily alerts —');
 
   await page.unroute('**/api/research');
 
+  // ---------------------------------------------------------------------------------------
+  // 3f. General Alerts — the complete chronological stream
+  //
+  // It must consolidate every feed, keep today's freshness distinct from retained history, and
+  // reveal older dates through the table's own scroller in strict chronological order.
+  // ---------------------------------------------------------------------------------------
+  console.log('\n— general alerts —');
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   const daText = await hostText();
@@ -1308,7 +1417,7 @@ console.log('\n— ask research and daily alerts —');
   // beneath them already lists and the fourth printed the date; the description restated what the
   // coverage panel says per feed. What may not be lost with them is the provenance and the day, so
   // both are asserted here rather than the furniture that used to carry them.
-  ok('the landing carries no stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
+  ok('General Alerts carries no redundant stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
   ok('...and no description paragraph competing with the stream',
     !/in one stream\. Red is an alert/.test(daText));
   ok('the sub-view picker is hidden for this single-stream tab', await page.evaluate(() => {
@@ -1324,7 +1433,7 @@ console.log('\n— ask research and daily alerts —');
     (await page.locator('[data-alerts-info]').count()) === 1 &&
       (await page.locator('[data-alerts-info]').evaluate((el) => el.tagName)) === 'SPAN');
   const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
-  ok('the landing states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
+  ok('General Alerts states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
@@ -1382,7 +1491,7 @@ console.log('\n— ask research and daily alerts —');
   // The status label must not bring back the long explainer overlay.
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(200);
-  ok('the Daily Alerts status opens no explainer popup',
+  ok('the General Alerts status opens no explainer popup',
     (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
@@ -1739,7 +1848,7 @@ console.log('\n— ask research and daily alerts —');
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
   await settleTables();
 
-  // THE NEWS TIME, ASSERTED AT THE RULE. Daily Alerts read it off `raw.page_age`, and `raw` is
+  // THE NEWS TIME, ASSERTED AT THE RULE. General Alerts read it off `raw.page_age`, and `raw` is
   // stripped before the snapshot is written — so it was present on a live walk and absent on every
   // row that came from the file, which is all of them. It reads `publishedAt` now, a first-class
   // field that survives the strip. That field only reaches the committed capture once the Worker
@@ -5916,6 +6025,9 @@ for (const width of [1440, 1024, 390]) {
   await go('/#/research/earnings-hub?scope=universe', 1600);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`no sideways page scroll at ${width}px`, overflow <= 0, `${overflow}px`);
+  await go('/#/research/ai-alerts?scope=portfolio', 4500);
+  const aiOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok(`AI Alerts cards: no sideways page scroll at ${width}px`, aiOverflow <= 0, `${aiOverflow}px`);
 }
 
 // ---------------------------------------------------------------------------------------

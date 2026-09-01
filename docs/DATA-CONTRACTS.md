@@ -3128,11 +3128,33 @@ than left painting into the content host.
 
 ---
 
-## Daily Alerts history — DERIVED, no file and no route of its own
+## AI Alerts priority — DERIVED, no file and no route of its own
+
+`js/data/ai-alerts.js` consumes the retained report below and writes nothing. It takes company events
+from the latest seven Indian trading dates, deduplicates the same normalized headline within a feed,
+groups by ticker and emits only companies scoring at least `MIN_SCORE` (64). `MUST_SEE_SCORE` (82)
+splits the surfaced queue into Must see and Important. Tickerless market stories stay in General
+Alerts: attaching them to an individual company would be an unsupported inference.
+
+The score begins with the strongest event and then adds smaller company-level context:
+
+- event importance, source materiality, recency and explicit Positive / Negative direction;
+- membership in `coverage.js`'s real Portfolio list (not the illustrative Analytics ledger);
+- independent feed corroboration, repeated high-importance events and directional conflict;
+- a small negative-sector-cluster adjustment where multiple real portfolio companies carry
+  high-importance negative evidence (routine small activity cannot create the cluster);
+- a penalty where the source is stale, failed, incomplete or unread.
+
+Every contribution is returned as `{ label, points }` in `scoreBreakdown` and rendered on the card.
+The derived `insight` and `action` strings are templates over those structured facts, not generated
+claims. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
+verified with fixtures independently of what happens to be in today's capture.
+
+## General Alerts history — DERIVED, no file and no route of its own
 
 `js/data/daily-alerts.js` writes nothing and introduces no route of its own. It calls the loaders of
 all eight research tabs and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
-for every retained row through the requested **Indian trading date**. The Daily Alerts tab uses history
+for every retained row through the requested **Indian trading date**. General Alerts and AI Alerts use history
 mode; its table progressively paints the rows inside one fixed-height scroller, newest first.
 
 | Feed id | Tab | Contributes |
@@ -3225,7 +3247,7 @@ also uses `fetchedAt`: reading the file today is not evidence that its upstream 
 snapshot and this device, no per-company request — which is deliberately separate from `load()`:
 `load()` memoises its promise, so a seed arriving first would hand the tab that owns the feed the
 seed's promise and silently discard its company list, and the Refresh button would then re-read an
-empty set and ask about nothing. Daily Alerts Refresh uses the one-shot earnings, con-call and
+empty set and ask about nothing. General Alerts Refresh uses the one-shot earnings, con-call and
 chatter revalidators plus one conditional read of the bulk investor snapshot. It never performs
 the Super Investors tab's ninety-one-book revalidation walk.
 

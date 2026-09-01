@@ -465,7 +465,7 @@ export function startLive(live) {
 /**
  * Revalidate the active feed once without starting the 30-second poller.
  *
- * Daily Alerts uses this for its explicit Refresh button. The prices projection keeps an unchanged
+ * General Alerts uses this for its explicit Refresh button. The prices projection keeps an unchanged
  * check tiny; the full payload is pulled only when the structure tag says a result appeared or was
  * revised. Calling `load()` again cannot do this because that function is intentionally idempotent.
  */

@@ -1,10 +1,10 @@
-// tabs/daily-alerts.js — THE FIRST TAB, AND THE ONLY ONE ORGANISED AS A CHRONOLOGICAL STREAM.
+// tabs/daily-alerts.js — GENERAL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
 //
 // Every other tab here is organised by SOURCE: this is what the results feed holds, this is what
 // BSE filed, this is what the technicals scrape measured. That is the right shape for research and
-// the wrong shape for the first thirty seconds of a morning, when the question is not "what does
-// Moneycontrol have" but "what happened, and does any of it need me". So this tab is organised by
-// TIME: one stream, every feed, newest first through each source's retained history.
+// the wrong shape for prioritisation, when the question is not "what does Moneycontrol have" but
+// "what happened, and does any of it need me". AI Alerts answers that narrower question. This tab
+// remains the complete TIME view: one stream, every feed, newest first through retained history.
 //
 // It introduces no data source of its own — see js/data/daily-alerts.js, which is where the
 // readings are taken and where the rule for each one is written down.
@@ -36,8 +36,8 @@ import { scopeLabel } from '../data/scope.js';
 
 export const meta = {
   id: 'daily-alerts',
-  title: 'Daily Alerts',
-  subtitle: 'A newest-first timeline consolidated from the feeds on this dashboard.',
+  title: 'General Alerts',
+  subtitle: 'Every retained alert in one newest-first timeline.',
   // No rail. This is one stream and splitting it by feed would rebuild the tabs it exists to
   // collapse — the feed filter in the toolbar does that job without costing a navigation.
   subviews: [],
@@ -58,6 +58,7 @@ let report = null; // the last collected report
 let loadToken = 0;
 let unsubs = [];
 let tableView = null; // the reader's search / filters / sort, carried across repaints
+let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
 // those are different claims the moment a feed appears or disappears: All keeps meaning all, while
 // a full Set silently becomes a partial filter when a sixth feed is added. The same distinction
@@ -67,12 +68,21 @@ let picked = null;
 export function render(ctx) {
   ctxRef = ctx;
 
+  // AI ALERTS LINKS TO THE COMPLETE EVIDENCE FOR ONE COMPANY. Seed the existing table search
+  // rather than inventing a second company filter, and clear only a query that came from such a
+  // link when the URL stops carrying it. A search typed directly in this tab still survives its
+  // normal feed repaints.
+  const requestedCompany = String(ctx.params?.company || '').trim();
+  if (requestedCompany && requestedCompany !== routeCompany) tableView = { ...(tableView || {}), q: requestedCompany };
+  else if (!requestedCompany && routeCompany) tableView = { ...(tableView || {}), q: '' };
+  routeCompany = requestedCompany || null;
+
   if (!unsubs.length) {
     // NOTHING SUBSCRIBED. The owning tabs may poll while mounted, but this consolidated page takes
     // one cached/snapshot reading on mount and another only when the reader presses Refresh.
     unsubs.push(
       refresh.register(REFRESH_ID, {
-        label: 'Daily Alerts',
+        label: 'General Alerts',
         // A REFRESH HERE COSTS NOTHING PER COMPANY. Earnings, con-calls and chatter each expose a
         // bounded one-shot revalidation; investors revalidate the one bulk snapshot. The owning
         // Super Investors tab keeps the deliberate ninety-one-book walk behind its own control.
@@ -215,7 +225,7 @@ function paint(ctx) {
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
   ctx.root.innerHTML = `
     ${sectionHead({
-      title: 'Daily Alerts',
+      title: 'General Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
@@ -646,7 +656,7 @@ function eventsTable(ctx, events, day) {
     initialSort: { key: 'Date / time', dir: 'desc' },
     initialView: tableView,
     emptyMessage: emptyMessageFor(ctx.scope, day),
-    exportName: `sattva-daily-alerts-through-${day}`,
+    exportName: `sattva-general-alerts-through-${day}`,
     onExport: (visible) => exportStream(visible, day, ctx.scope),
   });
 }
@@ -710,7 +720,7 @@ function exportStream(visible, day, scope) {
   const banner = {
     __banner: true,
     line:
-      `SATTVA CENTRAL RESEARCH — DAILY ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
+      `SATTVA CENTRAL RESEARCH — GENERAL ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
       `Rows consolidate Earnings, Con-calls, Public Chatter, Price moves, Investor activity, Announcements, Insider trades and News. ` +
       `Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. ` +
       `High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
@@ -722,8 +732,8 @@ function exportStream(visible, day, scope) {
 
   const cell = (get) => (r) => (r.__banner ? '' : get(r));
   return exportRows({
-    filename: `sattva-daily-alerts-through-${day}`,
-    sheetName: 'Daily Alerts',
+    filename: `sattva-general-alerts-through-${day}`,
+    sheetName: 'General Alerts',
     columns: [
       { header: 'Date (IST)', key: 'date', width: 14, get: (r) => (r.__banner ? r.line : r.day || '') },
       { header: 'Time (IST)', key: 'time', width: 12, get: cell((r) => r.time || '') },

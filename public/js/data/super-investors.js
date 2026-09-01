@@ -306,7 +306,7 @@ export async function refresh() {
 /**
  * Revalidate only the one committed bulk snapshot.
  *
- * Daily Alerts must not turn one header refresh into the ninety-one-request live book walk. This
+ * General Alerts must not turn one header refresh into the ninety-one-request live book walk. This
  * picks up a newer deployment's scheduled snapshot in one conditional request and replaces only
  * books that are not known to have been confirmed later on this device.
  */

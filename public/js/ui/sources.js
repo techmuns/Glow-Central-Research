@@ -22,9 +22,10 @@ import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
-// NOT TYPED OUT. The threshold is stated in the Daily Alerts row reasons, its export and here; all
+// NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
+import * as aiAlerts from '../data/ai-alerts.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -137,23 +138,23 @@ export function sourceGroups() {
 
     return [
     {
-      // Daily Alerts is the only group here whose whole point is that it introduces NOTHING. A
-      // reader auditing that timeline is owed the answer "this page has no feed of its own" before
-      // they go looking for one.
-      title: 'Daily Alerts',
+      // THE ALERT PAIR COMES FIRST BECAUSE AI ALERTS IS THE LANDING TAB, and this is the only group
+      // whose whole point is that it introduces NOTHING. A reader is owed "no new feed" before
+      // looking for a source that does not exist.
+      title: 'AI & General Alerts',
       icon: '🔔',
-      tabs: 'Daily Alerts',
+      tabs: 'AI Alerts · General Alerts',
       items: [
         {
-          name: 'No source of its own — it consolidates the research feeds below',
+          name: 'No source of its own — two views over the research feeds below',
           feeds:
-            'The Daily Alerts timeline consolidates <strong>Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            '<strong>General Alerts</strong> consolidates Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
             '<strong>Positive / Negative / Neutral</strong> direction and <strong>High / Low</strong> importance are separate, and every row prints both reasons. Source sentiment is reproduced where it exists; insider and investor transactions use their own direction; announcements use the narrow rules documented here; news remains neutral. ' +
             `High thresholds include ±${dailyAlerts.MOVE_PCT}% price moves, ${dailyAlerts.INSIDER_HIGH_PCT}% or ₹${dailyAlerts.INSIDER_HIGH_VALUE / 10_000_000} crore insider activity, ${dailyAlerts.INVESTOR_HIGH_PP}pp investor changes, and ${dailyAlerts.CHATTER_HIGH_MENTIONS} mentions or ${dailyAlerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
-            'Its own panel keeps the retained row count separate from when that feed last looked and whether that reaches today — because historical rows and a feed that has run today are not the same answer.',
+            `Its panel keeps retained rows separate from whether each feed has looked today. <strong>AI Alerts</strong> groups the same company-specific events over ${aiAlerts.WINDOW_DAYS} days and applies an explainable ${aiAlerts.MIN_SCORE}-point priority threshold. It scores materiality, recency, direction, real Portfolio membership, independent-feed corroboration, conflicts and portfolio-sector clusters; stale feeds are penalised. Tickerless market news and lower-scoring names stay in General Alerts. Portfolio Analytics weights and conviction are not used because that ledger is illustrative.`,
           cadence: 'Rebuilt on every visit and on Refresh from each owning feed; nothing on it walks per company',
           status: 'live',
-          file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
+          file: 'js/data/ai-alerts.js · js/tabs/ai-alerts.js · js/data/daily-alerts.js · js/tabs/daily-alerts.js',
         },
       ],
     },
