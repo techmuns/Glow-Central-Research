@@ -690,8 +690,11 @@ export function scoreTable(config) {
               // then CLIPS it rather than scrolling, so the control is simply unreachable on a phone
               // and nothing on screen says so. Constraining the control costs nothing — the option
               // list still opens at full width — and it is why this is fixed here rather than by
-              // shortening anyone's labels.
+              // shortening anyone's labels. `maxWidthPx` is the optional tighter desktop cap for a
+              // toolbar with several filters; Insider Trades uses it so a long Mode value does not
+              // force the Watchlist control onto another row.
               (f, i) => `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
+                   ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
                    class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
                  </select>`
