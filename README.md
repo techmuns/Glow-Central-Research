@@ -1,12 +1,18 @@
 # Sattva Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (daily alerts, earnings, con-calls, public chatter, technical breakouts,
+**Research Central** (Ask Research, daily alerts, earnings, con-calls, public chatter, technical breakouts,
 superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**Daily Alerts** is the landing tab: one newest-first, internally scrollable timeline consolidated
+**Ask Research** is the landing tab: a conversational workspace that assembles a bounded evidence
+packet from every dashboard data module, reports source coverage and provenance, and keeps its
+conversation library on the reader's device. Its optional **Web research** mode sends the same
+dashboard packet to the server-side assistant and requires hosted web search, so current external
+context and dashboard facts are combined in one answer without exposing the provider key.
+
+**Daily Alerts** is one newest-first, internally scrollable timeline consolidated
 from four of the tabs — Breakouts / Technical, News, Corp Announcements and Insider Trades — red
 for a price fall past 5% and orange for everything else. It reuses each feed's retained history,
 shows every row's Indian date and available clock time, and offers All / today / 7-day / 30-day
@@ -22,7 +28,7 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**All thirteen tabs across both workspaces are built.** See
+**All fourteen tabs across both workspaces are built.** See
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
@@ -70,6 +76,13 @@ Optionally, run it through the real Worker runtime:
 npx wrangler dev
 ```
 
+Ask Research is intentionally disabled until the server-side secret is present. For local Worker
+development, put `OPENAI_API_KEY=…` in the gitignored `.dev.vars`; for a deployed Worker, configure
+it with `npx wrangler secret put OPENAI_API_KEY`. The model name is the non-secret
+`OPENAI_MODEL` variable in `wrangler.jsonc`. Do not put the key in `public/` or browser storage.
+Conversation history is stored locally, while each submitted question and its bounded dashboard
+evidence packet are sent to OpenAI with response storage disabled.
+
 ---
 
 ## Deploy
@@ -103,12 +116,14 @@ public/
                       daily-alerts.js — retained chronological readings across four tabs
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    tabs/             daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    research/         bounded cross-dashboard evidence catalog + safe answer renderer
+    tabs/             ask-research, daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
-worker/index.js       asset serving + /api/* slot
+worker/index.js       asset serving + live read-through APIs + the Ask Research stream
+worker/research.mjs   server-only OpenAI Responses bridge, web search and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
 docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source

@@ -137,9 +137,9 @@ export function sourceGroups() {
 
     return [
     {
-      // DAILY ALERTS COMES FIRST BECAUSE IT IS THE FIRST TAB, and it is the only group here whose
-      // whole point is that it introduces NOTHING. A reader opening this modal from the landing tab
-      // is owed the answer "this page has no feed of its own" before they go looking for one.
+      // Daily Alerts is the only group here whose whole point is that it introduces NOTHING. A
+      // reader auditing that timeline is owed the answer "this page has no feed of its own" before
+      // they go looking for one.
       title: 'Daily Alerts',
       icon: '🔔',
       tabs: 'Daily Alerts',
@@ -147,7 +147,7 @@ export function sourceGroups() {
         {
           name: 'No source of its own — it reads four of the tabs below',
           feeds:
-            'The landing tab consolidates the retained rows from <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time, and adds no data of its own. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            'The Daily Alerts timeline consolidates the retained rows from <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, ordered newest-first by Indian date and available time, and adds no data of its own. Its date filter narrows the already-loaded timeline without issuing another request. ' +
             'The Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not folded in — they keep their own tabs, and the alerts page says so rather than leaving an absent row to read as a fault. ' +
             `<strong>Red</strong> is a direct negative reading printed in the row that carries it, and across these four there is exactly one: the price fell more than ${DAILY_MOVE_PCT}% at the close. ` +
             '<strong>Orange</strong> is anything else that arrived. <strong>Announcements, insider disclosures and news are never graded</strong>: their categories, columns and headlines are the upstream\'s own, ' +
