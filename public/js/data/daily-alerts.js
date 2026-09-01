@@ -132,7 +132,7 @@ export function announcementSignal(row = {}) {
     ['default or insolvency', /\bdefault(?:ed)?\b|\binsolvenc\w*\b|\bbankrupt\w*\b|\bliquidat\w*\b|\bwinding[ -]?up\b/],
     ['fraud or enforcement action', /\bfraud\w*\b|\bpenalt(?:y|ies)\b|\bfine\b|\bshow[ -]?cause\b|\btax demand\b|\bdemand notice\b/],
     ['contract cancellation or suspension', /\b(?:order|contract)\s+(?:cancel\w*|terminat\w*)\b|\bsuspension\b/],
-    ['auditor resignation', /\bauditor\w*\s+resign\w*\b/],
+    ['auditor resignation', /\bauditor\w*.{0,80}\bresign\w*\b|\bresign\w*.{0,80}\bauditor\w*\b/],
   ].find(([, re]) => re.test(text));
   const positive = [
     ['rating upgrade', /\b(?:rating\s+)?upgrad(?:e|ed|ing)\b/],
@@ -166,13 +166,14 @@ const numeric = (value) => {
 export function insiderSignal(cells = {}) {
   const transaction = String(cells.Transaction ?? cells['Acq/Disp'] ?? '').trim();
   const mode = String(cells.Mode ?? '').trim();
+  const transactionWords = transaction.toLowerCase();
   const words = `${transaction} ${mode}`.toLowerCase();
   let direction = DIRECTION.NEUTRAL;
   let basis = 'No recognised directional transaction word was carried; shown as neutral.';
-  if (/\b(?:revoke|release)\w*\b.*\bpledge\b|\bpledge\b.*\b(?:revoke|release)\w*\b/.test(words)) {
+  if (/\b(?:revoke|revocation|release)\w*\b/.test(transactionWords) || /\b(?:revoke|revocation|release)\w*\b.*\bpledge\b|\bpledge\b.*\b(?:revoke|revocation|release)\w*\b/.test(words)) {
     direction = DIRECTION.POSITIVE;
     basis = 'Pledge release/revocation in the upstream transaction wording.';
-  } else if (/\b(?:invoke\w*|creat\w*)\b.*\bpledge\b|\bpledge\b/.test(words)) {
+  } else if (/\binvoke\w*\b/.test(transactionWords) || /\b(?:invoke\w*|creat\w*)\b.*\bpledge\b|\bpledge\b/.test(words)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Pledge creation/invocation in the upstream transaction wording.';
   } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(words)) {
@@ -209,7 +210,7 @@ export const FEEDS = [
   { id: 'earnings', label: 'Earnings', tab: 'earnings-hub', what: 'Filed quarterly results, graded from the source revenue and net-profit comparison.' },
   { id: 'concalls', label: 'Con-calls', tab: 'concall', what: "Held con-calls, using StockScans' own result and sentiment bands." },
   { id: 'chatter', label: 'Public chatter', tab: 'public-chatter', what: "The source's rolling 30-day company sentiment snapshot, dated to its capture." },
-  { id: 'investors', label: 'Investor activity', tab: 'super-investors', what: 'Quarter-over-quarter disclosed holding changes from Super Investors, dated to the snapshot capture.' },
+  { id: 'investors', label: 'Investor activity', tab: 'super-investors', what: 'Quarter-over-quarter disclosed holding changes from Super Investors, dated to each current investor book confirmation.' },
   { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE in the retained exchange-wide capture.' },
   { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Retained insider and promoter disclosures, under their broadcast dates.' },
   { id: 'news', label: 'Company news', tab: 'news', what: 'Retained stories about a company in scope, under their published dates.' },
@@ -230,7 +231,7 @@ const feedById = new Map(FEEDS.map((f) => [f.id, f]));
  * nothing else. A failure becomes a `feeds[]` row saying so — the same rule as everywhere here, a
  * failed read is never an empty result.
  */
-export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, onPartial = null } = {}) {
+export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, onPartial = null } = {}) {
   const book = holdings || coverage.holdings();
   const wanted = scopeMatcher(scope, book);
 
@@ -253,7 +254,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     FEEDS.map(async (feed) => {
       let out;
       try {
-        await LOADERS[feed.id]();
+        await LOADERS[feed.id](refresh);
         out = COLLECTORS[feed.id]({ day, scope, wanted, includeHistory }) || {};
       } catch (err) {
         out = { events: [], status: 'failed', reachesToday: false, asOf: null, note: String(err?.message || err) };
@@ -272,10 +273,12 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
 
 const LOADERS = {
   technicals: () => technicals.load(),
-  earnings: () => earnings.load(),
-  concalls: () => concalls.load(),
-  chatter: () => chatter.load(),
-  investors: () => investors.load(),
+  earnings: (refresh) => refresh ? earnings.refresh() : earnings.load(),
+  concalls: (refresh) => refresh ? concalls.refresh() : concalls.load(),
+  chatter: (refresh) => refresh ? chatter.refresh() : chatter.load(),
+  // One bulk snapshot only. `investors.refresh()` is a ninety-one-request upstream walk and belongs
+  // to that tab's explicit "Re-read everything" control, not this consolidated header button.
+  investors: (refresh) => refresh ? investors.refreshSnapshot() : investors.load(),
   announcements: () => announcements.seed(),
   insider: () => insider.seed(),
   news: () => news.seed(),
@@ -418,8 +421,33 @@ function inRequestedWindow(value, day, includeHistory) {
   return includeHistory ? rowDay <= day : rowDay === day;
 }
 
-const maxTime = (list) => list.filter(Boolean).sort().slice(-1)[0] || null;
-const minTime = (list) => list.filter(Boolean).sort()[0] || null;
+const maxTime = (list) => latestConfirmation(...list);
+const minTime = (list) => {
+  let oldest = null;
+  let oldestMs = Infinity;
+  for (const value of list.filter((v) => v != null)) {
+    const ms = typeof value === 'number' ? value : Date.parse(value);
+    if (Number.isFinite(ms) && ms < oldestMs) {
+      oldest = value;
+      oldestMs = ms;
+    }
+  }
+  return oldest;
+};
+
+/** Newest real confirmation across mixed ISO-string and epoch timestamps. */
+function latestConfirmation(...values) {
+  let latest = null;
+  let latestMs = -Infinity;
+  for (const value of values.filter((v) => v != null)) {
+    const ms = typeof value === 'number' ? value : Date.parse(value);
+    if (Number.isFinite(ms) && ms > latestMs) {
+      latest = value;
+      latestMs = ms;
+    }
+  }
+  return latest;
+}
 
 const inScope = (wanted, ticker) => !wanted || (!!ticker && wanted.has(String(ticker).toUpperCase()));
 
@@ -440,7 +468,8 @@ const metricText = (metric) => {
 /** Filed results. Direction uses the source's YoY/QoQ revenue and net-profit comparisons. */
 function fromEarnings({ day, wanted, includeHistory }) {
   const m = earnings.meta() || {};
-  const fetchedDay = istDay(m.fetchedAt || m.checkedAt);
+  const confirmedAt = latestConfirmation(m.checkedAt, m.fetchedAt);
+  const fetchedDay = istDay(confirmedAt);
   const basis = String(m.subType || 'yoy').toUpperCase();
   const rows = earnings.all().filter((r) => inRequestedWindow(r.resultDate, day, includeHistory) && inScope(wanted, r.ticker));
   const events = rows.map((r) => {
@@ -471,7 +500,7 @@ function fromEarnings({ day, wanted, includeHistory }) {
   return {
     events,
     reachesToday: !!fetchedDay && fetchedDay >= day,
-    asOf: m.fetchedAt || m.checkedAt || null,
+    asOf: confirmedAt,
     note: fetchedDay && fetchedDay >= day ? null : `The earnings feed was last read on ${fetchedDay || 'an unknown date'}.`,
   };
 }
@@ -479,7 +508,8 @@ function fromEarnings({ day, wanted, includeHistory }) {
 /** Held con-calls, reproducing StockScans' own sentiment and result bands. */
 function fromConcalls({ day, wanted, includeHistory }) {
   const m = concalls.meta() || {};
-  const fetchedDay = istDay(m.fetchedAt || m.checkedAt);
+  const confirmedAt = latestConfirmation(m.checkedAt, m.fetchedAt);
+  const fetchedDay = istDay(confirmedAt);
   const rows = concalls.all().filter((r) => inRequestedWindow(r.date || r.when, day, includeHistory) && inScope(wanted, r.ticker));
   const events = rows.map((r) => {
     const sentiment = r.sentiment?.label || null;
@@ -489,7 +519,7 @@ function fromConcalls({ day, wanted, includeHistory }) {
         ? DIRECTION.NEGATIVE
         : DIRECTION.NEUTRAL;
     const analysed = r.resultScore != null;
-    const importance = analysed && (direction !== DIRECTION.NEUTRAL || r.resultScore >= 80 || r.resultScore < 20)
+    const importance = direction !== DIRECTION.NEUTRAL || (analysed && (r.resultScore >= 80 || r.resultScore < 20))
       ? IMPORTANCE.HIGH
       : IMPORTANCE.LOW;
     const result = r.resultTier?.label ? `${r.resultTier.label} result score ${Number(r.resultScore).toFixed(1)}` : 'result analysis pending';
@@ -513,7 +543,7 @@ function fromConcalls({ day, wanted, includeHistory }) {
   return {
     events,
     reachesToday: !!fetchedDay && fetchedDay >= day,
-    asOf: m.fetchedAt || m.checkedAt || null,
+    asOf: confirmedAt,
     note: fetchedDay && fetchedDay >= day ? null : `The con-call feed was last read on ${fetchedDay || 'an unknown date'}.`,
   };
 }
@@ -548,6 +578,9 @@ function fromChatter({ day, wanted, includeHistory }) {
       ),
       time: istTime(m.generatedAt),
       at: m.generatedAt || generatedDay,
+      // `at` is a UTC instant. Preserve the already-computed IST date so an evening capture does
+      // not move back one day when `eventDay()` sees the ISO prefix.
+      day: generatedDay,
       ticker: r.ticker || null,
       company: r.name || r.ticker || '—',
       headline: `${r.sentiment?.labelText || r.sentiment?.label || 'Neutral'} public chatter`,
@@ -557,9 +590,14 @@ function fromChatter({ day, wanted, includeHistory }) {
   });
   return {
     events,
-    reachesToday: generatedDay === day,
-    asOf: m.generatedAt || m.checkedAt || null,
-    note: generatedDay === day ? null : `Public Chatter is a rolling snapshot last generated on ${generatedDay || 'an unknown date'}; it is not a post-by-post event log.`,
+    status: m.ok === false ? 'failed' : 'ok',
+    reachesToday: m.ok === false ? false : generatedDay === day,
+    asOf: latestConfirmation(m.checkedAt, m.generatedAt),
+    note: m.ok === false
+      ? `Public Chatter could not be confirmed (${m.reason || 'upstream'}).${events.length ? ' Retained rows remain visible.' : ''}`
+      : generatedDay === day
+        ? null
+        : `Public Chatter is a rolling snapshot last generated on ${generatedDay || 'an unknown date'}; it is not a post-by-post event log.`,
   };
 }
 
@@ -571,13 +609,17 @@ const investorTicker = (move) => {
 /** Quarterly disclosed holding changes. A disappearance is labelled, not overstated as a sale. */
 function fromInvestors({ day, wanted, includeHistory }) {
   const m = investors.meta() || {};
-  const capturedDay = istDay(m.capturedAt || m.fetchedAt);
-  const captureInWindow = inRequestedWindow(capturedDay, day, includeHistory);
-  const moves = captureInWindow
-    ? investors.allMoves().filter((move) => move.action !== 'held' && inScope(wanted, investorTicker(move)))
-    : [];
+  const confirmedAt = (move) => investors.confirmedAtFor(move.slug) || m.checkedAt || m.capturedAt || m.fetchedAt;
+  const moves = investors.allMoves().filter((move) => {
+    const confirmedDay = istDay(confirmedAt(move));
+    return move.action !== 'held'
+      && inRequestedWindow(confirmedDay, day, includeHistory)
+      && inScope(wanted, investorTicker(move));
+  });
   const events = moves.map((move) => {
     const ticker = investorTicker(move);
+    const bookConfirmedAt = confirmedAt(move);
+    const confirmedDay = istDay(bookConfirmedAt);
     const positive = move.action === 'new' || move.action === 'added';
     const direction = positive ? DIRECTION.POSITIVE : DIRECTION.NEGATIVE;
     const presenceChange = move.action === 'new' || move.action === 'exited';
@@ -601,8 +643,9 @@ function fromInvestors({ day, wanted, includeHistory }) {
             ? `High: the disclosed holding changed by at least ${INVESTOR_HIGH_PP} percentage point.`
             : `Low: the disclosed holding changed by less than ${INVESTOR_HIGH_PP} percentage point.`
       ),
-      time: istTime(m.capturedAt || m.fetchedAt),
-      at: m.capturedAt || m.fetchedAt || capturedDay,
+      time: istTime(bookConfirmedAt),
+      at: bookConfirmedAt || confirmedDay,
+      day: confirmedDay,
       ticker,
       company: move.company || ticker || '—',
       headline: `${move.investor}: ${actionText}`,
@@ -610,11 +653,18 @@ function fromInvestors({ day, wanted, includeHistory }) {
       url: move.companySlug ? `https://ticker.finology.in/company/${encodeURIComponent(move.companySlug)}` : null,
     };
   });
+  // `meta().checkedAt` is deliberately the OLDEST confirmation behind the current set of books.
+  // It is therefore the only honest feed-wide freshness claim when books were confirmed at
+  // different moments; individual rows above keep the confirmation for their own investor book.
+  const coverageAt = m.checkedAt || m.capturedAt || m.fetchedAt;
+  const coverageDay = istDay(coverageAt);
   return {
     events,
-    reachesToday: capturedDay === day,
-    asOf: m.capturedAt || m.fetchedAt || null,
-    note: capturedDay === day ? null : `Investor changes are quarterly disclosure comparisons dated to the snapshot captured on ${capturedDay || 'an unknown date'}, not trade timestamps.`,
+    reachesToday: coverageDay === day,
+    asOf: coverageAt || null,
+    note: coverageDay === day
+      ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
+      : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,
   };
 }
 

@@ -1746,9 +1746,15 @@ It is computed differently depending on what the feed IS, and the distinction ma
 
 - feeds whose ROWS carry their own date (earnings, con-calls, announcements, insider, news, market news) use
   `capturedDay >= day` — a later capture still covers an earlier day;
-- feeds that are ONE SNAPSHOT of one day (price moves, chatter, investor activity) use **`snapshotDay === day`**,
+- feeds that are ONE SNAPSHOT of one day (price moves and chatter) use **`snapshotDay === day`**,
   equals and not `>=`. `pct_change_today` is *that* day's move and no other, so reporting it under a
   different date would stamp one day's measurement with another day's label.
+- investor activity is dated per investor book, using the confirmation represented by the current
+  book rather than the older committed capture that may have seeded it.
+
+The Daily Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
+one conditional request for the bulk investor snapshot. It never turns the landing page into the
+Super Investors tab's ninety-one-book upstream walk.
 
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.

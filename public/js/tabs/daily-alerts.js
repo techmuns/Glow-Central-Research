@@ -73,12 +73,12 @@ export function render(ctx) {
     unsubs.push(
       refresh.register(REFRESH_ID, {
         label: 'Daily Alerts',
-        // A REFRESH HERE COSTS NOTHING PER COMPANY. It re-reads the same committed files and cached
-        // routes the mount did — one conditional GET each, a bodyless 304 where nothing moved. It
-        // does NOT call any feed's `refresh()`, which is the per-company walk.
+        // A REFRESH HERE COSTS NOTHING PER COMPANY. Earnings, con-calls and chatter each expose a
+        // bounded one-shot revalidation; investors revalidate the one bulk snapshot. The owning
+        // Super Investors tab keeps the deliberate ninety-one-book walk behind its own control.
         refresh: async () => {
           const before = new Set((report?.events || []).map((e) => e.id));
-          await recollect(ctxRef);
+          await recollect(ctxRef, { refresh: true });
           const now = report?.events || [];
           // IDENTITIES, NEVER SIZES. A count cannot answer "did anything change" for a collection
           // that can gain and lose rows in the same read — the day rolls over, a capture lands, a
@@ -122,7 +122,7 @@ export function destroy() {
  * paint the previous scope's rows over the new one. The token is compared against the module's
  * counter, not against a captured ctx, for the same reason the subscriptions are.
  */
-async function recollect(ctx) {
+async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
   // NO "already collecting" EARLY RETURN. `render()` runs again on every scope change, so bailing
   // out because a collect was in flight would leave the new scope showing the old scope's rows for
   // ever — the guard has to be about which result is allowed to PAINT, not about which reads are
@@ -137,6 +137,7 @@ async function recollect(ctx) {
       // `date === today`; the timeline keeps them and lets the table reveal older days as its
       // internal scroller advances. No request per company and no new route are introduced.
       includeHistory: true,
+      refresh: forceRefresh,
       // Feeds land one at a time and the page follows them. Coalesced, because eight arrivals is
       // eight full rebuilds of a table the reader may be typing into — a TRAILING THROTTLE rather
       // than a debounce, since a debounce would keep deferring while feeds kept landing and the

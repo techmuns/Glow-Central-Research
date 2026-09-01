@@ -452,6 +452,34 @@ export function startLive(live) {
   };
 }
 
+/**
+ * Revalidate the active feed once without starting the 30-second poller.
+ *
+ * Daily Alerts uses this for its explicit Refresh button. The prices projection keeps an unchanged
+ * check tiny; the full payload is pulled only when the structure tag says a result appeared or was
+ * revised. Calling `load()` again cannot do this because that function is intentionally idempotent.
+ */
+export async function refresh() {
+  await load();
+  const st = subType;
+  const out = await conditionalJson(pricesEndpointFor(st), { key: priceStoreKey(st), optional: true });
+  if (!out.value?.prices || st !== subType || (out.value.meta?.subType || st) !== st) return cache;
+  markChecked('live', out.checkedAt);
+
+  const held = structureTagFor(st);
+  if (held && out.value.structureTag === held) {
+    applyPrices(out.value);
+    return cache;
+  }
+
+  const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
+  if (!full.value?.rows?.length || st !== subType || (full.value.meta?.subType || st) !== st) return cache;
+  const changed = hasStructuralChange(full.value);
+  ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
+  if (changed) notify();
+  return cache;
+}
+
 export function stopLive(live) {
   live?.stop?.(LIVE_ID);
 }

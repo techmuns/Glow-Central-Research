@@ -304,6 +304,47 @@ export async function refresh() {
 }
 
 /**
+ * Revalidate only the one committed bulk snapshot.
+ *
+ * Daily Alerts must not turn one header refresh into the ninety-one-request live book walk. This
+ * picks up a newer deployment's scheduled snapshot in one conditional request and replaces only
+ * books that are not known to have been confirmed later on this device.
+ */
+export async function refreshSnapshot() {
+  await load();
+  const gen = generation;
+  let res;
+  try {
+    res = await conditionalJson(SNAPSHOT_PATH, { key: KEYS.investorSnapshot, optional: true });
+  } catch {
+    return state;
+  }
+  if (!current(gen)) return state;
+  const body = res?.value;
+  const incomingAt = Date.parse(body?.capturedAt || '');
+  const heldAt = Date.parse(state.capturedAt || '');
+  if (!body || !Array.isArray(body.investors) || !body.investors.length || !Number.isFinite(incomingAt)) return state;
+  if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
+
+  state.capturedAt = body.capturedAt;
+  state.investors = body.investors;
+  state.listOk = true;
+  state.dropped = body.dropped || 0;
+  for (const [slug, value] of Object.entries(body.books || {})) {
+    if (!value || value.ok === false) continue;
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed > incomingAt) continue;
+    state.books.set(slug, normalisePortfolio(value, slug));
+    state.confirmedAt.set(slug, incomingAt);
+    state.fromSnapshot.add(slug);
+    state.unconfirmed.add(slug);
+  }
+  bump();
+  emit({ now: true });
+  return state;
+}
+
+/**
  * Fetch the list, then every book.
  *
  * Resolves once the LIST has landed, not once every book has — the grid can render investors from
@@ -771,6 +812,9 @@ function orderQuarters(seen) {
 export function allMoves() {
   return derived().moves;
 }
+
+/** The confirmation represented by one investor's current book. */
+export const confirmedAtFor = (slug) => state.confirmedAt.get(slug) || null;
 
 /** Totals for one book. */
 export const totalsFor = (slug) => {

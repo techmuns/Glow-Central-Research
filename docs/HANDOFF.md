@@ -296,9 +296,11 @@ companies have not been checked since"*: never claim nothing is new.
 **Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()` so
 that seeding here cannot discard the company list the Corporate Announcements tab will later
-refresh with. The header Refresh button re-reads the same files and reports what changed by
-**comparing event ids, never counts**: the day rolls over, captures land, stories drop off the end
-of a bounded cache, and a count cannot answer "did anything change" for a collection like that.
+refresh with. The header Refresh button performs bounded revalidation for earnings, con-calls and
+chatter plus one conditional request for the bulk investor snapshot; the ninety-one-book investor
+walk remains behind its owning tab's explicit control. It reports what changed by **comparing event
+ids, never counts**: the day rolls over, captures land, stories drop off the end of a bounded cache,
+and a count cannot answer "did anything change" for a collection like that.
 
 **Feeds land one at a time and the page follows them.** The first version awaited all eight
 together and the landing page sat blank for as long as the slowest — measured at 10–15 seconds on a

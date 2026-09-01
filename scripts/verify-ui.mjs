@@ -1270,18 +1270,22 @@ console.log('\n— daily alerts —');
       annDefault: ann('Notice of loan default'),
       annGeneral: ann('Notice of annual general meeting'),
       annCritical: ann('Notice of annual general meeting', true),
+      annAuditor: ann('Resignation of Statutory Auditors'),
       buySmall: inside('Acquisition', '0.20', '1000'),
       sellPct: inside('Disposal', '1.00', '1000'),
       pledge: inside('Pledge', '', '', 'Creation Of Pledge'),
       release: inside('Revoke', '', '', 'Revocation Of Pledge'),
+      bareRelease: inside('Revoke', '', '', ''),
     };
   });
   ok('announcement rules distinguish upgrade, default and unmatched text',
     rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral');
   ok('BSE critical and material announcement matches are High',
-    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annGeneral.importance === 'low');
+    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
   ok('insider rules distinguish acquisition, disposal, pledge and release',
-    rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' && rules.release.direction === 'positive');
+    rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' &&
+      rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive');
   ok('insider importance changes exactly at the stated one-percent boundary',
     rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
 
@@ -1316,6 +1320,7 @@ console.log('\n— daily alerts —');
       oldest: r.meta.oldestEventDay,
       newest: r.meta.newestEventDay,
       unique: new Set(r.events.map((e) => e.id)).size,
+      scorelessNonNeutralLow: r.events.filter((e) => e.feed === 'concalls' && e.direction !== 'neutral' && /analysis pending/.test(e.detail) && e.importance !== 'high').length,
       ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
     };
   });
@@ -1323,6 +1328,8 @@ console.log('\n— daily alerts —');
     historyReport.events > report.total && historyReport.days > 1 && historyReport.unique === historyReport.events,
     `${historyReport.events} events across ${historyReport.days} dates (${historyReport.oldest} → ${historyReport.newest})`);
   ok('...and orders the data by date and time before the table sees it', historyReport.ordered);
+  ok('scoreless con-calls retain High importance when source sentiment is non-neutral', historyReport.scorelessNonNeutralLow === 0,
+    `${historyReport.scorelessNonNeutralLow} misclassified row(s)`);
 
   // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
   // and this tab reads three of those feeds.

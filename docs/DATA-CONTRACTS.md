@@ -3118,7 +3118,7 @@ mode; its table progressively paints the rows inside one fixed-height scroller, 
 | `earnings` | Earnings Hub | filed quarterly results; direction from the revenue/net-profit comparison |
 | `concalls` | Con-call | held calls using StockScans' own result/sentiment bands |
 | `chatter` | Public Chatter | one event per covered company in the rolling source snapshot; not individual posts |
-| `investors` | Super Investors | quarter-over-quarter disclosed holding changes; dated to the snapshot capture |
+| `investors` | Super Investors | quarter-over-quarter disclosed holding changes; dated to each current investor book confirmation |
 | `announcements` | Corp Announcements | every BSE filing retained by the exchange-wide capture |
 | `insider` | Insider Trades | retained insider and promoter disclosures (up to 365 days in the current source contract) |
 | `news` | News | retained stories about a company in scope (30-day source window) |
@@ -3180,7 +3180,8 @@ depending on what the feed is:
 | Feed | Test | Why |
 | --- | --- | --- |
 | Earnings, Con-calls, Announcements, Insider, News, Market news | `capturedDay >= day` | rows carry their own date, so a later capture still covers an earlier day |
-| Price moves, Chatter, Investor activity | `snapshotDay === day`, **equals, not `>=`** | these are single capture views; investor moves are quarterly disclosure comparisons and chatter is a rolling snapshot |
+| Price moves, Chatter | `snapshotDay === day`, **equals, not `>=`** | these are single capture views; chatter is a rolling snapshot |
+| Investor activity | `bookConfirmationDay === day` | moves are quarterly disclosure comparisons; each row follows the confirmation represented by its current investor book, not an older seed snapshot |
 
 A feed nobody has heard from yet is `pending`, which the panel draws as *reading…* and never as
 *nothing today* — a half-finished read must not be allowed to give a finished answer.
@@ -3189,7 +3190,9 @@ A feed nobody has heard from yet is `pending`, which the panel draws as *reading
 snapshot and this device, no per-company request — which is deliberately separate from `load()`:
 `load()` memoises its promise, so a seed arriving first would hand the tab that owns the feed the
 seed's promise and silently discard its company list, and the Refresh button would then re-read an
-empty set and ask about nothing.
+empty set and ask about nothing. Daily Alerts Refresh uses the one-shot earnings, con-call and
+chatter revalidators plus one conditional read of the bulk investor snapshot. It never performs
+the Super Investors tab's ninety-one-book revalidation walk.
 
 ---
 
