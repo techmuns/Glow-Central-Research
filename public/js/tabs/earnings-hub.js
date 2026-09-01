@@ -42,6 +42,7 @@
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
+import { withoutPublisherName } from '../core/source-copy.js';
 import { formatCroreCompact, formatPct, formatNumber, formatRupee, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
@@ -101,7 +102,7 @@ export function render(ctx) {
           await feed.setSubType(wanted);
           periodError = null;
         } catch (err) {
-          periodError = String(err.message || err);
+          periodError = withoutPublisherName(err.message || err);
         }
         if (token !== renderToken) return;
       }
@@ -129,7 +130,7 @@ export function render(ctx) {
         <div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
           <div class="text-3xl">⚠️</div>
           <div class="mt-2 text-sm font-semibold text-slate-700">Could not load the earnings feed</div>
-          <div class="mt-1 text-xs text-slate-500">${escapeHtml(String(err.message || err))}</div>
+          <div class="mt-1 text-xs text-slate-500">${escapeHtml(withoutPublisherName(err.message || err))}</div>
         </div>`;
     });
 }
@@ -354,7 +355,7 @@ function wirePeriodToggle(root, ctx) {
         ctx.setParamsQuiet({ ...ctx.params, period: next });
       } catch (err) {
         btns.forEach((b) => (b.disabled = false));
-        periodError = String(err.message || err);
+        periodError = withoutPublisherName(err.message || err);
         paint(ctx);
       }
     });
@@ -851,7 +852,7 @@ function renderCalendar(ctx) {
         ? `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
              <div class="text-3xl">📅</div>
              <div class="mt-2 text-sm font-semibold text-slate-700">The results calendar could not be loaded</div>
-             <div class="mt-1 text-xs text-slate-500">${escapeHtml(err)}</div>
+             <div class="mt-1 text-xs text-slate-500">${escapeHtml(withoutPublisherName(err))}</div>
              <div class="mx-auto mt-3 max-w-lg text-xs text-slate-400">This date is in the future, so only the schedule can answer for it — and the schedule needs the live route. Dates that have already happened are read from the results feed instead and do not depend on it.</div>
            </div>`
         : table
@@ -866,7 +867,7 @@ function renderCalendar(ctx) {
               ? '<div class="skeleton-shimmer h-80 rounded-2xl bg-slate-100"></div>'
               : payload.degraded
                 ? `<div class="rounded-2xl bg-amber-50 p-5 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
-                     <strong>Counts only for this date.</strong> ${escapeHtml(payload.degraded)}
+                     <strong>Counts only for this date.</strong> ${escapeHtml(withoutPublisherName(payload.degraded))}
                    </div>`
                 : `<div class="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
                      <div class="text-3xl">🗓️</div>
@@ -906,7 +907,7 @@ function emptyReportedDetail(iso, today, filed) {
   if (iso !== today) return '';
   // The schedule is a claim about the future and is labelled as one — it is never differenced
   // against the filings, only printed beside them.
-  return due ? ` · ${formatNumber(due)} ${due === 1 ? 'company is' : 'companies are'} due, by Moneycontrol's schedule` : ' · companies file through the day';
+  return due ? ` · ${formatNumber(due)} ${due === 1 ? 'company is' : 'companies are'} due, by the published schedule` : ' · companies file through the day';
 }
 
 /**
@@ -961,7 +962,7 @@ function priceChangeCell(pct) {
  */
 function reportedNote(iso, filed) {
   const due = calendar.scheduledCountFor(iso);
-  const sched = due != null && due > 0 ? ` Moneycontrol's calendar listed <strong>${escapeHtml(formatNumber(due))}</strong> as due on this date — a separate feed, and companies do file a day either side, so the two are shown side by side rather than differenced.` : '';
+  const sched = due != null && due > 0 ? ` The calendar feed listed <strong>${escapeHtml(formatNumber(due))}</strong> as due on this date — a separate feed, and companies do file a day either side, so the two are shown side by side rather than differenced.` : '';
   return `
     <div class="mb-3 rounded-xl bg-slate-50 px-4 py-2.5 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-100">
       <strong class="text-slate-800">${escapeHtml(formatNumber(filed))} ${filed === 1 ? 'company' : 'companies'} filed on ${escapeHtml(stripLabel(iso))}.</strong>
@@ -1063,13 +1064,13 @@ function wireCalendarPill(root, payload, date, mode = 'scheduled') {
           <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
         </div>
         <div class="text-sm leading-relaxed text-slate-600">
-          <p><strong>Real, live, from Moneycontrol</strong> — the same source as the reported results, asked the other
+          <p><strong>Real, live schedule</strong> — the same source as the reported results, asked the other
              way round: who is <em>due</em> to report rather than who has.</p>
-          <p class="mt-2">Showing <strong>${escapeHtml(stripLabel(date))}</strong>${payload?.asOnDate ? ` · Moneycontrol's schedule as on ${escapeHtml(payload.asOnDate)}` : ''}.</p>
+          <p class="mt-2">Showing <strong>${escapeHtml(stripLabel(date))}</strong>${payload?.asOnDate ? ` · schedule as on ${escapeHtml(payload.asOnDate)}` : ''}.</p>
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Two numbers, two sources</h3>
           <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
-            <li><strong>The count on each date</strong> — from Moneycontrol's calendar API. Complete and unpaginated.
+            <li><strong>The count on each date</strong> — from the calendar feed. Complete and unpaginated.
                 ${
                   payload?.countSource === 'snapshot'
                     ? `<strong class="text-amber-700">These counts are a capture</strong>, taken ${payload.countsCapturedAt ? escapeHtml(formatRelativeTime(Date.parse(payload.countsCapturedAt))) : 'at an unknown time'}: the API is currently answering <strong>zero for every date</strong> in this window, which is its failure mode rather than a quiet fortnight — the capture holds real counts for the same dates, and names companies on them. A live zero the capture contradicts is a broken read, so the capture is shown instead of turning the strip into dashes.`
@@ -1085,12 +1086,12 @@ function wireCalendarPill(root, payload, date, mode = 'scheduled') {
                 the other. Where that happens ${believableCount(payload) == null ? '<strong>— as it does on this date —</strong> ' : ''}the
                 pill says <em>schedule</em> and prints no number, because a total that contradicts the rows under it is
                 worse than none.</li>
-            <li><strong>Ticker and industry</strong> — resolved from Moneycontrol's company code, live, because a
+            <li><strong>Ticker and industry</strong> — resolved from the publisher's company code, live, because a
                 company that has not reported yet is not in a map built from companies that have.</li>
           </ul>
 
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Live list, or captured list</h3>
-          <p class="mt-1 text-xs">The company list is read live where possible. Where it is not — Moneycontrol's
+          <p class="mt-1 text-xs">The company list is read live where possible. Where it is not — the publisher's
              calendar page is behind a bot wall that answers this server with a page carrying no data, while answering
              an ordinary client normally — it comes from a capture taken by the scheduled job, which runs somewhere the
              page does answer. ${
@@ -1105,7 +1106,7 @@ function wireCalendarPill(root, payload, date, mode = 'scheduled') {
           <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What this table is not</h3>
           <p class="mt-1 text-xs">It is <strong>not the full list</strong> on a busy date.
              ${escapeHtml(formatNumber(payload?.rows?.length || 0))} ${(payload?.rows?.length || 0) === 1 ? 'company is' : 'companies are'} named here
-             ${believableCount(payload) != null ? `against <strong>${escapeHtml(formatNumber(believableCount(payload)))}</strong> reporting` : ''} — Moneycontrol cap
+             ${believableCount(payload) != null ? `against <strong>${escapeHtml(formatNumber(believableCount(payload)))}</strong> reporting` : ''} — the publisher caps
              the page at the ${escapeHtml(formatNumber(payload?.listCap ?? 20))} largest by market cap and offer no way to page past it,
              so treat the rows as a floor and the count as the total.</p>
           <p class="mt-4 text-xs text-slate-500">A dash in any column means <em>not known</em> — never zero.</p>
@@ -1133,20 +1134,20 @@ function reportedModalHtml(payload, date) {
       <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
     </div>
     <div class="text-sm leading-relaxed text-slate-600">
-      <p><strong>These companies have filed.</strong> This is not the schedule — it is the live results feed
-         (Moneycontrol Rapid Results), the same source as the Earnings Reported table, narrowed to the one date.
+      <p><strong>These companies have filed.</strong> This is not the schedule — it is the live results feed,
+         the same source as the Earnings Reported table, narrowed to the one date.
          A row here is a published result, not an expectation.</p>
       <p class="mt-2">${escapeHtml(formatNumber(filed))} ${filed === 1 ? 'company' : 'companies'} on this date${m?.quarter ? `, ${escapeHtml(m.quarter)}` : ''}${m?.currentPeriod ? ` — ${escapeHtml(m.currentPeriod)} against ${escapeHtml(m.priorPeriod || '')}` : ''}.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this is not a top-20</h3>
       <p class="mt-1 text-xs">The schedule half of this view can only name the twenty largest companies for a date —
-         Moneycontrol's calendar page caps it there and offers no way to page past. The results feed has no such cap,
+         the calendar page caps it there and offers no way to page past. The results feed has no such cap,
          so for a date that has happened every filing is here.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The count beside it</h3>
       <p class="mt-1 text-xs">${
         due != null && due > 0
-          ? `Moneycontrol's calendar listed <strong>${escapeHtml(formatNumber(due))}</strong> companies as due on this date. That is a different feed answering a different question, and companies file a day either side of their announced date, so the two figures are shown side by side and never subtracted. The gap between them is not a list of companies that failed to report.`
+          ? `The calendar feed listed <strong>${escapeHtml(formatNumber(due))}</strong> companies as due on this date. That is a different feed answering a different question, and companies file a day either side of their announced date, so the two figures are shown side by side and never subtracted. The gap between them is not a list of companies that failed to report.`
           : 'The schedule feed has no count for this date, so only the number of filings is shown. A missing count is not a zero.'
       }</p>
 
@@ -1167,10 +1168,10 @@ async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', me
     // that says "scheduled", which is the one confusion this whole view exists to prevent.
     const banner = {
       __banner:
-        `REAL DATA. Results AS FILED on ${date}, via Moneycontrol Rapid Results — the live results feed, not the schedule. ` +
+        `REAL DATA. Results AS FILED on ${date}, from the live results feed, not the schedule. ` +
         `${m?.quarter ? `${m.quarter}, ` : ''}${m?.currentPeriod ? `${m.currentPeriod} against ${m.priorPeriod}. ` : ''}` +
         `Every company that filed on this date is included; there is no cap. ` +
-        `${due ? `Moneycontrol's separate calendar feed listed ${due} companies as due on this date — a different measurement, do not subtract the two. ` : ''}` +
+        `${due ? `The separate calendar feed listed ${due} companies as due on this date — a different measurement, do not subtract the two. ` : ''}` +
         `Exported ${new Date().toISOString()}. Figures in Rs. crore. Where the sign flips between periods the growth column reads ` +
         `"To profit" / "To loss" / "Loss narrowed" instead of a percentage, because a percentage change across zero is not a growth rate. ` +
         `Blank cells mean not known, not zero.`,
@@ -1204,13 +1205,13 @@ async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', me
 
   const banner = {
     __banner:
-      `REAL DATA. Results calendar via Moneycontrol — companies SCHEDULED to report on ${payload?.date || date || ''}` +
+      `REAL DATA. Published results calendar — companies SCHEDULED to report on ${payload?.date || date || ''}` +
       `${payload?.asOnDate ? ` (schedule as on ${payload.asOnDate})` : ''}, captured ${new Date().toISOString()}. ` +
       `These companies have NOT reported yet — this is a schedule, not a set of filings. ` +
       // Same rule as the on-screen note, and it matters more here: a workbook leaves the page
       // without its chrome, so a count we do not believe must not travel with it as a fact.
       `${payload?.scheduledCount != null && payload.scheduledCount >= (payload?.rows?.length || 0) ? `${payload.scheduledCount} companies report on this date; ` : 'HOW MANY REPORT ON THIS DATE IS NOT KNOWN — the count endpoint was not answering when this was exported; '}` +
-      `Moneycontrol publishes only the ${payload?.listCap ?? 20} largest by market cap per date, so THIS SHEET IS NOT THE FULL LIST. ` +
+      `The publisher lists only the ${payload?.listCap ?? 20} largest by market cap per date, so THIS SHEET IS NOT THE FULL LIST. ` +
       `Market cap in Rs. crore. Blank cells mean not known, not zero.`,
   };
   await exportRows({
@@ -1234,7 +1235,7 @@ async function exportCalendar(rows, payload, { mode = 'scheduled', date = '', me
 async function exportResults(rows, m) {
   const banner = {
     __banner:
-      `REAL DATA. Quarterly results as published, via Moneycontrol Rapid Results — ${m?.quarter || ''}, ` +
+      `REAL DATA. Quarterly results from the live published-results feed — ${m?.quarter || ''}, ` +
       `${(m?.subType || 'yoy').toUpperCase()}: ${m?.currentPeriod || ''} vs ${m?.priorPeriod || ''}, ` +
       `captured ${new Date().toISOString()}. Figures in Rs. crore. Where the sign flips between periods the "growth" column reads ` +
       `"To profit" / "To loss" / "Loss narrowed" instead of a percentage, because a percentage change across zero is not a growth rate. ` +

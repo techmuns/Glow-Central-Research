@@ -2222,6 +2222,7 @@ await go('/#/research/earnings-hub?scope=universe', 1800);
 console.log('\n— provenance —');
 await go('/#/research/earnings-hub?scope=universe', 1800);
 ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
+ok('the Earnings view does not print the upstream publisher name', !/money\s*control/i.test(await hostText()));
 // The coverage note and the roadmap card were removed from this tab deliberately — one table,
 // nothing under it. The passive status label must not reintroduce an explainer modal.
 ok('no roadmap placeholder under the table', !/wiring roadmap/i.test(await hostText()));
@@ -2241,7 +2242,8 @@ const sources = await page.evaluate(async () => {
   el.innerHTML = sourcesModalHtml();
   return el.innerText;
 });
-ok('the source registry still lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
+ok('the source registry lists the live published-results feed without naming the provider',
+  /live published-results feed/i.test(sources) && !/money\s*control/i.test(sources));
 ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
 
 // NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
@@ -4951,7 +4953,9 @@ console.log('\n— news, announcements and insider trades —');
   ok('...while a narrowed scope gets the per-company table and no market fetch control', await (async () => {
     await go('/#/research/news?scope=portfolio', 4000);
     await settleTables();
-    return (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 && (await page.locator('[data-mcnews-fetch]').count()) === 0;
+    return (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 &&
+      (await page.locator('[data-mcnews-fetch]').count()) === 0 &&
+      !/money\s*control/i.test(await hostText());
   })());
   await go('/#/research/news?scope=universe', 3500);
 
@@ -4960,7 +4964,8 @@ console.log('\n— news, announcements and insider trades —');
   ok('the news head carries one small status chip and no freshness card',
     (await page.locator('[data-mcnews-info]').count()) === 1 &&
       (await page.locator('#content-host [data-mcnews-fetch]').count()) === 0 &&
-      !/a scheduled job also reads it/i.test(headText),
+      !/a scheduled job also reads it/i.test(headText) &&
+      !/money\s*control/i.test(headText),
     headText.slice(0, 110));
 
   // "LIVE" IS A CLAIM ABOUT DATA. Green may appear only while the capture really is the newest the

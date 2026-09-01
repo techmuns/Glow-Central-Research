@@ -28,6 +28,7 @@
 
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatNumber } from '../core/format.js';
+import { withoutPublisherName } from '../core/source-copy.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { news as feed } from '../data/filings.js';
@@ -40,7 +41,7 @@ const tab = makeFilingsTab({
   title: 'News',
   subtitle:
     'The latest stories for every company in scope, from the scheduled capture — no company to pick first. ' +
-    'Refresh re-searches whatever the capture has not covered. Switch to Universe for everything Moneycontrol publish, market-wide.',
+    'Refresh re-searches whatever the capture has not covered. Switch to Universe for the complete market-wide publisher feed.',
   feed,
   noun: 'articles',
   // The scrape records a company it searched and found nothing for as a single all-null row. That
@@ -55,8 +56,8 @@ const tab = makeFilingsTab({
   // beside it are a date, an outlet and a link icon, so there is room; 1440px still fits without a
   // scrollbar of its own, which `verify-ui.mjs` measures.
   nameMaxPx: 780,
-  rowName: (r) => r.title || '(untitled)',
-  rowSub: (r) => [r.ticker, r.source].filter(Boolean).join(' · '),
+  rowName: (r) => withoutPublisherName(r.title) || '(untitled)',
+  rowSub: (r) => [r.ticker, withoutPublisherName(r.source)].filter(Boolean).join(' · '),
   searchable: (r) => `${r.title || ''} ${r.source || ''} ${r.ticker || ''} ${r.summary || ''}`,
   columns: () => [
     {
@@ -68,7 +69,7 @@ const tab = makeFilingsTab({
     },
     {
       label: 'Outlet',
-      get: (r) => (r.source ? `<span class="text-slate-600">${escapeHtml(r.source)}</span>` : dash('the article named no outlet')),
+      get: (r) => (r.source ? `<span class="text-slate-600">${escapeHtml(withoutPublisherName(r.source))}</span>` : dash('the article named no outlet')),
       html: true,
       sortValue: (r) => r.source || '',
     },
@@ -79,7 +80,7 @@ const tab = makeFilingsTab({
     return [
       {
         label: 'Outlet',
-        options: [{ value: 'all', label: 'All outlets' }, ...outlets.slice(0, 40).map((o) => ({ value: o, label: o }))],
+        options: [{ value: 'all', label: 'All outlets' }, ...outlets.slice(0, 40).map((o) => ({ value: o, label: withoutPublisherName(o) }))],
         match: (r, v) => r.source === v,
       },
     ];
@@ -138,10 +139,10 @@ const tab = makeFilingsTab({
               : r.date || '',
         },
         { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
-        { header: 'Headline', key: 'h', width: 70, get: (r) => (r.__banner ? '' : r.title || '') },
-        { header: 'Outlet', key: 'o', width: 24, get: (r) => (r.__banner ? '' : r.source || '') },
+        { header: 'Headline', key: 'h', width: 70, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
+        { header: 'Outlet', key: 'o', width: 24, get: (r) => (r.__banner ? '' : withoutPublisherName(r.source)) },
         { header: 'URL', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.url || '') },
-        { header: 'Summary (publisher)', key: 's', width: 80, get: (r) => (r.__banner ? '' : r.summary || '') },
+        { header: 'Summary (publisher)', key: 's', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
       ],
       rows: [{ __banner: true }, ...visible],
     });
