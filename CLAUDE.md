@@ -1757,7 +1757,9 @@ It is computed differently depending on what the feed IS, and the distinction ma
 
 Tickerless investor moves remain visible in Universe and are excluded from ticker-narrowed scopes.
 Missing investor books and degraded earnings/con-call fallbacks are reported as incomplete/failed;
-neither is allowed to make the coverage chip claim the feed is current.
+stale last-good investor books are treated the same way. None is allowed to make the coverage chip
+claim the feed is current. Reading a committed earnings/con-call file dates freshness to the
+upstream `fetchedAt`, not to the moment this browser read the file.
 
 The Daily Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
 one conditional request for the bulk investor snapshot. It never turns the landing page into the

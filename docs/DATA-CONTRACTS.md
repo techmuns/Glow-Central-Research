@@ -3193,8 +3193,10 @@ A feed nobody has heard from yet is `pending`, which the panel draws as *reading
 
 Tickerless Super Investor moves are retained under Universe and excluded from Portfolio/Watchlist.
 If any current investor book is missing, the feed is marked incomplete and `reachesToday` is false.
-Likewise, a degraded earnings or con-call response uses the retained snapshot's `fetchedAt`, carries
-failed status, and cannot turn the failed confirmation attempt into a current coverage claim.
+Stale last-good investor books have the same incomplete state. Likewise, a degraded earnings or
+con-call response uses the retained snapshot's `fetchedAt`, carries failed status, and cannot turn
+the failed confirmation attempt into a current coverage claim. A plain committed-snapshot fallback
+also uses `fetchedAt`: reading the file today is not evidence that its upstream was read today.
 
 **Nothing on this tab walks.** The three filings feeds are seeded with `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()`:

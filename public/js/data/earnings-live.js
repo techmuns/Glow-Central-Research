@@ -420,15 +420,21 @@ export function startLive(live) {
       // A tick that arrives for the basis the user has since switched away from is dropped rather
       // than folded in — it would overwrite the active cache with the other comparison.
       if (st !== subType || (out.value.meta?.subType || st) !== st) return null;
-      markChecked('live', out.checkedAt);
+      // Fallback prices are real retained values, but they are not a successful current read. Do
+      // not apply them or let a matching structure tag short-circuit away the degraded state.
+      if (out.value.degraded) {
+        const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+        return healthChanged ? cache : null;
+      }
 
       const held = structureTagFor(st);
       if (held && out.value.structureTag === held) {
         // Same rows, possibly moved prices. Refresh the cache but do NOT notify: repainting 1,300
         // rows because someone traded would rebuild the table and throw away whatever the reader
         // had sorted or searched, for no new information about any result.
+        const healthChanged = markProjectionChecked(out.value, out.checkedAt);
         applyPrices(out.value);
-        return null;
+        return healthChanged ? cache : null;
       }
 
       // Either a company has filed or revised, or we have nothing to compare against yet (the
@@ -464,10 +470,16 @@ export async function refresh() {
   const st = subType;
   const out = await conditionalJson(pricesEndpointFor(st), { key: priceStoreKey(st), optional: true });
   if (!out.value?.prices || st !== subType || (out.value.meta?.subType || st) !== st) return cache;
-  markChecked('live', out.checkedAt);
+  if (out.value.degraded) {
+    const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+    if (healthChanged) notify();
+    return cache;
+  }
 
   const held = structureTagFor(st);
   if (held && out.value.structureTag === held) {
+    const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+    if (healthChanged) notify();
     applyPrices(out.value);
     return cache;
   }
@@ -478,6 +490,21 @@ export async function refresh() {
   ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
   if (changed) notify();
   return cache;
+}
+
+/** Record whether the lightweight price read itself reached the upstream. */
+function markProjectionChecked(payload, at) {
+  if (!cache) return false;
+  const degraded = payload?.degraded || null;
+  const changed = String(cache.meta.degraded || '') !== String(degraded || '');
+  cache.meta = {
+    ...cache.meta,
+    degraded,
+    isLive: !degraded,
+    origin: 'live',
+    checkedAt: at || Date.now(),
+  };
+  return changed;
 }
 
 export function stopLive(live) {

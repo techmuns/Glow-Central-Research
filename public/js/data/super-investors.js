@@ -328,6 +328,15 @@ export async function refreshSnapshot() {
 
   const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
   const incomingBooks = new Set(Object.entries(body.books || {}).filter(([, value]) => value && value.ok !== false).map(([slug]) => slug));
+  // A deployment snapshot can be newer than the file that seeded this page and still older than
+  // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
+  // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
+  const deviceNewerInvestors = state.investors.filter((i) => {
+    if (!i?.slug || incomingSlugs.has(i.slug)) return false;
+    const confirmed = Number(state.confirmedAt.get(i.slug));
+    return Number.isFinite(confirmed) && confirmed > incomingAt;
+  });
+  const acceptedSlugs = new Set([...incomingSlugs, ...deviceNewerInvestors.map((i) => i.slug)]);
   // The list in the newer capture is authoritative for this replacement. Keeping a book whose
   // investor disappeared would leave `allMoves()` emitting rows the current source no longer
   // contains. Clear every piece of per-book state together so provenance cannot outlive the data;
@@ -342,7 +351,7 @@ export async function refreshSnapshot() {
   ]);
   for (const slug of knownSlugs) {
     const confirmed = Number(state.confirmedAt.get(slug));
-    const removedInvestor = !incomingSlugs.has(slug);
+    const removedInvestor = !acceptedSlugs.has(slug);
     const unreadInCapture = !incomingBooks.has(slug) && (!Number.isFinite(confirmed) || confirmed <= incomingAt);
     if (!removedInvestor && !unreadInCapture) continue;
     state.books.delete(slug);
@@ -354,7 +363,7 @@ export async function refreshSnapshot() {
   }
 
   state.capturedAt = body.capturedAt;
-  state.investors = body.investors;
+  state.investors = [...body.investors, ...deviceNewerInvestors];
   state.listOk = true;
   state.dropped = body.dropped || 0;
   // `oldestCheckedAt()` starts with this feed-wide floor. Every book accepted below is confirmed

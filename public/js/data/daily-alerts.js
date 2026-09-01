@@ -500,7 +500,9 @@ const metricText = (metric) => {
 function fromEarnings({ day, wanted, includeHistory }) {
   const m = earnings.meta() || {};
   const degraded = !!m.degraded;
-  const confirmedAt = degraded ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
+  // Reading a committed file proves only that the file is readable now, not that Moneycontrol was
+  // read now. `checkedAt` is source freshness only for a live/store confirmation.
+  const confirmedAt = degraded || m.origin === 'snapshot' ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
   const fetchedDay = istDay(confirmedAt);
   const basis = String(m.subType || 'yoy').toUpperCase();
   const rows = earnings.all().filter((r) => inRequestedWindow(r.resultDate, day, includeHistory) && inScope(wanted, r.ticker));
@@ -544,7 +546,7 @@ function fromEarnings({ day, wanted, includeHistory }) {
 function fromConcalls({ day, wanted, includeHistory }) {
   const m = concalls.meta() || {};
   const degraded = !!m.degraded;
-  const confirmedAt = degraded ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
+  const confirmedAt = degraded || m.origin === 'snapshot' ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
   const fetchedDay = istDay(confirmedAt);
   const rows = concalls.all().filter((r) => inRequestedWindow(r.date || r.when, day, includeHistory) && inScope(wanted, r.ticker));
   const events = rows.map((r) => {
@@ -699,14 +701,23 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const coverageAt = m.checkedAt || m.capturedAt || m.fetchedAt;
   const coverageDay = istDay(coverageAt);
   const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
-  const incomplete = missingBooks > 0;
+  const staleBooks = Number(m.staleBooks || 0);
+  const incomplete = missingBooks > 0 || m.stale === true || staleBooks > 0;
+  const coverageProblems = [
+    missingBooks > 0 ? `${m.loadedBooks || 0} of ${m.total || 0} investor books are available; ${missingBooks} could not be included` : null,
+    staleBooks > 0
+      ? `${staleBooks} investor book${staleBooks === 1 ? ' is' : 's are'} last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
+      : m.stale === true
+        ? `the investor list is last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
+        : null,
+  ].filter(Boolean);
   return {
     events,
     status: incomplete ? 'failed' : 'ok',
     reachesToday: !incomplete && coverageDay === day,
     asOf: coverageAt || null,
     note: incomplete
-      ? `${m.loadedBooks || 0} of ${m.total || 0} investor books are available; ${missingBooks} could not be included in this reading.`
+      ? `${coverageProblems.join('; ')}. This reading is incomplete.`
       : coverageDay === day
       ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
       : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,

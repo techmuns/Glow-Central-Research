@@ -1319,6 +1319,7 @@ console.log('\n— daily alerts —');
     const r = await da.collect({ scope: 'portfolio', includeHistory: true });
     const universe = await da.collect({ scope: 'universe', includeHistory: true });
     const earnings = await import('/js/data/earnings-live.js');
+    const concalls = await import('/js/data/concall-scans.js');
     const eventByRow = new Map(universe.events.filter((e) => e.feed === 'earnings').map((e) => [e.id, e]));
     const kindLabel = {
       turnaround: 'to profit',
@@ -1335,6 +1336,8 @@ console.log('\n— daily alerts —');
         return event && !event.detail.toLowerCase().includes(kindLabel[metric.kind]);
       }).length;
     const investorFeed = universe.feeds.find((f) => f.id === 'investors');
+    const earningsFeed = universe.feeds.find((f) => f.id === 'earnings');
+    const concallFeed = universe.feeds.find((f) => f.id === 'concalls');
     return {
       events: r.events.length,
       days: r.meta.days,
@@ -1345,6 +1348,9 @@ console.log('\n— daily alerts —');
       universeTickerlessInvestors: universe.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
       portfolioTickerlessInvestors: r.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
       investorCoverageExplicit: investorFeed?.status === 'failed' && /\d+ of \d+ investor books/.test(investorFeed.note || ''),
+      snapshotFreshnessHonest:
+        (earnings.meta()?.origin !== 'snapshot' || earningsFeed?.asOf === earnings.meta()?.fetchedAt) &&
+        (concalls.meta()?.origin !== 'snapshot' || concallFeed?.asOf === concalls.meta()?.fetchedAt),
       dishonestKinds,
       ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
     };
@@ -1359,6 +1365,7 @@ console.log('\n— daily alerts —');
     historyReport.universeTickerlessInvestors > 0 && historyReport.portfolioTickerlessInvestors === 0,
     `${historyReport.universeTickerlessInvestors} Universe / ${historyReport.portfolioTickerlessInvestors} Portfolio`);
   ok('an incomplete investor snapshot is named rather than presented as fully current', historyReport.investorCoverageExplicit);
+  ok('reading a committed earnings/con-call file does not advance source freshness', historyReport.snapshotFreshnessHonest);
   ok('earnings turnaround and loss kinds are named instead of restored as growth rates', historyReport.dishonestKinds === 0,
     `${historyReport.dishonestKinds} dishonest metric label(s)`);
 

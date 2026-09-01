@@ -298,7 +298,9 @@ companies have not been checked since"*: never claim nothing is new.
 
 Universe retains investor rows whose upstream identifier cannot be resolved to a ticker; Portfolio
 and Watchlist cannot match them and exclude them. A missing investor book, or a degraded
-earnings/con-call fallback, is named as incomplete rather than presented as a current all-clear.
+earnings/con-call fallback, is named as incomplete rather than presented as a current all-clear;
+last-good investor books are incomplete too. A committed file read retains the source's
+`fetchedAt` rather than turning the browser's file-read time into upstream freshness.
 
 **Nothing on it walks.** The three filings feeds are seeded through `feed.seed()` — the committed
 snapshot and this device, no per-company request — which is deliberately separate from `load()` so

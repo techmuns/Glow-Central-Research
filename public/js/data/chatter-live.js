@@ -290,8 +290,15 @@ export function startLive(live) {
       if (feed.fromStore) {
         // Revalidated, unchanged. Move "last checked" and nothing else — that is a different fact
         // from "last scraped", and conflating them would age the data backwards.
-        if (cache) cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
-        return null;
+        // A failed first load also creates a cache object, but it does not contain the stored rows.
+        // Recover that case by ingesting the confirmed device payload rather than blessing the
+        // empty failure shell as though it were the payload that received the 304.
+        if (cache?.meta?.ok === true) {
+          cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
+          return null;
+        }
+        ingest(feed, { origin: 'store' });
+        return cache;
       }
       const before = cache ? fingerprint(cache.entries) : null;
       ingest(feed);
@@ -336,7 +343,7 @@ export async function refresh() {
     return cache;
   }
   if (feed.fromStore) {
-    if (cache) cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
+    if (cache?.meta?.ok === true) cache.meta = { ...cache.meta, ok: true, reason: null, checkedAt: feed.checkedAt || Date.now() };
     else ingest(feed, { origin: 'store' });
     return cache;
   }
