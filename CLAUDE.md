@@ -672,6 +672,13 @@ Two things follow that are easy to get wrong the other way:
 is the single place that decides what a percentage is called, and every consumer must branch on
 `disclosure` before writing a heading.
 
+**The Institutions Quarterly Changes tab branches before it aggregates.** It mirrors Superstar
+Investors' six-panel cross-book view, but `quarterlySummary()` admits only shareholding books; AMC
+portfolio weights stay under All Institutions. Every company button opens
+`quarterlyCompany(key)`, which includes all relevant quarterly institution books with prior/current
+stake, status, derived pp change, Trendlyne value and shares held. `Filing Awaited` is retained as a
+current pending disclosure and excluded from move counts — never turned into no longer disclosed.
+
 ### An upstream you CANNOT proxy — the same-zone Worker rule
 
 Every other upstream here is proxied through our Worker, for politeness and for somewhere to stand

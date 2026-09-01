@@ -25,8 +25,8 @@
 // across the two kinds. A "combined book" adding a stake in a company to a slice of a fund would be
 // arithmetic on two different units.
 
-import { scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
-import { scopeSummary } from '../ui/components.js';
+import { rankedList, scoreTable, sectionHead, openDrill, openModal } from '../ui/screener.js';
+import { scopeSummary, tabBar } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
 import { scopePossessive } from '../data/scope.js';
@@ -45,13 +45,43 @@ const DESCRIPTION = {
     'The fund’s own portfolio as the AMC discloses it, month by month. The percentage is % to NAV — how much of the fund sits in each company, not how much of the company it owns. Weights and values are the AMC’s published figures.',
 };
 
-export function renderFiled(ctx, { disposers = [] } = {}) {
+const SECTIONS = [
+  { id: 'institutions', label: 'All Institutions' },
+  { id: 'quarterly-changes', label: 'Quarterly Changes' },
+];
+
+export function renderFiled(ctx, { disposers = [], section = 'institutions', onSection } = {}) {
   const funds = filed.all();
   const m = filed.meta();
   if (!funds.length) return { html: '', wire: () => {} };
 
   const wanted = ctx.params?.fund;
   const fund = funds.find((f) => f.investorId === wanted) || funds[0];
+  const activeSection = SECTIONS.some((item) => item.id === section) ? section : SECTIONS[0].id;
+  const sectionTabs = tabBar({ tabs: SECTIONS, activeId: activeSection, onSelect: onSection || (() => {}) });
+
+  if (activeSection === 'quarterly-changes') {
+    const summary = quarterSummaryBlock(ctx);
+    return {
+      html: `
+        ${sectionHead({
+          title: 'Institutions',
+          description:
+            'Quarterly exchange-filed shareholdings across every tracked institution. Monthly AMC portfolios stay in All Institutions because % to NAV measures something different.',
+        })}
+        <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-filed-section-tabs>
+          ${sectionTabs.html}
+        </div>
+        <div role="tabpanel" aria-label="Quarterly Changes" data-filed-panel="quarterly-changes">
+          ${summary.html}
+        </div>`,
+      wire(root) {
+        disposers.push(sectionTabs.wire(root.querySelector('[data-filed-section-tabs]')));
+        summary.wire(root, disposers);
+      },
+    };
+  }
+
   const rows = filed.holdingsForScope(ctx.scope, coverage.holdings(), fund.holdings);
   const label0 = fund.periodLabels[0];
   const filing = isFiling(fund);
@@ -103,22 +133,28 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
       description: DESCRIPTION[filing ? 'shareholding' : 'portfolio'],
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${disclosurePill(fund)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'holdings', book: coverage.meta() })}</div>`,
     })}
-    ${funds.length > 1 ? fundPicker(funds, fund) : ''}
-    <div class="mb-4 flex flex-wrap items-center gap-3">
-      ${avatarBlock(fund)}
-      <div class="min-w-0 flex-1">
-        <div class="font-display text-base font-bold text-slate-900">${escapeHtml(fund.name)}</div>
-        <div class="text-xs text-slate-500">${escapeHtml(identityLine(fund, label0))}</div>
-      </div>
-      <a href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener"
-         class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">${escapeHtml(filing ? 'Trendlyne source ↗' : 'Bandhan source ↗')}</a>
+    <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-filed-section-tabs>
+      ${sectionTabs.html}
     </div>
-    ${table.html}
+    ${funds.length > 1 ? fundPicker(funds, fund) : ''}
+    <div role="tabpanel" aria-label="All Institutions" data-filed-panel="institutions">
+      <div class="mb-4 flex flex-wrap items-center gap-3">
+        ${avatarBlock(fund)}
+        <div class="min-w-0 flex-1">
+          <div class="font-display text-base font-bold text-slate-900">${escapeHtml(fund.name)}</div>
+          <div class="text-xs text-slate-500">${escapeHtml(identityLine(fund, label0))}</div>
+        </div>
+        <a href="${escapeHtml(fund.sourceUrl)}" target="_blank" rel="noopener"
+           class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">${escapeHtml(filing ? 'Trendlyne source ↗' : 'Bandhan source ↗')}</a>
+      </div>
+      ${table.html}
+    </div>
   `;
 
   return {
     html,
     wire(root) {
+      disposers.push(sectionTabs.wire(root.querySelector('[data-filed-section-tabs]')));
       const off = table.wire(root);
       if (off) disposers.push(off);
       root.querySelector('[data-filed-info]')?.addEventListener('click', () => openProvenance(fund, m));
@@ -127,6 +163,260 @@ export function renderFiled(ctx, { disposers = [] } = {}) {
       }
     },
   };
+}
+
+// ---------------------------------------------------------------------------------------
+// THE QUARTER ACROSS INSTITUTION BOOKS
+//
+// Only `shareholding` books enter this view. AMC books publish monthly portfolio weights (% to
+// NAV), so putting them beside quarterly stakes (% of a company) would make two opposite measures
+// look like one ranking. They remain fully available under All Institutions.
+// ---------------------------------------------------------------------------------------
+
+const filingPp = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(1)} pp`);
+const filingPct = (v) => (v == null ? '—' : `${Number(v).toFixed(1)}%`);
+const andOthers = (names) => (names.length <= 2 ? names.join(' & ') : `${names[0]}, ${names[1]} +${names.length - 2}`);
+
+function quarterSummaryBlock(ctx) {
+  const book = coverage.holdings();
+  const include = (row) => filed.holdingsForScope(ctx.scope, book, [row]).length > 0;
+  const q = filed.quarterlySummary({ include, limit: 5 });
+  const openCompany = (item) => openInstitutionCompany(item.companyKey || item.key);
+
+  const panels = [
+    rankedList({
+      key: 'institution-consensus-buys',
+      title: 'Added by more than one institution',
+      note: 'Increased, or newly disclosed, by two or more quarterly filing books.',
+      items: q.consensusBuys.map((item) => ({
+        name: item.company,
+        companyKey: item.key,
+        sub: andOthers(item.institutions.map((i) => i.institution)),
+        value: `${item.count} institutions`,
+        badge: item.sized ? filingPp(item.sumPp) : null,
+        tone: 'pos',
+      })),
+      empty: 'No company was added by more than one institution this quarter.',
+      onSelect: openCompany,
+    }),
+    rankedList({
+      key: 'institution-new',
+      title: 'New entrants',
+      note: 'First quarter disclosed. Ranked by the stake now held — an appearance has no trade size.',
+      items: q.newEntrants.map((row) => ({
+        name: row.company,
+        companyKey: row.key,
+        sub: row.institution,
+        value: filingPct(row.now),
+        tone: 'pos',
+      })),
+      empty: 'No new position was disclosed this quarter.',
+      onSelect: openCompany,
+    }),
+    rankedList({
+      key: 'institution-adds',
+      title: 'Largest increases',
+      note: 'Percentage points of the company, latest filed quarter minus the one before — derived.',
+      items: q.topAdds.map((row) => ({
+        name: row.company,
+        companyKey: row.key,
+        sub: row.institution,
+        value: filingPp(row.deltaPp),
+        tone: 'pos',
+      })),
+      empty: 'No filed position was increased this quarter.',
+      onSelect: openCompany,
+    }),
+    rankedList({
+      key: 'institution-consensus-exits',
+      title: 'Reduced by more than one institution',
+      note: 'Trimmed, or no longer disclosed, by two or more quarterly filing books.',
+      items: q.consensusExits.map((item) => ({
+        name: item.company,
+        companyKey: item.key,
+        sub: andOthers(item.institutions.map((i) => i.institution)),
+        value: `${item.count} institutions`,
+        badge: item.sized ? filingPp(item.sumPp) : null,
+        tone: 'neg',
+      })),
+      empty: 'No company was reduced by more than one institution this quarter.',
+      onSelect: openCompany,
+    }),
+    rankedList({
+      key: 'institution-trims',
+      title: 'Largest reductions',
+      note: 'Percentage points of the company, latest filed quarter minus the one before — derived.',
+      items: q.topTrims.map((row) => ({
+        name: row.company,
+        companyKey: row.key,
+        sub: row.institution,
+        value: filingPp(row.deltaPp),
+        tone: 'neg',
+      })),
+      empty: 'No filed position was reduced this quarter.',
+      onSelect: openCompany,
+    }),
+    rankedList({
+      key: 'institution-exits',
+      title: 'No longer disclosed',
+      note: 'Off the shareholding pattern this quarter. Below the disclosure threshold is not the same as sold.',
+      items: q.exits.map((row) => ({
+        name: row.company,
+        companyKey: row.key,
+        sub: row.institution,
+        value: row.before == null ? '—' : `was ${filingPct(row.before)}`,
+        tone: 'neg',
+      })),
+      empty: 'Every position disclosed last quarter is still disclosed.',
+      onSelect: openCompany,
+    }),
+  ];
+
+  return {
+    html: `
+      <section class="mb-6" data-institution-quarter-summary>
+        ${institutionSummaryHead(q)}
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((panel) => panel.html).join('')}</div>
+      </section>`,
+    wire(root, disposers) {
+      for (const panel of panels) disposers.push(panel.wire(root));
+      root.querySelector('[data-institution-summary-help]')?.addEventListener('click', () =>
+        openModal(institutionSummaryHelp(q), { size: 'wide' })
+      );
+    },
+  };
+}
+
+function institutionSummaryHead(q) {
+  const c = q.counts;
+  const parts = [
+    c.new ? `${formatNumber(c.new)} new` : null,
+    c.added ? `${formatNumber(c.added)} increased` : null,
+    c.trimmed ? `${formatNumber(c.trimmed)} reduced` : null,
+    c.exited ? `${formatNumber(c.exited)} no longer disclosed` : null,
+  ].filter(Boolean);
+  const span =
+    q.pairs.length === 1
+      ? `${escapeHtml(q.pairs[0].latest)} vs ${escapeHtml(q.pairs[0].prior)}`
+      : `${formatNumber(q.pairs.length)} different quarter pairs`;
+
+  return `
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <h2 class="font-display text-lg font-bold text-slate-900">The quarter across institution filings</h2>
+      <button type="button" data-institution-summary-help
+        class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+        <span>How this is derived</span><span aria-hidden="true">?</span>
+      </button>
+    </div>
+    <p class="mb-3 text-xs text-slate-500">
+      ${parts.length ? `${escapeHtml(parts.join(' · '))} across ${formatNumber(q.contributingBooks)} of ${formatNumber(q.comparableBooks)} comparable institution books` : 'No position moved in a comparable institution book.'}
+      <span class="text-slate-400"> · ${span}${q.singleQuarterBooks ? ` · ${formatNumber(q.singleQuarterBooks)} book${q.singleQuarterBooks === 1 ? '' : 's'} publish only one quarter` : ''}</span>
+    </p>`;
+}
+
+function institutionSummaryHelp(q) {
+  return `
+    <div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
+      <div class="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 class="font-display text-xl font-bold text-slate-900">How the institution quarter is derived</h2>
+          <p class="mt-1 text-sm text-slate-500">Exchange-filed shareholdings aggregated by Trendlyne.</p>
+        </div>
+        <button type="button" data-modal-close aria-label="Close" class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+      </div>
+      <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
+        <p><strong>Only quarterly shareholding books are included.</strong> The Bandhan AMC books are monthly portfolios whose percentage is % to NAV. Mixing them with a filed stake in a company would compare two different measurements, so they remain in All Institutions.</p>
+        <p>For each institution, the latest filed holding percentage is compared with the quarter before it. A measured increase or reduction is the difference in <strong>percentage points of the company</strong> — the only figure calculated here.</p>
+        <p><strong>A blank is not zero.</strong> A new appearance is labelled newly disclosed, and a disappearance is labelled no longer disclosed because falling below the disclosure threshold is not proof of a sale. Neither is assigned an invented trade size.</p>
+        <p><strong>Filing Awaited is never treated as an exit.</strong> A company can still be held while its newest shareholding pattern is pending; that row contributes no move until the filing arrives.</p>
+        <p><strong>Consensus is only a count.</strong> It says how many tracked institution books moved on the same company, not a score, weight or recommendation. Current rupee values are Trendlyne's derivations, not amounts bought or sold.</p>
+        ${q.pairs.length > 1 ? `<p>The current institution data spans ${formatNumber(q.pairs.length)} different latest/prior quarter pairs, so each book is compared against its own two newest published quarters.</p>` : ''}
+      </div>
+    </div>`;
+}
+
+const INSTITUTION_ACTION = {
+  new: ['Newly disclosed', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+  added: ['Increased', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+  held: ['Unchanged', 'bg-slate-100 text-slate-600 ring-slate-200'],
+  trimmed: ['Reduced', 'bg-amber-50 text-amber-800 ring-amber-200'],
+  exited: ['No longer disclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  awaiting: ['Filing awaited', 'bg-amber-50 text-amber-800 ring-amber-200'],
+  unknown: ['Not comparable', 'bg-slate-100 text-slate-500 ring-slate-200'],
+};
+
+function openInstitutionCompany(key) {
+  const details = filed.quarterlyCompany(key);
+  const company = details[0]?.company || 'Company';
+  const ticker = details[0]?.ticker || null;
+  const current = details.filter((row) => row.now != null).length;
+  const awaiting = details.filter((row) => row.action === 'awaiting').length;
+  const changed = details.filter((row) => ['new', 'added', 'trimmed', 'exited'].includes(row.action)).length;
+  const rows = details
+    .map((row) => {
+      const [label, cls] = INSTITUTION_ACTION[row.action] || INSTITUTION_ACTION.unknown;
+      const deltaClass = row.deltaPp > 0 ? 'text-emerald-700' : row.deltaPp < 0 ? 'text-rose-700' : 'text-slate-400';
+      return `
+        <tr class="border-t border-slate-100" data-company-institution-row>
+          <td class="px-3 py-3 align-top">
+            <div class="font-semibold text-slate-900">${escapeHtml(row.institution)}</div>
+            ${row.house || row.category ? `<div class="mt-0.5 text-[11px] text-slate-500">${escapeHtml([row.house, row.category].filter(Boolean).join(' · '))}</div>` : ''}
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 align-top"><span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${escapeHtml(label)}</span></td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top">
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(row.prior || 'Not published')}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-700">${row.before == null ? dash('not disclosed in the prior quarter') : escapeHtml(filingPct(row.before))}</span>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top">
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(row.latest || 'Not published')}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">${row.now == null ? dash(row.action === 'awaiting' ? 'the latest filing is awaited' : 'not disclosed in the latest quarter') : escapeHtml(filingPct(row.now))}</span>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums ${deltaClass}">${row.deltaPp == null ? dash('no measurable percentage-point change') : escapeHtml(filingPp(row.deltaPp))}</td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums text-slate-700">${row.valueCr == null ? dash('no current value published') : escapeHtml(formatCroreCompact(row.valueCr))}</td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top tabular-nums text-slate-700">${row.qty == null ? dash('no current share count filed') : escapeHtml(groupInt(row.qty))}</td>
+        </tr>`;
+    })
+    .join('');
+
+  openModal(
+    `<div class="scrollbar-thin max-h-[82vh] overflow-y-auto" data-company-institution-detail>
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur sm:px-7">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Across quarterly institution filings</p>
+            <h2 class="font-display mt-1 text-xl font-bold text-slate-900">${escapeHtml(company)}</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              ${ticker ? `${escapeHtml(ticker)} · ` : ''}${formatNumber(details.length)} institution book${details.length === 1 ? '' : 's'} in the latest comparison ·
+              ${formatNumber(current)} currently disclosed${awaiting ? ` · ${formatNumber(awaiting)} awaiting filing` : ''} · ${formatNumber(changed)} changed
+            </p>
+          </div>
+          <button type="button" data-modal-close aria-label="Close" class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+      </div>
+      <div class="px-6 py-5 sm:px-7">
+        <p class="mb-4 text-xs leading-relaxed text-slate-500">
+          Percentages are stakes in the company from each institution's own latest and prior quarterly filings.
+          <strong class="text-slate-600">Current value is Trendlyne's derivation, not an amount bought or sold.</strong>
+          A dash means not disclosed, not zero.
+        </p>
+        <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="bg-slate-50"><tr>
+              <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">Institution</th>
+              <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">Status</th>
+              <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Previous stake</th>
+              <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current stake</th>
+              <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Change (derived)</th>
+              <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current value (Trendlyne)</th>
+              <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Shares held</th>
+            </tr></thead>
+            <tbody>${rows || `<tr><td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">No comparable institution filing is available for this company.</td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`,
+    { size: 'wide' }
+  );
 }
 
 // ---------------------------------------------------------------------------------------

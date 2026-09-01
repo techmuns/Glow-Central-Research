@@ -397,6 +397,13 @@ investor across the full book set and shows status, previous stake, current stak
 and current Finology position value, so abbreviated labels such as `+1` never hide the answer.
 The value is current position value, not a claim about how much was bought or sold.
 
+**Institutions mirrors the same in-page pattern.** *All Institutions* keeps the fund picker and
+full history table; *Quarterly Changes* rolls up new, increased, reduced and no-longer-disclosed
+positions across the tracked quarterly shareholding books. Monthly AMC portfolios do not enter
+that roll-up: their `% to NAV` is a weight in a fund, not a stake in the company. Clicking any
+company opens every relevant quarterly institution book with its status, prior/current filed
+stake, derived percentage-point change, Trendlyne value and filed share count.
+
 Increases and reductions are in **percentage points of the company** — the only size a filing
 states. A new or exited position carries **no size at all**, because a position appearing or
 vanishing is a change of disclosure rather than a move of the whole holding, and "exited" is

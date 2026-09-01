@@ -3181,6 +3181,103 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 
 // ---------------------------------------------------------------------------------------
+// 9b-iii. QUARTERLY CHANGES ACROSS INSTITUTION BOOKS.
+//
+// This mirrors the Superstar Investors roll-up without crossing the disclosure boundary above:
+// only quarterly shareholding books enter it. Monthly AMC weights remain under All Institutions.
+// Every company row opens the complete quarterly institution detail rather than abbreviating the
+// only name and number a compact card has room for.
+// ---------------------------------------------------------------------------------------
+await go('/#/research/super-investors/institutions?scope=universe', 2200);
+await waitForPanel();
+const institutionSectionTabs = await page.locator('#content-host [data-filed-section-tabs] [role="tab"]').allTextContents();
+ok('Institutions contains All Institutions and Quarterly Changes tabs',
+  institutionSectionTabs.map((s) => s.trim()).join('|') === 'All Institutions|Quarterly Changes', institutionSectionTabs.join(' | '));
+await page.locator('#content-host [data-filed-section-tabs] [data-tab-id="quarterly-changes"]').click();
+await page.waitForTimeout(450);
+
+const institutionQuarter = await page.evaluate(async () => {
+  const m = await import('/js/data/institution-holdings.js');
+  const q = m.quarterlySummary();
+  const expected = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
+  const quarterly = m.all().filter((f) => f.disclosure === 'shareholding');
+  let awaiting = 0;
+  for (const f of quarterly) {
+    const [latest, prior] = f.periods;
+    for (const h of [...f.holdings, ...f.former]) {
+      const now = h.pctByPeriod[latest];
+      const before = h.pctByPeriod[prior];
+      if (h.changeNote === 'Filing Awaited' && now == null) {
+        awaiting++;
+        continue;
+      }
+      if (now == null && before == null) continue;
+      if (before == null) expected.new++;
+      else if (now == null) expected.exited++;
+      else if (now > before) expected.added++;
+      else if (now < before) expected.trimmed++;
+      else expected.held++;
+    }
+  }
+  const first = q.newEntrants[0] || q.topAdds[0] || q.topTrims[0] || q.exits[0] || null;
+  const details = first ? m.quarterlyCompany(first.key) : [];
+  return {
+    counts: q.counts,
+    expected,
+    quarterlyBooks: quarterly.length,
+    allBooks: m.all().length,
+    comparableBooks: q.comparableBooks,
+    awaiting,
+    waitingMisclassified: q.exits.filter((r) => r.note === 'Filing Awaited').length,
+    first: first ? { key: first.key, name: first.company } : null,
+    details: details.map((d) => ({ institution: d.institution, action: d.action, now: d.now, before: d.before, valueCr: d.valueCr, qty: d.qty })),
+  };
+});
+
+ok('Institution Quarterly Changes replaces the fund table in the same sub-view',
+  (await page.locator('#content-host [data-filed-panel="quarterly-changes"]').count()) === 1 &&
+    (await page.locator('#content-host [data-institution-quarter-summary]').count()) === 1 &&
+    (await page.locator('#content-host [data-table-scroll]').count()) === 0);
+ok('...rolls up the filed latest/prior quarter exactly',
+  JSON.stringify(institutionQuarter.counts) === JSON.stringify(institutionQuarter.expected),
+  `${JSON.stringify(institutionQuarter.counts)} vs ${JSON.stringify(institutionQuarter.expected)}`);
+ok('...includes quarterly institution books and excludes monthly AMC portfolios',
+  institutionQuarter.quarterlyBooks > 0 && institutionQuarter.comparableBooks === institutionQuarter.quarterlyBooks && institutionQuarter.allBooks > institutionQuarter.quarterlyBooks,
+  `${institutionQuarter.comparableBooks} quarterly of ${institutionQuarter.allBooks} total`);
+ok('...never turns Filing Awaited into no longer disclosed',
+  institutionQuarter.awaiting > 0 && institutionQuarter.waitingMisclassified === 0,
+  `${institutionQuarter.awaiting} awaiting, ${institutionQuarter.waitingMisclassified} misclassified`);
+
+const institutionPanels = await page.locator('#content-host [data-institution-quarter-summary] [data-ranked-list]').count();
+const institutionRows = await page.locator('#content-host [data-institution-quarter-summary] [data-ranked-idx]').count();
+const institutionButtons = await page.locator('#content-host [data-institution-quarter-summary] button[data-ranked-idx]').count();
+ok('the institution quarter uses the same six actionable change panels', institutionPanels === 6, `${institutionPanels} panels`);
+ok('every visible institution company is a clickable detail control', institutionRows > 0 && institutionButtons === institutionRows, `${institutionButtons} of ${institutionRows}`);
+
+if (institutionQuarter.first) {
+  await page.locator('#content-host [data-institution-quarter-summary] button[data-ranked-idx]').filter({ hasText: institutionQuarter.first.name }).first().click();
+  await page.waitForTimeout(450);
+  const modal = await page.locator('#modal-content').innerText();
+  const detailHeads = (await page.locator('#modal-content thead th').allTextContents()).map((s) => s.replace(/\s+/g, ' ').trim());
+  const detailRows = await page.locator('#modal-content [data-company-institution-row]').count();
+  ok('clicking an institution company opens its cross-institution popup',
+    (await page.locator('#modal-content [data-company-institution-detail]').count()) === 1 && modal.includes(institutionQuarter.first.name));
+  ok('...names every relevant quarterly institution book',
+    detailRows === institutionQuarter.details.length && institutionQuarter.details.every((d) => modal.includes(d.institution)),
+    `${detailRows} rendered vs ${institutionQuarter.details.length} expected`);
+  for (const want of ['Institution', 'Status', 'Previous stake', 'Current stake', 'Change (derived)', 'Current value (Trendlyne)', 'Shares held']) {
+    ok(`institution company popup column: ${want}`, detailHeads.includes(want), detailHeads.join(' | '));
+  }
+  ok('...shows filed stake, Trendlyne value and share count without calling either a trade size',
+    /Trendlyne's derivation, not an amount bought or sold/i.test(modal) &&
+      institutionQuarter.details.some((d) => d.now != null && modal.includes(`${d.now.toFixed(1)}%`)) &&
+      institutionQuarter.details.some((d) => d.valueCr != null) &&
+      institutionQuarter.details.some((d) => d.qty != null));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+}
+
+// ---------------------------------------------------------------------------------------
 // 9c. Superstar Investors — REAL filed books, off Ticker Finology, behind a credential.
 //
 // Three things separate this feed from every other one here, and each is checked rather than

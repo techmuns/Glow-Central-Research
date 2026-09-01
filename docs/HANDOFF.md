@@ -109,6 +109,13 @@ derivation. The columns say `% to NAV`, the pill says *Disclosed*, and nothing o
 across the two kinds. The NSE symbol is *ours*, resolved by `scripts/lib/company-index.mjs`; 37 of
 the Small Cap fund's 255 equity lines do not resolve and keep their row with a stated reason.
 
+Institutions has **All Institutions · Quarterly Changes** inside the sub-view. The second tab uses
+only `disclosure: 'shareholding'` books and mirrors the superstar cross-book roll-up; the AMC books
+stay in All Institutions because monthly `% to NAV` cannot be compared with a quarterly stake in
+a company. Every summary company is clickable and opens all relevant quarterly institution books
+with status, both filed stakes, derived pp change, Trendlyne value and shares held. A `Filing
+Awaited` row is excluded from moves and is never misreported as an exit.
+
 **The synthetic institutions and Fund Flows are gone**, along with `js/data/investors.js`,
 `js/investors/deep-dive.js` and `gen-mock-investors.mjs` — see *The synthetic investor set* in
 `docs/DATA-CONTRACTS.md`. Every number on the Super Investors tab is now somebody's disclosure.

@@ -1764,6 +1764,14 @@ holdings.js` aliases both into one vocabulary (`periods`, `periodLabels`, `perio
 `pctByPeriod`, `pct`) and the view lays them out with one set of components. The shared names
 describe the shape; `disclosure` is what says what they measure.
 
+`quarterlySummary()` is that branching rule made executable for the Institutions cross-book view:
+it reads only `disclosure: 'shareholding'` books, compares each book's two latest quarters, and
+groups the same six move categories used by Superstar Investors. `quarterlyCompany(key)` returns
+the full set behind a clicked company, including unchanged and filing-awaited rows. New and
+no-longer-disclosed positions carry no invented delta, `Filing Awaited` is not classified as an
+exit, and Trendlyne's current value is never presented as a traded amount. Monthly AMC portfolio
+weights are absent from both functions by construction.
+
 ### `disclosure: 'shareholding'` — filed with the exchanges
 
 ```jsonc

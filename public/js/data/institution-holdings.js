@@ -5,6 +5,8 @@
 //   byId(investorId)
 //   meta()                    // source, when it was read
 //   holdingsForScope(scope, holdings, fund)
+//   quarterlySummary(opts)    // cross-book moves, shareholding filings only
+//   quarterlyCompany(key)     // one company across every quarterly institution book
 //
 // TWO DISCLOSURES, AND KEEPING THEM APART IS THE WHOLE POINT OF THIS MODULE.
 //
@@ -116,6 +118,129 @@ export const isLoaded = () => !!cache;
 export const all = () => (cache ? cache.institutions : []);
 export const meta = () => (cache ? cache.meta : null);
 export const byId = (id) => (cache && id ? cache.byId.get(id) || null : null);
+
+// ---------------------------------------------------------------------------------------
+// Quarterly shareholding changes across every institution book
+//
+// AMC portfolios deliberately do not enter this roll-up. Their monthly percentages are weights
+// in a fund (% to NAV); a shareholding filing's quarterly percentage is a stake in a company. Both
+// are real, but grouping or ranking them together would make unlike measurements look comparable.
+// ---------------------------------------------------------------------------------------
+
+const round2 = (n) => Math.round(n * 100) / 100;
+const companyKey = (h) => (h.ticker ? `ticker:${String(h.ticker).toUpperCase()}` : `name:${String(h.name || '').trim().toLowerCase()}`);
+
+function changeFor(h, fund) {
+  const [latest, prior] = fund.periods || [];
+  if (!latest || !prior) return { action: 'unknown', deltaPp: null, now: null, before: null };
+  const now = h.pctByPeriod?.[latest] ?? null;
+  const before = h.pctByPeriod?.[prior] ?? null;
+
+  // A company that has not filed the newest quarter is still in the fund's current holdings.
+  // Calling its blank an exit would be the exact lie the table's Filing Awaited label prevents.
+  if (h.changeNote === 'Filing Awaited' && now == null) return { action: 'awaiting', deltaPp: null, now, before };
+  if (now == null && before == null) return null;
+  if (before == null) return { action: 'new', deltaPp: null, now, before };
+  if (now == null) return { action: 'exited', deltaPp: null, now, before };
+  const deltaPp = round2(now - before);
+  return { action: deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held', deltaPp, now, before };
+}
+
+function quarterlyRows() {
+  const out = [];
+  for (const fund of all().filter((f) => f.disclosure === 'shareholding')) {
+    const seen = new Set();
+    for (const h of [...fund.holdings, ...(fund.former || [])]) {
+      const key = companyKey(h);
+      // A producer is required to keep one row per company, but de-duplicating here keeps one bad
+      // source row from becoming two institutional votes in a consensus card.
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const change = changeFor(h, fund);
+      if (!change) continue;
+      out.push({
+        key,
+        company: h.name,
+        ticker: h.ticker || null,
+        institution: fund.name,
+        institutionId: fund.investorId,
+        house: fund.house || null,
+        category: fund.category || null,
+        latest: fund.periodLabels?.[0] || fund.periods?.[0] || null,
+        prior: fund.periodLabels?.[1] || fund.periods?.[1] || null,
+        valueCr: h.valueCr ?? null,
+        qty: h.qty ?? null,
+        url: h.url || null,
+        note: h.changeNote || null,
+        ...change,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * The latest quarter across the institution books that are actually quarterly.
+ *
+ * New and no-longer-disclosed positions carry no invented delta; measured increases/reductions
+ * use percentage points of the company. Consensus is a count of institutions, never a signal.
+ */
+export function quarterlySummary({ include = null, limit = 5 } = {}) {
+  const books = all().filter((f) => f.disclosure === 'shareholding');
+  const comparableBooks = books.filter((f) => (f.periods || []).length > 1);
+  const allRows = quarterlyRows().filter((r) => r.action !== 'awaiting' && r.action !== 'unknown');
+  const rows = include ? allRows.filter((r) => include(r)) : allRows;
+  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
+  for (const r of rows) if (counts[r.action] != null) counts[r.action] += 1;
+
+  const group = (actions) => {
+    const grouped = new Map();
+    for (const row of rows) {
+      if (!actions.includes(row.action)) continue;
+      if (!grouped.has(row.key)) grouped.set(row.key, { key: row.key, company: row.company, ticker: row.ticker, institutions: [] });
+      grouped.get(row.key).institutions.push({ institution: row.institution, institutionId: row.institutionId, action: row.action, deltaPp: row.deltaPp, now: row.now });
+    }
+    return [...grouped.values()]
+      .filter((item) => item.institutions.length > 1)
+      .map((item) => ({
+        ...item,
+        count: item.institutions.length,
+        sized: item.institutions.filter((i) => i.deltaPp != null).length,
+        sumPp: round2(item.institutions.reduce((sum, i) => sum + (i.deltaPp ?? 0), 0)),
+      }))
+      .sort((a, b) => b.count - a.count || Math.abs(b.sumPp) - Math.abs(a.sumPp) || a.company.localeCompare(b.company));
+  };
+
+  const byAction = (action) => rows.filter((r) => r.action === action);
+  const pairs = [];
+  for (const fund of comparableBooks) {
+    const latest = fund.periodLabels?.[0] || fund.periods[0];
+    const prior = fund.periodLabels?.[1] || fund.periods[1];
+    if (!pairs.some((p) => p.latest === latest && p.prior === prior)) pairs.push({ latest, prior });
+  }
+
+  return {
+    counts,
+    total: rows.length,
+    pairs,
+    comparableBooks: comparableBooks.length,
+    singleQuarterBooks: books.length - comparableBooks.length,
+    contributingBooks: new Set(rows.map((r) => r.institutionId)).size,
+    consensusBuys: group(['new', 'added']).slice(0, limit),
+    consensusExits: group(['exited', 'trimmed']).slice(0, limit),
+    newEntrants: byAction('new').sort((a, b) => (b.now ?? 0) - (a.now ?? 0)),
+    topAdds: byAction('added').sort((a, b) => b.deltaPp - a.deltaPp),
+    topTrims: byAction('trimmed').sort((a, b) => a.deltaPp - b.deltaPp),
+    exits: byAction('exited'),
+  };
+}
+
+/** Every relevant quarterly institution row for one company, including unchanged/pending books. */
+export function quarterlyCompany(key) {
+  return quarterlyRows()
+    .filter((row) => row.key === key && (row.now != null || row.before != null || row.action === 'awaiting'))
+    .sort((a, b) => (b.now != null) - (a.now != null) || (b.now ?? -1) - (a.now ?? -1) || a.institution.localeCompare(b.institution));
+}
 
 /** Every ticker any tracked institution currently holds — used to answer "who owns this?". */
 export function holdersOf(ticker) {
