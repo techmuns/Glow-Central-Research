@@ -14,6 +14,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
 
+import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -40,11 +41,11 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// DAILY ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
@@ -316,7 +317,7 @@ function mountTab(tabModule, resolved) {
   //
   // The shell stays generic: it is not interpreting the tab, it is answering a question the header
   // control it owns has just been used to ask.
-  const mountable = !(resolved.scope === 'watchlist' && watchlist.size() === 0);
+  const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchlist.size() === 0);
   const nextModule = mountable ? tabModule : null;
 
   // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route

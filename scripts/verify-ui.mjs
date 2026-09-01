@@ -316,6 +316,7 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
       'tabs/concall.js',
@@ -341,7 +342,8 @@ const routes = await page.evaluate(async () => {
 
 // The watchlist scope is swept too, but with the list EMPTY it is answered by the shell for every
 // tab and there is nothing tab-specific left to break; the dedicated block below drives it with a
-// company actually starred. Sweeping it empty here would assert the same panel thirteen times.
+// company actually starred. Sweeping it empty here would mostly assert the same shell panel; Ask
+// Research is the deliberate exception and gets an explicit empty-watchlist check below.
 let broken = [];
 for (const [ws, tab, sub] of routes) {
   for (const scope of ['universe', 'portfolio']) {
@@ -1102,14 +1104,39 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Daily Alerts — the landing tab
+// 3d. Ask Research is the landing tab; Daily Alerts retains its focused feed checks
 //
 // Three things it has to get right: consolidate every feed, keep today's freshness distinct from
 // retained history, and reveal older dates through the table's own scroller in strict chronological
 // order. So the assertions here cover the coverage panel, the date filter and the stream.
 // ---------------------------------------------------------------------------------------
-console.log('\n— daily alerts —');
+console.log('\n— ask research and daily alerts —');
 {
+  let askRequest = null;
+  await page.route('**/api/research', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true, webResearchAvailable: true, history: 'device' }),
+      });
+    }
+    askRequest = request.postDataJSON();
+    const events = [
+      { type: 'start' },
+      { type: 'phase', phase: 'Reconciling web sources with dashboard data' },
+      { type: 'text', text: '## Combined view\nDashboard evidence remains traceable. [Dashboard: Earnings Hub]\n\nCurrent web context is linked separately.' },
+      { type: 'sources', sources: [{ title: 'Current research source', url: 'https://example.com/research' }] },
+      { type: 'done' },
+    ];
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/x-ndjson',
+      body: `${events.map((event) => JSON.stringify(event)).join('\n')}\n`,
+    });
+  });
+
   // THE DEFAULT LANDING TAB. The order of WORKSPACES[0].tabs is the only thing that decides this,
   // so a reorder that moved it would surface here rather than in a bug report.
   // A FRESH READER, not this run's accumulated state. Two things have to be true for that:
@@ -1135,11 +1162,60 @@ console.log('\n— daily alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  ok('the dashboard opens on Daily Alerts', /daily-alerts/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Daily Alerts');
+  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  const askText = await hostText();
+  ok('Ask Research renders as a complete workspace',
+    (await page.locator('[data-research-workspace]').count()) === 1 && /Research the whole picture/.test(askText));
+  ok('...makes dashboard-wide coverage explicit',
+    /Reads the whole dashboard/.test(askText) && /Every tab/.test(askText) && /Traceable/.test(askText));
+  ok('...offers four scope-aware starting questions',
+    (await page.locator('[data-research-suggestion]').count()) === 4);
+  ok('...and keeps web research optional by default',
+    (await page.locator('[data-research-web]').getAttribute('aria-pressed')) === 'false' &&
+      /Combine dashboard \+ web/.test(await page.locator('[data-research-web]').innerText()));
+
+  const evidenceAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const packet = await buildResearchEvidence({
+      question: 'What needs attention across earnings, calls, chatter, technicals, filings and holdings?',
+      scope: 'portfolio',
+    });
+    return {
+      catalog: packet.catalog.length,
+      sources: packet.sources.length,
+      ready: packet.selection.sourcesReady,
+      statuses: packet.sources.map((source) => `${source.id}:${source.status}`),
+      chars: JSON.stringify(packet).length,
+    };
+  });
+  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
+      evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
+    `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
+  ok('...and keeps the real evidence packet inside the Worker request bound',
+    evidenceAudit.chars < 120000, `${evidenceAudit.chars.toLocaleString()} chars`);
+
+  await page.locator('[data-research-web]').click();
+  await page.locator('[data-research-input]').fill('Combine the dashboard evidence with current web context.');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Current web context is linked separately/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
+  const combinedAnswer = await page.locator('[data-research-transcript]').innerText();
+  ok('...submits dashboard and web research as one explicit combined request',
+    askRequest?.webResearch === true && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
+    `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
+  ok('...renders the streamed combined answer and linked web provenance',
+    /dashboard \+ web research/i.test(combinedAnswer) &&
+      (await page.locator('.research-source-chip-web[href="https://example.com/research"]').count()) === 1,
+    combinedAnswer.replace(/\s+/g, ' ').slice(0, 240));
+
+  await page.unroute('**/api/research');
+
+  await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   const daText = await hostText();
   // THE FOUR CARDS AND THE PARAGRAPH ARE ONE PILL NOW. Three of the cards counted rows the table
@@ -1582,6 +1658,13 @@ console.log('\n— daily alerts —');
 console.log('\n— watchlist scope —');
 {
   await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+
+  // Ask remains useful in an empty watchlist: its catalog and source-status evidence still explain
+  // what is and is not available, so the shell must not replace it with the generic empty panel.
+  await go('/#/research/ask-research?scope=watchlist', 1200);
+  ok('Ask Research remains available with an empty watchlist',
+    (await page.locator('[data-research-workspace]').count()) === 1 &&
+      (await page.locator('[data-watchlist-empty]').count()) === 0);
 
   // EMPTY IS ITS OWN STATE, answered by the shell for every tab rather than by each tab's "no
   // results match your filters", which would send the reader hunting for a filter to clear.

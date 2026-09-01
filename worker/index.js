@@ -12,6 +12,8 @@
 //   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
 //   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
+//   GET  /api/research                          ->  whether Ask Research is configured
+//   POST /api/research                          ->  streamed dashboard-grounded research answer
 //
 // None writes anything back to the repo; all are read-through overlays on committed data.
 //
@@ -20,7 +22,8 @@
 // browser calls this Worker and the Worker adds the header from `env.MUNS_TOKEN` — the same
 // reason /api/live-prices is proxied. Set it with `npx wrangler secret put MUNS_TOKEN`.
 //
-// EVERY GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this file.
+// EVERY DATA GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this
+// file. `/api/research`'s small configuration response is deliberately `no-store` instead.
 // The two big feeds are polled every 30 seconds and are 1.1MB and 450KB of JSON. Answering
 // "nothing has changed" by re-sending the whole thing, 120 times an hour, is the single largest
 // waste in the system. So each response carries a content-derived ETag, and a request that
@@ -32,6 +35,7 @@ import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mj
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 import { dispatchWorkflow, latestRun, parseRepo, isInFlight, NEWS_WORKFLOW, DEPLOY_WORKFLOW } from './github-actions.mjs';
+import { handleResearch } from './research.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -88,6 +92,9 @@ export default {
     // development, where the static site and the Worker sit on different ports, does.
     if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
       return preflight();
+    }
+    if (url.pathname === '/api/research') {
+      return handleResearch(request, env);
     }
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request, env, ctx);

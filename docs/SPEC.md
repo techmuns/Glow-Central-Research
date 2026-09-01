@@ -2,7 +2,7 @@
 
 An Indian-equities research and portfolio analytics dashboard. Static site, no build step,
 no framework, no npm dependencies for the app itself. Hosted as a Cloudflare Worker that
-serves `public/` and (later) a few `/api/*` routes.
+serves `public/` and the live `/api/*` routes.
 
 ---
 
@@ -27,15 +27,16 @@ A springy indigo→purple underline scales in under the active tab; active tab i
 inactive slate with hover. Order is fixed:
 
 **Research Central**
-1. Daily Alerts *(the default landing tab)*
-2. Earnings Hub
-3. Con-call
-4. Public Chatter
-5. Breakouts / Technical
-6. Super Investors
-7. News
-8. Corp Announcements
-9. Insider Trades
+1. Ask Research *(the default landing tab)*
+2. Daily Alerts
+3. Earnings Hub
+4. Con-call
+5. Public Chatter
+6. Breakouts / Technical
+7. Super Investors
+8. News
+9. Corp Announcements
+10. Insider Trades
 
 **Portfolio Analytics**
 1. Overview
@@ -51,6 +52,7 @@ spans the full 1400px on every tab.
 
 | Tab | Sub-views |
 | --- | --- |
+| Ask Research | *(none — one conversation workspace, so the picker is hidden)* |
 | Daily Alerts | *(none — one stream, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
@@ -66,7 +68,7 @@ spans the full 1400px on every tab.
 Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
 removed from the chrome, so Research Central's tabs are the whole navigation for now.
 
-**Daily Alerts is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
+**Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
 second place recording it that could disagree with the array.
 
@@ -296,6 +298,20 @@ live.onGlobalTick(cb);    // header Live pill
 ---
 
 ## 7. Tabs and planned features
+
+### Ask Research — `ask-research` (server-configured, single view)
+A two-column conversation workspace and the default landing tab. Every question builds a bounded
+runtime packet through the canonical data modules behind the other nine Research Central tabs plus
+the hidden Portfolio Analytics workspace. Every registered source contributes its status, coverage,
+as-of metadata and provenance; question-matched rows are included within the Worker request bound,
+so one slow or unavailable feed is reported rather than silently omitted.
+
+The optional **Web research** button sends the same packet through the Worker and requires OpenAI's
+hosted web search. The answer distinguishes dashboard facts from current web findings, renders web
+links separately, and cites material dashboard claims by page. The API key is a Worker secret;
+responses use `store: false`, the browser never receives the key, and the paid route is same-origin,
+size-bounded and rate-limited. Conversation history stays in device `localStorage`, while each
+submitted question and evidence packet are sent to OpenAI to generate the answer.
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —
