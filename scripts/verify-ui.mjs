@@ -5184,7 +5184,7 @@ console.log('\n— news, announcements and insider trades —');
   await go('/#/research/insider-trades?scope=portfolio', 2500);
   const insiderFilters = await page.evaluate(async () => {
     const selects = [...document.querySelectorAll('[data-table-filter]')];
-    const countText = document.querySelector('[data-row-count]')?.parentElement?.textContent || '';
+    const countText = document.querySelector('[data-row-count]')?.textContent || '';
     const total = Number((countText.match(/\d+/) || ['0'])[0]);
     const results = [];
     for (const select of selects) {
@@ -5206,7 +5206,8 @@ console.log('\n— news, announcements and insider trades —');
       results,
     };
   });
-  ok('the Insider Trades toolbar counts trades, not companies', /\btrades shown\b/i.test(insiderFilters.countText), insiderFilters.countText.trim());
+  ok('the Insider Trades toolbar separates trade rows from portfolio companies',
+    /^[\d,]+ trades from [\d,]+ portfolio companies$/i.test(insiderFilters.countText.trim()), insiderFilters.countText.trim());
   ok('insider trades offers Category, Transaction type and Mode filters',
     ['Category', 'Transaction type', 'Mode'].every((label) => insiderFilters.labels.includes(label)),
     insiderFilters.labels.join(' · '));

@@ -277,10 +277,22 @@ export function makeFilingsTab(cfg) {
       link: (r) => r.url || null,
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
-      // The number at the top is ROWS, not companies. Insider Trades can carry many disclosures
-      // for one portfolio company, so "1,295 of 1,295 shown" was understandably read as 1,295
-      // companies. Name the unit the feed already declares: trades, articles or filings.
-      countNoun: cfg.noun,
+      // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
+      // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
+      // Recompute both figures from the visible row DATA whenever search or a filter changes.
+      countLabel: (visible) => {
+        const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+        const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
+        const companyNoun =
+          ctx.scope === 'portfolio'
+            ? `portfolio ${companies === 1 ? 'company' : 'companies'}`
+            : ctx.scope === 'watchlist'
+              ? `watchlist ${companies === 1 ? 'company' : 'companies'}`
+              : companies === 1
+                ? 'company'
+                : 'companies';
+        return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
+      },
       exportName: `sattva-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no

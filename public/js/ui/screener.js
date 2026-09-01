@@ -351,6 +351,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  emptyMessage  string shown when nothing matches
  *  countNoun     optional plural noun for the toolbar count, e.g. "trades". Without it the
  *                generic table keeps the compact "N of M shown" wording.
+ *  countLabel    optional (visibleRows, allRows) => plain-text toolbar label. Use when a row count
+ *                needs a second denominator, such as distinct companies represented by trades.
  *  exportName    file stem used by the Export button (a stub until prompt 3)
  *  showRank      default true. false drops the leading rank column; the watchlist star moves
  *                inside the identity cell so the first column can be a real column.
@@ -394,6 +396,7 @@ export function scoreTable(config) {
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
+    countLabel = null,
     exportName = 'sattva-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
@@ -470,6 +473,12 @@ export function scoreTable(config) {
   }
 
   const totalCount = rows.length;
+  const countText = (visible) => {
+    const custom = countLabel?.(visible, rows);
+    return custom == null || custom === ''
+      ? `${visible.length} of ${totalCount}${countNoun ? ` ${countNoun}` : ''} shown`
+      : String(custom);
+  };
 
   function haystack(row) {
     return (searchable ? searchable(row) : `${name(row)} ${key(row)}`).toLowerCase();
@@ -712,7 +721,7 @@ export function scoreTable(config) {
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
-            <span data-row-count class="font-semibold text-slate-700">${initialList.length} of ${totalCount}</span>${countNoun ? ` ${escapeHtml(countNoun)}` : ''} shown
+            <span data-row-count class="font-semibold text-slate-700">${escapeHtml(countText(initialList))}</span>
           </div>
           <button type="button" data-export
             class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow">
@@ -905,7 +914,7 @@ export function scoreTable(config) {
         startFill();
       }
 
-      countEl.textContent = `${current.length} of ${totalCount}`;
+      countEl.textContent = countText(current);
       watchCount.textContent = String(watchlist.size());
     }
 
