@@ -814,11 +814,11 @@ slow", or — when the upstream flapped — as a wall of prose where the grid sh
 | Any visit | confirmed all 91 books in the background, whether or not anyone asked | **one** request — the investor list, which is the only thing a snapshot cannot answer. Re-reading the books is the Refresh button's job; see `js/core/refresh.js` |
 
 The last two rows are the ones to be careful with: speed there is bought by *not asking*, so it is
-only honest because `meta().origin` distinguishes `snapshot` / `store` / `live` and the pill says
-*Captured* / *Cached* / *Live* to match, `meta().checkedAt` reports the **oldest** confirmation on
-screen rather than the newest, and *Re-read everything now* in the Live pill's modal discards every
-confirmation. `verify-ui.mjs` asserts all of it — and the snapshot half needs no Worker to check,
-because it is a committed file.
+only honest because `meta().origin` distinguishes `snapshot` / `store` / `live`,
+`meta().checkedAt` reports the **oldest** confirmation on screen rather than the newest, and the
+global header's Refresh button discards every confirmation. Superstar Investors deliberately adds
+no duplicate cache, scope or loading tag. `verify-ui.mjs` asserts all of it — and the snapshot half
+needs no Worker to check, because it is a committed file.
 
 **How often a book is re-asked comes from the filing calendar, not from a number of hours.** A book
 is assembled from shareholding patterns companies file once a quarter: within 60 days of a quarter
