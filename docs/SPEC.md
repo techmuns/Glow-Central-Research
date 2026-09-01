@@ -388,6 +388,10 @@ increases and reductions, and the positions no longer disclosed without opening 
 at a time. The chosen in-page tab survives scope changes and live-data repaints until the reader
 leaves Super Investors.
 
+The view stays intentionally quiet around that content: it renders no per-view cache/status pill,
+scope-count tag, progressive-reading strip, or source/action badge in an investor workspace. Scope
+and refresh already live in the global header; the workspace header is the investor name and tabs.
+
 Increases and reductions are in **percentage points of the company** — the only size a filing
 states. A new or exited position carries **no size at all**, because a position appearing or
 vanishing is a change of disclosure rather than a move of the whole holding, and "exited" is
