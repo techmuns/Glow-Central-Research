@@ -2976,8 +2976,21 @@ than left painting into the content host.
 
 ## Daily Alerts — DERIVED, no file and no route of its own
 
-`js/data/daily-alerts.js` writes nothing and fetches nothing new. It calls the same loaders every
-other tab calls, filters each to one **Indian trading date**, and returns readings.
+`js/data/daily-alerts.js` writes nothing and fetches nothing new. It calls the loaders of **four**
+tabs, filters each to one **Indian trading date**, and returns readings.
+
+| Feed id | Tab | Contributes |
+| --- | --- | --- |
+| `technicals` | Breakouts / Technical | companies that moved more than `MOVE_PCT` at today's close |
+| `announcements` | Corp Announcements | everything filed to BSE today, across the exchange |
+| `insider` | Insider Trades | insider and promoter disclosures broadcast today |
+| `news` | News | stories published today about a company in scope |
+| `market-news` | News | market-wide stories today — no company, so Universe only |
+
+News appears twice because that tab is two feeds behind one name. **The Earnings Hub, Con-call,
+Public Chatter and Super Investors are deliberately not consolidated here**, and the tab says so on
+its face: an absent earnings row has to read as a decision rather than a fault. Adding one back is
+an entry in `FEEDS` plus a collector — nothing else in the module is special-cased by feed id.
 
 ```jsonc
 {
@@ -2985,23 +2998,23 @@ other tab calls, filters each to one **Indian trading date**, and returns readin
   "scope": "portfolio",
   "pending": 0,                       // feeds that have not answered YET — never "nothing today"
   "events": [{
-    "id": "results:JGE:2026-08-26",   // content-derived and unique; never a position
-    "feed": "results", "feedLabel": "Results", "tab": "earnings-hub",
+    "id": "tech:RELIANCE:2026-08-31", // content-derived and unique; never a position
+    "feed": "technicals", "feedLabel": "Price moves", "tab": "breakouts",
     "severity": "alert",              // "alert" (red) | "update" (orange)
     "time": null,                     // HH:MM IST, or null where the feed dates to the day only
-    "at": "2026-08-26",
-    "ticker": "JNPR", "company": "Juniper Green",
-    "headline": "Filed standalone results",
-    "detail": "Revenue: +67.0% · Net profit: -61.0%",
-    "reason": "Net profit fell 61.0%",  // ALWAYS present on an alert, never on an update
-    "url": "https://…"
+    "at": "2026-08-31",
+    "ticker": "RELIANCE", "company": "Reliance Industries",
+    "headline": "Fell 6.2% at the close",
+    "detail": "Close ₹1,412 · RSI 31 · below its 200-day average",
+    "reason": "Down 6.2% on the day, past the 5% threshold this page states",
+    "url": "https://…"                // ALWAYS a reason on an alert, never on an update
   }],
   "feeds": [{
-    "id": "results", "label": "Results", "tab": "earnings-hub",
-    "status": "ok",                   // ok | failed | pending | not-daily
-    "count": 2,
+    "id": "technicals", "label": "Price moves", "tab": "breakouts",
+    "status": "ok",                   // ok | failed | pending
+    "count": 7,
     "reachesToday": true,             // HAS THIS FEED LOOKED AT THIS DAY — null where it cannot know
-    "asOf": "2026-08-31T06:41:12.000Z",
+    "asOf": "2026-08-31T07:13:59.909Z",
     "note": null
   }]
 }
@@ -3012,27 +3025,29 @@ dashboard grading a company, which it does not do. Severity comes from:
 
 | Feed | Red when | Whose reading |
 | --- | --- | --- |
-| Results | `netProfit.kind` is `slipped-to-loss` or `loss-widened`, or `normal` with `direction < 0` | ours, from the filed figures — via `classifyChange`, so a **narrowing loss is an improvement**, not a fall |
-| Con-calls | the provider's `resultTierOf` is *Poor*/*Weak*, or `sentimentTierOf` is *Bearish*/*Cautious* | **theirs** — their cut-points, lifted from their own client, never re-banded |
 | Price moves | `pct_change_today <= -MOVE_PCT` (5%) | ours, one figure, stated on screen |
-| Chatter | the source's own `sentiment` label is `bearish` | **theirs**, reproduced |
-| Announcements, Insider, News | **never** | — |
+| Announcements, Insider, News, Market news | **never** | — |
 
-Insider trades and corporate announcements are never graded here. `CLAUDE.md` is explicit that the
-insider feed carries no model — *"no sentiment, no materiality flag"* — because its columns are the
-upstream's own and unknown at build time, and deciding that "Pledge" is red **is** a materiality
-flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. Both print
-the upstream's own wording instead.
+**One feed can make a red row, and that is a consequence of the scope rather than a gap.** Three of
+these four tabs carry no model at all. `CLAUDE.md` is explicit that the insider feed has *"no
+sentiment, no materiality flag"* — its columns are the upstream's own and unknown at build time, so
+deciding that "Pledge" is red **is** a materiality flag however obvious it looks. BSE's
+`CATEGORYNAME` is a filing taxonomy, not a verdict. A headline is editorial, and reading a sentiment
+off it would put a model this dashboard does not have over somebody else's words. All of them print
+the upstream's own wording instead, and a quiet day is a page of orange.
+
+`moveSeverity(pct)` is **exported** for that reason: it is the whole alert rule, and a rule that
+only runs inside a collector can only be tested on days the data happens to contain a big faller.
+It returns `'alert'` below `-MOVE_PCT`, `'update'` above `+MOVE_PCT`, and `null` in between or for a
+missing value — so a company with no move is not an event at all rather than a neutral one.
 
 **`reachesToday` is the half that makes an empty day readable**, and it is computed differently
 depending on what the feed is:
 
 | Feed | Test | Why |
 | --- | --- | --- |
-| Results | `dateRange().last >= day` | the feed knows the newest date it holds |
-| Con-calls | always `true` | a live index; a call that has been held is in it |
 | Announcements, Insider, News, Market news | `capturedDay >= day` | rows carry their own date, so a later capture still covers an earlier day |
-| Price moves, Chatter | `snapshotDay === day`, **equals, not `>=`** | one snapshot, one day: `pct_change_today` is *that* day's move and no other, so reporting it under a different date would stamp one day's measurement with another day's label |
+| Price moves | `snapshotDay === day`, **equals, not `>=`** | one snapshot, one day: `pct_change_today` is *that* day's move and no other, so reporting it under a different date would stamp one day's measurement with another day's label |
 
 A feed nobody has heard from yet is `pending`, which the panel draws as *reading…* and never as
 *nothing today* — a half-finished read must not be allowed to give a finished answer.

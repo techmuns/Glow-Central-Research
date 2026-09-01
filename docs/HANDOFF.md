@@ -22,9 +22,11 @@ Two workspaces, thirteen tabs:
 | Research Central | **Daily Alerts** · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads the feeds every
-other tab already reads, filters them to today's Indian trading date, and prints one stream —
-red for a direct negative reading, orange for anything else that arrived. See §4c.
+**Daily Alerts is the landing tab.** It has no data source of its own: it re-reads **four** of the
+tabs above — Breakouts / Technical, News, Corp Announcements, Insider Trades — filters them to
+today's Indian trading date, and prints one stream: red for a price fall past 5%, orange for
+anything else that arrived. The Earnings Hub, Con-call, Public Chatter and Super Investors are
+deliberately not folded in, and the page says so. See §4c.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. See §5a.
@@ -208,7 +210,7 @@ public/js/
   data/                    one module per feed: load once, compute once, cache, expose accessors
                            coverage.js — THE BOOK: what the Portfolio scope filters by (§5a)
                            scope.js — the three scopes in one place; every forScope() asks it
-                           daily-alerts.js — today's readings, taken across every feed (§4c)
+                           daily-alerts.js — today's readings, taken across four tabs (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
   concall/                 scans.js — the whole Con-call tab: the live scan table and the
@@ -249,21 +251,34 @@ data source** — every row comes from a feed that already has its own tab, filt
 **Indian trading date** (a UTC date names yesterday for the five and a half hours after 18:30 IST,
 which is exactly when someone opens an alerts page).
 
+**Four tabs, and it names the ones it leaves out.** Breakouts / Technical, News, Corp Announcements,
+Insider Trades — News twice, because that tab is two feeds behind one name. The Earnings Hub,
+Con-call, Public Chatter and Super Investors are deliberately not consolidated, and the description,
+both modals and the Sources entry say so: an absent earnings row has to read as a decision, not as a
+fault. Adding one back is an entry in `FEEDS` plus a collector.
+
 **The two colours are measurements, not opinions.**
 
 | | Means | Set by |
 | --- | --- | --- |
-| **RED — alert** | a direct negative reading on the row itself | net profit fell / the loss widened / the company slipped into loss (read through `classifyChange`'s `kind`, so a *narrowing* loss is an improvement and not a fall); the price fell more than **5%** at today's close; the research provider's own tier for a con-call is one of their two lowest; the chatter source's own label is bearish |
+| **RED — alert** | a direct negative reading on the row itself | across these four tabs there is exactly one: **the price fell more than 5% at today's close**, from the end-of-day scrape behind Breakouts |
 | **ORANGE — update** | something arrived today | everything else |
 
 Every red row prints the reading that made it red. A colour whose cause is not on screen beside it
 is a judgement, and this dashboard does not make those.
 
-**Two feeds are deliberately never red**, and it is the same rule from the other side. *Insider
+**The other three tabs are never red**, and it is the same rule from the other side. *Insider
 trades* carries no model at all — "no sentiment, no materiality flag" — because its columns are the
 upstream's own and unknown at build time, and deciding that "Pledge" is red *is* a materiality flag
-however obvious it looks. *Corporate announcements* are BSE's filing taxonomy, not a verdict.
-Both print the upstream's own wording instead.
+however obvious it looks. *Corporate announcements* are BSE's filing taxonomy, not a verdict. A
+*news* headline is editorial, and reading a sentiment off it would put a model this dashboard does
+not have over somebody else's words. All three print the upstream's own wording instead.
+
+So **a quiet day is a page of orange**, which is the honest rendering rather than a page with
+something missing — and the alert card's explainer says where the model-bearing feeds went. The
+threshold is the whole rule, so it is exported as `moveSeverity(pct)` and asserted directly by the
+suite: the shipped 31 Aug snapshot has seven moves past 5% and not one of them down, so a test that
+waited for a red row would never run.
 
 **The coverage panel is the half that makes an empty day readable.** Most of these feeds are
 captures committed on a best-effort schedule, so a bucket with nothing in it has two completely

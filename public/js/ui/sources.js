@@ -145,15 +145,15 @@ export function sourceGroups() {
       tabs: 'Daily Alerts',
       items: [
         {
-          name: 'No source of its own — every row is one of the feeds below',
+          name: 'No source of its own — it reads four of the tabs below',
           feeds:
-            'The landing tab consolidates the other feeds in this modal, filtered to today\'s Indian trading date, and adds no data of its own. ' +
-            '<strong>Red</strong> is a direct negative reading printed in the row that carries it — profit fell, the loss widened, the company slipped into loss, ' +
-            `the price fell more than ${DAILY_MOVE_PCT}% at the close, or the source's own tier or sentiment label is one of its lowest. <strong>Orange</strong> is anything else that arrived. ` +
-            '<strong>Insider trades and corporate announcements are never graded</strong>: their columns are the upstream\'s own and this dashboard carries no model over either, ' +
-            'so calling one of them material would be a flag we invented. ' +
+            'The landing tab consolidates <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, filtered to today\'s Indian trading date, and adds no data of its own. ' +
+            'The Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not folded in — they keep their own tabs, and the alerts page says so rather than leaving an absent row to read as a fault. ' +
+            `<strong>Red</strong> is a direct negative reading printed in the row that carries it, and across these four there is exactly one: the price fell more than ${DAILY_MOVE_PCT}% at the close. ` +
+            '<strong>Orange</strong> is anything else that arrived. <strong>Announcements, insider disclosures and news are never graded</strong>: their categories, columns and headlines are the upstream\'s own, ' +
+            'so grading one would be a flag we invented over somebody else\'s words. ' +
             'Its own panel says, per feed, when that feed last looked and whether that reaches today — because an empty stream and a feed that has not run are not the same answer.',
-          cadence: 'Recomputed on every visit and whenever a polled feed lands; nothing on it walks per company',
+          cadence: 'Rebuilt on every visit and on Refresh; none of the four polls, and nothing on it walks per company',
           status: 'live',
           file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
         },

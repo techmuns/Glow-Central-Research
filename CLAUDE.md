@@ -75,7 +75,7 @@ public/
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
-      daily-alerts.js         TODAY, across every feed. Derived: no file, no route of its own
+      daily-alerts.js         TODAY, across FOUR tabs. Derived: no file, no route of its own
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -99,8 +99,9 @@ public/
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      daily-alerts.js         THE LANDING TAB — one stream of today, red = a negative reading,
-                              orange = an update, plus the panel saying which feeds have looked
+      daily-alerts.js         THE LANDING TAB — one stream of today from four tabs, red = a
+                              price fall past MOVE_PCT, orange = an update, plus the panel
+                              saying which feeds have looked
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
@@ -1485,27 +1486,45 @@ happened, and does any of it need me*.
 adds no data source**: every row comes from a feed that already has its own tab, filtered to today's
 **Indian trading date**. Full shapes in `docs/DATA-CONTRACTS.md`.
 
+**It reads FOUR tabs, and the ones it does not read are named on its face.** Breakouts / Technical,
+News, Corp Announcements and Insider Trades. News contributes twice, because that tab is two feeds
+behind one name — the per-company search and the market-wide capture. The Earnings Hub, Con-call,
+Public Chatter and Super Investors are deliberately out of scope, and the description, the alert
+card's modal, the provenance modal and the Sources entry all say so — otherwise a reader who knows
+this dashboard has an earnings tab and sees no earnings row would reasonably conclude the page was
+broken. **An absent row has to read as a decision, not a fault.** Adding one back is an entry in
+`FEEDS` plus a collector; nothing else is special-cased by feed id.
+
 ### The two colours are measurements, not opinions
 
-**RED is a direct negative reading on the row itself, and the row prints the reading.** Profit fell
-/ the loss widened / the company slipped into loss (through `classifyChange`'s `kind`, so a
-*narrowing* loss is an improvement and not a fall — reading the raw percentage would have got
-Vodafone Idea's "+43%" exactly backwards); the price fell more than `MOVE_PCT` at the close; the
-research provider's own tier for a call is one of their two lowest; the chatter source's own label
-is bearish. **ORANGE is everything else that arrived today.**
+**RED is a direct negative reading on the row itself, and the row prints the reading.** Across the
+four tabs this page reads there is exactly one such reading: **the price fell more than `MOVE_PCT`
+at today's close**, from the end-of-day scrape behind Breakouts. **ORANGE is everything else that
+arrived today.**
 
 A colour whose cause is not on screen beside it is a judgement, and this dashboard does not make
 those — so `reason` is mandatory on an alert and absent on an update.
 
-**Two feeds are deliberately never red, and it is the same rule from the other side.** Insider
-trades carries no model — *"no sentiment, no materiality flag"*, because its columns are the
+**The other three tabs are deliberately never red, and it is the same rule from the other side.**
+Insider trades carries no model — *"no sentiment, no materiality flag"*, because its columns are the
 upstream's own and unknown at build time — and deciding that "Pledge" is red **is** a materiality
-flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. Both print
-the upstream's own wording and let the reader read it.
+flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. A headline
+is editorial, and reading a sentiment off it would put a model this dashboard does not have over
+somebody else's words. All three print the upstream's own wording and let the reader read it.
 
-**Both thresholds are printed** — on the tab, in the help modal, and in row 1 of the export. A page
-that quietly dropped everything below a number the reader cannot see would be deciding what counts
-as news in secret.
+**So a quiet day is a page of orange, and that is the honest rendering** rather than a page with
+something missing. The feeds that DO carry models are on their own tabs, and the alert card's help
+modal says where they went — filed figures on the Earnings Hub, the provider's call tiers on
+Con-call, source-labelled sentiment on Public Chatter.
+
+**The threshold is printed** — on the tab, in the help modal, in the provenance modal and in row 1
+of the export, all four reading the one constant. A page that quietly dropped everything below a
+number the reader cannot see would be deciding what counts as news in secret.
+
+**`moveSeverity(pct)` is exported because it IS the alert rule.** A rule that only runs inside a
+collector can only be tested on days the data happens to contain a big faller, which is most days
+not at all — the shipped 31 Aug snapshot has seven moves past the threshold and not one of them
+down. The suite asserts the predicate directly instead of hoping for a red row.
 
 ### `reachesToday` is the half that makes an empty day readable
 
@@ -1534,7 +1553,7 @@ discard its company list, and the Refresh button would then re-read an empty set
 nothing. `seed()` never writes `wanted`.
 
 **`Promise.all` over independent reads is head-of-line blocking with a tidy syntax.** The first
-version awaited all eight feeds together and the landing page sat blank for as long as the slowest —
+version awaited every feed together and the landing page sat blank for as long as the slowest —
 measured at 10–15 seconds on a static origin, because the chatter API is a direct call to somebody
 else's service and an unreachable host takes its own time to say so. Seven feeds that had already
 answered were held hostage by the one that had not, on the first tab a reader sees. Each feed now
@@ -2053,7 +2072,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
 | Change the Daily Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *Daily Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change what makes a Daily Alerts row RED | the per-feed collectors in `js/data/daily-alerts.js` — every alert must carry the `reason` that made it one, and Insider / Announcements stay ungraded |
-| Change the Daily Alerts thresholds | `MOVE_PCT` / `CHATTER_PCT` in `js/data/daily-alerts.js` — they are printed on the tab, in the help modal and in row 1 of the export, so all three follow the constant |
+| Change the Daily Alerts threshold | `MOVE_PCT` in `js/data/daily-alerts.js` — it is the whole alert rule (via the exported `moveSeverity`), and it is printed on the tab, in two modals and in row 1 of the export, all reading the constant |
+| Change which tabs Daily Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector, and then update the sentence naming what is deliberately excluded; nothing is special-cased by feed id |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
@@ -2116,12 +2136,17 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Daily Alerts, in Portfolio scope**, with four stat cards and the
   gradient hero fourth, no rail, and the Indian trading date stated rather than a UTC one
+- **it reads exactly the five feeds behind those four tabs** — asserted as an equality, not a floor,
+  because a `>=` would not notice the page widening back to feeds it was narrowed away from
+- **it reads exactly four tabs** — Breakouts, News, Corp Announcements, Insider Trades — and says
+  on its face which tabs it deliberately does not consolidate
 - **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*
-  from *nothing today* from *could not be read* from *reading…*, and names the quarterly feed as
-  not-daily rather than leaving it off the list
+  from *nothing today* from *could not be read* from *reading…*
 - **every Daily Alerts alert prints the reading that made it one** and no update carries one;
-  insider disclosures and corporate announcements are never graded red; every event id is unique
-  (compared, not counted); and mounting the tab sends **zero** per-company filings requests
+  announcements, insider disclosures and news are never graded red; `moveSeverity` is asserted
+  directly at and either side of the threshold, because the shipped data has no down-move to
+  produce a red row; every event id is unique (compared, not counted); and mounting the tab sends
+  **zero** per-company filings requests
 - market-wide news is excluded from a narrowed scope **with the reason stated**, not filtered to
   nothing
 - **an empty watchlist gets its own panel on every tab**, saying there are zero watchlist companies

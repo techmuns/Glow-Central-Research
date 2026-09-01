@@ -37,8 +37,6 @@ import { formatNumber, formatRelativeTime, formatDate } from '../core/format.js'
 import { exportRows } from '../ui/export.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/daily-alerts.js';
-import * as earnings from '../data/earnings-live.js';
-import * as concalls from '../data/concall-scans.js';
 import * as coverage from '../data/coverage.js';
 import { scopeLabel } from '../data/scope.js';
 
@@ -71,10 +69,10 @@ export function render(ctx) {
   ctxRef = ctx;
 
   if (!unsubs.length) {
-    // The results and con-call pollers are kept running app-wide by js/core/watch.js, so their
-    // arrivals reach this tab whether or not it started them. Re-read `ctxRef` in the handler.
-    unsubs.push(earnings.onChange(() => ctxRef && recollect(ctxRef)));
-    unsubs.push(concalls.onChange(() => ctxRef && recollect(ctxRef)));
+    // NOTHING SUBSCRIBED, BECAUSE NOTHING THIS PAGE READS POLLS. All four tabs behind it are
+    // scheduled captures, not live routes — so the page is built on mount and rebuilt when the
+    // reader presses Refresh, and it must not be dressed up as a feed that arrives on its own.
+    // (It used to watch the results and con-call pollers; both of those tabs are out of scope now.)
     unsubs.push(
       refresh.register(REFRESH_ID, {
         label: 'Daily Alerts',
@@ -198,7 +196,7 @@ function paint(ctx) {
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Daily Alerts',
-      description: `Everything this dashboard saw today, in one stream — results, calls, exchange filings, insider disclosures, price moves, chatter and news. Red is an alert: a negative reading, named in the row. Orange is a general update. Nothing here is scored or ranked; every row is a reading taken from a feed that has its own tab.`,
+      description: `Today across four tabs — Breakouts / Technical, News, Corp Announcements and Insider Trades — in one stream. Red is an alert: a price fall past ${alerts.MOVE_PCT}%, named in the row, which is the only negative reading these four feeds carry. Orange is everything else that arrived. Nothing here is scored or ranked, and the Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not consolidated here — they keep their own tabs.`,
       meta: scopeSummary({ scope: ctx.scope, count: m.companies || 0, noun: 'companies with events', book: coverage.meta() }),
       controls: `${dayPill(day)}${provenanceButton()}${pendingPill(report)}`,
     })}
@@ -248,7 +246,7 @@ function cards(ctx, m, feeds, day) {
   const behind = feeds.filter((f) => f.reachesToday === false);
   const failed = feeds.filter((f) => f.status === 'failed');
   const reading = feeds.filter((f) => f.reachesToday === true).length;
-  const daily = feeds.filter((f) => f.daily !== false).length;
+  const daily = feeds.length;
   const pending = feeds.filter((f) => f.status === 'pending').length;
   // Before the first feed has answered there is no measurement, and "0 of 0" reads like one. An em
   // dash is the honest placeholder for a count nobody has taken yet. Once SOME feeds have answered
@@ -262,14 +260,12 @@ function cards(ctx, m, feeds, day) {
       note: noneYet ? 'reading the feeds…' : m.alerts ? 'negative readings today' : 'no negative readings reached this page',
       help: {
         title: 'What makes a row an alert',
-        body: `<p>An alert is a <strong>direct negative reading on the row itself</strong>, never a judgement about the company:</p>
+        body: `<p>An alert is a <strong>direct negative reading on the row itself</strong>, never a judgement about the company. This page reads four tabs, and between them they carry exactly one such reading:</p>
           <ul class="mt-2 list-disc space-y-1 pl-5">
-            <li>net profit fell, the loss widened, or the company slipped from profit into loss — read from the filed figures, using the sign-change rules so a narrowing loss is never mistaken for a fall;</li>
-            <li>the price fell more than ${alerts.MOVE_PCT}% at today's close;</li>
-            <li>the research provider's own tier for a con-call is one of their two lowest — their bands, not ours;</li>
-            <li>the chatter source labels the sentiment bearish — their label, reproduced.</li>
+            <li><strong>the price fell more than ${alerts.MOVE_PCT}% at today's close</strong> — from the end-of-day scrape behind Breakouts / Technical.</li>
           </ul>
-          <p class="mt-3">Every alert row prints the reading that made it one. <strong>Insider trades and corporate announcements are never red</strong>: their columns are the upstream's own and this dashboard carries no model over them, so calling one of them material would be a flag we invented. Their own wording is printed instead.</p>`,
+          <p class="mt-3">Every alert row prints that reading. <strong>The other three are never red, and that is deliberate.</strong> Insider trades and corporate announcements carry the upstream's own columns and categories — BSE's filing taxonomy is not a verdict, and grading a "Pledge" would be a materiality flag this dashboard invented. A news headline is editorial, and reading a sentiment off it would be inventing a model we do not have over somebody else's words.</p>
+          <p class="mt-3">So a day with no big faller is a page of orange, and that is the honest rendering — not a page with something missing. The feeds that <em>do</em> carry models live on their own tabs: filed figures on the <strong>Earnings Hub</strong>, the research provider's call tiers on <strong>Con-call</strong>, source-labelled sentiment on <strong>Public Chatter</strong>.</p>`,
       },
     },
     {
@@ -278,8 +274,8 @@ function cards(ctx, m, feeds, day) {
       note: noneYet ? 'reading the feeds…' : 'other events today',
       help: {
         title: 'What counts as an update',
-        body: `<p>Everything else that arrived today: a filing, an announcement, an insider disclosure, a call held, a price rise past ${alerts.MOVE_PCT}%, a story published.</p>
-          <p class="mt-3">The threshold on price moves and on chatter volume (${alerts.CHATTER_PCT}%) is stated because it is a filter applied on your behalf — a page that quietly dropped everything below a number you could not see would be deciding what counts as news without telling you.</p>`,
+        body: `<p>Everything else that arrived today on these four tabs: an exchange filing, an insider disclosure, a story published, or a price rise past ${alerts.MOVE_PCT}%.</p>
+          <p class="mt-3">That threshold is stated because it is a filter applied on your behalf — a page that quietly dropped everything below a number you could not see would be deciding what counts as news without telling you. It is the same number in the row, in this modal, and in row 1 of the exported sheet, because all three read one constant.</p>`,
       },
     },
     {
@@ -292,7 +288,7 @@ function cards(ctx, m, feeds, day) {
           : behind.length ? `${behind.length} behind${failed.length ? `, ${failed.length} failed` : ''}` : failed.length ? `${failed.length} could not be read` : 'every daily feed is current',
       help: {
         title: 'Why this number matters more than the two beside it',
-        body: `<p>Most of these feeds are captures committed on a schedule, and a schedule is best-effort — GitHub sheds most of a dense cron, and some upstreams refuse a runner outside Indian hours.</p>
+        body: `<p>All four of these tabs are captures committed on a schedule, and a schedule is best-effort — GitHub sheds most of a dense cron, and some upstreams refuse a runner outside Indian hours.</p>
           <p class="mt-3">So an empty bucket has two meanings that look identical: <em>nobody filed</em>, and <em>nothing has looked at today yet</em>. This counts how many feeds have actually looked. The panel below names them one by one, with the time each last read its source.</p>
           <p class="mt-3">A feed that is behind is not broken and its rows are not wrong — they are simply about an earlier day, so they are not shown here.</p>`,
       },
@@ -375,7 +371,6 @@ function feedState(f) {
   // PENDING IS ITS OWN STATE. A feed nobody has heard from yet must never be drawn as "nothing
   // today" — that is a finished answer, and this is the absence of one.
   if (f.status === 'pending') return { label: 'reading…', dot: 'bg-slate-300 animate-pulse', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-400' };
-  if (f.status === 'not-daily') return { label: 'not a daily feed', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-slate-50/50', text: 'text-slate-500' };
   if (f.status === 'failed') return { label: 'could not be read', dot: 'bg-rose-500', ring: 'ring-rose-100', bg: 'bg-rose-50/40', text: 'text-rose-700' };
   if (f.scopable === false) return { label: 'not in this scope', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-slate-50/50', text: 'text-slate-500' };
   if (f.reachesToday === false) return { label: 'has not looked at today', dot: 'bg-amber-500', ring: 'ring-amber-100', bg: 'bg-amber-50/40', text: 'text-amber-700' };
@@ -508,8 +503,8 @@ function legend() {
   return `
     <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
       <div class="grid gap-3 sm:grid-cols-2">
-        ${swatch('bg-rose-500', 'Red — alert', 'A direct negative reading on the row: profit fell, the loss widened, the company slipped into loss, the price fell past the stated threshold, or the source’s own tier or sentiment label is one of its lowest. The reading is printed in the row.')}
-        ${swatch('bg-amber-500', 'Orange — update', 'Something arrived today. Corporate announcements and insider disclosures are always this colour: their columns are the upstream’s own and nothing here reads them as good or bad.')}
+        ${swatch('bg-rose-500', 'Red — alert', `A direct negative reading on the row, printed in the row. Across these four tabs there is one: the price fell more than ${alerts.MOVE_PCT}% at today’s close.`)}
+        ${swatch('bg-amber-500', 'Orange — update', 'Everything else that arrived. Announcements, insider disclosures and news are always this colour: their columns and headlines are the upstream’s own, and nothing here reads them as good or bad.')}
       </div>
     </div>`;
 }
@@ -549,17 +544,21 @@ function provenanceHtml(feeds, day, scope) {
       </div>
 
       <div class="text-sm leading-relaxed text-slate-600">
-        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab on this dashboard, filtered to today's Indian trading date. Nothing here is scored, ranked, summarised or re-banded.</p>
+        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab, filtered to today's Indian trading date. Nothing here is scored, ranked, summarised or re-banded.</p>
+
+        <h3 class="mt-4 font-bold text-slate-800">Which tabs it reads</h3>
+        <p>Four: <strong class="text-slate-800">Breakouts / Technical, News, Corp Announcements and Insider Trades.</strong> News appears twice below because that tab is two feeds behind one name — the per-company search and the market-wide capture.</p>
+        <p class="mt-2">The <strong>Earnings Hub</strong>, <strong>Con-call</strong>, <strong>Public Chatter</strong> and <strong>Super Investors</strong> are not consolidated here. That is a chosen scope rather than a gap, and it is stated so that an absent earnings row reads as a decision rather than a fault.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">What the colours mean</h3>
-        <p><span class="font-semibold text-rose-700">Red</span> is a direct negative reading, and the reading is printed in the row that carries it. Profit readings use the sign-change rules, so a loss that narrowed counts as an improvement rather than a fall — a plain percentage across a sign change is not a growth rate.</p>
-        <p class="mt-2"><span class="font-semibold text-amber-700">Orange</span> is everything else that arrived today. <strong class="text-slate-800">Insider trades and corporate announcements are never red.</strong> Their columns are the upstream's own and this dashboard carries no model over either, so grading one of them would be a materiality flag we invented. Their own wording is reproduced instead.</p>
+        <p><span class="font-semibold text-rose-700">Red</span> is a direct negative reading, and the reading is printed in the row that carries it. On these four tabs there is exactly one such reading: a price fall of more than ${alerts.MOVE_PCT}% at today's close, from the end-of-day scrape behind Breakouts / Technical.</p>
+        <p class="mt-2"><span class="font-semibold text-amber-700">Orange</span> is everything else that arrived today. <strong class="text-slate-800">Three of the four tabs are never red.</strong> Insider trades and corporate announcements carry the upstream's own columns and categories, so grading one would be a materiality flag we invented; a news headline is editorial, and reading a sentiment off it would put a model we do not have over somebody else's words. A day with no big faller is therefore a page of orange, which is the honest rendering rather than a page with something missing.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">Thresholds, stated</h3>
-        <p>A price move reaches this page at <strong>±${alerts.MOVE_PCT}%</strong> on the day, and a change in chatter volume at <strong>±${alerts.CHATTER_PCT}%</strong> against the previous scrape. Both are filters applied on your behalf, so both are printed rather than left implicit.</p>
+        <p>A price move reaches this page at <strong>±${alerts.MOVE_PCT}%</strong> on the day. It is a filter applied on your behalf, so it is printed rather than left implicit — here, in the row, in the alert card's explainer, and in row 1 of any exported sheet, all four reading one constant.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">Whose judgement is on screen</h3>
-        <p>Con-call scores, tiers and the bands that colour them belong to a third-party research provider, reproduced unchanged — this dashboard adds no scoring of its own to them. Chatter sentiment labels are the chatter source's. Announcement categories are BSE's.</p>
+        <p>Announcement categories are BSE's own filing taxonomy. Insider-trade columns are the upstream's, under its own headings. Headlines and standfirsts belong to their publishers, and the article stays where it was published. This dashboard adds no judgement to any of them.</p>
 
         <h3 class="mt-4 font-bold text-slate-800">What was read for this day</h3>
         <table class="mt-2 w-full text-left">
@@ -592,9 +591,9 @@ function exportStream(visible, day, scope) {
     line:
       `SATTVA CENTRAL RESEARCH — DAILY ALERTS for ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
       `"Alert" is a direct negative reading printed in the Reading column, never a judgement about the company; "Update" is everything else that arrived. ` +
-      `Insider trades and corporate announcements are NEVER graded here — their columns are the upstream's own. ` +
-      `Price moves reach this sheet at ±${alerts.MOVE_PCT}% on the day; chatter at ±${alerts.CHATTER_PCT}% against the previous scrape. ` +
-      `Con-call scores and tiers are a third-party research provider's, reproduced unchanged. ` +
+      `Rows come from four tabs only: Breakouts / Technical, News, Corp Announcements and Insider Trades. ` +
+      `Announcements, insider disclosures and news are NEVER graded here — their columns, categories and headlines are the upstream's own. ` +
+      `The one negative reading on this sheet is a price fall past ${alerts.MOVE_PCT}% at the close, which is also the only thing that can mark a row "Alert". ` +
       (behind.length
         ? `NOT EVERY FEED HAS LOOKED AT THIS DAY: ${behind.join(', ')} last read earlier, so an absence here is not evidence that nothing happened.`
         : `Every daily feed on this dashboard had read this day when the sheet was written.`),

@@ -6,10 +6,11 @@ superstar investors, news, announcements, insider trades) and **Portfolio Analyt
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**Daily Alerts** is the landing tab: one stream of everything that happened today, consolidated
-from every other feed, red for a direct negative reading and orange for anything else that arrived.
-It adds no data source of its own, and it says per feed whether that feed has actually looked at
-today — because an empty stream and a scrape that has not run are not the same answer.
+**Daily Alerts** is the landing tab: one stream of today, consolidated from four of the tabs —
+Breakouts / Technical, News, Corp Announcements and Insider Trades — red for a price fall past 5%
+and orange for anything else that arrived. It adds no data source of its own, names the tabs it
+deliberately does not fold in, and says per feed whether that feed has actually looked at today,
+because an empty stream and a scrape that has not run are not the same answer.
 
 Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
@@ -96,7 +97,7 @@ public/
     data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
                       scope.js — the three scopes; every forScope() is built on it
-                      daily-alerts.js — today's readings, taken across every feed
+                      daily-alerts.js — today's readings, taken across four tabs
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
     tabs/             daily-alerts, earnings-hub, concall, public-chatter, breakouts,

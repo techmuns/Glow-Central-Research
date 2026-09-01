@@ -1,4 +1,4 @@
-// data/daily-alerts.js — TODAY, ACROSS EVERY FEED THIS DASHBOARD ALREADY READS.
+// data/daily-alerts.js — TODAY, ACROSS FOUR OF THIS DASHBOARD'S TABS.
 //
 //   const day = today();                     // the IST trading date
 //   const report = await collect({ scope }); // { day, events, feeds, meta }
@@ -7,22 +7,34 @@
 //
 // This module adds no source of its own. Every event on it is a reading taken from a feed that
 // already had a tab, which is the whole point: the tabs answer "what does this feed hold", and this
-// answers "what happened today" by asking all of them the same question at once.
+// answers "what happened today" by asking several of them the same question at once.
 //
 // ---------------------------------------------------------------------------------------
-// THE TWO COLOURS ARE MEASUREMENTS, NOT OPINIONS
+// WHICH TABS, AND — JUST AS IMPORTANTLY — WHICH NOT
 //
-//   RED (alert)    a direct negative reading on the row itself — profit fell, the loss widened, the
-//                  company slipped into loss, the price fell more than MOVE_PCT today, the research
-//                  provider's own tier for the call is one of their two lowest, their own sentiment
-//                  label is bearish.
+// Four: **Breakouts / Technical, News, Corp Announcements and Insider Trades.** News contributes
+// twice, because that tab is two feeds behind one name: the per-company search and the market-wide
+// capture.
+//
+// The Earnings Hub, Con-call, Public Chatter and Super Investors are NOT consolidated here. That is
+// a deliberate scope, not a gap, and the tab says so on its face — otherwise a reader who knows
+// this dashboard has an earnings tab and sees no earnings row would reasonably conclude the page
+// was broken. Adding one back is an entry in FEEDS plus a collector; nothing else here is special-
+// cased by feed id.
+//
+// ---------------------------------------------------------------------------------------
+// THE TWO COLOURS ARE MEASUREMENTS, NOT OPINIONS — AND ONLY ONE FEED CAN MAKE A RED ONE
+//
+//   RED (alert)    a direct negative reading on the row itself. On these four tabs there is exactly
+//                  one: the price fell more than MOVE_PCT at today's close.
 //   ORANGE (update) everything else that arrived today.
 //
 // Every red row carries the reading that made it red, in `reason`, in the row. A colour whose cause
 // is not on screen beside it is a judgement, and this dashboard does not make those (CLAUDE.md,
 // *Honesty rules for the kit*, rule 2: signals must be direct readings).
 //
-// TWO FEEDS ARE DELIBERATELY NEVER RED, AND THE REASON IS THE SAME RULE FROM THE OTHER SIDE:
+// THAT ONE-SOURCE RULE IS A CONSEQUENCE OF THE SCOPE, NOT A LIMITATION TO PAPER OVER. Three of the
+// four tabs carry no model at all, and each for a reason already settled elsewhere in this codebase:
 //
 //   Insider trades. CLAUDE.md is explicit that this feed carries no model — "no sentiment, no
 //   materiality flag" — because its columns are the upstream's own and unknown at build time.
@@ -34,10 +46,18 @@
 //   is their filing taxonomy, not a verdict, and colouring some categories red would be this
 //   dashboard editorialising over somebody else's index.
 //
+//   News. A headline is editorial. Reading a sentiment off it would be inventing a model this
+//   dashboard does not have, over somebody else's words.
+//
+// So a quiet day here reads as a page of orange, and that is the honest rendering: nothing on these
+// four tabs measured anything negative. The feeds that DID carry models — the results feed's filed
+// figures, the con-call provider's own tiers, the chatter source's own labels — are on their own
+// tabs, and the alert card's help modal says where they went.
+//
 // ---------------------------------------------------------------------------------------
 // "NOTHING TODAY" AND "WE HAVE NOT LOOKED AT TODAY" ARE DIFFERENT ANSWERS
 //
-// Most of these feeds are committed captures refreshed on a schedule, and a schedule is best-effort
+// All of these feeds are committed captures refreshed on a schedule, and a schedule is best-effort
 // (see *And the schedule is best-effort twice over* in CLAUDE.md). So a feed whose newest capture
 // predates today CANNOT say nobody filed — it can only say when it last looked. `feeds[]` carries
 // `reachesToday` for exactly that, and the tab prints it per feed rather than rendering an empty
@@ -46,14 +66,14 @@
 // AND NOTHING IN HERE WALKS. Every load below is one conditional GET against a committed file or a
 // cached route. The three filings feeds are seeded through `feed.seed()`, which is the snapshot and
 // this device and no per-company request at all — see js/data/filings.js.
+//
+// NOTHING HERE POLLS EITHER. All four tabs are scheduled captures rather than live routes, so the
+// page is built on mount and rebuilt when the reader presses Refresh — it must never be dressed as
+// a live feed, because none of what it reads is one.
 
-import * as earnings from './earnings-live.js';
-import * as concalls from './concall-scans.js';
 import * as technicals from './technicals.js';
-import * as chatter from './chatter-live.js';
 import * as marketNews from './market-news.js';
 import { announcements, insider, news } from './filings.js';
-import { resultTierOf, sentimentTierOf } from './stockscans-shared.js';
 import { scopeTickers } from './scope.js';
 import * as coverage from './coverage.js';
 
@@ -91,11 +111,24 @@ function istDay(value) {
 
 // A day move big enough to be worth a row. Stated here, printed on the tab, and written into row 1
 // of the export — a threshold the reader cannot see is a filter applied on their behalf in secret.
+//
+// IT IS ALSO THE ONLY THING ON THIS PAGE THAT CAN TURN A ROW RED. See the header: of the four tabs
+// this page reads, three carry no model at all, so a price fall past this line is the whole of the
+// alert rule. Changing this number changes what "alert" means here, and the tab says so in three
+// places — all of which read this constant rather than repeating it.
 export const MOVE_PCT = 5;
 
-// A jump in how often a company is being talked about, against the previous scrape. Same rule: the
-// number is on screen. `changePct` on that feed is MENTION VOLUME, never a price move.
-export const CHATTER_PCT = 50;
+/**
+ * The severity of a day move, or null if it does not reach the threshold at all.
+ *
+ * Exported because it IS the alert rule, and a rule that only runs inside a collector can only be
+ * tested on days the data happens to contain a big faller — which is most days not at all. The
+ * suite asserts it directly.
+ */
+export function moveSeverity(pct) {
+  if (pct == null || Number.isNaN(pct) || Math.abs(pct) < MOVE_PCT) return null;
+  return pct < 0 ? SEVERITY.ALERT : SEVERITY.UPDATE;
+}
 
 export const SEVERITY = { ALERT: 'alert', UPDATE: 'update' };
 
@@ -104,24 +137,11 @@ export const SEVERITY = { ALERT: 'alert', UPDATE: 'update' };
 // ---------------------------------------------------------------------------------------
 
 export const FEEDS = [
-  { id: 'results', label: 'Results', tab: 'earnings-hub', what: 'Companies that filed quarterly results today.' },
-  { id: 'concall', label: 'Con-calls', tab: 'concall', what: 'Earnings calls held today, with the research provider’s own score.' },
+  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies that moved more than ${MOVE_PCT}% at today’s close.` },
   { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE today, across the exchange.' },
   { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Insider and promoter disclosures broadcast today.' },
-  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies that moved more than ${MOVE_PCT}% at today’s close.` },
-  { id: 'chatter', label: 'Public chatter', tab: 'public-chatter', what: `Companies whose mention volume moved more than ${CHATTER_PCT}% since the last scrape.` },
   { id: 'news', label: 'Company news', tab: 'news', what: 'Stories published today about a company in scope.' },
   { id: 'market-news', label: 'Market news', tab: 'news', what: 'Market-wide stories published today. Carries no company, so it is Universe only.' },
-  {
-    id: 'investors',
-    label: 'Superstar investors',
-    tab: 'super-investors',
-    what: 'Filed shareholdings, disclosed quarterly.',
-    // NOT A DAILY FEED, and saying so is better than leaving it off the list. A reader who knows
-    // this dashboard has an investors tab and does not see it here would reasonably conclude that
-    // nothing moved, when the truth is that nothing about it can move on a single day.
-    daily: false,
-  },
 ];
 
 const feedById = new Map(FEEDS.map((f) => [f.id, f]));
@@ -157,7 +177,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // lands. Nothing rejects: a feed that throws becomes a row saying so, because a failed read is
   // never an empty result.
   await Promise.all(
-    FEEDS.filter((f) => f.daily !== false).map(async (feed) => {
+    FEEDS.map(async (feed) => {
       let out;
       try {
         await LOADERS[feed.id]();
@@ -178,23 +198,17 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
 }
 
 const LOADERS = {
-  results: () => earnings.load(),
-  concall: () => concalls.load(),
+  technicals: () => technicals.load(),
   announcements: () => announcements.seed(),
   insider: () => insider.seed(),
-  technicals: () => technicals.load(),
-  chatter: () => chatter.load(),
   news: () => news.seed(),
   'market-news': () => marketNews.load(),
 };
 
 const COLLECTORS = {
-  results: fromResults,
-  concall: fromConcalls,
+  technicals: fromTechnicals,
   announcements: fromAnnouncements,
   insider: fromInsider,
-  technicals: fromTechnicals,
-  chatter: fromChatter,
   news: fromCompanyNews,
   'market-news': fromMarketNews,
 };
@@ -221,12 +235,9 @@ function toFeedRow(feed, out) {
  * are of what has actually been read rather than of what is eventually expected.
  */
 function assemble({ day, scope, settledFeeds }) {
-  const feeds = FEEDS.map((feed) => {
-    if (feed.daily === false) {
-      return { ...feed, status: 'not-daily', count: 0, events: [], reachesToday: null, asOf: null, note: 'Disclosed quarterly — nothing about it changes on a single day.' };
-    }
-    return settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null };
-  });
+  const feeds = FEEDS.map(
+    (feed) => settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null }
+  );
 
   const events = [];
   for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
@@ -251,9 +262,8 @@ function assemble({ day, scope, settledFeeds }) {
       feedsReachingToday: feeds.filter((f) => f.reachesToday === true).length,
       feedsBehind: feeds.filter((f) => f.reachesToday === false).length,
       feedsPending: feeds.filter((f) => f.status === 'pending').length,
-      feedsDaily: feeds.filter((f) => f.daily !== false).length,
+      feedsTotal: feeds.length,
       moveThreshold: MOVE_PCT,
-      chatterThreshold: CHATTER_PCT,
     },
   };
 }
@@ -306,146 +316,6 @@ const inScope = (wanted, ticker) => !wanted || (!!ticker && wanted.has(String(ti
 // Each returns { events, status, reachesToday, asOf, note }. `reachesToday` is the honest half:
 // a collector that finds nothing must say whether it LOOKED at today.
 // ---------------------------------------------------------------------------------------
-
-/** Quarterly results filed today. Red when the profit reading is negative — never a bare number. */
-function fromResults({ day, wanted }) {
-  const range = earnings.dateRange();
-  const m = earnings.meta() || {};
-  // The results feed knows the newest date it holds, so it can answer "did we look at today"
-  // without guessing from a capture time.
-  const reachesToday = !!range.last && range.last >= day;
-
-  const rows = earnings.all().filter((r) => r.resultDate === day && inScope(wanted, r.ticker));
-  const events = rows.map((r) => {
-    const profit = r.netProfit || null;
-    const revenue = r.revenue || null;
-    const bad = profitIsNegative(profit);
-    return {
-      id: `results:${r.scId}:${r.resultDate}`,
-      severity: bad ? SEVERITY.ALERT : SEVERITY.UPDATE,
-      // The results feed dates a filing to the day, not to the minute — so no clock time is
-      // invented for it. A blank time column is the honest rendering of "the day, not the hour".
-      time: null,
-      at: r.resultDate,
-      ticker: r.ticker || null,
-      company: r.company || r.name || r.ticker || '—',
-      headline: `Filed ${r.basis ? r.basis.toLowerCase() : ''} results`.replace(/\s+/g, ' ').trim(),
-      detail: [metricPhrase('Revenue', revenue), metricPhrase('Net profit', profit)].filter(Boolean).join(' · ') || 'Figures not carried on this row',
-      reason: bad ? profitReason(profit) : null,
-      url: r.mcUrl || null,
-    };
-  });
-
-  return {
-    events,
-    reachesToday,
-    // Normalised to an ISO string: `fetchedAt` is one and `checkedAt` is an epoch number, and
-    // `meta.newestRead` sorts these, so a mixed pair would compare a number against a string.
-    asOf: m.fetchedAt || (m.checkedAt ? new Date(m.checkedAt).toISOString() : null),
-    note: reachesToday ? null : `The newest result this feed holds is ${range.last || 'unknown'} — it has not seen ${day}.`,
-  };
-}
-
-/**
- * Is the profit reading a negative one?
- *
- * Reads `kind` from `classifyChange()` (worker/mc.mjs) rather than the percentage, because 13% of a
- * full quarter's rows report a move across a sign change where a plain percentage is not a growth
- * rate at all: Vodafone Idea's "+43%" is a loss narrowing. A loss that narrowed is NOT an alert —
- * it improved — and reading the raw percentage would have got that exactly backwards.
- */
-function profitIsNegative(metric) {
-  if (!metric) return false;
-  if (metric.kind === 'slipped-to-loss' || metric.kind === 'loss-widened') return true;
-  if (metric.kind === 'normal') return metric.direction < 0;
-  return false;
-}
-
-function profitReason(metric) {
-  if (!metric) return null;
-  if (metric.kind === 'slipped-to-loss') return 'Profit last year, loss this quarter';
-  if (metric.kind === 'loss-widened') return 'Loss-making in both periods, and the loss widened';
-  const pct = metric.pct;
-  return pct == null ? 'Net profit fell' : `Net profit fell ${Math.abs(pct).toFixed(1)}%`;
-}
-
-/**
- * One metric as a sentence, honouring the sign-change rules: where no honest percentage exists the
- * KIND is named instead, exactly as the Earnings Hub renders it.
- */
-function metricPhrase(label, metric) {
-  if (!metric) return null;
-  switch (metric.kind) {
-    case 'turnaround':
-      return `${label}: turned profitable`;
-    case 'slipped-to-loss':
-      return `${label}: slipped to a loss`;
-    case 'loss-narrowed':
-      return `${label}: loss narrowed`;
-    case 'loss-widened':
-      return `${label}: loss widened`;
-    case 'loss-flat':
-      return `${label}: loss unchanged`;
-    case 'from-zero':
-      return `${label}: no prior-period base`;
-    case 'na':
-      return null;
-    default:
-      return metric.pct == null ? null : `${label}: ${metric.pct > 0 ? '+' : ''}${metric.pct.toFixed(1)}%`;
-  }
-}
-
-/**
- * Calls held today.
- *
- * THE SCORE AND THE TIER ARE THE RESEARCH PROVIDER'S, NOT OURS, and so is the band that turns one
- * red: `resultTierOf` and `sentimentTierOf` use their cut-points, lifted from their own client.
- * Re-banding their score under our colour would present our judgement as theirs. The tab says this
- * in words on every surface it reaches, per the StockScans rule in CLAUDE.md.
- *
- * A `pending` call is an UPDATE, never an alert and never a zero: the call joined the feed when it
- * was held and gains its analysis minutes later. A red row for "not analysed yet" would claim they
- * assessed it and thought little of it.
- */
-function fromConcalls({ day, wanted }) {
-  const m = concalls.meta() || {};
-  const rows = concalls.all().filter((r) => r.date === day && inScope(wanted, r.ticker));
-
-  const events = rows.map((r) => {
-    const result = resultTierOf(r.resultScore);
-    const sentiment = sentimentTierOf(r.sentimentTier);
-    // Their two lowest result bands, and their two lowest sentiment tiers. Their vocabulary, their
-    // boundaries — this only decides which of THEIR labels is worth interrupting the reader for.
-    const bad = (result && (result.label === 'Poor' || result.label === 'Weak')) || (sentiment && (sentiment.label === 'Bearish' || sentiment.label === 'Cautious'));
-    return {
-      id: `concall:${concalls.rowUid(r)}`,
-      severity: bad ? SEVERITY.ALERT : SEVERITY.UPDATE,
-      time: istTime(r.when),
-      at: r.when || r.date,
-      ticker: r.ticker || null,
-      company: r.name || r.ticker || '—',
-      headline: 'Earnings call held',
-      detail: r.resultScore == null ? 'Analysis pending' : `${result ? result.label : '—'} · score ${r.resultScore.toFixed(1)}/100${sentiment ? ` · ${sentiment.label}` : ''} — a third-party research provider’s assessment, not this dashboard’s`,
-      reason: bad ? `The research provider’s own tier for this call is ${[result?.label, sentiment?.label].filter(Boolean).join(' / ')}` : null,
-      url: r.ssUrl ? concallUrl(r) : null,
-    };
-  });
-
-  return {
-    events,
-    // This feed is a live route with an index that covers today by construction: a call that has
-    // been held is in it. Nothing to be behind on.
-    reachesToday: true,
-    asOf: m?.checkedAt ? new Date(m.checkedAt).toISOString() : null,
-  };
-}
-
-// The DOCUMENT route, never the company route — the company route needs a period segment the scan
-// payload does not carry, and every link built that way 404'd. See CLAUDE.md.
-function concallUrl(r) {
-  const doc = r.ssUrl || r.pptSsUrl;
-  return doc ? `https://www.stockscans.in/document/${encodeURIComponent(doc)}` : null;
-}
 
 /**
  * Everything filed to BSE today.
@@ -548,12 +418,16 @@ function fromTechnicals({ day, wanted }) {
     for (const s of technicals.all()) {
       const c = s.company || {};
       const move = c.pct_change_today;
-      if (move == null || Math.abs(move) < MOVE_PCT) continue;
+      // THE ONE ALERT RULE ON THIS PAGE, asked of the exported predicate rather than re-implemented
+      // here — the suite tests that predicate directly, and a second copy of the comparison is a
+      // second thing that can drift from the number the tab prints.
+      const severity = moveSeverity(move);
+      if (!severity) continue;
       if (!inScope(wanted, c.ticker)) continue;
       const down = move < 0;
       events.push({
         id: `tech:${c.ticker}:${generatedDay}`,
-        severity: down ? SEVERITY.ALERT : SEVERITY.UPDATE,
+        severity,
         time: null,
         at: generatedDay,
         ticker: c.ticker || null,
@@ -571,54 +445,6 @@ function fromTechnicals({ day, wanted }) {
     reachesToday,
     asOf: generated,
     note: reachesToday ? null : `The end-of-day scrape in this feed closed on ${generatedDay || 'an unknown date'}, so it holds no move for ${day}.`,
-  };
-}
-
-/**
- * Companies whose mention volume jumped since the previous scrape.
- *
- * `changePct` on this feed is MENTION VOLUME and never a price move — the shared normaliser renames
- * it `mentionsChangePct` for exactly that reason, and so does this.
- *
- * The colour comes from THEIR sentiment label, reproduced, not re-derived from the counts.
- */
-function fromChatter({ day, wanted }) {
-  const m = chatter.meta();
-  if (!m || !m.ok) {
-    return { events: [], status: 'failed', reachesToday: false, asOf: m?.generatedAt || null, note: m?.reason ? `The chatter API answered "${m.reason}".` : 'The chatter API could not be read.' };
-  }
-  // Equals, for the same reason as the technicals feed above: this is one scrape's counts, and
-  // `mentionsChangePct` compares it to the scrape before it. It describes the day it ran on.
-  const scrapeDay = istDay(m.generatedAt);
-  const reachesToday = scrapeDay === day;
-
-  const events = [];
-  if (reachesToday) {
-    for (const e of chatter.companies()) {
-      const change = e.mentionsChangePct;
-      if (change == null || Math.abs(change) < CHATTER_PCT) continue;
-      if (!inScope(wanted, e.ticker)) continue;
-      const bearish = e.sentiment === 'bearish';
-      events.push({
-        id: `chatter:${e.slug}:${scrapeDay}`,
-        severity: bearish ? SEVERITY.ALERT : SEVERITY.UPDATE,
-        time: null,
-        at: scrapeDay,
-        ticker: e.ticker || null,
-        company: e.name || e.ticker || '—',
-        headline: `Mentions ${change > 0 ? 'up' : 'down'} ${Math.abs(change).toFixed(0)}% since the last scrape`,
-        detail: `${e.mentions} mentions in the window · sentiment "${e.sentiment}" as the source labels it`,
-        reason: bearish ? 'The source labels the sentiment on this company bearish' : null,
-        url: null,
-      });
-    }
-  }
-
-  return {
-    events,
-    reachesToday,
-    asOf: m.generatedAt || null,
-    note: reachesToday ? null : `The chatter scrape in this feed ran on ${scrapeDay || 'an unknown date'}, so it holds no reading for ${day}.`,
   };
 }
 

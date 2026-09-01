@@ -1119,12 +1119,21 @@ console.log('\n— daily alerts —');
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
-  ok('every feed is accounted for by name', (await page.locator('[data-alerts-coverage] > div > div').count()) >= 8,
-    `${await page.locator('[data-alerts-coverage] > div > div').count()} feed rows`);
+  // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
+  // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
+  // back.
+  const feedRows = await page.locator('[data-alerts-coverage] > div > div').count();
+  ok('the coverage panel accounts for exactly the five feeds behind those four tabs', feedRows === 5, `${feedRows} feed rows`);
+  ok('...and they are the four tabs asked for, and only those',
+    ['Price moves', 'Announcements', 'Insider trades', 'Company news', 'Market news'].every((n) => panel.includes(n)) &&
+      !/Results|Con-calls|Public chatter|Superstar/.test(panel),
+    panel.split('\n').filter((l) => l.trim()).slice(1, 3).join(' / '));
   ok('...and a feed that has not read today says so in those words rather than showing a zero',
     /has not looked at today/.test(panel) || /reading…/.test(panel) || /every daily feed/i.test(daText), panel.slice(0, 90));
-  ok('...and a quarterly feed is named as not-daily rather than left off the list',
-    /not a daily feed/.test(panel));
+  // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
+  // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
+  ok('the page names the tabs it deliberately does NOT consolidate',
+    /Earnings Hub/.test(daText) && /not consolidated here|keep their own tabs/i.test(daText));
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
@@ -1135,7 +1144,9 @@ console.log('\n— daily alerts —');
     // A day the results feed actually holds, so the profit-reading branches are exercised on a
     // static origin too. Today is frequently quiet, and a check that only passes on a busy day is
     // a check that does not run.
-    const r = await da.collect({ scope: 'universe', day: '2026-08-26' });
+    // A day these four feeds actually hold. The technicals half is a single end-of-day snapshot
+    // matched by EQUALITY, so it only ever contributes on its own capture date.
+    const r = await da.collect({ scope: 'universe', day: '2026-08-31' });
     const alerts = r.events.filter((e) => e.severity === 'alert');
     return {
       total: r.events.length,
@@ -1153,10 +1164,32 @@ console.log('\n— daily alerts —');
     report.severities.every((v) => v === 'alert' || v === 'update'), report.severities.join('/'));
   ok('EVERY alert prints the reading that made it one', report.everyAlertHasReason, `${report.alerts} alerts`);
   ok('...and no update carries one, so the colour and the reason cannot drift apart', report.noUpdateHasReason);
-  // The two feeds that must never be graded. CLAUDE.md is explicit that the insider feed carries no
-  // model — "no sentiment, no materiality flag" — and BSE's category is a taxonomy, not a verdict.
-  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', '));
+  // THE THREE FEEDS THAT MUST NEVER BE GRADED. CLAUDE.md is explicit that the insider feed carries
+  // no model — "no sentiment, no materiality flag" — BSE's category is a taxonomy rather than a
+  // verdict, and a headline is editorial.
+  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', ') || 'none graded');
   ok('...and neither are corporate announcements', !report.gradedFeeds.includes('announcements'));
+  ok('...and neither is news', !report.gradedFeeds.includes('news') && !report.gradedFeeds.includes('market-news'));
+
+  // THE ALERT RULE, ASSERTED DIRECTLY. It is the only thing on this page that can make a red row,
+  // and the shipped snapshot has seven moves past the threshold with not one of them down — so a
+  // check that waited for a red row in the data would never actually run. Hence the exported
+  // predicate: the rule is tested at the boundary and on both sides of it.
+  const sev = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const t = da.MOVE_PCT;
+    return {
+      threshold: t,
+      belowDown: da.moveSeverity(-(t + 1)),
+      atDown: da.moveSeverity(-t),
+      inside: da.moveSeverity(-(t - 0.1)),
+      up: da.moveSeverity(t + 1),
+      missing: da.moveSeverity(null),
+    };
+  });
+  ok('a fall past the threshold is an alert', sev.belowDown === 'alert' && sev.atDown === 'alert', `${sev.threshold}%`);
+  ok('...a rise past it is only an update', sev.up === 'update', sev.up);
+  ok('...and a move inside it is not an event at all, rather than a neutral one', sev.inside === null && sev.missing === null);
   // A key that means two rows is the failure this dashboard has hit twice; it is never caught by
   // counting, so it is compared.
   ok('every event id is unique', report.uniqueIds === report.total, `${report.uniqueIds} ids for ${report.total} events`);
