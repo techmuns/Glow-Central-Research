@@ -112,6 +112,13 @@ derivation. The columns say `% to NAV`, the pill says *Disclosed*, and nothing o
 across the two kinds. The NSE symbol is *ours*, resolved by `scripts/lib/company-index.mjs`; 37 of
 the Small Cap fund's 255 equity lines do not resolve and keep their row with a stated reason.
 
+Institutions has **All Institutions · Quarterly Changes** inside the sub-view. The second tab uses
+only `disclosure: 'shareholding'` books and mirrors the superstar cross-book roll-up; the AMC books
+stay in All Institutions because monthly `% to NAV` cannot be compared with a quarterly stake in
+a company. Every summary company is clickable and opens all relevant quarterly institution books
+with status, both filed stakes, derived pp change, Trendlyne value and shares held. A `Filing
+Awaited` row is excluded from moves and is never misreported as an exit.
+
 **The synthetic institutions and Fund Flows are gone**, along with `js/data/investors.js`,
 `js/investors/deep-dive.js` and `gen-mock-investors.mjs` — see *The synthetic investor set* in
 `docs/DATA-CONTRACTS.md`. Every number on the Super Investors tab is now somebody's disclosure.
@@ -148,7 +155,7 @@ priced in it is real:
 A flat "mock data" ribbon would understate those numbers and a "live" badge would overstate them,
 so the disclosure is split — the ledger is illustrative, the marks are live — and every sub-view
 carries it as a pill in its section head reading *Illustrative ledger · live marks*, amber, with the
-full explanation in the modal one click behind. With no mark the same pill turns rose and reads
+full explanation retained in export disclosures rather than a popup. With no mark the same pill turns rose and reads
 *Marks unavailable · shown at cost*, because a P&L of zero for want of a price must not look like a
 P&L of zero for want of a move. `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` render
 it; `exportBanner()` still puts the whole disclosure in row 1 of every workbook.
@@ -217,8 +224,8 @@ public/js/
                            daily-alerts.js — retained chronological readings across the research feeds (§4c)
                            chatter-live.js + sentiment-shared.js — retail chatter (§5e)
   scoring/                 tech-scoring (16 rules / 24 pts) · earnings-scoring (15 / 21) · rule-meta
-  concall/                 scans.js — the whole Con-call tab: the live scan table and the
-                           "Upcoming Concalls" schedule overlay
+  concall/                 scans.js — the whole Con-call tab: the live scan table, without
+                           schedule or feed-status header chips
                            deep-dive.js — the panel behind the Deep Dive column (a SEPARATE
                            dashboard's pipeline and a SEPARATE dashboard's report)
   portfolio/               lots (FIFO) · chrome (shared furniture) · the four sub-view modules
@@ -267,7 +274,7 @@ a collector; no rendering behaviour is special-cased by feed id.
 | Reading | Values | Set by |
 | --- | --- | --- |
 | Direction | Positive / Negative / Neutral | source sentiment or figures where carried; transaction direction for insider/investor activity; a narrow announcement rule; Neutral for news |
-| Importance | High / Low | stated objective thresholds printed in the row and provenance modal |
+| Importance | High / Low | stated objective thresholds printed in the row and source registry |
 
 Every row prints `signalReason` and `importanceReason`; a badge whose cause cannot be inspected would
 be an unexplained judgement.
@@ -335,9 +342,9 @@ whether or not a byte of data had been confirmed in an hour.
 - One pill now, `● Live · updated 4m ago`, reading `live.getLastDataTick()`: the last tick of a
   poller that actually talked to a server. `live.register(id, { synthetic: true })` is what keeps
   the heartbeat out of that clock.
-- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
-  has to stay reachable from every screen, and *how current is this* / *where did it come from* are
-  one question. `verify-ui.mjs` still opens the modal, now via the pill.
+- **The Sources button and its popup are gone from the chrome.** The status pill is a passive
+  freshness label. The canonical source registry remains available to audits and export paths,
+  and `verify-ui.mjs` asserts that clicking status labels opens no modal.
 - The refresh button calls `live.refreshAll()` and **reports a result** — `Up to date` or `3 new`.
   A spinner that simply vanishes leaves the reader unsure anything was checked.
 - **The global search is gone with the box.** Nothing else used it; a company is reached from its
@@ -379,11 +386,23 @@ COUNT, not a price: there is no price anywhere in that API. It is renamed `menti
 *Mentions Δ*, and the suite asserts it is never coloured like a P&L and never carries a currency
 symbol. `sparkline` is a per-**scrape** series, not per-day, so nothing puts a time axis under it.
 
-**The tab is one view with two sections**, because their `ticker` is a forum-topic slug
+**The tab is one page with two simple in-page tabs**, because their `ticker` is a forum-topic slug
 (`tata-motors`, `fiis`, `3b-blackbio-dx`) and entries are discovered bottom-up, so about four
 fifths of the list is not something we cover. An entry lands in the first section when its slug
 resolves to a symbol in `universe.json`, the book, or `mc-ticker-map.json`. On a real 219-entry
 run: **45 covered, 174 not, 8 of them in the book.**
+
+**Coverage** is the default and owns Most Discussed plus the resolved-company table. **Not in
+coverage** replaces that content with the unresolved table; the two tables never stack on one page.
+Each active table owns its own sentiment selector, so choosing Bullish, Bearish or Neutral filters
+the rows immediately below it and each tab retains its own choice.
+
+Every company row and mention count opens a lazy-loaded detail modal from SentimentDash's
+`/stocks/{slug}/posts` route. It shows a short identifying excerpt, source, author, timestamp and
+sentiment, with a direct link to the original item; the full post remains on its publisher's site.
+
+The four summary cards are deliberately absent. Their coverage count, post/source totals, market
+mood split and scrape timing are retained in one compact footnote below both tables.
 
 That split is a statement about *our* coverage, never a taxonomy. The second section mixes Indian
 companies we do not carry, foreign names (`cisco`, `spacex`, `ubs`) and bare themes (`fiis`,
@@ -632,9 +651,9 @@ likewise in the feed and the export but not on screen.
 
 **There is no drill panel, and re-adding one would be a regression.** There was one; six reported
 figures were the bulk of what it said, so once those became columns it was restating the row you
-clicked. Rows are not clickable. The provenance it carried moved behind the Live pill, which is one
-click from anywhere on the page rather than one click per row. If a number wants to be in a drill,
-make it a column instead.
+clicked. Rows are not clickable. The status pill is passive and the source registry retains the
+provenance previously carried by the drill. If a number wants to be in a drill, make it a column
+instead.
 
 **"Latest" means the upstream's order, not ours.** `resultDate` is a date; filings arrive through
 the day. Rows carry `seq` (the upstream index) and sort `(date desc, seq asc)`, which is the only
@@ -721,8 +740,8 @@ this live feed is the obvious next piece of work.**
 
 The tab is the StockScans con-call scan — every earnings call held this quarter with **their**
 result score (0–100), **their** sentiment tier and **their** highlight bullets — plus the schedule
-of calls not yet held, behind an **Upcoming Concalls** button that opens an overlay grouped by
-date, the same shape StockScans give it.
+data retained in the feed. The visible section heading deliberately omits both the Upcoming
+Concalls control and the Live/call-count chip so the scan table starts cleanly.
 
 **Reproducing someone else's analysis is allowed; blurring whose it is, is not.** The rules, in
 full in CLAUDE.md: do not re-band or recompute their score, say whose it is on every surface
@@ -797,6 +816,12 @@ echo 'MUNS_TOKEN="…"' >> .dev.vars     # local, gitignored
 `env.MUNS_BASE` redirects the upstream, which is how a verification run drives the whole path
 against a stand-in instead of scraping their production.
 
+The Superstar surface is split into three in-page tabs in this order: **All Investors** for the
+card directory, **Quarterly Changes** for the six cross-book summaries, and **Data Table** for every
+disclosed investor-company position. Data Table retains the wide quarter history, search,
+investor/change filters, watchlist control and Excel export; do not put that table back underneath
+the directory cards.
+
 **Three things about the data that are easy to get wrong:**
 
 - **A blank quarter is not a zero.** Indian companies name only holders above a threshold, so a
@@ -807,6 +832,11 @@ against a stand-in instead of scraping their production.
 - **One figure is computed here**: the quarter-over-quarter change, headed *Change (derived)*.
   Neither a new position nor a vanished one carries a percentage-point figure, because printing
   ±the whole holding would invent a trade size.
+
+Every company row in **Quarterly Changes** is a button. It opens a cross-investor popup containing
+all tracked books that disclose that company in their own latest/prior comparison, not merely the
+one or two abbreviated names on the card. The table shows status, both stakes, the derived change
+and Finology's current position value; the value is explicitly not presented as a traded amount.
 
 **A caught bug worth remembering.** The card count used the latest quarter and the book total used
 all of history, so an investor with nothing currently disclosed rendered `0 holdings` beside

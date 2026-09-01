@@ -54,8 +54,8 @@
 //      `stale` flag, and a book whose confirmation predates the most recent quarter end.
 //   2. NINETY-ONE INDEXEDDB TRANSACTIONS BEFORE FIRST PAINT. `readEntry` per book, each opening
 //      its own transaction. `readEntries` does the lot in one.
-//   3. NINETY FULL REPAINTS OF A FOUR-THOUSAND-ROW TABLE. Every arriving book emitted, and the tab
-//      rebuilds its whole panel — stat strip, ninety cards and the positions table — on each emit.
+//   3. NINETY FULL REPAINTS OF THE ACTIVE PANEL. Every arriving book emitted, and the tab rebuilt
+//      whichever directory, quarterly summary or positions table was selected on each emit.
 //      Arrivals are now coalesced into at most one repaint per EMIT_COALESCE_MS, which turns that
 //      into a handful. The walk's final emit is still immediate, so the settled state is never
 //      left waiting behind a timer.
@@ -174,9 +174,9 @@ export function onChange(fn) {
 // ---------------------------------------------------------------------------------------
 // Repaints, coalesced
 //
-// A subscriber here is the whole tab panel: stat strip, ninety investor cards and a table of every
-// disclosed position across every book. Rebuilding that is tens of milliseconds, and the walk used
-// to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
+// A subscriber here is the active in-page panel: ninety investor cards, the quarterly summary or a
+// table of every disclosed position across every book. Rebuilding that is tens of milliseconds,
+// and the walk used to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
 // the view "taking too long" even after the data was on the device.
 //
 // A trailing throttle rather than a debounce, deliberately: a debounce would keep deferring while
@@ -794,7 +794,7 @@ let memo = { version: -1 };
  *
  * Finology's two endpoints disagree: the list says "Abakkus Fund - Sunil Singhania" and the book
  * says "Abakkus Fund - Sunil Singhania Portfolio, Shareholdings & Investments." — their page
- * title, SEO suffix and all. The cards were already reading the list, so the table under them and
+ * title, SEO suffix and all. The cards were already reading the list, so the Data Table and
  * its investor filter were showing a different string for the same person, and the cross-book
  * summary panels were unreadable: three of those suffixes in one line of a small card.
  *

@@ -231,8 +231,8 @@ export function rankedList({ key, title, note = '', items = [], limit = 5, empty
   const rows = shown
     .map(
       (it, i) => `
-      <${tag} ${onSelect ? `type="button" data-ranked-idx="${i}"` : ''}
-        class="flex w-full items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 text-left${onSelect ? ' transition-colors hover:bg-slate-50' : ''}">
+      <${tag} ${onSelect ? `type="button" data-ranked-idx="${i}" aria-label="Open details for ${escapeHtml(it.name)}"` : ''}
+        class="flex w-full items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 text-left${onSelect ? ' group transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-600' : ''}">
         <span class="min-w-0">
           <span class="block truncate text-[13px] font-semibold text-slate-900">${escapeHtml(it.name)}</span>
           ${it.sub ? `<span class="block truncate text-[11px] text-slate-500">${escapeHtml(it.sub)}</span>` : ''}
@@ -240,6 +240,7 @@ export function rankedList({ key, title, note = '', items = [], limit = 5, empty
         <span class="flex flex-shrink-0 items-baseline gap-1.5">
           ${it.badge ? `<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-600">${escapeHtml(it.badge)}</span>` : ''}
           <span class="text-[13px] font-bold tabular-nums ${tone(it.tone)}">${escapeHtml(it.value ?? '')}</span>
+          ${onSelect ? '<svg aria-hidden="true" class="h-3.5 w-3.5 text-slate-300 transition-colors group-hover:text-indigo-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 5 5 5-5 5"/></svg>' : ''}
         </span>
       </${tag}>`
     )

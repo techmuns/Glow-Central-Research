@@ -834,8 +834,8 @@ The rules that make it safe to trust:
 - **Two freshness facts, never merged.** `meta.fetchedAt` is when the upstream was read;
   `meta.checkedAt` is when we last confirmed that reading was still current. A 304 moves the
   second and not the first. `meta.origin` (`live` / `store` / `snapshot`) says where the paint on
-  screen came from, and `deliveryNote()` in `js/ui/sources.js` renders all three behind each
-  tab's Live pill.
+  screen came from, and `deliveryNote()` in `js/ui/sources.js` retains all three for the source
+  registry. Live status labels themselves are passive and open no delivery popup.
 - **The client must not send `If-None-Match` itself.** Chromium aborts a hand-rolled conditional
   fetch whose response is a 304 with `net::ERR_ABORTED`; because pollers swallow optional errors,
   the symptom is a feed that quietly stops updating rather than an error. `conditionalJson` uses
@@ -863,12 +863,11 @@ The rules that make it safe to trust:
 }
 ```
 
-`upcoming` is what the **Upcoming Concalls** overlay renders: every call StockScans have listed
-but not yet seen held, grouped by `date` in the browser and shown newest-day-first. `today` is a
+`upcoming` retains every call StockScans have listed but not yet seen held. It is no longer exposed
+as a Con-call header control or overlay. `today` is a
 strict SUBSET of `upcoming`'s entries for the current date — the ones still ahead of now (43 of
-today's 64, in the pull above) — so the overlay uses `upcoming` alone. Merging them would
-double-count and then need de-duplicating for nothing: the 09:00 call still belongs on today's
-page at 15:00, it has simply already happened.
+today's 64, in the pull above). Consumers must not merge it back into `upcoming`; that would
+double-count and then need de-duplicating for nothing.
 
 The body carries **no "served at" stamp**, deliberately: it would differ on every request while
 the content did not, so the ETag would never match and the 304 this route depends on would never
@@ -935,8 +934,8 @@ the call and found it worthless.
 on `www.stockscans.in`. No auth, no bot wall, `robots.txt: Allow: /` — it answers a Cloudflare
 Worker the same way it answers a laptop, unlike the Moneycontrol calendar page.
 
-**Consumed by** — `js/data/concall-scans.js` → the Con-call tab: the scan table, and the
-**Upcoming Concalls** overlay built from `upcoming`.
+**Consumed by** — `js/data/concall-scans.js` → the Con-call scan table. `upcoming` remains in the
+feed contract but is not rendered in the tab chrome.
 
 ---
 
@@ -1588,8 +1587,8 @@ editor, the Con-call Deep Dive workspace and `scripts/gen-mock-concalls.mjs`.
 They powered four sub-views of the Con-call tab — Live Feed, Keyword Scan, Catalysts, Deep Dive —
 on invented speech attributed to fictional speakers, because no open source publishes full
 transcript text. That put a synthetic half and a live half in one tab, held apart by an amber
-ribbon. The tab is now one live table off StockScans plus the schedule overlay, with one
-provenance and no ribbon.
+ribbon. The tab is now one live table off StockScans, with no schedule/status header chips and no
+ribbon.
 
 **If a real transcript feed is ever wired**, BSE's filed transcript PDFs are the source, and the
 engine and workspace are recoverable from git history — pointed at real text rather than
@@ -1763,6 +1762,14 @@ What the two DO share is a shape — a series of percentages over time — so `j
 holdings.js` aliases both into one vocabulary (`periods`, `periodLabels`, `periodNoun`,
 `pctByPeriod`, `pct`) and the view lays them out with one set of components. The shared names
 describe the shape; `disclosure` is what says what they measure.
+
+`quarterlySummary()` is that branching rule made executable for the Institutions cross-book view:
+it reads only `disclosure: 'shareholding'` books, compares each book's two latest quarters, and
+groups the same six move categories used by Superstar Investors. `quarterlyCompany(key)` returns
+the full set behind a clicked company, including unchanged and filing-awaited rows. New and
+no-longer-disclosed positions carry no invented delta, `Filing Awaited` is not classified as an
+exit, and Trendlyne's current value is never presented as a traded amount. Monthly AMC portfolio
+weights are absent from both functions by construction.
 
 ### `disclosure: 'shareholding'` — filed with the exchanges
 
@@ -1987,6 +1994,10 @@ fetch answers **304 with no body** — and the device store still means a return
 Their own `max-age` does the politeness work the edge cache was there for, over data that moves
 twice a day. A side-benefit: Public Chatter is now the one live feed that works when the site is
 served as **plain static files**, with no Worker at all.
+
+The UI does not render these aggregate facts as a KPI strip. Coverage, total posts and source
+split, market mood and scrape timing are printed as one footnote beneath the active in-page tab.
+Coverage is the default; Not in coverage replaces it with the unresolved-entry table.
 
 ### Four traps, and what this repo does about each
 
@@ -2405,10 +2416,10 @@ POST /api/market-news/refresh     starts a run. THE ONLY CALL HERE THAT COSTS AN
 GET  /api/market-news/run         how it is going. Free, and therefore the half that may be polled.
 ```
 
-**The tab's chrome is one chip.** The heading carries a small `● Live` in green — and only while the
+**The tab's chrome is one passive chip.** The heading carries a small `● Live` in green — and only while the
 capture is younger than 90 minutes, the schedule's own worst case. Past that it is amber with the
-age; with no capture it says so. Everything else, including the Fetch button, lives in the
-provenance modal the chip opens: removed from the chrome, not from the app.
+age; with no capture it says so. The chip does not open a provenance popup. Scheduled polling and
+the global refresh path remain responsible for acquiring newer captures.
 
 **One button in that modal, not two.** A free *Check for new stories* used to sit beside it; it was
 removed because it did nothing a reader was not already getting for nothing — the 20-minute poll
@@ -2826,6 +2837,18 @@ headed **Value (Finology)**, never recomputed.
 The combined-book total sums only positions **still disclosed in the latest quarter**, and only
 those carrying a value, and says how many of each. Summing all history produced a card reading
 `0 holdings` beside `₹793 Cr book`; the count and the total now use the same set.
+
+Clicking a company in the cross-book Quarterly Changes summary reads `allHoldings()` for that exact
+company and keeps each investor row whose own latest/prior pair contains a disclosure. The popup
+therefore includes unchanged current holders as well as movers, and prints investor, action, prior
+stake, latest stake, derived change and current `valueCr`. A row absent from both compared quarters
+is historical rather than part of this quarter and is excluded; a one-quarter current row remains
+with no fabricated comparison.
+
+The complete `allHoldings()` result renders in the separate **Data Table** tab, positioned after
+Quarterly Changes. **All Investors** contains the investor-card directory only. Search, investor
+and change filters, watchlist state, table sort and Excel export belong to Data Table and persist
+through live-book repaints in the same `liveView` state as before the visual split.
 
 ### Caching, and why the fan-out is on the client
 

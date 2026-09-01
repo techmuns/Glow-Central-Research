@@ -26,6 +26,7 @@
 import { sectionHead, openModal } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
+import { withoutPublisherName } from '../core/source-copy.js';
 import { exportRows } from '../ui/export.js';
 import * as marketNews from '../data/market-news.js';
 
@@ -69,10 +70,8 @@ const FRESH_MS = 90 * 60 * 1000;
  * The whole of this tab's chrome: one small chip.
  *
  * IT REPLACED A FULL-WIDTH CARD — a button, a freshness sentence, a note about the scheduled job —
- * which is a lot of furniture above a list whose headlines are the point. The same trade the
- * Earnings Hub and Portfolio Analytics already made: **move the explanation behind a control that
- * still states the claim, and never delete the claim.** So the chip opens the provenance modal, and
- * the Fetch button now lives inside it. Nothing was removed except the chrome.
+ * which is a lot of furniture above a list whose headlines are the point. The chip now states the
+ * material status directly and is intentionally passive; it opens no provenance dialog.
  *
  * "LIVE" IS A CLAIM ABOUT DATA AND MAY NOT BE PAINTED GREEN UNCONDITIONALLY. That is exactly what
  * the header's old green chip did — it tracked a heartbeat that asked no server anything and read
@@ -88,10 +87,10 @@ function pill(m) {
   const tone = fresh ? 'text-emerald-700' : 'text-amber-700';
   const dot = fresh ? 'bg-emerald-500' : 'bg-amber-500';
   const label = age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
-  return `<button type="button" data-mcnews-info title="Where this comes from, and how to fetch it now"
-      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+  return `<span data-mcnews-info title="Market-news capture status"
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
       <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
-    </button>`;
+    </span>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -134,15 +133,18 @@ function visibleRows(rows) {
 // saying the link could not be used, because dropping the row would report a bad URL as no story.
 const linkable = (u) => /^https?:\/\//i.test(String(u || ''));
 
+const sectionLabel = (value) =>
+  withoutPublisherName(String(value || '').replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher');
+
 function cardHtml(r) {
   const canLink = linkable(r.url);
   const when = istTime(r.publishedAt);
-  const section = r.section ? r.section.replace(/-/g, ' ') : null;
+  const section = r.section ? sectionLabel(r.section) : null;
   // A story with no publisher time says so rather than showing the moment we captured it.
   const meta = [
     when
       ? `<span class="tabular-nums">${escapeHtml(when)}</span>`
-      : `<span class="text-slate-300" title="Moneycontrol’s listing page carries no time, and this story’s own page was not read for one. It is not the time we saw it.">time not published</span>`,
+      : `<span class="text-slate-300" title="The publisher’s listing page carries no time, and this story’s own page was not read for one. It is not the time we saw it.">time not published</span>`,
     section ? `<span>${escapeHtml(section)}</span>` : '',
     r.premium ? '<span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">premium</span>' : '',
   ]
@@ -159,8 +161,8 @@ function cardHtml(r) {
   const body = `
       <div class="h-[62px] w-[110px] flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 sm:h-[76px] sm:w-[135px]">${thumb}</div>
       <div class="min-w-0 max-w-4xl flex-1">
-        <h3 class="font-display text-[15px] font-bold leading-snug text-slate-900 ${canLink ? 'group-hover:text-indigo-700' : ''}">${escapeHtml(r.title || '(untitled)')}</h3>
-        ${r.summary ? `<p class="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-500">${escapeHtml(r.summary)}</p>` : ''}
+        <h3 class="font-display text-[15px] font-bold leading-snug text-slate-900 ${canLink ? 'group-hover:text-indigo-700' : ''}">${escapeHtml(withoutPublisherName(r.title) || '(untitled)')}</h3>
+        ${r.summary ? `<p class="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-500">${escapeHtml(withoutPublisherName(r.summary))}</p>` : ''}
         <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">${meta}</div>
       </div>`;
   const key = escapeHtml(String(r.id || r.url));
@@ -197,7 +199,7 @@ function listHtml(rows) {
               ? `<select data-news-section aria-label="Section"
                    class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    <option value="all">All sections</option>
-                   ${allSections.map((sx) => `<option value="${escapeHtml(sx)}"${listView.section === sx ? ' selected' : ''}>${escapeHtml(sx.replace(/-/g, ' '))}</option>`).join('')}
+                   ${allSections.map((sx) => `<option value="${escapeHtml(sx)}"${listView.section === sx ? ' selected' : ''}>${escapeHtml(sectionLabel(sx))}</option>`).join('')}
                  </select>`
               : ''
           }
@@ -297,16 +299,16 @@ async function exportVisible(visible, m) {
         width: 18,
         get: (r) =>
           r.__banner
-            ? `REAL REPORTING, NOT OURS. Market-wide stocks news as published by Moneycontrol at /news/business/stocks/, ` +
+            ? `REAL REPORTING, NOT OURS. Market-wide stocks news from the publisher's own listing, ` +
               `captured ${m.capturedAt || 'unknown'}, exported ${new Date().toISOString()}. ` +
               `HEADLINES, STANDFIRSTS AND SECTIONS ARE THE PUBLISHER'S, reproduced unchanged — nothing here is summarised, scored, ranked or judged, and the order is their own. ` +
               `A BLANK TIME MEANS THE PUBLISHER'S TIME WAS NOT READ: their listing page carries no date, so it is fetched per story and is budgeted. It is never the time this dashboard saw the story. ` +
               `${m.withPublishedAt} of ${m.count} stories carry the publisher's time.`
             : istTime(r.publishedAt) || '',
       },
-      { header: 'Headline', key: 'h', width: 80, get: (r) => (r.__banner ? '' : r.title || '') },
-      { header: 'Section', key: 's', width: 20, get: (r) => (r.__banner ? '' : r.section || '') },
-      { header: 'Standfirst (publisher)', key: 'p', width: 80, get: (r) => (r.__banner ? '' : r.summary || '') },
+      { header: 'Headline', key: 'h', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
+      { header: 'Section', key: 's', width: 20, get: (r) => (r.__banner ? '' : sectionLabel(r.section)) },
+      { header: 'Standfirst (publisher)', key: 'p', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
       { header: 'Premium', key: 'x', width: 10, get: (r) => (r.__banner ? '' : r.premium ? 'yes' : '') },
       { header: 'URL', key: 'u', width: 70, get: (r) => (r.__banner ? '' : r.url || '') },
       { header: 'First seen by this dashboard', key: 'f', width: 26, get: (r) => (r.__banner ? '' : r.firstSeenAt || '') },
@@ -322,7 +324,7 @@ const SPINNER = `<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="non
 
 function provenance(m) {
   const captured = m.capturedAt ? formatRelativeTime(Date.parse(m.capturedAt)) : 'never';
-  const result = lastResult ? `<span class="ml-2 text-xs font-semibold ${lastResult.tone || 'text-slate-500'}">${escapeHtml(lastResult.text)}</span>` : '';
+  const result = lastResult ? `<span class="ml-2 text-xs font-semibold ${lastResult.tone || 'text-slate-500'}">${escapeHtml(withoutPublisherName(lastResult.text))}</span>` : '';
   const fix = failure?.fix ? ` <code class="rounded bg-white/70 px-1">${escapeHtml(failure.fix)}</code>` : '';
   return `<div class="px-7 py-6">
     <div class="mb-3 flex items-start justify-between gap-4">
@@ -337,20 +339,19 @@ function provenance(m) {
           ${busy ? SPINNER : '<span>↧</span>'}<span>${busy ? 'Fetching…' : 'Fetch latest news'}</span>
         </button>
         <p class="min-w-0 flex-1 text-xs text-slate-500">
-          Moneycontrol last read <strong class="text-slate-700">${escapeHtml(captured)}</strong> · a scheduled job also reads it through the day.${result}
+          Publisher feed last read <strong class="text-slate-700">${escapeHtml(captured)}</strong> · a scheduled job also reads it through the day.${result}
         </p>
       </div>
-      ${failure ? `<p data-mcnews-failure class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 ring-1 ring-rose-100">${escapeHtml(failure.text)}${fix}</p>` : ''}
+      ${failure ? `<p data-mcnews-failure class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 ring-1 ring-rose-100">${escapeHtml(withoutPublisherName(failure.text))}${fix}</p>` : ''}
     </div>
 
     <div class="text-sm leading-relaxed text-slate-600">
-      <p><strong>Real reporting, and not ours.</strong> Every story Moneycontrol publish to
-         <code class="rounded bg-slate-100 px-1">/news/business/stocks/</code>. Headlines, standfirsts and section names are
+      <p><strong>Real reporting, and not ours.</strong> Every story in the publisher's market-wide stocks feed. Headlines, standfirsts and section names are
          theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing here summarises,
          scores, ranks or flags a story as important, and <strong>the order is their own</strong> — by their article id.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this is a capture rather than a live read</h3>
-      <p class="mt-1 text-xs">Moneycontrol's site refuses automated readers by TLS fingerprint, not by headers. Measured:
+      <p class="mt-1 text-xs">The publisher's site refuses automated readers by TLS fingerprint, not by headers. Measured:
          <code class="rounded bg-slate-100 px-1">curl</code> with a browser user-agent gets <strong>200 and 598 KB</strong>;
          Node's <code class="rounded bg-slate-100 px-1">fetch</code> gets <strong>403 with a 24-byte body</strong> on every
          header set tried, including the full browser set; and a <strong>Cloudflare Worker gets 403 as well</strong>. So there
@@ -383,7 +384,7 @@ function provenance(m) {
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the Fetch button does</h3>
       <p class="mt-1 text-xs">It reads the committed capture first — free, and if a scheduled run has just published one
          this browser has not picked up, that is the answer and nothing is started. Otherwise it asks the GitHub runner
-         to read Moneycontrol <em>now</em>, starting the same scheduled job on demand and watching it. That is a real run
+         to read the publisher feed <em>now</em>, starting the same scheduled job on demand and watching it. That is a real run
          and a real request to somebody else's site, so <strong>nothing on this page ever starts one on its own</strong> —
          no poll, no peek on load, only a click. If a run is already going it watches that one rather than starting a
          second. The credential that authorises it lives on the Worker and has never been in a browser.</p>
@@ -397,7 +398,7 @@ function provenance(m) {
          list</strong>, because the capture is capped and a new story pushes the oldest off the end.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The blank times are the honest part</h3>
-      <p class="mt-1 text-xs">Moneycontrol's listing page carries no date on any story — checked, there is no date, time or
+      <p class="mt-1 text-xs">The publisher's listing page carries no date on any story — checked, there is no date, time or
          timestamp element on it. The time comes from each story's own page, which costs one request per story, so it is
          budgeted and the newest are done first. <strong>${escapeHtml(formatNumber(m.withPublishedAt))} of
          ${escapeHtml(formatNumber(m.count))}</strong> stories carry the publisher's time; the rest read
@@ -423,8 +424,8 @@ function paint(ctx) {
       <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
         <h3 class="font-display text-lg font-bold text-slate-900">No market-news capture yet</h3>
         <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
-          The scheduled run that reads Moneycontrol has not committed a capture to this deployment.
-          ${escapeHtml(m.message || '')}
+          The scheduled run that reads the publisher feed has not committed a capture to this deployment.
+          ${escapeHtml(withoutPublisherName(m.message))}
         </p>
       </div>`;
     wireHead(ctx);
@@ -481,9 +482,7 @@ function relist(root) {
 }
 
 /** The section head is one chip now, and it opens everything else. */
-function wireHead(ctx) {
-  ctx.root.querySelector('[data-mcnews-info]')?.addEventListener('click', () => openProvenance(ctx));
-}
+function wireHead() {}
 
 /**
  * The provenance modal, which is also where the Fetch button lives.
@@ -616,7 +615,7 @@ function wireList(root) {
 }
 
 const DESCRIPTION =
-  'Every stocks story Moneycontrol publish, market-wide — not filtered to the companies in scope. Headlines and standfirsts are theirs; the article stays where it is published.';
+  'Every story in the market-wide publisher feed — not filtered to the companies in scope. Headlines and standfirsts are theirs; the article stays where it is published.';
 
 /**
  * OPENING THIS TAB ON A STALE CAPTURE FETCHES ONE. A DELIBERATE REVERSAL, SO HERE IS THE REASONING.

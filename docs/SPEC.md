@@ -53,8 +53,8 @@ spans the full 1400px on every tab.
 | --- | --- |
 | Daily Alerts | *(none — one stream, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
-| Con-call | *(no sub-views)* — one live scan table, with the schedule behind an **Upcoming Concalls** overlay |
-| Public Chatter | *(no sub-views)* — one live table of covered companies, then everything the feed carried that we do not cover |
+| Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
+| Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
 | Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
 | News · Corp Announcements · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
@@ -89,9 +89,8 @@ Brand, the scope toggle, one status pill and a refresh button — nothing else.
   reached a server. It replaced a green "Live · just now" chip and a white "Updated 52 minutes
   ago" chip, which claimed different things about the same subject; the green one tracked a
   heartbeat that asks nothing of any server, so it read "just now" regardless.
-- **Clicking the pill opens the data-sources modal.** There is no separate Sources button; the
-  provenance it opened has to stay reachable from every screen, and a freshness control is its
-  natural home.
+- **The status pill is passive.** It reports freshness without opening a provenance or delivery
+  explainer. Detailed source metadata remains in the source registry for audits and exports.
 - **A refresh button** re-checks every live feed on demand and reports what it found — "Up to
   date" or "3 new" — rather than spinning and vanishing.
 - **No global search box.** A company is reached from its own tab's table.
@@ -188,9 +187,8 @@ layout.
 
 - **Left** — 48px rounded-xl indigo→purple→pink gradient mark reading "SC", then
   "Sattva Central Research" (`font-display`, extrabold) with a workspace-aware subtitle.
-- **Right** — the Portfolio/Universe segmented toggle, then the status pill (pulsing dot,
-  `Live · updated <relative time>`, opens the data-sources modal on click), then the refresh
-  button.
+- **Right** — the Portfolio/Universe segmented toggle, then the passive status pill (pulsing dot,
+  `Live · updated <relative time>`), then the refresh button.
 - **Centre** — nothing. The global search box, the separate Sources button and the second
   "Updated …" chip were removed; the middle of the header is deliberately empty so the brand and
   the two live controls are the only things competing for attention.
@@ -264,11 +262,12 @@ Presentation must never imply data the dashboard does not have:
 3. Derived figures say they are derived, and say how.
 4. Help modals state what is mock, what is live, and which prompt wires it.
 
-### The Sources modal
+### Source registry
 
-The header's "Sources" button opens a modal generated from `public/js/ui/sources.js`, listing
-every source grouped by the tabs it serves, with what it feeds, its refresh cadence, a link,
-and an honest status (`live` / `static` / `mock` / `pending`). Adding a data source means updating
+`public/js/ui/sources.js` remains the canonical source registry, listing every source grouped by
+the tabs it serves, with what it feeds, its refresh cadence, a link, and an honest status
+(`live` / `static` / `mock` / `pending`). The registry is data for audits and export disclosures;
+passive status labels do not open it in a popup. Adding a data source means updating
 `docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
 ---
@@ -320,8 +319,8 @@ the selected date, because that is all Moneycontrol publishes — and says so un
 
 ### Con-call — `concall`
 One screen, live off StockScans: every earnings call held this quarter with their result score,
-sentiment tier and highlight bullets, reproduced unchanged and attributed. The schedule of calls
-not yet held sits behind an **Upcoming Concalls** button that opens an overlay grouped by date.
+sentiment tier and highlight bullets, reproduced unchanged and attributed. The section heading has
+no Upcoming Concalls or Live/call-count chips; the table is the view.
 
 Four sub-views that ran on a synthetic transcript corpus — Live Feed, Keyword Scan, Catalysts and
 Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.md` §5c.
@@ -334,6 +333,9 @@ Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.m
 
 ### Public Chatter — `public-chatter`
 Community sentiment.
+- Simple in-page tabs: **Coverage** (default) and **Not in coverage**, each owning its table and its own sentiment selector
+- Clicking a company or its mention count opens the underlying mentions, newest first, with a direct link to every source item
+- No summary-card row; coverage, posts, market mood and scrape timing appear as footnotes below the tables
 - Real-time ValuePickr thread crawler with dedup
 - Telegram channel ingestion via bot API
 - NLP sentiment scoring per post
@@ -357,8 +359,7 @@ Yahoo Finance EOD scrape of the NSE 500 plus NSE bhavcopy delivery data. A close
 | Risk | Beta (1) · ATR Stability (1) |
 
 No sub-view here carries a stat strip: the two or three counts and the gradient freshness hero
-became one small **Live** pill in the section head, whose modal carries the capture time, the
-source and every figure the cards printed. The pill is green only while the capture is inside the
+became one small passive **Live** pill in the section head. The pill is green only while the capture is inside the
 schedule's worst case (72 hours — Friday's capture is still current on Monday); past that it is
 amber and prints the age, and on Earnings Surprise it is amber regardless, reading *Mock earnings ·
 live technicals*.
@@ -386,16 +387,29 @@ roadmap* card that used to close each tab has been removed from the UI:
 ### Super Investors — `super-investors`
 Superstar holdings and institutional ownership.
 
-**Superstar Investors has two in-page tabs.** *All Investors* opens first with the investor cards
-and the full holdings table. *Quarterly Changes* holds the cross-book roll-up, so a reader can see
-companies bought or sold down by more than one tracked investor, new entrants, the largest
-increases and reductions, and the positions no longer disclosed without opening ninety books one
-at a time. The chosen in-page tab survives scope changes and live-data repaints until the reader
-leaves Super Investors.
+**Superstar Investors has three in-page tabs.** *All Investors* opens first with only the investor
+cards. *Quarterly Changes* follows with the cross-book roll-up, so a reader can see companies bought
+or sold down by more than one tracked investor, new entrants, the largest increases and reductions,
+and positions no longer disclosed without opening ninety books one at a time. *Data Table* sits
+after Quarterly Changes and owns the complete all-disclosed-positions grid, including search,
+investor/change filters, watchlist control and Excel export. The chosen in-page tab survives scope
+changes and live-data repaints until the reader leaves Super Investors.
 
 The view stays intentionally quiet around that content: it renders no per-view cache/status pill,
 scope-count tag, progressive-reading strip, or source/action badge in an investor workspace. Scope
 and refresh already live in the global header; the workspace header is the investor name and tabs.
+
+Every company in Quarterly Changes is clickable. Its popup names every relevant superstar
+investor across the full book set and shows status, previous stake, current stake, derived change
+and current Finology position value, so abbreviated labels such as `+1` never hide the answer.
+The value is current position value, not a claim about how much was bought or sold.
+
+**Institutions mirrors the same in-page pattern.** *All Institutions* keeps the fund picker and
+full history table; *Quarterly Changes* rolls up new, increased, reduced and no-longer-disclosed
+positions across the tracked quarterly shareholding books. Monthly AMC portfolios do not enter
+that roll-up: their `% to NAV` is a weight in a fund, not a stake in the company. Clicking any
+company opens every relevant quarterly institution book with its status, prior/current filed
+stake, derived percentage-point change, Trendlyne value and filed share count.
 
 Increases and reductions are in **percentage points of the company** — the only size a filing
 states. A new or exited position carries **no size at all**, because a position appearing or

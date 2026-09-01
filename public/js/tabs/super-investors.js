@@ -48,10 +48,13 @@ let disposers = [];
 let liveUnsub = null;
 let liveUnregister = null;
 let liveView = null;
-// The Superstar sub-view has two in-page destinations of its own. Keep the reader on the one they
+// The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
 let liveSection = 'investors';
+// Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
+// is a cross-book destination whose selection survives a scope repaint but not leaving the view.
+let filedSection = 'institutions';
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -61,6 +64,7 @@ export function render(ctx) {
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
   // Investors so returning from Institutions opens on the documented All Investors default.
   if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';
+  if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
   const view = { institutions: renderInstitutions }[ctx.subview] || renderIndividuals;
@@ -82,6 +86,7 @@ export function destroy() {
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
   liveSection = 'investors';
+  filedSection = 'institutions';
 }
 
 function loadingHtml() {
@@ -204,7 +209,18 @@ function renderInstitutions(ctx) {
 }
 
 function paintInstitutions(ctx) {
-  const panel = renderFiled(ctx, { disposers });
+  disposers.forEach((d) => d && d());
+  disposers = [];
+  const panel = renderFiled(ctx, {
+    disposers,
+    section: filedSection,
+    onSection: (section) => {
+      if (section === filedSection || ctxRef?.subview !== 'institutions') return;
+      filedSection = section;
+      paintInstitutions(ctxRef);
+      ctxRef.root.querySelector('[data-filed-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
   if (!panel.html) {
     // No holdings file on disk. Say so rather than rendering an empty table, which would read as a
     // fund that holds nothing.

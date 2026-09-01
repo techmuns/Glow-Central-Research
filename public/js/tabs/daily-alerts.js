@@ -24,7 +24,7 @@
 // per feed, when it last looked and whether that reaches today. It is the same rule as the filings
 // tabs' "63 companies have not been checked since": never claim nothing is new.
 
-import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead } from '../ui/screener.js';
 import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -192,8 +192,7 @@ function paint(ctx) {
 
   // THE FEEDS ON OFFER, AND THEN THE ONES TICKED. Market-wide news carries no company, so under a
   // narrowed scope it contributes nothing and is not shown as a filter — the reason it is absent
-  // stays in the provenance modal's table, which lists every feed in every scope. Dropping the
-  // chip is not dropping the claim.
+  // stays in the source registry. Dropping the chip is not dropping the claim.
   const shown = feeds.filter((f) => ctx.scope === 'universe' || f.scopable !== false);
   const available = shown.map((f) => f.id);
   // A SELECTION THAT SURVIVES A REPAINT BUT NOT A VANISHED FEED. Rows land while feeds settle and
@@ -210,12 +209,10 @@ function paint(ctx) {
   const table = eventsTable(ctx, visible, day);
   tableView = table.view;
 
-  // NO DESCRIPTION, NO STAT STRIP, AND THE TWO CHIPS ARE ONE PILL. What they said is all still
-  // said — behind the pill, which is the resolution this codebase reaches every time a caveat
-  // starts competing with the content it qualifies. The four cards were the loudest version of
+  // NO DESCRIPTION AND NO STAT STRIP. The four cards were the loudest version of
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
-  // printed a date the pill now carries. What may NOT go is the provenance, so the pill is the
-  // control that keeps it one click away — see the stat-strip opt-out rule in CLAUDE.md.
+  // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
+  // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Daily Alerts',
@@ -230,7 +227,6 @@ function paint(ctx) {
     ${table.html}`;
 
   table.wire(ctx.root);
-  wireProvenance(ctx.root, feeds, day, ctx.scope);
   wireFeedFilter(ctx, available);
   fitStreamToViewport(ctx.root);
   restoreFocus(ctx.root, focus);
@@ -272,8 +268,8 @@ function restoreFocus(root, focus) {
  *
  * IT CARRIES THE DATE ON ITS FACE, and that is not decoration: this is the one tab defined by a
  * DAY, the date is in IST rather than UTC (a UTC date names yesterday for five and a half hours
- * every evening), and a screenshot travels without the modal. Everything else the two chips and
- * the four cards used to say is behind it.
+ * every evening), and a screenshot travels without the source registry. Detailed provenance stays
+ * in that registry and the export.
  *
  * IT IS GREEN ONLY WHEN THE DATA EARNS IT. Every feed reaching today is the claim; one behind is
  * amber and says so, because a chip that reads Live over a feed that has not looked at today is
@@ -286,17 +282,17 @@ function livePill(rep, day) {
   const reading = rep?.pending ?? 0;
   const label = `${fmtDay(day)}`;
   if (behind || reading) {
-    return `<button type="button" data-alerts-info
-       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300 transition-colors hover:bg-amber-100"
+    return `<span data-alerts-info
+       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300"
        title="${escapeHtml(behind ? `${behind} feed${behind === 1 ? ' has' : 's have'} not looked at today yet.` : 'Still reading.')}">
        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> ${escapeHtml(label)}
-     </button>`;
+     </span>`;
   }
-  return `<button type="button" data-alerts-info
-     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-100"
+  return `<span data-alerts-info
+     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
      title="Every feed on this page has looked at today. Indian trading date, not UTC.">
      <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Live · ${escapeHtml(label)}
-   </button>`;
+   </span>`;
 }
 
 /** `2026-09-01` -> `01 Sept 2026`, so the chip reads as a date rather than as an id. */
@@ -485,7 +481,7 @@ function wireFeedFilter(ctx, available) {
  * panel worth having.
  */
 export function feedState(f) {
-  // `label` is the full wording, still printed in the provenance modal's table. `short` is what the
+  // `label` is the full wording carried by the chip title. `short` is what the
   // compact chip shows, and the two must agree: a chip that reads `0` under a feed whose state is
   // "has not looked at today" would be the exact confusion this panel exists to prevent — a count
   // is a finished answer and that state is the absence of one, so it prints a WORD, never a number.
@@ -701,83 +697,10 @@ function emptyMessageFor(scope, day) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Provenance
-// ---------------------------------------------------------------------------------------
-
-function wireProvenance(root, feeds, day, scope) {
-  const btn = root.querySelector('[data-alerts-info]');
-  if (!btn) return;
-  btn.addEventListener('click', () => openModal(provenanceHtml(feeds, day, scope), { size: 'wide' }));
-}
-
-function provenanceHtml(feeds, day, scope) {
-  const rows = feeds
-    .map(
-      (f) => `
-      <tr class="border-b border-slate-100">
-        <td class="py-2 pr-4 align-top text-sm font-semibold text-slate-800">${escapeHtml(f.label)}</td>
-        <td class="py-2 pr-4 align-top text-sm text-slate-600">${escapeHtml(f.what)}</td>
-        <td class="py-2 align-top text-sm ${f.status === 'failed' ? 'text-rose-700' : f.reachesToday === false ? 'text-amber-700' : 'text-slate-600'}">
-          ${escapeHtml(feedState(f).label)} · ${escapeHtml(formatNumber(f.todayCount || 0))} today · ${escapeHtml(formatNumber(f.count || 0))} retained${f.oldestDay && f.newestDay ? ` · ${escapeHtml(f.oldestDay)} → ${escapeHtml(f.newestDay)}` : ''}${f.asOf ? ` · last read ${escapeHtml(formatRelativeTime(f.asOf))}` : ''}
-        </td>
-      </tr>`
-    )
-    .join('');
-
-  return `
-    <div class="px-7 py-6">
-      <div class="mb-3 flex items-start justify-between gap-4">
-        <div>
-          <h2 class="font-display text-xl font-bold text-slate-900">Daily Alerts — where every row comes from</h2>
-          <p class="mt-1 text-sm text-slate-500">${escapeHtml(day)} · ${escapeHtml(scopeLabel(scope))} scope</p>
-        </div>
-        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
-      </div>
-
-      <div class="text-sm leading-relaxed text-slate-600">
-        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab. The stream is newest first through each feed's retained history; scrolling reveals older dates without sending a request per company.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Which tabs it reads</h3>
-        <p><strong class="text-slate-800">Earnings Hub, Con-call, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades.</strong> News appears as separate company and market-wide feeds below.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Direction and importance</h3>
-        <p><span class="font-semibold text-emerald-700">Positive</span>, <span class="font-semibold text-rose-700">negative</span> and <span class="font-semibold text-slate-600">neutral</span> are directional readings. <strong class="text-slate-800">High / Low is separate</strong>: it describes the event's measured importance threshold, not whether it is good or bad. Both reasons are printed on every row.</p>
-        <p class="mt-2">Earnings use the filed revenue and net-profit comparison. Con-calls and chatter reproduce their source's own sentiment bands. Insider and investor activity use the transaction direction. Announcements use the narrow rules below. News remains neutral because a publisher headline is not structured sentiment data.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Thresholds, stated</h3>
-        <ul class="mt-2 list-disc space-y-1 pl-5">
-          <li>Price moves enter at <strong>±${alerts.MOVE_PCT}%</strong> and are High.</li>
-          <li>Insider activity is High at <strong>${alerts.INSIDER_HIGH_PCT}%</strong> of shares or <strong>₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore</strong>.</li>
-          <li>Investor activity is High for a new/no-longer-disclosed position or a change of at least <strong>${alerts.INVESTOR_HIGH_PP} percentage point</strong>.</li>
-          <li>Public chatter is High at <strong>${alerts.CHATTER_HIGH_MENTIONS} mentions</strong> or <strong>${alerts.CHATTER_HIGH_CHANGE_PCT}%</strong> absolute mention change.</li>
-          <li>Con-calls are High for non-neutral source sentiment or an extreme source result band; earnings filings are High.</li>
-        </ul>
-
-        <h3 class="mt-4 font-bold text-slate-800">Announcement rules</h3>
-        <p>Negative: rating downgrade, default/insolvency, fraud/enforcement, contract cancellation/suspension, or auditor resignation. Positive: rating upgrade, dividend/bonus/buyback, order award, approval/patent grant, or commercial-production start. BSE's own critical flag is always High. Everything unmatched stays neutral and Low. These are rule-derived labels, not BSE sentiment.</p>
-
-        <p class="mt-3 text-xs text-slate-500">Directional activity is not an investment recommendation. “No longer disclosed” in investor data does not prove a complete sale; the holding may have fallen below the disclosure threshold. Public Chatter is a rolling snapshot, not a post-by-post event log.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">What was read, and whether it reaches today</h3>
-        <table class="mt-2 w-full text-left">
-          <thead><tr class="border-b border-slate-200">
-            <th scope="col" class="py-2 pr-4 text-xs font-bold uppercase tracking-wider text-slate-500">Feed</th>
-            <th scope="col" class="py-2 pr-4 text-xs font-bold uppercase tracking-wider text-slate-500">Contributes</th>
-            <th scope="col" class="py-2 text-xs font-bold uppercase tracking-wider text-slate-500">State</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        <p class="mt-4 text-xs text-slate-400">A feed that has not looked at today is not broken and its historical rows are not wrong — they remain in the timeline under their actual dates. Nothing on this tab sends a request per company; it re-reads committed captures and cached routes, and an unchanged one answers with no body at all.</p>
-      </div>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------------------
 // Export
 //
 // ROW 1 IS THE BANNER. A workbook leaves the page without any of the chrome above it — no legend,
-// no coverage panel, no provenance modal — so everything a reader needs in order not to misread the
+// no coverage panel, no source registry — so everything a reader needs in order not to misread the
 // colours has to travel inside the file.
 // ---------------------------------------------------------------------------------------
 
