@@ -4094,10 +4094,38 @@ console.log('\n— news, announcements and insider trades —');
   // started a real run on every push would be spending somebody's runner minutes and hitting
   // Moneycontrol to test a button.
   // -------------------------------------------------------------------------------------
+  // OPENING THIS TAB DISPATCHES ONLY WHEN THE CAPTURE IS STALE, and the age is the whole gate.
+  //
+  // This is the one place in the dashboard that starts work unprompted, narrowed deliberately (see
+  // the comment on `maybeAutoFetch`). The check that matters is therefore not "it never dispatches"
+  // but "it dispatches ON STALE AND NOT ON FRESH" — a gate that fired regardless would be the
+  // page-load walk this codebase spent a lot of effort removing.
+  const capturedAgeMin = await evalSafe(async () => {
+    const at = Date.parse((await import('/js/data/market-news.js')).meta().capturedAt || '');
+    return Number.isFinite(at) ? (Date.now() - at) / 60000 : null;
+  });
+  // A REAL RELOAD, NOT A HASH NAVIGATION. The one-attempt-per-window guard is module state, and
+  // earlier checks in this suite have already opened this tab — so a hash navigation measures a
+  // SECOND open and would report the gate as broken when it is working. (Same trap the
+  // super-investor check documents.) Only a reload gives a genuine first open.
   seen.marketNewsApi.length = 0;
+  await page.goto(`${BASE}/#/research/news?scope=universe`, { waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+  const dispatchOnLoad = seen.marketNewsApi.filter((u) => /POST/.test(u)).length;
+  const shouldDispatch = capturedAgeMin !== null && capturedAgeMin >= 20;
+  ok(shouldDispatch ? 'a stale capture makes opening the news tab fetch one' : 'a fresh capture makes opening the news tab fetch nothing',
+    shouldDispatch ? dispatchOnLoad >= 1 : dispatchOnLoad === 0,
+    `capture ${capturedAgeMin === null ? 'unknown' : capturedAgeMin.toFixed(0) + ' min'} old, ${dispatchOnLoad} POST(s)`);
+
+  // Whatever the age, a second open inside the window must NOT dispatch again — otherwise a failing
+  // dispatch becomes a loop that spends a run on every navigation.
+  seen.marketNewsApi.length = 0;
+  await go('/#/research/earnings-hub?scope=universe', 1500);
   await go('/#/research/news?scope=universe', 3000);
-  const dispatchOnLoad = seen.marketNewsApi.length;
-  ok('landing on the news tab dispatches nothing', dispatchOnLoad === 0, `${dispatchOnLoad} /api/market-news/ request(s) on load`);
+  const secondOpen = seen.marketNewsApi.filter((u) => /POST/.test(u)).length;
+  ok('...and re-opening it inside the same window dispatches nothing more', secondOpen === 0,
+    `${secondOpen} POST(s) on the second open`);
   await page.locator('[data-mcnews-info]').click();
   await page.waitForTimeout(500);
   ok('...and the control says it fetches, not that it checks a file',

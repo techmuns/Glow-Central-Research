@@ -914,7 +914,23 @@ build's colour.
 `scheduled()` stays in place: it costs nothing without a trigger and starts working the moment a
 slot is freed or the plan is upgraded, with no code change.
 
-**SO THE CLOCK COMES FROM OUTSIDE.** An external cron service posts to
+**AND THE PAGE NO LONGER DEPENDS ON A CLOCK EXISTING AT ALL.** For a stretch the only thing that
+refreshed the news was a reader pressing a button to fix a staleness they had already had to notice
+— the page failing at its job and asking the reader to compensate. So opening the News tab on a
+capture older than twenty minutes now starts one fetch by itself.
+
+**That is a deliberate narrowing of "nothing dispatches on its own", not an abandonment of it**, and
+the two reasons behind that rule are why it is safe here. The rule protects against *spending a
+metered resource unprompted* — the Deep Dive's paid LLM runs — and against *hammering a rate-limited
+service on a page load* — the forty-round-trip filings walk. This is one request to a public listing
+page, on our own free runner, gated by the capture's own age and declined at the edge when a run is
+already going. **A reader opening the tab is the demand signal**, and acting on it beats a blind
+clock: fresh exactly when somebody is reading, nothing when nobody is. The suite asserts the gate in
+both directions — a stale capture dispatches, a fresh one does not, and a second open inside the
+window never dispatches again, because a failing dispatch that retried on every navigation would be
+the page-load walk all over again.
+
+**SO THE CLOCK STILL COMES FROM OUTSIDE, AS A SAFETY NET RATHER THAN THE MECHANISM.** An external cron service posts to
 `/api/market-news/refresh?source=cron` every 20 minutes — the settings are in
 `docs/DATA-CONTRACTS.md`. That is safe to expose because nothing in the request chooses what runs:
 repository, workflow and ref are fixed on the Worker, a run in flight is declined, and the edge

@@ -373,6 +373,13 @@ function provenance(m) {
          schedule. The chip in the heading turns green and reads <em>Live</em> only while the capture really is the newest
          the schedule can produce; past that it turns amber and prints the age instead.</p>
 
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Opening this tab on a stale capture fetches one</h3>
+      <p class="mt-1 text-xs">If the capture is more than twenty minutes old when you open News, the fetch below starts on
+         its own, once. Everywhere else in this dashboard nothing runs unprompted — that rule protects metered work and
+         rate-limited services, and neither applies here: this is one request to a public page, on our own runner, gated
+         by the capture's own age and declined at the edge if a run is already going. <strong>Your opening the tab is the
+         signal</strong>, so the news is fresh exactly when somebody is reading it and nothing runs when nobody is.</p>
+
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What the Fetch button does</h3>
       <p class="mt-1 text-xs">It reads the committed capture first — free, and if a scheduled run has just published one
          this browser has not picked up, that is the answer and nothing is started. Otherwise it asks the GitHub runner
@@ -611,6 +618,45 @@ function wireList(root) {
 const DESCRIPTION =
   'Every stocks story Moneycontrol publish, market-wide — not filtered to the companies in scope. Headlines and standfirsts are theirs; the article stays where it is published.';
 
+/**
+ * OPENING THIS TAB ON A STALE CAPTURE FETCHES ONE. A DELIBERATE REVERSAL, SO HERE IS THE REASONING.
+ *
+ * "Nothing dispatches on its own" was stated firmly and repeatedly in this file and in CLAUDE.md,
+ * and it is being narrowed rather than abandoned. That rule exists for two reasons, and neither
+ * applies here:
+ *
+ *   1. NEVER SPEND A METERED RESOURCE UNPROMPTED. That is the Deep Dive rule, where every dispatch
+ *      is a paid LLM run on somebody's account. This is our own GitHub Action on free minutes.
+ *   2. NEVER HAMMER A RATE-LIMITED SERVICE ON A PAGE LOAD. That is the per-company filings walk —
+ *      forty round trips against a ~60/minute cap. This is ONE request to a public listing page,
+ *      at most once per `AUTO_AFTER_MS` across every reader, because the capture's own age is the
+ *      gate and a run in flight is declined at the edge.
+ *
+ * What forced it is measurement, not preference. Both schedulers are ruled out — GitHub's cron
+ * fires roughly every four hours, and a Cloudflare cron cannot be registered on this account (the
+ * Workers Free limit of 5 cron triggers is per ACCOUNT and is spent) — so for a stretch the only
+ * thing that refreshed the news was a reader pressing a button to fix a staleness they had already
+ * had to notice. That is the page failing at its job and asking the reader to compensate.
+ *
+ * A READER OPENING THE TAB IS THE DEMAND SIGNAL, and acting on it is strictly better than a blind
+ * clock: the news is fresh exactly when somebody is reading it, and nothing runs when nobody is.
+ * It is also a SAFETY NET rather than the mechanism — an external scheduler still keeps the capture
+ * warm for the alert stack, which fires while the reader is on other tabs. See the provenance
+ * modal, which says all of this to the reader too.
+ */
+const AUTO_AFTER_MS = 20 * 60 * 1000;
+let autoAt = 0;
+
+function maybeAutoFetch(ctx) {
+  if (busy) return;
+  const at = Date.parse(marketNews.meta().capturedAt || '');
+  if (!Number.isFinite(at) || Date.now() - at < AUTO_AFTER_MS) return;
+  // One attempt per window per page, so a dispatch that fails cannot become a loop.
+  if (Date.now() - autoAt < AUTO_AFTER_MS) return;
+  autoAt = Date.now();
+  fetchLatest(ctx);
+}
+
 export function render(ctx) {
   ctxRef = ctx;
   disposers.forEach((d) => d && d());
@@ -623,10 +669,15 @@ export function render(ctx) {
   if (!marketNews.isLoaded()) {
     ctx.root.innerHTML = `${sectionHead({ title: 'News', description: DESCRIPTION })}
       <div class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"></div>`;
-    marketNews.load().then(() => ctxRef && paint(ctxRef));
+    marketNews.load().then(() => {
+      if (!ctxRef) return;
+      paint(ctxRef);
+      maybeAutoFetch(ctxRef);
+    });
     return;
   }
   paint(ctx);
+  maybeAutoFetch(ctx);
 }
 
 export function destroy() {

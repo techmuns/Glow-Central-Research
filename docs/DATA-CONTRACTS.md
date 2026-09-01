@@ -2319,6 +2319,12 @@ written, tested and deployed; it needs a trigger to call it. Any of these suppli
    self-reported and that is fine for a label: a lie costs one wrong word in a run name and nothing
    else.
 
+**The page does not depend on any of it any more.** Opening the News tab on a capture older than
+twenty minutes starts one fetch by itself — one request, gated by the capture's age, declined at the
+edge if a run is in flight, and never repeated inside the same window. An external scheduler is
+still worth having, because it keeps the capture warm for the alert stack while the reader is on
+other tabs; it is a safety net now rather than the only mechanism.
+
 **`GET /api/market-news/run` answers whether any of it is working**, via `lastAutomatic`: the most
 recent run that something other than a person started. It reads `null` while nothing schedules.
 
