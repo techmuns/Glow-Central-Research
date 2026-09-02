@@ -2140,6 +2140,12 @@ company can contribute many rows. It therefore reads *"1,295 of 1,295 trades sho
 coverage is reported separately in the scope/provenance text, so a Portfolio view never implies
 that the portfolio contains 1,295 companies.
 
+The upstream insider table currently carries a `Source` label but no filing id or document URL.
+The UI does not repeat those provider names or render a dead `#` arrow. Its single **Source** cell
+prefers an explicit HTTP(S) URL whenever one arrives; otherwise it opens Trendlyne's public
+insider-disclosure results filtered by that row's exact insider/person name. The export follows the
+same rule and writes the URL, not the provider label.
+
 **Modules** — `worker/muns.mjs` (clients) · `public/js/data/filings-shared.js` (pure parsers, shared
 with the Worker) · `public/js/data/filings.js` (browser feed) · `public/js/tabs/filings-tab.js` (the
 one renderer) · `scripts/scrape-filings.mjs` (the scheduled walk).
