@@ -11,11 +11,9 @@
 // This is a dev script, not part of the app — it uses the system Playwright (see PW_ROOT
 // below) rather than adding an npm dependency, exactly as scrape-technicals.mjs uses none.
 //
-// SANDBOX NOTE: headless Chromium here cannot reach cdn.tailwindcss.com or Google Fonts
-// (the agent proxy only accepts CONNECT). Layout checks still pass because they measure
-// scrollWidth, not typography, but screenshots will be unstyled. To shoot styled captures,
-// copy public/ to a scratch dir, curl the CDN assets into it, repoint index.html at the local
-// copies and serve that — and never commit that rewrite.
+// SANDBOX NOTE: headless Chromium may not reach Google Fonts or the on-demand ExcelJS CDN.
+// Tailwind is a committed same-origin stylesheet, so layout and visual checks still exercise the
+// shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -36,27 +34,24 @@ const ok = (label, cond, detail = '') => {
   if (!cond) failures++;
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${detail ? `  — ${detail}` : ''}`);
 };
-// For the handful of checks that need the Tailwind CDN. Marking them SKIP is honest; asserting
-// them against an unstyled page would be a pass that means nothing.
 const skip = (label, why) => {
   skipped++;
   console.log(`SKIP  ${label}  — ${why}`);
 };
 
-// The two CDN scripts the page loads at runtime. Where there is no egress neither arrives, and a
-// check that needs one is measuring the sandbox rather than the page — so it reports SKIP. These
-// read `errors`, which is populated as the run goes, so call them AFTER the navigation concerned.
+// ExcelJS is loaded only when an export starts. Where there is no egress, an export check is
+// measuring the sandbox rather than the page — so it reports SKIP. This reads `errors`, which is
+// populated as the run goes, so call it AFTER the navigation concerned.
 const cdnBlocked = (re) => errors.some((e) => re.test(e));
 const exceljsBlocked = () => cdnBlocked(/exceljs/i);
-const tailwindBlocked = () => cdnBlocked(/tailwind|cdn\.tailwindcss\.com/i);
 // Errors that belong to the environment rather than the page. Two families, both of which this
 // suite already reports as SKIPs elsewhere, so counting them again as console errors would make
 // the one unambiguous check in the run unreadable:
-//   • the three CDNs the page loads at runtime, unreachable without egress;
+//   • Google Fonts and on-demand ExcelJS, unreachable without egress;
 //   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
 //     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
 // Everything else counts, and the number filtered is always printed rather than swallowed.
-const ENV_ERROR = /tailwind|cdn\.tailwindcss\.com|exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
 // A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
 // failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
 // URL answers 404, not ERR_CONNECTION_RESET, so those still count.
@@ -139,9 +134,8 @@ if (process.env.CHATTER_STUB) {
 
 const errors = [];
 // Record the RESOURCE URL alongside the message. "Failed to load resource: net::ERR_CONNECTION_
-// RESET" names nothing, so without the URL there is no way to tell the Tailwind CDN this sandbox
-// cannot reach from a script the page genuinely lost — and a console check that cannot distinguish
-// those is a check nobody can act on.
+// RESET" names nothing, so without the URL there is no way to tell an unreachable optional CDN
+// from a script the page genuinely lost — and a check that cannot distinguish those is not useful.
 page.on('console', (m) => {
   if (m.type() !== 'error') return;
   const url = (() => { try { return m.location()?.url || ''; } catch { return ''; } })();
@@ -436,8 +430,8 @@ ok('gross profit is not a column', !ehHeads.some((h) => h.includes('GROSS')));
 
 // The head has to stay put on a 1,300-row table. `sticky` only engages against a scrolling
 // ancestor, so the wrapper must actually scroll — assert the behaviour, not the CSS. Needs real
-// stylesheets: `position: sticky` comes from a Tailwind class, so on an unstyled page the head
-// would scroll away for a reason that has nothing to do with this code.
+// stylesheets: `position: sticky` comes from compiled Tailwind, so a missing generated asset would
+// make the head scroll away for a reason that has nothing to do with this component.
 const ehSticky = await page.evaluate(async () => {
   const box = document.querySelector('[data-table-scroll]');
   const head = document.querySelector('#content-host thead');
@@ -449,7 +443,7 @@ const ehSticky = await page.evaluate(async () => {
 });
 ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
 if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
-else skip('...and the column headings stay put while it does', 'Tailwind CDN unreachable — position:sticky never applied');
+else skip('...and the column headings stay put while it does', 'compiled stylesheet unavailable — position:sticky never applied');
 await page.evaluate(() => (document.querySelector('[data-table-scroll]').scrollTop = 0));
 await page.waitForTimeout(200);
 ok('the serial-number column is gone', !ehHeads.some((h) => h === '#'));
@@ -520,7 +514,7 @@ const ehFit = await page.evaluate(() => {
   return { need: box.scrollWidth, have: box.clientWidth, styled };
 });
 if (ehFit.styled) ok('the table fits at 1440 with no horizontal scrollbar', ehFit.need <= ehFit.have + 1, `${ehFit.need}px in ${ehFit.have}px`);
-else skip('the table fits at 1440 with no horizontal scrollbar', 'Tailwind CDN unreachable — serve a vendored copy to measure this');
+else skip('the table fits at 1440 with no horizontal scrollbar', 'compiled stylesheet unavailable');
 
 // THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
 // same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
@@ -4836,9 +4830,8 @@ console.log('\n— portfolio: no-live-price fallback —');
   const fbErrors = [];
   fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
   await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  // `domcontentloaded`, not `networkidle`, for the same reason `go()` uses it: the Tailwind CDN
-  // request never settles in a sandbox with no egress, so networkidle waits out its full timeout
-  // and takes the run with it. The explicit settle below is what this check actually needs.
+  // `domcontentloaded`, not `networkidle`, because optional external resources and long-lived
+  // requests need not settle. The explicit settle below is what this check actually needs.
   await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
   await fb.waitForTimeout(2200);
   const t = await fb.locator('#content-host').innerText();
@@ -4848,8 +4841,7 @@ console.log('\n— portfolio: no-live-price fallback —');
   ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
   ok('...on the face of the pill, not only inside it', /Marks unavailable/.test(await fb.locator('[data-pf-info]').first().innerText()));
   ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
-  // Ours only. A sandbox with no egress logs "tailwind is not defined" on every page it opens,
-  // and counting that as this fallback throwing would blame the page for the network.
+  // Ours only. Optional external-resource failures are filtered by `ownError` above.
   const fbOwn = fbErrors.filter(ownError);
   ok('...without throwing', fbOwn.length === 0, fbOwn.join(' | ') || `${fbErrors.length - fbOwn.length} CDN error(s) ignored`);
   await fb.close();
@@ -5053,13 +5045,13 @@ console.log('\n— header status and live alerts —');
       styled: getComputedStyle(card).backgroundColor !== 'rgba(0, 0, 0, 0)',
     };
   });
-  // Needs Tailwind: without it the card has no background, so `elementFromPoint` finds whatever is
-  // behind it and the check measures the stylesheet rather than the component.
+  // Needs the compiled stylesheet: without it the card has no background, so `elementFromPoint`
+  // finds whatever is behind it and the check measures the asset rather than the component.
   if (visible.styled) {
     ok('...and is actually painted, not just present at opacity 0', visible.ok && visible.opacity > 0.5,
       `opacity ${visible.opacity}, topmost element at its centre is ${visible.ok ? 'the card' : visible.why}`);
   } else {
-    skip('...and is actually painted, not just present at opacity 0', 'Tailwind CDN unreachable — the card has no background to hit-test');
+    skip('...and is actually painted, not just present at opacity 0', 'compiled stylesheet unavailable — the card has no background to hit-test');
   }
   ok('...the same event never announces twice', alerts.dupeRejected);
   ok('...and the stack is capped rather than unbounded', alerts.cards <= 4, `${alerts.cards} visible after 7 pushes`);
@@ -5070,9 +5062,9 @@ console.log('\n— header status and live alerts —');
   if (Number.isFinite(alerts.z) && Number.isFinite(drillZ) && Number.isFinite(wsZ)) {
     ok('alerts sit BEHIND the drill, the workspace and modals', alerts.z < drillZ && alerts.z < wsZ, `toast z-${alerts.z} < drill z-${drillZ} < workspace z-${wsZ}`);
   } else {
-    // The stacking order lives entirely in Tailwind's z-* utilities, so with the CDN blocked every
-    // one of them computes to `auto`. Reporting that as a failure would be measuring the network.
-    skip('alerts sit BEHIND the drill, the workspace and modals', 'Tailwind CDN unreachable — every z-index computes to auto');
+    // The stacking order lives entirely in Tailwind's z-* utilities, so with the generated asset
+    // missing every one computes to `auto`.
+    skip('alerts sit BEHIND the drill, the workspace and modals', 'compiled stylesheet unavailable — every z-index computes to auto');
   }
 
   // The honesty rules the alert text has to obey. Both are the same failure mode the tables
@@ -6048,12 +6040,9 @@ console.log('\n— sub-view picker and the removed roadmap card —');
   // invisibility while every click handler goes on working — a control that looks broken and
   // tests as fine. That is exactly what the first cut of this picker did.
   //
-  // It is asserted as a CLASS contract rather than as geometry, and the distinction is the whole
-  // point here: with no egress to the Tailwind CDN this suite drives an effectively UNSTYLED
-  // page, where `overflow-hidden` does nothing and every box measures full width. The first
-  // version of this check read the open menu's box and passed with `w:1424 h:21` — which it
-  // would have done just as happily with the clipping bug still in place. A check that cannot
-  // fail is not a check.
+  // It is asserted as a CLASS contract rather than as geometry because class ownership is the
+  // durable cause of this bug. The first version read the open menu's box and could pass even when
+  // an ancestor clipped it; a check that cannot fail is not a check.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
   await page.locator('#subview-mount [data-dd-trigger]').click();
@@ -6241,9 +6230,10 @@ ok('no static-file loader still uses cache: no-store', noStore.out.length === 0,
 // 18. Moving between tabs — the table streams instead of blocking, and still ends up complete
 //
 // Building and laying out 1,722 rows cost ~900ms of blocked main thread on every mount of the
-// Earnings Hub, for a viewport that shows about thirteen. A CPU profile blamed the scope toggle,
-// because reading `offsetLeft` for its sliding thumb is what forced the layout — the cost was the
-// table's all along.
+// Earnings Hub, for a viewport that shows about thirteen. A later trace found two costs still on
+// every switch: the Tailwind browser compiler rescanning injected markup, and the scope thumb
+// forcing layout through offset measurements. CSS is now precompiled; the thumb moves by index;
+// and the table's initial and idle batches stay small.
 //
 // So `scoreTable` paints a screenful and appends the rest while the browser is idle. Both halves
 // of that need asserting: the switch has to be fast, AND the table has to end up whole. A fast
@@ -6251,6 +6241,21 @@ ok('no static-file loader still uses cache: no-store', noStore.out.length === 0,
 // the one it fixed.
 // ---------------------------------------------------------------------------------------
 console.log('\n— tab switching —');
+const tabSpeedContracts = await page.evaluate(async () => {
+  const index = await (await fetch('/index.html', { cache: 'no-store' })).text();
+  const css = await (await fetch('/css/tailwind.css', { cache: 'no-store' })).text();
+  const components = await (await fetch('/js/ui/components.js', { cache: 'no-store' })).text();
+  const scopeToggle = components.split('export function segmentedToggle')[1]?.split('export function')[0] || '';
+  return {
+    localCssLinked: /href=["']\/css\/tailwind\.css["']/.test(index),
+    runtimeCompilerGone: !/cdn\.tailwindcss\.com|tailwind\.config/.test(index),
+    cssBytes: css.length,
+    scopeMeasuresLayout: /\.(?:offsetWidth|offsetLeft|getBoundingClientRect)\b/.test(scopeToggle),
+  };
+});
+ok('Tailwind ships as a substantial same-origin stylesheet', tabSpeedContracts.localCssLinked && tabSpeedContracts.cssBytes > 30000, `${tabSpeedContracts.cssBytes} bytes`);
+ok('the browser-side Tailwind compiler stays out of the hot path', tabSpeedContracts.runtimeCompilerGone);
+ok('the scope toggle positions its thumb without forcing layout', !tabSpeedContracts.scopeMeasuresLayout);
 await go('/#/research/earnings-hub?scope=universe', 1200);
 await waitForPanel();
 await settleTables();
@@ -6271,7 +6276,8 @@ const switchCost = await page.evaluate(async () => {
   return times;
 });
 // Generous on purpose: this runs on shared CI hardware and the point is the order of magnitude,
-// not a stopwatch. Before streaming, the two Earnings Hub entries alone measured 866ms and 1,536ms.
+// not a stopwatch. Before streaming, the two Earnings Hub entries alone measured 866ms and 1,536ms;
+// the current Chrome DevTools interaction trace measured 39ms INP.
 ok('switching tabs does not block on building the whole table', Math.max(...switchCost) < 400, `${switchCost.join('ms, ')}ms`);
 
 // Asserted on the markup `scoreTable` returns rather than by racing the fill on screen: the whole
@@ -6290,7 +6296,7 @@ const streamed = await page.evaluate(async () => {
     pending: Number(/data-rows-pending="(\d+)"/.exec(t.html)?.[1] || 0),
   };
 });
-ok('the first paint carries a screenful, not the whole feed', streamed.inFirstPaint > 0 && streamed.inFirstPaint <= 120 && streamed.inFirstPaint < streamed.total, `${streamed.inFirstPaint} of ${streamed.total} rows in the initial markup`);
+ok('the first paint carries a screenful, not the whole feed', streamed.inFirstPaint > 0 && streamed.inFirstPaint <= 60 && streamed.inFirstPaint < streamed.total, `${streamed.inFirstPaint} of ${streamed.total} rows in the initial markup`);
 ok('...and says how many are still to come rather than hiding them', streamed.pending === streamed.total - streamed.inFirstPaint, `${streamed.pending} pending`);
 await settleTables();
 const afterStream = await page.locator('tr[data-row-key]').count();

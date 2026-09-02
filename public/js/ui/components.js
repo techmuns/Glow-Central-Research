@@ -135,16 +135,21 @@ export function tabBar({ tabs, activeId, onSelect }) {
   return { html, wire };
 }
 
-// Two-option segmented control (Portfolio ⇄ Universe) with a sliding white "thumb".
+// Scope segmented control with a sliding brand thumb.
 export function segmentedToggle({ options, activeValue, onChange }) {
+  // Every scope label fits comfortably inside 5rem. Fixed equal segments let the active thumb be
+  // positioned without reading offsetWidth/offsetLeft after a tab has inserted a large table.
+  // That read used to force layout of the newly-painted panel and cost 114ms in a transition trace.
+  const activeIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
   const html = `
     <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
-      <span data-segmented-thumb class="absolute inset-y-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-all duration-200 ease-out" style="width:0px;transform:translateX(0px);"></span>
+      <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
+        style="transform:translateX(${activeIndex * 5}rem);"></span>
       ${options
         .map(
           (o) => `
-        <button type="button" data-value="${escapeHtml(o.value)}"
-          class="relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
+        <button type="button" data-value="${escapeHtml(o.value)}" aria-pressed="${o.value === activeValue}"
+          class="relative z-10 w-20 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
           ${escapeHtml(o.label)}
         </button>`
         )
@@ -153,23 +158,12 @@ export function segmentedToggle({ options, activeValue, onChange }) {
 
   function wire(root) {
     const wrap = root.querySelector('[data-segmented]');
-    const thumb = wrap.querySelector('[data-segmented-thumb]');
-
-    function position() {
-      const active = wrap.querySelector(`[data-value="${cssEscape(activeValue)}"]`);
-      if (!active) return;
-      thumb.style.width = `${active.offsetWidth}px`;
-      thumb.style.transform = `translateX(${active.offsetLeft - 2}px)`;
-    }
-
-    wrap.addEventListener('click', (e) => {
+    const onClick = (e) => {
       const btn = e.target.closest('[data-value]');
       if (btn) onChange(btn.dataset.value);
-    });
-
-    requestAnimationFrame(position);
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
+    };
+    wrap.addEventListener('click', onClick);
+    return () => wrap.removeEventListener('click', onClick);
   }
 
   return { html, wire };

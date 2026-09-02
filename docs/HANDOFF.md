@@ -8,8 +8,9 @@ This file is the map between them, plus the things that are only obvious once yo
 
 ## 1. What this is
 
-A static research and portfolio dashboard for Indian equities. Vanilla ES modules, no build step,
-no bundler, no npm dependency for the app itself. You open `public/index.html` and it works.
+A static research and portfolio dashboard for Indian equities. Vanilla ES modules, no deployment
+build step, no bundler, no npm dependency for the app itself. The generated Tailwind stylesheet is
+committed, so serving `public/` is still the whole runtime setup.
 
 ```bash
 python3 -m http.server 8080 -d public     # that is the whole dev setup
@@ -212,8 +213,9 @@ After that the ledger names the ticker and a plain run picks it up.
 ## 4. Architecture in one page
 
 ```
-public/index.html          design tokens, fonts, Tailwind CDN, #app, three overlay roots
+public/index.html          design tokens, fonts, compiled CSS link, #app, three overlay roots
                            (drill z-50 < workspace z-55 < modal z-60)
+public/css/tailwind.css    generated Tailwind utilities; committed and served directly
 public/js/
   app.js                   bootstrap: fetch the small JSON set once, prime the data modules, mount
   core/                    state · router (hash) · live (polling) · store (IndexedDB cache) · format · dom
@@ -1007,10 +1009,10 @@ Two things that follow:
 - **Adding a header or a cache rule means editing `worker/index.js`**, not dropping a `_headers`
   file — that file would simply be served as a static asset and do nothing.
 
-**Three CDN hosts must be reachable from the browser**: `cdn.tailwindcss.com`, Google Fonts, and
-`cdn.jsdelivr.net` (exceljs, loaded on demand only when someone exports). If a deployment target
-blocks them, vendor them and repoint `index.html` — see the sandbox note at the bottom of
-`CLAUDE.md` for the exact procedure, and never commit that rewrite.
+**Two optional CDN hosts are used by the browser**: Google Fonts and `cdn.jsdelivr.net` (ExcelJS,
+loaded on demand only when someone exports). If Google Fonts is unavailable the dashboard uses its
+system fallbacks; if ExcelJS is unavailable export cannot start. Tailwind is a same-origin static
+asset and must never depend on a runtime CDN compiler.
 
 Every `data/*.json` path the app fetches at runtime resolves to a file that exists in `public/`;
 that is worth re-checking after any data change, because a 404 there is invisible until a tab mounts.
@@ -1055,7 +1057,8 @@ columns and the entire mount cost was the table, charged to an innocent bystande
 forced.** Layout, `getBoundingClientRect`, `offsetWidth`, `scrollHeight` and `getComputedStyle` all
 flush pending work and get billed for it.
 
-The fix is that `scoreTable` now paints 80 rows and appends the rest in adaptive slices under
+The fix is that `scoreTable` now paints 40 rows and appends the rest in adaptive slices capped at
+80 rows under
 `requestIdleCallback`. Nothing is unmounted — every visible row still reaches the DOM, so Ctrl-F,
 screenshots and the accessibility tree are unaffected — and the section carries `data-rows-pending`
 until the fill completes, which is what `verify-ui.mjs` waits on instead of racing it.
@@ -1066,6 +1069,13 @@ until the fill completes, which is what `verify-ui.mjs` waits on instead of raci
 | Con-call (1,018 rows) | 393–950 ms | **69–126 ms** |
 | Breakouts (603 rows) | 299–652 ms | **56–83 ms** |
 | Longest task during a switch | 425 ms | **75 ms** |
+
+A second Chrome DevTools trace found the browser-side Tailwind compiler consuming **285ms** on tab
+markup and the scope toggle forcing **114ms** of layout through `offsetWidth` / `offsetLeft`.
+Tailwind is now the committed `public/css/tailwind.css`, and the equal-width scope thumb moves by
+index without measuring the document. On the same localhost trace: cold LCP **237ms → 159ms**, tab
+INP **77ms → 39ms**, and Public Chatter route LCP **690ms → 89ms**; CLS stayed good at 0.02. Those
+are controlled lab results, not field telemetry.
 
 The heavy feeds are **lazy**: technicals, the con-call corpus, the chatter files and the price
 history load when their tab first mounts, not at bootstrap, so eight tabs never pay for data they
@@ -1164,7 +1174,8 @@ the single place a gap is written down. The ones that matter most:
 - **No test runner.** `scripts/verify-ui.mjs` is the suite: ~180 Playwright assertions including the
   two reconciliation identities, an independent max-drawdown recompute, the CSV round trip and the
   overlay focus traps. Run it before every push; it exits non-zero on the first failure.
-- **No CSP.** Adding one means allowing the three CDN hosts, in `worker/index.js`.
+- **No CSP.** Adding one means allowing the Google Fonts and on-demand ExcelJS hosts, in
+  `worker/index.js`; Tailwind is same-origin.
 
 ---
 
