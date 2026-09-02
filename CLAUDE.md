@@ -104,6 +104,11 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
+    research/
+      estate.js               ASK RESEARCH'S EVIDENCE REGISTRY — fifteen adapters over the tabs' own
+                              modules; loads, resolves the question, then reads; fits to the budget
+      evidence-shared.js      the ONE provider-facing packet shape, imported by worker/research.mjs too
+      renderer.js             the DOM-based markdown subset model prose is rendered through
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
       ai-alerts.js            ranked company insight cards, strongest evidence first
@@ -134,6 +139,8 @@ scripts/
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
+worker/research.mjs           Ask Research's provider bridge: holds the Muns LLM token, bounds the request on
+                              public/js/research/evidence-shared.js and streams the answer back as NDJSON
 worker/http.mjs               content ETags, 304s and CORS — shared with any local stand-in
 worker/mc.mjs                 the Moneycontrol client + normaliser, shared with scripts/
 worker/stockscans.mjs         the StockScans con-call client (vocabulary lives in public/js/data/)
@@ -1770,7 +1777,44 @@ the same module as its owning tab and always returns a catalog/status entry, eve
 cannot be read. Row samples are question-ranked and bounded, while coverage, units, periods, as-of
 metadata and live/snapshot/mock provenance remain attached. Adding or removing a dashboard source
 means changing this registry and the focused Ask Research checks together; a source may fail, but it
-may not disappear.
+may not disappear. Fifteen sources are registered: the dashboard's own AI Alerts ranking is one of
+them, so "which companies have the strongest evidence across tabs" is answered by the same
+deterministic model the tab shows rather than by whichever company topped each feed's default order.
+
+**Every source LOADS, then the question is RESOLVED, then every source READS — in that order.** Loads
+run in parallel, each under its own deadline. The question is then resolved once against everything
+that loaded — `queryPlan()` maps a symbol as typed, a company name as a phrase, or a distinctive lead
+word that only one company starts with, to a ticker — and only then does each source filter its rows.
+Loading and reading in one step per source meant the name index depended on which tabs the reader
+happened to have visited. Rows are ranked in three tiers: the named companies' rows first, in the
+source's own order; then token hits; then the source's default ordering. Scope words and dashboard
+vocabulary are stop words: "portfolio" used to be a ranking token, and every AMC row carrying
+`disclosure: "portfolio"` was an exact hit for a question that merely said "my portfolio".
+
+**THE BUDGET IS MEASURED ON WHAT THE MODEL RECEIVES, AND IT IS SPENT ON ROWS.** `evidence-shared.js`
+is the one definition of the provider-facing packet, imported by the browser (which fits to it) and by
+the Worker (which builds the prompt from it and bounds the request on it) — the same arrangement as
+`finology-shared.js`. It matters because the wire packet carries chrome the model never sees: every
+source's `route`, the duplicate `catalog`, the method prose. The budget used to be measured on the
+wire packet, and on real data the rowless skeleton of fourteen sources alone came to 10,242
+characters against a 10,000-character budget. Every row was pushed and immediately popped, the model
+received fourteen sources with `includedRows: 0`, and it answered — accurately — that the dashboard
+held no company data, while General Alerts showed four rows for the company asked about. **Nothing
+threw, the packet was well-formed and under bound, and the suite asserted only its size.** So:
+
+1. The skeleton is compact — nothing derivable travels (`omittedRows` is `rowCount - includedRows`,
+   `inScope` is `rowCount`), as-of times are to the minute, and General Alerts' nine feeds are one
+   line each — and it may take at most `1 - ROW_RESERVE_SHARE` of the budget. Past that, summaries
+   and then coverages are dropped from the largest sources first, recorded on the source as
+   `trimmed`, before a single row is refused. Status, source, as-of, definition and data quality are
+   never trimmed: they are the honesty of the packet.
+2. Rows are admitted tier by tier across every source — every source's company rows, then every
+   source's token hits, then defaults — one row per source per pass, so a named company's fourth
+   alert lands before another company's first result.
+3. `verify-ui.mjs` asserts against the shipped data, not a fixture: every ready source with rows in
+   scope lands at least one, nothing was trimmed to make room, and a book company asked about by name
+   in lower case resolves to its ticker and leads every source that carries it. **Asserting the size
+   of a packet says nothing about whether it carries evidence.**
 
 `worker/research.mjs` is the provider boundary. A Muns session token is a Worker secret and must
 never enter `public/`, browser storage, a request payload or a committed config file. The route is
@@ -1778,9 +1822,12 @@ same-origin, request-bounded and rate-limited. It calls `fastapi.muns.io/query-r
 `llm_type: local_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
 browser immediately. That provider contract has no web-search option, so the UI must not offer or
 claim one. The browser preserves every source's status, coverage and provenance, then shares the
-remaining 10K-character evidence budget across question-ranked rows so the request fits the local
-model's 8K-token context. UI-only routes and the duplicate catalog stay in the browser rather than
-being repeated in the model prompt.
+remaining provider-facing budget (`RESEARCH_EVIDENCE_CHAR_BUDGET`, 13,000 characters — about 3,900
+tokens of JSON, sized for the local model's 8K-token context beside the instruction, the bounded
+history and a 768-token answer; the fifteen-source skeleton measures ~7,100 on the shipped data, so
+roughly twenty rows fit) across question-ranked rows. UI-only routes and the duplicate catalog
+stay in the browser rather than being repeated in the model prompt, and they are not charged against
+the budget.
 
 The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
 `MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced
@@ -2486,7 +2533,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
-| Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
+| Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, `load` before `read`, and the packet must stay below the Worker bound **and still carry rows**; read *The budget is measured on what the model receives* first |
+| Change what the model receives, or the evidence budget | `js/research/evidence-shared.js` (the provider shape — the Worker imports it too) + `RESEARCH_EVIDENCE_CHAR_BUDGET` / `ROW_RESERVE_SHARE` in `estate.js` — measure with `providerEvidenceChars`, never `JSON.stringify(packet).length` |
+| Change how a question names a company | `queryPlan()` + `STOP_WORDS` / `WORD_TICKERS` in `js/research/estate.js` — pure, fixture-tested in `scripts/verify-research.mjs` |
 | Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side; the route stays same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
@@ -2556,7 +2605,10 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
-- **Ask Research keeps all fourteen evidence sources represented**, streams the dashboard answer,
+- **Ask Research keeps all fifteen evidence sources represented**, spends its budget on rows (every
+  ready source with rows in scope lands at least one, nothing trimmed to make room), resolves a
+  company named in lower case to its ticker and leads every carrying source with it, streams the
+  dashboard answer,
   makes no unsupported web-search claim, and has no empty-Watchlist shell replacement
 - **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from

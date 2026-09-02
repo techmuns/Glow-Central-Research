@@ -21,7 +21,8 @@ Object.defineProperty(globalThis, 'localStorage', {
     removeItem: (key) => memoryStorage.delete(key),
   },
 });
-const { DASHBOARD_RESEARCH_SOURCES, fitEvidenceToBudget } = await import('../public/js/research/estate.js');
+const { DASHBOARD_RESEARCH_SOURCES, RESEARCH_EVIDENCE_CHAR_BUDGET, ROW_RESERVE_SHARE, fitEvidenceToBudget, queryPlan } = await import('../public/js/research/estate.js');
+const { providerEvidenceChars } = await import('../public/js/research/evidence-shared.js');
 const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
 const askResearchSource = readFileSync(new URL('../public/js/tabs/ask-research.js', import.meta.url), 'utf8');
 
@@ -41,17 +42,21 @@ const parseEvents = async (response) =>
 
 ok('the runtime research catalog covers every visible research tab and hidden portfolio analytics', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
-  for (const title of ['General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades', 'Portfolio Analytics']) {
+  for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades', 'Portfolio Analytics']) {
     assert.equal(tabs.has(title), true, title);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
 });
 
-ok('earnings calendar evidence waits for the shared live-results load before reading metadata', () => {
+ok('earnings calendar evidence loads the shared live-results feed before reading its metadata', () => {
   assert.match(
     estateSource,
-    /id: 'earnings-calendar',[\s\S]*?async read\(\) \{[\s\S]*?await earningsLive\.load\(\);[\s\S]*?const range = earningsLive\.dateRange\(\);/
+    /id: 'earnings-calendar',[\s\S]*?load: \(\) => earningsLive\.load\(\),[\s\S]*?read\(\) \{[\s\S]*?const range = earningsLive\.dateRange\(\);/
   );
+});
+
+ok('every source loads before any source reads, so the company index is built from the whole estate', () => {
+  assert.match(estateSource, /Phase one:[\s\S]*?loadErrors[\s\S]*?Phase two:[\s\S]*?queryPlan\(question, companyIndex\(deferred\)[\s\S]*?Phase three:/);
 });
 
 ok('Public Chatter evidence preserves failure state and separately samples unresolved topics', () => {
@@ -130,12 +135,74 @@ const oversizedEvidence = {
 };
 const fittedEvidence = fitEvidenceToBudget(oversizedEvidence);
 ok('the local-model evidence budget retains every source before sharing space across ranked rows', () => {
-  assert.equal(JSON.stringify(fittedEvidence).length <= 10_000, true);
+  assert.equal(providerEvidenceChars(fittedEvidence) <= RESEARCH_EVIDENCE_CHAR_BUDGET, true);
   assert.equal(fittedEvidence.catalog.length, 14);
   assert.equal(fittedEvidence.sources.length, 14);
   assert.equal(fittedEvidence.sources.every((source) => source.tab && source.route && source.status === 'ready' && source.source && source.coverage), true);
   assert.equal(fittedEvidence.sources.some((source) => source.includedRows > 0), true);
-  assert.equal(fittedEvidence.selection.evidenceChars, JSON.stringify(fittedEvidence).length);
+  // The budget is spent on rows, not just measured: the matched source is served first, and no
+  // source with rows is left at zero while its skeleton fits.
+  assert.equal(fittedEvidence.sources[0].includedRows > 0, true);
+  assert.equal(fittedEvidence.sources.every((source) => source.includedRows > 0), true);
+  assert.equal(fittedEvidence.selection.evidenceChars, providerEvidenceChars(fittedEvidence));
+});
+
+// THE FAILURE THIS FILE SHIPPED WITH: a skeleton that alone exceeds the budget. Every row was pushed
+// and popped, `includedRows` read 0 on all fourteen sources, and the model answered that the
+// dashboard held no company data. The skeleton must give way before the rows do.
+const fatSkeleton = {
+  ...oversizedEvidence,
+  // Twelve short keys rather than one long string: string values are clipped by the packet's own
+  // metadata bound, so a genuinely fat skeleton has to be fat in structure.
+  sources: oversizedEvidence.sources.map((source) => ({ ...source, summary: Object.fromEntries(Array.from({ length: 12 }, (_, key) => [`figure${key}`, 'y'.repeat(90)])) })),
+};
+const fittedFat = fitEvidenceToBudget(fatSkeleton);
+ok('a skeleton larger than the budget is trimmed, and says so, before a single row is refused', () => {
+  const rowless = JSON.stringify(fatSkeleton.sources.map(({ rows: _rows, ...rest }) => rest)).length;
+  assert.equal(rowless > RESEARCH_EVIDENCE_CHAR_BUDGET, true, 'fixture skeleton must exceed the budget');
+  assert.equal(providerEvidenceChars(fittedFat) <= RESEARCH_EVIDENCE_CHAR_BUDGET, true);
+  assert.equal(fittedFat.sources.every((source) => source.includedRows > 0), true);
+  assert.equal(fittedFat.sources.some((source) => source.trimmed?.includes('summary')), true);
+  assert.equal(fittedFat.sources.every((source) => source.status === 'ready' && source.source && source.definition !== ''), true);
+  const skeletonChars = providerEvidenceChars({ ...fittedFat, sources: fittedFat.sources.map((source) => ({ ...source, rows: [] })) });
+  assert.equal(skeletonChars <= Math.floor(RESEARCH_EVIDENCE_CHAR_BUDGET * (1 - ROW_RESERVE_SHARE)), true);
+});
+
+const companyIndex = [
+  { ticker: 'IIFL', name: 'IIFL Finance Ltd', aliases: ['IIFL Finance', 'IIFL Finance Ltd.'] },
+  { ticker: 'IIFLCAPS', name: 'IIFL Capital Services Ltd', aliases: [] },
+  { ticker: 'COALINDIA', name: 'Coal India Ltd', aliases: ['Coal India'] },
+  { ticker: 'DIVISLAB', name: "Divi's Laboratories Ltd", aliases: ['Divis Lab.'] },
+  { ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', aliases: [] },
+  { ticker: 'TATASTEEL', name: 'Tata Steel Ltd', aliases: [] },
+  { ticker: 'IDEA', name: 'Vodafone Idea Ltd', aliases: [] },
+  { ticker: 'HFCL', name: 'HFCL Limited', aliases: [] },
+];
+const holdings = [{ ticker: 'IIFL', name: 'IIFL Finance' }, { ticker: 'COALINDIA', name: 'Coal India' }];
+ok('a question naming a company resolves it to a ticker, in scope or not, and stops its words scoring as hits', () => {
+  const iifl = queryPlan('anything i should know about IIFL finance?', companyIndex, { scope: 'portfolio', holdings });
+  assert.deepEqual(iifl.companies, [{ ticker: 'IIFL', name: 'IIFL Finance Ltd', inScope: true }]);
+  assert.deepEqual(iifl.tokens, []);
+  const lower = queryPlan('what is happening with iifl finance lately', companyIndex, { scope: 'portfolio', holdings });
+  assert.deepEqual(lower.companies.map((company) => company.ticker), ['IIFL']);
+  const outside = queryPlan('Summarise HFCL', companyIndex, { scope: 'portfolio', holdings });
+  assert.deepEqual(outside.companies, [{ ticker: 'HFCL', name: 'HFCL Limited', inScope: false }]);
+  const two = queryPlan('Compare Coal India with Divis on results', companyIndex, { scope: 'universe' });
+  assert.deepEqual(two.companies.map((company) => company.ticker), ['COALINDIA', 'DIVISLAB']);
+  assert.deepEqual(two.tokens, ['results']);
+});
+
+ok('an ambiguous or merely English word is not read as a company', () => {
+  assert.deepEqual(queryPlan('any idea what the market did?', companyIndex).companies, []);
+  assert.deepEqual(queryPlan('IDEA results', companyIndex).companies.map((company) => company.ticker), ['IDEA']);
+  assert.deepEqual(queryPlan('what about tata?', companyIndex).companies, []);
+  assert.deepEqual(queryPlan('Which companies in my portfolio have the strongest recent evidence across multiple tabs?', companyIndex).companies, []);
+});
+
+ok('scope and dashboard vocabulary never become ranking tokens', () => {
+  const plan = queryPlan('Which companies in my portfolio have the strongest recent evidence across multiple tabs?', companyIndex);
+  assert.deepEqual(plan.tokens, []);
+  assert.deepEqual(queryPlan('insider trades and earnings for my watchlist', companyIndex).tokens, ['insider', 'trades', 'earnings']);
 });
 
 ok('the provider prompt removes duplicate UI fields without dropping an analytical source', () => {

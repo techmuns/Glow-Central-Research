@@ -288,16 +288,21 @@ illustrative; `coverage.js` supplies the real 142-company membership and sector 
 ## 4d. Ask Research
 
 `js/tabs/ask-research.js` owns the conversation UI and device-local library.
-`js/research/estate.js` is the registry: fourteen adapters read the same modules as Earnings Hub,
-Con-call, Public Chatter, Breakouts, both Super Investor disclosures, both News feeds, exchange
-filings, Insider Trades, General Alerts and Portfolio Analytics. Each adapter contributes coverage,
-as-of metadata, units and a question-ranked row sample; the catalog and a ready/unavailable status
-always include every source. The packet is bounded to 10K characters before it leaves the browser:
-every source keeps its status, coverage and provenance first, then the remaining space is shared
-across question-ranked rows so it fits the low-latency model's 8K-token context.
-The compact catalog carries only source identity and status because each source packet already
-holds the tab, UI route, dates, provider and coverage. The Worker then removes that duplicate
-catalog and the UI routes from the model prompt; the browser retains them for source chips.
+`js/research/estate.js` is the registry: fifteen adapters read the same modules as AI Alerts,
+General Alerts, Earnings Hub, Con-call, Public Chatter, Breakouts, both Super Investor disclosures,
+both News feeds, exchange filings, Insider Trades and Portfolio Analytics. Every adapter loads first
+(in parallel, each under its own deadline); the question is then resolved against everything that
+loaded — a symbol, a company name or a distinctive lead word becomes a ticker — and only then does
+each adapter read its rows, named companies first. Each adapter contributes coverage, as-of
+metadata, units and a ranked row sample; the catalog and a ready/unavailable status always include
+every source. The packet is fitted to a 13,000-character budget measured on the provider-facing
+shape in `js/research/evidence-shared.js` (the Worker imports the same module to build the prompt
+and to bound the request): every source keeps its status, coverage and provenance first, the
+skeleton may take at most 60% of the budget (summaries, then coverages, are trimmed from the
+largest sources and marked `trimmed` before any row is refused), and rows are admitted tier by tier
+across sources. The compact catalog carries only source identity and status because each source
+packet already holds the tab, UI route, dates, provider and coverage. Those UI-only fields stay in
+the browser for source chips and are not charged against the budget.
 
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
 a Muns session token server-side, rejects cross-origin and oversized requests, rate-limits the paid

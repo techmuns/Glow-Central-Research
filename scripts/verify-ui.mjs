@@ -1331,28 +1331,85 @@ console.log('\n— AI alerts —');
     `${failedConfigGets} failed check(s), ${configGets - failedConfigGets} recovery check(s)`);
 
   const evidenceAudit = await evalSafe(async () => {
-    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const { buildResearchEvidence, RESEARCH_EVIDENCE_CHAR_BUDGET } = await import('/js/research/estate.js');
+    const { providerEvidenceChars } = await import('/js/research/evidence-shared.js');
     const packet = await buildResearchEvidence({
-      question: 'What needs attention across earnings, calls, chatter, technicals, filings and holdings?',
+      question: 'Which companies in my portfolio have the strongest recent evidence across multiple tabs?',
       scope: 'portfolio',
     });
+    const ready = packet.sources.filter((source) => source.status === 'ready');
     return {
       catalog: packet.catalog.length,
       sources: packet.sources.length,
       ready: packet.selection.sourcesReady,
       statuses: packet.sources.map((source) => `${source.id}:${source.status}`),
-      chars: JSON.stringify(packet).length,
+      budget: RESEARCH_EVIDENCE_CHAR_BUDGET,
+      chars: providerEvidenceChars(packet),
       unresolvedChatter: packet.sources.find((source) => source.id === 'public-chatter')?.unresolvedTopics?.rowCount || 0,
+      // THE BUG THIS GUARDS: a well-formed, under-budget packet whose every source carried zero rows.
+      withRows: ready.filter((source) => source.rowCount > 0).map((source) => `${source.id}:${source.includedRows}/${source.rowCount}`),
+      starved: ready.filter((source) => source.rowCount > 0 && !(source.includedRows > 0)).map((source) => source.id),
+      trimmed: packet.sources.filter((source) => source.trimmed).map((source) => `${source.id}:${source.trimmed.join('+')}`),
+      includedTotal: packet.sources.reduce((sum, source) => sum + (source.includedRows || 0), 0),
+      companies: packet.selection.companies,
+      tokens: packet.selection.tokens,
     };
   });
-  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
-    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
+  ok('...assembles one status-bearing packet from all fifteen dashboard sources',
+    evidenceAudit.catalog === 15 && evidenceAudit.sources === 15 && evidenceAudit.ready > 0 &&
       evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
-  ok('...and keeps the real evidence packet inside the Worker request bound',
-    evidenceAudit.chars <= 10000, `${evidenceAudit.chars.toLocaleString()} chars`);
+  ok('...and keeps the provider-facing packet inside the local model budget',
+    evidenceAudit.chars <= evidenceAudit.budget, `${evidenceAudit.chars.toLocaleString()} of ${evidenceAudit.budget.toLocaleString()} chars`);
+  ok('...spends that budget on rows: every ready source with rows in scope lands at least one, and no summary was trimmed to make room',
+    evidenceAudit.withRows.length > 0 && evidenceAudit.starved.length === 0 && evidenceAudit.trimmed.length === 0 && evidenceAudit.includedTotal >= evidenceAudit.withRows.length,
+    `${evidenceAudit.includedTotal} rows across ${evidenceAudit.withRows.length} sources · ${evidenceAudit.withRows.join(', ')}${evidenceAudit.starved.length ? ` · starved: ${evidenceAudit.starved.join(', ')}` : ''}${evidenceAudit.trimmed.length ? ` · trimmed: ${evidenceAudit.trimmed.join(', ')}` : ''}`);
+  ok('...reads a generic question as generic — no scope or dashboard word becomes a ranking token or a company',
+    evidenceAudit.tokens.length === 0 && evidenceAudit.companies.length === 0,
+    `tokens: [${evidenceAudit.tokens.join(', ')}] · companies: [${evidenceAudit.companies.map((company) => company.ticker).join(', ')}]`);
   ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
     evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+
+  // A QUESTION THAT NAMES A COMPANY GETS THAT COMPANY, FROM EVERY SOURCE THAT CARRIES IT. Measured
+  // against the shipped data rather than a fixture: the book company with events in the most
+  // General Alerts feeds is asked about by NAME, in lower case, and the packet must resolve it to
+  // its ticker and land its rows from more than one source. Before this, "anything i should know
+  // about IIFL finance?" was answered "not present" over four visible General Alerts rows.
+  const companyAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const alerts = await import('/js/data/daily-alerts.js');
+    const coverage = await import('/js/data/coverage.js');
+    const report = await alerts.collect({ scope: 'portfolio', holdings: coverage.holdings(), includeHistory: true });
+    const feedsByTicker = new Map();
+    for (const event of report.events) {
+      if (!event.ticker) continue;
+      if (!feedsByTicker.has(event.ticker)) feedsByTicker.set(event.ticker, new Set());
+      feedsByTicker.get(event.ticker).add(event.feed);
+    }
+    const [ticker] = [...feedsByTicker.entries()].sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))[0] || [];
+    const name = coverage.holdings().find((h) => h.ticker === ticker)?.name || ticker;
+    const packet = await buildResearchEvidence({ question: `anything i should know about ${String(name).toLowerCase()}?`, scope: 'portfolio' });
+    const carrying = packet.sources.filter((source) => source.rows.some((row) => String(row.ticker || '').toUpperCase() === ticker));
+    // Wherever the company appears, it leads: the first row of every carrying source is about it,
+    // by symbol or by name — never a default-ordered row of some other company.
+    const mentions = (row) => String(row?.ticker || '').toUpperCase() === ticker || JSON.stringify(row).toLowerCase().includes(String(name).toLowerCase().replace(/\s+(ltd|limited)\.?$/i, ''));
+    const companyRowsFirst = carrying.every((source) => mentions(source.rows[0]));
+    return {
+      ticker,
+      name,
+      resolved: packet.selection.companies,
+      alertFeeds: feedsByTicker.get(ticker)?.size || 0,
+      carrying: carrying.map((source) => `${source.id}:${source.rows.filter((row) => row.ticker === ticker).length}`),
+      alertRows: packet.sources.find((source) => source.id === 'daily-alerts')?.rows.filter((row) => row.ticker === ticker).length || 0,
+      companyRowsFirst,
+    };
+  });
+  ok('...resolves a company named in lower case in the question to its ticker, in scope',
+    companyAudit.resolved?.length === 1 && companyAudit.resolved[0].ticker === companyAudit.ticker && companyAudit.resolved[0].inScope === true,
+    `"${companyAudit.name}" → ${companyAudit.resolved?.map((company) => `${company.ticker} (${company.inScope ? 'in scope' : 'outside scope'})`).join(', ') || 'nothing'}`);
+  ok('...and lands that company\'s rows from more than one source, ahead of every other company\'s',
+    companyAudit.carrying?.length >= 2 && companyAudit.alertRows >= Math.min(companyAudit.alertFeeds, 2) && companyAudit.companyRowsFirst === true,
+    `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} General Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
 
   const watchlistPortfolioAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
@@ -1367,10 +1424,10 @@ console.log('\n— AI alerts —');
       return {
         ticker: member.ticker,
         rowCount: source.rowCount,
-        positionCount: source.summary?.positionCount,
-        marketValue: source.summary?.marketValue,
+        positionCount: source.summary?.positions,
+        marketValue: source.summary?.marketValueRupees,
         expectedMarketValue: member.marketValue,
-        carriesWholeBookReturn: source.summary?.xirr != null || source.summary?.twr != null || source.summary?.maxDrawdown != null,
+        carriesWholeBookReturn: source.summary?.xirrPct != null || source.summary?.twrTotalPct != null || source.summary?.maxDrawdownPct != null,
       };
     } finally {
       watchlist.remove(member.ticker);
@@ -1388,7 +1445,7 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => /Dashboard evidence remains traceable/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
   const researchAnswer = await page.locator('[data-research-transcript]').innerText();
   ok('...submits the complete dashboard packet without claiming unsupported web research',
-    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
+    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 15 && askRequest?.evidence?.sources?.length === 15,
     `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
   ok('...renders the streamed dashboard answer without a fabricated web source',
     /dashboard research/i.test(researchAnswer) &&
