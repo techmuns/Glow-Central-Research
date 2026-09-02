@@ -414,22 +414,29 @@ const loadingHtml = () => `
  * the schedule can produce, and past that the chip turns amber and prints the AGE instead. So the
  * normal state is green, and a feed that has quietly stopped refreshing cannot wear it.
  *
- * `STALE_AFTER_MS` is the schedule's own worst case rather than its period. The scrape runs
- * on weekday schedules, so Friday's capture is still the newest thing that exists on Monday
- * morning — three days is the widest legitimate gap, the same reasoning and the same number
- * as Breakouts' pill. Keying it to the period instead would sit amber all weekend with nothing wrong,
- * which teaches the reader to ignore the one chip that is supposed to mean something.
+ * FRESH MEANS TODAY IN INDIA, not "less than 72 hours old". The old age window painted a green
+ * Live chip on Wednesday over Tuesday's company-news rows — exactly the state this control exists
+ * to expose. A weekend capture may be the newest available and it is still not a read of today;
+ * the amber age is useful information rather than an alarm.
  *
  * FAILURES OUTRANK FRESHNESS. A capture taken a minute ago that could not read eighteen companies
  * is not "Live" — amber and `Partial` is the honest word, and the modal names them.
  */
-const STALE_AFTER_MS = 72 * 60 * 60 * 1000;
+function istDay(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return get('year') && get('month') && get('day') ? `${get('year')}-${get('month')}-${get('day')}` : null;
+}
 
 function pill(m, scope, rows) {
   const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
   const age = Number.isFinite(at) ? Date.now() - at : null;
   const bad = m.failed > 0 || !!m.reason;
-  const fresh = age !== null && age < STALE_AFTER_MS;
+  const fresh = age !== null && istDay(at) === istDay(Date.now());
   const tone = bad || !fresh ? 'text-amber-700' : 'text-emerald-700';
   const dot = bad || !fresh ? 'bg-amber-500' : 'bg-emerald-500';
   const label = m.reason ? 'Unavailable' : bad ? 'Partial' : age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;

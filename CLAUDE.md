@@ -1115,9 +1115,13 @@ the result, so they are already in `news.json` and cost one conditional GET. Mea
 capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was charging the reader
 attention to avoid a cost that had already been paid.
 
-The scheduled walk runs at 07:00 and 09:00 IST on weekdays. The 09:00 job runs only
-`scrape-filings.mjs`: there is no newer EOD bar at that hour, and a transient Yahoo failure must not
-replace the healthy technical snapshot captured at 07:00.
+The full data refresh captures news and insider trades at 07:00 IST on weekdays. Company news then
+has its own `company-news-refresh.yml` at 09:00 IST, running only
+`scrape-filings.mjs news`: there is no newer EOD bar at that hour, and a transient Yahoo failure
+must not replace the healthy technical snapshot captured at 07:00. GitHub schedules are
+best-effort, so opening the dashboard on a company-news capture whose Indian calendar date is
+older than today dispatches that dedicated workflow once and watches until the committed file
+reaches the browser. It never falls back to a forty-company page-load walk.
 
 So News now loads like the other two — snapshot on mount, nothing per company — and the walk is
 still the Refresh button's. **The rule that survives is the one that was always doing the work: a
@@ -1158,10 +1162,10 @@ Two things follow that are easy to get wrong:
 **THE FILINGS HEAD IS ONE CHIP, AND ITS GREEN IS CONDITIONAL.** The three filings tabs carry the
 same chip the market-news half of the News tab already wore — a dot and a word, no pill chrome, no
 scope summary beside it — because that is what it was asked to look like and because two chips at
-the top of three tabs across three scopes is furniture. Green + `Live` appears only while the
-capture is still the newest the schedule can produce (`STALE_AFTER_MS`, 72h: the scrape runs
-weekdays 07:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
-same reasoning and the same number as Breakouts). Past that it turns amber and prints the AGE;
+the top of three tabs across three scopes is furniture. Green + `Live` appears only when the
+capture was made on TODAY'S INDIAN CALENDAR DATE. The former 72-hour window painted Tuesday green
+on Wednesday, which is precisely the missing-fresh-data state the chip should expose. A prior-day
+capture turns amber and prints the AGE;
 failures outrank freshness and read `Partial`. **"Show a green Live" and "never paint a green Live
 you have not earned" are only compatible because the green is conditional** — and the suite asserts
 the colour against the measured age, in both directions, so a chip made unconditionally green would
