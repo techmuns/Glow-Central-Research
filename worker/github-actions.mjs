@@ -107,7 +107,7 @@ async function call(fetchImpl, { token, url, method = 'GET', body = null, deadli
           authorization: `Bearer ${token}`,
           // GitHub rejects a request with no user-agent outright. Naming the caller is also what
           // makes this identifiable in their audit log if it ever misbehaves.
-          'user-agent': 'sattva-central-research-worker',
+          'user-agent': 'glow-central-research-worker',
           ...(body ? { 'content-type': 'application/json' } : {}),
         },
         body: body ? JSON.stringify(body) : undefined,

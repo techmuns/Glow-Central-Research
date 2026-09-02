@@ -126,6 +126,9 @@ jobs:
           grep -q '"name": "glow-central-research"' wrangler.jsonc
           grep -q '"GH_REPO": "techmuns/Glow-Central-Research"' wrangler.jsonc
           grep -q '<title>Glow Central Research</title>' public/index.html
+          # The scheduled filings walks read through THIS deployment's Worker (it holds the Muns token).
+          grep -q "FILINGS_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-filings.mjs
+          grep -q "SI_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-super-investors.mjs
           if grep -rn 'Sattva Central Research' public/js worker --include='*.js' --include='*.mjs'; then
             echo "::error::An upstream brand string reached reader-facing code — rename it to Glow before this can ship."
             exit 1

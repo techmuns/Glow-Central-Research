@@ -1005,9 +1005,9 @@ Variables and Secrets* (or `npx wrangler secret put <NAME>` from a terminal logg
 
 | Secret | Read by | Without it |
 | --- | --- | --- |
-| `MUNS_TOKEN` | `/api/super-investors` (Finology books), `/api/news`, `/api/insider-trades`, `/api/stock-search` (the scope editor's company lookup) | Superstar Investors paints the committed snapshot and says `no-token`; the filings walks and the company lookup refuse with the same name |
-| `MUNS_LLM_TOKEN` | `/api/research` — Ask Research, streamed through Muns' LLM router (`MUNS_LLM_BASE` / `MUNS_LLM_TYPE` are plain vars in `wrangler.jsonc`) | Ask Research says the deployment has no model credential |
-| `GH_DISPATCH_TOKEN` | the news *Fetch* button, the on-open capture watchdog and `scheduled()` — each dispatches a workflow in `GH_REPO` (`techmuns/Glow-Central-Research`, a plain var) | the button and the watchdog report `no-token`; the scheduled workflows still run on GitHub's own cron |
+| `MUNS_TOKEN` — **present, verified 2 Sep 2026** | `/api/super-investors` (Finology books), `/api/news`, `/api/insider-trades`, `/api/stock-search` (the scope editor's company lookup); also what the scheduled company-news and insider-trades walks use, since they read through this Worker | Superstar Investors paints the committed snapshot and says `no-token`; the filings walks and the company lookup refuse with the same name |
+| `MUNS_LLM_TOKEN` — **optional; `MUNS_TOKEN` is the fallback and `/api/research` reports `configured: true` with it** | `/api/research` — Ask Research, streamed through Muns' LLM router (`MUNS_LLM_BASE` / `MUNS_LLM_TYPE` are plain vars in `wrangler.jsonc`) | Ask Research says the deployment has no model credential; add this one if answers fail with the fallback token |
+| `GH_DISPATCH_TOKEN` — **missing, verified 2 Sep 2026** (`/api/market-news/run` answers `no-token`) | the news *Fetch* button, the on-open capture watchdog and `scheduled()` — each dispatches a workflow in `GH_REPO` (`techmuns/Glow-Central-Research`, a plain var) | the button and the watchdog report `no-token`; the scheduled workflows still run on GitHub's own cron |
 
 `GH_DISPATCH_TOKEN` is a fine-grained GitHub personal access token scoped to **this repository
 only**, with the single permission **Actions: read and write**.
@@ -1016,7 +1016,7 @@ only**, with the single permission **Actions: read and write**.
 
 | Secret | Used by | Without it |
 | --- | --- | --- |
-| `MUNS_TOKEN` | `technicals-refresh.yml` (the flagged-move re-derivation), `company-news-refresh.yml`, `insider-trades-refresh.yml` — they read the Muns endpoints through the deployed Worker or directly | the walks record an `unauthorised` failure per company instead of rows |
+| `MUNS_TOKEN` (optional) | `technicals-refresh.yml` only — the flagged-move re-derivation calls Muns directly. The company-news and insider-trades walks need no repository secret: they read through this Worker, which holds the token | the re-derivation records a refusal and the run still succeeds |
 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` — **only** if the site publishes through that workflow rather than Cloudflare's Git integration | `deploy.yml` reports *skipped* on every run, which is correct when the Git integration is the publish path |
 | `SYNC_PUSH_TOKEN` (optional) | `sync-upstream.yml` — a fine-grained PAT with *Contents* and *Pull requests* read/write on this repo, so a synced `main` triggers `deploy.yml` and `verify.yml` (pushes made with the default `GITHUB_TOKEN` do not trigger other workflows) | the sync still pushes; only workflows that key off that push do not run. Irrelevant when Cloudflare's Git integration publishes |
 

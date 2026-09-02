@@ -75,7 +75,10 @@ const GAP_MS = 250;
 const env = { MUNS_TOKEN: process.env.MUNS_TOKEN, MUNS_NEWS_TOKEN: process.env.MUNS_NEWS_TOKEN, MUNS_BASE: process.env.MUNS_BASE, MUNS_NEWS_BASE: process.env.MUNS_NEWS_BASE };
 
 // Our own Worker, unless a token says to go straight to the source. See the header.
-const BASE = (process.env.FILINGS_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
+// GLOW-OWNED DEFAULT: this deployment's own Worker, which holds the Muns token the routes need. A
+// sync from Sattva must not put their host back here — the workflow greps for it after every merge —
+// or the scheduled walks would read through the other deployment's Worker and credential.
+const BASE = (process.env.FILINGS_BASE || 'https://glow-central-research.tech-441.workers.dev').replace(/\/+$/, '');
 const VIA_WORKER = !process.env.MUNS_TOKEN;
 const REQ_TIMEOUT_MS = Number(process.env.FILINGS_TIMEOUT_MS || 120_000);
 const REQ_ATTEMPTS = 2;
