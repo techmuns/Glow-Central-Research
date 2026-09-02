@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  buildOpenAIRequest,
+  buildAnthropicRequest,
   extractWebSources,
   handleResearch,
   researchConfigured,
@@ -55,8 +55,8 @@ ok('Public Chatter evidence preserves failure state and separately samples unres
 
 ok('configuration requires a non-trivial server-side API key', () => {
   assert.equal(researchConfigured({}), false);
-  assert.equal(researchConfigured({ OPENAI_API_KEY: 'short' }), false);
-  assert.equal(researchConfigured({ OPENAI_API_KEY: 'sk-test-research-key' }), true);
+  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'short' }), false);
+  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }), true);
 });
 
 const valid = validateResearchBody({
@@ -91,28 +91,31 @@ ok('history budgeting retains the newest messages and restores chronological ord
   );
 });
 
-ok('web mode requires hosted search and keeps provider storage off', () => {
-  const request = buildOpenAIRequest(valid, { OPENAI_MODEL: 'gpt-test' });
-  assert.equal(request.model, 'gpt-test');
-  assert.deepEqual(request.tools, [{ type: 'web_search' }]);
-  assert.equal(request.tool_choice, 'required');
-  assert.equal(request.store, false);
+ok('web mode requires Claude hosted search and preserves the dashboard evidence packet', () => {
+  const request = buildAnthropicRequest(valid, { ANTHROPIC_MODEL: 'claude-test' });
+  assert.equal(request.model, 'claude-test');
+  assert.deepEqual(request.tools, [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }]);
+  assert.deepEqual(request.tool_choice, { type: 'tool', name: 'web_search' });
+  assert.match(request.system, /DASHBOARD_EVIDENCE object is the only source of dashboard facts/);
+  assert.match(request.messages.at(-1).content[0].text, /DASHBOARD_EVIDENCE:/);
+  assert.equal('store' in request, false);
   assert.equal(request.stream, true);
 });
 
 ok('SSE framing waits for complete blocks', () => {
-  const first = takeSseEvents('event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Hel');
+  const first = takeSseEvents('event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel');
   assert.equal(first.events.length, 0);
-  const second = takeSseEvents(`${first.rest}lo"}\n\n`);
+  const second = takeSseEvents(`${first.rest}lo"}}\n\n`);
   assert.equal(second.events.length, 1);
-  assert.equal(JSON.parse(second.events[0]).delta, 'Hello');
+  assert.equal(JSON.parse(second.events[0]).delta.text, 'Hello');
 });
 
 ok('web citations are de-duplicated and bounded', () => {
   const sources = extractWebSources({
-    output: [
-      { type: 'message', content: [{ annotations: [{ type: 'url_citation', url: 'https://example.com/a', title: 'Example A' }] }] },
-      { type: 'web_search_call', action: { sources: [{ url: 'https://example.com/a', title: 'Duplicate' }, { url: 'https://example.org/b', title: 'Example B' }] } },
+    content: [
+      { type: 'web_search_result_location', url: 'https://example.com/a', title: 'Example A' },
+      { type: 'web_search_result', url: 'https://example.com/a', title: 'Duplicate', encrypted_content: 'opaque' },
+      { type: 'web_search_result', url: 'https://example.org/b', title: 'Example B' },
     ],
   });
   assert.deepEqual(sources.map((source) => source.url), ['https://example.com/a', 'https://example.org/b']);
@@ -121,18 +124,37 @@ ok('web citations are de-duplicated and bounded', () => {
 const originalFetch = globalThis.fetch;
 try {
   globalThis.fetch = async (url, init) => {
-    assert.equal(String(url), 'https://api.openai.com/v1/responses');
-    assert.equal(init.headers.authorization, 'Bearer sk-test-research-key');
+    assert.equal(String(url), 'https://api.anthropic.com/v1/messages');
+    assert.equal(init.headers['x-api-key'], 'sk-ant-test-research-key');
+    assert.equal(init.headers['anthropic-version'], '2023-06-01');
+    assert.equal(init.headers.authorization, undefined);
     const requested = JSON.parse(init.body);
-    assert.equal(requested.tools[0].type, 'web_search');
+    assert.equal(requested.model, 'claude-test');
+    assert.equal(requested.tools[0].type, 'web_search_20250305');
     const sse = [
-      'data: {"type":"response.output_text.delta","delta":"Earnings improved. [Dashboard: Earnings Hub]"}',
+      'event: message_start',
+      'data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[]}}',
       '',
-      'data: {"type":"response.web_search_call.searching"}',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_test","name":"web_search","input":{}}}',
       '',
-      'data: {"type":"response.completed","response":{"status":"completed","output":[{"type":"message","content":[{"annotations":[{"type":"url_citation","url":"https://example.com/result","title":"Result source"}]}]}]}}',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srvtoolu_test","content":[{"type":"web_search_result","url":"https://example.com/result","title":"Result source","encrypted_content":"opaque"}]}}',
       '',
-      'data: [DONE]',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"Earnings improved. [Dashboard: Earnings Hub]"}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":2,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","url":"https://example.com/result","title":"Result source","cited_text":"Earnings improved"}}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
       '',
     ].join('\n');
     return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
@@ -152,8 +174,8 @@ try {
       body,
     }),
     {
-      OPENAI_API_KEY: 'sk-test-research-key',
-      OPENAI_MODEL: 'gpt-test',
+      ANTHROPIC_API_KEY: 'sk-ant-test-research-key',
+      ANTHROPIC_MODEL: 'claude-test',
       RESEARCH_RATE_LIMITER: { limit: async () => ({ success: true }) },
     }
   );
@@ -181,7 +203,7 @@ const wrongOrigin = await handleResearch(
     headers: { origin: 'https://elsewhere.example', 'content-type': 'application/json' },
     body: JSON.stringify({ question: 'Test', evidence: {} }),
   }),
-  { OPENAI_API_KEY: 'sk-test-research-key' }
+  { ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }
 );
 ok('the paid research route rejects cross-origin submissions', () => {
   assert.equal(wrongOrigin.status, 403);
@@ -193,7 +215,7 @@ const oversized = await handleResearch(
     headers: { origin: 'https://dashboard.example', 'content-type': 'application/json' },
     body: 'x'.repeat(180_001),
   }),
-  { OPENAI_API_KEY: 'sk-test-research-key' }
+  { ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }
 );
 ok('the request-body bound is enforced on bytes even without a content-length header', () => {
   assert.equal(oversized.status, 413);

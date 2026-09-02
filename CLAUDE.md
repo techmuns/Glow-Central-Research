@@ -1748,14 +1748,15 @@ metadata and live/snapshot/mock provenance remain attached. Adding or removing a
 means changing this registry and the focused Ask Research checks together; a source may fail, but it
 may not disappear.
 
-`worker/research.mjs` is the provider boundary. `OPENAI_API_KEY` is a Worker secret and must never
+`worker/research.mjs` is the provider boundary. `ANTHROPIC_API_KEY` is a Worker secret and must never
 enter `public/`, browser storage, a request payload or a committed config file. The route is
-same-origin, request-bounded and rate-limited, uses `store: false`, and only adds `web_search` when
+same-origin, request-bounded and rate-limited, and only adds Claude's hosted `web_search` when
 the reader explicitly enables Web research. With that option enabled the tool is required, so a
 "dashboard + web" answer cannot quietly skip the web half.
 
 Conversation history is stored on the device, but each submitted question and bounded evidence
-packet are sent to OpenAI. The UI says both halves. Model prose is untrusted: render it through
+packet are sent to Anthropic's Claude Messages API. The UI says both halves. Model prose is
+untrusted: render it through
 `js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
 aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
 label.
@@ -2452,9 +2453,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
-| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are sent to OpenAI |
+| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are sent to Anthropic's Claude Messages API |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
-| Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side, `store: false`, same-origin, bounded and rate-limited |
+| Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side; the route stays same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
