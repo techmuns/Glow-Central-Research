@@ -1299,10 +1299,12 @@ console.log('\n— AI alerts —');
   ok('a card drills into General Alerts without changing the selected scope',
     /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
   const seeded = await page.locator('#content-host [data-table-search]').inputValue();
-  const drilledRows = await page.locator('#content-host tbody tr').allTextContents();
-  ok('...and seeds the complete stream to that company',
-    seeded === firstTicker && drilledRows.length > 0,
-    `${seeded}; ${drilledRows.length} visible rows`);
+  // Count REAL result rows. `tbody tr` includes the one empty-state row, so the old assertion
+  // passed while an uppercase seeded ticker matched nothing and the product visibly said 0 shown.
+  const drilledRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  ok('...and seeds the complete stream to that company, with real matching rows',
+    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every((row) => row.includes(firstTicker)),
+    `${seeded}; ${drilledRows.length} matching result row(s)`);
 // ---------------------------------------------------------------------------------------
 // 3e. Ask Research — dashboard-wide evidence and optional hosted web research
 // ---------------------------------------------------------------------------------------
@@ -5240,13 +5242,15 @@ console.log('\n— news, announcements and insider trades —');
     return {
       age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null,
       sameDay: refresh.captureIsToday(m.capturedAt),
+      partial: m.failed > 0 || !!m.reason,
       cls: el?.className || '',
       txt: el?.innerText.trim() || '',
     };
   });
-  ok('...and its green Live is earned by today\u2019s capture, not painted over yesterday',
-    chipState.sameDay ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
-    `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} chip="${chipState.txt}"`);
+  const earnsLive = chipState.sameDay && !chipState.partial;
+  ok('...and green Live requires both today\u2019s capture and complete coverage',
+    earnsLive ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
+    `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} partial=${chipState.partial} chip="${chipState.txt}"`);
 
   // ---- the walk: still one request per company, and only when asked ------------------------
   const picked = (book?.fresh || []).map((b) => b.ticker);
