@@ -3140,9 +3140,10 @@ its own opposite. `null` is retained for call-site compatibility; editable-aware
 `scopeAllowsTicker()` or `filterByScope()`, which apply Universe exclusions as well.
 
 **An empty watchlist is answered by the shell, once, for every tab.** `watchlistEmptyPanel()` says
-there are zero watchlist companies and how to add one; the tab is not mounted at all, and the shell
-decides teardown against what it will actually mount so the un-mounted module is destroyed rather
-than left painting into the content host.
+there are zero watchlist companies and offers **Add companies to watchlist**; the shell opens the
+same Watchlist editor as the header pencil without changing tab or scope. The tab is not mounted at
+all, and the shell decides teardown against what it will actually mount so the un-mounted module is
+destroyed rather than left painting into the content host.
 
 ---
 

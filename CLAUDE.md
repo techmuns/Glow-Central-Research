@@ -1721,10 +1721,11 @@ watchlist — a sentence quietly about a different list, on a page that is other
 
 ### An empty watchlist is answered by the SHELL, once, for every tab except Ask Research
 
-`watchlistEmptyPanel()` says there are zero watchlist companies and how to add one. It lives in the
-shell rather than in nine tabs because an empty scope is a property of the scope, not of any tab —
-and because a table reading *"no results match your filters"* over a list nobody has added to sends
-the reader hunting for a filter to clear.
+`watchlistEmptyPanel()` says there are zero watchlist companies and offers **Add companies to
+watchlist**. The shell wires that action to the same Watchlist editor as the header pencil, without
+changing the current tab or scope. The panel lives in the shell rather than in nine tabs because an
+empty scope is a property of the scope, not of any tab — and because a table reading *"no results
+match your filters"* over a list nobody has added to sends the reader hunting for a filter to clear.
 
 Ask Research declares `meta.allowEmptyScope` because its catalog, per-source status and zero-row
 coverage remain useful even when the list is empty. Keep that exception explicit on the module;
@@ -2565,7 +2566,8 @@ It covers, beyond the checklist below:
 - market-wide news is excluded from a narrowed scope **with the reason stated**, not filtered to
   nothing
 - **an empty watchlist gets its own panel on every tab**, saying there are zero watchlist companies
-  and how to add one — never an empty table under a filter the reader never set
+  and opening the Watchlist editor directly from **Add companies to watchlist** — never an empty
+  table under a filter the reader never set
 - **the star marks a company, not the row it sits on**: on the Earnings Hub the row key is
   Moneycontrol's scID and the watch key is the ticker, starring one row of a company fills the star
   on its other rows, and a legacy composite row key is pruned rather than filed as a company

@@ -42,7 +42,8 @@ Universe. Portfolio is the default. The pencil beside the toggle edits the activ
 device: Watchlist uses the existing starred-company store, while Portfolio and Universe keep a
 local overlay over their committed defaults. Company lookup is proxied through the Worker to Muns,
 so `MUNS_TOKEN` never reaches the browser. Portfolio scope edits do not change the Analytics
-ledger. See §5a.
+ledger. When Watchlist is empty, **Add companies to watchlist** opens this same editor directly in
+Watchlist mode without changing the current tab or scope. See §5a.
 
 ---
 
