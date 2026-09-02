@@ -605,6 +605,7 @@ export function scoreTable(config) {
                   title="${isWatched ? `Remove ${escapeHtml(watchLabel || watchSlug)} from your watchlist` : `Add ${escapeHtml(watchLabel || watchSlug)} to your watchlist`}"
                   class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`
           : '<span class="watch-star flex-shrink-0 text-base leading-none text-transparent" aria-hidden="true">☆</span>';
+        const rowLink = link ? link(row) : null;
         const dataTd = (c) =>
           `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
         return `
@@ -640,7 +641,15 @@ export function scoreTable(config) {
             }
             ${showSignals ? `<td class="${PX} py-3"><div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div></td>` : ''}
             ${restCols.map(dataTd).join('')}
-            ${link ? `<td class="${PX} py-3 text-right"><a href="${escapeHtml(link(row) || '#')}" target="_blank" rel="noopener" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a></td>` : ''}
+            ${
+              link
+                ? `<td class="${PX} py-3 text-right">${
+                    rowLink
+                      ? `<a href="${escapeHtml(rowLink)}" target="_blank" rel="noopener noreferrer" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a>`
+                      : ''
+                  }</td>`
+                : ''
+            }
           </tr>`;
   }
 

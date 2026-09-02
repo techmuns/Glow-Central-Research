@@ -112,6 +112,20 @@ const downloadOrSkip = async (label, file) => {
   }
 }
 
+// Insider rows do not currently carry exchange filing ids. Their Source cell must prefer a real
+// URL when one arrives and otherwise narrow the public disclosure index by the exact insider name.
+{
+  const { insiderTradeSourceUrl } = await import('../public/js/tabs/insider-trades.js');
+  const direct = insiderTradeSourceUrl({
+    ticker: 'TEST',
+    cells: { Insider: 'Example Insider', 'Filing Link': '[Open](https://example.com/filing.pdf)' },
+  });
+  const derived = insiderTradeSourceUrl({ ticker: 'JAYNECOIND', cells: { Insider: 'POOJAA AGRAWAL', Source: 'BSE' } });
+  ok('insider source links prefer an explicit filing URL', direct === 'https://example.com/filing.pdf', direct || 'no link');
+  ok('...and otherwise narrow the public record to the exact insider',
+    derived === 'https://trendlyne.com/equity/insider-trading-sast/custom/?query=POOJAA%20AGRAWAL', derived || 'no link');
+}
+
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-type'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
 const page = await context.newPage();
@@ -5826,6 +5840,30 @@ console.log('\n— news, announcements and insider trades —');
   else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
 
   await go('/#/research/insider-trades?scope=portfolio', 2500);
+  const insiderSources = await page.evaluate(() => {
+    const table = document.querySelector('#content-host [data-score-table]');
+    const headers = [...(table?.querySelectorAll('thead th') || [])].map((th) => th.textContent.trim().replace(/[▴▾]$/, '').trim());
+    const sourceIndex = headers.indexOf('Source');
+    const rows = [...(table?.querySelectorAll('tbody tr[data-row-key]') || [])].slice(0, 80);
+    const cells = sourceIndex < 0 ? [] : rows.map((tr) => tr.children[sourceIndex]);
+    const links = cells.map((cell) => cell?.querySelector('a[data-insider-source-link]'));
+    return {
+      headers,
+      rows: rows.length,
+      linked: links.filter(Boolean).length,
+      onlyArrow: cells.every((cell) => cell?.textContent.trim() === '↗'),
+      safe: links.every((a) => {
+        if (!a || a.target !== '_blank' || !/noopener/.test(a.rel)) return false;
+        const url = new URL(a.href);
+        return url.protocol === 'https:' && (url.hostname !== 'trendlyne.com' || !!url.searchParams.get('query'));
+      }),
+    };
+  });
+  ok('Insider Trades has one Source column and no duplicate Link column',
+    insiderSources.headers.filter((h) => h === 'Source').length === 1 && !insiderSources.headers.includes('Link'), insiderSources.headers.slice(-4).join(' · '));
+  ok('every rendered insider source is only a working evidence arrow',
+    insiderSources.rows > 0 && insiderSources.linked === insiderSources.rows && insiderSources.onlyArrow && insiderSources.safe,
+    `${insiderSources.linked} links across ${insiderSources.rows} sampled rows`);
   const insiderFilters = await page.evaluate(async () => {
     const selects = [...document.querySelectorAll('[data-table-filter]')];
     const countText = document.querySelector('[data-row-count]')?.textContent || '';

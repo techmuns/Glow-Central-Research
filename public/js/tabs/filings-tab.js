@@ -66,6 +66,7 @@ const REASONS = {
  * @param {Function} cfg.provenance  (meta) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
+ * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
@@ -274,7 +275,7 @@ export function makeFilingsTab(cfg) {
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
-      link: (r) => r.url || null,
+      link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
       // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
