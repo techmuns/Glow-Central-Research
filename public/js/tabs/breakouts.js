@@ -416,6 +416,8 @@ function renderScanner(ctx, rows) {
 
   const table = scoreTable({
     ...tableBase(rows, ctx),
+    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
+    initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
     showScore: true,
     score: scoreOf,
     showSignals: true,

@@ -214,7 +214,7 @@ substitutes a guess.
 | `bar_gap_days` | number \| null | days | Calendar distance between the two. A weekend is 3, a holiday weekend 4. |
 | `pct_change_today` | number \| null | percent | `cmp` vs the close on `prev_bar_date`. **Null when the gap exceeds 4 days** — Yahoo skipped a session, and the figure would be a multi-day move under a one-day label. Feeds `market_breadth` and the ±5% price alert. |
 | `move_source` | string | — | Present when the move was re-derived from the Muns market-data endpoint (`fastapi.muns.io/market_data`); absent when it is Yahoo's. |
-| `move_check` | string | `confirmed` \| `corrected` \| `unavailable` | Only on rows whose move reached the check threshold (4%). `unavailable` keeps Yahoo's figure and `move_check_reason` says why (rate-limited, day not carried). |
+| `move_check` | string | `confirmed` \| `corrected` \| `unavailable` | Only on rows whose move reached the check threshold (4%). `unavailable` keeps Yahoo's figure and `move_check_reason` says why: `rate-limited`, `no close for <date>` (the endpoint has not published that session yet — it lags the close by hours), `<date> not published by the endpoint yet` (the pass stopped early once three answers in a row lacked it), `verification budget exhausted`. |
 | `move_prev_date`, `move_close`, `move_prev_close` | — | — | The endpoint's two closes and the prior date, when it answered. |
 | `ema50` | number | ₹ | 50-day exponential moving average. |
 | `sma50` | number | ₹ | 50-day simple moving average. |

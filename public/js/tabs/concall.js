@@ -21,7 +21,7 @@
 // THE SCORES ARE STOCKSCANS', NOT OURS. See "Reproducing someone else's analysis" in CLAUDE.md
 // before changing anything this renders.
 
-import { sectionHead } from '../ui/screener.js';
+import { sectionHead, companySeededView } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import * as scans from '../concall/scans.js';
 import { stopDeepDive } from '../concall/deep-dive.js';
@@ -46,10 +46,14 @@ let unsubscribe = null;
 // The table's search, filters, sort and watchlist toggle, carried across live repaints. Without
 // this a call landing mid-session would reset whatever the reader had set up.
 let tableView = null;
+let routeCompany = null;
 
 export function render(ctx) {
   const token = ++renderToken;
   cleanup();
+  const seeded = companySeededView(ctx, routeCompany, tableView);
+  routeCompany = seeded.company;
+  tableView = seeded.view;
   ctx.root.innerHTML = loadingHtml();
 
   feed

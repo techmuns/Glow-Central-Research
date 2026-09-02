@@ -39,12 +39,24 @@ export function loadChecks(path = CHECKS_PATH) {
   }
 }
 
+/**
+ * Write the checks file — only when its ANSWERS changed. The first follow-up pass verified
+ * nothing and still produced a commit, because `updated_at` moved; an hourly commit that carries
+ * only a timestamp is noise in the history and a deploy for nothing. Returns whether it wrote.
+ */
 export function saveChecks(path, store, now = new Date()) {
   const cutoff = new Date(now.getTime() - CHECKS_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
   const checks = Object.fromEntries(Object.entries(store.checks || {}).filter(([key]) => (key.split('@')[1] || '') >= cutoff).sort(([a], [b]) => a.localeCompare(b)));
+  let existing = null;
+  try {
+    existing = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    existing = null;
+  }
+  if (existing && JSON.stringify(existing.checks || {}) === JSON.stringify(checks)) return false;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify({ source: SOURCE_LABEL, keep_days: CHECKS_KEEP_DAYS, updated_at: now.toISOString(), count: Object.keys(checks).length, checks }, null, 1) + '\n');
-  return checks;
+  return true;
 }
 
 /** Apply one endpoint answer to a row, and say so on the row. */
@@ -187,6 +199,7 @@ export async function verifyMoves(rows, {
   fetchImpl = fetch,
   token,
   checks = null,
+  unpublishedStop = 3,
   log = () => {},
 } = {}) {
   const flagged = rows
@@ -196,7 +209,7 @@ export async function verifyMoves(rows, {
     source: SOURCE_LABEL, threshold_pct: thresholdPct, alert_pct: alertPct,
     flagged: flagged.length, cached: 0, queued: 0, skipped: 0,
     checked: 0, confirmed: 0, corrected: 0, unavailable: 0, refusals: 0, requests: 0,
-    budget_ms: budgetMs, elapsed_ms: 0, budget_exhausted: false,
+    budget_ms: budgetMs, elapsed_ms: 0, budget_exhausted: false, date_unpublished: false,
   };
   // Already answered — this run or an earlier one — costs nothing and is never asked again. A row
   // the endpoint has already confirmed or corrected (a re-run over a verified file) is kept as is.
@@ -222,6 +235,7 @@ export async function verifyMoves(rows, {
   const started = now();
   let wait = backoffMs;
   let first = true;
+  let unpublished = 0;
   while (queue.length) {
     if (now() - started > budgetMs) {
       summary.budget_exhausted = true;
@@ -252,8 +266,21 @@ export async function verifyMoves(rows, {
       row.move_check_reason = result.ok ? `no close for ${row.bar_date}` : result.reason;
       summary.unavailable += 1;
       log(`  ${row.ticker}: not verified (${row.move_check_reason})`);
+      // THE ENDPOINT PUBLISHES A SESSION LATE. Measured from GitHub's runner just after midnight
+      // IST: eighteen names answered, every one without the day's close. When the first answered
+      // names in a row all lack the date, the day is not published yet for anyone — stop the pass
+      // here and let the next hourly one ask, rather than spend the quota on the same answer.
+      if (result.ok && move === null) {
+        unpublished += 1;
+        if (unpublished >= unpublishedStop && queue.length) {
+          summary.date_unpublished = true;
+          log(`  ${row.bar_date} is not published by the endpoint yet — leaving ${queue.length} name(s) for the next pass`);
+          break;
+        }
+      }
       continue;
     }
+    unpublished = 0;
     const { before, pct, changed } = applyMove(row, move);
     if (checks) checks.checks[`${row.ticker}@${row.bar_date}`] = { pct: move.pct, close: move.close, prevClose: move.prevClose, prevDate: move.prevDate, checkedAt: new Date(now()).toISOString() };
     summary.checked += 1;
@@ -263,7 +290,7 @@ export async function verifyMoves(rows, {
   // Whatever is still queued was never answered: say so on the row, not silently.
   for (const row of queue) {
     row.move_check = 'unavailable';
-    row.move_check_reason = summary.budget_exhausted ? 'verification budget exhausted' : 'not reached';
+    row.move_check_reason = summary.date_unpublished ? `${row.bar_date} not published by the endpoint yet` : summary.budget_exhausted ? 'verification budget exhausted' : 'not reached';
     summary.unavailable += 1;
   }
   summary.elapsed_ms = now() - started;
