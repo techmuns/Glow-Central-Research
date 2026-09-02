@@ -117,7 +117,15 @@ Root is an **object** with a metadata header and a `companies` array.
 | `generated_at` | string | ISO 8601 UTC | When the scrape finished. Drives the gradient "Last Refresh" card. **Not** the date of the closes — see `price_date`. |
 | `price_date` | string \| null | YYYY-MM-DD (IST) | The session the closes belong to: the most common `bar_date` across priced rows. On the scheduled 07:00 IST run this is the previous trading day. General Alerts dates every price move by this (per row `bar_date`), never by `generated_at`. |
 | `price_date_rows` | number | count | How many rows share `price_date`. A row on another date is a company whose latest Yahoo bar lags. |
-| `move_verification` | object \| null | — | What `scripts/lib/muns-market-data.mjs` did: `{ source, threshold_pct, flagged, checked, confirmed, corrected, unavailable, skipped }`. Null when the check was skipped (`MUNS_VERIFY=0`). |
+| `move_verification` | object \| null | — | What `scripts/lib/muns-market-data.mjs` did, across the scrape and every follow-up pass: `{ source, threshold_pct, alert_pct, flagged, cached, checked, confirmed, corrected, unavailable, refusals, elapsed_ms, budget_exhausted, passes?, last_pass_at? }`. Null when the check was skipped (`MUNS_VERIFY=0`). |
+
+**`price-move-checks.json`** sits beside it: every answer the Muns market-data endpoint has given,
+keyed `TICKER@bar_date` → `{ pct, close, prevClose, prevDate, checkedAt }`, pruned to ten days. It
+exists because the endpoint's anonymous quota is a few requests an hour and a refusal outlasts a
+run: the daily scrape asks what it can and commits, and `.github/workflows/price-move-verify.yml`
+runs `scripts/verify-price-moves.mjs` hourly through the Indian day to ask only about the rows still
+`unavailable` — reading this file first, so no name is asked twice. A `MUNS_TOKEN` repository secret
+is sent as a Bearer token by both jobs and is what lets one pass answer the whole set.
 | `source` | string | — | Always `"Yahoo Finance"` today. |
 | `index_symbol` | string | — | `^CRSLDX` — Nifty 500 on Yahoo. |
 | `index_close` | number | index points | Latest index close. |

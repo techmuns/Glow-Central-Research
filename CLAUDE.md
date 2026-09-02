@@ -136,6 +136,8 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
+.github/workflows/price-move-verify.yml    hourly through the Indian day; asks the Muns market-data
+                                           endpoint about every flagged move the scrape could not verify
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
@@ -2108,6 +2110,27 @@ Three rules, in `scripts/lib/yahoo.mjs`, `scripts/scrape-technicals.mjs` and `js
    shape, a refusal keeps Yahoo's figure and records `move_check: unavailable`, and the whole step is
    bounded to a dozen names. `node scripts/verify-bars.mjs` asserts all three.
 
+**AND THE ENDPOINT'S QUOTA IS SMALLER THAN A DAY'S FLAGGED LIST, SO ONE RUN CANNOT BE THE WHOLE
+ANSWER.** Measured: three anonymous requests answered, then every one of eighteen more — at one
+every three seconds, then one every twenty, with a token, in a burst, for over ninety minutes — was
+refused. Waiting inside the scrape would hold a 603-fetch run hostage to a dozen calls, and dropping
+the check would put Yahoo's figure back where the alert looks. So the check is split across time and
+remembered across runs:
+
+- **`verifyMoves` asks the alert-producing names first**, paces itself, doubles its wait on every
+  refusal, retries the SAME name rather than skipping it, and runs under a wall-clock budget. What is
+  still unanswered when the budget ends says `unavailable` on the row — never a silent figure.
+- **`public/data/price-move-checks.json` is every answer ever received**, keyed `TICKER@bar_date`.
+  It is read before any request, so a name is asked about once per session, whichever job asks.
+- **`scripts/verify-price-moves.mjs` comes back for the rest.** `price-move-verify.yml` runs it
+  hourly through the Indian day under the scrape's concurrency group; each pass answers what it can,
+  recomputes breadth and `price_date` through the shared `lib/technicals-file.mjs`, and commits only
+  if a row changed. Every firing GitHub sheds costs nothing, because each pass resumes exactly where
+  the last one stopped.
+- **`MUNS_TOKEN` as a repository secret is the lever.** Both jobs send it as a Bearer token; an
+  authenticated quota is what lets one pass answer the whole set. Without it the set is still
+  answered — over the day rather than in a run — and the alert row says which figure it carries.
+
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
 Breakouts' pill is the third consumer of that rule, and it got the threshold wrong first in a way
@@ -2507,6 +2530,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) — its universe is the NSE-500 export **plus the book**, deliberately; read *The universe is the index PLUS the book* in `docs/DATA-CONTRACTS.md` before narrowing it |
 | Change what counts as a close, or the price-move check | `completedBars` / `dayMove` in `scripts/lib/yahoo.mjs` + `scripts/lib/muns-market-data.mjs` (`MUNS_VERIFY=0` skips the check) — read *A close is a claim about a SESSION* first; `node scripts/verify-bars.mjs` is the test |
+| Finish verifying today's flagged moves, or change how often it is tried | `node scripts/verify-price-moves.mjs` (`MUNS_TOKEN=…` for the authenticated quota, `MUNS_VERIFY_BUDGET_MS` for patience) + the cron in `.github/workflows/price-move-verify.yml`; the answers live in `public/data/price-move-checks.json` |
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
 | Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |

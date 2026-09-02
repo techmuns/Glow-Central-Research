@@ -1,0 +1,71 @@
+name: Price-move verification
+
+# THE FOLLOW-UP TO THE DAILY TECHNICALS SCRAPE.
+#
+# The scrape re-derives every ±4% day move from the Muns market-data endpoint before it writes
+# technicals.json, but that endpoint's anonymous quota is a few requests an hour and a refusal
+# lasts longer than the run. So the scrape records what it could not verify (`move_check:
+# unavailable`) and commits; this job comes back through the day and asks only about those — the
+# committed checks file (public/data/price-move-checks.json) is what stops any name being asked
+# twice. With MUNS_TOKEN set as a repository secret the whole set is normally answered in one pass.
+#
+# Same concurrency group as the data refresh, so the two can never race on technicals.json.
+
+on:
+  schedule:
+    # Hourly through the Indian day (03:00–15:00 UTC = 08:30–20:30 IST), weekdays. GitHub's
+    # scheduler is best-effort and sheds dense crons; every firing that happens is useful and a
+    # missed one costs nothing, because each pass picks up exactly where the last one stopped.
+    - cron: "0 3-15 * * 1-5"
+  workflow_dispatch:
+
+run-name: Price-move verification (${{ github.event_name }})
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Ask the Muns market-data endpoint about every still-unverified flagged move
+        env:
+          # Optional. Sent as a Bearer token; without it the endpoint's anonymous quota applies and
+          # the pass answers what it can before its budget ends.
+          MUNS_TOKEN: ${{ secrets.MUNS_TOKEN }}
+          MUNS_VERIFY_BUDGET_MS: "1500000"
+        run: node scripts/verify-price-moves.mjs
+
+      - name: Commit verified moves to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/technicals.json public/data/price-move-checks.json
+          if git diff --cached --quiet; then
+            echo "Nothing newly verified; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Price-move verification ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
