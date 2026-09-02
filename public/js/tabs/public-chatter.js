@@ -24,6 +24,7 @@ import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js'
 import { scopeSummary, pill, tabBar } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatNumber, formatRelativeTime, formatTime } from '../core/format.js';
+import { exportRows, todayStamp } from '../ui/export.js';
 import * as chatter from '../data/chatter-live.js';
 import * as coverage from '../data/coverage.js';
 
@@ -336,6 +337,54 @@ const sourceSummary = (totals) => {
     .join(' · ');
 };
 
+/**
+ * Export the currently visible table rows, not the whole feed hidden behind the reader's search
+ * and sentiment filters. Both in-page tables use the same upstream metrics, but only Coverage can
+ * honestly carry an NSE symbol; the uncovered export keeps the resolver's reason instead.
+ */
+function exportChatterRows(rows, { covered }) {
+  const m = chatter.meta();
+  const banner = {
+    __banner: true,
+    text:
+      `REAL DATA, NOT OURS. Public Chatter mention counts and sentiment are computed by SentimentDash ` +
+      `across ValuePickr, TradingQnA and Google News over ${m?.window || 'the reported window'}. ` +
+      `The NSE symbol and coverage classification are ours. Captured ${m?.generatedAt || 'time not reported'}; ` +
+      `exported ${new Date().toISOString()}. Mention change is volume between scrapes, never a price return.`,
+  };
+  const value = (row, get) => (row.__banner ? '' : get(row));
+  const columns = [
+    { header: covered ? 'Company' : 'Topic', key: 'name', width: 30, get: (r) => (r.__banner ? r.text : r.name || '') },
+    ...(covered
+      ? [
+          { header: 'NSE ticker', key: 'ticker', width: 16, get: (r) => value(r, (x) => x.ticker || '') },
+          { header: 'Forum topic', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
+          { header: 'Matched company', key: 'matched', width: 30, get: (r) => value(r, (x) => x.matchedName || '') },
+        ]
+      : [
+          { header: 'Topic slug', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
+          { header: 'Coverage result', key: 'coverage', width: 46, get: (r) => value(r, (x) => x.unresolvedReason || 'No NSE symbol resolved') },
+        ]),
+    { header: 'Mentions', key: 'mentions', width: 14, get: (r) => value(r, (x) => x.mentions ?? '') },
+    { header: 'Previous mentions', key: 'mentions_prev', width: 18, get: (r) => value(r, (x) => x.mentionsPrev ?? '') },
+    { header: 'Mention change %', key: 'mention_change', width: 18, get: (r) => value(r, (x) => x.mentionsChangePct ?? '') },
+    { header: 'Mention direction', key: 'direction', width: 18, get: (r) => value(r, (x) => x.direction || '') },
+    { header: 'Sentiment', key: 'sentiment', width: 16, get: (r) => value(r, (x) => x.sentiment?.labelText || '') },
+    { header: 'Sentiment score', key: 'sentiment_score', width: 17, get: (r) => value(r, (x) => x.sentiment?.score ?? '') },
+    { header: 'Bullish mentions', key: 'bullish', width: 17, get: (r) => value(r, (x) => x.sentiment?.bullish ?? '') },
+    { header: 'Bearish mentions', key: 'bearish', width: 17, get: (r) => value(r, (x) => x.sentiment?.bearish ?? '') },
+    { header: 'Neutral mentions', key: 'neutral', width: 17, get: (r) => value(r, (x) => x.sentiment?.neutral ?? '') },
+    { header: 'Sources', key: 'sources', width: 42, get: (r) => value(r, (x) => sourceSummary(x.sources) || x.sourceLabel || '') },
+  ];
+
+  return exportRows({
+    filename: `sattva-public-chatter-${covered ? 'coverage' : 'not-in-coverage'}-${todayStamp()}`,
+    sheetName: covered ? 'Coverage' : 'Not in coverage',
+    columns,
+    rows: [banner, ...rows],
+  });
+}
+
 function buildTopCards(rows) {
   const ranked = rows.filter((r) => r.mentions > 0).slice(0, 10);
   if (ranked.length < 3) return null;
@@ -420,6 +469,7 @@ function buildCoveredTable(rows) {
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.covered,
     exportName: 'chatter-companies',
+    onExport: (visible) => exportChatterRows(visible, { covered: true }),
     onRowClick: openMentions,
     filters: [sentimentFilter()],
     columns: [
@@ -502,6 +552,7 @@ function buildOtherTable(rows) {
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.other,
     exportName: 'chatter-uncovered',
+    onExport: (visible) => exportChatterRows(visible, { covered: false }),
     stickyHead: 'max(320px, calc(100vh - 420px))',
     onRowClick: openMentions,
     filters: [sentimentFilter()],
