@@ -4,7 +4,7 @@ import { empty, el } from '../core/dom.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { scopeLabel } from '../data/scope.js';
-import { buildResearchEvidence, researchSuggestions, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
+import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
 
 export const meta = {
@@ -66,7 +66,7 @@ function normaliseSession(raw) {
           webResearch: message.webResearch === true,
           dashboardSources: Array.isArray(message.dashboardSources) ? message.dashboardSources.slice(0, 16) : [],
           // The companies the question resolved to, so a saved answer's citations still deep-link.
-          companies: Array.isArray(message.companies) ? message.companies.filter((c) => c && typeof c.ticker === 'string').slice(0, 6).map((c) => ({ ticker: c.ticker, name: typeof c.name === 'string' ? c.name : c.ticker })) : [],
+          companies: Array.isArray(message.companies) ? message.companies.filter((c) => c && typeof c.ticker === 'string').slice(0, 6).map((c) => ({ ticker: c.ticker, name: typeof c.name === 'string' ? c.name : c.ticker })) : undefined,
           webSources: Array.isArray(message.webSources) ? message.webSources.slice(0, 12) : [],
         }))
     : [];
@@ -354,6 +354,37 @@ function paintAll() {
   paintSidebar();
   paintTranscript();
   paintComposer();
+  backfillCompanies(currentSession());
+}
+
+// ANSWERS SAVED BEFORE THEIR COMPANIES WERE STORED WITH THEM. A citation deep-links to the company
+// the question named, and that used to be known only while the answer streamed — so every answer
+// in a conversation from before this shipped opened the bare tab: General Alerts with 21,000 rows
+// instead of the nineteen about IIFL. Resolve the question again, once, with the same resolver a
+// live question uses; store the result on the message so it is never asked twice; repaint.
+const backfilling = new Set();
+function backfillCompanies(session) {
+  if (!session || !ctxRef) return;
+  const scope = ctxRef.scope;
+  session.messages.forEach((message, index) => {
+    if (message.role !== 'assistant' || Array.isArray(message.companies) || backfilling.has(message)) return;
+    const question = session.messages.slice(0, index).reverse().find((item) => item.role === 'user')?.text;
+    if (!question) {
+      message.companies = [];
+      return;
+    }
+    backfilling.add(message);
+    resolveQuestionCompanies(question, scope)
+      .then((companies) => {
+        message.companies = companies.map((company) => ({ ticker: company.ticker, name: company.name }));
+        persistSessions();
+        if (ctxRef && activeId === session.id && !isBusy(session)) paintTranscript();
+      })
+      .catch(() => {
+        message.companies = [];
+      })
+      .finally(() => backfilling.delete(message));
+  });
 }
 
 function paintSidebar() {
@@ -619,11 +650,22 @@ async function submitCurrent() {
   paintAll();
 
   try {
-    const evidence = await buildResearchEvidence({
-      question,
-      scope: ctxRef?.scope || 'portfolio',
-      onProgress: ({ completed, total, source }) => setPhase(session, `Reading ${source} · ${completed} of ${total}`),
+    // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
+    // can take ten seconds on a cold page, and a scope change during it used to leave the
+    // composer empty and the phase running until then — the reader's question looked lost.
+    const aborted = new Promise((_, reject) => {
+      generation.controller.signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true });
     });
+    const evidence = await Promise.race([
+      buildResearchEvidence({
+        question,
+        scope: ctxRef?.scope || 'portfolio',
+        onProgress: ({ completed, total, source }) => {
+          if (!generation.controller.signal.aborted) setPhase(session, `Reading ${source} · ${completed} of ${total}`);
+        },
+      }),
+      aborted,
+    ]);
     if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     session.streamDashboard = dashboardSources(evidence);
     session.streamCompanies = (evidence.selection?.companies || []).map((company) => ({ ticker: company.ticker, name: company.name }));
@@ -649,6 +691,7 @@ async function submitCurrent() {
     session.streamText = '';
     session.streamSources = [];
     session.streamDashboard = [];
+    session.streamCompanies = [];
     session.status = error?.name === 'AbortError' ? 'idle' : 'needs-attention';
     session.error = error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
     session.phase = '';

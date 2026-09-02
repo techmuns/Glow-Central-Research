@@ -1109,6 +1109,16 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
   }, charBudget);
 }
 
+/**
+ * The companies a question names, resolved against the book, the watchlist, the universe and
+ * whatever feeds are already loaded — for an answer saved before its companies were stored with
+ * it, so its citations can still deep-link. Same resolver as a live question, same index.
+ */
+export async function resolveQuestionCompanies(question, scope = 'portfolio') {
+  const deferred = await whenDeferredData();
+  return queryPlan(question, companyIndex(deferred), { scope, holdings: scopeHoldings(scope) }).companies;
+}
+
 export function researchSuggestions(scope = 'portfolio') {
   const possessive = scope === 'universe' ? 'the listed universe' : scope === 'watchlist' ? 'my watchlist' : 'my portfolio';
   return [

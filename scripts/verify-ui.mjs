@@ -1412,6 +1412,35 @@ console.log('\n— AI alerts —');
     !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
     citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
 
+  // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
+  // again on first paint and the result stored on the message — so a conversation from before
+  // the link change opens General Alerts on the company's nineteen rows, not on all 21,000.
+  const legacyMember = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const member = coverage.holdings().find((h) => h.ticker && h.name && h.name.split(' ').length >= 2);
+    const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
+    stored.unshift({ id: 'legacy-answer', title: 'legacy', createdAt: '2026-09-01T00:00:00Z', updatedAt: '2099-01-01T00:00:00Z', messages: [
+      { role: 'user', text: `anything i should know about ${member.name.toLowerCase()}?` },
+      { role: 'assistant', text: 'Filed today. [Dashboard: General Alerts]', dashboardSources: [{ id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts' }], webSources: [] },
+    ] });
+    localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
+    return member.ticker;
+  });
+  // A real reload: the tab reads its library once, at module load, so a hash navigation would not see
+  // the injected conversation.
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  await page.locator('[data-research-session="legacy-answer"]').click();
+  await page.waitForFunction(() => /company=/.test(document.querySelector('[data-research-transcript] a.research-cite')?.getAttribute('href') || ''), null, { timeout: 20000 }).catch(() => {});
+  const legacyHref = await page.locator('[data-research-transcript] a.research-cite').first().getAttribute('href').catch(() => null);
+  ok('...and an answer saved without its companies is backfilled from its question, so its citations deep-link too',
+    !!legacyHref && legacyHref === `#/research/daily-alerts?scope=portfolio&company=${legacyMember}`,
+    `${legacyMember}: ${legacyHref || 'no link'}`);
+  await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]').filter((s) => s.id !== 'legacy-answer');
+    localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
+  });
+
   // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old
   // membership can be committed to device history.
