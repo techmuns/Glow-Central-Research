@@ -1833,7 +1833,18 @@ its value with a Muns token. Remove that migration opt-in after installing `MUNS
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through
-`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
+`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`.
+
+**A citation is a link into the dashboard.** The model cites `[Dashboard: Page name]`; the renderer
+hands the name to a resolver the tab supplies (`citeResolver` in `js/tabs/ask-research.js`), which
+matches it against the source registry's tab titles and returns that tab's route in the current
+scope — with `&company=TICKER` when the question resolved to exactly one company, which the answer
+stores on the message so a saved conversation's links still land. A name that matches no registered
+source stays as text: a link that goes nowhere is worse than none. `?company=` is the one URL
+parameter every table tab honours, through `companySeededView()` in `js/ui/screener.js`: the first
+paint after it appears opens the table searched for that company, later paints keep what the reader
+has typed since. General Alerts had it first (for AI Alerts cards); the others now do the same, and
+Super Investors switches to its Data Table section to do it. A scope change
 aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
 label.
 
@@ -2569,6 +2580,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
+| Change where a `[Dashboard: …]` citation links, or make a tab honour `?company=` | `citeResolver()` in `js/tabs/ask-research.js` + `companySeededView()` in `js/ui/screener.js`; the tab's own render seeds its `initialView` from it |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, `load` before `read`, and the packet must stay below the Worker bound **and still carry rows**; read *The budget is measured on what the model receives* first |
 | Change what the model receives, or the evidence budget | `js/research/evidence-shared.js` (the provider shape — the Worker imports it too) + `RESEARCH_EVIDENCE_CHAR_BUDGET` / `ROW_RESERVE_SHARE` in `estate.js` — measure with `providerEvidenceChars`, never `JSON.stringify(packet).length` |
 | Change how a question names a company | `queryPlan()` + `STOP_WORDS` / `WORD_TICKERS` in `js/research/estate.js` — pure, fixture-tested in `scripts/verify-research.mjs` |

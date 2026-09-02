@@ -4,16 +4,37 @@
 
 import { el, empty } from '../core/dom.js';
 
-function appendInline(parent, text) {
+// A CITATION IS A LINK INTO THE DASHBOARD. The model cites `[Dashboard: Page name]`; `cite(name)`
+// (supplied by the tab, which knows the source registry and the companies the answer is about)
+// returns `{ href, title, label }` for a page it recognises, and the citation renders as an anchor
+// into that tab — deep-linked to the company where the tab can seed its search. An unrecognised
+// name stays as the model wrote it: a link that went nowhere would be worse than none.
+const CITATION = /\[Dashboard:\s*([^\]\n]+?)\s*\]/;
+
+function appendInline(parent, text, cite = null) {
   const source = String(text || '');
-  const pattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*)/g;
+  const pattern = /(\[Dashboard:\s*[^\]\n]+\]|\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*)/g;
   let cursor = 0;
   for (const match of source.matchAll(pattern)) {
     if (match.index > cursor) parent.appendChild(document.createTextNode(source.slice(cursor, match.index)));
     const token = match[0];
-    if (token.startsWith('**')) parent.appendChild(el('strong', { class: 'font-bold text-slate-900' }, token.slice(2, -2)));
-    else if (token.startsWith('`')) parent.appendChild(el('code', { class: 'rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-700' }, token.slice(1, -1)));
-    else parent.appendChild(el('em', { class: 'italic' }, token.slice(1, -1)));
+    const citation = token.match(CITATION);
+    if (citation) {
+      const target = cite?.(citation[1]) || null;
+      if (target?.href) {
+        parent.appendChild(el('a', { class: 'research-cite', href: target.href, title: target.title || `Open ${citation[1]}` }, target.label || citation[1]));
+      } else {
+        parent.appendChild(el('span', { class: 'research-cite research-cite-unresolved' }, citation[1]));
+      }
+    } else if (token.startsWith('**')) {
+      const strong = el('strong', { class: 'font-bold text-slate-900' });
+      appendInline(strong, token.slice(2, -2), cite);
+      parent.appendChild(strong);
+    } else if (token.startsWith('`')) {
+      parent.appendChild(el('code', { class: 'rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-700' }, token.slice(1, -1)));
+    } else {
+      parent.appendChild(el('em', { class: 'italic' }, token.slice(1, -1)));
+    }
     cursor = match.index + token.length;
   }
   if (cursor < source.length) parent.appendChild(document.createTextNode(source.slice(cursor)));
@@ -29,7 +50,7 @@ function isDivider(line) {
   return cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
 }
 
-function renderTable(lines, start) {
+function renderTable(lines, start, cite) {
   if (!lines[start]?.includes('|') || !isDivider(lines[start + 1] || '')) return null;
   const headers = splitPipe(lines[start]);
   const rows = [];
@@ -46,7 +67,7 @@ function renderTable(lines, start) {
   const headRow = el('tr');
   for (const header of headers) {
     const th = el('th', { scope: 'col', class: 'border-b border-slate-200 bg-slate-50 px-3 py-2 font-bold text-slate-600' });
-    appendInline(th, header);
+    appendInline(th, header, cite);
     headRow.appendChild(th);
   }
   table.appendChild(el('thead', {}, headRow));
@@ -55,7 +76,7 @@ function renderTable(lines, start) {
     const tr = el('tr');
     for (const cell of row) {
       const td = el('td', { class: 'border-b border-slate-100 px-3 py-2 align-top text-slate-700' });
-      appendInline(td, cell);
+      appendInline(td, cell, cite);
       tr.appendChild(td);
     }
     body.appendChild(tr);
@@ -67,7 +88,7 @@ function renderTable(lines, start) {
   };
 }
 
-export function renderResearchAnswer(container, text) {
+export function renderResearchAnswer(container, text, { cite = null } = {}) {
   empty(container);
   const lines = String(text || '').replaceAll('\r\n', '\n').split('\n');
   let cursor = 0;
@@ -76,7 +97,7 @@ export function renderResearchAnswer(container, text) {
   const flushParagraph = () => {
     if (!paragraph.length) return;
     const p = el('p', { class: 'research-answer-paragraph' });
-    appendInline(p, paragraph.join(' '));
+    appendInline(p, paragraph.join(' '), cite);
     container.appendChild(p);
     paragraph = [];
   };
@@ -90,7 +111,7 @@ export function renderResearchAnswer(container, text) {
       continue;
     }
 
-    const table = renderTable(lines, cursor);
+    const table = renderTable(lines, cursor, cite);
     if (table) {
       flushParagraph();
       container.appendChild(table.node);
@@ -102,7 +123,7 @@ export function renderResearchAnswer(container, text) {
     if (heading) {
       flushParagraph();
       const h = el('h3', { class: 'research-answer-heading' });
-      appendInline(h, heading[2]);
+      appendInline(h, heading[2], cite);
       container.appendChild(h);
       cursor += 1;
       continue;
@@ -111,7 +132,7 @@ export function renderResearchAnswer(container, text) {
     if (trimmed.startsWith('>')) {
       flushParagraph();
       const quote = el('blockquote', { class: 'research-answer-callout' });
-      appendInline(quote, trimmed.replace(/^>\s?/, ''));
+      appendInline(quote, trimmed.replace(/^>\s?/, ''), cite);
       container.appendChild(quote);
       cursor += 1;
       continue;
@@ -129,7 +150,7 @@ export function renderResearchAnswer(container, text) {
         const match = ordered ? candidate.match(/^(\d+)[.)]\s+(.+)$/) : candidate.match(/^[-•*]\s+(.+)$/);
         if (!match) break;
         const li = el('li');
-        appendInline(li, ordered ? match[2] : match[1]);
+        appendInline(li, ordered ? match[2] : match[1], cite);
         if (ordered) li.value = Number(match[1]);
         list.appendChild(li);
         cursor += 1;

@@ -1401,6 +1401,16 @@ console.log('\n— AI alerts —');
     /dashboard research/i.test(researchAnswer) &&
       (await page.locator('.research-source-chip-web').count()) === 0,
     researchAnswer.replace(/\s+/g, ' ').slice(0, 240));
+  // A CITATION IS A LINK INTO THE DASHBOARD. `[Dashboard: Earnings Hub]` in the stubbed answer must
+  // render as an anchor to that tab's route in the active scope — and, because this question named
+  // no company, without a `company=` seed it would have no honest value for.
+  const citation = await page.evaluate(() => {
+    const a = document.querySelector('[data-research-transcript] a.research-cite');
+    return a ? { href: a.getAttribute('href'), text: a.textContent.trim(), unresolved: document.querySelectorAll('[data-research-transcript] .research-cite-unresolved').length } : null;
+  });
+  ok('...and renders every [Dashboard: Page] citation as a link into that tab',
+    !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
+    citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
 
   // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old
@@ -1429,6 +1439,22 @@ console.log('\n— AI alerts —');
   });
 
   await page.unroute('**/api/research');
+
+  // EVERY TABLE TAB HONOURS `?company=` THE SAME WAY: the first paint after the parameter appears
+  // opens the table searched for that company, which is what a citation deep-links to. Asserted on
+  // the Earnings Hub with a company that actually filed, so the seeded search has rows to show.
+  const seedTicker = await page.evaluate(async () => {
+    const earnings = await import('/js/data/earnings-live.js');
+    await earnings.load();
+    return earnings.all().find((r) => r.ticker)?.ticker || null;
+  });
+  await go(`/#/research/earnings-hub?scope=universe&company=${encodeURIComponent(seedTicker || '')}`, 2500);
+  await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
+  const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
+  const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  ok('a table tab opened with ?company= is searched for that company',
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
