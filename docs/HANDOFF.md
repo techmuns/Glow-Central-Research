@@ -270,7 +270,8 @@ Portfolio membership, independent-feed corroboration, repeated high-importance e
 directional conflict and high-importance negative clusters inside a portfolio sector. A stale, failed
 or unread feed subtracts points. Cards are sorted by score internally, show the strongest three source
 events and next action, and keep the score arithmetic out of the UI. They link to General Alerts
-pre-filtered for that company.
+pre-filtered for that company. A compact header status still names stale or unread feeds so a partial
+queue cannot look fully current.
 
 The model is deliberately deterministic rather than generative: the feeds already carry the
 structured facts needed to prioritise them, so a repeatable rule cannot invent a filing or silently

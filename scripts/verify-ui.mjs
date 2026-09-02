@@ -1177,7 +1177,7 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.getByText('Updated', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('[data-ai-feed-status]').waitFor({ state: 'visible', timeout: 15000 });
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
   ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
@@ -1193,7 +1193,7 @@ console.log('\n— AI alerts —');
     priority: el.dataset.priority,
     insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
     why: el.querySelectorAll('[data-ai-why] > div').length,
-    scoreShown: /\/100/.test(el.innerText) || /why it ranked here/i.test(el.innerText),
+    scoreShown: !!el.querySelector('[data-ai-score], [title="Transparent priority score"]'),
     action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
     events: el.querySelectorAll('[data-ai-event]').length,
   })));
@@ -1204,6 +1204,9 @@ console.log('\n— AI alerts —');
   ok('AI Alerts removes the priority banner and ranking breakdown',
     (await page.locator('[data-ai-alert-summary]').count()) === 0 &&
       renderedCards.every((card) => card.why === 0 && !card.scoreShown));
+  const aiFeedStatus = (await page.locator('[data-ai-feed-status]').innerText()).trim();
+  ok('the compact header still names stale or unread feeds',
+    /^(Updated|\d+ feeds? (is|are) stale or unread)$/.test(aiFeedStatus), aiFeedStatus);
   ok('every surfaced card keeps the insight, evidence and next review action',
     renderedCards.every((card) => card.insight && card.action && card.events > 0));
 

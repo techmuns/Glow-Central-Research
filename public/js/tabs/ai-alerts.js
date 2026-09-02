@@ -107,11 +107,16 @@ function paint(ctx) {
 function head(ctx) {
   const m = report?.meta || {};
   const pending = report?.pending || 0;
+  const feedStatus = pending
+    ? pill({ label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' })
+    : m.staleFeeds
+      ? pill({ label: `${m.staleFeeds} ${m.staleFeeds === 1 ? 'feed is' : 'feeds are'} stale or unread`, tone: 'caution' })
+      : pill({ label: 'Updated', tone: 'positive' });
   return sectionHead({
     title: 'AI Alerts',
     description: 'Important company signals from the last seven days.',
     meta: `<div class="flex flex-wrap items-center justify-end gap-2">
-      ${pending ? pill({ label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' }) : pill({ label: 'Updated', tone: 'positive' })}
+      <span data-ai-feed-status>${feedStatus}</span>
       ${scopeSummary({
         scope: ctx.scope,
         count: m.activeCompanies || 0,
