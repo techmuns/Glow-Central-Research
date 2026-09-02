@@ -1,11 +1,21 @@
 {
-  "capturedAt": "2026-08-31T07:30:31.056Z",
-  "from": "2026-08-28",
-  "to": "2026-09-21",
+  "capturedAt": "2026-09-02T06:20:31.626Z",
+  "from": "2026-08-30",
+  "to": "2026-09-23",
   "listCap": 20,
   "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
   "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-23",
+      "displayDate": "23 Sep",
+      "count": 0
+    },
+    {
+      "date": "2026-09-22",
+      "displayDate": "22 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-21",
       "displayDate": "21 Sep",
@@ -94,7 +104,7 @@
     {
       "date": "2026-09-04",
       "displayDate": "04 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-03",
@@ -114,25 +124,41 @@
     {
       "date": "2026-08-31",
       "displayDate": "31 Aug",
-      "count": 3
+      "count": 4
     },
     {
       "date": "2026-08-30",
       "displayDate": "30 Aug",
-      "count": 1
-    },
-    {
-      "date": "2026-08-29",
-      "displayDate": "29 Aug",
-      "count": 1
-    },
-    {
-      "date": "2026-08-28",
-      "displayDate": "28 Aug",
       "count": 0
     }
   ],
   "byDate": {
+    "2026-09-04": {
+      "rows": [
+        {
+          "scId": "DTL03",
+          "name": "Dhoot Transmission",
+          "shortName": "Dhoot Transmiss",
+          "resultDate": "2026-09-04",
+          "displayDate": "4 Sep",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 1509.2,
+          "changePct": 4.08,
+          "marketCap": 30870.39,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries-auto-truck-motorcycle-parts/dhoottransmission/DTL02",
+          "ticker": "DHOOTTRANS",
+          "fullName": "Dhoot Transmiss",
+          "industry": "Auto Ancillaries - Auto, Truck & Motorcycle Parts",
+          "shares": 204548057,
+          "mktCapAtBuild": 30804.94
+        }
+      ],
+      "scheduledCount": 1,
+      "capped": false,
+      "asOnDate": "02/09/2026"
+    },
     "2026-09-02": {
       "rows": [
         {
@@ -143,16 +169,16 @@
           "displayDate": "2 Sep",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 369.93,
-          "changePct": -1.04,
-          "marketCap": 1465.15,
+          "ltp": 372.8,
+          "changePct": -0.37,
+          "marketCap": 1476.52,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
           "ticker": "TECHNOCRAF",
           "fullName": "Technocraft Ven",
           "industry": "Construction - Infrastructure",
           "shares": 39606200,
-          "mktCapAtBuild": 1465.15
+          "mktCapAtBuild": 1483.65
         },
         {
           "scId": "VIVAN54173",
@@ -163,7 +189,7 @@
           "quarter": "Q1 FY26-27",
           "time": null,
           "ltp": 1.81,
-          "changePct": -0.55,
+          "changePct": null,
           "marketCap": 23.32,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/vivantaindustrieslimited/VIVAN54173"
@@ -171,7 +197,7 @@
       ],
       "scheduledCount": 1,
       "capped": false,
-      "asOnDate": "31/08/2026"
+      "asOnDate": "02/09/2026"
     },
     "2026-08-31": {
       "rows": [
@@ -183,16 +209,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 215.69,
-          "changePct": 0.64,
-          "marketCap": 16604.75,
+          "ltp": 250.76,
+          "changePct": 8.07,
+          "marketCap": 19304.59,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
           "fullName": "Milky Mist",
           "industry": "Consumer Food",
           "shares": 769843411,
-          "mktCapAtBuild": 16606.29
+          "mktCapAtBuild": 17862.68
         },
         {
           "scId": "LIL07",
@@ -202,16 +228,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 168.18,
-          "changePct": -0.13,
-          "marketCap": 7408.94,
+          "ltp": 158.5,
+          "changePct": -0.61,
+          "marketCap": 6982.5,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
           "fullName": "LEAP India",
           "industry": "Logistics",
           "shares": 440536458,
-          "mktCapAtBuild": 7408.06
+          "mktCapAtBuild": 6996.6
         },
         {
           "scId": "GSC01",
@@ -221,87 +247,40 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 18.28,
-          "changePct": 1.95,
-          "marketCap": 244.53,
+          "ltp": 17.6,
+          "changePct": -0.4,
+          "marketCap": 235.43,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 244.53
+          "mktCapAtBuild": 235.43
         },
         {
-          "scId": "DPL03",
-          "name": "Dachepalli Publishers",
-          "shortName": "Dachepalli Pub",
+          "scId": "CC24",
+          "name": "Cressanda Railway Solution",
+          "shortName": "Cressanda Rail",
           "resultDate": "2026-08-31",
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 79.6,
-          "changePct": -1.24,
-          "marketCap": 119.21,
-          "exchange": "B",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/dachepallipublishers/DPL03"
-        }
-      ],
-      "scheduledCount": 3,
-      "capped": false,
-      "asOnDate": "31/08/2026"
-    },
-    "2026-08-30": {
-      "rows": [
-        {
-          "scId": "NFC",
-          "name": "Nagarjuna Fertilisers and Chemicals",
-          "shortName": "Nagarjuna Fert",
-          "resultDate": "2026-08-30",
-          "displayDate": "30 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 2.05,
-          "changePct": -4.65,
-          "marketCap": 122.6,
+          "ltp": 2.74,
+          "changePct": -4.86,
+          "marketCap": 115.94,
           "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/fertilisers/nagarjunafertiliserschemicals/NFC",
-          "ticker": "NAGAFERT",
-          "fullName": "Nagarjuna Fert",
-          "industry": "Fertilizers",
-          "shares": 598065003,
-          "mktCapAtBuild": 122.6
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software-medium-small/cressandarailwaysolution/CS17",
+          "ticker": "CRSL",
+          "fullName": "Cressanda Rail",
+          "industry": "IT Services & Consulting",
+          "shares": 423144706,
+          "mktCapAtBuild": 115.94
         }
       ],
-      "scheduledCount": 1,
+      "scheduledCount": 4,
       "capped": false,
-      "asOnDate": "31/08/2026"
-    },
-    "2026-08-29": {
-      "rows": [
-        {
-          "scId": "GSC01",
-          "name": "Setco Automotive",
-          "shortName": "Setco Auto",
-          "resultDate": "2026-08-29",
-          "displayDate": "29 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 18.28,
-          "changePct": 1.95,
-          "marketCap": 244.53,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
-          "ticker": "SETCO",
-          "fullName": "Setco Auto",
-          "industry": "Auto Ancillaries - Clutches",
-          "shares": 133767275,
-          "mktCapAtBuild": 244.53
-        }
-      ],
-      "scheduledCount": 1,
-      "capped": false,
-      "asOnDate": "31/08/2026"
+      "asOnDate": "02/09/2026"
     }
   }
 }
