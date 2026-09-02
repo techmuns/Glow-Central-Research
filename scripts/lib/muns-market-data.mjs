@@ -175,10 +175,13 @@ export async function verifyMoves(rows, {
   thresholdPct = 4,
   alertPct = 5,
   limit = 60,
-  spacingMs = 12_000,
-  backoffMs = 30_000,
-  maxBackoffMs = 240_000,
-  budgetMs = 15 * 60_000,
+  // Measured on the live endpoint, anonymous: after a burst, one request in two minutes got
+  // through and the next was refused again. So the cadence is a request every half minute at
+  // best, a minute's wait on the first refusal doubling to eight, under a twenty-minute budget.
+  spacingMs = 30_000,
+  backoffMs = 60_000,
+  maxBackoffMs = 480_000,
+  budgetMs = 20 * 60_000,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
   now = () => Date.now(),
   fetchImpl = fetch,
