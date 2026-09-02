@@ -4602,6 +4602,22 @@ for (const [hash, label] of [
   await btn.click();
   const file = await dl;
   await downloadOrSkip(`${label} export downloads`, file);
+  if (label === 'chatter' && file) {
+    ok('...with a coverage-specific workbook name',
+      /^sattva-public-chatter-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(file.suggestedFilename()),
+      file.suggestedFilename());
+    await page.locator('#content-host [data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
+    await page.waitForSelector('#content-host [data-chatter-panel="not-in-coverage"]');
+    await settleTables();
+    const otherBtn = page.locator('#content-host button:has-text("Export")').first();
+    const otherDl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
+    await otherBtn.click();
+    const otherFile = await otherDl;
+    await downloadOrSkip('not-in-coverage chatter export downloads', otherFile);
+    if (otherFile) ok('...with an uncovered-topic workbook name',
+      /^sattva-public-chatter-not-in-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(otherFile.suggestedFilename()),
+      otherFile.suggestedFilename());
+  }
 }
 
 // ---------------------------------------------------------------------------------------
