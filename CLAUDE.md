@@ -2014,7 +2014,11 @@ untrusted: render it through
 hands the name to a resolver the tab supplies (`citeResolver` in `js/tabs/ask-research.js`), which
 matches it against the source registry's tab titles and returns that tab's route in the current
 scope — with `&company=TICKER` when the question resolved to exactly one company, which the answer
-stores on the message so a saved conversation's links still land. A name that matches no registered
+stores on the message so a saved conversation's links still land. **An answer saved without its
+companies is backfilled on first paint** (`backfillCompanies`, through `resolveQuestionCompanies()`
+in `estate.js` — the same resolver a live question uses): every conversation from before this
+shipped opened General Alerts on all 21,000 rows instead of the nineteen about the company asked
+for, and the fix had to reach those answers too, not only new ones. A name that matches no registered
 source stays as text: a link that goes nowhere is worse than none. `?company=` is the one URL
 parameter every table tab honours, through `companySeededView()` in `js/ui/screener.js`: the first
 paint after it appears opens the table searched for that company, later paints keep what the reader
