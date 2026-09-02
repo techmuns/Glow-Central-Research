@@ -30,9 +30,6 @@
     "ANTHROPIC_MODEL": "claude-sonnet-4-6"
   },
 
-  // Declaring the name adds local-development validation without putting the secret value in git.
-  "secrets": { "required": ["ANTHROPIC_API_KEY"] },
-
   // The dashboard has no account system to key this on today, so the route uses the authenticated
   // Access email when present and the connecting address otherwise. This is abuse protection for
   // a paid upstream, not billing-grade accounting; Cloudflare rate limits are intentionally
