@@ -238,7 +238,7 @@ export function insiderSignal(cells = {}) {
 // ---------------------------------------------------------------------------------------
 
 export const FEEDS = [
-  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies that moved more than ${MOVE_PCT}% at the retained end-of-day snapshot's close.` },
+  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies whose last completed close moved more than ${MOVE_PCT}% against the close before it, dated to that session — never to the capture. Moves past the check threshold are re-derived from the Muns market-data endpoint where it answered.` },
   { id: 'earnings', label: 'Earnings', tab: 'earnings-hub', what: 'Filed quarterly results, graded from the source revenue and net-profit comparison.' },
   { id: 'concalls', label: 'Con-calls', tab: 'concall', what: "Held con-calls, using StockScans' own result and sentiment bands." },
   { id: 'chatter', label: 'Public chatter', tab: 'public-chatter', what: "The source's rolling 30-day company sentiment snapshot, dated to its capture." },
@@ -818,53 +818,59 @@ function fromInsider({ day, wanted, includeHistory }) {
  * close is yesterday's, and reporting yesterday's moves under today's date would be the worst
  * available answer.
  */
-function fromTechnicals({ day, wanted }) {
+function fromTechnicals({ day, wanted, includeHistory }) {
   const m = technicals.meta() || {};
   const generated = m.generated_at || null;
-  // EQUALS, NOT ">=". The other feeds hold rows that carry their own date, so a capture taken
-  // later still covers an earlier day. This one holds a single end-of-day snapshot and
-  // `pct_change_today` is that day's move and no other — so a snapshot from a different date has
-  // nothing to say about this one, and reporting its moves under this date would stamp one day's
-  // measurement with another day's label.
-  const generatedDay = istDay(generated);
-  const reachesToday = generatedDay === day;
+  // THE MOVE IS DATED BY ITS SESSION, NOT BY THE CAPTURE. `pct_change_today` is the change between
+  // a company's last two completed closes, and the file says which session that close belongs to
+  // (`price_date`, per row `bar_date`). The scrape is scheduled for 07:00 IST — the morning AFTER
+  // those closes — and when GitHub ran it late, mid-session, the capture day and the session day
+  // disagreed in the other direction too: an unfinished 2 September bar was printed as that day's
+  // close. Dating by the capture was wrong both ways. A file from before `price_date` existed falls
+  // back to the capture's IST day, which is the best it can say.
+  const priceDay = m.price_date || istDay(generated);
+  // EQUALS, NOT ">=". This feed holds ONE session's closes and nothing about any other day.
+  const reachesToday = priceDay === day;
 
   const events = [];
-  if (reachesToday) {
-    for (const s of technicals.all()) {
-      const c = s.company || {};
-      const move = c.pct_change_today;
-      // THE ONE ALERT RULE ON THIS PAGE, asked of the exported predicate rather than re-implemented
-      // here — the suite tests that predicate directly, and a second copy of the comparison is a
-      // second thing that can drift from the number the tab prints.
-      const severity = moveSeverity(move);
-      if (!severity) continue;
-      if (!inScope(wanted, c.ticker)) continue;
-      const down = move < 0;
-      events.push({
-        id: `tech:${c.ticker}:${generatedDay}`,
-        ...signal(
-          down ? DIRECTION.NEGATIVE : DIRECTION.POSITIVE,
-          IMPORTANCE.HIGH,
-          `${down ? 'Down' : 'Up'} ${Math.abs(move).toFixed(1)}% on the day, past the ${MOVE_PCT}% threshold this page states.`,
-          `High: the absolute day move reached the stated ${MOVE_PCT}% threshold.`
-        ),
-        time: null,
-        at: generatedDay,
-        ticker: c.ticker || null,
-        company: c.name || c.ticker || '—',
-        headline: `${down ? 'Fell' : 'Rose'} ${Math.abs(move).toFixed(1)}% at the close`,
-        detail: [c.cmp != null ? `Close ₹${c.cmp}` : null, c.rsi14 != null ? `RSI ${c.rsi14}` : null, c.above_200dma === false ? 'below its 200-day average' : null].filter(Boolean).join(' · '),
-        url: c.screenerUrl || null,
-      });
-    }
+  for (const s of technicals.all()) {
+    const c = s.company || {};
+    const move = c.pct_change_today;
+    // THE ONE ALERT RULE ON THIS PAGE, asked of the exported predicate rather than re-implemented
+    // here — the suite tests that predicate directly, and a second copy of the comparison is a
+    // second thing that can drift from the number the tab prints.
+    const severity = moveSeverity(move);
+    if (!severity) continue;
+    if (!inScope(wanted, c.ticker)) continue;
+    const barDay = c.bar_date || priceDay;
+    // A row priced on another session than the file's is still that session's move, dated so —
+    // and, like every other feed's rows, it is reported only inside the requested window.
+    if (!inRequestedWindow(barDay, day, includeHistory)) continue;
+    const down = move < 0;
+    const verified = c.move_source ? ` Re-derived from the Muns market-data endpoint's closes (${c.move_check}).` : '';
+    events.push({
+      id: `tech:${c.ticker}:${barDay}`,
+      ...signal(
+        down ? DIRECTION.NEGATIVE : DIRECTION.POSITIVE,
+        IMPORTANCE.HIGH,
+        `${down ? 'Down' : 'Up'} ${Math.abs(move).toFixed(1)}% between the ${c.prev_bar_date || c.move_prev_date || 'previous'} and ${barDay} closes, past the ${MOVE_PCT}% threshold this page states.${verified}`,
+        `High: the absolute day move reached the stated ${MOVE_PCT}% threshold.`
+      ),
+      time: null,
+      at: barDay,
+      ticker: c.ticker || null,
+      company: c.name || c.ticker || '—',
+      headline: `${down ? 'Fell' : 'Rose'} ${Math.abs(move).toFixed(1)}% at the ${barDay} close`,
+      detail: [c.cmp != null ? `Close ₹${Number(c.cmp).toFixed(2)}` : null, c.prev_bar_date ? `vs ${c.prev_bar_date}` : null, c.rsi14 != null ? `RSI ${c.rsi14}` : null, c.above_200dma === false ? 'below its 200-day average' : null].filter(Boolean).join(' · '),
+      url: c.screenerUrl || null,
+    });
   }
 
   return {
     events,
     reachesToday,
     asOf: generated,
-    note: reachesToday ? null : `The end-of-day scrape in this feed closed on ${generatedDay || 'an unknown date'}, so it holds no move for ${day}.`,
+    note: reachesToday ? null : `The latest completed close in this feed is ${priceDay || 'unknown'}; there is no close for ${day} yet.`,
   };
 }
 

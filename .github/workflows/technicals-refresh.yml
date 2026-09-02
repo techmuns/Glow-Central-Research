@@ -71,6 +71,11 @@ jobs:
 
       - name: Run technicals scraper
         run: node scripts/scrape-technicals.mjs
+        env:
+          # Sent as a Bearer token to the Muns market-data endpoint that re-derives every flagged
+          # day move (scripts/lib/muns-market-data.mjs). Empty when the secret is not set; the
+          # check then runs unauthenticated and records a refusal rather than failing the run.
+          MUNS_TOKEN: ${{ secrets.MUNS_TOKEN }}
 
       # The portfolio equity curve is built from real daily closes, so it refreshes on the
       # same schedule. It is a dozen tickers rather than 535, so it adds well under a minute.

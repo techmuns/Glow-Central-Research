@@ -2086,6 +2086,33 @@ Full source detail belongs in the registry and export disclosures. Progress on w
 just asked for may still appear in the body because it is feedback rather than permanent chrome;
 failure panels keep their own retry control so recovery never depends on a hidden dialog.
 
+### A close is a claim about a SESSION — the technicals feed's two dates
+
+The price-move alert on General Alerts read *"Fell 6.7% at the close"* for Hero MotoCorp on a day it
+ended down 4.6%, and *"Fell 5.7%"* for Macpower CNC on a day it ended down 1.5%. Neither number was
+a close. GitHub's best-effort scheduler ran the 07:00 IST technicals scrape at **11:36 IST**, in the
+middle of the session, and Yahoo's daily series includes the current session as a bar while the
+market is open — so `close.at(-1)` was a mid-morning print. Worse, Yahoo had not yet published
+Macpower's 1 September bar, so `close.at(-2)` was the **31 August** close and the "day move"
+spanned two sessions. And the alert was dated by `generated_at`, the capture, which is the morning
+AFTER the closes on the runs that happen on time.
+
+Three rules, in `scripts/lib/yahoo.mjs`, `scripts/scrape-technicals.mjs` and `js/data/daily-alerts.js`:
+
+1. **A bar dated today is not a close until the session has settled.** `fetchBars` drops it before
+   16:00 IST (`completedBars`); every caller gets finished sessions only. The scrape now produces the
+   same file whether it runs at 07:00 or at noon.
+2. **A day move carries both of its dates.** `dayMove` returns `{ pct, date, prevDate, gapDays }`
+   and refuses a gap wider than a holiday weekend; the file stamps `price_date` and per-row
+   `bar_date` / `prev_bar_date`. General Alerts dates the move by `bar_date` and says *"at the
+   2026-09-01 close"* — never by the capture, in either direction.
+3. **Every move that reaches the check threshold is re-derived from the Muns market-data
+   endpoint** (`scripts/lib/muns-market-data.mjs`) before the file is written. Its closes are the
+   exchange's; Yahoo's are right almost always and wrong exactly where an alert looks. It rate-limits
+   hard and answers a refusal as **HTTP 200 with an `Error:` body**, so the parser reads the body's
+   shape, a refusal keeps Yahoo's figure and records `move_check: unavailable`, and the whole step is
+   bounded to a dozen names. `node scripts/verify-bars.mjs` asserts all three.
+
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
 Breakouts' pill is the third consumer of that rule, and it got the threshold wrong first in a way
@@ -2484,6 +2511,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Build a tab panel | `js/ui/screener.js` — assemble, don't hand-roll |
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) — its universe is the NSE-500 export **plus the book**, deliberately; read *The universe is the index PLUS the book* in `docs/DATA-CONTRACTS.md` before narrowing it |
+| Change what counts as a close, or the price-move check | `completedBars` / `dayMove` in `scripts/lib/yahoo.mjs` + `scripts/lib/muns-market-data.mjs` (`MUNS_VERIFY=0` skips the check) — read *A close is a claim about a SESSION* first; `node scripts/verify-bars.mjs` is the test |
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
 | Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
@@ -2550,7 +2578,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or refresh an AMC fund's portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it |
 | Wire another fund's real holdings | one entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs`, then re-run it |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
-| Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first) |
+| Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first); `node scripts/verify-research.mjs` and `node scripts/verify-bars.mjs` need no server |
 | Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |

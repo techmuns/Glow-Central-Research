@@ -1682,6 +1682,37 @@ console.log('\n— AI alerts —');
   ok('a fall past the threshold is an alert', sev.belowDown === 'alert' && sev.atDown === 'alert', `${sev.threshold}%`);
   ok('...a rise past it is only an update', sev.up === 'update', sev.up);
   ok('...and a move inside it is not an event at all, rather than a neutral one', sev.inside === null && sev.missing === null);
+  // A CLOSE IS A CLAIM ABOUT A SESSION. The file says which session its closes belong to
+  // (`price_date`, per row `bar_date`); the capture time is the morning after on a run that
+  // happens on time and mid-session on one that does not. Every price move must be dated by its
+  // session and the feed may claim "today" only when that session IS today — 11:36 IST on
+  // 2 September once printed a live intraday quote as that day's close and alerted on it.
+  const sessionDating = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const tech = await import('/js/data/technicals.js');
+    await tech.load();
+    const m = tech.meta() || {};
+    const r = await da.collect({ scope: 'universe', includeHistory: true });
+    const feed = r.feeds.find((f) => f.id === 'technicals');
+    const moves = r.events.filter((e) => e.feed === 'technicals');
+    const byTicker = new Map(tech.all().map((s) => [s.company?.ticker, s.company]));
+    return {
+      priceDate: m.price_date || null,
+      today: da.today(),
+      reachesToday: feed?.reachesToday ?? null,
+      moves: moves.length,
+      datedBySession: moves.every((e) => e.day === (byTicker.get(e.ticker)?.bar_date || m.price_date)),
+      namesSession: moves.every((e) => new RegExp(`at the ${e.day} close`).test(e.headline)),
+      verified: moves.filter((e) => byTicker.get(e.ticker)?.move_source).length,
+      unfinishedBar: tech.all().some((s) => s.company?.bar_date === da.today() && new Date(m.generated_at).getTime() + 5.5 * 3600 * 1000 < Date.parse(`${da.today()}T16:00:00Z`)),
+    };
+  });
+  ok('every price move is dated by its session, never by the capture',
+    !!sessionDating.priceDate && sessionDating.datedBySession === true && sessionDating.namesSession === true,
+    `${sessionDating.moves} move(s) on ${sessionDating.priceDate}${sessionDating.verified ? ` · ${sessionDating.verified} re-derived from the Muns market-data endpoint` : ''}`);
+  ok('...the feed claims today only when its session IS today, and never carries an unfinished session',
+    sessionDating.reachesToday === (sessionDating.priceDate === sessionDating.today) && sessionDating.unfinishedBar === false,
+    `session ${sessionDating.priceDate} · today ${sessionDating.today} · reachesToday ${sessionDating.reachesToday}`);
   // A key that means two rows is the failure this dashboard has hit twice; it is never caught by
   // counting, so it is compared.
   ok('every event id is unique', report.uniqueIds === report.total, `${report.uniqueIds} ids for ${report.total} events`);

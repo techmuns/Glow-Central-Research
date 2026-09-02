@@ -114,7 +114,10 @@ Root is an **object** with a metadata header and a `companies` array.
 
 | Header field | Type | Unit / values | Notes |
 | --- | --- | --- | --- |
-| `generated_at` | string | ISO 8601 UTC | When the scrape finished. Drives the gradient "Last Refresh" card. |
+| `generated_at` | string | ISO 8601 UTC | When the scrape finished. Drives the gradient "Last Refresh" card. **Not** the date of the closes — see `price_date`. |
+| `price_date` | string \| null | YYYY-MM-DD (IST) | The session the closes belong to: the most common `bar_date` across priced rows. On the scheduled 07:00 IST run this is the previous trading day. General Alerts dates every price move by this (per row `bar_date`), never by `generated_at`. |
+| `price_date_rows` | number | count | How many rows share `price_date`. A row on another date is a company whose latest Yahoo bar lags. |
+| `move_verification` | object \| null | — | What `scripts/lib/muns-market-data.mjs` did: `{ source, threshold_pct, flagged, checked, confirmed, corrected, unavailable, skipped }`. Null when the check was skipped (`MUNS_VERIFY=0`). |
 | `source` | string | — | Always `"Yahoo Finance"` today. |
 | `index_symbol` | string | — | `^CRSLDX` — Nifty 500 on Yahoo. |
 | `index_close` | number | index points | Latest index close. |
@@ -197,8 +200,14 @@ substitutes a guess.
 
 | Field | Type | Unit | Meaning |
 | --- | --- | --- | --- |
-| `cmp` | number | ₹ | Latest close. |
-| `pct_change_today` | number \| null | percent | vs the previous close. Feeds `market_breadth`. |
+| `cmp` | number | ₹ | The last **completed** close. A session still in progress is dropped by `scripts/lib/yahoo.mjs` (`completedBars`, cut at 16:00 IST), so a scrape that runs mid-session — as GitHub's late scheduler made it — carries yesterday's close, not a mid-morning print. |
+| `bar_date` | string \| null | YYYY-MM-DD | The session `cmp` closed on. |
+| `prev_bar_date` | string \| null | YYYY-MM-DD | The session `pct_change_today` is measured against. |
+| `bar_gap_days` | number \| null | days | Calendar distance between the two. A weekend is 3, a holiday weekend 4. |
+| `pct_change_today` | number \| null | percent | `cmp` vs the close on `prev_bar_date`. **Null when the gap exceeds 4 days** — Yahoo skipped a session, and the figure would be a multi-day move under a one-day label. Feeds `market_breadth` and the ±5% price alert. |
+| `move_source` | string | — | Present when the move was re-derived from the Muns market-data endpoint (`fastapi.muns.io/market_data`); absent when it is Yahoo's. |
+| `move_check` | string | `confirmed` \| `corrected` \| `unavailable` | Only on rows whose move reached the check threshold (4%). `unavailable` keeps Yahoo's figure and `move_check_reason` says why (rate-limited, day not carried). |
+| `move_prev_date`, `move_close`, `move_prev_close` | — | — | The endpoint's two closes and the prior date, when it answered. |
 | `ema50` | number | ₹ | 50-day exponential moving average. |
 | `sma50` | number | ₹ | 50-day simple moving average. |
 | `sma200` | number \| null | ₹ | 200-day SMA. Null below 200 bars of history. |

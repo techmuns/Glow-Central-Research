@@ -64,6 +64,10 @@ async function buildCache() {
   cache = {
     meta: {
       generated_at: payload?.generated_at ?? null,
+      // The session the closes belong to — NOT when the file was written. See the scraper.
+      price_date: payload?.price_date ?? null,
+      price_date_rows: payload?.price_date_rows ?? null,
+      move_verification: payload?.move_verification ?? null,
       source: payload?.source ?? null,
       index_symbol: payload?.index_symbol ?? null,
       index_close: payload?.index_close ?? null,
