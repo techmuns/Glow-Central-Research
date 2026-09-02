@@ -30,7 +30,7 @@
 // waste in the system. So each response carries a content-derived ETag, and a request that
 // arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
-import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
+import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
@@ -441,10 +441,10 @@ function structureTagOf(rows, salt) {
 // ---------------------------------------------------------------------------------------
 // GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=none]
 //
-// The forward-looking half of the Earnings Hub. Two upstreams, because Moneycontrol splits it:
-// a clean JSON date strip with the COMPLETE count per date, and the calendar page itself for the
-// company list — which is the twenty largest by market cap and cannot be paged past. See the
-// header of mc.mjs. Both numbers travel, so the UI can say "170 reporting, 20 shown".
+// The Earnings Calendar schedule. Moneycontrol splits it across a clean JSON count endpoint and
+// the paginated HTML endpoint used by its public /earnings-calendar page. Both are requested for
+// All exchanges, and fetchCalendarDay follows every published twenty-row page, so the rows and the
+// count answer the same question.
 //
 // Cached longer than the results feed (CALENDAR_TTL_S vs 30s) because a schedule changes on the
 // order of hours, not ticks. The strip is fetched even when the day list fails, so a reader always
@@ -464,15 +464,8 @@ async function handleCalendar(request, env, ctx) {
   const from = iso(url.searchParams.get('from')) || shiftDays(date, -7);
   const to = iso(url.searchParams.get('to')) || shiftDays(date, 14);
 
-  // `list=none` — the strip only. The Earnings Hub asks for this on any date that has already
-  // reported, because the results feed already names every company that filed on it, completely,
-  // where this route could only offer the twenty largest. Serving that request costs ONE JSON call
-  // instead of a bot-walled page fetch plus up to 25 identity look-ups, and the saving is per cache
-  // window rather than per reader.
-  //
-  // It is a different representation, not a cheaper version of the same one, so it gets its own
-  // cache key and says `listRequested: false` — an empty `rows` that did not say why would read as
-  // "nobody reports on this date", which is the one thing this route must never imply.
+  // `list=none` remains available to read only the strip. The dashboard itself requests the full
+  // list for every selected date; Earnings Reported is the separate filings view.
   const wantsList = url.searchParams.get('list') !== 'none';
 
   const cacheKey = edgeKey(`earnings-calendar?date=${date}&from=${from}&to=${to}&list=${wantsList ? 'full' : 'none'}`);
@@ -480,19 +473,18 @@ async function handleCalendar(request, env, ctx) {
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
 
-  // Independent, and deliberately not Promise.all-with-rejection: the strip is the part that is
-  // always available, and losing it because the page 403'd would be the wrong trade.
-  const [stripOut, dayOut] = await Promise.allSettled([
-    fetchCalendarStrip({ fromDate: from, toDate: to }),
-    wantsList ? fetchCalendarDay({ date }) : Promise.resolve(null),
+  // Fetch the count first so the list reader knows exactly how many published pages exist. A
+  // rejected half remains independent: the other half can still be served with honest provenance.
+  const [stripOut] = await Promise.allSettled([fetchCalendarStrip({ fromDate: from, toDate: to, indexId: 'All' })]);
+  let days = stripOut.status === 'fulfilled' ? stripOut.value : [];
+  const expectedCount = days.find((d) => d.date === date)?.count ?? null;
+  const [dayOut] = await Promise.allSettled([
+    wantsList ? fetchCalendarDay({ date, indexId: 'All', expectedCount }) : Promise.resolve(null),
   ]);
 
-
-  let days = stripOut.status === 'fulfilled' ? stripOut.value : [];
-
   // The list has two possible origins and the payload must say which. Live is preferred; the
-  // committed capture is the fallback, because Akamai answers a Cloudflare Worker's request for
-  // the calendar page with a 200 carrying no app payload.
+  // committed capture is the fallback, because www.moneycontrol.com may answer an edge request
+  // differently from an ordinary browser or GitHub runner.
   let day = dayOut.status === 'fulfilled' ? dayOut.value : null;
   let listSource = day ? 'live' : null;
   let listCapturedAt = null;
@@ -502,35 +494,37 @@ async function handleCalendar(request, env, ctx) {
   if (!wantsList) {
     // Not asked for, so not looked for. `listSource` stays null and `listRequested: false` travels
     // in the payload; nothing here may pretend to have checked.
-    day = { rows: [], asOnDate: null, capped: false };
+    day = { rows: [], asOnDate: null, pageSize: CALENDAR_PAGE_SIZE, pagesFetched: 0, complete: false };
   } else if (!day) {
     const hit = snapshot?.byDate?.[date];
     if (hit) {
-      day = { rows: hit.rows || [], asOnDate: hit.asOnDate || null, capped: !!hit.capped };
+      day = {
+        rows: hit.rows || [],
+        asOnDate: hit.asOnDate || null,
+        pageSize: hit.pageSize || snapshot.pageSize || CALENDAR_PAGE_SIZE,
+        pagesFetched: hit.pagesFetched || Math.max(1, Math.ceil((hit.rows?.length || 0) / CALENDAR_PAGE_SIZE)),
+        // Old captures used `capped:false` for a short, therefore complete, page.
+        complete: hit.complete ?? !hit.capped,
+      };
       listSource = 'snapshot';
       listCapturedAt = snapshot.capturedAt || null;
     } else {
-      day = { rows: [], asOnDate: null, capped: false };
+      day = { rows: [], asOnDate: null, pageSize: CALENDAR_PAGE_SIZE, pagesFetched: 0, complete: false };
       listNote = snapshot
         ? `The committed capture covers ${snapshot.from} to ${snapshot.to} and does not include this date.`
         : 'No committed capture is available.';
     }
   }
 
-  // A COUNT OF ZERO ON A DATE WE CAN NAME TWENTY COMPANIES FOR IS NOT A MEASUREMENT.
+  // A COUNT OF ZERO ON A DATE WHOSE COMPLETE LIST NAMES COMPANIES IS NOT A MEASUREMENT.
   //
-  // `indexId=N` — the NSE index this route asks for — went flat on 14 Aug 2026 and began answering
-  // 0 for every date in a 25-day window. It is the endpoint's failure mode, not a quiet fortnight:
-  // the same request with `indexId=B` returned 239/342/451/417 for the same four dates, and the
-  // capture taken hours earlier holds 171/225/258/235 plus twenty named companies per date. A live
-  // zero that the committed capture contradicts is a broken read, and rendering it turned the whole
-  // strip into em dashes on a day 235 companies were reporting.
+  // The count endpoint has previously gone flat while the calendar page still named companies.
+  // It is the endpoint's failure mode, not a quiet fortnight. The capture is now also All-exchange,
+  // so it is a like-for-like fallback rather than a different market substituted under the label.
   //
   // The test is EVIDENCE, not a threshold: the live strip carries no non-zero count anywhere, and
   // the capture — which overlaps it — does. A genuinely empty window fails that test, because the
-  // capture would be empty too. What is deliberately NOT done is switching to `indexId=B`: BSE is a
-  // different universe (451 against 258 on the same date), so quietly serving it would answer a
-  // question nobody asked, under the previous question's label.
+  // capture would be empty too.
   let countSource = days.length ? 'live' : null;
   let countsCapturedAt = null;
   const liveHasCounts = days.some((d) => d.count > 0);
@@ -544,12 +538,17 @@ async function handleCalendar(request, env, ctx) {
     countSource = 'snapshot';
     countsCapturedAt = snapshot.capturedAt || null;
   }
-  // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
-  // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
-  // industry. Resolving them here is bounded by the page's own 20-row cap. Skipped wholesale when
-  // no list was asked for — including the ticker map, which is a 255KB asset read and a parse.
+  // Keep external subrequests below the Workers Free limit. One request is spent on the count and
+  // `pagesFetched` on the list; whatever remains (with two requests of headroom for redirects) can
+  // resolve missing identities. Existing map hits cost no external request.
   const known = wantsList ? (await loadTickerMap(env, request)) || {} : {};
-  const { resolved, attempted, failed } = wantsList ? await resolveMissing(day.rows, known, { limit: 25 }) : { resolved: {}, attempted: 0, failed: 0 };
+  const listRequests = listSource === 'live'
+    ? day.requestsMade || day.pagesFetched || 1
+    : dayOut.status === 'rejected'
+      ? dayOut.reason?.requestsMade || 1
+      : 1;
+  const identityLimit = Math.min(25, Math.max(0, 48 - listRequests - (stripOut.status === 'fulfilled' ? 1 : 0)));
+  const { resolved, attempted, failed } = wantsList ? await resolveMissing(day.rows, known, { limit: identityLimit }) : { resolved: {}, attempted: 0, failed: 0 };
   const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
 
   const payload = {
@@ -575,18 +574,21 @@ async function handleCalendar(request, env, ctx) {
     listSource,
     listCapturedAt,
     listNote,
-    // The two numbers that must never be conflated: how many report, and how many we can name.
+    // Count and rows are the same All-exchange population. They still carry separate provenance
+    // because the live count and a captured list can have been observed at different times.
     scheduledCount: days.find((d) => d.date === date)?.count ?? null,
     // Counts and the company list fail independently, so they carry their provenance separately.
     // Freezing them together would hide a schedule that has moved since the capture.
     countSource,
     countsCapturedAt,
-    listCap: CALENDAR_LIST_CAP,
-    capped: day.capped,
+    pageSize: day.pageSize || CALENDAR_PAGE_SIZE,
+    pagesFetched: day.pagesFetched || 0,
+    requestsMade: listRequests,
+    complete: day.complete === true,
     days,
     rows: applyIdentity(day.rows, merged),
     meta: {
-      source: 'Moneycontrol — Results Calendar (api…/earnings/result-calendar for the counts, the calendar page for the list)',
+      source: 'Moneycontrol — Earnings Calendar (all-exchange counts plus the paginated earnings-widget list)',
       fetchedAt: new Date().toISOString(),
     },
   };

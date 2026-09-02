@@ -1119,10 +1119,11 @@ GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=n
   "date": "2026-08-13",
   "from": "2026-08-06", "to": "2026-08-27",   // strip window; defaults to date-7 .. date+14
   "asOnDate": "11/08/2026",                    // Moneycontrol's own "schedule as on"
-  "scheduledCount": 206,                       // COMPLETE count for `date`
+  "scheduledCount": 585,                       // complete All-exchange count for `date`
   "listRequested": true,                       // false => `rows` is empty because nobody asked
-  "listCap": 20, "capped": true,               // …and how many of them we can name
-  "days": [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 206 }],
+  "pageSize": 20, "pagesFetched": 30, "requestsMade": 31, // includes bounded retries
+  "complete": true,                            // every published pagination page was read
+  "days": [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 585 }],
   "rows": [{ "scId": "SE20", "name": "Solar Industries India", "ticker": "SOLARINDS",
              "industry": "Commodity Chemicals", "resultDate": "2026-08-13",
              "quarter": "Q1 FY26-27", "time": null, "ltp": 18770, "changePct": -1.2,
@@ -1132,11 +1133,9 @@ GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=n
 
 ### `list=none` — the strip without the company list
 
-A date that has **already happened** is not answered by this route's company list at all; it is
-answered by the results feed, which knows every company that filed on it (see *Two questions, one
-date* below). All the calendar can add for such a date is the strip, so the Earnings Hub asks for
-`list=none` and the Worker skips the bot-walled page fetch, the ticker-map asset read and up to 25
-identity look-ups. One JSON call instead.
+The dashboard asks for `list=full` on every selected date. `list=none` remains available to
+diagnostic and strip-only consumers; it skips the HTML pages, ticker-map asset read and identity
+look-ups.
 
 It is a **different representation, not a cheaper one**, and it is treated as such throughout: its
 own edge-cache key, its own device-store key (`calendar:<date>:none`), `x-sattva-list-source:
@@ -1146,41 +1145,24 @@ reading `rows` must check `listRequested` first.
 
 `degraded` is null in this mode. Nothing failed; nothing was asked.
 
-**Two upstreams, and the asymmetry between them is the whole story.**
+**Two endpoints, one All-exchange population.**
 
 | What | Where from | Complete? |
 | --- | --- | --- |
-| The count on each date | `api.moneycontrol.com/mcapi/v1/earnings/result-calendar?fromDate&toDate&indexId=N` | **Yes** — clean JSON, unpaginated, not behind Akamai |
-| The company list for a date | the calendar page's `__NEXT_DATA__` server props | **No** — the 20 largest by market cap |
+| The count on each date | `api.moneycontrol.com/mcapi/v1/earnings/result-calendar?fromDate&toDate&indexId=All` | **Yes** — clean JSON and unpaginated |
+| First company-list page | `www.moneycontrol.com/earnings-widget?...&indexId=All&page=1` | Up to 20 rows |
+| Remaining company-list pages | `www.moneycontrol.com/pagination/earnings-pagination?...&indexId=All&page=N` | **Yes** — followed until the complete count is reached |
 
-The list cannot be widened. `?page=`, `?limit=`, `?pageNo=` and every other name are echoed back into
-Next.js's `query` and ignored; `/_next/data/<buildId>/…json` — the route the site's own "load more"
-uses — is 503'd by Akamai for non-browser clients; and every plausible JSON path under
-`/mcapi/v1/earnings/` 404s. So `scheduledCount` and `rows.length` are different numbers on a busy
-day, both travel in the payload, and **the UI must print both**. Twenty rows under a bare heading
-would assert that twenty companies report when two hundred do.
+The public page's current JavaScript names both HTML routes. `fetchCalendarDay()` requests the
+first widget and every required pagination page, deduplicates by date plus `scId`, and rejects a
+response that names fewer companies than the count. `scheduledCount` and `rows.length` therefore
+match for a complete same-time read. A live-count/captured-list race may still disagree; in that
+case `believableCount()` omits the total rather than presenting two observations as one fact.
 
 **Identity is resolved live, always.** A company that has not reported yet is by definition absent
 from a map built from companies that have, so almost every calendar row would arrive with no ticker.
-The Worker resolves them per cache window, bounded by the page's own 20-row cap.
-
-### …and they do not cover the same exchanges, so the count can be *smaller*
-
-The strip is fetched with **`indexId=N`** (NSE); the page with **`indexId=All`**. On 17 Aug 2026 the
-count said **1** and the page named **three**: Indo-MIM on the NSE, plus Cressanda Railway Solution
-and Indrayani Biotech, both BSE-only. Every number there is correct. They are answers to two
-different questions, and neither is a total for the other.
-
-This looks exactly like the flat-zero failure below and is not it, so **do not "fix" it by aligning
-the two `indexId` values**. Moving the strip to `indexId=All` would restate every count in the strip
-as a different universe under the same label — precisely the move the flat-zero section refuses for
-`indexId=B`.
-
-What the UI does instead is decline to print a total it cannot stand behind: `believableCount()` in
-`js/tabs/earnings-hub.js` returns null whenever the count is below the number of companies named,
-the pill then reads *"schedule"* rather than a number, and the pill's modal says which exchanges are
-behind each figure. `verify-ui.mjs` asserts the rendered claim, not payload equality — the payload
-disagreeing is upstream fact, the page printing "1 scheduled" above three companies would be ours.
+The Worker resolves unknown identities within the external-subrequest budget left after pagination.
+Rows that cannot be resolved remain visible with a null ticker; they are never dropped.
 
 ### It opens on today, in IST
 
@@ -1193,60 +1175,38 @@ the current date. It reads as a dashboard whose data stopped.
 `?date=` in the URL and the reader's own click both win over it, so a shared link and a session's
 navigation survive; this is only the answer to *"no date chosen yet"*.
 
-**Today is today in IST**, not in UTC. Every date on this tab is an Indian trading date — a company
-files at 14:32 IST — and `toISOString()` alone names *yesterday* between 18:30 IST and midnight,
-which is exactly the evening, when the day's filings are being read.
+**Today is today in IST**, not in UTC. Every date on this tab is an Indian trading date, and
+`toISOString()` alone names *yesterday* between 18:30 IST and midnight.
 
-A day still in progress legitimately has no rows on it, and that is not the same claim as a past
-date with none: it reads **"Nothing filed yet today"** with the scheduled count beside it, never
-"no results were filed on this date". Same rule as everywhere here — a missing value is not a
-measured zero, and a statement about the future is not a measurement.
+### Scheduled and filed results are separate views
 
-### Two questions, one date — and only one of them is a schedule
+The **Earnings Calendar** always renders this route's schedule, whether the selected date is past,
+present or future. The adjacent **Earnings Reported** view always renders published filings from
+the Rapid Results feed. Switching the meaning of the calendar according to the date caused the
+screen to disagree with the linked source: on 2 Sep 2026 Moneycontrol scheduled Technocraft
+Ventures and BSE-only Vivanta Industries, while only Technocraft had filed at the time. The old UI
+therefore showed one row under “Earnings Calendar” where the source showed two.
 
-The Earnings Calendar picks its source from the date:
-
-| The date is | Answered by | Complete? | Costs a request? |
-| --- | --- | --- | --- |
-| today or earlier, inside the results feed's window | `feed.reportedOn(date)` — every company that **filed** | **Yes**, no cap | No — already in memory |
-| later, or before the feed's first date | this route's `rows` — who is **scheduled** | No — the 20 largest | Yes |
-
-Before this split, a past date showed either a twenty-row capture or an amber *"counts only for this
-date"* note, depending on whether `earnings-calendar.json`'s window happened to reach it — while the
-results feed two modules away held every filing on that date with its figures attached. Walking back
-through a reporting season now costs nothing and shows everything.
-
-The two are **never in the same table and never differenced**. A schedule is a claim about the
-future and a filing is a measurement; companies file a day either side of their announced date, so
-"234 due, 210 filed" is not "24 missing" and nothing on screen, in the drill or in the export
-subtracts one from the other. Each mode has its own heading, its own pill (*Reported* vs
-*Scheduled* / *Captured*), its own provenance modal and its own export banner — the export most of
-all, because a workbook leaves the page without any of the chrome that says which question it
-answers.
-
-`feed.dateRange()` is what keeps the third case honest: a date **before** the feed's first is not
-"nobody filed", it is "this feed does not reach back that far", and it falls through to the
-schedule rather than rendering an empty table under a *Reported* heading.
+The two sources are never merged or subtracted. A schedule is an announced expectation; a filing
+is a published result, and companies can file a day either side of an announced date.
 
 ### The Akamai wall — why the list is usually a capture
 
-`api.moneycontrol.com` is open. `www.moneycontrol.com` is behind Akamai Bot Manager, and it does
-not answer everyone the same way: an ordinary client (a laptop, a GitHub runner) gets the real
-server-rendered page, while a **Cloudflare Worker gets HTTP 200 with a body that carries no
-`__NEXT_DATA__` at all**. Since the company list exists only inside that page, the deployed Worker
-cannot read it — which is exactly what shipped broken the first time, showing counts and an amber
-"the page shape has changed".
+`api.moneycontrol.com` is open. The widget and pagination routes on `www.moneycontrol.com` are
+behind Akamai Bot Manager and can answer an ordinary client and a Cloudflare Worker differently.
+If an expected non-empty page returns HTML with no company rows, it is a blocked response, not an
+empty calendar.
 
 So the list has two possible origins, and the payload names which one it used:
 
 | `listSource` | Where from | UI |
 | --- | --- | --- |
-| `live` | the calendar page, read at request time | green **Live** pill |
-| `snapshot` | `public/data/earnings-calendar.json`, captured by the scheduled job | sky **Captured** pill; the age is in the pill's modal |
+| `live` | the widget plus every pagination page, read at request time | green **Live** pill |
+| `snapshot` | `public/data/earnings-calendar.json`, captured by the scheduled job | sky **Captured** pill |
 
-`fetchCalendarDay()` throws a typed `CalendarPageBlocked` for "200 but no app payload" and a plain
-`Error` for "Next.js payload present but `resultCalendarData` missing" — the first falls back, the
-second is a genuine shape change and should be fixed rather than papered over.
+`fetchCalendarDay()` throws a typed `CalendarPageBlocked` for "expected rows, received none" and a
+plain `Error` when the parsed row count is below the published total. Both prefer the dated capture
+over presenting a partial live list as complete.
 
 **The counts and the list fail independently, so each names its own origin** — `countSource`
 alongside `listSource`. Where the counts are live and the list is a capture (the usual state), a
@@ -1254,75 +1214,27 @@ schedule that has moved since the capture shows up as the two disagreeing in fro
 rather than as two figures agreeing with each other and being wrong together. Cached 5 minutes at
 the edge — a schedule moves in hours, not ticks.
 
-### The 20-row cap, and what a full-list source would cost — PROBED, NOT ADOPTED
+### Pagination coverage and Worker request bounds
 
-Moneycontrol name only the twenty largest by market cap per date, so on 14 Aug 2026 the table showed
-20 of 235. **BSE publishes the complete list and is reachable from here**, probed 14 Aug 2026:
+Each HTML page carries at most 20 companies. The all-exchange count determines how many pages are
+required; `fetchCalendarDay()` requests them in batches of at most six concurrent connections and
+deduplicates their rows. The 45-page guard keeps the request below the Workers Free-plan external-
+subrequest ceiling after the count request. Identity resolution spends only the remaining budget,
+so a busy calendar can never be truncated merely to preserve ticker enrichment.
 
-```
-GET https://api.bseindia.com/BseIndiaAPI/api/Corpforthresults/w
-      ?scripcode=&fromdate=20260814&todate=20260814&Purposecode=
-  -> 200, 147 KB, 712 rows for 14 Aug
-     [{ scrip_Code, short_name, Long_Name, meeting_date, URL }]
-```
-
-Measured against what we have today:
-
-| | Moneycontrol | BSE `Corpforthresults` |
-| --- | --- | --- |
-| Named per date | **20** (hard cap, unpageable) | **712** — the whole list |
-| Count per date | 235 (NSE) / 417 (BSE) | implicit in the row count |
-| History | counts yes, list via capture | **none** — past dates return `[]` |
-| Forward visibility | ~4 days | ~11 days, and only 3/2/1/1 rows on them |
-| Fields | price, change, market cap, time, quarter | name, BSE code, date, URL — **nothing else** |
-| Identity | Moneycontrol scID → NSE symbol | BSE scrip code; NSE symbol must be resolved |
-| CORS | open | **`access-control-allow-origin: https://www.bseindia.com`** — must be proxied |
-
-Two things that decide whether it is worth doing:
-
-- **19 of Moneycontrol's 20 named companies are in BSE's list** (FACT is the exception), so BSE is a
-  superset for the large caps, not a different population.
-- **Of our 603-company universe, 21 report on 14 Aug**, against the 20 Moneycontrol happened to
-  name. The cap barely bites for companies this dashboard covers — the other ~690 rows are BSE
-  micro-caps (7Seas Entertainment, Aanchal Ispat, Aastha Spintex). The gain is the long tail, not
-  the coverage of anything already tracked.
-
-So it is a real answer to "show all the companies", and the cost is losing price, market cap, time
-and history, plus a name→NSE-symbol resolution step for 712 rows a day.
-
-**One thing must be tested before any switch**, and this repo has been bitten by it twice:
-`www.bseindia.com` redirected to an error page from here, and only `api.bseindia.com` answered.
-Whether a **Cloudflare Worker** gets the same answer is unknown — Moneycontrol's calendar page
-gives a Worker a 200 with no payload, and `*.workers.dev` upstreams fail with error 1042. Run
-`npx wrangler dev` and curl the route through it before believing any of the above in production.
+This was verified against 13 Aug 2026: the all-exchange count was 585, pages 1–29 each carried 20
+rows and page 30 carried five. The integration returned all 585 rather than the first page's 20.
 
 ### When the count endpoint goes flat — a zero that is not a measurement
 
-On **14 Aug 2026** `api.moneycontrol.com/.../result-calendar?indexId=N` began answering `0` for
-every date in a 25-day window. Nothing errored: HTTP 200, `success: 1`, the right columns, twenty-
-five rows, every count zero. The strip rendered as em dashes on a day 235 companies were reporting.
+The count endpoint has returned a structurally valid all-zero window while the calendar HTML and a
+recent capture named companies on those same dates. The Worker substitutes captured counts only
+when **the live strip carries no non-zero count anywhere and an overlapping capture does**, and
+sets `countSource: 'snapshot'`. The test is evidence, not a threshold: a genuinely empty window
+fails it because the capture is empty too.
 
-It is the endpoint's failure mode, not a quiet fortnight, and two pieces of evidence say so:
-
-- the same request with **`indexId=B`** returned 239 / 342 / 451 / 417 for the same four dates, so
-  the service is healthy and only the NSE index is empty;
-- the capture taken hours earlier holds **171 / 225 / 258 / 235** for those dates, *and names
-  twenty companies on each of them*. A count of zero above twenty named companies is
-  self-contradictory.
-
-So the Worker substitutes the capture's counts when **the live strip carries no non-zero count
-anywhere and an overlapping capture does**, and sets `countSource: 'snapshot'`. The test is
-evidence, not a threshold: a genuinely empty window fails it, because the capture would be empty
-too.
-
-**What is deliberately not done is switching to `indexId=B`.** BSE is a different universe — 451
-against 258 on the same date — so quietly serving it would answer a question nobody asked, under
-the previous question's label. Same rule as everywhere else here: reproduce the measurement that
-was requested, or say you could not.
-
-This is the `classifyChange()` failure mode in another costume. **A count is a measurement and zero
-is a value it can take, so an upstream that returns zero on failure makes every zero ambiguous.**
-Check any counter for it before rendering the number.
+It never switches to a different exchange population as a fallback. Counts and rows remain
+`indexId=All`, or the response says that the requested measurement could not be read.
 
 > An earlier version of this file said there was deliberately no snapshot, on the grounds that a
 > stale schedule looks exactly like a fresh one. That was right about the danger and wrong about the
@@ -1334,15 +1246,16 @@ Check any counter for it before rendering the number.
 
 Written by `scripts/scrape-calendar.mjs`, which runs on the GitHub runner where the calendar page
 answers normally. Default window is today−3 to today+21; only dates with a non-zero count are
-fetched, so a three-week window costs ~15 page requests, not 25.
+fetched, and every twenty-row pagination page for those dates is followed.
 
 ```jsonc
 {
   "capturedAt": "2026-08-11T17:33:56.533Z",   // the UI prints this as a relative age
   "from": "2026-08-08", "to": "2026-09-01",
-  "listCap": 20,
-  "days":   [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 206 }],
-  "byDate": { "2026-08-13": { "rows": [...], "scheduledCount": 206, "capped": true, "asOnDate": "11/08/2026" } }
+  "pageSize": 20,
+  "days":   [{ "date": "2026-08-13", "displayDate": "13 Aug", "count": 585 }],
+  "byDate": { "2026-08-13": { "rows": [...], "scheduledCount": 585,
+                  "pagesFetched": 30, "complete": true, "asOnDate": "11/08/2026" } }
 }
 ```
 

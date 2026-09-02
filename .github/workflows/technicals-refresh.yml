@@ -25,12 +25,11 @@ name: Data refresh
 # paint, and the fallback the Worker serves when the upstream is unreachable. Scheduling it more
 # often would not make the tab fresher; it would only shorten how stale the fallback can be.
 #
-# NOTE ON THE CALENDAR: this one is NOT merely a fallback. The per-date counts are live from
-# Moneycontrol's JSON API, but the company list for a date exists only inside the calendar page's
-# server-rendered HTML, and that page is behind Akamai — it answers a Cloudflare Worker with a 200
-# carrying no data at all, while answering an ordinary client (this runner) normally. So the
-# capture taken here IS the list most readers see, and the UI labels it "Captured" with its age
-# rather than passing it off as a live read.
+# NOTE ON THE CALENDAR: the all-exchange counts are live from Moneycontrol's JSON API; the complete
+# company list comes from the widget and pagination routes used by its public Earnings Calendar.
+# Those HTML routes sit behind Akamai and can answer a Cloudflare Worker differently from an
+# ordinary client, so this runner follows every page and commits a dated fallback. The UI labels a
+# fallback "Captured" with its age rather than passing it off as a live read.
 #
 # Commits technicals.json, atr-history.json, portfolio-history.json, earnings-live.json,
 # mc-ticker-map.json, result-returns.json and earnings-calendar.json back to main.
@@ -103,8 +102,8 @@ jobs:
         run: node scripts/scrape-result-returns.mjs
 
       # The results calendar. Runs after the ticker map so the rows it captures can be joined to
-      # NSE tickers without re-resolving what the map already knows. ~15 page fetches for a
-      # three-week window, since only dates with companies on them are fetched at all.
+      # NSE tickers without re-resolving what the map already knows. Every twenty-row pagination
+      # page is followed; only dates with scheduled companies are fetched at all.
       - name: Run results calendar capture
         continue-on-error: true
         run: node scripts/scrape-calendar.mjs

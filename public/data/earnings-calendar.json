@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-09-02T06:06:54.967Z",
+  "capturedAt": "2026-09-02T15:04:40.302Z",
   "from": "2026-08-30",
   "to": "2026-09-23",
-  "listCap": 20,
-  "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
-  "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
+  "pageSize": 20,
+  "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
+  "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
     {
       "date": "2026-09-23",
@@ -89,7 +89,7 @@
     {
       "date": "2026-09-07",
       "displayDate": "07 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-06",
@@ -114,17 +114,17 @@
     {
       "date": "2026-09-02",
       "displayDate": "02 Sep",
-      "count": 1
+      "count": 2
     },
     {
       "date": "2026-09-01",
       "displayDate": "01 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-08-31",
       "displayDate": "31 Aug",
-      "count": 4
+      "count": 5
     },
     {
       "date": "2026-08-30",
@@ -133,30 +133,55 @@
     }
   ],
   "byDate": {
+    "2026-09-07": {
+      "rows": [
+        {
+          "scId": "SF26",
+          "name": "SSPN Finance",
+          "shortName": null,
+          "resultDate": "2026-09-07",
+          "displayDate": "7 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 6.68,
+          "changePct": 4.87,
+          "marketCap": 2.53,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-investments/sspnfinance/SF10"
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "02/09/2026"
+    },
     "2026-09-04": {
       "rows": [
         {
           "scId": "DTL03",
           "name": "Dhoot Transmission",
-          "shortName": "Dhoot Transmiss",
+          "shortName": null,
           "resultDate": "2026-09-04",
           "displayDate": "4 Sep",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
-          "ltp": 1516.6,
-          "changePct": 4.59,
-          "marketCap": 31021.76,
+          "ltp": 1522.1,
+          "changePct": 4.97,
+          "marketCap": 31134.26,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries-auto-truck-motorcycle-parts/dhoottransmission/DTL02",
           "ticker": "DHOOTTRANS",
           "fullName": "Dhoot Transmiss",
           "industry": "Auto Ancillaries - Auto, Truck & Motorcycle Parts",
           "shares": 204548057,
-          "mktCapAtBuild": 31017.67
+          "mktCapAtBuild": 31134.26
         }
       ],
       "scheduledCount": 1,
-      "capped": false,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
       "asOnDate": "02/09/2026"
     },
     "2026-09-02": {
@@ -164,39 +189,64 @@
         {
           "scId": "TVL01",
           "name": "Technocraft Ventures",
-          "shortName": "Technocraft Ven",
+          "shortName": null,
           "resultDate": "2026-09-02",
           "displayDate": "2 Sep",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
-          "ltp": 372.55,
-          "changePct": -0.44,
-          "marketCap": 1475.53,
+          "ltp": 376.1,
+          "changePct": 0.51,
+          "marketCap": 1489.59,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
           "ticker": "TECHNOCRAF",
           "fullName": "Technocraft Ven",
           "industry": "Construction - Infrastructure",
           "shares": 39606200,
-          "mktCapAtBuild": 1477.51
+          "mktCapAtBuild": 1489.59
         },
         {
           "scId": "VIVAN54173",
           "name": "Vivanta Industries Limited",
-          "shortName": "Vivanta Industr",
+          "shortName": null,
           "resultDate": "2026-09-02",
           "displayDate": "2 Sep",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
-          "ltp": 1.8,
-          "changePct": -0.55,
-          "marketCap": 23.19,
+          "ltp": 1.84,
+          "changePct": 1.66,
+          "marketCap": 23.7,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/vivantaindustrieslimited/VIVAN54173"
         }
       ],
+      "scheduledCount": 2,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "02/09/2026"
+    },
+    "2026-09-01": {
+      "rows": [
+        {
+          "scId": "VP01",
+          "name": "TeleCanor Global",
+          "shortName": null,
+          "resultDate": "2026-09-01",
+          "displayDate": "1 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 21.85,
+          "changePct": -5,
+          "marketCap": 36.03,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/it-services-consulting/telecanorglobal/TCG01"
+        }
+      ],
       "scheduledCount": 1,
-      "capped": false,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
       "asOnDate": "02/09/2026"
     },
     "2026-08-31": {
@@ -204,14 +254,14 @@
         {
           "scId": "MMD",
           "name": "Milky Mist Dairy Food",
-          "shortName": "Milky Mist",
+          "shortName": null,
           "resultDate": "2026-08-31",
           "displayDate": "31 Aug",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
-          "ltp": 250.06,
-          "changePct": 7.77,
-          "marketCap": 19250.7,
+          "ltp": 252.04,
+          "changePct": 8.62,
+          "marketCap": 19403.13,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
@@ -223,14 +273,14 @@
         {
           "scId": "LIL07",
           "name": "LEAP India",
-          "shortName": "LEAP India",
+          "shortName": null,
           "resultDate": "2026-08-31",
           "displayDate": "31 Aug",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
-          "ltp": 158.65,
-          "changePct": -0.51,
-          "marketCap": 6989.11,
+          "ltp": 157.68,
+          "changePct": -1.12,
+          "marketCap": 6946.38,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
@@ -242,29 +292,43 @@
         {
           "scId": "GSC01",
           "name": "Setco Automotive",
-          "shortName": "Setco Auto",
+          "shortName": null,
           "resultDate": "2026-08-31",
           "displayDate": "31 Aug",
-          "quarter": "Q1 FY26-27",
+          "quarter": "Q4-2026",
           "time": null,
-          "ltp": 17.6,
-          "changePct": -0.4,
-          "marketCap": 235.43,
+          "ltp": 17.51,
+          "changePct": -0.91,
+          "marketCap": 234.23,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 235.43
+          "mktCapAtBuild": 234.23
+        },
+        {
+          "scId": "DPL03",
+          "name": "Dachepalli Publishers",
+          "shortName": null,
+          "resultDate": "2026-08-31",
+          "displayDate": "31 Aug",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 78,
+          "changePct": null,
+          "marketCap": 116.81,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/dachepallipublishers/DPL03"
         },
         {
           "scId": "CC24",
           "name": "Cressanda Railway Solution",
-          "shortName": "Cressanda Rail",
+          "shortName": null,
           "resultDate": "2026-08-31",
           "displayDate": "31 Aug",
-          "quarter": "Q1 FY26-27",
+          "quarter": "NA",
           "time": null,
           "ltp": 2.74,
           "changePct": -4.86,
@@ -278,8 +342,10 @@
           "mktCapAtBuild": 115.94
         }
       ],
-      "scheduledCount": 4,
-      "capped": false,
+      "scheduledCount": 5,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
       "asOnDate": "02/09/2026"
     }
   }
