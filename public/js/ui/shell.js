@@ -15,6 +15,8 @@ import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
+import * as macroResearch from '../tabs/macro-research.js';
+import * as economyMacro from '../tabs/economy-macro.js';
 import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
@@ -42,13 +44,18 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
-// an unknown or absent tab, so the order of this array IS the default landing page — there is no
-// second place recording it that could disagree.
+// THE LANDING TAB IS `router.DEFAULT_ROUTE.tab` (Ask Research), NOT THE FIRST ENTRY. It used to be
+// the first entry, and that was load-bearing; Glow puts its two macro tabs first in the bar
+// (Macro Research, Economy & Macro — GLOW-OWNED, see CLAUDE.md) without wanting them to become the
+// landing page, so `landingTab()` below resolves an unknown or absent tab to the router's default
+// and falls back to the first entry only if that id is missing.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [macroResearch, economyMacro, askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
+
+/** The tab a workspace opens on: the router's default when the workspace carries it, else its first entry. */
+const landingTab = (ws) => ws.tabs.find((t) => t.meta.id === router.DEFAULT_ROUTE.tab) || ws.tabs[0];
 
 let contentHost = null;
 let currentTabModule = null;
@@ -171,7 +178,7 @@ function wireStaticHeader(root) {
 
 function handleRoute(root, rawRoute) {
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || ws.tabs[0];
+  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || landingTab(ws);
   const subviews = tabModule.meta.subviews || [];
   const subviewValid = subviews.some((s) => s.id === rawRoute.subview);
   const subview = subviewValid ? rawRoute.subview : subviews[0]?.id || null;
@@ -405,13 +412,13 @@ function mountTab(root, tabModule, resolved) {
 function goWorkspace(id) {
   const ws = WORKSPACES.find((w) => w.id === id);
   if (!ws) return;
-  const firstTab = ws.tabs[0];
+  const firstTab = landingTab(ws);
   router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];
+  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || landingTab(ws);
   router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 

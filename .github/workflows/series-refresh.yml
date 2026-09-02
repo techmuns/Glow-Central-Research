@@ -1,0 +1,69 @@
+name: Series store refresh
+
+# THE MACRO SERIES STORE behind the Macro Research and Economy & Macro tabs is harvested in
+# techmuns/GlowVentures (`npm run harvest`, nightly at 02:00 UTC) and committed there under
+# `public/series/`. This job copies it here every day after that harvest, so both dashboards read
+# the same figures and this repository carries no harvester of its own — one source of truth for a
+# store that is measured, not computed, on either side. See docs/DATA-CONTRACTS.md, "The macro
+# series store".
+#
+# IT NEEDS ONE SECRET, because that repository is private: GLOWVENTURES_READ_TOKEN, a fine-grained
+# GitHub personal access token for techmuns/GlowVentures with the single permission
+# "Contents: read". Without it the job says so and exits green — the committed copy simply ages,
+# and the tabs print the harvest time on every visit so nobody mistakes it for today's.
+
+on:
+  schedule:
+    # 03:30 UTC = 09:00 IST daily, ninety minutes after the GlowVentures harvest.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: series-refresh
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Copy the series store from GlowVentures
+        env:
+          TOKEN: ${{ secrets.GLOWVENTURES_READ_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning title=Series refresh skipped::GLOWVENTURES_READ_TOKEN is not set as a repository secret, so the series store was not refreshed. Add a fine-grained PAT for techmuns/GlowVentures with Contents: read."
+            echo "### Skipped — no GLOWVENTURES_READ_TOKEN" >> "$GITHUB_STEP_SUMMARY"
+            echo "The committed series store was left as it is. Add the secret under Settings → Secrets and variables → Actions to refresh it daily." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/techmuns/GlowVentures.git" /tmp/glowventures
+          src_sha=$(git -C /tmp/glowventures rev-parse --short HEAD)
+          rsync -a --delete /tmp/glowventures/public/series/ public/data/series/
+          echo "SRC_SHA=$src_sha" >> "$GITHUB_ENV"
+          echo "Copied $(find public/data/series -type f | wc -l) files from techmuns/GlowVentures@$src_sha"
+
+      - name: Commit the refreshed store to main
+        if: env.SRC_SHA != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A public/data/series
+          if git diff --cached --quiet; then
+            echo "The series store is already current."
+            echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -m "Series store refresh ($(date -u +%Y-%m-%d)) — from techmuns/GlowVentures@${SRC_SHA}"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

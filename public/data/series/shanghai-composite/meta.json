@@ -1,0 +1,24 @@
+{
+ "id": "shanghai-composite",
+ "label": "Shanghai Composite",
+ "category": "indices",
+ "group": "Asia",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "000001.SS",
+  "url": "https://finance.yahoo.com/quote/000001.SS",
+  "exchange": "Shanghai",
+  "upstreamCurrency": "CNY"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1997-07-02",
+ "last": "2026-09-01",
+ "count": 7067,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

@@ -1,0 +1,24 @@
+{
+ "id": "gbp-usd",
+ "label": "GBP / USD",
+ "category": "currencies",
+ "group": "Majors",
+ "unit": "USD per GBP",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "GBPUSD=X",
+  "url": "https://finance.yahoo.com/quote/GBPUSD%3DX",
+  "exchange": "CCY",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2003-12-01",
+ "last": "2026-08-31",
+ "count": 5918,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

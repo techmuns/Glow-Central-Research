@@ -324,6 +324,8 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/macro-research.js',
+      'tabs/economy-macro.js',
       'tabs/ai-alerts.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
@@ -371,6 +373,84 @@ ok('hash reflects the route', page.url().includes('breakouts/strong-breakouts'))
 await page.goBack();
 await page.waitForTimeout(600);
 ok('browser back navigates', !page.url().includes('strong-breakouts'));
+
+// ---------------------------------------------------------------------------------------
+// 1b. The two macro tabs — GLOW-OWNED. Macro Research reads the committed series store; Economy &
+// Macro adds the release calendar, which needs the Worker and is stubbed here from page.route in
+// exactly the shape worker/econ-calendar.mjs returns. Nothing on either tab is scored or
+// recomputed, so the checks are about reproduction and about a null never becoming a zero.
+// ---------------------------------------------------------------------------------------
+console.log('\n— macro tabs —');
+const CAL_FIXTURE = (() => {
+  const today = new Date();
+  const iso = (d, h) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), h, 30)).toISOString();
+  const dayOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() + 1)).toISOString();
+  return [
+    { id: 'e1', date: iso(today, 10), country: 'IN', title: 'Inflation Rate YoY', indicator: 'CPI', category: 'prce', period: 'Aug', referenceDate: null, importance: 1, actual: 4.45, forecast: 4.5, previous: 4.83, unit: '%', currency: 'INR', source: 'Ministry of Statistics and Programme Implementation (MOSPI)', source_url: 'https://mospi.gov.in/', comment: null },
+    { id: 'e2', date: iso(today, 13), country: 'US', title: 'ISM Manufacturing PMI', indicator: 'PMI', category: 'bsnss', period: 'Aug', referenceDate: null, importance: 1, actual: 54.6, forecast: 55.2, previous: 55.6, unit: null, currency: 'USD', source: 'Institute for Supply Management', source_url: 'https://www.ismworld.org/', comment: null },
+    { id: 'e3', date: dayOnly, country: 'IN', title: 'Total Vehicle Sales', indicator: 'VEH', category: 'cnsm', period: 'Aug', referenceDate: null, importance: 0, actual: null, forecast: null, previous: 371.62, unit: 'K', currency: 'INR', source: 'Society of Indian Automobile Manufacturers', source_url: null, comment: null },
+    { id: 'e4', date: iso(today, 14), country: 'US', title: '4-Week Bill Auction', indicator: 'AUC', category: 'bnd', period: null, referenceDate: null, importance: -1, actual: 4.21, forecast: null, previous: 4.2, unit: '%', currency: 'USD', source: 'U.S. Department of the Treasury', source_url: null, comment: null },
+  ];
+})();
+await page.route('**/api/econ-calendar*', async (route) => {
+  const u = new URL(route.request().url());
+  const shaped = CAL_FIXTURE.map((e) => ({ ...e, sourceUrl: e.source_url, source_url: undefined }));
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, cached: false, stale: false, from: u.searchParams.get('from'), to: u.searchParams.get('to'), countries: (u.searchParams.get('countries') || '').split(',').filter(Boolean), events: shaped, count: shaped.length, truncated: false, truncatedSlices: 0, slices: 1, slicesFailed: 0, source: 'TradingView economic calendar', fetchedAt: new Date().toISOString() }) });
+});
+
+await go('/#/research/macro-research/commodities?scope=portfolio', 2000);
+await waitForPanel();
+await settleTables();
+const macroRows = await rowCount();
+ok('Macro Research renders the commodity series from the committed store', macroRows > 10, `${macroRows} series`);
+const macroText = await hostText();
+ok('...saying scope does not apply rather than pretending to narrow', /scope does not apply/i.test(macroText));
+ok('...with the returns table carrying the CAGR footnote', /CAGR/.test(macroText));
+ok('...and a chart drawn as inline SVG', (await page.locator('#content-host svg[data-chart-svg]').count()) >= 1);
+ok('...never a ribbon, because nothing on it is synthetic', (await page.locator('[data-mock-ribbon]').count()) === 0);
+const macroHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase().replace(/\s*[▾▴]$/, '').replace(/\s+/g, ' ')));
+ok('the horizon columns are the spec\'s, in its order', ['1D', '1W', '1M', '3M', '6M', 'QTD', 'YTD', '1Y', '3Y*', '5Y*', '10Y*', 'MAX*'].every((h) => macroHeads.includes(h)), macroHeads.join(' | '));
+const dashCells = await page.$$eval('#content-host tbody td', (tds) => tds.filter((td) => td.innerText.trim() === '—').length);
+ok('a horizon a series cannot reach is an em dash, never a zero', dashCells > 0, `${dashCells} absent cells`);
+const chipsBefore = await page.locator('[data-chart-chips] button').count();
+await page.locator('#content-host tbody tr').nth(2).click();
+await page.waitForTimeout(900);
+const chipsAfter = await page.locator('[data-chart-chips] button').count();
+ok('clicking a row adds it to the overlay', chipsAfter === chipsBefore + 1, `${chipsBefore} → ${chipsAfter}`);
+ok('...and the URL carries the selection', /[?&]s=/.test(page.url()));
+await page.locator('[data-range="1Y"]').click();
+await page.waitForTimeout(900);
+ok('a range button repoints the chart and the URL', /range=1Y/.test(page.url()) && (await page.locator('#content-host svg[data-chart-svg]').count()) >= 1);
+await page.locator('[data-macro-info]').click();
+await page.waitForTimeout(400);
+const macroModal = await page.locator('#modal-content').innerText();
+ok('the provenance modal names the harvester and says the figures are not ours', /GlowVentures/i.test(macroModal) && /not ours/i.test(macroModal));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+await go('/#/research/macro-research/rates?scope=universe', 2200);
+await waitForPanel();
+ok('Rates & Bonds draws the Treasury yield curve from stored tenors', (await page.locator('[data-yield-curve] svg').count()) === 1);
+ok('...and labels the spread it CAN compute as 10Y−3M', /10Y\s*−\s*3M/.test(await hostText()));
+
+await go('/#/research/economy-macro?scope=portfolio', 2200);
+await waitForPanel();
+await settleTables();
+const econText = await hostText();
+ok('Economy & Macro renders the release calendar from the stubbed Worker route', (await rowCount()) >= 3, `${await rowCount()} releases`);
+ok('...naming the publishing agency on the row', /MOSPI/.test(econText));
+ok('...with a surprise only where both actual and consensus exist', /-0\.05/.test(econText) && (await page.locator('#content-host tbody td span[title*="No consensus"]').count()) >= 1);
+ok('...and a day-only release shown without an invented clock', (await page.locator('#content-host tbody td span[title*="no time"]').count()) === 1);
+const liveRows = await page.locator('[data-econ-row]').count();
+ok('the indicator grid has live rows from the series store', liveRows > 5, `${liveRows} live rows`);
+ok('...and shows an unsourced row as absent, never as a sample figure', (await page.locator('[data-econ-category] span[title*="No series in the harvest store"]').count()) > 5);
+await page.locator('[data-econ-row]').first().click();
+await page.waitForTimeout(1200);
+ok('clicking a live row opens its history as a bar chart', (await page.locator('[data-econ-chart] svg[data-chart-svg]').count()) === 1);
+await page.locator('[data-impact="high"]').click();
+await page.waitForTimeout(500);
+ok('the impact chips filter the calendar rows', (await rowCount()) < 3, `${await rowCount()} after dropping High`);
+await page.locator('[data-impact="high"]').click();
+await page.waitForTimeout(300);
 
 // ---------------------------------------------------------------------------------------
 // 2. Earnings Hub — the LIVE results feed

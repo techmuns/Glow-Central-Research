@@ -1,0 +1,24 @@
+{
+ "id": "india-gdp-growth",
+ "label": "India GDP growth",
+ "category": "economy",
+ "group": "Economic growth",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "annual",
+ "provenance": "official-api",
+ "source": {
+  "name": "World Bank Open Data",
+  "symbol": "NY.GDP.MKTP.KD.ZG",
+  "url": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=500",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1961-12-31",
+ "last": "2025-12-31",
+ "count": 65,
+ "retrievedAt": "2026-08-10T09:33:18.721Z",
+ "staleSince": null
+}

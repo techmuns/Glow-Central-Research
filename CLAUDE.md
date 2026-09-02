@@ -48,7 +48,7 @@ That only works if the two repositories agree about who owns what:
 | **Glow** | the brand: `public/index.html` title/description/favicon, the `:root` tokens, `tailwind.config.cjs` (the champagne palette) and the stylesheet it generates | the palette is a config file, not class names — see *Design tokens* |
 | **Glow** | the deployment: `wrangler.jsonc` (Worker name, `GH_REPO`, rate-limit namespace), and the default Worker host in `scripts/scrape-filings.mjs` (`FILINGS_BASE`) and `scripts/scrape-super-investors.mjs` (`SI_BASE`) | deployment-specific values; the file headers say so, and the sync greps for all of them after every merge |
 | **Glow** | the book and the universe: everything under `public/data/` | `.gitattributes` marks them `merge=ours`; this repo's own scheduled scrapes regenerate them from its own book |
-| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe) | a file upstream does not have cannot conflict; only the few lines that wire it in can |
+| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), and the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
 | **Sattva** | everything else — every tab, the kit, the Worker, the scrapers, the suite | this is where code is written |
 
 Four rules follow:
@@ -750,6 +750,51 @@ for the same person, and three of those suffixes in one summary row is unreadabl
 resolves it from the list for every derived view, so one person is one string on the page. It is
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
+
+
+### The macro series store — two tabs that measure nothing (GLOW-OWNED)
+
+Macro Research and Economy & Macro are the first two tabs in the bar and they are Glow's own: a port
+of the two pages of the same names from the GlowVentures family-office cockpit
+(`techmuns/GlowVentures`, `src/pages/MacroResearch.tsx` and `Economy.tsx`), rebuilt on the screener
+kit with no chart library — `js/ui/series-chart.js` draws line, area, bar and scatter as inline SVG.
+
+**Every figure comes from a stored series that somebody else harvested.** `public/data/series/` is a
+copy of the store `npm run harvest` writes in that repository — a manifest (`index.json`) carrying
+each series' metadata AND its precomputed returns table, plus the observations, one file per
+calendar year for a daily series and one `series.json` for a monthly or annual one.
+`.github/workflows/series-refresh.yml` copies it here every morning after their nightly harvest,
+which needs `GLOWVENTURES_READ_TOKEN` because that repository is private; without the token the
+copy ages and the tab prints the harvest time so nobody mistakes it for today's. **The same rules
+as the con-call feed apply, because the analysis is theirs**: returns, spans, 52-week ranges and
+stale flags are reproduced, never recomputed; a horizon a series cannot reach back to is an em
+dash, never a zero and never a shorter window relabelled; a yield reports basis points, not a
+percentage; a row the spec asks for and nothing serves is *named* with the reason, never drawn as a
+sample figure. The three transforms the tab does apply — a range slice, a coarser resample that
+takes each period's last observation, and a rebase-to-100 for overlays in different units — are
+presentation, and each says so on screen where it is applied.
+
+**The release calendar is the one route this adds to the Worker.** `worker/econ-calendar.mjs`
+proxies TradingView's calendar endpoint, which needs Origin and Referer headers a browser cannot
+set and no token. It fetches every window in seven-day slices and merges on the event id because
+one response is silently capped at 2,000 rows — a slice still at the cap is reported as incomplete
+above the table — and it caches one bundle per host in `caches.default` (the `edgeKey` rule: the
+account's Workers share one cache). Surprise is actual less consensus only where both are
+published, with a sign and **no verdict**; an unranked release stays unranked; a release with no
+announced time is shown on the source's own date with no clock.
+
+**Scope does not apply to either tab and the head says so.** They are market-wide series, not
+per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
+watchlist star (`watchKey: () => null`). The landing page is still Ask Research — `landingTab()` in
+`shell.js` resolves an unknown route to `router.DEFAULT_ROUTE.tab` rather than to the first entry,
+which is what lets these two sit first in the bar without becoming the default.
+
+**Never ask the store for a year it does not hold.** `fetchPoints` reads only the chunks inside the
+manifest's `first`/`last` span, and a missing chunk resolves to nothing rather than throwing — but a
+404 on the network is still a console error, and zero console errors is the bar. Today no daily
+series has a gap inside its span (checked against every directory when the tabs were built); if the
+harvester ever leaves one, write the list of years each series holds at copy time and read it
+before fetching, rather than tolerating the 404.
 
 ### Two disclosures that look identical — the Institutions rule
 
@@ -2643,6 +2688,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Refresh button drives | `js/core/refresh.js` (the registry) + `refreshNow()` in `js/core/watch.js` — read *Work the reader has to ask for* first; a per-company feed must never be registered with `live.js` |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
+| Change the Macro Research or Economy & Macro tab | `js/tabs/macro-research.js` / `js/tabs/economy-macro.js` — both GLOW-OWNED; the store they read is `public/data/series/` (see *The macro series store* below), the chart is `js/ui/series-chart.js`, the calendar route is `worker/econ-calendar.mjs` |
+| Refresh the macro series store | run **Series store refresh** under Actions (daily at 03:30 UTC when `GLOWVENTURES_READ_TOKEN` is set); it copies `public/series/` from techmuns/GlowVentures, where `npm run harvest` produces it |
 | Change the Fund Returns view | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html` |
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and `scripts/scrape-filings.mjs` read it |
 | Pull the latest upstream code into this repo | run **Sync from Sattva** under Actions (it also runs daily); on a conflict it opens a PR instead of pushing — read *This dashboard is a downstream of Sattva* first |

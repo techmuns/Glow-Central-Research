@@ -1,0 +1,24 @@
+{
+ "id": "usd-cny",
+ "label": "USD / CNY",
+ "category": "currencies",
+ "group": "Majors",
+ "unit": "CNY per USD",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "CNY=X",
+  "url": "https://finance.yahoo.com/quote/CNY%3DX",
+  "exchange": "CCY",
+  "upstreamCurrency": "CNY"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2001-06-24",
+ "last": "2026-08-31",
+ "count": 6305,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

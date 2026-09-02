@@ -1,0 +1,24 @@
+{
+ "id": "silver",
+ "label": "Silver",
+ "category": "commodities",
+ "group": "Precious Metals",
+ "unit": "USD/oz",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "SI=F",
+  "url": "https://finance.yahoo.com/quote/SI%3DF",
+  "exchange": "COMEX",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2000-08-30",
+ "last": "2026-09-01",
+ "count": 6527,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

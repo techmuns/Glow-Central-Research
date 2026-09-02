@@ -1,0 +1,24 @@
+{
+ "id": "india-10y",
+ "label": "India 10 Year G-Sec",
+ "category": "rates",
+ "group": "Government Bonds",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "monthly",
+ "provenance": "official-api",
+ "source": {
+  "name": "FRED (Federal Reserve Bank of St. Louis)",
+  "symbol": "INDIRLTLT01STM",
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=INDIRLTLT01STM",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": "MONTHLY, not daily — the OECD long-term government bond yield for India (10-year benchmark) as republished by FRED. The daily benchmark yield is on the RBI's own site and still needs a reader; this is the monthly figure, and the frequency travels with the series so no 1-day or 1-week return is ever computed from it.",
+ "accumulating": false,
+ "first": "2011-12-01",
+ "last": "2026-06-01",
+ "count": 175,
+ "retrievedAt": "2026-08-18T02:55:00.181Z",
+ "staleSince": "2026-06-01"
+}

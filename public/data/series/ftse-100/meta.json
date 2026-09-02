@@ -1,0 +1,24 @@
+{
+ "id": "ftse-100",
+ "label": "FTSE 100",
+ "category": "indices",
+ "group": "Europe",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^FTSE",
+  "url": "https://finance.yahoo.com/quote/%5EFTSE",
+  "exchange": "FTSE Index",
+  "upstreamCurrency": "GBP"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1984-01-03",
+ "last": "2026-09-01",
+ "count": 10777,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

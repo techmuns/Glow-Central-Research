@@ -1,0 +1,24 @@
+{
+ "id": "nickel",
+ "label": "Nickel",
+ "category": "commodities",
+ "group": "Industrial Metals",
+ "unit": "USD/t",
+ "kind": "price",
+ "frequency": "monthly",
+ "provenance": "official-file",
+ "source": {
+  "name": "World Bank Pink Sheet",
+  "symbol": "Nickel",
+  "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1960-01-01",
+ "last": "2026-07-01",
+ "count": 799,
+ "retrievedAt": "2026-08-10T09:33:18.721Z",
+ "staleSince": "2026-07-01"
+}

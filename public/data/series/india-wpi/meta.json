@@ -1,0 +1,24 @@
+{
+ "id": "india-wpi",
+ "label": "India Wholesale Price Index",
+ "category": "economy",
+ "group": "Inflation",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "monthly",
+ "provenance": "official-api",
+ "source": {
+  "name": "data.gov.in (Open Government Data, India)",
+  "symbol": "All Commodities",
+  "url": "https://www.data.gov.in/resource/239ac3d0-f08d-40d0-b03c-9b7a426a62d5",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": "Base 2011-12 = 100, Office of the Economic Adviser. DISCONTINUED: the resource is titled 'till last month' and its catalogue record is touched daily, but the last month it carries is October 2023 — verified against the resource's own declared schema, so the source stops there rather than the read being truncated. Carried as history, never as a current reading. The headline 'All Commodities' row is read as published; the other 868 rows are individual commodities and averaging them would produce an index nobody published.",
+ "accumulating": false,
+ "first": "2012-04-01",
+ "last": "2023-10-01",
+ "count": 139,
+ "retrievedAt": "2026-08-11T04:21:22.200Z",
+ "staleSince": "2023-10-01"
+}

@@ -1,0 +1,24 @@
+{
+ "id": "cac-40",
+ "label": "CAC 40",
+ "category": "indices",
+ "group": "Europe",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^FCHI",
+  "url": "https://finance.yahoo.com/quote/%5EFCHI",
+  "exchange": "Paris",
+  "upstreamCurrency": "EUR"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1990-03-01",
+ "last": "2026-09-01",
+ "count": 9271,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

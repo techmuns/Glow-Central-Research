@@ -1,0 +1,24 @@
+{
+ "id": "nikkei-225",
+ "label": "Nikkei 225",
+ "category": "indices",
+ "group": "Asia",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^N225",
+  "url": "https://finance.yahoo.com/quote/%5EN225",
+  "exchange": "Osaka",
+  "upstreamCurrency": "JPY"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1970-01-05",
+ "last": "2026-09-01",
+ "count": 13933,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

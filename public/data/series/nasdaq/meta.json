@@ -1,0 +1,24 @@
+{
+ "id": "nasdaq",
+ "label": "Nasdaq Composite",
+ "category": "indices",
+ "group": "United States",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^IXIC",
+  "url": "https://finance.yahoo.com/quote/%5EIXIC",
+  "exchange": "Nasdaq GIDS",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1971-02-05",
+ "last": "2026-09-01",
+ "count": 14010,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

@@ -1,0 +1,24 @@
+{
+ "id": "us-30y",
+ "label": "US 30 Year Treasury",
+ "category": "rates",
+ "group": "Government Bonds",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^TYX",
+  "url": "https://finance.yahoo.com/quote/%5ETYX",
+  "exchange": "Cboe Indices",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1977-02-15",
+ "last": "2026-09-01",
+ "count": 12412,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

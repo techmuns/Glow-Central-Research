@@ -1,0 +1,24 @@
+{
+ "id": "india-govt-debt-gdp",
+ "label": "India government debt / GDP",
+ "category": "economy",
+ "group": "Government",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "annual",
+ "provenance": "official-api",
+ "source": {
+  "name": "World Bank Open Data",
+  "symbol": "GC.DOD.TOTL.GD.ZS",
+  "url": "https://api.worldbank.org/v2/country/IN/indicator/GC.DOD.TOTL.GD.ZS?format=json&per_page=500",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1990-12-31",
+ "last": "2018-12-31",
+ "count": 29,
+ "retrievedAt": "2026-08-10T09:33:18.721Z",
+ "staleSince": "2018-12-31"
+}

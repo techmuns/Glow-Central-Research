@@ -23,6 +23,7 @@ import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
+import * as macroSeries from '../data/series.js';
 // NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
@@ -463,6 +464,36 @@ export function sourceGroups() {
           cadence: 'Daily · read live per visit, straight from the browser',
           status: 'live',
           file: 'amfibeas.tech-441.workers.dev · public/js/data/fund-returns.js · public/js/investors/fund-returns.js · window.AMFIBEAS_API_BASE in index.html',
+        },
+      ],
+    },
+    {
+      // GLOW-OWNED: the two macro tabs read a series store harvested elsewhere and a calendar feed
+      // proxied by this Worker. Both are reproduced, neither is scored or recomputed here.
+      title: 'Macro',
+      icon: '🌐',
+      tabs: 'Macro Research · Economy & Macro',
+      items: [
+        {
+          name: 'GlowVentures series store — harvested macro series',
+          url: 'https://github.com/techmuns/GlowVentures',
+          feeds:
+            `<strong>Measured, and not ours.</strong> Commodities, global equity indices, currencies, benchmark yields and the Indian macro indicators, as a <em>series store</em> harvested nightly by the GlowVentures family-office cockpit (<code class="rounded bg-slate-100 px-1">npm run harvest</code> there: Yahoo Finance, the World Bank Pink Sheet and API, FRED, the RBI, IEX, AMFI) and copied here each morning by <code class="rounded bg-slate-100 px-1">series-refresh.yml</code>. <strong>Every return, span, 52-week figure and stale flag is the harvester's</strong>, computed on the full stored history with every horizon independent — a horizon a series cannot reach is absent, never a shorter window relabelled. This dashboard only slices a range, resamples to a coarser period by taking its last observation, and rebases overlays to 100 — and says so wherever it does.${clause(
+              num(() => macroSeries.meta().live || null),
+              ' <n> series live in the current store.'
+            )}${macroSeries.meta().generatedAt ? ` Harvested ${escapeHtml(macroSeries.meta().generatedAt)}.` : ''}`,
+          cadence: 'Nightly harvest upstream (02:00 UTC) · copied here at 03:30 UTC when GLOWVENTURES_READ_TOKEN is set',
+          status: 'live',
+          file: 'public/data/series/ · public/js/data/series.js · public/js/tabs/macro-research.js · .github/workflows/series-refresh.yml',
+        },
+        {
+          name: 'TradingView economic calendar — via this Worker',
+          url: 'https://in.tradingview.com/economic-calendar/',
+          feeds:
+            "<strong>Reproduced, and not ours.</strong> The data release calendar on Economy &amp; Macro: previous, consensus, actual, the period each reading is for, its unit, the feed's own importance rank and the <strong>agency that published each figure</strong>, from <code class=\"rounded bg-slate-100 px-1\">GET /api/econ-calendar</code>. Proxied because the upstream needs Origin and Referer headers a browser cannot set; it needs no token. Fetched in seven-day slices and merged on the event id because a single response is silently capped at 2,000 rows — a slice still at the cap is reported as incomplete. <strong>Surprise</strong> is actual less consensus, only where both are published, with a sign and no verdict.",
+          cadence: 'Held six hours at the edge, re-read after fifteen minutes · the last held copy is served, marked stale, when the feed does not answer',
+          status: 'live',
+          file: 'worker/econ-calendar.mjs · public/js/data/econ-calendar.js · public/js/tabs/economy-macro.js',
         },
       ],
     },

@@ -48,6 +48,7 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+import { handleEconCalendar } from './econ-calendar.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -203,6 +204,10 @@ export default {
         workflow: DATA_WORKFLOW,
         cacheName: 'data-snapshot-run-status',
       });
+    }
+    // GLOW-OWNED: the economic release calendar behind the Economy & Macro tab — worker/econ-calendar.mjs.
+    if (url.pathname === '/api/econ-calendar') {
+      return handleEconCalendar(request);
     }
     if (url.pathname === '/api/capture-status') {
       return handleCaptureStatus(request, env, ctx);
