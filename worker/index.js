@@ -34,7 +34,7 @@ import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } f
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
-import { dispatchWorkflow, latestRun, parseRepo, isInFlight, NEWS_WORKFLOW, DEPLOY_WORKFLOW } from './github-actions.mjs';
+import { dispatchWorkflow, latestRun, parseRepo, isInFlight, NEWS_WORKFLOW, COMPANY_NEWS_WORKFLOW, DEPLOY_WORKFLOW } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -135,6 +135,20 @@ export default {
     }
     if (url.pathname === '/api/market-news/run') {
       return handleNewsRunStatus(request, env, ctx);
+    }
+    if (url.pathname === '/api/company-news/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: COMPANY_NEWS_WORKFLOW,
+        cacheName: 'company-news-dispatch',
+        cooldownS: COMPANY_NEWS_DISPATCH_COOLDOWN_S,
+      });
+    }
+    if (url.pathname === '/api/company-news/run') {
+      return handleWorkflowRunStatus(env, ctx, {
+        workflow: COMPANY_NEWS_WORKFLOW,
+        cacheName: 'company-news-run-status',
+      });
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
@@ -1263,6 +1277,9 @@ function parseQuote(str) {
 // ---------------------------------------------------------------------------------------
 
 const DISPATCH_COOLDOWN_S = 120;
+// A universe company-news walk is roughly ten minutes. Hold the automatic route across that
+// window so readers arriving in different moments cannot start a second run during publish lag.
+const COMPANY_NEWS_DISPATCH_COOLDOWN_S = 15 * 60;
 const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
 // How far back `lastAutomatic` looks. Ten runs is about a day at the schedule's own cadence.
 const RUN_WINDOW = 10;
@@ -1377,33 +1394,41 @@ const SOURCES = new Set(['cron', 'auto', 'button']);
 const sourceOf = (url) => (SOURCES.has(url.searchParams.get('source')) ? url.searchParams.get('source') : 'button');
 
 async function handleNewsDispatch(request, env, ctx) {
+  return handleWorkflowDispatch(request, env, ctx, {
+    workflow: NEWS_WORKFLOW,
+    cacheName: 'mcnews-dispatch',
+    cooldownS: DISPATCH_COOLDOWN_S,
+  });
+}
+
+async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS }) {
   const cfg = githubConfig(env);
   if (cfg.error) return json(cfg.error, 200);
   const source = sourceOf(new URL(request.url));
 
   const cache = caches.default;
-  const key = edgeKey('mcnews-dispatch');
+  const key = edgeKey(cacheName);
   const held = await cache.match(key);
   if (held) {
     const body = await held.json().catch(() => null);
     // NOT A FAILURE, AND IT MUST NOT READ AS ONE. A scrape was started moments ago and is what the
     // reader wanted; saying "too many requests" about their own click would be nonsense.
-    return json({ ...(body || {}), ok: true, dispatched: false, reason: 'cooling-down', cooldownS: DISPATCH_COOLDOWN_S }, 200);
+    return json({ ...(body || {}), ok: true, dispatched: false, reason: 'cooling-down', cooldownS }, 200);
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source });
+    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source });
     const payload = {
       ok: true,
       dispatched: out.dispatched,
       reason: out.dispatched ? 'dispatched' : 'already-running',
       run: out.run,
-      workflow: NEWS_WORKFLOW,
+      workflow,
       source,
       requestedAt: new Date().toISOString(),
     };
     ctx.waitUntil(
-      cache.put(key, new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${DISPATCH_COOLDOWN_S}` } })),
+      cache.put(key, new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${cooldownS}` } })),
     );
     return json(payload, 200);
   } catch (err) {
@@ -1421,11 +1446,18 @@ async function handleNewsDispatch(request, env, ctx) {
  * guess between "nothing was published" and "it is on its way", and those are different claims.
  */
 async function handleNewsRunStatus(request, env, ctx) {
+  return handleWorkflowRunStatus(env, ctx, {
+    workflow: NEWS_WORKFLOW,
+    cacheName: 'mcnews-run-status',
+  });
+}
+
+async function handleWorkflowRunStatus(env, ctx, { workflow, cacheName }) {
   const cfg = githubConfig(env);
   if (cfg.error) return json(cfg.error, 200);
 
   const cache = caches.default;
-  const key = edgeKey('mcnews-run-status');
+  const key = edgeKey(cacheName);
   const held = await cache.match(key);
   if (held) return new Response(held.body, { status: 200, headers: { ...Object.fromEntries(held.headers), ...CORS, 'x-sattva-cache': 'hit' } });
 
@@ -1435,7 +1467,7 @@ async function handleNewsRunStatus(request, env, ctx) {
     // button press hid a cron that had fired minutes earlier, and the field read as though nothing
     // unattended had ever run. Ten covers about a day at the schedule's own cadence.
     const [scrapeRuns, deployRuns] = await Promise.all([
-      latestRun(fetch, cfg, NEWS_WORKFLOW, { perPage: RUN_WINDOW }),
+      latestRun(fetch, cfg, workflow, { perPage: RUN_WINDOW }),
       latestRun(fetch, cfg, DEPLOY_WORKFLOW, { perPage: 1 }).catch(() => []),
     ]);
     const payload = {

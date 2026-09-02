@@ -2556,8 +2556,11 @@ stops for the day, which is why it is not a step in the 07:00 data refresh.
 
 ### News and insider trades: snapshot first, live walk second
 
-These two are still per-ticker, capped at ~60 requests a minute. They are captured at 07:00 and
-again at 09:00 IST on weekdays; the second pass excludes the unchanged EOD technical snapshots.
+These two are still per-ticker, capped at ~60 requests a minute. The full data job captures both at
+07:00 IST on weekdays. Company news has a separate 09:00 IST workflow that runs only the news half,
+excluding unchanged EOD technical snapshots and insider data. If GitHub's best-effort schedule has
+not produced a capture stamped with today's Indian date, opening the dashboard dispatches that same
+dedicated workflow once; the Worker declines duplicates and the browser watches the committed file.
 
 **News is a search endpoint** — there is no "everything published today" request to make — so there
 is no axis to switch to the way announcements had one. It used to make the reader name companies
@@ -2568,6 +2571,14 @@ That is still true of the *walk*, and irrelevant to what a scoped view paints: `
 walks **the book first** and commits the result, so those rows are in `news.json` and cost one
 conditional GET. Measured on the shipped capture — 123 book tickers, 1,217 articles, no failures. So
 News loads like the other two feeds and the walk stays behind Refresh.
+
+**On-open freshness re-reads the FILE; it never performs the forty-company walk.**
+`js/data/company-news-refresh.js` seeds `news.json`, compares `capturedAt` by Indian calendar date,
+dispatches `company-news-refresh.yml` only when the file is behind, and then calls
+`refreshSnapshot()` until today's deployment lands. A replacement snapshot replaces yesterday's
+snapshot-derived company rows — including companies that became empty — while preserving any
+company this session read live. Additive merging here would leave expired stories on screen until
+a reload and is therefore not a refresh.
 
 **A company that answered "nothing" is listed in `empty`, and that is what makes it COVERED.**
 The scrape used to write only companies that had something, so one with no trades vanished from the

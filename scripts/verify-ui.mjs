@@ -5230,17 +5230,22 @@ console.log('\n— news, announcements and insider trades —');
   const chipTitle = (await page.locator('[data-filings-info]').first().getAttribute('title')) || '';
   ok('...and the chip still reaches the denominator, in companies',
     /of the book's [\d,]+ companies/.test(chipTitle), chipTitle.slice(0, 110));
-  // Green `Live` is CONDITIONAL, exactly as the market-news chip's is: it may only appear while the
-  // capture is still the newest the schedule can produce. Asserted against the measured age rather
-  // than assumed, so a chip that went unconditionally green would fail here.
+  // Green `Live` is CONDITIONAL: it may only appear when the capture was made TODAY in India. The
+  // old 72-hour window painted Tuesday green on Wednesday, exactly the stale-day state this label
+  // is supposed to expose.
   const chipState = await evalSafe(async () => {
     const m = (await import('/js/data/filings.js')).news.meta();
+    const refresh = await import('/js/data/company-news-refresh.js');
     const el = document.querySelector('[data-filings-info]');
-    return { age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null, cls: el?.className || '', txt: el?.innerText.trim() || '' };
+    return {
+      age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null,
+      sameDay: refresh.captureIsToday(m.capturedAt),
+      cls: el?.className || '',
+      txt: el?.innerText.trim() || '',
+    };
   });
-  const chipFresh = chipState.age !== null && chipState.age < 72 * 3600 * 1000;
-  ok('...and its green Live is earned by the capture\u2019s age, not painted unconditionally',
-    chipFresh ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
+  ok('...and its green Live is earned by today\u2019s capture, not painted over yesterday',
+    chipState.sameDay ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
     `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} chip="${chipState.txt}"`);
 
   // ---- the walk: still one request per company, and only when asked ------------------------
@@ -5796,6 +5801,60 @@ console.log('\n— news, announcements and insider trades —');
 
   // The headline IS the row, so it gets the width — but not at the cost of a scrollbar under it.
   await go('/#/research/news?scope=portfolio', 3000);
+
+  // COMPANY NEWS IS A DAILY BULK CAPTURE. Opening the dashboard on yesterday's file dispatches
+  // one dedicated refresh; opening on today's does not. Script the Worker response so this test
+  // never starts a real Action, and disable the long deployment watch — the gate and the request
+  // are what this check owns.
+  const companyNewsAuto = await (async () => {
+    const requests = [];
+    await page.route('**/api/company-news/refresh*', (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true, dispatched: true, workflow: 'company-news-refresh.yml' }),
+      });
+    });
+    const result = await evalSafe(async () => {
+      const mod = await import('/js/data/company-news-refresh.js');
+      const filings = await import('/js/data/filings.js');
+      await filings.news.seed();
+      const capturedAt = filings.news.meta().capturedAt;
+
+      mod.resetForTest();
+      const capturedMs = Date.parse(capturedAt || '');
+      const tomorrow = Number.isFinite(capturedMs) ? capturedMs + 36 * 60 * 60 * 1000 : Date.now() + 36 * 60 * 60 * 1000;
+      const stale = await mod.ensureCompanyNewsFresh({ now: () => tomorrow, watch: false });
+
+      mod.resetForTest();
+      const current = await mod.ensureCompanyNewsFresh({ now: () => capturedMs, watch: false });
+      return { stale, current, capturedAt };
+    });
+    await page.unroute('**/api/company-news/refresh*').catch(() => {});
+    return { result, requests };
+  })();
+  ok('opening the dashboard on yesterday company news dispatches its dedicated refresh',
+    companyNewsAuto.result?.stale?.outcome === 'dispatched' && companyNewsAuto.requests.length === 1 &&
+      /[?&]source=auto\b/.test(companyNewsAuto.requests[0]),
+    `${companyNewsAuto.result?.stale?.outcome || 'no outcome'} · ${companyNewsAuto.requests.join(' | ') || 'no request'}`);
+  ok('...while a capture from today starts no workflow',
+    companyNewsAuto.result?.current?.outcome === 'current' && companyNewsAuto.requests.length === 1,
+    `${companyNewsAuto.result?.current?.outcome || 'no outcome'} · ${companyNewsAuto.requests.length} total request(s)`);
+
+  const statusText = await page.locator('[data-filings-info]').textContent().catch(() => '');
+  const captureDay = await evalSafe(async () => {
+    const refresh = await import('/js/data/company-news-refresh.js');
+    const filings = await import('/js/data/filings.js');
+    return {
+      capture: refresh.istDay(filings.news.meta().capturedAt),
+      today: refresh.istDay(Date.now()),
+    };
+  });
+  ok('yesterday company news cannot wear a green `Live` label',
+    captureDay?.capture === captureDay?.today || !/\bLive\b/i.test(statusText || ''),
+    `capture=${captureDay?.capture}, today=${captureDay?.today}, status=${JSON.stringify(statusText)}`);
+
   const newsFit = await page.evaluate(() => {
     const el = document.querySelector('[data-table-scroll]');
     return el ? { need: el.scrollWidth, have: el.clientWidth } : null;
@@ -5811,6 +5870,7 @@ console.log('\n— news, announcements and insider trades —');
   // rows would not have caught it; comparing them does.
   const paint = await evalSafe(async () => {
     const m = await import('/js/data/filings.js');
+    const { withoutPublisherName } = await import('/js/core/source-copy.js');
     const rows = m.news.rows();
     if (!rows.length) return null;
     const tally = (list) => {
@@ -5818,7 +5878,9 @@ console.log('\n— news, announcements and insider trades —');
       for (const k of list) c.set(k, (c.get(k) || 0) + 1);
       return c;
     };
-    const data = tally(rows.map((r) => `${r.ticker}||${r.title}`));
+    // The UI removes a publisher name duplicated at the end of a headline. Compare that same
+    // display value on both sides; source-copy cleanup is not a row-cache mismatch.
+    const data = tally(rows.map((r) => `${r.ticker}||${withoutPublisherName(r.title)}`));
     const dom = tally(
       [...document.querySelectorAll('[data-table-scroll] tbody tr')].map((tr) => {
         const d = tr.querySelectorAll('td div.truncate');

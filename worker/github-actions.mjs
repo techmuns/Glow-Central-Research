@@ -53,6 +53,7 @@
 // the real API would be starting real runs on every push.
 export const API = 'https://api.github.com';
 export const NEWS_WORKFLOW = 'market-news-refresh.yml';
+export const COMPANY_NEWS_WORKFLOW = 'company-news-refresh.yml';
 export const DEPLOY_WORKFLOW = 'deploy.yml';
 
 // Six seconds is generous for api.github.com, which answers in well under one when healthy. Two
