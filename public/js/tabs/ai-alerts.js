@@ -167,13 +167,13 @@ function controls(rep, visibleCount) {
 function cardsPanel(ctx, cards, total) {
   if (!cards.length) return emptyPanel(ctx, total);
   return `
-    <section class="grid gap-4" data-ai-cards>
-      ${cards.map(cardMarkup).join('')}
+    <section class="grid gap-4 lg:grid-cols-2" data-ai-cards>
+      ${cards.map((card) => cardMarkup(card, ctx.scope)).join('')}
     </section>
     ${total > cards.length ? `<div class="mt-5 text-center"><button type="button" data-ai-more class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300">Show ${escapeHtml(formatNumber(Math.min(PAGE_SIZE, total - cards.length)))} more</button></div>` : ''}`;
 }
 
-function cardMarkup(card) {
+function cardMarkup(card, scope) {
   const mustSee = card.priority === 'must-see';
   const tone = mustSee
     ? { edge: 'border-l-rose-500', badge: 'bg-rose-50 text-rose-700 ring-rose-200', label: 'Must see' }
@@ -182,8 +182,8 @@ function cardMarkup(card) {
   const topSourceUrl = safeSourceUrl(card.topEvent?.url);
   return `
     <article data-ai-card data-ticker="${escapeHtml(card.ticker)}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"
-      class="overflow-hidden rounded-2xl border-l-4 ${tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
-      <div class="p-5">
+      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
+      <div class="flex-1 p-5">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
@@ -202,7 +202,7 @@ function cardMarkup(card) {
         <div class="mt-4">
           <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Evidence</div>
           <div class="mt-2 divide-y divide-slate-100 rounded-xl bg-slate-50/70 ring-1 ring-slate-100">
-            ${events.map(eventMarkup).join('')}
+            ${events.map((event) => eventMarkup(event, scope)).join('')}
           </div>
           ${card.events.length > events.length ? `<p class="mt-2 text-xs text-slate-400">+ ${escapeHtml(formatNumber(card.events.length - events.length))} more recent ${card.events.length - events.length === 1 ? 'event' : 'events'} in General Alerts</p>` : ''}
         </div>
@@ -217,23 +217,57 @@ function cardMarkup(card) {
     </article>`;
 }
 
-function eventMarkup(event) {
+function eventMarkup(event, scope) {
   const direction = {
     positive: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
     negative: 'bg-rose-50 text-rose-700 ring-rose-200',
     neutral: 'bg-slate-100 text-slate-600 ring-slate-200',
   }[event.direction] || 'bg-slate-100 text-slate-600 ring-slate-200';
+  const destination = evidenceDestination(event, scope);
   return `
-    <div data-ai-event class="p-3">
+    <a data-ai-event data-ai-evidence-link href="${escapeHtml(destination.href)}"
+      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      aria-label="${escapeHtml(destination.ariaLabel)}"
+      class="group block p-3 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
       <div class="flex flex-wrap items-center gap-2 text-[11px]">
         <time class="font-semibold tabular-nums text-slate-500" datetime="${escapeHtml(event.day || '')}">${escapeHtml(fmtDay(event.day))}${event.time ? ` · ${escapeHtml(event.time)} IST` : ''}</time>
         <span class="font-semibold text-slate-500">${escapeHtml(event.feedLabel || event.feed)}</span>
         <span class="rounded-full px-1.5 py-0.5 font-bold uppercase ring-1 ${direction}">${escapeHtml(event.direction || 'neutral')}</span>
         ${event.importance === 'high' ? '<span class="rounded-full bg-violet-50 px-1.5 py-0.5 font-bold uppercase text-violet-700 ring-1 ring-violet-200">High</span>' : ''}
+        <span class="ml-auto whitespace-nowrap font-bold text-indigo-600 group-hover:text-indigo-800">${escapeHtml(destination.label)}</span>
       </div>
       <div class="mt-1 truncate text-sm font-semibold text-slate-800" title="${escapeHtml(event.headline || '')}">${escapeHtml(event.headline || '')}</div>
       ${event.signalReason ? `<div class="mt-0.5 truncate text-xs text-slate-500" title="${escapeHtml(event.signalReason)}">${escapeHtml(event.signalReason)}</div>` : ''}
-    </div>`;
+    </a>`;
+}
+
+/**
+ * One evidence click, one traceable destination.
+ *
+ * Upstream http(s) links win because they are the closest available public record. If a source did
+ * not carry a link, route to the dashboard tab that owns the feed instead of making the card look
+ * clickable while taking the reader only to another AI summary.
+ */
+export function evidenceDestination(event = {}, scope = 'portfolio') {
+  const external = safeSourceUrl(event.url);
+  if (external) {
+    return {
+      href: external,
+      external: true,
+      label: 'Source ↗',
+      ariaLabel: `Open original source for ${event.headline || 'this evidence'}`,
+    };
+  }
+
+  const tab = /^[a-z0-9-]+$/.test(String(event.tab || '')) ? String(event.tab) : 'daily-alerts';
+  const params = new URLSearchParams({ scope: String(scope || 'portfolio') });
+  if (event.ticker) params.set('company', String(event.ticker));
+  return {
+    href: `#/research/${tab}?${params}`,
+    external: false,
+    label: 'Dashboard →',
+    ariaLabel: `Open ${event.feedLabel || event.feed || 'evidence'} in the dashboard`,
+  };
 }
 
 /** Source URLs originate upstream. Render only ordinary web links, never an executable scheme. */

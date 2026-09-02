@@ -18,7 +18,9 @@ import { formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
-import { pickField, safeUrl } from '../data/filings-shared.js';
+import { insiderTradeSourceUrl, pickField } from '../data/filings-shared.js';
+
+export { insiderTradeSourceUrl };
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
@@ -28,8 +30,6 @@ const looksLikeInsiderName = (h) => /person|insider|holder|acquirer/i.test(h);
 const looksLikeName = (h) => /name/i.test(h) || looksLikeInsiderName(h);
 const looksLikeSource = (h) => /^\s*(source|exchange)\s*$/i.test(h);
 const looksLikeLink = (h) => /^\s*(link|url|source[\s_-]*url|filing[\s_-]*(link|url)|document[\s_-]*(link|url))\s*$/i.test(h);
-
-const URL_FIELDS = ['link', 'url', 'source', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
 
 const nameKeyFor = (row) => {
   const keys = Object.keys(row?.cells || {});
@@ -41,24 +41,6 @@ const insiderNameFor = (row) => {
   const value = key ? row?.cells?.[key] : null;
   return value == null ? null : String(value).trim() || null;
 };
-
-/** Prefer a real upstream filing URL; otherwise open a public result narrowed to this insider. */
-export function insiderTradeSourceUrl(row) {
-  const candidates = [row?.url, pickField(row?.cells, URL_FIELDS)];
-  for (const value of candidates) {
-    const direct = safeUrl(value);
-    if (direct) return direct;
-    const embedded = String(value || '').match(/https?:\/\/[^\s<>)]+/i)?.[0] || null;
-    const parsed = safeUrl(embedded);
-    if (parsed) return parsed;
-  }
-
-  // The Muns table currently carries only a source name, not the source filing id or URL. Trendlyne
-  // exposes a public insider-disclosure search by exact person/entity name; that is the narrowest
-  // link that can be derived from the row without inventing an exchange document identifier.
-  const query = String(insiderNameFor(row) || row?.ticker || '').trim();
-  return query ? `https://trendlyne.com/equity/insider-trading-sast/custom/?query=${encodeURIComponent(query)}` : null;
-}
 
 function sourceCell(row) {
   const url = insiderTradeSourceUrl(row);

@@ -47,6 +47,28 @@ export const safeUrl = (v) => {
   return s && /^https?:\/\//i.test(s) ? s : null;
 };
 
+const INSIDER_URL_FIELDS = ['link', 'url', 'source', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
+
+/** Prefer the filing URL carried upstream; otherwise narrow a public disclosure search by insider. */
+export function insiderTradeSourceUrl(row) {
+  const candidates = [row?.url, pickField(row?.cells, INSIDER_URL_FIELDS)];
+  for (const value of candidates) {
+    const direct = safeUrl(value);
+    if (direct) return direct;
+    const embedded = String(value || '').match(/https?:\/\/[^\s<>)]+/i)?.[0] || null;
+    const parsed = safeUrl(embedded);
+    if (parsed) return parsed;
+  }
+
+  // The current table carries an exchange name but no exchange filing id. An exact-person search
+  // is the narrowest traceable public record we can derive without inventing an identifier.
+  const cells = row?.cells || {};
+  const nameKey = Object.keys(cells).find((key) => /person|insider|holder|acquirer/i.test(key))
+    || Object.keys(cells).find((key) => /name/i.test(key));
+  const query = String((nameKey ? cells[nameKey] : null) || row?.ticker || '').trim();
+  return query ? `https://trendlyne.com/equity/insider-trading-sast/custom/?query=${encodeURIComponent(query)}` : null;
+}
+
 /**
  * A date in whatever the upstream felt like, normalised to YYYY-MM-DD, or null.
  *
