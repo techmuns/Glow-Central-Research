@@ -1177,7 +1177,7 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.getByText('Ranking complete', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+  await page.getByText('Updated', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
   ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
@@ -1193,6 +1193,7 @@ console.log('\n— AI alerts —');
     priority: el.dataset.priority,
     insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
     why: el.querySelectorAll('[data-ai-why] > div').length,
+    scoreShown: /\/100/.test(el.innerText) || /why it ranked here/i.test(el.innerText),
     action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
     events: el.querySelectorAll('[data-ai-event]').length,
   })));
@@ -1200,8 +1201,11 @@ console.log('\n— AI alerts —');
     new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
       renderedCards.every((card, i) => !i || renderedCards[i - 1].score >= card.score),
     renderedCards.map((card) => `${card.ticker}:${card.score}`).join(', '));
-  ok('every surfaced card explains the insight, score and next review action',
-    renderedCards.every((card) => card.insight && card.why > 0 && card.action && card.events > 0));
+  ok('AI Alerts removes the priority banner and ranking breakdown',
+    (await page.locator('[data-ai-alert-summary]').count()) === 0 &&
+      renderedCards.every((card) => card.why === 0 && !card.scoreShown));
+  ok('every surfaced card keeps the insight, evidence and next review action',
+    renderedCards.every((card) => card.insight && card.action && card.events > 0));
 
   const policy = await evalSafe(async () => {
     const ai = await import('/js/data/ai-alerts.js');
@@ -1267,7 +1271,7 @@ console.log('\n— AI alerts —');
   ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
     policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
     `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
-  ok('the visible score breakdown adds exactly to the visible score', policy.arithmetic);
+  ok('the hidden ranking model remains internally consistent', policy.arithmetic);
   ok('sector context requires material negative evidence rather than tiny negative activity',
     !policy.weakSectorBoosted && policy.materialSectorBoosted);
   ok('AI card source links reject executable URL schemes', policy.sourceUrlsSafe);

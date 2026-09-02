@@ -3145,7 +3145,7 @@ The score begins with the strongest event and then adds smaller company-level co
   high-importance negative evidence (routine small activity cannot create the cluster);
 - a penalty where the source is stale, failed, incomplete or unread.
 
-Every contribution is returned as `{ label, points }` in `scoreBreakdown` and rendered on the card.
+Every contribution is returned as `{ label, points }` in `scoreBreakdown` for deterministic ordering and verification, but the score arithmetic is not rendered on the card.
 The derived `insight` and `action` strings are templates over those structured facts, not generated
 claims. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
 verified with fixtures independently of what happens to be in today's capture.

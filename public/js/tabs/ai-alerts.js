@@ -16,7 +16,7 @@ import * as coverage from '../data/coverage.js';
 export const meta = {
   id: 'ai-alerts',
   title: 'AI Alerts',
-  subtitle: 'The highest-signal portfolio events, ranked and explained.',
+  subtitle: 'Important portfolio events from the last seven days.',
   subviews: [],
 };
 
@@ -97,7 +97,7 @@ function paint(ctx) {
   const shown = cards.slice(0, visibleLimit);
   ctx.root.innerHTML = `
     ${head(ctx)}
-    ${report ? summary(report) : loadingPanel()}
+    ${report ? '' : loadingPanel()}
     ${report ? controls(report, cards.length) : ''}
     ${report ? cardsPanel(ctx, shown, cards.length) : ''}`;
   if (!report) return;
@@ -109,9 +109,9 @@ function head(ctx) {
   const pending = report?.pending || 0;
   return sectionHead({
     title: 'AI Alerts',
-    description: 'The highest-value company signals from the last seven days, ranked against your real portfolio list. Every score is rule-based and explained; no source fact is generated.',
+    description: 'Important company signals from the last seven days.',
     meta: `<div class="flex flex-wrap items-center justify-end gap-2">
-      ${pending ? pill({ label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' }) : pill({ label: 'Ranking complete', tone: 'positive' })}
+      ${pending ? pill({ label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' }) : pill({ label: 'Updated', tone: 'positive' })}
       ${scopeSummary({
         scope: ctx.scope,
         count: m.activeCompanies || 0,
@@ -121,38 +121,6 @@ function head(ctx) {
       ${pill({ label: `${alerts.WINDOW_DAYS}-day window`, tone: 'brand', title: `${fmtDay(m.firstDay)} through ${fmtDay(report?.day)}` })}
     </div>`,
   });
-}
-
-function summary(rep) {
-  const m = rep.meta;
-  return `
-    <section data-ai-alert-summary class="mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 p-5 text-white shadow-sm ring-1 ring-indigo-900/20">
-      <div class="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div>
-          <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-200">Your priority queue</p>
-          <h3 class="font-display mt-1 text-2xl font-extrabold">${escapeHtml(formatNumber(m.mustSee))} must see · ${escapeHtml(formatNumber(m.important))} important</h3>
-          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-indigo-100/80">
-            ${escapeHtml(formatNumber(m.surfacedCompanies))} of ${escapeHtml(formatNumber(m.activeCompanies))} companies with ${escapeHtml(formatNumber(m.dedupedEvents))} recent company events crossed the ${alerts.MIN_SCORE}-point threshold.
-            ${escapeHtml(formatNumber(m.suppressedCompanies))} lower-signal ${m.suppressedCompanies === 1 ? 'company was' : 'companies were'} kept out of this queue.
-          </p>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-center">
-          <div class="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-            <div class="text-2xl font-extrabold tabular-nums">${escapeHtml(formatNumber(m.mustSee))}</div>
-            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-200">Must see</div>
-          </div>
-          <div class="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-            <div class="text-2xl font-extrabold tabular-nums">${escapeHtml(formatNumber(m.important))}</div>
-            <div class="text-[10px] font-bold uppercase tracking-wider text-amber-200">Important</div>
-          </div>
-        </div>
-      </div>
-      <div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/10 pt-3 text-xs text-indigo-100/70">
-        <span>Ranks materiality, recency, direction, portfolio relevance and cross-feed corroboration.</span>
-        ${m.staleFeeds ? `<span class="text-amber-200">${escapeHtml(formatNumber(m.staleFeeds))} ${m.staleFeeds === 1 ? 'feed is' : 'feeds are'} stale or unread; their events are penalised.</span>` : ''}
-        ${m.marketWideExcluded ? `<span>${escapeHtml(formatNumber(m.marketWideExcluded))} tickerless market ${m.marketWideExcluded === 1 ? 'story stays' : 'stories stay'} in General Alerts.</span>` : ''}
-      </div>
-    </section>`;
 }
 
 function controls(rep, visibleCount) {
@@ -170,7 +138,7 @@ function controls(rep, visibleCount) {
         ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
           class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
       </div>
-      <div class="text-xs text-slate-500"><strong class="font-semibold text-slate-700">${escapeHtml(formatNumber(visibleCount))}</strong> ${visibleCount === 1 ? 'company' : 'companies'} in this view · highest score first</div>
+      <div class="text-xs text-slate-500"><strong class="font-semibold text-slate-700">${escapeHtml(formatNumber(visibleCount))}</strong> ${visibleCount === 1 ? 'company' : 'companies'} in this view</div>
     </div>`;
 }
 
@@ -186,10 +154,8 @@ function cardsPanel(ctx, cards, total) {
 function cardMarkup(card) {
   const mustSee = card.priority === 'must-see';
   const tone = mustSee
-    ? { edge: 'border-l-rose-500', badge: 'bg-rose-50 text-rose-700 ring-rose-200', label: 'Must see', score: 'text-rose-700' }
-    : { edge: 'border-l-amber-500', badge: 'bg-amber-50 text-amber-700 ring-amber-200', label: 'Important', score: 'text-amber-700' };
-  const positiveParts = card.scoreBreakdown.filter((part) => part.points > 0);
-  const negativeParts = card.scoreBreakdown.filter((part) => part.points < 0);
+    ? { edge: 'border-l-rose-500', badge: 'bg-rose-50 text-rose-700 ring-rose-200', label: 'Must see' }
+    : { edge: 'border-l-amber-500', badge: 'bg-amber-50 text-amber-700 ring-amber-200', label: 'Important' };
   const events = card.events.slice(0, 3);
   const topSourceUrl = safeSourceUrl(card.topEvent?.url);
   return `
@@ -208,7 +174,6 @@ function cardMarkup(card) {
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <span class="rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ring-1 ${tone.badge}">${tone.label}</span>
-            <span class="font-display text-2xl font-extrabold tabular-nums ${tone.score}" title="Transparent priority score">${escapeHtml(formatNumber(card.score))}<span class="text-xs font-semibold text-slate-400">/100</span></span>
           </div>
         </div>
 
@@ -221,12 +186,7 @@ function cardMarkup(card) {
             ${card.events.length > events.length ? `<p class="mt-2 text-xs text-slate-400">+ ${escapeHtml(formatNumber(card.events.length - events.length))} more recent ${card.events.length - events.length === 1 ? 'event' : 'events'} in General Alerts</p>` : ''}
           </div>
           <aside>
-            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Why it ranked here</div>
-            <div data-ai-why class="mt-2 space-y-1.5">
-              ${positiveParts.map((part) => scorePart(part, false)).join('')}
-              ${negativeParts.map((part) => scorePart(part, true)).join('')}
-            </div>
-            <div data-ai-action class="mt-4 rounded-xl bg-indigo-50/70 p-3 text-xs leading-relaxed text-indigo-900 ring-1 ring-indigo-100">
+            <div data-ai-action class="rounded-xl bg-indigo-50/70 p-3 text-xs leading-relaxed text-indigo-900 ring-1 ring-indigo-100">
               <span class="font-bold uppercase tracking-wide text-indigo-600">Review next</span>
               <p class="mt-1">${escapeHtml(card.action)}</p>
             </div>
@@ -260,13 +220,6 @@ function eventMarkup(event) {
       <div class="mt-1 truncate text-sm font-semibold text-slate-800" title="${escapeHtml(event.headline || '')}">${escapeHtml(event.headline || '')}</div>
       ${event.signalReason ? `<div class="mt-0.5 truncate text-xs text-slate-500" title="${escapeHtml(event.signalReason)}">${escapeHtml(event.signalReason)}</div>` : ''}
     </div>`;
-}
-
-function scorePart(part, negative) {
-  return `<div class="flex items-start justify-between gap-3 text-xs">
-    <span class="leading-relaxed ${negative ? 'text-amber-700' : 'text-slate-600'}">${escapeHtml(part.label)}</span>
-    <span class="shrink-0 font-bold tabular-nums ${negative ? 'text-amber-700' : 'text-indigo-700'}">${part.points > 0 ? '+' : ''}${escapeHtml(formatNumber(part.points))}</span>
-  </div>`;
 }
 
 /** Source URLs originate upstream. Render only ordinary web links, never an executable scheme. */
