@@ -120,7 +120,6 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
       id: packet.id,
       tab: packet.tab,
       route: packet.route,
-      description: packet.description,
       status: packet.status,
       error: packet.error,
       source: packet.source,
@@ -150,10 +149,7 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     },
     catalog: (evidence?.catalog || []).map((source) => ({
       id: source.id,
-      tab: source.tab,
-      route: source.route,
       status: source.status,
-      rowCount: source.rowCount ?? null,
       error: source.error || null,
     })),
     sources,

@@ -133,7 +133,7 @@ ok('the local-model evidence budget retains every source before sharing space ac
   assert.equal(JSON.stringify(fittedEvidence).length <= 10_000, true);
   assert.equal(fittedEvidence.catalog.length, 14);
   assert.equal(fittedEvidence.sources.length, 14);
-  assert.equal(fittedEvidence.sources.every((source) => source.status === 'ready' && source.source && source.coverage), true);
+  assert.equal(fittedEvidence.sources.every((source) => source.tab && source.route && source.status === 'ready' && source.source && source.coverage), true);
   assert.equal(fittedEvidence.sources.some((source) => source.includedRows > 0), true);
   assert.equal(fittedEvidence.selection.evidenceChars, JSON.stringify(fittedEvidence).length);
 });
