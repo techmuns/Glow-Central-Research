@@ -10,6 +10,7 @@ import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
+import { prime as primeBook } from './data/book.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
@@ -56,6 +57,9 @@ const DEFERRED_SOURCES = {
   // read by exactly one sub-view.
   filedHoldings: 'data/institution-holdings.json',
   transactions: 'data/mock/transactions.json',
+  // GLOW: the real family office book, synced daily from techmuns/GlowVentures. Read by the
+  // Family Book tab and by Ask Research's portfolio source; 385KB, so deferred.
+  book: 'data/book.json',
 };
 
 async function fetchAll(sources) {
@@ -117,6 +121,10 @@ function loadDeferred(data) {
       // when the workspace mounts — the live technicals feed (the mark) and portfolio-history.json
       // (the equity curve) — because eight of the nine tabs never need them.
       primePortfolio(data.portfolio, data.transactions);
+
+      // GLOW: the family office book. The module falls back to fetching the file itself if this
+      // pass failed, so a bad deferred load costs a second request rather than an empty tab.
+      primeBook(data.book);
       return data;
     })
     .catch((err) => {

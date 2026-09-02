@@ -41,6 +41,9 @@ import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as portfolio from '../data/portfolio.js';
+// GLOW: the real family office book behind the `portfolio` source — see research/book-packet.js.
+import * as book from '../data/book.js';
+import { bookEvidence } from './book-packet.js';
 import { providerEvidenceChars } from './evidence-shared.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
@@ -58,7 +61,10 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'market-news', tab: 'News', route: '#/research/news', description: 'Market-wide Moneycontrol stories; intentionally not company-scopeable.' },
   { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE filings in the exchange-wide retained capture.' },
   { id: 'insider-trades', tab: 'Insider Trades', route: '#/research/insider-trades', description: 'Insider and promoter disclosures in the upstream\'s own vocabulary.' },
-  { id: 'portfolio', tab: 'Portfolio Analytics', route: '#/portfolio/overview/positions', description: 'FIFO positions, marked values, returns and drawdown from the hidden but routable portfolio workspace.' },
+  // GLOW DIVERGENCE: the `portfolio` source is the REAL family office book (public/data/book.json,
+  // synced daily from techmuns/GlowVentures), not the illustrative FIFO ledger. Same id, so the
+  // catalog stays fifteen sources and every consumer of `portfolio` keeps working.
+  { id: 'portfolio', tab: 'Family Book', route: '#/research/family-book', description: 'The family office book as the wealth platforms’ statements print it — every account, consolidated with each duplicate counted once, synced daily from GlowVentures.' },
 ];
 
 const SOURCE_BY_ID = new Map(DASHBOARD_RESEARCH_SOURCES.map((source) => [source.id, source]));
@@ -955,24 +961,13 @@ const BUILDERS = [
     },
   },
   {
+    // GLOW DIVERGENCE: the real book, not the mock ledger. Everything the packet says is built in
+    // research/book-packet.js; this entry only wraps it with the two helpers that live here.
     id: 'portfolio',
-    load: () => portfolio.load(),
+    load: () => Promise.all([book.load(), technicals.load().catch(() => null)]),
     read({ scope, plan }) {
-      const wanted = scope === 'watchlist' ? watchlist.tickers() : null;
-      const base = portfolio.forScope(scope);
-      const rows = wanted ? base.filter((row) => wanted.has(row.ticker)) : base;
-      const meta = portfolio.meta() || {};
-      const summary = scope === 'watchlist' ? portfolioScopeSummary(rows) : portfolio.summary();
-      return sourcePacket(this.id, {
-        source: `Portfolio ledger + ${meta.priceSource || 'technical marks'} + ${meta.historySource || 'price history'}`,
-        asOf: meta.asOf || meta.pricedAt || null,
-        rowCount: rows.length,
-        coverage: { tradingDays: meta.tradingDays, curveCoveragePct: scope === 'watchlist' ? null : round(meta.coverage) },
-        summary: portfolioSummaryPacket(summary),
-        definition: `Ledger is MOCK; execution prices and history are real closes; marks from the technicals feed. Unpriced positions are carried at cost, not zero.${scope === 'watchlist' ? ' Watchlist totals are recomputed from its ticker rows only; XIRR, TWR, benchmark and drawdown are omitted.' : ''}`,
-        dataQuality: 'mixed real and mock, explicitly separated',
-        ...chooseRows(rows, plan, portfolioRow, (a, b) => (b.marketValueRupees ?? 0) - (a.marketValueRupees ?? 0)),
-      });
+      const packet = bookEvidence({ scope, tickers: scope === 'watchlist' ? watchlist.tickers() : null });
+      return sourcePacket(this.id, { ...packet.details, ...chooseRows(packet.rows, plan, packet.mapRow, packet.compare) });
     },
   },
   {

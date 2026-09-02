@@ -1,16 +1,23 @@
-name: Series store refresh
+name: GlowVentures sync (series store + family book)
 
-# THE MACRO SERIES STORE behind the Macro Research and Economy & Macro tabs is harvested in
-# techmuns/GlowVentures (`npm run harvest`, nightly at 02:00 UTC) and committed there under
-# `public/series/`. This job copies it here every day after that harvest, so both dashboards read
-# the same figures and this repository carries no harvester of its own — one source of truth for a
-# store that is measured, not computed, on either side. See docs/DATA-CONTRACTS.md, "The macro
-# series store".
+# TWO THINGS RIDE ONE CLONE OF techmuns/GlowVentures, every day:
+#
+#   • THE MACRO SERIES STORE behind the Macro Research and Economy & Macro tabs, harvested there
+#     (`npm run harvest`, nightly at 02:00 UTC) and committed under `public/series/`. Copied here
+#     verbatim so both dashboards read the same figures and this repository carries no harvester
+#     of its own — one source of truth for a store that is measured, not computed, on either side.
+#   • THE FAMILY OFFICE BOOK behind the Family Book tab and Ask Research's portfolio source. That
+#     repository assembles it offline from the wealth platforms' PDF statements and bakes it into
+#     `src/data/glowData.ts`; `scripts/build-book.mjs` reads the generated arrays out of it and
+#     writes `public/data/book.json`, and `scripts/check-book.mjs` refuses a file whose sums do
+#     not reconcile to the upstream headline — so a bad build commits nothing.
+#
+# See docs/DATA-CONTRACTS.md — "The macro series store" and "public/data/book.json".
 #
 # IT NEEDS ONE SECRET, because that repository is private: GLOWVENTURES_READ_TOKEN, a fine-grained
 # GitHub personal access token for techmuns/GlowVentures with the single permission
-# "Contents: read". Without it the job says so and exits green — the committed copy simply ages,
-# and the tabs print the harvest time on every visit so nobody mistakes it for today's.
+# "Contents: read". Without it the job says so and exits green — the committed copies simply age,
+# and both tabs print their capture time on every visit so nobody mistakes it for today's.
 
 on:
   schedule:
@@ -31,34 +38,48 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Copy the series store from GlowVentures
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Clone GlowVentures and copy the series store
         env:
           TOKEN: ${{ secrets.GLOWVENTURES_READ_TOKEN }}
         run: |
           if [ -z "$TOKEN" ]; then
-            echo "::warning title=Series refresh skipped::GLOWVENTURES_READ_TOKEN is not set as a repository secret, so the series store was not refreshed. Add a fine-grained PAT for techmuns/GlowVentures with Contents: read."
+            echo "::warning title=GlowVentures sync skipped::GLOWVENTURES_READ_TOKEN is not set as a repository secret, so neither the series store nor the family office book was refreshed. Add a fine-grained PAT for techmuns/GlowVentures with Contents: read."
             echo "### Skipped — no GLOWVENTURES_READ_TOKEN" >> "$GITHUB_STEP_SUMMARY"
-            echo "The committed series store was left as it is. Add the secret under Settings → Secrets and variables → Actions to refresh it daily." >> "$GITHUB_STEP_SUMMARY"
+            echo "The committed series store and book were left as they are. Add the secret under Settings → Secrets and variables → Actions to refresh them daily." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/techmuns/GlowVentures.git" /tmp/glowventures
           src_sha=$(git -C /tmp/glowventures rev-parse --short HEAD)
           rsync -a --delete /tmp/glowventures/public/series/ public/data/series/
           echo "SRC_SHA=$src_sha" >> "$GITHUB_ENV"
-          echo "Copied $(find public/data/series -type f | wc -l) files from techmuns/GlowVentures@$src_sha"
+          echo "Copied $(find public/data/series -type f | wc -l) series files from techmuns/GlowVentures@$src_sha"
 
-      - name: Commit the refreshed store to main
+      # THE BOOK, from the same checkout — same source, same day, same commit. `check-book.mjs`
+      # exits non-zero when the consolidated sum (each duplicate counted once) is not the upstream
+      # headline, when a dedupe group has one member, or when the ring-fenced holding is inside
+      # the positions; the job then fails here and the commit step never runs.
+      - name: Build and reconcile the family office book
+        if: env.SRC_SHA != ''
+        run: |
+          GLOWVENTURES_DIR=/tmp/glowventures node scripts/build-book.mjs
+          node scripts/check-book.mjs
+
+      - name: Commit the refreshed store and book to main
         if: env.SRC_SHA != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/data/series
+          git add -A public/data/series public/data/book.json
           if git diff --cached --quiet; then
-            echo "The series store is already current."
+            echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          git commit -m "Series store refresh ($(date -u +%Y-%m-%d)) — from techmuns/GlowVentures@${SRC_SHA}"
+          git commit -m "GlowVentures sync ($(date -u +%Y-%m-%d)) — series store and family book from techmuns/GlowVentures@${SRC_SHA}"
           for attempt in 1 2 3 4; do
             if git push origin HEAD:main; then exit 0; fi
             echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."

@@ -48,7 +48,7 @@ That only works if the two repositories agree about who owns what:
 | **Glow** | the brand: `public/index.html` title/description/favicon, the `:root` tokens, `tailwind.config.cjs` (the champagne palette) and the stylesheet it generates | the palette is a config file, not class names — see *Design tokens* |
 | **Glow** | the deployment: `wrangler.jsonc` (Worker name, `GH_REPO`, rate-limit namespace), and the default Worker host in `scripts/scrape-filings.mjs` (`FILINGS_BASE`) and `scripts/scrape-super-investors.mjs` (`SI_BASE`) | deployment-specific values; the file headers say so, and the sync greps for all of them after every merge |
 | **Glow** | the book and the universe: everything under `public/data/` | `.gitattributes` marks them `merge=ours`; this repo's own scheduled scrapes regenerate them from its own book |
-| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), and the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
+| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — and the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs` and `public/data/book.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
 | **Sattva** | everything else — every tab, the kit, the Worker, the scrapers, the suite | this is where code is written |
 
 Four rules follow:
@@ -803,6 +803,55 @@ manifest's `first`/`last` span, and a missing chunk resolves to nothing rather t
 series has a gap inside its span (checked against every directory when the tabs were built); if the
 harvester ever leaves one, write the list of years each series holds at copy time and read it
 before fetching, rather than tolerating the 404.
+
+### The family office book — the number Ask Research answers with (GLOW-OWNED)
+
+**`public/data/book.json` is the family's real, consolidated book, and it is not built here.**
+techmuns/GlowVentures reads the PDF statements each wealth platform issues, reconciles them, and
+bakes the result into a generated file (`src/data/glowData.ts`, `npm run build-book` there).
+`scripts/build-book.mjs` reads the generated arrays out of that file and writes the subset this
+dashboard renders, as plain JSON, with the same nulls in the same places; `scripts/check-book.mjs`
+refuses the file unless it reconciles; and the daily GlowVentures copy
+(`.github/workflows/series-refresh.yml`, the same clone that brings the macro series store) runs
+both and commits the result. Three consumers read it: `js/data/book.js` (the module), the **Family
+Book** tab (`js/tabs/family-book.js`), and Ask Research's `portfolio` source, whose packet is built
+in `js/research/book-packet.js` and wrapped by one small hunk in the upstream `estate.js`.
+
+It replaced the illustrative FIFO ledger as the answer to *"what is my portfolio worth"*, because
+Ask Research was answering that question with **₹5.49L, up 19.91%** — twelve invented positions —
+while the book stood at ₹710 Cr. The mock ledger still drives the hidden Portfolio Analytics
+workspace, under its *Illustrative ledger* pill; it is no longer an evidence source.
+
+Four rules, and each is a rule the rest of this file already runs on:
+
+1. **Count each `dedupeGroup` once.** The same AIF folio is reported on two family members'
+   statements with identical figures. Every row is kept — an owner's view shows each statement as
+   printed, and the row says *also reported under* the other member — but a CONSOLIDATED figure
+   counts the holding once, exactly as GlowVentures' `dedupedPositions` does. `book.counted()` is
+   that set; `book.positions()` is every row. Anything that spans more than one owner reads
+   `counted()`, and `check-book.mjs` fails the file when the counted sum is not the upstream
+   headline to the paisa, or when a group has one member (a broken dedupe, not an absent
+   duplicate).
+2. **A null is not zero.** A depository does not know what shares cost; an AIF unit has no price
+   per unit. Sixty rows carry no cost, and they render as an em dash whose title says *not zero* —
+   because a zero cost reads as a 100% gain, and a summed zero reads as a cheaper book.
+3. **The ring-fenced promoter holding is outside the book on both dashboards.** GlowVentures keeps
+   it out of `BOOK_POSITIONS` and on its own page; it travels here as `ringFenced[]`, is named in
+   the provenance modal with its value, and is in no total, no weight and no packet figure.
+   `check-book.mjs` fails the file if it is also inside `positions`.
+4. **The statements' figures are the figures; the one derived number is labelled.** Value, cost,
+   P&L and return are each platform's own marks on its report date, which is printed on every row.
+   The tab derives exactly one figure — **EOD mark (derived)**, quantity × the technicals feed's
+   close, listed symbols only — and the heading, the cell title, the drill and the packet all say
+   so. The listed/private split mirrors `PRIVATE_CLASSES` upstream and is summed from the rows,
+   never `total − listed`, so an unnamed class cannot silently become private.
+
+**Scope on this tab.** The book is the book under Portfolio and Universe alike — there is no wider
+universe of the family's positions to widen to — and the pill says so. Watchlist narrows to the
+rows filed under a starred symbol, and an empty watchlist still shows the book (`allowEmptyScope`).
+The scope toggle's *Portfolio* definition (`js/data/coverage.js`, the 142-line direct-equity
+statement) is **unchanged**: the book has 293 rows with an NSE symbol across 49 accounts, and
+redefining every research tab's Portfolio filter by it is a product decision, not a sync.
 
 ### Two disclosures that look identical — the Institutions rule
 
@@ -2831,7 +2880,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Change the Macro Research or Economy & Macro tab | `js/tabs/macro-research.js` / `js/tabs/economy-macro.js` — both GLOW-OWNED; the store they read is `public/data/series/` (see *The macro series store* below), the chart is `js/ui/series-chart.js`, the calendar route is `worker/econ-calendar.mjs` |
-| Refresh the macro series store | run **Series store refresh** under Actions (daily at 03:30 UTC when `GLOWVENTURES_READ_TOKEN` is set); it copies `public/series/` from techmuns/GlowVentures, where `npm run harvest` produces it |
+| Refresh the macro series store | run **GlowVentures sync** under Actions (daily at 03:30 UTC when `GLOWVENTURES_READ_TOKEN` is set); it copies `public/series/` from techmuns/GlowVentures, where `npm run harvest` produces it, and rebuilds the book in the same run |
+| Change what Ask Research says the portfolio is worth | `js/research/book-packet.js` (the packet) + `js/data/book.js` (the module) — the `portfolio` source in `estate.js` is a one-hunk wrapper; read *The family office book* first |
+| Refresh the family office book | it rides the daily GlowVentures copy; by hand: `GLOWVENTURES_DIR=/path/to/glowventures node scripts/build-book.mjs && node scripts/check-book.mjs`, commit `public/data/book.json` |
+| Change the Family Book tab | `js/tabs/family-book.js` — the whole tab is that one file |
 | Change the Fund Returns view | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html` |
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and `scripts/scrape-filings.mjs` read it |
 | Pull the latest upstream code into this repo | run **Sync from Sattva** under Actions (it also runs daily); on a conflict it opens a PR instead of pushing — read *This dashboard is a downstream of Sattva* first |

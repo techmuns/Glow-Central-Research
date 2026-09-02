@@ -1949,6 +1949,56 @@ a sign and no verdict. On a static origin there is no route, and the tab says ex
 
 ---
 
+
+## `public/data/book.json` — the family office book (GLOW-OWNED)
+
+**Source.** techmuns/GlowVentures `src/data/glowData.ts` — generated there from the PDF statements
+in that repository's archive (`npm run build-book`). **Cadence.** Daily at 03:30 UTC by
+`.github/workflows/series-refresh.yml` (needs `GLOWVENTURES_READ_TOKEN`), or by hand with
+`GLOWVENTURES_DIR=… node scripts/build-book.mjs`. `scripts/check-book.mjs` must pass before the
+file is committed. **Units.** Rupees, as the statements print them; the UI converts to crore.
+
+```jsonc
+{
+  "_provenance": "…",
+  "source": "techmuns/GlowVentures src/data/glowData.ts",
+  "builtFrom": "4f6b363",              // upstream commit — the only thing that makes a diff meaningful
+  "asOf": "2026-08-13",                // the newest account report date in the book
+  "summary": { "asOf", "listedValue", "privateValue", "totalValue", "positionsCount", "entitiesCount", "startupsCount", "accountsCount" },
+  "owners":   [{ "ownerId", "name" }],
+  "accounts": [{ "accountId", "provider", "accountNo", "ownerId", "owner", "strategy", "engagement",
+                 "providerEngagement", "asOf", "inceptionDate", "custodian", "members",
+                 "noPositionsReason" }],   // set on an account whose documents carry no valuation
+  "positions": [{ "securityKey", "security", "symbol", "isin", "accountId", "memberId", "sector",
+                  "providerSector", "assetClass", "quantity", "marketValue", "costBasis",
+                  "unrealizedPnL", "returnPct", "avgCost", "currentPrice", "costBasisSource",
+                  "stCostBasis", "ltCostBasis", "daysToLT", "heldSince", "accruedIncome",
+                  "dividendReceived", "positionIrrPct", "dedupeGroup", "alsoReportedUnder",
+                  // joined from the account:
+                  "provider", "owner", "ownerId", "strategy", "engagement", "accountAsOf" }],
+  "ringFenced": [{ …position…, "reason" }],  // outside every total, as upstream — see CLAUDE.md
+  "navHistory": [{ "period", "date", "nav", "accountsOnDate", "accountsCarried", "flowIn", "unreportedFlowValue" }],
+  "accountNavHistory": { "<accountId>": [...] },
+  "accountCashFlows":  { "<accountId>": [...] },
+  "realisedByClass":   [...]
+}
+```
+
+Invariants, asserted by `scripts/check-book.mjs` and by the suite against the shipped file:
+
+- `Σ marketValue over positions, each dedupeGroup counted once` **=** `summary.totalValue`, to the
+  paisa; the same for the listed/private split (`assetClass ∈ {AIF, Unlisted, Structured Product}`
+  is private, mirroring upstream).
+- every `marketValue` is a finite number; `costBasis`, `unrealizedPnL`, `returnPct`, `avgCost`,
+  `currentPrice`, `positionIrrPct` may be `null` and **null is not zero**.
+- a `dedupeGroup` has at least two members; `ringFenced[].securityKey` never appears in `positions`.
+- `symbol` is an NSE symbol where the upstream resolved one (293 of 371 rows); a row without one is
+  a fund unit, an AIF, cash or an unlisted line and gets no EOD mark.
+
+**Not carried, deliberately:** nothing a statement did not print. There is no invented cost for a
+depository line, no rupee value for an account that reports income only, and no quote, rationale or
+view attributed to anyone.
+
 ## `GET /api/returns-ranking` — LIVE, fund returns & peer ranking (AmfiBeas)
 
 The **Institutions** sub-view (now labelled **Fund Returns**). Every tracked mutual fund and ETF,

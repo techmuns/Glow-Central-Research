@@ -330,6 +330,7 @@ const routes = await page.evaluate(async () => {
     research: [
       'tabs/macro-research.js',
       'tabs/economy-macro.js',
+      'tabs/family-book.js',
       'tabs/ai-alerts.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
@@ -457,6 +458,120 @@ await page.locator('[data-impact="high"]').click();
 await page.waitForTimeout(300);
 
 // ---------------------------------------------------------------------------------------
+// ---- GLOW-OWNED: the family office book -------------------------------------------------------
+// THE REAL BOOK, not the illustrative ledger: `public/data/book.json` is copied daily from
+// techmuns/GlowVentures, the Family Book tab renders it, and Ask Research's `portfolio` source
+// answers from it. Three claims are asserted here, each against the shipped file rather than a
+// fixture: the sums reconcile to the upstream headline with each duplicate counted once, a null
+// on a statement is never rendered or summed as zero, and the evidence packet carries the book's
+// consolidated value rather than the mock ledger's.
+console.log('\n— family book —');
+{
+  const bookAudit = await evalSafe(async () => {
+    const book = await import('/js/data/book.js');
+    await book.load();
+    const m = book.meta();
+    const all = book.positions();
+    const counted = book.counted();
+    const naive = all.reduce((s, p) => s + (Number.isFinite(p.marketValue) ? p.marketValue : 0), 0);
+    return {
+      asOf: m.asOf,
+      totalValue: m.totalValue,
+      countedValue: m.countedValue,
+      residual: m.residual,
+      rows: all.length,
+      countedRows: counted.length,
+      naiveMinusCounted: Math.round((naive - m.countedValue) * 100) / 100,
+      doubleCounted: m.doubleCounted,
+      nullCost: all.filter((p) => p.costBasis == null).length,
+      // A zero cost is a statement figure only on a line that is itself worth nothing — an empty
+      // cash line. A zero cost under a valued holding would be a null turned into a number.
+      zeroCostOnValuedRow: all.filter((p) => p.costBasis === 0 && p.marketValue !== 0).length,
+      zeroCost: all.filter((p) => p.costBasis === 0).length,
+      ringFenced: m.ringFenced,
+      ringInside: book.ringFenced().some((r) => all.some((p) => p.securityKey === r.securityKey)),
+      listedPlusPrivate: Math.round((m.countedListed + m.countedPrivate) * 100) / 100,
+    };
+  });
+  ok('book.json loads and states its statement date', !!bookAudit?.asOf, bookAudit?.asOf);
+  ok('the consolidated sum, each duplicate counted once, IS the upstream headline',
+    bookAudit?.residual === 0 && bookAudit?.countedValue === bookAudit?.totalValue,
+    `₹${(bookAudit?.countedValue / 1e7).toFixed(2)} Cr over ${bookAudit?.countedRows} of ${bookAudit?.rows} rows · residual ${bookAudit?.residual}`);
+  ok('...and the naive sum over every row would overstate it by exactly the collapsed duplicates',
+    bookAudit?.naiveMinusCounted === bookAudit?.doubleCounted && bookAudit?.doubleCounted > 0,
+    `₹${(bookAudit?.doubleCounted / 1e7).toFixed(2)} Cr collapsed`);
+  ok('...listed + private is the consolidated total', bookAudit?.listedPlusPrivate === bookAudit?.countedValue);
+  ok('a cost the statement does not carry is null in the file, never zero',
+    bookAudit?.nullCost > 0 && bookAudit?.zeroCostOnValuedRow === 0,
+    `${bookAudit?.nullCost} null · ${bookAudit?.zeroCost} zero, all on empty cash lines`);
+  ok('the ring-fenced holding is carried separately and is not inside the positions',
+    bookAudit?.ringFenced >= 1 && bookAudit?.ringInside === false);
+
+  await go('/#/research/family-book?scope=portfolio', 2500);
+  await page.locator('[data-book-table] table').waitFor({ state: 'visible', timeout: 15000 });
+  // The table streams its rows in after a screenful; count the settled table, never the race.
+  const bookRowCount = await rowCount();
+  const bookHead = await page.locator('#content-host').innerText().catch(() => '');
+  ok('the Family Book tab renders every counted position as one table', bookRowCount === bookAudit?.countedRows, `${bookRowCount} rows painted of ${bookAudit?.countedRows} counted`);
+  // The card prints the crore figure the way format.js does — en-IN grouping, two decimals — so
+  // the expectation is built the same way, from the file, not typed.
+  const expectedCrore = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(bookAudit.totalValue / 1e7);
+  ok('...with the consolidated value on the first stat card, in crore',
+    bookHead.includes(`₹${expectedCrore} Cr`),
+    `expected ₹${expectedCrore} Cr · ${(bookHead.match(/Consolidated value[\s\S]{0,40}/) || [''])[0].replace(/\s+/g, ' ')}`);
+  ok('...and the head says the figures are statements, with their date', /Statements · as of/.test(bookHead));
+  const dashTitles = await page.locator('[data-book-table] tbody td span[title*="not zero"], [data-book-table] tbody td span[title*="Not zero"]').count();
+  ok('a missing cost renders as a dash that says it is not zero', dashTitles > 0, `${dashTitles} such cells on the painted rows`);
+  ok('the EOD mark column is headed as derived', /EOD mark\s*\(derived\)/.test(bookHead));
+  await page.locator('[data-book-info]').click();
+  await page.waitForTimeout(300);
+  const bookModal = await page.locator('#modal-content').innerText().catch(() => '');
+  ok('the Sources modal names GlowVentures, the reconciliation and the ring-fenced holding',
+    /GlowVentures/.test(bookModal) && /reconcil/i.test(bookModal) && /Ring-fenced/.test(bookModal));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  // Watchlist: the book narrows to starred symbols, and an empty watchlist shows the book, not
+  // the shell's "add companies" panel.
+  await go('/#/research/family-book?scope=watchlist', 1500);
+  ok('an empty watchlist still shows the book, with the pill saying nothing is starred',
+    (await page.locator('[data-book-table] table').count()) === 1 && /nothing starred/.test(await page.locator('#content-host').innerText()));
+
+  // Ask Research's portfolio source now carries the book.
+  const packetAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const book = await import('/js/data/book.js');
+    await book.load();
+    const packet = await buildResearchEvidence({ question: 'What is my portfolio worth?', scope: 'portfolio' });
+    const source = packet.sources.find((item) => item.id === 'portfolio');
+    return {
+      status: source?.status,
+      value: source?.summary?.consolidatedValueRupees,
+      expected: book.meta().totalValue,
+      definition: source?.definition,
+      quality: source?.dataQuality,
+      rows: source?.rowCount,
+      mentionsMock: /mock/i.test(JSON.stringify(source || {})),
+      trimmed: Array.isArray(source?.trimmed) && source.trimmed.length > 0,
+      trimmedFields: Array.isArray(source?.trimmed) ? source.trimmed.join(', ') : null,
+      hasSummary: !!source?.summary,
+      firstRow: source?.rows?.[0],
+    };
+  });
+  ok('the Ask Research portfolio source answers with the book’s consolidated value',
+    packetAudit?.status === 'ready' && packetAudit?.value === packetAudit?.expected,
+    `₹${(packetAudit?.value / 1e7).toFixed(2)} Cr · ${packetAudit?.rows} rows`);
+  ok('...calls itself real statement marks and never mock', /real/i.test(packetAudit?.quality || '') && packetAudit?.mentionsMock === false, packetAudit?.quality);
+  // `boundedMetadata` clips a definition to 240 characters, so the words the model must see have
+  // to fit inside that — asserted on the packet the model receives, not on the source text.
+  ok('...and labels the derived EOD mark and the null-is-not-zero rule in its definition',
+    /derived/i.test(packetAudit?.definition || '') && /null.*never zero|never zero/i.test(packetAudit?.definition || ''),
+    (packetAudit?.definition || '').slice(0, 120));
+  ok('...without the trimmer having to drop its summary to fit the budget',
+    packetAudit?.trimmed === false && packetAudit?.hasSummary === true,
+    packetAudit?.trimmedFields || 'nothing trimmed');
+}
+
 // 2. Earnings Hub — the LIVE results feed
 // ---------------------------------------------------------------------------------------
 console.log('\n— earnings hub (live) —');
@@ -1214,8 +1329,8 @@ console.log('\n— AI alerts —');
   // shell's `landingTab()` resolves it by id, never by position. So the bar order and the landing
   // page are asserted separately, and a merge that restores the upstream line must be re-applied.
   const barOrder = (await page.locator('[data-tab-id]').allInnerTexts()).map((t) => t.trim());
-  ok('...and the tab bar puts the two macro tabs first, then Ask Research',
-    barOrder[0] === 'Macro Research' && barOrder[1] === 'Economy & Macro' && barOrder[2] === 'Ask Research',
+  ok('...and the tab bar puts the three Glow tabs first, then Ask Research',
+    barOrder[0] === 'Macro Research' && barOrder[1] === 'Economy & Macro' && barOrder[2] === 'Family Book' && barOrder[3] === 'Ask Research',
     barOrder.slice(0, 4).join(' · '));
   ok('...so the landing tab is chosen by id, not by bar position',
     (await page.locator('[data-tab-id][aria-selected="true"]').getAttribute('data-tab-id')) === 'ask-research'
@@ -1457,34 +1572,40 @@ console.log('\n— AI alerts —');
     companyAudit.carrying?.length >= 2 && companyAudit.alertRows >= Math.min(companyAudit.alertFeeds, 2) && companyAudit.companyRowsFirst === true,
     `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} General Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
 
+  // GLOW DIVERGENCE: the `portfolio` source is the real family office book (see the family book
+  // section), so the Watchlist check stars a BOOK symbol and expects the book's rows for it — the
+  // same claim as upstream (totals from the starred rows only, whole-book figures omitted), on
+  // real data. A symbol held in more than one account has more than one row, deliberately.
   const watchlistPortfolioAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
-    const portfolio = await import('/js/data/portfolio.js');
+    const book = await import('/js/data/book.js');
     const watchlist = await import('/js/core/watchlist.js');
-    await portfolio.load();
-    const member = portfolio.forScope('portfolio')[0];
-    watchlist.add(member.ticker, member.name);
+    await book.load();
+    const member = book.counted().find((row) => row.symbol);
+    const held = book.bySymbol(member.symbol);
+    watchlist.add(member.symbol, member.security);
     try {
-      const packet = await buildResearchEvidence({ question: `Summarise ${member.ticker}`, scope: 'watchlist' });
+      const packet = await buildResearchEvidence({ question: `Summarise ${member.symbol}`, scope: 'watchlist' });
       const source = packet.sources.find((item) => item.id === 'portfolio');
       return {
-        ticker: member.ticker,
+        ticker: member.symbol,
         rowCount: source.rowCount,
+        expectedRows: held.length,
         positionCount: source.summary?.positions,
-        marketValue: source.summary?.marketValueRupees,
-        expectedMarketValue: member.marketValue,
-        carriesWholeBookReturn: source.summary?.xirrPct != null || source.summary?.twrTotalPct != null || source.summary?.maxDrawdownPct != null,
+        marketValue: source.summary?.consolidatedValueRupees,
+        expectedMarketValue: book.valueOf(held),
+        carriesWholeBookFigures: source.summary?.listedValueCrore != null || source.summary?.privateValueCrore != null || source.summary?.duplicateReportsCollapsedRupees != null,
       };
     } finally {
-      watchlist.remove(member.ticker);
+      watchlist.remove(member.symbol);
     }
   });
-  ok('...recomputes Watchlist portfolio totals from only the filtered ticker rows',
-    watchlistPortfolioAudit.rowCount === 1 &&
-      watchlistPortfolioAudit.positionCount === 1 &&
+  ok('...recomputes Watchlist portfolio totals from only the starred book rows',
+    watchlistPortfolioAudit.rowCount === watchlistPortfolioAudit.expectedRows &&
+      watchlistPortfolioAudit.positionCount === watchlistPortfolioAudit.expectedRows &&
       Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
-      watchlistPortfolioAudit.carriesWholeBookReturn === false,
-    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
+      watchlistPortfolioAudit.carriesWholeBookFigures === false,
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position(s) · ₹${watchlistPortfolioAudit.marketValue}`);
 
   await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();

@@ -24,6 +24,7 @@ import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
 import * as macroSeries from '../data/series.js';
+import * as familyBook from '../data/book.js';
 // NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
@@ -494,6 +495,25 @@ export function sourceGroups() {
           cadence: 'Held six hours at the edge, re-read after fifteen minutes · the last held copy is served, marked stale, when the feed does not answer',
           status: 'live',
           file: 'worker/econ-calendar.mjs · public/js/data/econ-calendar.js · public/js/tabs/economy-macro.js',
+        },
+      ],
+    },
+    {
+      title: 'Family office',
+      icon: '🏛️',
+      tabs: 'Family Book · Ask Research',
+      items: [
+        {
+          name: 'The family office book — GlowVentures',
+          url: 'https://github.com/techmuns/GlowVentures',
+          feeds:
+            `<strong>Real, and not computed here.</strong> Every position the family’s wealth platforms report, consolidated: techmuns/GlowVentures reads the PDF statements each platform issues, reconciles them and bakes the book into a generated file; <code class="rounded bg-slate-100 px-1">scripts/build-book.mjs</code> copies it here as <code class="rounded bg-slate-100 px-1">public/data/book.json</code> with the same nulls in the same places, and <code class="rounded bg-slate-100 px-1">scripts/check-book.mjs</code> refuses a file whose sums do not reconcile to the upstream headline. Value, cost, P&amp;L and return are each platform’s own marks on its report date; a holding reported on two members’ statements is counted once in every consolidated figure; a cost the statement does not carry is null, never zero; the ring-fenced promoter holding is outside every total, as it is upstream. The one derived figure — the EOD mark, quantity × the technicals close for listed symbols — is headed as derived wherever it appears. <strong>Ask Research answers portfolio questions from this file</strong>; the illustrative FIFO ledger under Portfolio Analytics is no longer an evidence source.${clause(
+              num(() => familyBook.meta()?.counted || null),
+              ' <n> positions counted once'
+            )}${clause(num(() => familyBook.meta()?.accounts || null), ' across <n> accounts')}${familyBook.meta()?.asOf ? ` · statements as of ${escapeHtml(familyBook.meta().asOf)}` : ''}${familyBook.meta()?.builtFrom ? ` · GlowVentures@${escapeHtml(familyBook.meta().builtFrom)}` : ''}.`,
+          cadence: 'Copied daily at 03:30 UTC with the series store, when GLOWVENTURES_READ_TOKEN is set · by hand: GLOWVENTURES_DIR=… node scripts/build-book.mjs',
+          status: 'live',
+          file: 'public/data/book.json · public/js/data/book.js · public/js/tabs/family-book.js · public/js/research/book-packet.js · scripts/build-book.mjs · scripts/check-book.mjs',
         },
       ],
     },
