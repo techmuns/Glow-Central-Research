@@ -153,8 +153,10 @@ rather than repeating the string pair, so a fourth scope is a change in one file
   Entries are `{ ticker, name, addedAt }`, so a watched company can be named even where the feed in
   front of you does not carry it.
 - **An empty watchlist is answered by the shell, once, for every tab** — `watchlistEmptyPanel()`,
-  saying there are zero watchlist companies and how to add one. A table reading *"no results match
-  your filters"* over a list nobody has added to would send the reader hunting for a filter to clear.
+  saying there are zero watchlist companies and offering **Add companies to watchlist**, which opens
+  the same Watchlist editor as the header pencil without leaving the current tab or scope. A table
+  reading *"no results match your filters"* over a list nobody has added to would send the reader
+  hunting for a filter to clear.
   The shell decides teardown against what it will actually mount, so the un-mounted tab is destroyed
   rather than left painting into the content host.
 - A row with no company carries **no star at all** rather than one that files a row id, or a company

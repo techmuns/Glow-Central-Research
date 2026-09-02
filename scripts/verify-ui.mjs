@@ -1956,7 +1956,16 @@ console.log('\n— watchlist scope —');
   ok('an empty watchlist gets its own panel, not an empty table', (await page.locator('[data-watchlist-empty]').count()) === 1);
   const emptyText = await hostText();
   ok('...saying there are zero watchlist companies', /zero watchlist companies/i.test(emptyText));
-  ok('...and how to add one', /Universe/.test(emptyText) && /☆/.test(emptyText));
+  const addWatchlist = page.locator('[data-watchlist-add]');
+  ok('...with a direct Add companies to watchlist action',
+    (await addWatchlist.innerText()).trim() === 'Add companies to watchlist');
+  await addWatchlist.click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 3000 });
+  ok('the empty-state action opens the existing editor directly for Watchlist',
+    (await page.locator('[data-scope-editor="watchlist"]').count()) === 1 &&
+      (await page.locator('[data-scope-search]').getAttribute('placeholder'))?.startsWith('Search company'));
+  ok('...without navigating away from the selected Watchlist scope', /scope=watchlist/.test(page.url()));
+  await page.getByRole('button', { name: 'Done' }).click();
   ok('...and it answers every tab, not just this one',
     await (async () => {
       for (const t of ['earnings-hub', 'breakouts', 'corp-announcements']) {
@@ -2119,12 +2128,12 @@ console.log('\n— editable scope lists —');
   await page.getByRole('button', { name: 'Done' }).click();
 
   await go('/#/research/daily-alerts?scope=watchlist', 900);
-  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-watchlist-add]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 3000 });
   await page.locator('[data-scope-search]').fill('ALPHA');
   await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
   await page.locator('[data-scope-result="0"]').click();
-  ok('the same editor adds a company to Watchlist',
+  ok('the empty-state editor adds a company to Watchlist',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '1' &&
       await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === 'ALPHACO')));
   await page.getByRole('button', { name: 'Done' }).click();

@@ -186,7 +186,16 @@ function handleRoute(root, rawRoute) {
   saveLastRoute(router.buildHash(resolved));
 
   renderRouteChrome(root, ws, tabModule, resolved);
-  mountTab(tabModule, resolved);
+  mountTab(root, tabModule, resolved);
+}
+
+function editScope(root, scope) {
+  openScopeEditor({
+    scope,
+    // Closing the editor commits one route repaint. A zero-delay deferral lets the generic modal
+    // finish clearing its own focus trap before the tab starts creating new controls.
+    onChanged: () => setTimeout(() => handleRoute(root, router.parseHash()), 0),
+  });
 }
 
 function renderRouteChrome(root, ws, tabModule, resolved) {
@@ -218,13 +227,7 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
       </svg>
     </button>`;
   const editButton = editMount.querySelector('[data-scope-edit]');
-  const onEdit = () =>
-    openScopeEditor({
-      scope: resolved.scope,
-      // Closing the editor commits one route repaint. A zero-delay deferral lets the generic modal
-      // finish clearing its own focus trap before the tab starts creating new controls.
-      onChanged: () => setTimeout(() => handleRoute(root, router.parseHash()), 0),
-    });
+  const onEdit = () => editScope(root, resolved.scope);
   editButton.addEventListener('click', onEdit);
   chromeDisposers.push(() => editButton.removeEventListener('click', onEdit));
 
@@ -300,7 +303,7 @@ function disposeChrome() {
   chromeDisposers = [];
 }
 
-function mountTab(tabModule, resolved) {
+function mountTab(root, tabModule, resolved) {
   // A drill panel, modal or workspace opened on the previous view must never survive a route
   // change — it would be showing a row that is no longer on screen. `silent` because the URL
   // is already being rewritten by the navigation that triggered this; letting the overlay run
@@ -342,13 +345,13 @@ function mountTab(tabModule, resolved) {
   currentTabModule = nextModule;
 
   if (!nextModule) {
-    // The way out lands on THIS tab under Universe, not on some other tab's universe: the reader
-    // chose this page, and sending them somewhere else to find a star to click is asking them to
-    // navigate back afterwards.
     contentHost.innerHTML = watchlistEmptyPanel({
       tabTitle: tabModule.meta.title,
-      universeHref: router.buildHash({ ...resolved, scope: 'universe' }),
     });
+    // This is the same editor as the pencil in the header, opened explicitly for Watchlist. The
+    // empty state stays on the page the reader chose, and closing after an addition remounts that
+    // page with the newly populated scope.
+    contentHost.querySelector('[data-watchlist-add]')?.addEventListener('click', () => editScope(root, 'watchlist'));
     return;
   }
 
@@ -367,7 +370,7 @@ function mountTab(tabModule, resolved) {
       const route = { workspace: state.workspace, tab: state.tab, subview: state.subview, scope: state.scope, params: next };
       router.replaceRoute(route);
       saveLastRoute(router.buildHash(route));
-      mountTab(tabModule, route);
+      mountTab(root, tabModule, route);
     },
     // Same URL write, but WITHOUT re-mounting the panel. For state that lives in an overlay
     // rather than in the page body: the Deep Dive mirrors its open company and internal tab

@@ -1475,20 +1475,19 @@ export function sectionHead({ title, description = '', meta = '', controls = '' 
  * It lives here rather than in each tab because it is a property of the SCOPE, not of the tab, and
  * nine copies of it is nine chances for one of them to say something slightly different.
  */
-export function watchlistEmptyPanel({ tabTitle = 'This tab', universeHref = '#/research/breakouts?scope=universe' } = {}) {
+export function watchlistEmptyPanel({ tabTitle = 'This tab' } = {}) {
   return `
     <div class="fade-in rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-watchlist-empty>
       <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl text-amber-400 ring-1 ring-amber-100">☆</div>
       <h3 class="font-display mt-4 text-lg font-bold text-slate-900">There are zero watchlist companies right now</h3>
       <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
         ${escapeHtml(tabTitle)} has nothing to show in this scope because nothing is being tracked yet.
-        Add companies to track on this scope view: switch to <strong class="font-semibold text-slate-700">Universe</strong>,
-        find a company on any tab, and click the ☆ beside its name. Every tab — and this scope — then follows that list.
+        Add companies directly to your watchlist by searching for a company name or ticker. Every tab in this scope then follows that list.
       </p>
-      <a href="${escapeHtml(universeHref)}"
-         class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
-        Open ${escapeHtml(tabTitle)} in Universe and star a company
-      </a>
+      <button type="button" data-watchlist-add
+        class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+        Add companies to watchlist
+      </button>
       <p class="mt-4 text-xs text-slate-400">The watchlist is kept in this browser, so it is yours and it survives a reload.</p>
     </div>`;
 }
