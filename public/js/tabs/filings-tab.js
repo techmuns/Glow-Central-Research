@@ -20,7 +20,7 @@
 // three print their denominator — a list of 40 rows looks complete until you know how many
 // companies were asked about.
 
-import { scoreTable, sectionHead, openModal, closeModal } from '../ui/screener.js';
+import { scoreTable, sectionHead, openModal, closeModal, companySeededView } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
@@ -77,6 +77,7 @@ export function makeFilingsTab(cfg) {
   let unsub = null;
   let unregister = null;
   let view = null;
+  let routeCompany = null;
   let ctxRef = null;
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
@@ -126,6 +127,9 @@ export function makeFilingsTab(cfg) {
     ctxRef = ctx;
     disposers.forEach((d) => d && d());
     disposers = [];
+    const seeded = companySeededView(ctx, routeCompany, view);
+    routeCompany = seeded.company;
+    view = seeded.view;
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -407,6 +411,7 @@ export function makeFilingsTab(cfg) {
     clearTimeout(labelReset);
     refreshLabel = 'Check for new';
     view = null;
+    routeCompany = null;
   }
 
   return { meta, render, destroy };

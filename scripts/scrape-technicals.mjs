@@ -31,7 +31,8 @@
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { fetchBars, dayMove } from './lib/yahoo.mjs';
-import { verifyMoves } from './lib/muns-market-data.mjs';
+import { verifyMoves, loadChecks, saveChecks, CHECKS_PATH } from './lib/muns-market-data.mjs';
+import { marketBreadth, priceDateOf } from './lib/technicals-file.mjs';
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { abdiRanaldoSpreadPct, amihudImpactPct, liquidityTier } from "./lib/liquidity-estimators.mjs";
@@ -246,8 +247,12 @@ async function run() {
   // when present. A refusal or a missing day leaves Yahoo's figure and says it was not checked.
   if (process.env.MUNS_VERIFY !== "0") {
     console.log("\nVerifying flagged day moves against the Muns market-data endpoint...");
-    moveVerification = await verifyMoves(results, { log: (line) => console.log(line) });
-    console.log(`  flagged ${moveVerification.flagged} · confirmed ${moveVerification.confirmed} · corrected ${moveVerification.corrected} · unavailable ${moveVerification.unavailable}`);
+    // Every answer is remembered in the checks file, so a re-run — or the follow-up verifier that
+    // keeps asking through the day — never spends the endpoint's quota on a name already answered.
+    const checks = loadChecks(CHECKS_PATH);
+    moveVerification = await verifyMoves(results, { checks, log: (line) => console.log(line), budgetMs: Number(process.env.MUNS_VERIFY_BUDGET_MS) || undefined });
+    saveChecks(CHECKS_PATH, checks);
+    console.log(`  flagged ${moveVerification.flagged} · from cache ${moveVerification.cached} · confirmed ${moveVerification.confirmed} · corrected ${moveVerification.corrected} · unavailable ${moveVerification.unavailable} · refusals ${moveVerification.refusals} in ${Math.round(moveVerification.elapsed_ms / 1000)}s`);
   } else {
     moveVerification = { skipped: true, reason: "MUNS_VERIFY=0" };
   }
@@ -300,35 +305,15 @@ function parsePercentValue(v) {
 
 let moveVerification = null;
 
-/** The most common `bar_date` among priced rows — the session this file's closes belong to. */
-function priceDateOf(rows) {
-  const counts = new Map();
-  for (const r of rows) if (r.bar_date) counts.set(r.bar_date, (counts.get(r.bar_date) || 0) + 1);
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] ?? null;
-}
-
 function flush(scraped, indexBars, failures) {
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   // On a full run `carried` is empty and this is just `scraped`. On a gap-fill it is every row the
   // committed file already had, kept byte-for-byte — including the NSE delivery figures, which the
   // gap-fill has no way to re-collect for them and must not blank.
   const results = carried.length ? [...carried, ...scraped] : scraped;
-  // Market-wide advances vs declines across the Nifty 500 universe. Used by
-  // the Sentiment & Liquidity tab so we don't depend on NSE's breadth API.
-  //
-  // NSE-500 ROWS ONLY, deliberately. Breadth is a statement about the index, and this file now
-  // also carries held companies that are not in it. Folding 68 small- and mid-caps into an
-  // advance/decline ratio would leave it labelled "Nifty 500" while measuring something else —
-  // the same class of error as reporting a count without its denominator.
-  const withChange = results.filter((r) => r.listSource !== "book" && Number.isFinite(r.pct_change_today));
-  const advances = withChange.filter((r) => r.pct_change_today > 0).length;
-  const declines = withChange.filter((r) => r.pct_change_today < 0).length;
-  const breadth = withChange.length ? {
-    advances, declines,
-    unchanged: withChange.length - advances - declines,
-    ad_ratio: declines === 0 ? null : Math.round((advances / declines) * 100) / 100,
-    universe: withChange.length,
-  } : null;
+  // Market-wide advances vs declines across the Nifty 500 universe, from the one shared rule
+  // (lib/technicals-file.mjs) — the follow-up verifier recomputes it after correcting a move.
+  const breadth = marketBreadth(results);
   const payload = {
     generated_at: new Date().toISOString(),
     source: "Yahoo Finance",

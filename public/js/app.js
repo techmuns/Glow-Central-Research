@@ -13,6 +13,10 @@ import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
+// Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
+// SDK client at import time, so pulling it in from the bootstrap is what guarantees the client
+// exists — and its window listener is attached — before the host can post `host:init`.
+import { startHostCapture } from './core/host-capture.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -146,6 +150,12 @@ async function boot() {
     return;
   }
   mount(root);
+
+  // The host can ask this dashboard for a picture of itself and for its current state. Registered
+  // AFTER mount so `#dashboard-main` exists by the time a capture can arrive, and exactly once.
+  // It does NOT call `sdk.ready()` — the SDK sends `dashboard:ready` itself from inside its
+  // `host:init` handler, and a manual one races that and breaks the handshake permanently.
+  startHostCapture();
 
   // GitHub schedules are best-effort. One small timestamp request checks every committed capture
   // after first paint and dispatches only the ones outside their real operating window. The Worker

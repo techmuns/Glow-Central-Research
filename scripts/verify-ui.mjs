@@ -47,11 +47,15 @@ const exceljsBlocked = () => cdnBlocked(/exceljs/i);
 // Errors that belong to the environment rather than the page. Two families, both of which this
 // suite already reports as SKIPs elsewhere, so counting them again as console errors would make
 // the one unambiguous check in the run unreadable:
-//   • Google Fonts and on-demand ExcelJS, unreachable without egress;
+//   • Google Fonts, on-demand ExcelJS and html-to-image, and the Munshot Dashboard SDK bundle —
+//     all unreachable without egress. The SDK's absence is a SUPPORTED state, not a degraded one:
+//     js/core/sdk.js falls back to its no-op client and the dashboard runs exactly as it does
+//     outside the host, which is the mode this whole suite drives it in. The handshake itself is
+//     asserted against the real bundle by scripts/verify-sdk.mjs, which serves it from disk.
 //   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
 //     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
 // Everything else counts, and the number filtered is always printed rather than swallowed.
-const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)|munshot-dashboard-sdk|munshot\.s3\./i;
 // A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
 // failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
 // URL answers 404, not ERR_CONNECTION_RESET, so those still count.
@@ -1481,6 +1485,16 @@ console.log('\n— AI alerts —');
     /dashboard research/i.test(researchAnswer) &&
       (await page.locator('.research-source-chip-web').count()) === 0,
     researchAnswer.replace(/\s+/g, ' ').slice(0, 240));
+  // A CITATION IS A LINK INTO THE DASHBOARD. `[Dashboard: Earnings Hub]` in the stubbed answer must
+  // render as an anchor to that tab's route in the active scope — and, because this question named
+  // no company, without a `company=` seed it would have no honest value for.
+  const citation = await page.evaluate(() => {
+    const a = document.querySelector('[data-research-transcript] a.research-cite');
+    return a ? { href: a.getAttribute('href'), text: a.textContent.trim(), unresolved: document.querySelectorAll('[data-research-transcript] .research-cite-unresolved').length } : null;
+  });
+  ok('...and renders every [Dashboard: Page] citation as a link into that tab',
+    !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
+    citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
 
   // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old
@@ -1509,6 +1523,22 @@ console.log('\n— AI alerts —');
   });
 
   await page.unroute('**/api/research');
+
+  // EVERY TABLE TAB HONOURS `?company=` THE SAME WAY: the first paint after the parameter appears
+  // opens the table searched for that company, which is what a citation deep-links to. Asserted on
+  // the Earnings Hub with a company that actually filed, so the seeded search has rows to show.
+  const seedTicker = await page.evaluate(async () => {
+    const earnings = await import('/js/data/earnings-live.js');
+    await earnings.load();
+    return earnings.all().find((r) => r.ticker)?.ticker || null;
+  });
+  await go(`/#/research/earnings-hub?scope=universe&company=${encodeURIComponent(seedTicker || '')}`, 2500);
+  await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
+  const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
+  const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  ok('a table tab opened with ?company= is searched for that company',
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream

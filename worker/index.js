@@ -33,7 +33,7 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, withCallerToken, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 import {
   dispatchWorkflow,
@@ -106,6 +106,17 @@ export default {
     if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
       return preflight();
     }
+
+    // THE READER'S OWN TOKEN, BUT ONLY WHERE THIS DEPLOYMENT HAS NONE. The dashboard runs inside
+    // the Munshot host, which hands the browser the signed-in reader's session JWT; the browser
+    // sends it back on these same-origin routes (js/core/host-context.js). `withCallerToken` fills
+    // an ABSENT `MUNS_TOKEN` with it and changes nothing otherwise — a configured secret always
+    // wins, so a deployment that has one behaves exactly as it did. What it buys is the `no-token`
+    // state, which is a hard failure on screen today and needed an operator to clear. Read the note
+    // above `withCallerToken` in worker/muns.mjs before giving this env to a route whose response
+    // is specific to the caller: these all share a URL-keyed edge cache.
+    env = withCallerToken(env, request);
+
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
     }

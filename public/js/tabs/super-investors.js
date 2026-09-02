@@ -27,7 +27,7 @@
 // Every number on this tab is now somebody's disclosure. If aggregate flow data is ever wanted,
 // AMFI publish the real monthly figures and it comes back pointed at those.
 
-import { sectionHead } from '../ui/screener.js';
+import { sectionHead, companySeededView } from '../ui/screener.js';
 import { renderFiled } from '../investors/filed.js';
 import { renderFundReturns } from '../investors/fund-returns.js';
 import { renderLive } from '../investors/live.js';
@@ -58,6 +58,7 @@ let disposers = [];
 let liveUnsub = null;
 let liveUnregister = null;
 let liveView = null;
+let liveRouteCompany = null;
 // The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
@@ -71,6 +72,12 @@ let filedSection = 'institutions';
 // ---------------------------------------------------------------------------------------
 
 export function render(ctx) {
+  // A `?company=` link lands on the disclosed-positions table, searched for that company — the
+  // cards and the quarterly roll-up cannot be narrowed to one name.
+  const seeded = companySeededView(ctx, liveRouteCompany, liveView);
+  if (seeded.company && seeded.company !== liveRouteCompany) liveSection = 'data-table';
+  liveRouteCompany = seeded.company;
+  liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
   // Investors so returning from Institutions opens on the documented All Investors default.
   if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';

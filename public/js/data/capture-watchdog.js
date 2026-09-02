@@ -5,6 +5,8 @@
 // starts the existing refresh workflow only when a source is outside its real operating window.
 // The Worker declines duplicate/in-flight runs and holds a cooldown across readers.
 
+import { authHeaders } from '../core/host-context.js';
+
 const STATUS_ROUTE = 'api/capture-status';
 const REQUEST_TIMEOUT_MS = 12_000;
 const WATCH_EVERY_MS = 30_000;
@@ -85,7 +87,7 @@ async function ask(path, { method = 'GET' } = {}) {
   try {
     const response = await fetch(path, {
       method,
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', ...authHeaders(path) },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const type = response.headers.get('content-type') || '';

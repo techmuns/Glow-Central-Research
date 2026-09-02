@@ -1523,3 +1523,20 @@ export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
       ${body ? `<p class="mt-3 text-xs text-slate-400">${escapeHtml(body)}</p>` : ''}
     </div>`;
 }
+
+/**
+ * Seed a table's search from `?company=` — ONCE per distinct value.
+ *
+ * `#/research/<tab>?company=IIFL` is what an Ask Research citation and an AI Alerts card link to,
+ * and every table tab honours it the same way: the first paint after the parameter appears (or
+ * changes) opens the table searched for that company; later paints keep whatever the reader has
+ * since typed. Returns the view to pass as `initialView` and the company to remember.
+ *
+ *   const seeded = companySeededView(ctx, routeCompany, tableView);
+ *   routeCompany = seeded.company; tableView = seeded.view;
+ */
+export function companySeededView(ctx, lastCompany, view) {
+  const requested = String(ctx?.params?.company || '').trim().toUpperCase();
+  if (requested && requested !== lastCompany) return { company: requested, view: { q: requested } };
+  return { company: requested || null, view };
+}

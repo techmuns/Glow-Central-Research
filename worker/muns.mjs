@@ -57,6 +57,56 @@ const filingsBase = (env) => (env?.MUNS_BASE || NESTJS_BASE).replace(/\/+$/, '')
 const stockSearchBase = (env) => (env?.MUNS_SEARCH_BASE || STOCK_SEARCH_BASE).replace(/\/+$/, '');
 const tokenFor = (env, kind) => (kind === 'news' ? env?.MUNS_NEWS_TOKEN || env?.MUNS_TOKEN : env?.MUNS_TOKEN) || null;
 
+// ---- The reader's own credential, when this deployment has none ------------------------------
+//
+// The dashboard runs inside the Munshot host, which hands the browser the signed-in reader's
+// session JWT over the SDK channel (public/js/core/host-context.js). The browser sends it to our
+// own `api/…` routes, and this is what lets those routes USE it — otherwise the header would be
+// decoration and the integration inert.
+//
+// THE DEPLOYMENT'S OWN SECRET ALWAYS WINS. This fills `MUNS_TOKEN` only when it is ABSENT, so it
+// is strictly a new answer to an existing hard failure: the `no-token` state these clients already
+// name on screen, which today needs an operator with access to the Cloudflare dashboard before the
+// tab can show anything at all. Where a secret is configured nothing changes — same credential,
+// same edge-cache behaviour, same everything.
+//
+// ONE FIELD, DELIBERATELY. `MUNS_NEWS_TOKEN` and `MUNS_LLM_TOKEN` both already fall back to
+// `MUNS_TOKEN`, so filling that one covers news, announcements, insider trades, stock search, the
+// investor books and Ask Research without four separate rules to keep in step.
+//
+// WHAT THIS ASSUMES ABOUT THE CACHE, AND THE ONE THING THAT WOULD BREAK IT. The routes behind this
+// share `caches.default` entries keyed by URL, so a response fetched with one reader's token can be
+// served to the next. That is safe here because every one of these upstreams returns MARKET data —
+// the same filings, the same books, the same search results, whoever asks. **A future route that
+// returns anything specific to the caller must not be given this env**: it would need its own cache
+// key, or no cache at all.
+
+/** The bearer token on a request, or null. Rejects anything that is not one clean token. */
+export function callerToken(request) {
+  const header = request?.headers?.get?.('authorization') || '';
+  const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
+  if (!match) return null;
+  const token = match[1];
+  // `\S+` already excludes the whitespace and CR/LF a header-splitting attempt would need; the
+  // shape check narrows it to the base64url alphabet a JWT is written in, so a header this Worker
+  // did not create cannot carry anything else into an upstream request.
+  if (token.length < 16 || token.length > 4096) return null;
+  if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) return null;
+  return token;
+}
+
+/**
+ * `env`, with the caller's token filling in for a MISSING `MUNS_TOKEN` — and nothing else.
+ * Returns the original `env` untouched whenever a secret is configured or the caller sent nothing
+ * usable, so the common path allocates nothing and behaves exactly as it did before.
+ */
+export function withCallerToken(env, request) {
+  if (env?.MUNS_TOKEN) return env;
+  const token = callerToken(request);
+  if (!token) return env;
+  return { ...env, MUNS_TOKEN: token, MUNS_TOKEN_SOURCE: 'caller' };
+}
+
 /** A failure that names itself, so the UI can say which of them an operator has to fix. */
 export class MunsError extends Error {
   constructor(reason, message, { status = null, url = null } = {}) {

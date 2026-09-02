@@ -103,12 +103,18 @@ public/
       live.js                 live-update polling engine
       watch.js                app-wide feed watchers -> the alert stack
       store.js                IndexedDB payload cache + conditional fetch (see the caching section)
+      sdk.js                  THE Munshot Dashboard SDK client — one, built at import time
+      host-context.js         the host's session token + selected company, and `authHeaders()`,
+                              the ALLOW-LIST that decides which requests may carry the token
+      host-capture.js         the host's two requests: capture.visual (PNG Blob) + capture.snapshot
       format.js               number/date/currency/relative-time helpers
       dom.js                  $, $$, escapeHtml, el, empty
     ui/
       screener.js             THE SCREENER KIT — build tabs from this
       visual.js               avatars, tiers, status pills, signal dots, legend
       sources.js              data-source registry, opened from the header status pill
+      host-ticker.js          the company the HOST has selected, as one header chip. Absent, not
+                              empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the live alert stack, lower-right
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, toggle, search…)
@@ -187,6 +193,8 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
+.github/workflows/price-move-verify.yml    hourly through the Indian day; asks the Muns market-data
+                                           endpoint about every flagged move the scrape could not verify
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
@@ -2000,7 +2008,18 @@ its value with a Muns token. Remove that migration opt-in after installing `MUNS
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through
-`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
+`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`.
+
+**A citation is a link into the dashboard.** The model cites `[Dashboard: Page name]`; the renderer
+hands the name to a resolver the tab supplies (`citeResolver` in `js/tabs/ask-research.js`), which
+matches it against the source registry's tab titles and returns that tab's route in the current
+scope — with `&company=TICKER` when the question resolved to exactly one company, which the answer
+stores on the message so a saved conversation's links still land. A name that matches no registered
+source stays as text: a link that goes nowhere is worse than none. `?company=` is the one URL
+parameter every table tab honours, through `companySeededView()` in `js/ui/screener.js`: the first
+paint after it appears opens the table searched for that company, later paints keep what the reader
+has typed since. General Alerts had it first (for AI Alerts cards); the others now do the same, and
+Super Investors switches to its Data Table section to do it. A scope change
 aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
 label.
 
@@ -2277,6 +2296,27 @@ Three rules, in `scripts/lib/yahoo.mjs`, `scripts/scrape-technicals.mjs` and `js
    shape, a refusal keeps Yahoo's figure and records `move_check: unavailable`, and the whole step is
    bounded to a dozen names. `node scripts/verify-bars.mjs` asserts all three.
 
+**AND THE ENDPOINT'S QUOTA IS SMALLER THAN A DAY'S FLAGGED LIST, SO ONE RUN CANNOT BE THE WHOLE
+ANSWER.** Measured: three anonymous requests answered, then every one of eighteen more — at one
+every three seconds, then one every twenty, with a token, in a burst, for over ninety minutes — was
+refused. Waiting inside the scrape would hold a 603-fetch run hostage to a dozen calls, and dropping
+the check would put Yahoo's figure back where the alert looks. So the check is split across time and
+remembered across runs:
+
+- **`verifyMoves` asks the alert-producing names first**, paces itself, doubles its wait on every
+  refusal, retries the SAME name rather than skipping it, and runs under a wall-clock budget. What is
+  still unanswered when the budget ends says `unavailable` on the row — never a silent figure.
+- **`public/data/price-move-checks.json` is every answer ever received**, keyed `TICKER@bar_date`.
+  It is read before any request, so a name is asked about once per session, whichever job asks.
+- **`scripts/verify-price-moves.mjs` comes back for the rest.** `price-move-verify.yml` runs it
+  hourly through the Indian day under the scrape's concurrency group; each pass answers what it can,
+  recomputes breadth and `price_date` through the shared `lib/technicals-file.mjs`, and commits only
+  if a row changed. Every firing GitHub sheds costs nothing, because each pass resumes exactly where
+  the last one stopped.
+- **`MUNS_TOKEN` as a repository secret is the lever.** Both jobs send it as a Bearer token; an
+  authenticated quota is what lets one pass answer the whole set. Without it the set is still
+  answered — over the day rather than in a run — and the alert row says which figure it carries.
+
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
 Breakouts' pill is the third consumer of that rule, and it got the threshold wrong first in a way
@@ -2301,6 +2341,103 @@ state, `unknown`: never "live", never "stale".
 **And a half-mock view may not wear a green Live.** Breakouts' Earnings Surprise sub-view is amber
 and reads *Mock earnings · live technicals* on the face of the chip, because a screenshot travels
 without the modal.
+
+---
+
+## Running inside the Munshot host — the SDK integration
+
+This dashboard is embedded in the Munshot host as an iframe, and the host hands it the signed-in
+reader's **session token** and **selected company** over a postMessage channel. `public/index.html`
+loads the SDK bundle, `js/core/sdk.js` holds the one client, `js/core/host-context.js` is the state,
+`js/core/host-capture.js` answers the host's two requests, and `js/ui/host-ticker.js` is the only
+thing it draws. `scripts/verify-sdk.mjs` asserts the whole of it against the **real shipped
+bundle**.
+
+**None of it is required for the dashboard to work.** Served as a plain static site — which is how
+`verify-ui.mjs` drives it — there is no host, the client falls back to a no-op, and every feed
+paints from its committed snapshot exactly as before. That is a supported mode, not a degraded one,
+and nothing may render an error state because of it.
+
+### Four rules, and every one of them fails SILENTLY if broken
+
+1. **The SDK is a classic `<script>` in `<head>`, before `js/app.js`** — never `type="module"`,
+   never `async` or `defer`. The bundle is an IIFE: loaded this way the global carries
+   `createDashboardClientSdk`; loaded as a module it carries `{ createClient, Client }` instead.
+2. **One client, built at import time.** The SDK attaches its window listener in its constructor,
+   and `host:init` — the only message that ever carries the channelId — routinely lands before any
+   UI exists. A client built from a mount hook can miss it, and a dashboard that missed it renders
+   perfectly and never receives a token.
+3. **`autoReady` stays at its default, and nothing calls `sdk.ready()`.** The SDK sends
+   `dashboard:ready` itself from inside its own `host:init` handler — verified in the bundle:
+   `channelId = t.channelId … options.autoReady && this.ready()`, in that order, in one message. A
+   manual ready fired from a mount effect races ahead of that, goes out with a placeholder channel
+   the host cannot correlate, and the connection never completes.
+4. **Context is read with `getContext()` and re-synced on every `onMessage`.** Never
+   `await sdk.requestContext()` — it returns a **boolean**, and awaiting it is a TypeError that
+   takes the page down.
+
+`verify-sdk.mjs` asserts each of these from the host's side: nothing is sent before `host:init`,
+**exactly one** `dashboard:ready` comes back on the host's own channel, and a later
+`host:context:update` repoints the view without a reload.
+
+### Where the token may be sent, and where it may NOT
+
+A session JWT is the reader's identity, so this is a security boundary rather than a convenience.
+`authHeaders(path)` in `js/core/host-context.js` is an **allow-list**, and the default is no header:
+
+| Target | Header | Why |
+| --- | --- | --- |
+| our own `api/…` routes | **yes** | same origin; the Worker forwards it to the Munshot upstream it was issued for |
+| `*.muns.io` | **yes** | the issuer |
+| `data/*.json` | **no** | committed static files need no credential, and one would cost them their cache entry |
+| the Concall Deep Dive Worker, the chatter API | **NO** | separate deployments on other origins. Sending a reader's Munshot JWT to a third party hands it a live credential on every poll, and there is no "it is only a read" version of that |
+
+The predicate is asserted at all six boundaries, including a hostname that merely *ends* like
+`muns.io`. Add a call site by spreading `...authHeaders(path)` into its headers — never by
+remembering which paths are which.
+
+### The Worker may use the forwarded token, but only where it has none of its own
+
+`withCallerToken(env, request)` in `worker/muns.mjs` fills an **absent** `MUNS_TOKEN` from the
+caller's bearer and changes nothing otherwise. A configured secret always wins, so a deployment
+that has one behaves exactly as it did. What it buys is the `no-token` state — a hard failure on
+screen today that needs an operator in the Cloudflare dashboard before News, Announcements, Insider
+Trades, stock search, the investor books or Ask Research can show anything.
+
+**Read the note above that function before giving this env to a new route.** These routes share
+URL-keyed edge-cache entries, which is safe only because every upstream behind them returns MARKET
+data — the same filings, the same books, whoever asks. A route whose response is specific to the
+caller needs its own cache key, or no cache.
+
+### The two host requests, and the rule that governs both
+
+`dashboard.capture.visual` returns a PNG **Blob** of `#dashboard-main`; `dashboard.capture.snapshot`
+returns `{ context, selection, data }`. **Neither may throw and neither may return something the
+channel cannot carry** — those two failures are indistinguishable from the host's side, because both
+produce no response and then a timeout. Every path in `host-capture.js` therefore ends at a plain
+object, failures included.
+
+The 512KB cap is measured with `JSON.stringify`, so a **Blob costs ~2 bytes** and is returned
+directly — Base64 is measured in full and a screenshot of a wide table blows the cap. The state
+snapshot is real JSON, so it carries the route, the scope and per-source **counts**, never rows: a
+snapshot that tried to be the data would be dropped on exactly the tabs worth capturing. Tabs
+contribute through `registerSnapshotSource(id, fn)` rather than this module importing eleven tabs.
+
+### The host's ticker is a chip, not a fourth scope
+
+Every tab here is a multi-company screener whose row set is decided by the scope toggle. A host
+selection silently narrowing all eleven would be a scope the toggle does not show and the reader did
+not set — and the scope is the most important fact about any number on this page. So the selection
+is one chip in the header that opens General Alerts filtered to that company, on the route AI Alerts
+already uses.
+
+**So there is nothing here to gate on a null ticker.** The published pattern says a ticker-bound
+widget shows an empty state and sends no ticker-dependent request when the host has selected
+nothing; not one widget in this dashboard is ticker-bound and not one request takes a ticker from
+the host, so the honest rendering of "no selection" is **no chip at all** — never eleven tabs of
+*No stock selected* over feeds that are complete without one. A null token is the same: transient
+on load, permanent off-host, and never a page-level error. Where a feed genuinely cannot be read
+for want of a credential, the existing `no-token` / `unauthorised` states already say so by name.
 
 ---
 
@@ -2664,6 +2801,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scoring model | `js/scoring/` + `js/data/` — see the pattern above |
 | Change the technicals pipeline | `scripts/scrape-technicals.mjs` (`TECH_LIMIT=15` for a smoke run) — its universe is the NSE-500 export **plus the book**, deliberately; read *The universe is the index PLUS the book* in `docs/DATA-CONTRACTS.md` before narrowing it |
 | Change what counts as a close, or the price-move check | `completedBars` / `dayMove` in `scripts/lib/yahoo.mjs` + `scripts/lib/muns-market-data.mjs` (`MUNS_VERIFY=0` skips the check) — read *A close is a claim about a SESSION* first; `node scripts/verify-bars.mjs` is the test |
+| Finish verifying today's flagged moves, or change how often it is tried | `node scripts/verify-price-moves.mjs` (`MUNS_TOKEN=…` for the authenticated quota, `MUNS_VERIFY_BUDGET_MS` for patience) + the cron in `.github/workflows/price-move-verify.yml`; the answers live in `public/data/price-move-checks.json` |
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
 | Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
@@ -2719,6 +2857,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
+| Change where a `[Dashboard: …]` citation links, or make a tab honour `?company=` | `citeResolver()` in `js/tabs/ask-research.js` + `companySeededView()` in `js/ui/screener.js`; the tab's own render seeds its `initialView` from it |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, `load` before `read`, and the packet must stay below the Worker bound **and still carry rows**; read *The budget is measured on what the model receives* first |
 | Change what the model receives, or the evidence budget | `js/research/evidence-shared.js` (the provider shape — the Worker imports it too) + `RESEARCH_EVIDENCE_CHAR_BUDGET` / `ROW_RESERVE_SHARE` in `estate.js` — measure with `providerEvidenceChars`, never `JSON.stringify(packet).length` |
 | Change how a question names a company | `queryPlan()` + `STOP_WORDS` / `WORD_TICKERS` in `js/research/estate.js` — pure, fixture-tested in `scripts/verify-research.mjs` |
@@ -2736,7 +2875,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or refresh an AMC fund's portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it |
 | Wire another fund's real holdings | one entry in `FUNDS` in `scripts/scrape-institution-holdings.mjs`, then re-run it |
 | Build a full-screen analysis view | `openWorkspace` in `js/ui/screener.js` — don't grow the drill panel |
-| Run the pre-push checks | `node scripts/verify-ui.mjs` (serve `public/` on :8080 first); `node scripts/verify-research.mjs` and `node scripts/verify-bars.mjs` need no server |
+| Run the pre-push checks | `node scripts/verify-ui.mjs` and `node scripts/verify-sdk.mjs` (serve `public/` on :8080 first); `node scripts/verify-research.mjs` and `node scripts/verify-bars.mjs` need no server |
+| Change anything about the host handshake, the session token or the capture handlers | `js/core/sdk.js` + `js/core/host-context.js` + `js/core/host-capture.js`, then `node scripts/verify-sdk.mjs` — read *Running inside the Munshot host* first. Every way of getting the handshake wrong is SILENT |
+| Change which requests carry the reader's token | `authHeaders()` / `isMunshotApi()` in `js/core/host-context.js` — it is an allow-list and the default is no header. A third-party origin must never be added to it |
+| Change what the Worker does with a forwarded token | `withCallerToken()` in `worker/muns.mjs` + the one call in `worker/index.js` — a configured `MUNS_TOKEN` always wins, and these routes share a URL-keyed edge cache |
 | Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
@@ -2782,7 +2924,27 @@ Then run the suite — ~410 Playwright assertions, exits non-zero at the end if 
 node scripts/verify-calendar.mjs
 node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
+node scripts/verify-sdk.mjs
 ```
+
+`verify-sdk.mjs` is separate because it needs a different fixture: the dashboard inside an
+**iframe** with a host on the other end of the channel. It drives the **real** shipped SDK bundle —
+fetched once and served to the page from memory, so it does not depend on the browser reaching S3 —
+and asserts the handshake from the host's side:
+
+- nothing is sent before `host:init`, then **exactly one** `dashboard:ready` on the host's own
+  channel, naming this dashboard — which is what catches a manual `ready()` or `autoReady: false`
+- session and market context reach the app through `getContext()`, and a later
+  `host:context:update` repoints the view without a reload; a pushed **logout** clears the token
+  rather than leaving a stale one, and the dashboard keeps rendering
+- every Munshot API request carries `Authorization: Bearer …` and **no committed static file does**,
+  driven through the real call sites rather than the helper alone; the allow-list is asserted at all
+  six boundaries, including the two third-party origins this app calls from the browser and a
+  hostname that merely *ends* like `muns.io`
+- `dashboard.capture.snapshot` answers in the documented `{ context, selection, data }` shape,
+  naming the scope and route; `dashboard.capture.visual` returns a real PNG **Blob**; an
+  unregistered topic is refused **by name**, which is what proves the two real ones are registered;
+  and a capture that cannot run answers with a structured error rather than timing out
 
 It covers, beyond the checklist below:
 
