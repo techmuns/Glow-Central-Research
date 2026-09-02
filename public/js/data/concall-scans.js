@@ -37,6 +37,7 @@
 //   and attributed. We add no scoring of our own here — deliberately. See worker/stockscans.mjs.
 
 import { resultTierOf, sentimentTierOf, docUrl, fingerprint, mergeScans } from './stockscans-shared.js';
+import { filterByScope } from './scope.js';
 import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/concall-scans.json';
@@ -52,7 +53,38 @@ let seenKeys = null; // key -> hadAnalysis, so "analysis landed" counts as an ar
 let arrivals = [];
 const listeners = new Set();
 
-const keyOf = (r) => `${r.companyKey}|${r.when}`;
+/**
+ * A ROW'S IDENTITY IS NOT (COMPANY, TIME) — measured, on this feed, today.
+ *
+ * The research provider can hold TWO analyses of ONE call: Supriya Lifescience's 14 Aug 11:00 call
+ * appears twice, scoring 50.4 and 50.3 against two different documents. Both are theirs and both
+ * are real, so neither may be dropped — but `${companyKey}|${when}` calls them the same row, and a
+ * key that means two different rows is the failure `CLAUDE.md` names under *Performance on large
+ * tables*: the screener's repaint holds `<tr>` nodes in a Map by key, so the collision silently
+ * orphaned one node. It stayed in the DOM through every filter — a scored call sitting at the top
+ * of "Awaiting analysis", out of sort order, which no row COUNT could ever catch.
+ *
+ * So the document is part of what identifies a row, and where even that repeats, a counter closes
+ * it. The failure to prevent is one key meaning two rows; two keys meaning one row is not possible
+ * here, because the id is derived from the row's own content and assigned in the feed's own order.
+ */
+const rowIdOf = (r) => `${r.companyKey}|${r.when}|${r.ssUrl || r.pptSsUrl || ''}`;
+
+function assignRowIds(rows) {
+  const counts = new Map();
+  for (const r of rows) {
+    const base = rowIdOf(r);
+    const n = counts.get(base) || 0;
+    counts.set(base, n + 1);
+    r.rowUid = n ? `${base}#${n}` : base;
+  }
+  return rows;
+}
+
+/** The stable per-row id. Exported because the tab keys its table and its Deep Dive cell on it. */
+export const rowUid = (r) => r.rowUid || rowIdOf(r);
+
+const keyOf = (r) => rowUid(r);
 
 export function load() {
   if (cache) return Promise.resolve(cache);
@@ -111,7 +143,7 @@ function markChecked(origin, at) {
 }
 
 function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
-  const rows = (payload?.rows || []).map(decorate).sort(byNewest);
+  const rows = assignRowIds((payload?.rows || []).map(decorate).sort(byNewest));
 
   const isFirst = seenKeys === null;
   if (isFirst) {
@@ -215,6 +247,29 @@ export function startLive(live) {
   };
 }
 
+/** Revalidate once for surfaces that do not mount the shared 30-second poller. */
+export async function refresh() {
+  await load();
+  const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
+  if (!out.value?.rows?.length) return cache;
+  if (out.status === 304) {
+    markChecked('live', out.checkedAt);
+    return cache;
+  }
+  const changed = hasChanged(out.value);
+  ingest(out.value, { live: true, origin: 'live', checkedAt: out.checkedAt });
+  if (changed) {
+    for (const fn of listeners) {
+      try {
+        fn(cache);
+      } catch (err) {
+        console.error('[concall-scans] listener failed', err);
+      }
+    }
+  }
+  return cache;
+}
+
 export function stopLive(live) {
   live?.stop?.(LIVE_ID);
 }
@@ -243,9 +298,7 @@ export const newArrivals = () => arrivals;
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
 
 export function forScope(scope, holdings = [], rows = all()) {
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((r) => r.ticker && held.has(r.ticker.toUpperCase()));
+  return filterByScope(rows, scope, holdings);
 }
 
 export { mergeScans };

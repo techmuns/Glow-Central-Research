@@ -1,0 +1,22 @@
+# MERGE RULES FOR THE UPSTREAM SYNC — see CLAUDE.md, "This dashboard is a downstream of Sattva".
+#
+# `.github/workflows/sync-upstream.yml` merges techmuns/Sattva-Central-Research into this repository
+# on a schedule. Files marked `merge=ours` keep THIS repository's version whenever both sides changed
+# them, so a merge never conflicts on them. The driver is a no-op (`git config merge.ours.driver true`),
+# which the workflow sets before merging; a local merge needs the same one-line config or git falls
+# back to the normal three-way merge for these paths.
+#
+# WHAT QUALIFIES: only files that are GENERATED here, by this repository's own scheduled scrapes or by
+# a build step, and that describe THIS deployment's book and universe. A hand-written source file must
+# never be listed — a code file marked `ours` would silently discard every upstream fix to it.
+
+# Committed data captures. Both repositories regenerate these daily from their own book and universe;
+# taking upstream's copy would paint another deployment's portfolio here. A file only upstream changed
+# still arrives (the driver applies only when both sides changed it), and the next scheduled run here
+# rewrites it with this deployment's own capture.
+public/data/*.json           merge=ours
+public/data/mock/*.json      merge=ours
+
+# The generated stylesheet. Rebuilt from tailwind.config.cjs (which carries this deployment's palette)
+# after every merge, so whatever the merge did to it is overwritten anyway.
+public/css/tailwind.css      merge=ours

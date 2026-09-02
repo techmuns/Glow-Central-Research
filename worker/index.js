@@ -1,7 +1,7 @@
 // Cloudflare Worker entry point.
 //
 // The dashboard is static assets (./public), served through the ASSETS binding. This Worker
-// adds two routes on top:
+// adds API routes on top:
 //
 //   POST /api/live-prices  { tickers: [...] }  ->  { generated_at, source, ticker_count, prices }
 //   GET  /api/earnings                         ->  the live Moneycontrol results feed
@@ -11,25 +11,43 @@
 //   GET  /api/concalls                         ->  the live StockScans con-call scan
 //   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
+//   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
+//   GET  /api/research                          ->  whether Ask Research is configured
+//   POST /api/research                          ->  streamed dashboard-grounded research answer
 //
-// None writes anything back to the repo; all are read-through overlays on committed data.
+// Data reads are read-through overlays on committed data. The POST-only refresh routes dispatch
+// fixed repository workflows; credentials remain in the Worker and duplicate runs are declined.
 //
 // THE SUPER-INVESTOR ROUTES EXIST TO HOLD A CREDENTIAL. Unlike every other upstream here, that
 // API needs `Authorization: Bearer …`. A token in front-end code is a token published, so the
 // browser calls this Worker and the Worker adds the header from `env.MUNS_TOKEN` — the same
 // reason /api/live-prices is proxied. Set it with `npx wrangler secret put MUNS_TOKEN`.
 //
-// EVERY GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this file.
+// EVERY DATA GET ROUTE HERE IS CONDITIONAL — see `withTag` / `revalidate` at the foot of this
+// file. `/api/research`'s small configuration response is deliberately `no-store` instead.
 // The two big feeds are polled every 30 seconds and are 1.1MB and 450KB of JSON. Answering
 // "nothing has changed" by re-sending the whole thing, 120 times an hour, is the single largest
 // waste in the system. So each response carries a content-derived ETag, and a request that
 // arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
-import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_LIST_CAP } from './mc.mjs';
+import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, MunsError } from './muns.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, MunsError } from './muns.mjs';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
+import {
+  dispatchWorkflow,
+  latestRun,
+  parseRepo,
+  isInFlight,
+  NEWS_WORKFLOW,
+  COMPANY_NEWS_WORKFLOW,
+  INSIDER_WORKFLOW,
+  ANNOUNCEMENTS_WORKFLOW,
+  DATA_WORKFLOW,
+  DEPLOY_WORKFLOW,
+} from './github-actions.mjs';
+import { handleResearch } from './research.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -87,6 +105,9 @@ export default {
     if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
       return preflight();
     }
+    if (url.pathname === '/api/research') {
+      return handleResearch(request, env);
+    }
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request, env, ctx);
     }
@@ -105,6 +126,9 @@ export default {
     if (url.pathname.startsWith('/api/super-investors/')) {
       return handleInvestorPortfolio(request, env, ctx, url.pathname.slice('/api/super-investors/'.length));
     }
+    if (url.pathname === '/api/stock-search') {
+      return handleStockSearch(request, env, ctx);
+    }
     if (url.pathname === '/api/news') {
       return handleMuns(request, env, ctx, 'news');
     }
@@ -114,13 +138,146 @@ export default {
     if (url.pathname.startsWith('/api/insider-trades/')) {
       return handleMuns(request, env, ctx, 'insider', url.pathname.slice('/api/insider-trades/'.length));
     }
+    // POST-ONLY, DELIBERATELY. This is the one route here that makes something happen rather than
+    // reporting something — a GET that started a scrape could be fired by a prefetcher, a link
+    // preview or a crawler.
+    if (url.pathname === '/api/market-news/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
+      return handleNewsDispatch(request, env, ctx);
+    }
+    if (url.pathname === '/api/market-news/run') {
+      return handleNewsRunStatus(request, env, ctx);
+    }
+    if (url.pathname === '/api/company-news/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: COMPANY_NEWS_WORKFLOW,
+        cacheName: 'company-news-dispatch',
+        cooldownS: COMPANY_NEWS_DISPATCH_COOLDOWN_S,
+      });
+    }
+    if (url.pathname === '/api/company-news/run') {
+      return handleWorkflowRunStatus(request, env, ctx, {
+        workflow: COMPANY_NEWS_WORKFLOW,
+        cacheName: 'company-news-run-status',
+      });
+    }
+    if (url.pathname === '/api/insider-snapshot/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a refresh with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: INSIDER_WORKFLOW,
+        cacheName: 'insider-snapshot-dispatch',
+        cooldownS: FILINGS_DISPATCH_COOLDOWN_S,
+      });
+    }
+    if (url.pathname === '/api/insider-snapshot/run') {
+      return handleWorkflowRunStatus(request, env, ctx, {
+        workflow: INSIDER_WORKFLOW,
+        cacheName: 'insider-snapshot-run-status',
+      });
+    }
+    if (url.pathname === '/api/announcements-snapshot/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a refresh with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: ANNOUNCEMENTS_WORKFLOW,
+        cacheName: 'announcements-snapshot-dispatch',
+        cooldownS: ANNOUNCEMENTS_DISPATCH_COOLDOWN_S,
+      });
+    }
+    if (url.pathname === '/api/announcements-snapshot/run') {
+      return handleWorkflowRunStatus(request, env, ctx, {
+        workflow: ANNOUNCEMENTS_WORKFLOW,
+        cacheName: 'announcements-snapshot-run-status',
+      });
+    }
+    if (url.pathname === '/api/data-snapshot/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a refresh with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: DATA_WORKFLOW,
+        cacheName: 'data-snapshot-dispatch',
+        cooldownS: DATA_DISPATCH_COOLDOWN_S,
+      });
+    }
+    if (url.pathname === '/api/data-snapshot/run') {
+      return handleWorkflowRunStatus(request, env, ctx, {
+        workflow: DATA_WORKFLOW,
+        cacheName: 'data-snapshot-run-status',
+      });
+    }
+    if (url.pathname === '/api/capture-status') {
+      return handleCaptureStatus(request, env, ctx);
+    }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
     }
 
     return env.ASSETS.fetch(request);
   },
+
+  // ---------------------------------------------------------------------------------------
+  // CRON: KEEP THE NEWS FRESH, BECAUSE GITHUB'S OWN SCHEDULER WILL NOT.
+  //
+  // The capture was supposed to refresh every 20 minutes on a GitHub `schedule:` trigger. It does
+  // not, and tuning the cron did not help — measured on this repository:
+  //
+  //     `*/20 * * * *`   fired  12 times against 124 scheduled over 41 hours   (10%)
+  //     then relaxed to `*/30` across a 12-hour window, and in the 5.7 hours that followed it
+  //     fired  ZERO  times against ~11 scheduled.
+  //
+  // Their scheduler is best-effort on shared infrastructure and this repository is evidently at
+  // the back of that queue. So the schedule is not a lever worth pulling again.
+  //
+  // `workflow_dispatch` IS NOT THROTTLED, and that is the whole fix. Every manual dispatch made
+  // today started a run **within seconds** of the POST — 10:24:00, 10:27:33, 10:41:01, 11:27:25,
+  // 11:47:55, 12:57:01. So the cadence comes from a scheduler that works (Cloudflare's) driving
+  // the trigger that works (GitHub's dispatch API), and GitHub's own `schedule:` block stays only
+  // as a fallback for a deployment without this Worker.
+  //
+  // NOTHING ELSE CHANGES. This calls the same `dispatchWorkflow` the button calls, which reads the
+  // latest run first and does nothing when one is already going — so a cron tick that lands on top
+  // of a reader's click costs no second run.
+  //
+  // AND IT RESPECTS THE WINDOW THE PUBLISHER ANSWERS IN. Measured across 12 scheduled runs, every
+  // success fell between 10:27 and 21:14 IST and every refusal between 20:28 and 05:29 IST. So
+  // outside 03:00-14:59 UTC this drops to hourly rather than spending three runs an hour being
+  // refused — politeness towards somebody else's site, and it costs the reader nothing, because
+  // Moneycontrol publish very little to that page overnight.
+  // ---------------------------------------------------------------------------------------
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispatchNewsScrape(event, env));
+  },
 };
+
+/** The dense window, in UTC. 03:00-14:59 UTC is 08:30-20:29 IST. */
+const NEWS_DENSE_FROM_UTC = 3;
+const NEWS_DENSE_TO_UTC = 15;
+
+async function dispatchNewsScrape(event, env) {
+  const cfg = githubConfig(env);
+  if (cfg.error) {
+    // Nothing to retry and nothing to alarm about: an operator sets the secret, or does not.
+    console.log(`[news-cron] skipped — ${cfg.error.reason}`);
+    return;
+  }
+
+  const at = new Date(event?.scheduledTime || Date.now());
+  const hour = at.getUTCHours();
+  const dense = hour >= NEWS_DENSE_FROM_UTC && hour < NEWS_DENSE_TO_UTC;
+  // The cron ticks every 20 minutes. Outside the window only the top-of-hour tick dispatches.
+  if (!dense && at.getUTCMinutes() >= 20) {
+    console.log(`[news-cron] ${at.toISOString()} — outside the window the publisher answers, hourly only`);
+    return;
+  }
+
+  try {
+    const out = await dispatchWorkflow(fetch, cfg, NEWS_WORKFLOW, cfg.ref, { source: 'cron' });
+    console.log(`[news-cron] ${at.toISOString()} — ${out.dispatched ? 'dispatched' : 'a run was already going'}`);
+  } catch (err) {
+    // A failed dispatch is not worth throwing over: the next tick is twenty minutes away and the
+    // reader's own Fetch button reports the same failure with its fix attached.
+    console.log(`[news-cron] ${at.toISOString()} — could not dispatch: ${err?.code || 'error'} ${err?.message || ''}`);
+  }
+}
 
 // ---------------------------------------------------------------------------------------
 // GET /api/earnings — the live results feed.
@@ -284,10 +441,10 @@ function structureTagOf(rows, salt) {
 // ---------------------------------------------------------------------------------------
 // GET /api/earnings-calendar?date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD[&list=none]
 //
-// The forward-looking half of the Earnings Hub. Two upstreams, because Moneycontrol splits it:
-// a clean JSON date strip with the COMPLETE count per date, and the calendar page itself for the
-// company list — which is the twenty largest by market cap and cannot be paged past. See the
-// header of mc.mjs. Both numbers travel, so the UI can say "170 reporting, 20 shown".
+// The Earnings Calendar schedule. Moneycontrol splits it across a clean JSON count endpoint and
+// the paginated HTML endpoint used by its public /earnings-calendar page. Both are requested for
+// All exchanges, and fetchCalendarDay follows every published twenty-row page, so the rows and the
+// count answer the same question.
 //
 // Cached longer than the results feed (CALENDAR_TTL_S vs 30s) because a schedule changes on the
 // order of hours, not ticks. The strip is fetched even when the day list fails, so a reader always
@@ -307,15 +464,8 @@ async function handleCalendar(request, env, ctx) {
   const from = iso(url.searchParams.get('from')) || shiftDays(date, -7);
   const to = iso(url.searchParams.get('to')) || shiftDays(date, 14);
 
-  // `list=none` — the strip only. The Earnings Hub asks for this on any date that has already
-  // reported, because the results feed already names every company that filed on it, completely,
-  // where this route could only offer the twenty largest. Serving that request costs ONE JSON call
-  // instead of a bot-walled page fetch plus up to 25 identity look-ups, and the saving is per cache
-  // window rather than per reader.
-  //
-  // It is a different representation, not a cheaper version of the same one, so it gets its own
-  // cache key and says `listRequested: false` — an empty `rows` that did not say why would read as
-  // "nobody reports on this date", which is the one thing this route must never imply.
+  // `list=none` remains available to read only the strip. The dashboard itself requests the full
+  // list for every selected date; Earnings Reported is the separate filings view.
   const wantsList = url.searchParams.get('list') !== 'none';
 
   const cacheKey = edgeKey(request, `earnings-calendar?date=${date}&from=${from}&to=${to}&list=${wantsList ? 'full' : 'none'}`);
@@ -323,19 +473,18 @@ async function handleCalendar(request, env, ctx) {
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
 
-  // Independent, and deliberately not Promise.all-with-rejection: the strip is the part that is
-  // always available, and losing it because the page 403'd would be the wrong trade.
-  const [stripOut, dayOut] = await Promise.allSettled([
-    fetchCalendarStrip({ fromDate: from, toDate: to }),
-    wantsList ? fetchCalendarDay({ date }) : Promise.resolve(null),
+  // Fetch the count first so the list reader knows exactly how many published pages exist. A
+  // rejected half remains independent: the other half can still be served with honest provenance.
+  const [stripOut] = await Promise.allSettled([fetchCalendarStrip({ fromDate: from, toDate: to, indexId: 'All' })]);
+  let days = stripOut.status === 'fulfilled' ? stripOut.value : [];
+  const expectedCount = days.find((d) => d.date === date)?.count ?? null;
+  const [dayOut] = await Promise.allSettled([
+    wantsList ? fetchCalendarDay({ date, indexId: 'All', expectedCount }) : Promise.resolve(null),
   ]);
 
-
-  let days = stripOut.status === 'fulfilled' ? stripOut.value : [];
-
   // The list has two possible origins and the payload must say which. Live is preferred; the
-  // committed capture is the fallback, because Akamai answers a Cloudflare Worker's request for
-  // the calendar page with a 200 carrying no app payload.
+  // committed capture is the fallback, because www.moneycontrol.com may answer an edge request
+  // differently from an ordinary browser or GitHub runner.
   let day = dayOut.status === 'fulfilled' ? dayOut.value : null;
   let listSource = day ? 'live' : null;
   let listCapturedAt = null;
@@ -345,35 +494,37 @@ async function handleCalendar(request, env, ctx) {
   if (!wantsList) {
     // Not asked for, so not looked for. `listSource` stays null and `listRequested: false` travels
     // in the payload; nothing here may pretend to have checked.
-    day = { rows: [], asOnDate: null, capped: false };
+    day = { rows: [], asOnDate: null, pageSize: CALENDAR_PAGE_SIZE, pagesFetched: 0, complete: false };
   } else if (!day) {
     const hit = snapshot?.byDate?.[date];
     if (hit) {
-      day = { rows: hit.rows || [], asOnDate: hit.asOnDate || null, capped: !!hit.capped };
+      day = {
+        rows: hit.rows || [],
+        asOnDate: hit.asOnDate || null,
+        pageSize: hit.pageSize || snapshot.pageSize || CALENDAR_PAGE_SIZE,
+        pagesFetched: hit.pagesFetched || Math.max(1, Math.ceil((hit.rows?.length || 0) / CALENDAR_PAGE_SIZE)),
+        // Old captures used `capped:false` for a short, therefore complete, page.
+        complete: hit.complete ?? !hit.capped,
+      };
       listSource = 'snapshot';
       listCapturedAt = snapshot.capturedAt || null;
     } else {
-      day = { rows: [], asOnDate: null, capped: false };
+      day = { rows: [], asOnDate: null, pageSize: CALENDAR_PAGE_SIZE, pagesFetched: 0, complete: false };
       listNote = snapshot
         ? `The committed capture covers ${snapshot.from} to ${snapshot.to} and does not include this date.`
         : 'No committed capture is available.';
     }
   }
 
-  // A COUNT OF ZERO ON A DATE WE CAN NAME TWENTY COMPANIES FOR IS NOT A MEASUREMENT.
+  // A COUNT OF ZERO ON A DATE WHOSE COMPLETE LIST NAMES COMPANIES IS NOT A MEASUREMENT.
   //
-  // `indexId=N` — the NSE index this route asks for — went flat on 14 Aug 2026 and began answering
-  // 0 for every date in a 25-day window. It is the endpoint's failure mode, not a quiet fortnight:
-  // the same request with `indexId=B` returned 239/342/451/417 for the same four dates, and the
-  // capture taken hours earlier holds 171/225/258/235 plus twenty named companies per date. A live
-  // zero that the committed capture contradicts is a broken read, and rendering it turned the whole
-  // strip into em dashes on a day 235 companies were reporting.
+  // The count endpoint has previously gone flat while the calendar page still named companies.
+  // It is the endpoint's failure mode, not a quiet fortnight. The capture is now also All-exchange,
+  // so it is a like-for-like fallback rather than a different market substituted under the label.
   //
   // The test is EVIDENCE, not a threshold: the live strip carries no non-zero count anywhere, and
   // the capture — which overlaps it — does. A genuinely empty window fails that test, because the
-  // capture would be empty too. What is deliberately NOT done is switching to `indexId=B`: BSE is a
-  // different universe (451 against 258 on the same date), so quietly serving it would answer a
-  // question nobody asked, under the previous question's label.
+  // capture would be empty too.
   let countSource = days.length ? 'live' : null;
   let countsCapturedAt = null;
   const liveHasCounts = days.some((d) => d.count > 0);
@@ -387,12 +538,17 @@ async function handleCalendar(request, env, ctx) {
     countSource = 'snapshot';
     countsCapturedAt = snapshot.capturedAt || null;
   }
-  // Scheduled-but-not-yet-reported companies are by definition absent from a map built from
-  // companies that HAVE reported, so almost every calendar row would arrive with no ticker and no
-  // industry. Resolving them here is bounded by the page's own 20-row cap. Skipped wholesale when
-  // no list was asked for — including the ticker map, which is a 255KB asset read and a parse.
+  // Keep external subrequests below the Workers Free limit. One request is spent on the count and
+  // `pagesFetched` on the list; whatever remains (with two requests of headroom for redirects) can
+  // resolve missing identities. Existing map hits cost no external request.
   const known = wantsList ? (await loadTickerMap(env, request)) || {} : {};
-  const { resolved, attempted, failed } = wantsList ? await resolveMissing(day.rows, known, { limit: 25 }) : { resolved: {}, attempted: 0, failed: 0 };
+  const listRequests = listSource === 'live'
+    ? day.requestsMade || day.pagesFetched || 1
+    : dayOut.status === 'rejected'
+      ? dayOut.reason?.requestsMade || 1
+      : 1;
+  const identityLimit = Math.min(25, Math.max(0, 48 - listRequests - (stripOut.status === 'fulfilled' ? 1 : 0)));
+  const { resolved, attempted, failed } = wantsList ? await resolveMissing(day.rows, known, { limit: identityLimit }) : { resolved: {}, attempted: 0, failed: 0 };
   const merged = Object.keys(resolved).length ? { ...known, ...resolved } : known;
 
   const payload = {
@@ -418,18 +574,21 @@ async function handleCalendar(request, env, ctx) {
     listSource,
     listCapturedAt,
     listNote,
-    // The two numbers that must never be conflated: how many report, and how many we can name.
+    // Count and rows are the same All-exchange population. They still carry separate provenance
+    // because the live count and a captured list can have been observed at different times.
     scheduledCount: days.find((d) => d.date === date)?.count ?? null,
     // Counts and the company list fail independently, so they carry their provenance separately.
     // Freezing them together would hide a schedule that has moved since the capture.
     countSource,
     countsCapturedAt,
-    listCap: CALENDAR_LIST_CAP,
-    capped: day.capped,
+    pageSize: day.pageSize || CALENDAR_PAGE_SIZE,
+    pagesFetched: day.pagesFetched || 0,
+    requestsMade: listRequests,
+    complete: day.complete === true,
     days,
     rows: applyIdentity(day.rows, merged),
     meta: {
-      source: 'Moneycontrol — Results Calendar (api…/earnings/result-calendar for the counts, the calendar page for the list)',
+      source: 'Moneycontrol — Earnings Calendar (all-exchange counts plus the paginated earnings-widget list)',
       fetchedAt: new Date().toISOString(),
     },
   };
@@ -468,6 +627,37 @@ async function handleCalendar(request, env, ctx) {
 // ---------------------------------------------------------------------------------------
 const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900 };
 const MUNS_FAIL_TTL_S = 15;
+
+// Company names move much less often than filings. Cache each query at the edge so ten readers
+// typing the same ticker spend one authenticated upstream search, not ten.
+const STOCK_SEARCH_TTL_S = 300;
+
+async function handleStockSearch(request, env, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'Search with GET.' }, 405);
+  const url = new URL(request.url);
+  const query = (url.searchParams.get('q') || '').trim().slice(0, 80);
+  if (query.length < 2) return json({ ok: false, reason: 'shape', message: 'Search needs at least two characters.' }, 400);
+
+  const cacheKey = edgeKey(request, `stock-search?q=${encodeURIComponent(query.toLowerCase())}`);
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return revalidate(request, hit, 'hit');
+
+  let payload;
+  let ttl = STOCK_SEARCH_TTL_S;
+  try {
+    payload = { ok: true, ...(await searchStocks({ query }, env)) };
+  } catch (err) {
+    const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
+    payload = { ok: false, reason: e.reason, message: e.message, status: e.status, requestedUrl: e.url, query };
+    ttl = MUNS_FAIL_TTL_S;
+  }
+  payload.fetchedAt = new Date().toISOString();
+  const { body, tag } = withTag(payload);
+  const res = tagged(body, tag, ttl);
+  ctx?.waitUntil?.(cache.put(cacheKey, res.clone()));
+  return revalidate(request, res, 'miss');
+}
 
 async function handleMuns(request, env, ctx, kind, rawTicker = '') {
   if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
@@ -1117,6 +1307,323 @@ function parseQuote(str) {
     marketCap: num(kv['Market Cap']),
     yearlyChangePct: num(kv['Yearly Change (%)']),
   };
+}
+
+// ---------------------------------------------------------------------------------------
+// POST /api/market-news/refresh — start a scrape.   GET /api/market-news/run — watch one.
+//
+// THE BUTTON THAT COULD NOT DO WHAT IT SAID, AND HOW IT CAN NOW.
+//
+// Everywhere else here "refresh" means "ask the upstream again". For market news it could not:
+// `www.moneycontrol.com` answers a Cloudflare Worker with 403 exactly as it answers node's fetch,
+// by TLS fingerprint rather than by headers, so there is no request this Worker can make that
+// returns the news. The only reader that works is a normal GitHub runner with curl.
+//
+// So the button asks the runner to run. `workflow_dispatch` on market-news-refresh.yml, with the
+// token held here and never in the browser, then a free poll of GitHub's own run status while it
+// goes. The reader gets the thing they actually asked for — a fresh read of the publisher — and
+// the page keeps being able to say truthfully where every number came from.
+//
+// FOUR RULES, AND THE FIRST THREE ARE THE DEEP DIVE RULES ARRIVING AGAIN.
+//
+//   1. WHAT COSTS AND WHAT DOES NOT ARE SEPARATE ROUTES, AND ONLY ONE OF THEM IS POST.
+//      Nothing dispatches on a page load, on a render, or on a poll. `/run` is a plain read and
+//      may be polled; `/refresh` happens on a click and nowhere else.
+//   2. ASK BEFORE STARTING. `dispatchWorkflow` reads the latest run first and returns
+//      `dispatched: false` if one is already going. The workflow's own concurrency group would
+//      queue a duplicate harmlessly — this is about never being the thing that started a run
+//      nobody needed.
+//   3. REPRODUCE THEIR VOCABULARY. `status` and `conclusion` are passed through as GitHub writes
+//      them. Translating `in_progress` into words of our own would describe their pipeline in our
+//      language and drift the moment they changed it.
+//   4. A FAILURE IS NAMED, BECAUSE THE FIXES DIFFER. `no-token` and `no-repo` are one command for
+//      an operator; `unauthorised` is a token to reissue; `not-found` is ambiguous between a
+//      missing workflow and a token that cannot see the repository, and says both. Collapsing
+//      these into "could not refresh" throws away the only useful part of the failure.
+//
+// AND A COOLDOWN, BECAUSE THIS ROUTE IS UNAUTHENTICATED. The repository, the workflow and the ref
+// are fixed here and are not readable from the request, so nobody who finds the URL can point it
+// somewhere else — but they could still hold the button down. `DISPATCH_COOLDOWN_S` at the edge
+// plus the in-flight check above means a click-storm costs one run. It is per-colo and therefore
+// best-effort, which is why it is the second line of defence and not the first.
+// ---------------------------------------------------------------------------------------
+
+const DISPATCH_COOLDOWN_S = 120;
+// A universe company-news walk is roughly ten minutes. Hold the automatic route across that
+// window so readers arriving in different moments cannot start a second run during publish lag.
+const COMPANY_NEWS_DISPATCH_COOLDOWN_S = 15 * 60;
+// A full universe filings walk takes roughly ten minutes. The cooldown spans the scrape and the
+// publish delay, so readers arriving in different moments cannot queue duplicate work.
+const FILINGS_DISPATCH_COOLDOWN_S = 30 * 60;
+// BSE's date index is cheap, but a deploy still takes a couple of minutes.
+const ANNOUNCEMENTS_DISPATCH_COOLDOWN_S = 10 * 60;
+// End-of-day technicals can take most of an hour and must never overlap themselves.
+const DATA_DISPATCH_COOLDOWN_S = 60 * 60;
+const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
+// How far back `lastAutomatic` looks. Ten runs is about a day at the schedule's own cadence.
+const RUN_WINDOW = 10;
+// A run nobody had to press a button for: an external scheduler (`cron`), or the tab fetching for
+// a reader who opened it on a stale capture (`auto`). `github-cron` is GitHub's own schedule.
+const AUTOMATIC_RUN = /\((?:github-)?cron\)|\(auto\)/i;
+
+/**
+ * What the Worker can actually SEE, for when `no-token` is the answer and nobody believes it.
+ *
+ * The operator added the secret, the route still said `no-token`, and there was no way to tell a
+ * typo in the name from a change that was never deployed from a secret on a different Worker.
+ * "It is not there" is a true statement that diagnoses nothing.
+ *
+ * NAMES ONLY, AND BOOLEANS FOR THE VALUES. Binding names are not secrets — `GH_REPO`, `GH_REF` and
+ * both token names are in the public repository already — while the values never appear. What this
+ * buys is the one thing guessing cannot: a key named `GH_DISPATH_TOKEN` shows up in `githubKeys`
+ * immediately, and `munsToken: true` beside `dispatchToken: false` proves dashboard secrets reach
+ * this Worker in general, so the fault is that one binding rather than the whole configuration.
+ */
+function visibleConfig(env) {
+  return {
+    githubKeys: Object.keys(env || {})
+      .filter((k) => /^(GH|GITHUB)/i.test(k))
+      .sort(),
+    dispatchToken: !!env?.GH_DISPATCH_TOKEN,
+    munsToken: !!env?.MUNS_TOKEN,
+    repo: env?.GH_REPO || null,
+    ref: env?.GH_REF || null,
+  };
+}
+
+/** Everything the two routes need, or a named reason they cannot run. */
+function githubConfig(env) {
+  const token = env.GH_DISPATCH_TOKEN;
+  if (!token) {
+    return {
+      error: {
+        ok: false,
+        reason: 'no-token',
+        message: 'This deployment has no GitHub token, so it cannot start a scrape.',
+        visible: visibleConfig(env),
+        // NAME THE PLACE THIS DEPLOYMENT ACTUALLY USES. This said `npx wrangler secret put …`,
+        // which needs a terminal logged in to Cloudflare — and measured on the live deployment,
+        // there isn't one: the site publishes through Cloudflare's own Git integration and the
+        // repo's deploy workflow has been SKIPPED on every run for want of CLOUDFLARE_API_TOKEN.
+        // So the only instruction the page could give named a route the operator does not have.
+        // The dashboard is a web form and is the honest first answer; the command still works for
+        // anyone who does have a terminal.
+        fix: 'Cloudflare dashboard → Workers & Pages → this Worker → Settings → Variables and Secrets → add a Secret named GH_DISPATCH_TOKEN. (Or: npx wrangler secret put GH_DISPATCH_TOKEN)',
+      },
+    };
+  }
+  try {
+    const { owner, repo } = parseRepo(env.GH_REPO);
+    return { token, owner, repo, ref: env.GH_REF || 'main', ...(env.GH_API_BASE ? { base: env.GH_API_BASE } : {}) };
+  } catch (err) {
+    return {
+      error: {
+        ok: false,
+        reason: err.code || 'no-repo',
+        message: 'This deployment has no repository configured, so it cannot start a scrape.',
+        fix: 'Set "GH_REPO": "owner/name" in wrangler.jsonc and redeploy.',
+        configured: err.configured ?? null,
+      },
+    };
+  }
+}
+
+/** A named failure becomes a 200 with `ok: false` — the request to US succeeded. */
+function githubFailure(err) {
+  const reason = err?.code || 'upstream';
+  const fixes = {
+    unauthorised: 'Reissue the token, then replace the GH_DISPATCH_TOKEN secret in the Cloudflare dashboard (Settings → Variables and Secrets).',
+    forbidden: 'The token needs "Actions: read and write" on this repository.',
+    'rate-limited': "GitHub's hourly limit for this token is spent. It resets on the hour.",
+    refused: 'Check that the workflow exists on the configured branch and is not disabled.',
+    'not-found': 'Check the workflow file name and that the token can see this repository.',
+  };
+  return {
+    ok: false,
+    reason,
+    message: String(err?.message || err),
+    // CARRY THE URL THAT WAS ASKED FOR. A bare "404" is unfalsifiable — that lesson cost a long
+    // investigation on the chatter API while the upstream was healthy the whole time.
+    requested: err?.url || null,
+    ...(fixes[reason] ? { fix: fixes[reason] } : {}),
+  };
+}
+
+/**
+ * Who asked for this run, for the workflow's own run name.
+ *
+ * AN ALLOWLIST, NOT THE CALLER'S STRING. The value ends up in `run-name`, which GitHub renders in
+ * their UI and which `lastAutomatic` matches on — so an arbitrary value from an unauthenticated
+ * route would be somebody else's text in our run list, and could forge the "this was automatic"
+ * label. Three words are the whole vocabulary; anything else is a button press.
+ *
+ * THE THREE ARE THREE DIFFERENT ANSWERS TO "IS THIS REFRESHING BY ITSELF", which is the question
+ * this label exists for and the one that has been answered wrongly twice here:
+ *
+ *   cron    an external scheduler pinged the route — the cadence holds with nobody watching
+ *   auto    a reader opened the tab on a stale capture and the page fetched without being asked
+ *   button  a person pressed Fetch, having noticed the staleness themselves
+ *
+ * Only the last of those is the page failing at its job, so `lastAutomatic` counts the first two
+ * and not the third. Folding `auto` into `button` would have made every unattended refresh
+ * invisible to the one field that measures them — the same measurement gap, one layer down, that
+ * `?source=` was added to close.
+ */
+const SOURCES = new Set(['cron', 'auto', 'button']);
+const sourceOf = (url) => (SOURCES.has(url.searchParams.get('source')) ? url.searchParams.get('source') : 'button');
+
+async function handleNewsDispatch(request, env, ctx) {
+  return handleWorkflowDispatch(request, env, ctx, {
+    workflow: NEWS_WORKFLOW,
+    cacheName: 'mcnews-dispatch',
+    cooldownS: DISPATCH_COOLDOWN_S,
+  });
+}
+
+async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS }) {
+  const cfg = githubConfig(env);
+  if (cfg.error) return json(cfg.error, 200);
+  const source = sourceOf(new URL(request.url));
+
+  const cache = caches.default;
+  const key = edgeKey(request, cacheName);
+  const held = await cache.match(key);
+  if (held) {
+    const body = await held.json().catch(() => null);
+    // NOT A FAILURE, AND IT MUST NOT READ AS ONE. A scrape was started moments ago and is what the
+    // reader wanted; saying "too many requests" about their own click would be nonsense.
+    return json({ ...(body || {}), ok: true, dispatched: false, reason: 'cooling-down', cooldownS }, 200);
+  }
+
+  try {
+    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source });
+    const payload = {
+      ok: true,
+      dispatched: out.dispatched,
+      reason: out.dispatched ? 'dispatched' : 'already-running',
+      run: out.run,
+      workflow,
+      source,
+      requestedAt: new Date().toISOString(),
+    };
+    ctx.waitUntil(
+      cache.put(key, new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${cooldownS}` } })),
+    );
+    return json(payload, 200);
+  } catch (err) {
+    return json(githubFailure(err), 200);
+  }
+}
+
+/**
+ * How the run is going — free, and therefore the half that may be polled.
+ *
+ * TWO WORKFLOWS, BECAUSE A SCRAPE FINISHING IS NOT THE NEWS ARRIVING. The scrape commits only when
+ * it found something; `public/` reaches readers only when deploy.yml then runs. So a deploy that
+ * STARTED AFTER the scrape finished is the evidence that something was committed, and its absence
+ * is the evidence that the run found nothing new. Without that second read the page would have to
+ * guess between "nothing was published" and "it is on its way", and those are different claims.
+ */
+async function handleNewsRunStatus(request, env, ctx) {
+  return handleWorkflowRunStatus(request, env, ctx, {
+    workflow: NEWS_WORKFLOW,
+    cacheName: 'mcnews-run-status',
+  });
+}
+
+async function handleWorkflowRunStatus(request, env, ctx, { workflow, cacheName }) {
+  const cfg = githubConfig(env);
+  if (cfg.error) return json(cfg.error, 200);
+
+  const cache = caches.default;
+  const key = edgeKey(request, cacheName);
+  const held = await cache.match(key);
+  if (held) return new Response(held.body, { status: 200, headers: { ...Object.fromEntries(held.headers), ...CORS, 'x-sattva-cache': 'hit' } });
+
+  try {
+    // A WINDOW, NOT THE LATEST RUN, FOR THE SCRAPE. `lastAutomatic` searches this list, so asking
+    // for one run made it answerable only when the newest run happened to be automatic: a single
+    // button press hid a cron that had fired minutes earlier, and the field read as though nothing
+    // unattended had ever run. Ten covers about a day at the schedule's own cadence.
+    const [scrapeRuns, deployRuns] = await Promise.all([
+      latestRun(fetch, cfg, workflow, { perPage: RUN_WINDOW }),
+      latestRun(fetch, cfg, DEPLOY_WORKFLOW, { perPage: 1 }).catch(() => []),
+    ]);
+    const payload = {
+      ok: true,
+      scrape: scrapeRuns[0] || null,
+      publish: deployRuns[0] || null,
+      // Whether the cadence is holding on its own, answerable without opening a run. Matches on
+      // the run NAME rather than on `event`, because every dispatch carries event=workflow_dispatch
+      // and a scheduler's dispatch is indistinguishable from a reader's by that field alone.
+      lastAutomatic: scrapeRuns.find((r) => AUTOMATIC_RUN.test(r.title || '')) || null,
+      inFlight: isInFlight(scrapeRuns[0]) || isInFlight(deployRuns[0]),
+      servedAt: new Date().toISOString(),
+    };
+    const res = json(payload, 200);
+    const store = new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${RUN_STATUS_TTL_S}` } });
+    ctx.waitUntil(cache.put(key, store));
+    res.headers.set('x-sattva-cache', 'live');
+    return res;
+  } catch (err) {
+    return json(githubFailure(err), 200);
+  }
+}
+
+// A small, same-origin view of the committed captures. The browser uses it as a watchdog without
+// downloading every multi-megabyte feed merely to learn its timestamp. Each source is independent:
+// one missing file cannot erase the status of the others, and the short edge cache makes a busy
+// dashboard cost one internal asset read per half-minute rather than one per reader.
+const CAPTURE_STATUS_TTL_S = 30;
+const CAPTURE_FILES = {
+  companyNews: '/data/news.json',
+  insider: '/data/insider-trades.json',
+  announcements: '/data/corp-announcements.json',
+  technicals: '/data/technicals.json',
+  marketNews: '/data/market-news.json',
+};
+
+async function handleCaptureStatus(request, env, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
+
+  const cache = caches.default;
+  const key = edgeKey(request, 'capture-status-v1');
+  const held = await cache.match(key);
+  if (held) {
+    return new Response(held.body, {
+      status: 200,
+      headers: { ...Object.fromEntries(held.headers), ...CORS, 'x-sattva-cache': 'hit' },
+    });
+  }
+
+  const captures = {};
+  await Promise.all(
+    Object.entries(CAPTURE_FILES).map(async ([name, path]) => {
+      try {
+        const response = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const body = await response.json();
+        captures[name] = {
+          ok: true,
+          capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || null,
+          covered: Number.isFinite(body.covered) ? body.covered : Number.isFinite(body.company_count) ? body.company_count : null,
+          failed: Number.isFinite(body.failedCount) ? body.failedCount : Number.isFinite(body.failures) ? body.failures : null,
+          fallback: Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0,
+        };
+      } catch (error) {
+        captures[name] = { ok: false, capturedAt: null, reason: String(error?.message || error) };
+      }
+    }),
+  );
+
+  const payload = { ok: true, captures, servedAt: new Date().toISOString() };
+  const store = new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CAPTURE_STATUS_TTL_S}` },
+  });
+  ctx.waitUntil(cache.put(key, store));
+  const response = json(payload, 200);
+  response.headers.set('x-sattva-cache', 'live');
+  return response;
 }
 
 function json(obj, status = 200) {

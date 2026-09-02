@@ -1,12 +1,35 @@
 # Glow Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (earnings, con-calls, public chatter, technical breakouts, superstar
-investors) and **Portfolio Analytics** (positions, allocation, transactions, drawdown) — with a
-global Portfolio ⇄ Universe scope toggle that applies to every tab.
+**Research Central** (AI and general alerts, Ask Research, earnings, con-calls, public chatter, technical breakouts,
+superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
+allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
+toggle that applies to every tab.
 
-Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
-Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
+**Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
+portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
+real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
+its internal ordering; cards show evidence and a next action without exposing score arithmetic.
+Stale feeds are penalised and named in a compact header warning. **General Alerts** keeps the complete
+newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
+Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
+importance and feed filters. Both views reuse the same feeds and add no source of their own.
+
+**Ask Research** is a conversational workspace that assembles a bounded evidence
+packet from every dashboard data module, reports source coverage and provenance, and keeps its
+conversation library on the reader's device. The Worker sends the bounded packet to Muns' hosted
+LLM router and forwards each NDJSON text chunk immediately, so answers render progressively without
+exposing the session token or waiting for the complete model response.
+
+**Glow is a downstream of [Sattva Central Research](https://github.com/techmuns/Sattva-Central-Research).**
+The code is merged from there daily by a GitHub Action, so fixes and features built in Sattva land
+here without porting; Glow keeps its own brand, palette, book and universe, plus two features of its
+own — the **Fund Returns** sub-view (every tracked scheme's returns and same-cohort rank, off
+AmfiBeas) and a **~1,900-company tracked universe** for the filings feeds. See `CLAUDE.md`, *This
+dashboard is a downstream of Sattva*.
+
+Static runtime, no bundler, no framework, no npm dependencies for the app itself.
+Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
 
 ![Earnings Hub](docs/screenshots/earnings-hub.png)
 
@@ -14,7 +37,7 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**All nine tabs across both workspaces are built.** See
+**All fifteen tabs across both workspaces are built.** See
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
@@ -38,7 +61,9 @@ transcript text for user-editable keywords, at runtime, in the browser. Both are
 they will be when the feeds land — swapping the JSON is the only change needed.
 
 The Sources modal in the header lists every feed with an honest live / real / mock / pending
-status, and every tab closes with a **Wiring roadmap** card naming what it does not do.
+status. What each tab does *not* do is recorded in `docs/SPEC.md` under its "Still to come" —
+a dashed **Wiring roadmap** card used to carry that under every table, and it was chrome competing
+with the content it sat beneath.
 
 ---
 
@@ -58,6 +83,31 @@ Optionally, run it through the real Worker runtime:
 
 ```bash
 npx wrangler dev
+```
+
+Ask Research is intentionally disabled until a server-side Muns session token is present. It prefers
+`MUNS_LLM_TOKEN`, then falls back to the existing `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`. The former
+`ANTHROPIC_API_KEY` binding is read only while `MUNS_LLM_LEGACY_ANTHROPIC_BINDING` explicitly confirms
+that it now contains a Muns token; this prevents a genuine Anthropic credential from being sent to
+another service. For local Worker
+development, put the token in the gitignored `.dev.vars`; for production, configure the dedicated
+secret with `npx wrangler secret put MUNS_LLM_TOKEN`. Do not put it in `public/` or browser storage.
+Conversation history is stored locally, while each submitted question and its bounded dashboard
+evidence packet are streamed through `https://fastapi.muns.io/query-router` using the low-latency
+`local_llm` route. `MUNS_LLM_TYPE=hosted_llm` remains available as an explicit operator override.
+Every dashboard source keeps its status and provenance while ranked row samples share a
+13,000-character budget measured on the packet the model receives (`public/js/research/evidence-shared.js`,
+shared with the Worker) and sized for the local model's context window; a company named in the
+question is resolved to its ticker and leads every source that carries it. The compact catalog
+carries only identity and status because the source packets already hold the tab, route, dates and
+provider; UI-only routes and that duplicate catalog stay out of the model prompt and out of the budget.
+
+The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
+committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):
+
+```bash
+npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs \
+  -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
 ```
 
 ---
@@ -80,21 +130,29 @@ marked slot for future `/api/*` routes.
 
 ```
 public/
-  index.html          design tokens, fonts, Tailwind CDN
+  index.html          design tokens, fonts, committed Tailwind stylesheet
+  css/tailwind.css    generated utility CSS; served directly, never compiled in the browser
   js/
     app.js            bootstrap: load JSON, mount the shell
     core/             state, router, live engine, format, dom helpers
+                      watchlist.js — the companies the reader stars, and the Watchlist scope
     ui/               components.js (primitives), shell.js (chrome + tab registry)
     concall/          keyword-engine.js (runtime scanner), keyword-editor, deep-dive
     data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
+                      scope.js — the three scopes; every forScope() is built on it
+                      daily-alerts.js — retained chronological readings across the research feeds
+                      ai-alerts.js — explainable seven-day company ranking over those readings
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    tabs/             earnings-hub, concall, public-chatter, breakouts, super-investors
+    research/         bounded cross-dashboard evidence catalog + safe answer renderer
+    tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
+                      super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
-worker/index.js       asset serving + /api/* slot
+worker/index.js       asset serving + live read-through APIs + the Ask Research stream
+worker/research.mjs   server-only streaming Muns LLM bridge and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
 docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source
@@ -171,6 +229,8 @@ Seeded, so output is byte-stable.
 
 ```bash
 python3 -m http.server 8080 -d public &
+node scripts/verify-calendar.mjs
+node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 ```
 

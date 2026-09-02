@@ -15,6 +15,7 @@
 // A scored row is `{ ...scoreCompany(c), company: c }` — see scoring/tech-scoring.js.
 
 import { scoreCompany } from '../scoring/tech-scoring.js';
+import { filterByScope } from './scope.js';
 
 const TECHNICALS_PATH = 'data/technicals.json';
 const ATR_HISTORY_PATH = 'data/atr-history.json';
@@ -63,6 +64,10 @@ async function buildCache() {
   cache = {
     meta: {
       generated_at: payload?.generated_at ?? null,
+      // The session the closes belong to — NOT when the file was written. See the scraper.
+      price_date: payload?.price_date ?? null,
+      price_date_rows: payload?.price_date_rows ?? null,
+      move_verification: payload?.move_verification ?? null,
       source: payload?.source ?? null,
       index_symbol: payload?.index_symbol ?? null,
       index_close: payload?.index_close ?? null,
@@ -165,14 +170,12 @@ export function isLoaded() {
 
 /**
  * forScope('universe') → every scored company.
- * forScope('portfolio', holdings) → only the tickers held in portfolio.json.
+ * forScope('portfolio', holdings) → only the tickers in the book.
+ * forScope('watchlist') → only the companies the reader starred.
  * Filtering the cached list, never refetching.
  */
 export function forScope(scope, holdings = []) {
-  const rows = all();
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((s) => s.company?.ticker && held.has(s.company.ticker.toUpperCase()));
+  return filterByScope(all(), scope, holdings, (s) => s.company?.ticker);
 }
 
 /** Rows that actually scored — the error rows are useful to count but not to rank. */

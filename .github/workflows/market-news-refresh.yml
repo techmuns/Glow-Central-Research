@@ -1,0 +1,132 @@
+name: Market news refresh
+
+# Moneycontrol's market-wide stocks news, captured every twenty minutes.
+#
+# WHY AN ACTION AND NOT A WORKER ROUTE — this is the whole reason the feed is shaped this way.
+#   www.moneycontrol.com refuses automated readers by TLS fingerprint rather than by headers.
+#   Measured three ways:
+#     curl + browser user-agent          HTTP 200, 598 KB
+#     node fetch, any header set         HTTP 403, 24-byte body  (bare UA, UA+accept, full browser)
+#     Cloudflare Worker under wrangler   HTTP 403, 24-byte body
+#   So there is no proxy route to build and no header fix to find. A normal runner with curl is the
+#   only thing that can read the page, which is why the browser reads a COMMITTED CAPTURE and the
+#   tab's button checks for a newer one rather than pretending to reach the publisher.
+#
+# A TOP-UP RUN IS CHEAP BY CONSTRUCTION. The listing is in publication order, so the walk stops at
+# the first story already held — normally one or two page reads plus a handful of article reads for
+# the publisher's timestamps. The deep first fill was a one-off (MCNEWS_FULL=1).
+
+on:
+  schedule:
+    # TWO SCHEDULES, BECAUSE THE MEASUREMENTS SAY SO. Both numbers below are observed, not guessed.
+    #
+    # 1. GITHUB DROPS MOST OF A HIGH-FREQUENCY CRON. Over a 41-hour window `*/20 * * * *` fired
+    #    **12 times against 124 scheduled — 10%** — averaging one run every 3.8 hours. Their
+    #    scheduler is best-effort on shared infrastructure and sheds the densest schedules first,
+    #    so asking for 72 runs a day is how you get 6. Asking for fewer does not fix that, but it
+    #    stops the schedule being the densest thing in the queue.
+    #
+    # 2. THE PUBLISHER REFUSES THIS RUNNER OUTSIDE INDIAN HOURS. Of those 12 runs, 7 failed with
+    #    HTTP 403 on the listing page, and the split by clock is total:
+    #
+    #        every success   10:27 - 21:14 IST   (04:57 - 15:44 UTC)
+    #        every refusal   20:28 - 05:29 IST   (14:58 - 23:59 UTC)
+    #
+    #    So a dense overnight schedule is not merely wasteful, it is runs spent being refused.
+    #
+    # Hence: every 30 minutes across the window that works, and hourly outside it so a recovery is
+    # noticed without hammering a door that is closed. UTC — 03:00-14:59 UTC is 08:30-20:29 IST.
+    - cron: "*/30 3-14 * * *"
+    - cron: "0 15-23,0-2 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Full walk instead of stopping at a known story (1 = yes)"
+        required: false
+        default: "0"
+      pages:
+        description: "Listing pages to read"
+        required: false
+        default: "4"
+      source:
+        description: "Who asked for this run — cron, auto, button, or manual"
+        required: false
+        default: "manual"
+
+# WHAT DROVE THIS RUN, VISIBLE IN THE RUNS LIST WITHOUT OPENING IT.
+#
+# The cadence question — "is the news actually refreshing on its own?" — was answered wrongly twice
+# because the evidence was hard to get at: `event` distinguishes `schedule` from `workflow_dispatch`
+# but every dispatch looks alike, so a run started by the Worker's cron is indistinguishable from
+# one a reader started by pressing Fetch. `run-name` puts the source in `display_title`, which the
+# API returns in the list — so "when did this last refresh by itself" is now one query, for anyone,
+# for ever.
+run-name: Market news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+concurrency:
+  group: market-news-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # No secret of any kind — the page is public. The scraper shells out to curl, which is on
+      # every runner, because node's fetch cannot read this host.
+      #
+      # EXIT 2 MEANS THE PUBLISHER REFUSED THIS RUNNER, which is not a fault in anything here: the
+      # committed capture is untouched and still correct. Reporting that as a failed build sends
+      # somebody to read a scraper that is working, and — worse — makes the failure notification
+      # meaningless, because more than half of them are this. Exit 1 (markup changed, network died,
+      # a real bug) still fails the run loudly.
+      - name: Capture market news
+        id: capture
+        env:
+          MCNEWS_FULL: ${{ github.event.inputs.full || '0' }}
+          MCNEWS_PAGES: ${{ github.event.inputs.pages || '4' }}
+        run: |
+          set +e
+          node scripts/scrape-mc-news.mjs
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "2" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Publisher refused this runner::Moneycontrol answered 403. The committed capture is unchanged. Measured: this happens on ~7 of 12 runs, all outside Indian market hours."
+            exit 0
+          fi
+          exit $code
+
+      # `if: success()` matters: the scraper exits non-zero when it read pages and parsed nothing,
+      # which means the markup changed rather than the news being quiet. Committing then would
+      # replace a good capture with an empty one that still looks valid.
+      - name: Commit the capture
+        if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/market-news.json
+          if git diff --cached --quiet; then
+            echo "No new stories."
+            exit 0
+          fi
+          git commit -m "Market news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

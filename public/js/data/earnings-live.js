@@ -40,6 +40,7 @@
 //   this" and "this is zero" are different claims.
 
 import { adaptUniverse } from './universe.js';
+import { filterByScope } from './scope.js';
 import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/earnings-live.json';
@@ -419,22 +420,32 @@ export function startLive(live) {
       // A tick that arrives for the basis the user has since switched away from is dropped rather
       // than folded in — it would overwrite the active cache with the other comparison.
       if (st !== subType || (out.value.meta?.subType || st) !== st) return null;
-      markChecked('live', out.checkedAt);
+      // Fallback prices are real retained values, but they are not a successful current read. Do
+      // not apply them or let a matching structure tag short-circuit away the degraded state.
+      if (out.value.degraded) {
+        const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+        return healthChanged ? cache : null;
+      }
 
       const held = structureTagFor(st);
       if (held && out.value.structureTag === held) {
         // Same rows, possibly moved prices. Refresh the cache but do NOT notify: repainting 1,300
         // rows because someone traded would rebuild the table and throw away whatever the reader
         // had sorted or searched, for no new information about any result.
+        const healthChanged = markProjectionChecked(out.value, out.checkedAt);
         applyPrices(out.value);
-        return null;
+        return healthChanged ? cache : null;
       }
 
       // Either a company has filed or revised, or we have nothing to compare against yet (the
       // committed snapshot carries no structure tag). Now — and only now — pull the full feed.
       const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
-      if (!full.value?.rows?.length) return null;
-      if (st !== subType || (full.value.meta?.subType || st) !== st) return null;
+      if (st !== subType) return null;
+      const failure = structuralRefreshFailure(full, st, out.value.structureTag);
+      if (failure) {
+        const healthChanged = markStructuralRefreshFailed(failure, full.checkedAt || out.checkedAt);
+        return healthChanged ? cache : null;
+      }
       const structural = hasStructuralChange(full.value);
       ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
       return structural ? cache : null;
@@ -449,6 +460,95 @@ export function startLive(live) {
     off();
     live.stop(LIVE_ID);
   };
+}
+
+/**
+ * Revalidate the active feed once without starting the 30-second poller.
+ *
+ * General Alerts uses this for its explicit Refresh button. The prices projection keeps an unchanged
+ * check tiny; the full payload is pulled only when the structure tag says a result appeared or was
+ * revised. Calling `load()` again cannot do this because that function is intentionally idempotent.
+ */
+export async function refresh() {
+  await load();
+  const st = subType;
+  const out = await conditionalJson(pricesEndpointFor(st), { key: priceStoreKey(st), optional: true });
+  if (!out.value?.prices || st !== subType || (out.value.meta?.subType || st) !== st) return cache;
+  if (out.value.degraded) {
+    const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+    if (healthChanged) notify();
+    return cache;
+  }
+
+  const held = structureTagFor(st);
+  if (held && out.value.structureTag === held) {
+    const healthChanged = markProjectionChecked(out.value, out.checkedAt);
+    if (healthChanged) notify();
+    applyPrices(out.value);
+    return cache;
+  }
+
+  const full = await conditionalJson(endpointFor(st), { key: storeKey(st), optional: true });
+  if (st !== subType) return cache;
+  const failure = structuralRefreshFailure(full, st, out.value.structureTag);
+  if (failure) {
+    const healthChanged = markStructuralRefreshFailed(failure, full.checkedAt || out.checkedAt);
+    if (healthChanged) notify();
+    return cache;
+  }
+  const changed = hasStructuralChange(full.value);
+  ingest(full.value, { live: true, origin: 'live', checkedAt: full.checkedAt });
+  if (changed) notify();
+  return cache;
+}
+
+/**
+ * A projection with a different structure tag proves the held rows are old. Only a fresh, full
+ * response can clear that condition; a 304/store replay or a degraded/empty response cannot.
+ */
+export function structuralRefreshFailure(out, expectedSubType, projectedStructureTag = null) {
+  if (!out || out.status !== 200 || out.fromStore) {
+    return `the full results refresh failed${out?.status ? ` (HTTP ${out.status})` : ''}`;
+  }
+  const payload = out.value;
+  if (!payload?.rows?.length) return 'the full results refresh returned no rows';
+  if ((payload.meta?.subType || expectedSubType) !== expectedSubType) {
+    return `the full results refresh answered with ${(payload.meta?.subType || 'an unknown comparison').toUpperCase()}`;
+  }
+  if (payload.degraded) return `the full results refresh degraded (${payload.degraded})`;
+  const fullTag = payload.meta?.structureTag || payload.structureTag || null;
+  if (projectedStructureTag && fullTag && fullTag !== projectedStructureTag) {
+    return 'the full results refresh did not contain the structure reported by the prices feed';
+  }
+  return null;
+}
+
+function markStructuralRefreshFailed(reason, at) {
+  if (!cache) return false;
+  const changed = String(cache.meta.degraded || '') !== String(reason || '');
+  cache.meta = {
+    ...cache.meta,
+    degraded: reason,
+    isLive: false,
+    origin: 'live',
+    checkedAt: at || Date.now(),
+  };
+  return changed;
+}
+
+/** Record whether the lightweight price read itself reached the upstream. */
+function markProjectionChecked(payload, at) {
+  if (!cache) return false;
+  const degraded = payload?.degraded || null;
+  const changed = String(cache.meta.degraded || '') !== String(degraded || '');
+  cache.meta = {
+    ...cache.meta,
+    degraded,
+    isLive: !degraded,
+    origin: 'live',
+    checkedAt: at || Date.now(),
+  };
+  return changed;
 }
 
 export function stopLive(live) {
@@ -585,8 +685,5 @@ export function dateRange() {
  * that has reported. Filtering the cached list — never a refetch.
  */
 export function forScope(scope, holdings = []) {
-  const rows = all();
-  if (scope !== 'portfolio') return rows;
-  const held = new Set(holdings.map((h) => String(h.ticker).toUpperCase()));
-  return rows.filter((r) => r.ticker && held.has(r.ticker));
+  return filterByScope(all(), scope, holdings);
 }

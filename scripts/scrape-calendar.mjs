@@ -12,11 +12,9 @@
 //   it, not to have no fallback at all.
 //
 //   The forcing reason is that the Worker cannot reliably reach the source. The per-date COUNTS
-//   come from api.moneycontrol.com, which is open. The per-date COMPANY LIST only exists inside
-//   the calendar page's server-rendered props on www.moneycontrol.com, which is behind Akamai —
-//   and Akamai answers a Cloudflare Worker with a 200 whose body carries no `__NEXT_DATA__` at
-//   all. From this script's vantage (a GitHub runner, or a laptop) the same request returns the
-//   real page. So the fetch moves to where it works, and the Worker serves the result.
+//   come from api.moneycontrol.com, which is open. The complete company list comes from the
+//   paginated HTML endpoints behind www.moneycontrol.com, which may answer an edge request
+//   differently from a GitHub runner or ordinary browser. So the capture remains the fallback.
 //
 //   Every row this writes therefore travels with `capturedAt`, the payload says
 //   `listSource: 'snapshot'`, and the UI prints how old the capture is next to a count that is
@@ -26,7 +24,7 @@
 import { writeFile, readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchCalendarStrip, fetchCalendarDay, applyIdentity, resolveMissing, CALENDAR_LIST_CAP } from '../worker/mc.mjs';
+import { fetchCalendarStrip, fetchCalendarDay, applyIdentity, resolveMissing, CALENDAR_PAGE_SIZE } from '../worker/mc.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, '../public/data/earnings-calendar.json');
@@ -51,7 +49,7 @@ async function main() {
 
   console.log(`Results calendar: ${from} .. ${to}`);
 
-  const days = await fetchCalendarStrip({ fromDate: from, toDate: to });
+  const days = await fetchCalendarStrip({ fromDate: from, toDate: to, indexId: 'All' });
   const live = days.filter((d) => d.count > 0);
   console.log(`  ${days.length} dates in range · ${live.length} with companies scheduled`);
 
@@ -62,24 +60,26 @@ async function main() {
     console.warn('  (no ticker map yet — rows will carry no ticker)');
   }
 
-  // Only dates that actually have companies are worth a page fetch. On a normal window that is
-  // ~15 requests, not 25, and it skips every weekend for free.
+  // Only dates that actually have companies are worth fetching. Each one follows every published
+  // twenty-row page; quiet dates cost one request and weekends cost none.
   const byDate = {};
   let ok = 0;
   let failed = 0;
   for (const d of live) {
     try {
-      const day = await fetchCalendarDay({ date: d.date });
-      const { resolved } = await resolveMissing(day.rows, map, { limit: CALENDAR_LIST_CAP + 5 });
+      const day = await fetchCalendarDay({ date: d.date, indexId: 'All', expectedCount: d.count });
+      const { resolved } = await resolveMissing(day.rows, map, { limit: 40 });
       Object.assign(map, resolved); // later dates reuse what earlier ones resolved
       byDate[d.date] = {
         rows: applyIdentity(day.rows, map),
         scheduledCount: d.count,
-        capped: day.capped,
+        pageSize: day.pageSize,
+        pagesFetched: day.pagesFetched,
+        complete: day.complete,
         asOnDate: day.asOnDate,
       };
       ok++;
-      process.stdout.write(`  ${d.date}  ${String(day.rows.length).padStart(2)} of ${String(d.count).padStart(3)}${day.capped ? '  (capped)' : ''}\n`);
+      process.stdout.write(`  ${d.date}  ${String(day.rows.length).padStart(3)} of ${String(d.count).padStart(3)}  (${day.pagesFetched} page${day.pagesFetched === 1 ? '' : 's'})\n`);
     } catch (err) {
       failed++;
       console.warn(`  ${d.date}  FAILED — ${err.message}`);
@@ -98,9 +98,9 @@ async function main() {
     capturedAt: new Date().toISOString(),
     from,
     to,
-    listCap: CALENDAR_LIST_CAP,
-    source: 'Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)',
-    note: 'The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.',
+    pageSize: CALENDAR_PAGE_SIZE,
+    source: 'Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)',
+    note: 'The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.',
     days,
     byDate,
   };

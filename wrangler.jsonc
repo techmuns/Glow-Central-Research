@@ -1,5 +1,10 @@
 {
   // MUST match the deployed Worker: https://glow-central-research.tech-441.workers.dev.
+  //
+  // THIS FILE IS GLOW-OWNED. This repository is a downstream of techmuns/Sattva-Central-Research
+  // (see CLAUDE.md, "This dashboard is a downstream of Sattva"): the code is merged from there,
+  // and the Worker name, GH_REPO and the rate-limit namespace below are the deployment-specific
+  // values that must NOT be taken from upstream on a sync.
   // A name that does not match the live Worker is a quiet trap rather than a loud one:
   // `npx wrangler deploy` would create a SECOND, empty Worker beside the real one, and
   // `npx wrangler secret put MUNS_TOKEN` would put the credential on that empty one — where
@@ -7,5 +12,67 @@
   "name": "glow-central-research",
   "compatibility_date": "2026-05-23",
   "main": "worker/index.js",
-  "assets": { "directory": "./public", "binding": "ASSETS" }
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // WHICH REPOSITORY THE NEWS REFRESH BUTTON MAY START A RUN IN.
+  //
+  // Not a secret — it is the public name of a public repository, and it is here rather than in the
+  // request precisely so nobody who finds `POST /api/market-news/refresh` can point it somewhere
+  // else. The credential that goes with it is NOT here and never should be:
+  //
+  //     npx wrangler secret put GH_DISPATCH_TOKEN     # production
+  //     echo 'GH_DISPATCH_TOKEN=github_pat_…' >> .dev.vars   # local, gitignored
+  //
+  // A fine-grained personal access token scoped to this ONE repository with a single permission,
+  // "Actions: read and write". Nothing else — it does not need contents, and a token that can
+  // write code is not the token to hand an unauthenticated route.
+  "vars": {
+    "GH_REPO": "techmuns/Glow-Central-Research",
+    "GH_REF": "main",
+
+    // Ask Research streams the low-latency model through Muns' query router. The session credential
+    // is a Worker secret: prefer `MUNS_LLM_TOKEN`, with existing Muns tokens as fallbacks.
+    "MUNS_LLM_BASE": "https://fastapi.muns.io",
+    "MUNS_LLM_TYPE": "local_llm",
+    // The operator confirmed this old binding now contains a Muns token, not an Anthropic key.
+    // Remove this migration opt-in after `MUNS_LLM_TOKEN` is installed.
+    "MUNS_LLM_LEGACY_ANTHROPIC_BINDING": "confirmed-muns-token"
+  },
+
+  // The dashboard has no account system to key this on today, so the route uses the authenticated
+  // Access email when present and the connecting address otherwise. This is abuse protection for
+  // a paid upstream, not billing-grade accounting; Cloudflare rate limits are intentionally
+  // permissive and local to a location.
+  "ratelimits": [
+    {
+      "name": "RESEARCH_RATE_LIMITER",
+      // Distinct from the Sattva deployment's (1701) on the same Cloudflare account, so the two
+      // Workers never share one rate-limit bucket.
+      "namespace_id": "1702",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ]
+
+  // NO CRON TRIGGER HERE, AND THE REASON IS AN ACCOUNT LIMIT RATHER THAN A CHOICE.
+  //
+  // A `triggers.crons` block was added to drive the news refresh from Cloudflare's scheduler,
+  // because GitHub's own `schedule:` measurably does not fire on this repository (12 runs against
+  // 124 over 41 hours, then ZERO against ~11 in the 5.7 hours after the cron was relaxed). It could
+  // not be registered, and the build log says exactly why:
+  //
+  //     Trigger configuration for "<worker name>" was only partially updated:
+  //       Cron schedules:
+  //         - This account has reached the Workers Free limit of 5 cron triggers per account.
+  //
+  // THE LIMIT IS PER ACCOUNT, NOT PER WORKER, and the account's five are spent on other Workers.
+  // So the trigger never existed, which is why the cron never fired — and worse, `wrangler deploy`
+  // exits NON-ZERO on that step, so every build went red. Note what that looks like: the script
+  // uploads first and the trigger step fails after it, so the code was live on a "failed" build
+  // and "Successful trigger changes were not rolled back". **A red build here does not mean the
+  // site is stale**, and a green one is not what proves a trigger registered.
+  //
+  // `scheduled()` in worker/index.js is left in place. It costs nothing without a trigger and
+  // starts working the moment one exists, so freeing a cron slot on the account (or upgrading) is
+  // the only step needed — no code change. Until then the cadence has to come from somewhere else;
+  // see docs/DATA-CONTRACTS.md, "Keeping the capture fresh".
 }

@@ -28,6 +28,13 @@
 import * as earnings from '../data/earnings-live.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
+import * as marketNews from '../data/market-news.js';
+import * as refreshRegistry from './refresh.js';
+import { withoutPublisherName } from './source-copy.js';
+
+// How long the header's Refresh waits for the per-company feeds before saying they are still
+// going. Long enough for a warm walk to finish, short enough that the button is not dead.
+const ON_DEMAND_WAIT_MS = 12_000;
 import * as coverage from '../data/coverage.js';
 import * as notifications from '../ui/notifications.js';
 import { formatCroreCompact, formatPct } from './format.js';
@@ -54,6 +61,7 @@ export function start(live) {
   wire(earnings, { keyOf: earningsKey, announce: announceEarnings, label: earnings.LIVE_ID });
   wire(concalls, { keyOf: concallKey, announce: announceConcalls, label: concalls.LIVE_ID });
   wire(chatter, { keyOf: chatterKey, announce: announceChatter, label: chatter.LIVE_ID });
+  wire(marketNews, { keyOf: marketNewsKey, announce: announceMarketNews, label: marketNews.LIVE_ID });
 }
 
 function wire(feed, { keyOf, announce, label }) {
@@ -79,7 +87,7 @@ function wire(feed, { keyOf, announce, label }) {
  */
 export function ensureRunning() {
   if (!engine) return;
-  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID]) engine.start(id);
+  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID, marketNews.LIVE_ID]) engine.start(id);
 }
 
 /**
@@ -87,13 +95,40 @@ export function ensureRunning() {
  * something true rather than just spinning for a moment.
  */
 export async function refreshNow() {
-  if (!engine) return { announced: 0 };
   const before = notifications.announcedCount();
-  ensureRunning();
-  await engine.refreshAll();
+  // TWO KINDS OF FEED, AND THE BUTTON DRIVES BOTH.
+  //
+  //   the POLLERS — the results feed and the con-call scan. Conditional, cheap, already ticking,
+  //   and the source of every alert. `engine.refreshAll()` ticks the running ones.
+  //
+  //   the ON-DEMAND feeds — News, Corporate Announcements, Insider Trades, Superstar Investors.
+  //   One request per company, so they must not tick at all; this button is the only thing that
+  //   reads them. Registered by whichever tab is mounted, so the cost stays bounded.
+  //
+  // Both are awaited together and the counts are summed, because the reader pressed one button and
+  // is owed one answer.
+  const pollers = (async () => {
+    if (!engine) return null;
+    ensureRunning();
+    return engine.refreshAll();
+  })();
+
+  // A WALK OF FORTY COMPANIES DOES NOT FIT IN A BUTTON'S PATIENCE, and the button must not lie
+  // about that. It waits a bounded time for the on-demand feeds and then reports `pending` if they
+  // are still going — "Still reading…" is a true statement and "Couldn't check" would not be, on
+  // work that is proceeding perfectly well. The tab's own strip shows the walk as it lands.
+  const STILL_RUNNING = Symbol('pending');
+  const onDemand = refreshRegistry.refreshAll();
+  const bounded = await Promise.race([
+    Promise.all([pollers, onDemand]).then(([, o]) => o),
+    new Promise((resolve) => setTimeout(() => resolve(STILL_RUNNING), ON_DEMAND_WAIT_MS)),
+  ]);
   // The feeds' own onChange fires synchronously inside the tick, so by here the announcements
   // have already been made.
-  return { announced: notifications.announcedCount() - before };
+  const announced = notifications.announcedCount() - before;
+  if (bounded === STILL_RUNNING) return { announced, pending: true };
+  // A feed that was already walking when the button was pressed is still walking now.
+  return { announced: announced + (bounded?.announced || 0), pending: (bounded?.skipped || 0) > 0 };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -141,6 +176,48 @@ function describeMetric(label, m) {
   if (m.kind === 'loss_both') return `${label} ${value} — loss in both periods`;
   if (m.pct == null) return `${label} ${value}`;
   return `${label} ${value} (${formatPct(m.pct, { signed: true })})`;
+}
+
+/**
+ * The publisher's own article id. Stable across captures and across edits to the headline, which a
+ * title-derived key would not be — Moneycontrol revise headlines after publication, and that would
+ * announce one story twice.
+ */
+const marketNewsKey = (a) => `mcnews:${a.id || a.url}`;
+
+/**
+ * A story that appeared since this page loaded.
+ *
+ * NO SUMMARY AND NO JUDGEMENT. The detail line carries the publisher's own standfirst, trimmed, and
+ * the section they filed it under — nothing here decides a story is important, and nothing rewrites
+ * their words. An alert is the one surface that reaches a reader with none of the page's context,
+ * so it is the last place to start editorialising.
+ *
+ * The time shown is the PUBLISHER'S where we have it. A story whose date was not fetched carries
+ * `firstSeenAt`, which is when this dashboard saw it — different fact, and the card must not
+ * present the second as the first, so it falls back to "just captured" rather than to a timestamp.
+ */
+function announceMarketNews() {
+  for (const a of [...marketNews.newArrivals()].reverse()) {
+    notifications.push({
+      key: marketNewsKey(a),
+      kind: 'news',
+      title: withoutPublisherName(a.title) || 'A story was published',
+      detail: marketNewsDetail(a),
+      // The publisher's own thumbnail, the same one the card on the tab shows. Hot-linked, never
+      // copied, and dropped by the alert if it is not an https URL.
+      image: a.image || null,
+      href: '#/research/news?scope=universe',
+      at: a.publishedAt ? Date.parse(a.publishedAt) : Date.now(),
+    });
+  }
+}
+
+export function marketNewsDetail(a) {
+  const section = a.section ? withoutPublisherName(a.section.replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher') : null;
+  const lead = a.summary ? withoutPublisherName(a.summary).slice(0, 140) : null;
+  if (lead && section) return `${section} · ${lead}`;
+  return lead || (section ? `Published under ${section}` : 'Market news published');
 }
 
 function announceConcalls() {

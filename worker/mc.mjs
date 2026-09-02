@@ -289,48 +289,34 @@ export function freshnessOf(rows) {
 // ---------------------------------------------------------------------------------------
 // THE RESULTS CALENDAR — who is *scheduled* to report, and when.
 //
-// A different question from Rapid Results, and it comes from two places because Moneycontrol
-// only publishes it in two places. Both are live; neither is complete on its own.
+// Moneycontrol's current public calendar splits the answer across two endpoints:
 //
-//   1. api.moneycontrol.com/mcapi/v1/earnings/result-calendar  — a clean JSON date strip:
-//      every date in a range with the FULL number of companies reporting on it. No pagination,
-//      no cap, no Akamai. This is the authoritative count.
+//   1. api.moneycontrol.com/mcapi/v1/earnings/result-calendar — the complete count per date.
+//   2. www.moneycontrol.com/earnings-widget plus /pagination/earnings-pagination — the named
+//      companies, twenty rows per page.
 //
-//   2. www.moneycontrol.com/markets/earnings/results-calendar/?activeDate=YYYY-MM-DD — the page
-//      itself, whose Next.js server props carry the company list for that date. It returns the
-//      TWENTY LARGEST BY MARKET CAP and nothing else: `?page=`, `?limit=` and every other name
-//      tried are echoed back into `query` and ignored, `/_next/data/...` (the route the site's
-//      own "load more" uses) is 503'd by Akamai for non-browser clients, and there is no JSON
-//      endpoint for the list — every plausible path under /mcapi/v1/earnings/ 404s.
+// The old integration read /markets/earnings/results-calendar and stopped at that page's first
+// twenty server-rendered rows. Moneycontrol's current /earnings-calendar page publishes the real
+// pagination route in its own JavaScript, so stopping at twenty is no longer defensible. The
+// count and list are now both requested with indexId=All, matching the source page's default and
+// keeping BSE-only companies such as Vivanta Industries in the same answer as NSE companies.
 //
-// So the count is complete and the list is a top-20. That asymmetry is DATA, not a bug to paper
-// over: `listCap` and `earningCount` both travel in the payload so the UI can say "170 reporting ·
-// the 20 largest shown" instead of implying twenty is all there are.
-//
-// AND THEY DO NOT COVER THE SAME EXCHANGES, WHICH IS WHY THE COUNT CAN BE *SMALLER*.
-//   The strip is fetched with `indexId=N` — NSE — and the page with `indexId=All`. On 17 Aug 2026
-//   the count said 1 and the page named three: Indo-MIM (NSE) plus Cressanda Railway Solution and
-//   Indrayani Biotech, both BSE-only. Every number there is correct; they are answers to two
-//   different questions.
-//
-//   This looks exactly like the flat-zero failure mode described in worker/index.js and it is not
-//   one, so do not "fix" it by aligning the two parameters. Moving the strip to `indexId=All` would
-//   restate every count in the strip as a different universe under the same label, which is the
-//   move that section of worker/index.js explicitly refuses for `indexId=B`. What the UI does
-//   instead is decline to print a count it cannot stand behind — `believableCount()` in
-//   js/tabs/earnings-hub.js — and say why in the pill's modal. A number that would contradict the
-//   rows beneath it is worse than no number.
+// A busy date currently needs about thirty pages. Cloudflare allows six simultaneous outgoing
+// connections, so pages are fetched in batches of six. The hard page guard is below the Free-plan
+// 50-external-subrequest ceiling once the count request and bounded identity lookups are included;
+// the caller uses pagesFetched to spend only the remaining identity budget.
 // ---------------------------------------------------------------------------------------
 
 export const CALENDAR_STRIP_URL = 'https://api.moneycontrol.com/mcapi/v1/earnings/result-calendar';
-export const CALENDAR_PAGE_URL = 'https://www.moneycontrol.com/markets/earnings/results-calendar/';
-
-// The upstream page's own cap. Not ours, and not configurable — see the header.
-export const CALENDAR_LIST_CAP = 20;
+export const CALENDAR_PAGE_URL = 'https://www.moneycontrol.com/earnings-calendar';
+export const CALENDAR_WIDGET_URL = 'https://www.moneycontrol.com/earnings-widget';
+export const CALENDAR_PAGINATION_URL = 'https://www.moneycontrol.com/pagination/earnings-pagination';
+export const CALENDAR_PAGE_SIZE = 20;
+export const CALENDAR_MAX_PAGES = 45;
 
 // www.moneycontrol.com sits behind Akamai Bot Manager. From an ordinary client (a laptop, a
 // GitHub runner) these headers get the real server-rendered page. From a Cloudflare Worker they
-// often do not: Akamai answers 200 with an interstitial that carries no `__NEXT_DATA__` at all.
+// often do not: Akamai can answer 200 with an interstitial that carries none of the expected rows.
 // That is why `fetchCalendarDay` throws a *typed* error for it and the Worker falls back to the
 // committed capture rather than treating it as an outage — see scripts/scrape-calendar.mjs.
 const PAGE_HEADERS = {
@@ -363,7 +349,7 @@ const assertIsoDate = (d, name) => {
  * The date strip: `[{ date, displayDate, count }]`, newest first as the upstream returns it.
  * `count` is the complete number of companies scheduled on that date.
  */
-export async function fetchCalendarStrip({ fromDate, toDate, indexId = 'N' } = {}, fetchImpl = fetch) {
+export async function fetchCalendarStrip({ fromDate, toDate, indexId = 'All' } = {}, fetchImpl = fetch) {
   assertIsoDate(fromDate, 'fromDate');
   assertIsoDate(toDate, 'toDate');
   const url = `${CALENDAR_STRIP_URL}?fromDate=${fromDate}&toDate=${toDate}&indexId=${encodeURIComponent(indexId)}`;
@@ -387,15 +373,87 @@ export async function fetchCalendarStrip({ fromDate, toDate, indexId = 'N' } = {
     .filter((d) => ISO_DATE.test(String(d.date || '')));
 }
 
-/** `<script id="__NEXT_DATA__">…</script>` -> the parsed object, or null if the page changed shape. */
-export function extractNextData(html) {
-  const m = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/.exec(html || '');
-  if (!m) return null;
-  try {
-    return JSON.parse(m[1]);
-  } catch {
-    return null;
+const HTML_ENTITIES = { amp: '&', apos: "'", gt: '>', lt: '<', nbsp: ' ', quot: '"' };
+const decodeHtml = (value) =>
+  String(value || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(Number.parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&([a-z]+);/gi, (all, name) => HTML_ENTITIES[name.toLowerCase()] ?? all);
+
+const textFromHtml = (value) =>
+  decodeHtml(
+    String(value || '')
+      .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+function exchangeMapFromCalendarHtml(html) {
+  const out = new Map();
+  const tags = String(html || '').match(/<(?:input|tr)\b[^>]*\bid\s*=\s*["'](?:scIds-widget|paginate-scids)["'][^>]*>/gi) || [];
+  for (const tag of tags) {
+    const raw = /\b(?:value|dataScId)\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1];
+    if (!raw) continue;
+    try {
+      for (const item of JSON.parse(decodeHtml(raw))) {
+        if (item?.scID) out.set(String(item.scID), item.exchange || null);
+      }
+    } catch {
+      // A malformed identity hint must not discard otherwise parseable calendar rows. The row
+      // remains with exchange=null and the count/list consistency check still protects coverage.
+    }
   }
+  return out;
+}
+
+/** Parse one widget or pagination fragment from Moneycontrol's public Earnings Calendar. */
+export function parseCalendarHtml(html, date) {
+  assertIsoDate(date, 'date');
+  const exchanges = exchangeMapFromCalendarHtml(html);
+  const rows = [];
+
+  for (const match of String(html || '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const rowHtml = match[1];
+    if (!/\bevt_alink\b/i.test(rowHtml)) continue;
+
+    const cells = [...rowHtml.matchAll(/<td\b([^>]*)>([\s\S]*?)<\/td>/gi)].map((m) => ({ attrs: m[1], html: m[2] }));
+    const eventIndex = cells.findIndex((cell) => /\beventName\b/i.test(cell.attrs));
+    if (eventIndex < 1 || cells.length < eventIndex + 5) continue;
+
+    let event = null;
+    for (const anchor of cells[eventIndex].html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+      if (!/\bclass\s*=\s*["'][^"']*\bevt_alink\b/i.test(anchor[1])) continue;
+      event = { attrs: anchor[1], name: textFromHtml(anchor[2]) };
+      break;
+    }
+    if (!event?.name) continue;
+
+    const scId = /\bid\s*=\s*["']([^"']+)-(?:ltp|changeP)["']/i.exec(rowHtml)?.[1] || null;
+    if (!scId) continue;
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(event.attrs)?.[1] || null;
+    const marketCapCell = [...cells].reverse().find((cell) => /display\s*:\s*none/i.test(cell.attrs));
+
+    rows.push(
+      normaliseCalendarRow(
+        {
+          scId,
+          stockName: event.name,
+          date: textFromHtml(cells[eventIndex - 1]?.html),
+          resultType: textFromHtml(cells[eventIndex + 1]?.html),
+          ltp: textFromHtml(cells[eventIndex + 2]?.html),
+          change: textFromHtml(cells[eventIndex + 3]?.html).replace(/%/g, '').trim(),
+          time: textFromHtml(cells[eventIndex + 4]?.html),
+          marketCap: textFromHtml(marketCapCell?.html),
+          exchange: exchanges.get(scId) || null,
+          stockUrl: href ? decodeHtml(href) : null,
+        },
+        date
+      )
+    );
+  }
+  return rows.filter((row) => row.scId && row.name);
 }
 
 /** One scheduled company, in the same field vocabulary the results feed uses. */
@@ -423,28 +481,111 @@ export function normaliseCalendarRow(r, date) {
 }
 
 /**
- * The company list for one date. Returns `{ rows, asOnDate, capped }`.
- *
- * `capped` is true whenever the page handed back a full page — the honest reading of "we got
- * exactly the cap" is "there are probably more", and the caller pairs it with the strip count.
+ * The complete company list for one date. `expectedCount` comes from the all-exchange strip and
+ * tells us exactly how many twenty-row pages to request. Without it, pagination continues until a
+ * short page. A count/list mismatch throws so the Worker can prefer a complete stamped snapshot
+ * rather than presenting a partial live list as complete.
  */
-export async function fetchCalendarDay({ date, indexId = 'All' } = {}, fetchImpl = fetch) {
+export async function fetchCalendarDay({ date, indexId = 'All', expectedCount = null } = {}, fetchImpl = fetch) {
   assertIsoDate(date, 'date');
-  const url = `${CALENDAR_PAGE_URL}?id=${encodeURIComponent(indexId)}&name=All&activeDate=${date}`;
-  const res = await fetchImpl(url, { headers: PAGE_HEADERS });
-  if (!res.ok) throw new CalendarPageBlocked(`Moneycontrol calendar page HTTP ${res.status}`);
-  const html = await res.text();
-  const data = extractNextData(html);
-  const cal = data?.props?.pageProps?.resultCalendarData;
-  if (!cal) {
-    // Distinguish the two ways this can happen, because they need different responses. A body with
-    // no Next.js payload at all is the bot wall; a Next.js payload without our key is a genuine
-    // shape change and should be fixed here rather than papered over with a fallback.
-    if (!data) throw new CalendarPageBlocked(`the calendar page returned ${html.length} bytes with no app payload — Akamai bot wall`);
-    throw new Error('Moneycontrol calendar page no longer carries `resultCalendarData` — the page shape has changed');
+  const count = Number.isFinite(Number(expectedCount)) ? Math.max(0, Number(expectedCount)) : null;
+  let requestsMade = 0;
+  let retriesRemaining = 2;
+  const query = (page) =>
+    new URLSearchParams({ indexId, dur: '', startDate: date, endDate: date, page: String(page), deviceType: 'web', classic: 'true' });
+  const urlFor = (page) => `${page === 1 ? CALENDAR_WIDGET_URL : CALENDAR_PAGINATION_URL}?${query(page)}`;
+  const getHtml = async (page) => {
+    while (true) {
+      requestsMade++;
+      let res;
+      try {
+        res = await fetchImpl(urlFor(page), { headers: PAGE_HEADERS });
+      } catch (cause) {
+        if (retriesRemaining > 0) {
+          retriesRemaining--;
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          continue;
+        }
+        const error = new CalendarPageBlocked(`Moneycontrol calendar page ${page} request failed: ${cause?.message || cause}`);
+        error.requestsMade = requestsMade;
+        throw error;
+      }
+      if (res.ok) return res.text();
+      // Pagination occasionally emits a transient 5xx on one page of an otherwise healthy date.
+      // Spend at most two retries across the whole date, then surface the failure for snapshot
+      // fallback. The caller accounts `requestsMade` before spending anything on identity lookups.
+      if (res.status >= 500 && retriesRemaining > 0) {
+        retriesRemaining--;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        continue;
+      }
+      const error = new CalendarPageBlocked(`Moneycontrol calendar page ${page} HTTP ${res.status}`);
+      error.requestsMade = requestsMade;
+      throw error;
+    }
+  };
+
+  const firstHtml = await getHtml(1);
+  const firstRows = parseCalendarHtml(firstHtml, date);
+  if (count > 0 && !firstRows.length) {
+    const error = new CalendarPageBlocked(`the calendar widget returned ${firstHtml.length} bytes but no company rows`);
+    error.requestsMade = requestsMade;
+    throw error;
   }
 
-  const list = cal.tableData?.list || [];
-  const rows = list.map((r) => normaliseCalendarRow(r, date)).filter((r) => r.scId);
-  return { rows, asOnDate: cal.tableData?.asOnDate || null, capped: list.length >= CALENDAR_LIST_CAP };
+  const rows = [...firstRows];
+  let pagesFetched = 1;
+  const requestedPages = count == null
+    ? firstRows.length >= CALENDAR_PAGE_SIZE ? CALENDAR_MAX_PAGES : 1
+    : Math.max(1, Math.ceil(count / CALENDAR_PAGE_SIZE));
+  if (requestedPages > CALENDAR_MAX_PAGES) {
+    throw new Error(`Moneycontrol calendar needs ${requestedPages} pages, above the ${CALENDAR_MAX_PAGES}-page safety bound`);
+  }
+
+  // At most six concurrent outgoing connections: the Cloudflare platform limit and a polite bound
+  // for the upstream. A known count makes the page range deterministic and safe to batch. Without
+  // one, pages must be sequential: prefetching a six-page batch past the first short page would
+  // spend uncounted subrequests and could leave too little budget for identity resolution.
+  if (count == null) {
+    for (let page = 2; page <= requestedPages; page++) {
+      const pageRows = parseCalendarHtml(await getHtml(page), date);
+      pagesFetched++;
+      rows.push(...pageRows);
+      if (pageRows.length < CALENDAR_PAGE_SIZE) break;
+    }
+  } else {
+    for (let start = 2; start <= requestedPages; start += 6) {
+      const pageNumbers = Array.from({ length: Math.min(6, requestedPages - start + 1) }, (_, i) => start + i);
+      const outcomes = await Promise.allSettled(pageNumbers.map(async (page) => ({ page, html: await getHtml(page) })));
+      const rejected = outcomes.find((outcome) => outcome.status === 'rejected');
+      if (rejected) {
+        // Every request in this concurrent batch has now settled, so this count includes the whole
+        // batch rather than only the calls that happened to finish before the first rejection.
+        rejected.reason.requestsMade = requestsMade;
+        throw rejected.reason;
+      }
+      const fragments = outcomes.map((outcome) => outcome.value);
+      for (const fragment of fragments) {
+        const pageRows = parseCalendarHtml(fragment.html, date);
+        pagesFetched++;
+        rows.push(...pageRows);
+      }
+    }
+  }
+
+  const unique = [...new Map(rows.map((row) => [`${row.resultDate}|${row.scId}`, row])).values()];
+  if (count != null && unique.length < count) {
+    const error = new Error(`Moneycontrol calendar named ${unique.length} of ${count} scheduled companies for ${date}`);
+    error.requestsMade = requestsMade;
+    throw error;
+  }
+  const asOnDate = /Last Updated (?:on|Date)\s+(\d{2}\/\d{2}\/\d{4})/i.exec(firstHtml)?.[1] || null;
+  return {
+    rows: unique,
+    asOnDate,
+    pageSize: CALENDAR_PAGE_SIZE,
+    pagesFetched,
+    requestsMade,
+    complete: count == null ? unique.length < pagesFetched * CALENDAR_PAGE_SIZE : unique.length >= count,
+  };
 }

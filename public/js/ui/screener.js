@@ -15,6 +15,7 @@
 // model (all of them until prompt 3) render a clean table with no empty score furniture.
 
 import { escapeHtml } from '../core/dom.js';
+import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 
 // ---------------------------------------------------------------------------------------
@@ -80,40 +81,26 @@ function trapFocus(el, { label } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Watchlist — one shared, localStorage-backed set of company keys across every tab.
+// Watchlist — ONE SHARED SET OF COMPANIES across every tab.
+//
+// The store itself is `js/core/watchlist.js`, because the watchlist is no longer a property of
+// this table: it is a scope. `?scope=watchlist` narrows every feed in the dashboard to it, so it
+// has to be readable by `js/data/scope.js`, and a data module reaching into the UI layer for it
+// would be backwards.
+//
+// WHAT CHANGED IN HERE IS THE KEY. `key(row)` identifies a ROW and is whatever the tab needs it to
+// be — Moneycontrol's scID, `company|time|document`, a composite of the cells. `watchKey(row)`
+// identifies the COMPANY, and defaults to `key(row)` because on a screener the two are the same
+// ticker. Where they differ, three announcements from one company are three rows and one watched
+// company, and starring any of them fills the star on all three.
 // ---------------------------------------------------------------------------------------
 
-const WATCH_KEY = 'sattva:watchlist';
+/** The tracked companies as a Set of upper-case symbols — what every star and filter compares to. */
+const loadWatchlist = () => store.tickers();
 
-function loadWatchlist() {
-  try {
-    const raw = localStorage.getItem(WATCH_KEY);
-    return new Set(raw ? JSON.parse(raw) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveWatchlist(set) {
-  try {
-    localStorage.setItem(WATCH_KEY, JSON.stringify(Array.from(set)));
-  } catch {
-    // Private mode / quota — the toggle still works for this session, it just won't persist.
-  }
-}
-
-export const watchlist = {
-  get: loadWatchlist,
-  has: (key) => loadWatchlist().has(key),
-  toggle(key) {
-    const set = loadWatchlist();
-    if (set.has(key)) set.delete(key);
-    else set.add(key);
-    saveWatchlist(set);
-    return set.has(key);
-  },
-  size: () => loadWatchlist().size,
-};
+// Re-exported so the tabs and the verification suite keep one import path for this. The store is
+// the authority; this is a name, not a second copy.
+export const watchlist = store;
 
 // ---------------------------------------------------------------------------------------
 // (b) statStrip — the 4-up KPI row that opens every tab.
@@ -214,6 +201,76 @@ const METRIC_TONE = {
   neutral: 'text-slate-700',
 };
 
+/**
+ * rankedList({ title, note, items, limit, empty, onSelect }) — a compact ranked panel.
+ *
+ * `topCards` is the Top-10 HERO grid: five columns, 3xl figures, an avatar each. It is right when
+ * a tab has one ranking that deserves the top of the page, and wrong when it has six small ones
+ * that have to sit side by side — which is what a cross-book summary is.
+ *
+ * So this is the small sibling, not a hand-rolled panel in a tab: heading, a note that survives
+ * without its number, and up to `limit` rows of `{ name, sub, value, tone, badge }`. `value` is
+ * plain text and is escaped; `sub` is the second line. An empty list renders `empty` rather than a
+ * blank card, because "nothing matched" and "nothing was computed" look identical otherwise.
+ *
+ * A row is only clickable when `onSelect` is given — a list of dead buttons reads as broken.
+ *
+ * `key` is REQUIRED when a page renders more than one, which is the only reason to use this
+ * component at all. Several panels share this markup, so without a key `wire()` would bind the
+ * first panel's handler to every panel's rows — the click would work and open the wrong thing,
+ * which is worse than not working.
+ */
+export function rankedList({ key, title, note = '', items = [], limit = 5, empty = 'Nothing to show.', onSelect = null }) {
+  const shown = items.slice(0, limit);
+  // Derived the same way on both sides, so the attribute written and the selector queried cannot
+  // disagree — and reduced to a character set that needs no CSS escaping in the first place.
+  const id = String(key || title).replace(/[^a-zA-Z0-9-]+/g, '-');
+  const tone = (t) => (t === 'pos' ? 'text-emerald-600' : t === 'neg' ? 'text-rose-600' : t === 'warn' ? 'text-amber-600' : 'text-slate-700');
+  const tag = onSelect ? 'button' : 'div';
+
+  const rows = shown
+    .map(
+      (it, i) => `
+      <${tag} ${onSelect ? `type="button" data-ranked-idx="${i}" aria-label="Open details for ${escapeHtml(it.name)}"` : ''}
+        class="flex w-full items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 text-left${onSelect ? ' group transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-600' : ''}">
+        <span class="min-w-0">
+          <span class="block truncate text-[13px] font-semibold text-slate-900">${escapeHtml(it.name)}</span>
+          ${it.sub ? `<span class="block truncate text-[11px] text-slate-500">${escapeHtml(it.sub)}</span>` : ''}
+        </span>
+        <span class="flex flex-shrink-0 items-baseline gap-1.5">
+          ${it.badge ? `<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-600">${escapeHtml(it.badge)}</span>` : ''}
+          <span class="text-[13px] font-bold tabular-nums ${tone(it.tone)}">${escapeHtml(it.value ?? '')}</span>
+          ${onSelect ? '<svg aria-hidden="true" class="h-3.5 w-3.5 text-slate-300 transition-colors group-hover:text-indigo-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 5 5 5-5 5"/></svg>' : ''}
+        </span>
+      </${tag}>`
+    )
+    .join('');
+
+  const html = `
+    <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100" data-ranked-list="${id}">
+      <div class="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(title)}</div>
+      ${note ? `<p class="mb-2 text-[11px] leading-snug text-slate-400">${escapeHtml(note)}</p>` : ''}
+      ${shown.length ? `<div class="-mx-2 divide-y divide-slate-100">${rows}</div>` : `<p class="py-2 text-[12px] text-slate-400">${escapeHtml(empty)}</p>`}
+      ${items.length > shown.length ? `<div class="mt-2 text-[11px] text-slate-400">and ${items.length - shown.length} more</div>` : ''}
+    </section>`;
+
+  function wire(root) {
+    if (!onSelect) return () => {};
+    const host = root.querySelector(`[data-ranked-list="${id}"]`);
+    if (!host) return () => {};
+    // Delegated on this panel's own section, so the handler cannot reach another panel's rows and
+    // there is one listener per panel rather than one per row.
+    const onClick = (e) => {
+      const btn = e.target.closest('[data-ranked-idx]');
+      if (btn && host.contains(btn)) onSelect(shown[Number(btn.dataset.rankedIdx)], Number(btn.dataset.rankedIdx));
+    };
+    host.addEventListener('click', onClick);
+    return () => host.removeEventListener('click', onClick);
+  }
+
+  return { html, wire, shown };
+}
+
 export function topCards({ title, items = [], valueFormat = 'metric', onSelect = null, limit = 10 }) {
   const shown = items.slice(0, limit);
 
@@ -293,6 +350,10 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
+ *  countNoun     optional plural noun for the toolbar count, e.g. "trades". Without it the
+ *                generic table keeps the compact "N of M shown" wording.
+ *  countLabel    optional (visibleRows, allRows) => plain-text toolbar label. Use when a row count
+ *                needs a second denominator, such as distinct companies represented by trades.
  *  exportName    file stem used by the Export button (a stub until prompt 3)
  *  showRank      default true. false drops the leading rank column; the watchlist star moves
  *                inside the identity cell so the first column can be a real column.
@@ -300,6 +361,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  nameMaxPx     default null. Hard px cap on the identity column so long names/subs truncate
  *                instead of widening the table.
  *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
+ *  fillMode      'idle' (default) eventually paints every row; 'scroll' appends adaptive pages
+ *                only as the reader approaches the bottom of the table.
  *
  * Sorting, search, watchlist-only and the filter select are all handled internally; the table
  * re-renders its own tbody without the tab getting involved.
@@ -308,6 +371,17 @@ export function scoreTable(config) {
   const {
     rows = [],
     key = (r) => r.ticker,
+    // WHICH COMPANY THE STAR MARKS, which is not always which row it sits on.
+    //
+    // Defaults to `key` because on a screener a row IS a company and the key is already the
+    // ticker. A table whose rows are events — a filing, a result, a con-call — must pass the
+    // ticker here, or the watchlist fills up with row ids and the Watchlist scope has nothing it
+    // can narrow a feed by. A row with no company returns null and gets no star at all, which is
+    // right: there is nothing to track.
+    watchKey = null,
+    // The name recorded alongside the ticker, so the Watchlist scope can print "Reliance
+    // Industries" for a company whose feed has not loaded yet rather than echoing the symbol.
+    watchName = null,
     name = (r) => r.name,
     nameLabel = 'Company', // header for the identity column — set it when rows aren't companies
     sub = () => '',
@@ -322,6 +396,8 @@ export function scoreTable(config) {
     searchable = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
+    countNoun = '',
+    countLabel = null,
     exportName = 'glow-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
@@ -358,7 +434,19 @@ export function scoreTable(config) {
     // scrolled, while the page scrolled underneath it. Giving the wrapper a height makes it
     // actually scroll, which is what makes the head stay put. The toolbar above stays visible too.
     stickyHead = null,
+    // Long event timelines do not need thousands of off-screen <tr>s. In `scroll` mode the data
+    // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
+    // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
+    fillMode = 'idle',
   } = config;
+
+  // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
+  // defaults to the display name for the same reason.
+  const watchKeyOf = (row) => {
+    const raw = (watchKey || key)(row);
+    return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
+  };
+  const watchNameOf = (row) => String((watchName || name)(row) ?? '') || null;
 
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
@@ -386,6 +474,12 @@ export function scoreTable(config) {
   }
 
   const totalCount = rows.length;
+  const countText = (visible) => {
+    const custom = countLabel?.(visible, rows);
+    return custom == null || custom === ''
+      ? `${visible.length} of ${totalCount}${countNoun ? ` ${countNoun}` : ''} shown`
+      : String(custom);
+  };
 
   function haystack(row) {
     return (searchable ? searchable(row) : `${name(row)} ${key(row)}`).toLowerCase();
@@ -404,9 +498,17 @@ export function scoreTable(config) {
 
   function visibleRows() {
     const watched = view.watchOnly ? loadWatchlist() : null;
+    // Keep the input exactly as the reader (or a deep link) supplied it, but compare one canonical
+    // case. Typed searches already arrived lower-cased through the input handler; seeded searches
+    // did not, so an AI Alert link carrying `RKFORGE` could never match a haystack containing
+    // `rkforge` even though the search box visibly held the right ticker.
+    const needle = String(view.q || '').trim().toLowerCase();
     let out = rows.filter((row) => {
-      if (view.q && !haystack(row).includes(view.q)) return false;
-      if (watched && !watched.has(String(key(row)))) return false;
+      if (needle && !haystack(row).includes(needle)) return false;
+      if (watched) {
+        const wk = watchKeyOf(row);
+        if (!wk || !watched.has(wk)) return false;
+      }
       for (let i = 0; i < filterDefs.length; i++) {
         if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
       }
@@ -486,7 +588,8 @@ export function scoreTable(config) {
       const slug = String(key(row));
       let html = rowHtmlCache.get(slug);
       if (html === undefined) {
-        html = rowHtml(row, slug, watched.has(slug));
+        const wk = watchKeyOf(row);
+        html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
         rowHtmlCache.set(slug, html);
       }
       out.push(html);
@@ -494,14 +597,20 @@ export function scoreTable(config) {
     return out.join('');
   }
 
-  function rowHtml(row, slug, isWatched) {
+  function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null) {
         const label = String(name(row));
         const { color, initials } = avatarFor(label);
         const sc = showScore && score ? score(row) : null;
         const redFlag = !!(sc && sc.redFlag);
         const extraClass = rowClass ? rowClass(row) || '' : '';
-        const star = `<button type="button" data-watch="${escapeHtml(slug)}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}"
-                  class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`;
+        // A row with no company carries no star rather than a control that would file a row id as
+        // a company. The span keeps the cell's layout identical either way.
+        const star = watchSlug
+          ? `<button type="button" data-watch="${escapeHtml(watchSlug)}" data-watch-name="${escapeHtml(watchLabel || '')}"
+                  title="${isWatched ? `Remove ${escapeHtml(watchLabel || watchSlug)} from your watchlist` : `Add ${escapeHtml(watchLabel || watchSlug)} to your watchlist`}"
+                  class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`
+          : '<span class="watch-star flex-shrink-0 text-base leading-none text-transparent" aria-hidden="true">☆</span>';
+        const rowLink = link ? link(row) : null;
         const dataTd = (c) =>
           `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
         return `
@@ -537,7 +646,15 @@ export function scoreTable(config) {
             }
             ${showSignals ? `<td class="${PX} py-3"><div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div></td>` : ''}
             ${restCols.map(dataTd).join('')}
-            ${link ? `<td class="${PX} py-3 text-right"><a href="${escapeHtml(link(row) || '#')}" target="_blank" rel="noopener" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a></td>` : ''}
+            ${
+              link
+                ? `<td class="${PX} py-3 text-right">${
+                    rowLink
+                      ? `<a href="${escapeHtml(rowLink)}" target="_blank" rel="noopener noreferrer" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a>`
+                      : ''
+                  }</td>`
+                : ''
+            }
           </tr>`;
   }
 
@@ -559,9 +676,12 @@ export function scoreTable(config) {
   // holding every visible row, and Ctrl-F, screenshots and "N of M shown" behave as they did. The
   // section carries `data-rows-pending` until the fill completes, so a test (or anything else)
   // can wait for the settled table rather than racing it.
-  const FIRST_PAINT_ROWS = 80; // comfortably more than any viewport shows
-  const MIN_SLICE = 100;
-  const MAX_SLICE = 800;
+  const FIRST_PAINT_ROWS = 40; // comfortably more than any viewport shows
+  // The old adaptive ceiling reached 800 rows. HTML insertion looked cheap, but the style/layout
+  // work landed on the next frame: traces showed 40–88ms layout blocks while a table filled. Keep
+  // each background batch below a screenful so loading can never monopolise an interaction frame.
+  const MIN_SLICE = 20;
+  const MAX_SLICE = 80;
 
   // requestIdleCallback where it exists, with a timeout so a busy or backgrounded tab still
   // finishes. Safari has no rIC, hence the fallback — a slower fill is fine, a stalled one is not.
@@ -583,9 +703,9 @@ export function scoreTable(config) {
   let updateRows = () => 0;
 
   const html = `
-    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
+    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' ? ' data-scroll-paged' : ''}${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
-        <div class="flex flex-1 flex-wrap items-center gap-2">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input type="text" data-table-search placeholder="Search company..." value="${escapeHtml(view.q)}"
@@ -593,8 +713,19 @@ export function scoreTable(config) {
           </div>
           ${filterDefs
             .map(
+              // `max-w-full` + `truncate` because A <select> IS AS WIDE AS ITS LONGEST OPTION, and
+              // the options come from the data. Corp Announcements' sub-category list carries BSE's
+              // own strings, the longest of which rendered a 490px control inside a 390px viewport;
+              // Super Investors' fund picker does the same at 637px. `overflow-x: hidden` on <body>
+              // then CLIPS it rather than scrolling, so the control is simply unreachable on a phone
+              // and nothing on screen says so. Constraining the control costs nothing — the option
+              // list still opens at full width — and it is why this is fixed here rather than by
+              // shortening anyone's labels. `maxWidthPx` is the optional tighter desktop cap for a
+              // toolbar with several filters; Insider Trades uses it so a long Mode value does not
+              // force the Watchlist control onto another row.
               (f, i) => `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
-                   class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
+                   class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
                  </select>`
             )
@@ -608,7 +739,7 @@ export function scoreTable(config) {
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
-            <span data-row-count class="font-semibold text-slate-700">${initialList.length} of ${totalCount}</span> shown
+            <span data-row-count class="font-semibold text-slate-700">${escapeHtml(countText(initialList))}</span>
           </div>
           <button type="button" data-export
             class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow">
@@ -670,14 +801,16 @@ export function scoreTable(config) {
       body.insertAdjacentHTML('beforeend', bodyHtml(current, filled, end));
       filled = end;
       markPending(current.length - filled);
-      // Adapt: the cost per row swings by an order of magnitude between a three-column table and
-      // a thirteen-column one, so a fixed slice is either janky on one or pointlessly slow on the
-      // other. Aim at roughly a frame's worth of work per slice.
+      // Adapt inside the strict ceiling above: the cost per row swings by an order of magnitude
+      // between a three-column table and a thirteen-column one.
       const ms = performance.now() - started;
-      if (ms > 24) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
-      else if (ms < 8) slice = Math.min(MAX_SLICE, slice * 2);
-      if (filled < current.length) cancelFill = scheduleSlice(pumpFill);
-      else markPending(0);
+      if (ms > 12) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
+      else if (ms < 4) slice = Math.min(MAX_SLICE, slice * 2);
+      if (filled < current.length) {
+        if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
+      } else {
+        markPending(0);
+      }
     }
 
     function startFill() {
@@ -688,7 +821,7 @@ export function scoreTable(config) {
       }
       markPending(current.length - filled);
       attachScroll();
-      cancelFill = scheduleSlice(pumpFill);
+      if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
     }
 
     /**
@@ -725,7 +858,10 @@ export function scoreTable(config) {
         scrollQueued = false;
         const last = body.lastElementChild;
         if (filled >= current.length || !last) return;
-        if (last.getBoundingClientRect().top < window.innerHeight * 2) flush();
+        if (last.getBoundingClientRect().top < window.innerHeight * 2) {
+          if (fillMode === 'scroll') pumpFill();
+          else flush();
+        }
       });
     }
 
@@ -757,11 +893,25 @@ export function scoreTable(config) {
       current = visibleRows();
       head.innerHTML = headHtml();
 
+      // A Map keyed by row key CANNOT SURVIVE A DUPLICATE: the second `<tr>` displaces the first,
+      // the first is then never visited by the removal loop, and it stays in the DOM for ever —
+      // wrong row, wrong place, invisible to any count. That is exactly what a colliding key did
+      // to the con-call table (see `rowIdOf` in js/data/concall-scans.js), so both sides are now
+      // closed: the key is unique, and a duplicate here falls through to the rebuild instead of
+      // quietly painting the wrong thing. A caller with a bad key gets a slower paint, never a lie.
       const existing = new Map();
-      for (const tr of body.children) if (tr.dataset?.rowKey) existing.set(tr.dataset.rowKey, tr);
+      let domDupes = 0;
+      for (const tr of body.children) {
+        const k = tr.dataset?.rowKey;
+        if (!k) continue;
+        if (existing.has(k)) domDupes++;
+        existing.set(k, tr);
+      }
 
       const nextKeys = current.map((r) => String(key(r)));
-      const canReorder = current.length > 0 && existing.size > 0 && nextKeys.every((k) => existing.has(k));
+      const keyDupes = nextKeys.length - new Set(nextKeys).size;
+      const canReorder =
+        current.length > 0 && existing.size > 0 && domDupes === 0 && keyDupes === 0 && nextKeys.every((k) => existing.has(k));
 
       if (canReorder) {
         const keep = new Set(nextKeys);
@@ -781,7 +931,7 @@ export function scoreTable(config) {
         startFill();
       }
 
-      countEl.textContent = `${current.length} of ${totalCount}`;
+      countEl.textContent = countText(current);
       watchCount.textContent = String(watchlist.size());
     }
 
@@ -808,7 +958,8 @@ export function scoreTable(config) {
       for (const slug of wanted) {
         const row = byKey.get(slug);
         if (!row) continue;
-        const markup = rowHtml(row, slug, watched.has(slug));
+        const wk = watchKeyOf(row);
+        const markup = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
         rowHtmlCache.set(slug, markup); // so a later sort reorders the NEW markup, not the old
         const tr = trByKey.get(slug);
         if (!tr) continue; // filtered out of view — the cache above still has it right
@@ -847,10 +998,18 @@ export function scoreTable(config) {
       const star = e.target.closest('[data-watch]');
       if (star) {
         e.stopPropagation();
-        const slug = star.dataset.watch;
-        watchlist.toggle(slug);
-        rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
-        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+        const company = star.dataset.watch;
+        watchlist.toggle(company, star.dataset.watchName || null);
+        // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
+        // and each carries its own star, so invalidating only the row that was clicked would leave
+        // the other two showing the opposite of what is stored — the same disagreement between a
+        // control and its state that `staleKeys` exists to close, arrived at from the other side.
+        for (const r of rows) {
+          if (watchKeyOf(r) !== company) continue;
+          const slug = String(key(r));
+          rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+          staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+        }
         repaint();
         return;
       }
@@ -1042,13 +1201,15 @@ export function closeDrill() {
 
 let modalKeyHandler = null;
 let releaseModalFocus = null;
+let modalOnClose = null;
 
 /**
- * openModal(innerHtml, { size }) — centred modal. `size` is 'default' | 'wide' | 'magazine'.
+ * openModal(innerHtml, { size, onClose }) — centred modal. `size` is 'default' | 'wide' | 'magazine'.
  * Any element inside `innerHtml` carrying `data-modal-close` closes it, as do ESC and a
- * backdrop click.
+ * backdrop click. `onClose` is optional and fires after teardown; it lets an editor commit a
+ * repaint without teaching this generic overlay anything about the state being edited.
  */
-export function openModal(innerHtml, { size = 'default' } = {}) {
+export function openModal(innerHtml, { size = 'default', onClose = null } = {}) {
   const overlay = document.getElementById('modal-overlay');
   const container = document.getElementById('modal-container');
   const content = document.getElementById('modal-content');
@@ -1057,6 +1218,7 @@ export function openModal(innerHtml, { size = 'default' } = {}) {
   const sizeClass = size === 'magazine' ? 'max-w-6xl' : size === 'wide' ? 'max-w-5xl' : 'max-w-4xl';
   container.className = `relative bg-white rounded-3xl shadow-2xl w-full ${sizeClass} my-8 scale-95 opacity-0 transition-all duration-200 overflow-hidden`;
   content.innerHTML = innerHtml;
+  modalOnClose = typeof onClose === 'function' ? onClose : null;
   overlay.classList.remove('hidden');
   overlay.classList.add('is-open');
   requestAnimationFrame(() => container.classList.replace('scale-95', 'scale-100'));
@@ -1264,6 +1426,9 @@ export function closeModal() {
   }
   releaseModalFocus?.();
   releaseModalFocus = null;
+  const onClose = modalOnClose;
+  modalOnClose = null;
+  onClose?.();
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1291,44 +1456,23 @@ export function closeModal() {
  * description. Controls that move when you use them read as a different page, not a different
  * view of one. Its own row cannot wrap, so it cannot move.
  */
+// The `meta` slot is `min-w-0 max-w-full`, NOT `flex-shrink-0`. It holds a pill and a scope chip
+// whose text comes from the data, and at 390px "Captured 526 companies - 3d" beside
+// "Universe - 722 announcements" is wider than the viewport. Refusing to shrink pushed the whole
+// row out, where the overflow-x:hidden backstop clipped it rather than scrolling — so the chips
+// were simply unreachable and nothing on screen said so. The inner block already carries
+// flex-wrap, so letting the slot shrink makes them stack instead of vanish.
 export function sectionHead({ title, description = '', meta = '', controls = '' }) {
   return `
-    <div class="mb-5">
+    <div class="mb-5" data-section-head>
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
           ${description ? `<p class="mt-1 max-w-5xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
         </div>
-        ${meta ? `<div class="flex-shrink-0">${meta}</div>` : ''}
+        ${meta ? `<div class="min-w-0 max-w-full">${meta}</div>` : ''}
       </div>
       ${controls ? `<div data-section-controls class="mt-3 flex flex-wrap items-center gap-2">${controls}</div>` : ''}
-    </div>`;
-}
-
-/**
- * roadmapStrip(features, opts) — the dashed card that closes every tab, listing what this tab
- * does NOT do.
- *
- * It used to read "Coming in a later prompt", which was true while the build had later prompts
- * and became a false promise the moment it did not. It now says what it actually is: a wiring
- * roadmap, listing the gaps so they are visible rather than merely absent. A missing feature
- * nobody has written down reads to a user as a feature that was never needed.
- */
-export function roadmapStrip(features = [], { note = 'Wiring roadmap', caption = 'Not built. Listed so the gap is visible rather than implied.' } = {}) {
-  return `
-    <div class="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4">
-      <div class="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-        <span>🚧</span><span>${escapeHtml(note)}</span>
-      </div>
-      ${caption ? `<p class="mb-2 text-[11px] text-slate-400">${escapeHtml(caption)}</p>` : ''}
-      <ul class="grid gap-1.5 sm:grid-cols-2">
-        ${features
-          .map(
-            (f) =>
-              `<li class="flex items-start gap-1.5 text-xs text-slate-500"><span class="mt-0.5 font-bold text-indigo-400">›</span><span>${escapeHtml(f)}</span></li>`
-          )
-          .join('')}
-      </ul>
     </div>`;
 }
 
@@ -1336,6 +1480,34 @@ export function roadmapStrip(features = [], { note = 'Wiring roadmap', caption =
  * pendingPanel({ title, body, arriving }) — the honest placeholder used where a genuine data
  * feed has not landed yet. Never fabricate numbers into a chart; render this instead.
  */
+/**
+ * WHAT EVERY TAB SHOWS WHEN THE WATCHLIST SCOPE IS EMPTY.
+ *
+ * Not an error and not a "no results" — a scope narrowed to nothing is the reader's own list being
+ * empty, and a table reading "No companies match your filters" over it would send them looking for
+ * a filter to clear. It states the count (zero, said out loud), says exactly how a company gets
+ * onto the list, and offers the one-click way to go and do it.
+ *
+ * It lives here rather than in each tab because it is a property of the SCOPE, not of the tab, and
+ * nine copies of it is nine chances for one of them to say something slightly different.
+ */
+export function watchlistEmptyPanel({ tabTitle = 'This tab' } = {}) {
+  return `
+    <div class="fade-in rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-watchlist-empty>
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl text-amber-400 ring-1 ring-amber-100">☆</div>
+      <h3 class="font-display mt-4 text-lg font-bold text-slate-900">There are zero watchlist companies right now</h3>
+      <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+        ${escapeHtml(tabTitle)} has nothing to show in this scope because nothing is being tracked yet.
+        Add companies directly to your watchlist by searching for a company name or ticker. Every tab in this scope then follows that list.
+      </p>
+      <button type="button" data-watchlist-add
+        class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+        Add companies to watchlist
+      </button>
+      <p class="mt-4 text-xs text-slate-400">The watchlist is kept in this browser, so it is yours and it survives a reload.</p>
+    </div>`;
+}
+
 export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
   return `
     <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">

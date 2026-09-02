@@ -5,6 +5,8 @@
 
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.js';
+import { scopeLabel } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
 
 // Semantic tones (positive/negative/caution) describe a data outcome; brand/accent are the
 // indigo→purple chrome colours. Never use a semantic tone to mean "branded".
@@ -59,8 +61,24 @@ export function sectionHeader({ title, description = '', meta = '' }) {
  * way to tell whether it is absent from the feed or absent from the book.
  */
 export function scopeSummary({ scope, count, noun = 'companies', book = null }) {
-  const label = scope === 'portfolio' ? 'Portfolio' : 'Universe';
-  const tone = scope === 'portfolio' ? 'accent' : 'brand';
+  const label = scopeLabel(scope);
+  const tone = scope === 'universe' ? 'brand' : 'accent';
+
+  // WATCHLIST PRINTS ITS OWN DENOMINATOR, and it is a different fact from the book's. The book's
+  // gap is partly permanent — nineteen lines carry no NSE symbol and no feed here can ever show
+  // them. A watchlist entry came FROM a feed, so its gap is only ever "this particular feed does
+  // not carry it", which is a smaller and more temporary claim and must not be worded like the
+  // other one.
+  if (scope === 'watchlist') {
+    const tracked = watchlist.size();
+    if (!tracked) return pill({ label: `${label} · nothing tracked yet`, tone, title: 'Star a company under Universe to track it here.' });
+    const why =
+      tracked === count
+        ? `Every one of the ${formatNumber(tracked)} companies you track appears on this feed.`
+        : `You track ${formatNumber(tracked)} companies; ${formatNumber(count)} of them appear on this feed. The rest are tracked but not carried here.`;
+    return pill({ label: `${label} · ${formatNumber(count)} of ${formatNumber(tracked)} ${noun}`, tone, title: why });
+  }
+
   if (scope !== 'portfolio' || !book?.count) return pill({ label: `${label} · ${formatNumber(count)} ${noun}`, tone });
 
   const gap = book.count - count;
@@ -117,53 +135,21 @@ export function tabBar({ tabs, activeId, onSelect }) {
   return { html, wire };
 }
 
-// Vertical sub-view list rendered under the workspace dropdown — active pill + optional count badge.
-export function railNav({ items, activeId, onSelect }) {
-  const html = `
-    <nav class="flex flex-col gap-0.5" data-rail-nav>
-      ${items
-        .map(
-          (item) => `
-        <button type="button" data-rail-id="${escapeHtml(item.id)}"
-          class="flex items-center justify-between rounded-lg border-l-2 px-3 py-2 text-left text-sm transition-colors ${
-            item.id === activeId
-              ? 'border-indigo-500 bg-indigo-50/60 font-semibold text-indigo-700'
-              : 'border-transparent font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-          }">
-          <span>${escapeHtml(item.label)}</span>
-          ${
-            item.badge !== undefined && item.badge !== null
-              ? `<span class="ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${item.id === activeId ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}">${escapeHtml(item.badge)}</span>`
-              : ''
-          }
-        </button>`
-        )
-        .join('')}
-    </nav>`;
-
-  function wire(root) {
-    const nav = root.querySelector('[data-rail-nav]');
-    function handler(e) {
-      const btn = e.target.closest('[data-rail-id]');
-      if (btn) onSelect(btn.dataset.railId);
-    }
-    nav.addEventListener('click', handler);
-    return () => nav.removeEventListener('click', handler);
-  }
-
-  return { html, wire };
-}
-
-// Two-option segmented control (Portfolio ⇄ Universe) with a sliding white "thumb".
+// Scope segmented control with a sliding brand thumb.
 export function segmentedToggle({ options, activeValue, onChange }) {
+  // Every scope label fits comfortably inside 5rem. Fixed equal segments let the active thumb be
+  // positioned without reading offsetWidth/offsetLeft after a tab has inserted a large table.
+  // That read used to force layout of the newly-painted panel and cost 114ms in a transition trace.
+  const activeIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
   const html = `
     <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
-      <span data-segmented-thumb class="absolute inset-y-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-all duration-200 ease-out" style="width:0px;transform:translateX(0px);"></span>
+      <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
+        style="transform:translateX(${activeIndex * 5}rem);"></span>
       ${options
         .map(
           (o) => `
-        <button type="button" data-value="${escapeHtml(o.value)}"
-          class="relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
+        <button type="button" data-value="${escapeHtml(o.value)}" aria-pressed="${o.value === activeValue}"
+          class="relative z-10 w-20 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
           ${escapeHtml(o.label)}
         </button>`
         )
@@ -172,23 +158,12 @@ export function segmentedToggle({ options, activeValue, onChange }) {
 
   function wire(root) {
     const wrap = root.querySelector('[data-segmented]');
-    const thumb = wrap.querySelector('[data-segmented-thumb]');
-
-    function position() {
-      const active = wrap.querySelector(`[data-value="${cssEscape(activeValue)}"]`);
-      if (!active) return;
-      thumb.style.width = `${active.offsetWidth}px`;
-      thumb.style.transform = `translateX(${active.offsetLeft - 2}px)`;
-    }
-
-    wrap.addEventListener('click', (e) => {
+    const onClick = (e) => {
       const btn = e.target.closest('[data-value]');
       if (btn) onChange(btn.dataset.value);
-    });
-
-    requestAnimationFrame(position);
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
+    };
+    wrap.addEventListener('click', onClick);
+    return () => wrap.removeEventListener('click', onClick);
   }
 
   return { html, wire };
@@ -461,7 +436,7 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
 }
 
 /**
- * The header status control: one pill reading `● Live · updated 4m ago`, plus a refresh button.
+ * The header status control: one pill reading `Connected · checked 4m ago`, plus a refresh button.
  *
  * It used to be two separate chips — a green "Live · just now" and a white "Updated 52 minutes
  * ago" — which read as two competing claims about the same thing and left the reader to work out
@@ -471,25 +446,23 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
  *
  * One pill, one honest timestamp: `getTimestamp` is wired to the last tick of a poller that
  * actually talked to a server (`live.getLastDataTick()`), falling back to when the page loaded its
- * data. Clicking it opens the provenance modal, which is where the removed "Sources" button went —
- * the button is gone from the chrome, the accountability behind it is one click from every screen.
+ * data. It is a passive status label; the old source/freshness popup is intentionally gone.
  *
  * `onRefresh` returns `{ announced }` so the button can report a result instead of just spinning.
  */
-export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null, onOpenSources = null }) {
+export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null }) {
   const html = `
     <div class="flex items-center gap-1.5">
-      <button type="button" data-status-pill
-        title="When a feed last confirmed its data with the server. Click for every source this dashboard uses."
-        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+      <span data-status-pill title="Most recent server confirmation from an active feed"
+        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
         <span class="relative flex h-1.5 w-1.5">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
         </span>
-        <span>Live</span>
+        <span>Connected</span>
         <span class="text-emerald-300">·</span>
         <span data-live-time class="tabular-nums font-medium text-emerald-600">—</span>
-      </button>
+      </span>
       <button type="button" data-header-refresh title="Check every live feed for new data now"
         class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
         <svg data-header-refresh-icon width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -501,19 +474,17 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
 
   function wire(root) {
     const timeEl = root.querySelector('[data-live-time]');
-    const pill = root.querySelector('[data-status-pill]');
     const btn = root.querySelector('[data-header-refresh]');
     const icon = root.querySelector('[data-header-refresh-icon]');
     const label = root.querySelector('[data-header-refresh-label]');
 
     function refresh() {
       const ts = getTimestamp ? getTimestamp() : null;
-      timeEl.textContent = ts ? `updated ${formatRelativeTime(ts)}` : 'waiting…';
+      timeEl.textContent = ts ? `checked ${formatRelativeTime(ts)}` : 'connecting…';
     }
     refresh();
     const interval = setInterval(refresh, 15000);
     const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
-    pill.addEventListener('click', () => onOpenSources?.());
 
     // A REFRESH THAT NEVER RETURNS IS THE EXACT FAILURE THIS BUTTON EXISTS TO PREVENT.
     //
@@ -536,6 +507,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
       icon.classList.add('spin-slow');
       label.textContent = 'Checking…';
       let announced = 0;
+      let pending = false;
       let failed = false;
       let timer = null;
       try {
@@ -544,7 +516,11 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
           new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), REFRESH_TIMEOUT_MS); }),
         ]);
         if (outcome === TIMED_OUT) failed = true;
-        else ({ announced = 0 } = outcome || {});
+        // `pending` is a THIRD outcome and not a failure: the per-company feeds are one request per
+        // company, so a walk can still be running perfectly well when the button's patience runs
+        // out. Saying "Couldn't check" about work that is proceeding is the same class of lie as
+        // saying "Up to date" about a check that did not complete.
+        else ({ announced = 0, pending = false } = outcome || {});
       } catch (err) {
         console.error('[status] refresh failed', err);
         failed = true;
@@ -554,7 +530,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
       icon.classList.remove('spin-slow');
       // Say what happened. "Up to date" is a real answer and the common one — a spinner that
       // vanishes leaves the reader unsure whether anything was checked at all.
-      label.textContent = failed ? 'Couldn’t check' : announced ? `${announced} new` : 'Up to date';
+      label.textContent = failed ? 'Couldn’t check' : pending ? 'Still reading…' : announced ? `${announced} new` : 'Up to date';
       refresh();
       btn.disabled = false;
       resetTimer = setTimeout(() => { label.textContent = 'Refresh'; }, 4000);
@@ -628,20 +604,6 @@ export function tooltip({ trigger, content, position = 'top' }) {
         ${escapeHtml(content)}
       </span>
     </span>`;
-}
-
-// Legacy dashed strip. Superseded by roadmapStrip() in ui/screener.js, which every tab now uses;
-// kept only so nothing that still imports it breaks.
-export function comingSoonStrip(features = [], { note = 'Wiring roadmap' } = {}) {
-  return `
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
-      <div class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">
-        <span>🚧</span><span>${escapeHtml(note)}</span>
-      </div>
-      <ul class="grid gap-1.5 sm:grid-cols-2">
-        ${features.map((f) => `<li class="flex items-start gap-1.5 text-xs text-slate-500"><span class="mt-0.5 text-slate-300">›</span><span>${escapeHtml(f)}</span></li>`).join('')}
-      </ul>
-    </div>`;
 }
 
 // Minimal CSS.escape polyfill fallback (CSS.escape is supported everywhere we target, but this

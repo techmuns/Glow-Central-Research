@@ -1,0 +1,76 @@
+name: Company news refresh
+
+# The company-news tab is a committed universe capture, built one company search at a time. This
+# dedicated job can run after publishing begins without touching end-of-day prices or technicals.
+# The weekday schedule is the normal morning attempt. Opening the dashboard is the demand-driven
+# fallback: if GitHub's best-effort scheduler has not produced today's capture, the Worker dispatches
+# this same job immediately and declines duplicate runs.
+
+on:
+  schedule:
+    - cron: "30 3 * * 1-5"
+    # Evening top-up: 13:30 UTC = 19:00 IST. The morning capture cannot cover stories published
+    # through the trading day; the demand-driven watchdog remains the fallback when GitHub is late.
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Who asked for this run — cron, auto, button, or manual"
+        required: false
+        default: "manual"
+
+run-name: Company news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+concurrency:
+  group: company-news-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    # ~1,900 companies (the tracked universe — public/data/tracked-universe.json, biggest first) at
+    # the upstream's ~60 requests a minute is over half an hour on its own. The scraper writes what
+    # it got if cut short, but a job that hits THIS ceiling is killed before the commit step runs,
+    # so the ceiling has to clear the whole walk with room for retries.
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Capture company news
+        run: FILINGS_SCOPE=universe node scripts/scrape-filings.mjs news
+
+      - name: Upload company-news data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: company-news-data
+          path: public/data/news.json
+          if-no-files-found: warn
+
+      - name: Commit company news to main
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/news.json
+          if git diff --cached --quiet; then
+            echo "No company-news changes to commit."
+            exit 0
+          fi
+          git commit -m "Company news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
