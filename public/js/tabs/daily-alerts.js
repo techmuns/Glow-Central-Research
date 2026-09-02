@@ -1,24 +1,18 @@
-// tabs/daily-alerts.js — THE FIRST TAB, AND THE ONLY ONE THAT ASKS ABOUT A DAY RATHER THAN A FEED.
+// tabs/daily-alerts.js — GENERAL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
 //
 // Every other tab here is organised by SOURCE: this is what the results feed holds, this is what
 // BSE filed, this is what the technicals scrape measured. That is the right shape for research and
-// the wrong shape for the first thirty seconds of a morning, when the question is not "what does
-// Moneycontrol have" but "what happened, and does any of it need me". So this tab is organised by
-// DAY: one stream, every feed, today only.
+// the wrong shape for prioritisation, when the question is not "what does Moneycontrol have" but
+// "what happened, and does any of it need me". AI Alerts answers that narrower question. This tab
+// remains the complete TIME view: one stream, every feed, newest first through retained history.
 //
 // It introduces no data source of its own — see js/data/daily-alerts.js, which is where the
 // readings are taken and where the rule for each one is written down.
 //
 // ---------------------------------------------------------------------------------------
-// THE TWO COLOURS
-//
-//   RED   an alert: a direct negative reading, named in the row that carries it.
-//   ORANGE an update: something arrived today.
-//
-// The colours are the semantic tokens, used semantically — `--negative` and `--caution` — never the
-// brand ramp, which would make "an event happened" look like a verdict. And a red row always shows
-// the reading that made it red, because a colour whose cause is not on screen beside it is this
-// dashboard making a judgement, which it does not do.
+// DIRECTION AND IMPORTANCE ARE SEPARATE. Green/red/grey reproduce an explicit source band,
+// transaction direction, or the conservative rule printed beside the row. High/Low is a second
+// badge driven by the stated thresholds in data/daily-alerts.js. Neither is left unexplained.
 //
 // ---------------------------------------------------------------------------------------
 // THE COVERAGE PANEL IS NOT DECORATION — IT IS THE HALF THAT MAKES AN EMPTY DAY READABLE
@@ -30,7 +24,7 @@
 // per feed, when it last looked and whether that reaches today. It is the same rule as the filings
 // tabs' "63 companies have not been checked since": never claim nothing is new.
 
-import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { scoreTable, sectionHead } from '../ui/screener.js';
 import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -42,8 +36,8 @@ import { scopeLabel } from '../data/scope.js';
 
 export const meta = {
   id: 'daily-alerts',
-  title: 'Daily Alerts',
-  subtitle: 'Everything that happened today, consolidated from every feed on this dashboard.',
+  title: 'General Alerts',
+  subtitle: 'Every retained alert in one newest-first timeline.',
   // No rail. This is one stream and splitting it by feed would rebuild the tabs it exists to
   // collapse — the feed filter in the toolbar does that job without costing a navigation.
   subviews: [],
@@ -64,6 +58,7 @@ let report = null; // the last collected report
 let loadToken = 0;
 let unsubs = [];
 let tableView = null; // the reader's search / filters / sort, carried across repaints
+let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
 // those are different claims the moment a feed appears or disappears: All keeps meaning all, while
 // a full Set silently becomes a partial filter when a sixth feed is added. The same distinction
@@ -73,20 +68,27 @@ let picked = null;
 export function render(ctx) {
   ctxRef = ctx;
 
+  // AI ALERTS LINKS TO THE COMPLETE EVIDENCE FOR ONE COMPANY. Seed the existing table search
+  // rather than inventing a second company filter. Entering through that link resets an earlier
+  // General Alerts filter state: "See all" cannot quietly retain e.g. Today-only or one feed and
+  // then show an empty subset. Subsequent feed repaints retain the new table's own state as usual.
+  const requestedCompany = String(ctx.params?.company || '').trim();
+  if (requestedCompany && requestedCompany !== routeCompany) tableView = { q: requestedCompany };
+  else if (!requestedCompany && routeCompany) tableView = { ...(tableView || {}), q: '' };
+  routeCompany = requestedCompany || null;
+
   if (!unsubs.length) {
-    // NOTHING SUBSCRIBED, BECAUSE NOTHING THIS PAGE READS POLLS. All four tabs behind it are
-    // scheduled captures, not live routes — so the page is built on mount and rebuilt when the
-    // reader presses Refresh, and it must not be dressed up as a feed that arrives on its own.
-    // (It used to watch the results and con-call pollers; both of those tabs are out of scope now.)
+    // NOTHING SUBSCRIBED. The owning tabs may poll while mounted, but this consolidated page takes
+    // one cached/snapshot reading on mount and another only when the reader presses Refresh.
     unsubs.push(
       refresh.register(REFRESH_ID, {
-        label: 'Daily Alerts',
-        // A REFRESH HERE COSTS NOTHING PER COMPANY. It re-reads the same committed files and cached
-        // routes the mount did — one conditional GET each, a bodyless 304 where nothing moved. It
-        // does NOT call any feed's `refresh()`, which is the per-company walk.
+        label: 'General Alerts',
+        // A REFRESH HERE COSTS NOTHING PER COMPANY. Earnings, con-calls and chatter each expose a
+        // bounded one-shot revalidation; investors revalidate the one bulk snapshot. The owning
+        // Super Investors tab keeps the deliberate ninety-one-book walk behind its own control.
         refresh: async () => {
           const before = new Set((report?.events || []).map((e) => e.id));
-          await recollect(ctxRef);
+          await recollect(ctxRef, { refresh: true });
           const now = report?.events || [];
           // IDENTITIES, NEVER SIZES. A count cannot answer "did anything change" for a collection
           // that can gain and lose rows in the same read — the day rolls over, a capture lands, a
@@ -105,7 +107,7 @@ export function render(ctx) {
   if (report && report.scope !== ctx.scope) report = null;
 
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
-  // until every feed has answered is a blank screen on the landing page.
+  // until every feed has answered is a blank timeline.
   paint(ctx);
   recollect(ctx);
 }
@@ -130,7 +132,7 @@ export function destroy() {
  * paint the previous scope's rows over the new one. The token is compared against the module's
  * counter, not against a captured ctx, for the same reason the subscriptions are.
  */
-async function recollect(ctx) {
+async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
   // NO "already collecting" EARLY RETURN. `render()` runs again on every scope change, so bailing
   // out because a collect was in flight would leave the new scope showing the old scope's rows for
   // ever — the guard has to be about which result is allowed to PAINT, not about which reads are
@@ -141,6 +143,11 @@ async function recollect(ctx) {
     const next = await alerts.collect({
       scope: ctx.scope,
       holdings: coverage.holdings(),
+      // The source snapshots already retain history. The old tab threw those rows away with
+      // `date === today`; the timeline keeps them and lets the table reveal older days as its
+      // internal scroller advances. No request per company and no new route are introduced.
+      includeHistory: true,
+      refresh: forceRefresh,
       // Feeds land one at a time and the page follows them. Coalesced, because eight arrivals is
       // eight full rebuilds of a table the reader may be typing into — a TRAILING THROTTLE rather
       // than a debounce, since a debounce would keep deferring while feeds kept landing and the
@@ -195,8 +202,7 @@ function paint(ctx) {
 
   // THE FEEDS ON OFFER, AND THEN THE ONES TICKED. Market-wide news carries no company, so under a
   // narrowed scope it contributes nothing and is not shown as a filter — the reason it is absent
-  // stays in the provenance modal's table, which lists every feed in every scope. Dropping the
-  // chip is not dropping the claim.
+  // stays in the source registry. Dropping the chip is not dropping the claim.
   const shown = feeds.filter((f) => ctx.scope === 'universe' || f.scopable !== false);
   const available = shown.map((f) => f.id);
   // A SELECTION THAT SURVIVES A REPAINT BUT NOT A VANISHED FEED. Rows land while feeds settle and
@@ -213,27 +219,24 @@ function paint(ctx) {
   const table = eventsTable(ctx, visible, day);
   tableView = table.view;
 
-  // NO DESCRIPTION, NO STAT STRIP, AND THE TWO CHIPS ARE ONE PILL. What they said is all still
-  // said — behind the pill, which is the resolution this codebase reaches every time a caveat
-  // starts competing with the content it qualifies. The four cards were the loudest version of
+  // NO DESCRIPTION AND NO STAT STRIP. The four cards were the loudest version of
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
-  // printed a date the pill now carries. What may NOT go is the provenance, so the pill is the
-  // control that keeps it one click away — see the stat-strip opt-out rule in CLAUDE.md.
+  // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
+  // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
   ctx.root.innerHTML = `
     ${sectionHead({
-      title: 'Daily Alerts',
+      title: 'General Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
-        noun: 'companies with events',
+        noun: 'companies in loaded history',
         book: coverage.meta(),
-      })}</div>`,
+      })}${historyPill(m)}</div>`,
     })}
     ${coveragePanel(shown, day, ctx.scope)}
     ${table.html}`;
 
   table.wire(ctx.root);
-  wireProvenance(ctx.root, feeds, day, ctx.scope);
   wireFeedFilter(ctx, available);
   fitStreamToViewport(ctx.root);
   restoreFocus(ctx.root, focus);
@@ -275,8 +278,8 @@ function restoreFocus(root, focus) {
  *
  * IT CARRIES THE DATE ON ITS FACE, and that is not decoration: this is the one tab defined by a
  * DAY, the date is in IST rather than UTC (a UTC date names yesterday for five and a half hours
- * every evening), and a screenshot travels without the modal. Everything else the two chips and
- * the four cards used to say is behind it.
+ * every evening), and a screenshot travels without the source registry. Detailed provenance stays
+ * in that registry and the export.
  *
  * IT IS GREEN ONLY WHEN THE DATA EARNS IT. Every feed reaching today is the claim; one behind is
  * amber and says so, because a chip that reads Live over a feed that has not looked at today is
@@ -289,17 +292,17 @@ function livePill(rep, day) {
   const reading = rep?.pending ?? 0;
   const label = `${fmtDay(day)}`;
   if (behind || reading) {
-    return `<button type="button" data-alerts-info
-       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300 transition-colors hover:bg-amber-100"
+    return `<span data-alerts-info
+       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300"
        title="${escapeHtml(behind ? `${behind} feed${behind === 1 ? ' has' : 's have'} not looked at today yet.` : 'Still reading.')}">
        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> ${escapeHtml(label)}
-     </button>`;
+     </span>`;
   }
-  return `<button type="button" data-alerts-info
-     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-100"
+  return `<span data-alerts-info
+     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
      title="Every feed on this page has looked at today. Indian trading date, not UTC.">
      <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Live · ${escapeHtml(label)}
-   </button>`;
+   </span>`;
 }
 
 /** `2026-09-01` -> `01 Sept 2026`, so the chip reads as a date rather than as an id. */
@@ -319,6 +322,17 @@ function pendingPill(rep) {
   const n = rep?.pending ?? 0;
   if (!n) return '';
   return pill({ label: `Reading ${n} more ${n === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' });
+}
+
+/** The retained range currently represented in the scrollable stream. */
+function historyPill(historyMeta) {
+  if (!historyMeta?.oldestEventDay || !historyMeta?.newestEventDay) return '';
+  const dates = historyMeta.days || 1;
+  return pill({
+    label: `History · ${dates} ${dates === 1 ? 'date' : 'dates'}`,
+    tone: 'neutral',
+    title: `${fmtDay(historyMeta.oldestEventDay)} through ${fmtDay(historyMeta.newestEventDay)}, newest first.`,
+  });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -356,6 +370,7 @@ function coveragePanel(feeds, day, scope) {
     // table. Compressing the panel may not compress what it is accountable for.
     const title = [
       `${f.label}: ${st.label}.`,
+      `${formatNumber(f.count || 0)} retained event${f.count === 1 ? '' : 's'}; ${formatNumber(f.todayCount || 0)} on ${day}.`,
       f.note || f.what,
       f.asOf ? `Last read ${formatRelativeTime(f.asOf)}.` : null,
       'Tick to show only the ticked feeds.',
@@ -476,7 +491,7 @@ function wireFeedFilter(ctx, available) {
  * panel worth having.
  */
 export function feedState(f) {
-  // `label` is the full wording, still printed in the provenance modal's table. `short` is what the
+  // `label` is the full wording carried by the chip title. `short` is what the
   // compact chip shows, and the two must agree: a chip that reads `0` under a feed whose state is
   // "has not looked at today" would be the exact confusion this panel exists to prevent — a count
   // is a finished answer and that state is the absence of one, so it prints a WORD, never a number.
@@ -495,36 +510,32 @@ export function feedState(f) {
   if (f.reachesToday === false) {
     return { label: 'has not looked at today', short: () => 'not checked', dot: 'bg-amber-500', ring: 'ring-amber-100', bg: 'bg-amber-50/40', text: 'text-amber-700' };
   }
-  if (f.count) {
+  const todayCount = f.todayCount ?? f.count ?? 0;
+  if (todayCount) {
     return { label: 'current', short: (x) => n(x.count), dot: 'bg-emerald-500', ring: 'ring-emerald-100', bg: 'bg-emerald-50/40', text: 'text-emerald-700' };
   }
-  return { label: 'current · nothing today', short: () => '0', dot: 'bg-emerald-500', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-emerald-700' };
+  return { label: 'current · nothing today', short: (x) => n(x.count), dot: 'bg-emerald-500', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-emerald-700' };
 }
 
 // ---------------------------------------------------------------------------------------
 // The stream
 // ---------------------------------------------------------------------------------------
 
-// The row tint plus a 3px left edge in the semantic token's own colour: `--negative` for an alert,
-// `--caution` for an update. NO `hover:` class here — `scoreTable` appends its own `hover:bg-slate-50`
+// The row tint plus a 3px left edge in the direction's semantic colour. NO `hover:` class here —
+// `scoreTable` appends its own `hover:bg-slate-50`
 // after whatever `rowClass` returns, and two hover rules on one element are decided by stylesheet
 // order rather than by class order, which is a coin toss dressed up as a decision.
-const SEV = {
-  alert: { label: 'Alert', chip: 'bg-rose-50 text-rose-700 ring-rose-200', row: 'bg-rose-50/40 shadow-[inset_3px_0_0_#e11d48]' },
-  update: { label: 'General', chip: 'bg-amber-50 text-amber-700 ring-amber-200', row: 'bg-amber-50/20 shadow-[inset_3px_0_0_#d97706]' },
+const DIR = {
+  positive: { label: 'Positive', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', row: 'bg-emerald-50/30 shadow-[inset_3px_0_0_#059669]', reason: 'text-emerald-700' },
+  negative: { label: 'Negative', chip: 'bg-rose-50 text-rose-700 ring-rose-200', row: 'bg-rose-50/40 shadow-[inset_3px_0_0_#e11d48]', reason: 'text-rose-700' },
+  neutral: { label: 'Neutral', chip: 'bg-slate-100 text-slate-600 ring-slate-200', row: 'shadow-[inset_3px_0_0_#94a3b8]', reason: 'text-slate-500' },
+};
+const IMP = {
+  high: 'bg-violet-50 text-violet-700 ring-violet-200',
+  low: 'bg-slate-50 text-slate-500 ring-slate-200',
 };
 
 function eventsTable(ctx, events, day) {
-  // A COLUMN OF EM DASHES SAYS "WE ASKED AND WERE REFUSED"; AN ABSENT ONE SAYS THIS FEED DOES NOT
-  // ANSWER THAT. Only two of the five feeds carry a clock — announcements, and the market-wide news
-  // capture — so under Portfolio or Watchlist on a day nothing was filed, every row is an em dash
-  // and the column is pure furniture.
-  //
-  // DRIVEN BY THE ROWS, NOT BY THE SCOPE, and the difference is not cosmetic: all 1,199
-  // announcements in the shipped capture carry a real time, so hiding the column whenever the scope
-  // is narrowed would blank a genuine timestamp the day a book company files. Asking what is
-  // actually on screen gives the same result on the day this was reported and the right one after.
-  const anyTime = events.some((e) => e.time);
   return scoreTable({
     rows: events,
     // Content-derived and unique per event — never a position. The stream grows while feeds land,
@@ -540,9 +551,9 @@ function eventsTable(ctx, events, day) {
     nameMaxPx: 220,
     sub: (e) => [e.ticker, e.section, e.feedLabel].filter(Boolean).join(' · '),
     showRank: false,
-    // Time leads where there is one: this is a stream, and the first thing a reader wants from a
-    // stream is when. Where the column is not rendered at all the identity leads instead.
-    nameAfter: anyTime ? 1 : 0,
+    // Date and time lead every row. Some feeds resolve only to a day; saying "Day only" is more
+    // informative than an em dash and keeps older rows intelligibly ordered as the reader scrolls.
+    nameAfter: 1,
     dense: true,
     wrapHeads: true,
     // A FIRST-FRAME FALLBACK ONLY — `fitStreamToViewport` sets the real height after the paint.
@@ -552,30 +563,36 @@ function eventsTable(ctx, events, day) {
     // exact, and on a wider one the table stopped ~110px short — a magic number that was only ever
     // right for the geometry it was measured on.
     stickyHead: 'max(320px, calc(100vh - 560px))',
-    rowClass: (e) => SEV[e.severity]?.row || '',
+    // This is a historical stream, not a screener whose full DOM is useful for Ctrl-F. Keep the
+    // complete data set in the table model, but append DOM rows only as the internal scroller nears
+    // its end. Search, filters, counts and export still operate over every retained event.
+    fillMode: 'scroll',
+    rowClass: (e) => DIR[e.direction]?.row || DIR.neutral.row,
     columns: [
-      ...(anyTime
-        ? [
-            {
-              label: 'Time',
-              align: 'left',
-              get: (e) =>
-                e.time
-                  ? `<span class="tabular-nums text-slate-600">${escapeHtml(e.time)}</span>`
-                  : `<span class="text-slate-300" title="This feed dates the event to the day, not to the minute.">—</span>`,
-              html: true,
-              sortValue: (e) => e.time || '',
-            },
-          ]
-        : []),
       {
-        label: 'Signal',
+        label: 'Date / time',
+        align: 'left',
+        get: (e) => `<time datetime="${escapeHtml(e.day || '')}" data-event-day="${escapeHtml(e.day || '')}" class="block whitespace-nowrap tabular-nums text-slate-700">
+          <span class="block font-medium">${escapeHtml(fmtDay(e.day || ''))}</span>
+          <span class="block text-xs ${e.time ? 'text-slate-500' : 'text-slate-400'}">${e.time ? `${escapeHtml(e.time)} IST` : 'Day only'}</span>
+        </time>`,
+        html: true,
+        sortValue: (e) => `${e.day || ''}T${e.time || ''}`,
+      },
+      {
+        label: 'Direction',
         get: (e) => {
-          const s = SEV[e.severity] || SEV.update;
+          const s = DIR[e.direction] || DIR.neutral;
           return `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${s.chip}">${s.label}</span>`;
         },
         html: true,
-        sortValue: (e) => (e.severity === 'alert' ? 1 : 0),
+        sortValue: (e) => e.direction,
+      },
+      {
+        label: 'Importance',
+        get: (e) => `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${IMP[e.importance] || IMP.low}">${escapeHtml(e.importance || 'low')}</span>`,
+        html: true,
+        sortValue: (e) => (e.importance === 'high' ? 1 : 0),
       },
       {
         label: 'What happened',
@@ -583,7 +600,8 @@ function eventsTable(ctx, events, day) {
           <div class="max-w-[560px]">
             <div class="truncate font-medium text-slate-800" title="${escapeHtml(e.headline)}">${escapeHtml(e.headline)}</div>
             <div class="truncate text-xs text-slate-500" title="${escapeHtml(e.detail || '')}">${escapeHtml(e.detail || '')}</div>
-            ${e.reason ? `<div class="mt-0.5 truncate text-xs font-semibold text-rose-700" title="${escapeHtml(e.reason)}">▲ ${escapeHtml(e.reason)}</div>` : ''}
+            <div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}">${escapeHtml(e.signalReason || '')}</div>
+            <div class="truncate text-[11px] text-slate-400" title="${escapeHtml(e.importanceReason || '')}">${escapeHtml(e.importanceReason || '')}</div>
           </div>`,
         html: true,
         sortValue: (e) => String(e.headline || '').toLowerCase(),
@@ -603,28 +621,71 @@ function eventsTable(ctx, events, day) {
       }
       if (e.tab) location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
     },
-    searchable: (e) => `${e.company} ${e.ticker || ''} ${e.headline} ${e.detail || ''} ${e.feedLabel}`,
+    searchable: (e) => `${e.day || ''} ${e.time || ''} ${e.company} ${e.ticker || ''} ${e.direction || ''} ${e.importance || ''} ${e.headline} ${e.detail || ''} ${e.signalReason || ''} ${e.importanceReason || ''} ${e.feedLabel}`,
     filters: [
       {
-        label: 'Signal',
+        label: 'Direction',
         options: [
-          { value: 'all', label: 'Alerts and general' },
-          { value: 'alert', label: 'Alerts only' },
-          { value: 'update', label: 'General only' },
+          { value: 'all', label: 'Every direction' },
+          { value: 'positive', label: 'Positive only' },
+          { value: 'negative', label: 'Negative only' },
+          { value: 'neutral', label: 'Neutral only' },
         ],
-        match: (e, v) => e.severity === v,
+        match: (e, v) => e.direction === v,
+      },
+      {
+        label: 'Importance',
+        options: [
+          { value: 'all', label: 'High and low' },
+          { value: 'high', label: 'High only' },
+          { value: 'low', label: 'Low only' },
+        ],
+        match: (e, v) => e.importance === v,
       },
       {
         label: 'Feed',
         options: [{ value: 'all', label: 'Every feed' }, ...feedOptions(events)],
         match: (e, v) => e.feed === v,
       },
+      {
+        label: 'Date range',
+        options: dateRangeOptions(events, day),
+        match: (e, v) => matchesDateRange(e.day, day, v),
+      },
     ],
+    initialSort: { key: 'Date / time', dir: 'desc' },
     initialView: tableView,
     emptyMessage: emptyMessageFor(ctx.scope, day),
-    exportName: `sattva-daily-alerts-${day}`,
+    exportName: `sattva-general-alerts-through-${day}`,
     onExport: (visible) => exportStream(visible, day, ctx.scope),
   });
+}
+
+function shiftDay(day, amount) {
+  const d = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return day;
+  d.setUTCDate(d.getUTCDate() + amount);
+  return d.toISOString().slice(0, 10);
+}
+
+function dateRangeOptions(events, day) {
+  const options = [
+    { value: 'all', label: 'All available dates' },
+    { value: 'today', label: 'Today only' },
+    { value: '7d', label: 'Last 7 days' },
+    { value: '30d', label: 'Last 30 days' },
+  ];
+  if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
+  return options;
+}
+
+function matchesDateRange(eventDay, throughDay, range) {
+  if (!eventDay || range === 'all') return !!eventDay;
+  if (range === 'today') return eventDay === throughDay;
+  if (range === '7d') return eventDay >= shiftDay(throughDay, -6) && eventDay <= throughDay;
+  if (range === '30d') return eventDay >= shiftDay(throughDay, -29) && eventDay <= throughDay;
+  if (range === 'older') return eventDay < shiftDay(throughDay, -29);
+  return true;
 }
 
 const feedOptions = (events) => {
@@ -642,80 +703,14 @@ const feedOptions = (events) => {
  */
 function emptyMessageFor(scope, day) {
   const where = scope === 'universe' ? 'across the market' : `for your ${scopeLabel(scope).toLowerCase()}`;
-  return `Nothing has reached this page ${where} on ${day}. The feed panel above says which feeds have actually looked at today — an empty stream is not the same as a quiet day.`;
-}
-
-// ---------------------------------------------------------------------------------------
-// Provenance
-// ---------------------------------------------------------------------------------------
-
-function wireProvenance(root, feeds, day, scope) {
-  const btn = root.querySelector('[data-alerts-info]');
-  if (!btn) return;
-  btn.addEventListener('click', () => openModal(provenanceHtml(feeds, day, scope), { size: 'wide' }));
-}
-
-function provenanceHtml(feeds, day, scope) {
-  const rows = feeds
-    .map(
-      (f) => `
-      <tr class="border-b border-slate-100">
-        <td class="py-2 pr-4 align-top text-sm font-semibold text-slate-800">${escapeHtml(f.label)}</td>
-        <td class="py-2 pr-4 align-top text-sm text-slate-600">${escapeHtml(f.what)}</td>
-        <td class="py-2 align-top text-sm ${f.status === 'failed' ? 'text-rose-700' : f.reachesToday === false ? 'text-amber-700' : 'text-slate-600'}">
-          ${escapeHtml(feedState(f).label)}${f.asOf ? ` · last read ${escapeHtml(formatRelativeTime(f.asOf))}` : ''}
-        </td>
-      </tr>`
-    )
-    .join('');
-
-  return `
-    <div class="px-7 py-6">
-      <div class="mb-3 flex items-start justify-between gap-4">
-        <div>
-          <h2 class="font-display text-xl font-bold text-slate-900">Daily Alerts — where every row comes from</h2>
-          <p class="mt-1 text-sm text-slate-500">${escapeHtml(day)} · ${escapeHtml(scopeLabel(scope))} scope</p>
-        </div>
-        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
-      </div>
-
-      <div class="text-sm leading-relaxed text-slate-600">
-        <p><strong class="text-slate-800">This tab has no data source of its own.</strong> Every row is a reading taken from a feed that already has its own tab, filtered to today's Indian trading date. Nothing here is scored, ranked, summarised or re-banded.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Which tabs it reads</h3>
-        <p>Four: <strong class="text-slate-800">Breakouts / Technical, News, Corp Announcements and Insider Trades.</strong> News appears twice below because that tab is two feeds behind one name — the per-company search and the market-wide capture.</p>
-        <p class="mt-2">The <strong>Earnings Hub</strong>, <strong>Con-call</strong>, <strong>Public Chatter</strong> and <strong>Super Investors</strong> are not consolidated here. That is a chosen scope rather than a gap, and it is stated so that an absent earnings row reads as a decision rather than a fault.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">What the colours mean</h3>
-        <p><span class="font-semibold text-rose-700">Red</span> is a direct negative reading, and the reading is printed in the row that carries it. On these four tabs there is exactly one such reading: a price fall of more than ${alerts.MOVE_PCT}% at today's close, from the end-of-day scrape behind Breakouts / Technical.</p>
-        <p class="mt-2"><span class="font-semibold text-amber-700">Orange</span> is everything else that arrived today. <strong class="text-slate-800">Three of the four tabs are never red.</strong> Insider trades and corporate announcements carry the upstream's own columns and categories, so grading one would be a materiality flag we invented; a news headline is editorial, and reading a sentiment off it would put a model we do not have over somebody else's words. A day with no big faller is therefore a page of orange, which is the honest rendering rather than a page with something missing.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Thresholds, stated</h3>
-        <p>A price move reaches this page at <strong>±${alerts.MOVE_PCT}%</strong> on the day. It is a filter applied on your behalf, so it is printed rather than left implicit — here, in the row, in the alert card's explainer, and in row 1 of any exported sheet, all four reading one constant.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">Whose judgement is on screen</h3>
-        <p>Announcement categories are BSE's own filing taxonomy. Insider-trade columns are the upstream's, under its own headings. Headlines and standfirsts belong to their publishers, and the article stays where it was published. This dashboard adds no judgement to any of them.</p>
-
-        <h3 class="mt-4 font-bold text-slate-800">What was read for this day</h3>
-        <table class="mt-2 w-full text-left">
-          <thead><tr class="border-b border-slate-200">
-            <th scope="col" class="py-2 pr-4 text-xs font-bold uppercase tracking-wider text-slate-500">Feed</th>
-            <th scope="col" class="py-2 pr-4 text-xs font-bold uppercase tracking-wider text-slate-500">Contributes</th>
-            <th scope="col" class="py-2 text-xs font-bold uppercase tracking-wider text-slate-500">State</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        <p class="mt-4 text-xs text-slate-400">A feed that has not looked at today is not broken and its rows are not wrong — they are about an earlier day, so they are not on this page. Nothing on this tab sends a request per company; it re-reads committed captures and cached routes, and an unchanged one answers with no body at all.</p>
-      </div>
-    </div>`;
+  return `No loaded event ${where} matches the current search, feed, direction, importance and date filters through ${day}. The feed panel above still says which sources have checked today.`;
 }
 
 // ---------------------------------------------------------------------------------------
 // Export
 //
 // ROW 1 IS THE BANNER. A workbook leaves the page without any of the chrome above it — no legend,
-// no coverage panel, no provenance modal — so everything a reader needs in order not to misread the
+// no coverage panel, no source registry — so everything a reader needs in order not to misread the
 // colours has to travel inside the file.
 // ---------------------------------------------------------------------------------------
 
@@ -725,11 +720,11 @@ function exportStream(visible, day, scope) {
   const banner = {
     __banner: true,
     line:
-      `SATTVA CENTRAL RESEARCH — DAILY ALERTS for ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
-      `"Alert" is a direct negative reading printed in the Reading column, never a judgement about the company; "Update" is everything else that arrived. ` +
-      `Rows come from four tabs only: Breakouts / Technical, News, Corp Announcements and Insider Trades. ` +
-      `Announcements, insider disclosures and news are NEVER graded here — their columns, categories and headlines are the upstream's own. ` +
-      `The one negative reading on this sheet is a price fall past ${alerts.MOVE_PCT}% at the close, which is also the only thing that can mark a row "Alert". ` +
+      `SATTVA CENTRAL RESEARCH — GENERAL ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
+      `Rows consolidate Earnings, Con-calls, Public Chatter, Price moves, Investor activity, Announcements, Insider trades and News. ` +
+      `Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. ` +
+      `High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
+      `Announcement direction is rule-derived and unmatched filings stay neutral; news stays neutral. ` +
       (behind.length
         ? `NOT EVERY FEED HAS LOOKED AT THIS DAY: ${behind.join(', ')} last read earlier, so an absence here is not evidence that nothing happened.`
         : `Every daily feed on this dashboard had read this day when the sheet was written.`),
@@ -737,17 +732,20 @@ function exportStream(visible, day, scope) {
 
   const cell = (get) => (r) => (r.__banner ? '' : get(r));
   return exportRows({
-    filename: `sattva-daily-alerts-${day}`,
-    sheetName: 'Daily Alerts',
+    filename: `sattva-general-alerts-through-${day}`,
+    sheetName: 'General Alerts',
     columns: [
-      { header: 'Time (IST)', key: 'time', width: 12, get: (r) => (r.__banner ? r.line : r.time || '') },
-      { header: 'Signal', key: 'sev', width: 10, get: cell((r) => (r.severity === 'alert' ? 'Alert' : 'Update')) },
+      { header: 'Date (IST)', key: 'date', width: 14, get: (r) => (r.__banner ? r.line : r.day || '') },
+      { header: 'Time (IST)', key: 'time', width: 12, get: cell((r) => r.time || '') },
+      { header: 'Direction', key: 'direction', width: 12, get: cell((r) => r.direction || 'neutral') },
+      { header: 'Importance', key: 'importance', width: 12, get: cell((r) => r.importance || 'low') },
       { header: 'Feed', key: 'feed', width: 18, get: cell((r) => r.feedLabel) },
       { header: 'Ticker', key: 'ticker', width: 14, get: cell((r) => r.ticker || '') },
       { header: 'Company', key: 'company', width: 32, get: cell((r) => r.company) },
       { header: 'What happened', key: 'headline', width: 60, get: cell((r) => r.headline) },
       { header: 'Detail', key: 'detail', width: 50, get: cell((r) => r.detail || '') },
-      { header: 'Reading behind the alert', key: 'reason', width: 44, get: cell((r) => r.reason || '') },
+      { header: 'Direction reason', key: 'signalReason', width: 48, get: cell((r) => r.signalReason || '') },
+      { header: 'Importance reason', key: 'importanceReason', width: 48, get: cell((r) => r.importanceReason || '') },
       { header: 'Source link', key: 'url', width: 44, get: cell((r) => r.url || '') },
     ],
     rows: [banner, ...visible],

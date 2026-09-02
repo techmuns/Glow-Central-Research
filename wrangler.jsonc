@@ -23,8 +23,24 @@
   // write code is not the token to hand an unauthenticated route.
   "vars": {
     "GH_REPO": "techmuns/Sattva-Central-Research",
-    "GH_REF": "main"
-  }
+    "GH_REF": "main",
+
+    // Non-secret model choice for Ask Research. The credential stays in the secret binding:
+    // `npx wrangler secret put ANTHROPIC_API_KEY` (and `.dev.vars` for local Worker development).
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6"
+  },
+
+  // The dashboard has no account system to key this on today, so the route uses the authenticated
+  // Access email when present and the connecting address otherwise. This is abuse protection for
+  // a paid upstream, not billing-grade accounting; Cloudflare rate limits are intentionally
+  // permissive and local to a location.
+  "ratelimits": [
+    {
+      "name": "RESEARCH_RATE_LIMITER",
+      "namespace_id": "1701",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ]
 
   // NO CRON TRIGGER HERE, AND THE REASON IS AN ACCOUNT LIMIT RATHER THAN A CHOICE.
   //

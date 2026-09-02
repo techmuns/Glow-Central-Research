@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-09-01T06:26:45.165Z",
-  "from": "2026-08-29",
-  "to": "2026-09-22",
+  "capturedAt": "2026-09-02T06:06:54.967Z",
+  "from": "2026-08-30",
+  "to": "2026-09-23",
   "listCap": 20,
   "source": "Moneycontrol — Results Calendar (counts from the JSON API, company lists from the calendar page)",
   "note": "The per-date counts are complete; each list is the largest companies by market cap for that date, capped upstream. Counts are re-fetched live by the Worker; these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-23",
+      "displayDate": "23 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-22",
       "displayDate": "22 Sep",
@@ -99,7 +104,7 @@
     {
       "date": "2026-09-04",
       "displayDate": "04 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-03",
@@ -125,14 +130,35 @@
       "date": "2026-08-30",
       "displayDate": "30 Aug",
       "count": 0
-    },
-    {
-      "date": "2026-08-29",
-      "displayDate": "29 Aug",
-      "count": 1
     }
   ],
   "byDate": {
+    "2026-09-04": {
+      "rows": [
+        {
+          "scId": "DTL03",
+          "name": "Dhoot Transmission",
+          "shortName": "Dhoot Transmiss",
+          "resultDate": "2026-09-04",
+          "displayDate": "4 Sep",
+          "quarter": "Q1 FY26-27",
+          "time": null,
+          "ltp": 1516.6,
+          "changePct": 4.59,
+          "marketCap": 31021.76,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries-auto-truck-motorcycle-parts/dhoottransmission/DTL02",
+          "ticker": "DHOOTTRANS",
+          "fullName": "Dhoot Transmiss",
+          "industry": "Auto Ancillaries - Auto, Truck & Motorcycle Parts",
+          "shares": 204548057,
+          "mktCapAtBuild": 31017.67
+        }
+      ],
+      "scheduledCount": 1,
+      "capped": false,
+      "asOnDate": "02/09/2026"
+    },
     "2026-09-02": {
       "rows": [
         {
@@ -143,16 +169,16 @@
           "displayDate": "2 Sep",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 371.65,
-          "changePct": 0.69,
-          "marketCap": 1471.96,
+          "ltp": 372.55,
+          "changePct": -0.44,
+          "marketCap": 1475.53,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
           "ticker": "TECHNOCRAF",
           "fullName": "Technocraft Ven",
           "industry": "Construction - Infrastructure",
           "shares": 39606200,
-          "mktCapAtBuild": 1467.81
+          "mktCapAtBuild": 1477.51
         },
         {
           "scId": "VIVAN54173",
@@ -171,7 +197,7 @@
       ],
       "scheduledCount": 1,
       "capped": false,
-      "asOnDate": "01/09/2026"
+      "asOnDate": "02/09/2026"
     },
     "2026-08-31": {
       "rows": [
@@ -183,9 +209,9 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 232.03,
-          "changePct": 10,
-          "marketCap": 17862.68,
+          "ltp": 250.06,
+          "changePct": 7.77,
+          "marketCap": 19250.7,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
@@ -202,9 +228,9 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 162.32,
-          "changePct": -3.28,
-          "marketCap": 7150.79,
+          "ltp": 158.65,
+          "changePct": -0.51,
+          "marketCap": 6989.11,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
@@ -221,16 +247,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 18.1,
-          "changePct": 2.26,
-          "marketCap": 242.12,
+          "ltp": 17.6,
+          "changePct": -0.4,
+          "marketCap": 235.43,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 242.12
+          "mktCapAtBuild": 235.43
         },
         {
           "scId": "CC24",
@@ -240,47 +266,21 @@
           "displayDate": "31 Aug",
           "quarter": "Q1 FY26-27",
           "time": null,
-          "ltp": 2.88,
-          "changePct": 4.73,
-          "marketCap": 121.87,
+          "ltp": 2.74,
+          "changePct": -4.86,
+          "marketCap": 115.94,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software-medium-small/cressandarailwaysolution/CS17",
           "ticker": "CRSL",
           "fullName": "Cressanda Rail",
           "industry": "IT Services & Consulting",
           "shares": 423144706,
-          "mktCapAtBuild": 121.87
+          "mktCapAtBuild": 115.94
         }
       ],
       "scheduledCount": 4,
       "capped": false,
-      "asOnDate": "01/09/2026"
-    },
-    "2026-08-29": {
-      "rows": [
-        {
-          "scId": "GSC01",
-          "name": "Setco Automotive",
-          "shortName": "Setco Auto",
-          "resultDate": "2026-08-29",
-          "displayDate": "29 Aug",
-          "quarter": "Q1 FY26-27",
-          "time": null,
-          "ltp": 18.1,
-          "changePct": 2.26,
-          "marketCap": 242.12,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
-          "ticker": "SETCO",
-          "fullName": "Setco Auto",
-          "industry": "Auto Ancillaries - Clutches",
-          "shares": 133767275,
-          "mktCapAtBuild": 242.12
-        }
-      ],
-      "scheduledCount": 1,
-      "capped": false,
-      "asOnDate": "01/09/2026"
+      "asOnDate": "02/09/2026"
     }
   }
 }

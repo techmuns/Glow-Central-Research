@@ -25,8 +25,9 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
-import { scopeTickers, scopePossessive } from '../data/scope.js';
+import { filterByScope, scopePossessive } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
 
 const REASONS = {
@@ -65,6 +66,7 @@ const REASONS = {
  * @param {Function} cfg.provenance  (meta) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
+ * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
@@ -107,7 +109,7 @@ export function makeFilingsTab(cfg) {
         out.push({ ticker: t, name: null });
       }
     }
-    return out;
+    return scopeLists.apply('universe', out);
   }
 
   function render(ctx) {
@@ -188,8 +190,7 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
-    const wantedTickers = scopeTickers(ctx.scope, coverage.holdings());
-    const rows = wantedTickers ? all.filter((r) => r.ticker && wantedTickers.has(String(r.ticker).toUpperCase())) : all;
+    const rows = filterByScope(all, ctx.scope, coverage.holdings());
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -274,9 +275,25 @@ export function makeFilingsTab(cfg) {
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
-      link: (r) => r.url || null,
+      link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
+      // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
+      // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
+      // Recompute both figures from the visible row DATA whenever search or a filter changes.
+      countLabel: (visible) => {
+        const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+        const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
+        const companyNoun =
+          ctx.scope === 'portfolio'
+            ? `portfolio ${companies === 1 ? 'company' : 'companies'}`
+            : ctx.scope === 'watchlist'
+              ? `watchlist ${companies === 1 ? 'company' : 'companies'}`
+              : companies === 1
+                ? 'company'
+                : 'companies';
+        return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
+      },
       exportName: `sattva-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
@@ -317,7 +334,6 @@ export function makeFilingsTab(cfg) {
     // Portfolio's four-line block and the market-news freshness card all made. What stays on the
     // face is the claim: a pill whose colour and word are earned by the data. What moves behind
     // the click is the explanation, and the Refresh control with it.
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openProvenance(m, cov, ctx.scope, rows));
     wireRefresh(ctx.root);
   }
 
@@ -398,30 +414,37 @@ const loadingHtml = () => `
  * the schedule can produce, and past that the chip turns amber and prints the AGE instead. So the
  * normal state is green, and a feed that has quietly stopped refreshing cannot wear it.
  *
- * `STALE_AFTER_MS` is the schedule's own worst case rather than its period. The scrape runs
- * weekdays at 07:00 IST, so Friday's capture is still the newest thing that exists on Monday
- * morning — three days is the widest legitimate gap, the same reasoning and the same number as
- * Breakouts' pill. Keying it to the period instead would sit amber all weekend with nothing wrong,
- * which teaches the reader to ignore the one chip that is supposed to mean something.
+ * FRESH MEANS TODAY IN INDIA, not "less than 72 hours old". The old age window painted a green
+ * Live chip on Wednesday over Tuesday's company-news rows — exactly the state this control exists
+ * to expose. A weekend capture may be the newest available and it is still not a read of today;
+ * the amber age is useful information rather than an alarm.
  *
  * FAILURES OUTRANK FRESHNESS. A capture taken a minute ago that could not read eighteen companies
  * is not "Live" — amber and `Partial` is the honest word, and the modal names them.
  */
-const STALE_AFTER_MS = 72 * 60 * 60 * 1000;
+function istDay(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return get('year') && get('month') && get('day') ? `${get('year')}-${get('month')}-${get('day')}` : null;
+}
 
 function pill(m, scope, rows) {
   const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
   const age = Number.isFinite(at) ? Date.now() - at : null;
   const bad = m.failed > 0 || !!m.reason;
-  const fresh = age !== null && age < STALE_AFTER_MS;
+  const fresh = age !== null && istDay(at) === istDay(Date.now());
   const tone = bad || !fresh ? 'text-amber-700' : 'text-emerald-700';
   const dot = bad || !fresh ? 'bg-amber-500' : 'bg-emerald-500';
   const label = m.reason ? 'Unavailable' : bad ? 'Partial' : age === null ? 'No capture' : fresh ? 'Live' : `Read ${formatRelativeTime(at)}`;
-  return `<button type="button" data-filings-info
+  return `<span data-filings-info
       title="${escapeHtml(scopeTitle(scope, rows, m))}"
-      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone} transition hover:opacity-70">
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
       <span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${escapeHtml(label)}
-    </button>`;
+    </span>`;
 }
 
 /**
@@ -439,15 +462,15 @@ function scopeTitle(scope, rows, m) {
   if (scope === 'portfolio' && book?.count) {
     return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
       (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
-      ' Click for where this comes from.';
+      '';
   }
   if (scope === 'watchlist') {
     const tracked = watchlist.size();
     return tracked
-      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed. Click for where this comes from.`
-      : 'Nothing tracked yet. Click for where this comes from.';
+      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed.`
+      : 'Nothing tracked yet.';
   }
-  return `${formatNumber(n)} companies appear on this feed. Click for where this comes from.`;
+  return `${formatNumber(n)} companies appear on this feed.`;
 }
 
 /**

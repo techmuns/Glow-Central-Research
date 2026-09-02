@@ -22,9 +22,10 @@ import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
-// NOT TYPED OUT. The threshold is stated in three places on the Daily Alerts tab and here; all
-// four read the same constant, so changing it cannot leave one of them describing the old filter.
-import { MOVE_PCT as DAILY_MOVE_PCT } from '../data/daily-alerts.js';
+// NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
+// three read the same constant, so changing it cannot leave one of them describing the old filter.
+import * as dailyAlerts from '../data/daily-alerts.js';
+import * as aiAlerts from '../data/ai-alerts.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -137,25 +138,23 @@ export function sourceGroups() {
 
     return [
     {
-      // DAILY ALERTS COMES FIRST BECAUSE IT IS THE FIRST TAB, and it is the only group here whose
-      // whole point is that it introduces NOTHING. A reader opening this modal from the landing tab
-      // is owed the answer "this page has no feed of its own" before they go looking for one.
-      title: 'Daily Alerts',
+      // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
+      // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
+      // not exist.
+      title: 'AI & General Alerts',
       icon: '🔔',
-      tabs: 'Daily Alerts',
+      tabs: 'AI Alerts · General Alerts',
       items: [
         {
-          name: 'No source of its own — it reads four of the tabs below',
+          name: 'No source of its own — two views over the research feeds below',
           feeds:
-            'The landing tab consolidates <strong>Breakouts / Technical, News, Corp Announcements and Insider Trades</strong>, filtered to today\'s Indian trading date, and adds no data of its own. ' +
-            'The Earnings Hub, Con-call, Public Chatter and Super Investors are deliberately not folded in — they keep their own tabs, and the alerts page says so rather than leaving an absent row to read as a fault. ' +
-            `<strong>Red</strong> is a direct negative reading printed in the row that carries it, and across these four there is exactly one: the price fell more than ${DAILY_MOVE_PCT}% at the close. ` +
-            '<strong>Orange</strong> is anything else that arrived. <strong>Announcements, insider disclosures and news are never graded</strong>: their categories, columns and headlines are the upstream\'s own, ' +
-            'so grading one would be a flag we invented over somebody else\'s words. ' +
-            'Its own panel says, per feed, when that feed last looked and whether that reaches today — because an empty stream and a feed that has not run are not the same answer.',
-          cadence: 'Rebuilt on every visit and on Refresh; none of the four polls, and nothing on it walks per company',
+            '<strong>General Alerts</strong> consolidates Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            '<strong>Positive / Negative / Neutral</strong> direction and <strong>High / Low</strong> importance are separate, and every row prints both reasons. Source sentiment is reproduced where it exists; insider and investor transactions use their own direction; announcements use the narrow rules documented here; news remains neutral. ' +
+            `High thresholds include ±${dailyAlerts.MOVE_PCT}% price moves, ${dailyAlerts.INSIDER_HIGH_PCT}% or ₹${dailyAlerts.INSIDER_HIGH_VALUE / 10_000_000} crore insider activity, ${dailyAlerts.INVESTOR_HIGH_PP}pp investor changes, and ${dailyAlerts.CHATTER_HIGH_MENTIONS} mentions or ${dailyAlerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
+            `Its panel keeps retained rows separate from whether each feed has looked today. <strong>AI Alerts</strong> groups the same company-specific events over ${aiAlerts.WINDOW_DAYS} days and applies an explainable ${aiAlerts.MIN_SCORE}-point priority threshold. It scores materiality, recency, direction, real Portfolio membership, independent-feed corroboration, conflicts and portfolio-sector clusters; stale feeds are penalised. Tickerless market news and lower-scoring names stay in General Alerts. Portfolio Analytics weights and conviction are not used because that ledger is illustrative.`,
+          cadence: 'Rebuilt on every visit and on Refresh from each owning feed; nothing on it walks per company',
           status: 'live',
-          file: 'js/data/daily-alerts.js · js/tabs/daily-alerts.js',
+          file: 'js/data/ai-alerts.js · js/tabs/ai-alerts.js · js/data/daily-alerts.js · js/tabs/daily-alerts.js',
         },
       ],
     },
@@ -229,7 +228,7 @@ export function sourceGroups() {
       tabs: 'Earnings Hub · Breakouts → Earnings Surprise',
       items: [
         {
-          name: 'Moneycontrol — Rapid Results',
+          name: 'Live published-results feed',
           url: 'https://www.moneycontrol.com/markets/earnings/latest-results/',
           feeds:
             `The Earnings Hub, live. Revenue, gross profit and net profit for every listed company that has reported this quarter, with the prior-year comparison${clause(reported, ' — <n> in the current pull')}. Proxied through <code class="rounded bg-slate-100 px-1">/api/earnings</code> behind a 30-second edge cache and polled by the browser, so a company that files appears within about a minute without a rebuild or a page reload.`,
@@ -238,10 +237,10 @@ export function sourceGroups() {
           file: 'worker/index.js → /api/earnings · public/data/earnings-live.json · scripts/scrape-earnings.mjs',
         },
         {
-          name: 'Moneycontrol price feed — identity and share count',
+          name: 'Market identity and share-count feed',
           url: 'https://www.moneycontrol.com/',
           feeds:
-            'Resolves Moneycontrol\'s internal company code to an NSE ticker, and carries the industry and shares outstanding. This is the join that makes the results feed usable: upstream names are truncated to 15 characters, so the code is the only safe key. The share count is what lets market cap be computed live (shares × current price) rather than going stale between refreshes.',
+            'Resolves the publisher\'s internal company code to an NSE ticker, and carries the industry and shares outstanding. This is the join that makes the results feed usable: upstream names are truncated to 15 characters, so the code is the only safe key. The share count is what lets market cap be computed live (shares × current price) rather than going stale between refreshes.',
           cadence: 'Incremental — only companies never seen before are resolved; refreshed in full weekly',
           status: 'live',
           file: 'public/data/mc-ticker-map.json · scripts/scrape-earnings.mjs',
@@ -259,7 +258,7 @@ export function sourceGroups() {
           name: 'BSE / NSE corporate filings',
           url: 'https://www.nseindia.com/companies-listing/corporate-filings-financial-results',
           feeds:
-            'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it is live off Moneycontrol above.',
+            'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it uses the live published-results feed above.',
           cadence: 'Event-driven during results season — not yet connected',
           status: 'mock',
           file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
@@ -274,7 +273,7 @@ export function sourceGroups() {
           file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
         },
         {
-          name: 'Moneycontrol — Results Calendar (counts)',
+          name: 'Published results calendar — counts',
           url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
           feeds:
             'The Earnings Hub\'s <strong>Earnings Calendar</strong> view: how many companies are scheduled to report on each date — the number on every chip in the date strip. Complete and unpaginated for the <strong>NSE</strong>, which is the index it is asked for. The company list beside it is asked for <em>every</em> exchange, so on a quiet date the count can be smaller than the number of companies named; where that happens the pill prints no total, and says why.',
@@ -283,16 +282,16 @@ export function sourceGroups() {
           file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarStrip()',
         },
         {
-          name: 'Moneycontrol — Results Calendar (company list)',
+          name: 'Published results calendar — company list',
           url: 'https://www.moneycontrol.com/markets/earnings/results-calendar/',
           feeds:
-            'The named companies for a date <strong>still to come</strong>, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> Moneycontrol publishes the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one. <strong>A date that has already happened is not answered from here at all</strong> — see the row below.',
+            'The named companies for a date <strong>still to come</strong>, with quarter, scheduled time, price and market cap. <strong>Partial by construction:</strong> the publisher lists the <strong>20 largest by market cap</strong> per date and offers no way to page past it — the JSON route its own "load more" uses is blocked to non-browser clients. So the table names 20 of however many the count says, and states that under itself. <strong>And it is read from a capture, not live, wherever the server is refused:</strong> this list exists only inside the calendar page\'s HTML, which sits behind Akamai and answers a Cloudflare Worker with a page carrying no data. The scheduled job captures it from a runner the page does answer, and the tab shows a <em>Captured</em> pill with the age instead of a Live one. <strong>A date that has already happened is not answered from here at all</strong> — see the row below.',
           cadence: 'Live when the page answers; otherwise the daily capture, labelled with its age',
           status: 'live',
           file: 'worker/index.js → /api/earnings-calendar · worker/mc.mjs → fetchCalendarDay() · public/data/earnings-calendar.json · scripts/scrape-calendar.mjs',
         },
         {
-          name: 'Moneycontrol — Rapid Results (calendar, past dates)',
+          name: 'Live published results — past calendar dates',
           url: 'https://www.moneycontrol.com/markets/earnings/',
           feeds:
             'A date in the Earnings Calendar that has <strong>already happened</strong> is answered by the live results feed rather than by the schedule: every company that <em>filed</em> on that date, with its reported revenue and net profit. Not a top-20 and not a claim about the future — these are published results, the same rows as the Earnings Reported table, narrowed to one date. It needs no request of its own, which is why walking back through a reporting season is instant. The schedule\'s count for the date is still shown alongside, from the separate feed above, and the two are never differenced: companies file a day either side of their announced date, so the gap between "due" and "filed" is not a list of anybody.',
@@ -351,7 +350,7 @@ export function sourceGroups() {
           url: null,
           feeds:
             '<strong>Not a feed — derived here.</strong> The chatter API has no exchange symbol: its key is a forum-topic slug like <code class="rounded bg-slate-100 px-1">tata-motors</code>, and entries are discovered bottom-up so the list also carries brokers, themes and bare words. ' +
-            `Each slug is matched, exactly and never by prefix, against universe.json, the book and the Moneycontrol ticker map.${
+            `Each slug is matched, exactly and never by prefix, against universe.json, the book and the market ticker map.${
             chat != null && chatResolved != null ? ` On the current pull, ${formatNumber(chatResolved)} of ${formatNumber(chat)} resolved.` : ''
           } ` +
             'The rest are shown in their own section with the reason rather than dropped — a mis-resolved slug would file someone else\'s forum posts under a company you hold.',
@@ -371,15 +370,15 @@ export function sourceGroups() {
           url: 'https://fastapi.muns.io',
           feeds:
             "<strong>Real, and not ours.</strong> Recent articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>No sentiment and no ranking of ours</strong> — articles keep the order the API returned them in. The company a story is filed under is our search term, not a claim by the article. <strong>The shape is unverified</strong>: no working token was available when this was wired, so the parser reads by shape and by candidate key rather than by one guessed field name.",
-          cadence: 'Rolling 30 days · a scheduled walk writes the snapshot; the live routes answer the Refresh button, never a page load',
+          cadence: 'Rolling 30 days · captured weekdays at 07:00 and 09:00 IST; the live routes answer the Refresh button, never a page load',
           status: 'live',
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/filings-shared.js · scripts/scrape-filings.mjs',
         },
         {
-          name: 'Moneycontrol — market-wide stocks news',
+          name: 'Market-wide stocks news feed',
           url: 'https://www.moneycontrol.com/news/business/stocks/',
           feeds:
-            "<strong>Real reporting, and not ours.</strong> Every stocks story Moneycontrol publish, market-wide — the Universe half of the News tab. Headlines, standfirsts and section names are theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing is summarised, scored, ranked or flagged as important, and <strong>the order is the publisher's own</strong>, by their article id. <strong>It is a capture, not a live read, and that is not a choice:</strong> their site refuses automated readers by TLS fingerprint — curl with a browser user-agent gets 200 and 598 KB, node's <code class=\"rounded bg-slate-100 px-1\">fetch</code> gets 403 on every header set tried, and a Cloudflare Worker gets 403 too — so a scheduled Action reads the page and the browser reads what it committed. Their listing page carries <strong>no date at all</strong>, so a story's time comes from its own page, costs one request each and is budgeted; the rest read <em>time not published</em> and are <strong>never</strong> stamped with the moment this dashboard saw them. <strong>The stories are rendered as the publisher's own cards</strong> — their thumbnail, headline and standfirst — and the whole card links to their page.",
+            "<strong>Real reporting, and not ours.</strong> Every story in the market-wide publisher feed — the Universe half of the News tab. Headlines, standfirsts and section names are theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing is summarised, scored, ranked or flagged as important, and <strong>the order is the publisher's own</strong>, by their article id. <strong>It is a capture, not a live read, and that is not a choice:</strong> their site refuses automated readers by TLS fingerprint — curl with a browser user-agent gets 200 and 598 KB, node's <code class=\"rounded bg-slate-100 px-1\">fetch</code> gets 403 on every header set tried, and a Cloudflare Worker gets 403 too — so a scheduled Action reads the page and the browser reads what it committed. Their listing page carries <strong>no date at all</strong>, so a story's time comes from its own page, costs one request each and is budgeted; the rest read <em>time not published</em> and are <strong>never</strong> stamped with the moment this dashboard saw them. <strong>The stories are rendered as the publisher's own cards</strong> — their thumbnail, headline and standfirst — and the whole card links to their page.",
           cadence:
             `Captured on a schedule through the day.${clause(num(() => marketNews.meta().count), ' <n> stories in the current file.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry the publisher's own time.")}`,
           status: 'live',
@@ -403,7 +402,7 @@ export function sourceGroups() {
           url: 'https://devde.muns.io',
           feeds:
             "<strong>Real disclosures.</strong> Promoter, director and designated-person dealing from <code class=\"rounded bg-slate-100 px-1\">POST /filings/data/insider_trades</code> with <code class=\"rounded bg-slate-100 px-1\">country: india</code>, routing to NSE, BSE and Trendlyne. <strong>This endpoint answers with a markdown table, not JSON</strong> — the only upstream here that does — so the columns on screen are whatever their table declared, in their order, under their headings. Nothing is renamed and <strong>nothing is summed</strong>: a quantity written \"1,20,000 (pledged)\" is not a number.",
-          cadence: 'Rolling 365 days · a scheduled walk writes the snapshot; the live routes answer the Refresh button, never a page load',
+          cadence: 'Rolling 365 days · captured weekdays at 07:00 and 09:00 IST; the live routes answer the Refresh button, never a page load',
           status: 'live',
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
         },

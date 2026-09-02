@@ -18,12 +18,56 @@ import { formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
+import { pickField, safeUrl } from '../data/filings-shared.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
 /** Columns a header is likely to be, if the source names one at all. */
 const looksLikeDate = (h) => /date|when/i.test(h);
-const looksLikeName = (h) => /name|person|insider|holder|acquirer/i.test(h);
+const looksLikeInsiderName = (h) => /person|insider|holder|acquirer/i.test(h);
+const looksLikeName = (h) => /name/i.test(h) || looksLikeInsiderName(h);
+const looksLikeSource = (h) => /^\s*(source|exchange)\s*$/i.test(h);
+const looksLikeLink = (h) => /^\s*(link|url|source[\s_-]*url|filing[\s_-]*(link|url)|document[\s_-]*(link|url))\s*$/i.test(h);
+
+const URL_FIELDS = ['link', 'url', 'source', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
+
+const nameKeyFor = (row) => {
+  const keys = Object.keys(row?.cells || {});
+  return keys.find(looksLikeInsiderName) || keys.find(looksLikeName) || null;
+};
+
+const insiderNameFor = (row) => {
+  const key = nameKeyFor(row);
+  const value = key ? row?.cells?.[key] : null;
+  return value == null ? null : String(value).trim() || null;
+};
+
+/** Prefer a real upstream filing URL; otherwise open a public result narrowed to this insider. */
+export function insiderTradeSourceUrl(row) {
+  const candidates = [row?.url, pickField(row?.cells, URL_FIELDS)];
+  for (const value of candidates) {
+    const direct = safeUrl(value);
+    if (direct) return direct;
+    const embedded = String(value || '').match(/https?:\/\/[^\s<>)]+/i)?.[0] || null;
+    const parsed = safeUrl(embedded);
+    if (parsed) return parsed;
+  }
+
+  // The Muns table currently carries only a source name, not the source filing id or URL. Trendlyne
+  // exposes a public insider-disclosure search by exact person/entity name; that is the narrowest
+  // link that can be derived from the row without inventing an exchange document identifier.
+  const query = String(insiderNameFor(row) || row?.ticker || '').trim();
+  return query ? `https://trendlyne.com/equity/insider-trading-sast/custom/?query=${encodeURIComponent(query)}` : null;
+}
+
+function sourceCell(row) {
+  const url = insiderTradeSourceUrl(row);
+  if (!url) return dash('the source supplied no linkable filing or identifying name');
+  const who = String(insiderNameFor(row) || row?.ticker || 'this disclosure');
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-stop data-insider-source-link
+             aria-label="Open source for ${escapeHtml(who)}" title="Open the matching public disclosure"
+             class="inline-flex h-7 w-7 items-center justify-center rounded-md text-base font-semibold text-indigo-600 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50 hover:text-indigo-800">↗</a>`;
+}
 
 /**
  * Tint a buy green and a sell rose — but only where the cell says so in words.
@@ -39,18 +83,53 @@ function directionTint(v) {
   return 'text-slate-600';
 }
 
+// The upstream owns both the headings and the values, so these filters only locate likely heading
+// variants and reproduce the cell text as-is. In particular, "Transaction" is presented as
+// "Transaction type" on the control because that is the question the reader is asking; its option
+// values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
+const FILTER_FIELDS = [
+  { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
+  {
+    label: 'Transaction type',
+    allLabel: 'All transaction types',
+    keys: ['transaction', 'transaction type', 'acq/disp', 'acquisition/disposal'],
+    maxWidthPx: 200,
+  },
+  { label: 'Mode', allLabel: 'All modes', keys: ['mode', 'transaction mode', 'method'], maxWidthPx: 240 },
+];
+
+const filterCell = (row, keys) => {
+  const value = pickField(row?.cells, keys);
+  return value == null ? null : String(value).trim() || null;
+};
+
+function tradeFilters(rows) {
+  return FILTER_FIELDS.map((field) => {
+    // A numeric/date-only value under Transaction or Mode is a ragged upstream markdown row, not
+    // a transaction choice. It remains visible under "All" but is not promoted into a misleading
+    // dropdown option. Every genuine value in this feed contains a word.
+    const values = [...new Set(rows.map((r) => filterCell(r, field.keys)).filter((v) => v && /[A-Za-z]/.test(v)))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }),
+    );
+    return {
+      label: field.label,
+      maxWidthPx: field.maxWidthPx,
+      options: [{ value: 'all', label: field.allLabel }, ...values.map((value) => ({ value, label: value }))],
+      match: (row, value) => filterCell(row, field.keys) === value,
+    };
+  });
+}
+
 const tab = makeFilingsTab({
   id: 'insider-trades',
   title: 'Insider Trades',
-  subtitle: 'Insider dealing disclosed for the companies in scope, from NSE, BSE and Trendlyne. The table is the source’s own — its columns, its headings, its words.',
+  subtitle: 'Insider dealing disclosed for the companies in scope. Each row preserves the disclosure’s fields and links to its matching public record.',
   feed,
   noun: 'trades',
   nameLabel: 'Insider',
   nameMaxPx: 260,
   rowName: (r) => {
-    const cells = r.cells || {};
-    const nameKey = Object.keys(cells).find(looksLikeName);
-    return (nameKey && cells[nameKey]) || r.ticker || '(not named)';
+    return insiderNameFor(r) || r.ticker || '(not named)';
   },
   rowSub: (r) => r.ticker || '',
   searchable: (r) => `${r.ticker || ''} ${Object.values(r.cells || {}).join(' ')}`,
@@ -58,10 +137,15 @@ const tab = makeFilingsTab({
   // on one day by two people are a legitimate pair. NEVER the row's index — see the note beside the
   // key builder in filings-tab.js for what that cost the News tab.
   keyFor: (r) => `${r.ticker || ''}|${r.date || ''}|${Object.values(r.cells || {}).join('|')}`,
+  filters: tradeFilters,
+  // The shared renderer's separate Link column is disabled. Insider Trades owns one Source column:
+  // an arrow to the row's evidence, never a repeated provider label plus a second arrow.
+  link: false,
   // THE COLUMN SET IS THE SOURCE'S. Built from the headers the markdown table declared, minus the
-  // two already shown in the identity cell. A source that adds a column gets a column.
+  // identity/date fields and the source/link fields consolidated into the one Source arrow below.
+  // A source that adds any other column still gets a column.
   columns: (m) => {
-    const headers = (m.headers || []).filter((h) => !looksLikeName(h));
+    const headers = (m.headers || []).filter((h) => !looksLikeName(h) && !looksLikeSource(h) && !looksLikeLink(h));
     const cols = [
       {
         label: 'Date',
@@ -85,6 +169,12 @@ const tab = makeFilingsTab({
         sortValue: (r) => String(r.cells?.[h] ?? ''),
       });
     }
+    cols.push({
+      label: 'Source',
+      get: sourceCell,
+      html: true,
+      sortable: false,
+    });
     return cols;
   },
   provenance: (m) => `<div class="px-7 py-6">
@@ -122,7 +212,7 @@ const tab = makeFilingsTab({
       </div>
     </div>`,
   onExport: async (visible, m) => {
-    const headers = m.headers || [];
+    const headers = (m.headers || []).filter((h) => !looksLikeSource(h) && !looksLikeLink(h));
     await exportRows({
       filename: 'sattva-insider-trades',
       sheetName: 'Insider trades',
@@ -133,7 +223,7 @@ const tab = makeFilingsTab({
           width: 14,
           get: (r) =>
             r.__banner
-              ? `REAL DISCLOSURES, NOT OURS. Insider trades via the Muns filings API (NSE / BSE / Trendlyne), reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
+              ? `REAL DISCLOSURES, NOT OURS. Insider trades via the Muns filings API, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
                 `THE COLUMNS AND THEIR HEADINGS ARE THE SOURCE'S OWN and are reproduced unrenamed — this endpoint returns a markdown table, and its shape is theirs to change. ` +
                 `NOTHING IS SUMMED OR CLASSIFIED: no total quantity, no total value, and no judgement about what a trade means. ` +
                 `${m.covered} companies covered${m.failed ? `; ${m.failed} could not be read and are ABSENT rather than shown as having no insider dealing` : ''}. ` +
@@ -142,6 +232,7 @@ const tab = makeFilingsTab({
         },
         { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
         ...headers.map((h, i) => ({ header: h, key: `c${i}`, width: 24, get: (r) => (r.__banner ? '' : r.cells?.[h] ?? '') })),
+        { header: 'Source', key: 'source', width: 48, get: (r) => (r.__banner ? '' : insiderTradeSourceUrl(r) || '') },
       ],
       rows: [{ __banner: true }, ...visible],
     });

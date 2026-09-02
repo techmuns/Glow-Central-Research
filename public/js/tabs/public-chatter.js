@@ -1,15 +1,14 @@
 // tabs/public-chatter.js — retail chatter across ValuePickr, TradingQnA and Google News.
 //
-// ONE VIEW, TWO SECTIONS, ONE PROVENANCE.
-//   Covered companies    entries whose slug resolves to an NSE symbol we cover. Scope-aware,
-//                        joined to the technicals feed, rows open the technicals drill.
+// ONE PAGE, TWO SIMPLE IN-PAGE TABS, ONE PROVENANCE.
+//   Covered companies    entries whose slug resolves to an NSE symbol we cover. Scope-aware.
 //   Not in our coverage  everything else, whole, in both scopes.
 //
 // The tab used to be three sub-views over a synthetic corpus — ValuePickr threads, Telegram groups
 // and a Trending join — with fictional handles, because inventing words for a named person is not
 // something a label can make acceptable. That corpus is gone. The words here are real people's
-// actual posts, so the rule that applies instead is the StockScans one: LINK, DO NOT REPRODUCE.
-// Rows carry counts and a link; the posts stay on the forum that hosts them.
+// actual posts. Rows open a short mention list with direct links; the full posts stay on the site
+// that hosts them.
 //
 // TELEGRAM AND THE PUMP-RISK FLAG WENT WITH IT, deliberately. There is no live Telegram source,
 // and pump-risk's gate is `MIN_MESSAGES_24H = 120` — calibrated for a firehose. This feed carries
@@ -21,27 +20,34 @@
 // is mention volume between scrapes, never a price move, so it is never coloured like a P&L and
 // the column says "Mentions Δ". `sparkline` is per-SCRAPE, not per-day, so it carries no time axis.
 
-import { statStrip, topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
-import { scopeSummary, pill } from '../ui/components.js';
+import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { scopeSummary, pill, tabBar } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatNumber, formatRelativeTime } from '../core/format.js';
+import { formatDate, formatNumber, formatRelativeTime, formatTime } from '../core/format.js';
+import { exportRows, todayStamp } from '../ui/export.js';
 import * as chatter from '../data/chatter-live.js';
-import * as technicals from '../data/technicals.js';
-import { openTechnicalsDrillByTicker } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
 
 export const meta = {
   id: 'public-chatter',
   title: 'Public Chatter',
   subtitle: 'What retail is actually discussing, across ValuePickr, TradingQnA and Google News.',
-  // No rail: one view. The two sections are a coverage statement about one list, not two feeds,
-  // and splitting them across sub-views would invite the reading that they are separate sources.
+  // No shell sub-view picker: Coverage and Not in coverage are simple tabs inside this page.
+  // They remain one feed and one provenance.
   subviews: [],
 };
 
 let renderToken = 0;
 let disposers = [];
+let paintDisposers = [];
 let tableViews = { covered: null, other: null };
+let chatterSection = 'coverage';
+let mentionRequestToken = 0;
+
+const SECTIONS = [
+  { id: 'coverage', label: 'Coverage' },
+  { id: 'not-in-coverage', label: 'Not in coverage' },
+];
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -70,17 +76,16 @@ export function render(ctx) {
       );
     });
 
-  // Warmed in the background so a click a few seconds from now opens instantly. Nothing waits on
-  // it, and `openRow` below covers the case where somebody is faster than the network.
-  technicals.load().catch(() => null);
 }
 
 export function destroy() {
   renderToken++;
   cleanup();
+  chatterSection = 'coverage';
 }
 
 function cleanup() {
+  clearPaint();
   for (const d of disposers.splice(0)) {
     try {
       d?.();
@@ -89,6 +94,16 @@ function cleanup() {
     }
   }
   tableViews = { covered: null, other: null };
+}
+
+function clearPaint() {
+  for (const d of paintDisposers.splice(0)) {
+    try {
+      d?.();
+    } catch (err) {
+      console.error('[chatter] paint cleanup failed', err);
+    }
+  }
 }
 
 /**
@@ -115,6 +130,7 @@ const loadingHtml = () => `
 // ---------------------------------------------------------------------------------------
 
 function paint(ctx) {
+  clearPaint();
   const m = chatter.meta();
 
   // A failed read is not an empty result. `unavailablePanel` names the state and, where an
@@ -129,95 +145,188 @@ function paint(ctx) {
 
   const covered = chatter.forScope(ctx.scope);
   const other = chatter.uncovered();
-  const stats = buildStats(ctx, m, covered);
-  const cards = buildTopCards(covered);
-  const coveredTable = buildCoveredTable(ctx, covered);
-  const otherTable = buildOtherTable(other);
+  const activeSection = SECTIONS.some((item) => item.id === chatterSection) ? chatterSection : SECTIONS[0].id;
+  const sectionTabs = tabBar({
+    tabs: SECTIONS,
+    activeId: activeSection,
+    onSelect: (section) => {
+      if (section === chatterSection) return;
+      chatterSection = section;
+      paint(ctx);
+      ctx.root.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
+  const cards = activeSection === 'coverage' ? buildTopCards(covered) : null;
+  const coveredTable = activeSection === 'coverage' ? buildCoveredTable(covered) : null;
+  const otherTable = activeSection === 'not-in-coverage' ? buildOtherTable(other) : null;
+  const panel =
+    activeSection === 'coverage'
+      ? `${cards ? cards.html : ''}${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}`
+      : `${sectionHead({
+          title: 'Not in our coverage',
+          description:
+            'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in every scope, because a holding cannot be filtered out of a list that has no tickers.',
+        })}${otherTable.html}`;
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Public Chatter',
       description: `Mention counts and sentiment over a rolling ${escapeHtml(m.window)}, computed by SentimentDash across ValuePickr, TradingQnA and Google News. The counts and the sentiment are theirs; the NSE symbol is ours.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: 'discussed', book: coverage.meta() })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`,
     })}
-    ${stats.html}
-    ${cards ? cards.html : ''}
-    ${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}
-    ${sectionHead({
-      title: 'Not in our coverage',
-      description:
-        'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in both scopes, because a holding cannot be filtered out of a list that has no tickers.',
-    })}
-    ${otherTable.html}`;
+    <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-chatter-section-tabs>
+      ${sectionTabs.html}
+    </div>
+    <div role="tabpanel" aria-label="${escapeHtml(SECTIONS.find((item) => item.id === activeSection)?.label || '')}" data-chatter-panel="${escapeHtml(activeSection)}">
+      ${panel}
+      ${chatterFootnotes(m)}
+    </div>`;
 
-  stats.wire(ctx.root);
+  paintDisposers.push(sectionTabs.wire(ctx.root.querySelector('[data-chatter-section-tabs]')));
   if (cards) cards.wire(ctx.root);
-  if (coveredTable) disposers.push(coveredTable.wire(ctx.root));
-  disposers.push(otherTable.wire(ctx.root));
-  wireLivePill(ctx.root, m);
+  if (coveredTable) paintDisposers.push(coveredTable.wire(ctx.root));
+  if (otherTable) paintDisposers.push(otherTable.wire(ctx.root));
 }
 
 /**
- * Open a company's technicals drill from a chatter row.
- *
- * `openTechnicalsDrillByTicker` reads the technicals cache synchronously and returns false when it
- * is not there yet. Since this tab no longer blocks its paint on that feed, a fast click can land
- * before it arrives — so the miss triggers the load and retries, rather than being a click that
- * silently does nothing. A ticker with no technicals row at all (a scrape failure, a company
- * outside the scraped universe) still opens nothing, which is correct: there is no panel to show.
+ * Open the real items behind one dashboard count. The detail request is lazy so this table stays a
+ * single fetch, while a second click on the same company is served from the small in-memory cache.
  */
-function openRow(ticker) {
-  if (openTechnicalsDrillByTicker(ticker)) return;
-  technicals
-    .load()
-    .then(() => openTechnicalsDrillByTicker(ticker))
-    .catch(() => {});
+function openMentions(entry) {
+  if (!entry?.slug) return;
+  const token = ++mentionRequestToken;
+  openModal(mentionsFrame(entry), {
+    size: 'wide',
+    onClose: () => {
+      if (token === mentionRequestToken) mentionRequestToken++;
+    },
+  });
+
+  chatter
+    .postsFor(entry.slug)
+    .then((payload) => {
+      if (token !== mentionRequestToken) return;
+      const body = document.querySelector('#modal-content [data-chatter-mentions-body]');
+      if (body) body.innerHTML = mentionsBody(entry, payload);
+    })
+    .catch((error) => {
+      if (token !== mentionRequestToken) return;
+      const body = document.querySelector('#modal-content [data-chatter-mentions-body]');
+      if (body) body.innerHTML = mentionsError(error);
+    });
 }
+
+function mentionsFrame(entry) {
+  return `
+    <div class="scrollbar-thin max-h-[82vh] overflow-y-auto" data-chatter-mentions-dialog data-chatter-slug="${escapeHtml(entry.slug)}">
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur sm:px-7">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Public mentions</p>
+            <h2 class="font-display mt-1 text-xl font-bold text-slate-900">${escapeHtml(entry.name)}</h2>
+            <p class="mt-1 text-xs text-slate-500">${escapeHtml(formatNumber(entry.mentions))} mentions in the latest ${escapeHtml(chatter.meta()?.window || '30d')} snapshot · ${escapeHtml(entry.sourceLabel || 'Source not reported')}</p>
+          </div>
+          <button type="button" data-modal-close aria-label="Close mentions" class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+        </div>
+      </div>
+      <div class="px-6 py-5 sm:px-7" data-chatter-mentions-body aria-live="polite">
+        <div class="flex items-center gap-2 py-10 text-sm text-slate-500">
+          <span class="h-2 w-2 animate-pulse rounded-full bg-indigo-500"></span>
+          Reading the underlying mentions…
+        </div>
+      </div>
+    </div>`;
+}
+
+function mentionsBody(entry, payload) {
+  const posts = payload.posts || [];
+  const total = payload.total ?? posts.length;
+  const moved = total !== entry.mentions;
+  const rows = posts.map(mentionRow).join('');
+  return `
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+      <p data-chatter-mention-total data-detail-total="${escapeHtml(String(total))}" data-snapshot-total="${escapeHtml(String(entry.mentions))}">
+        Showing ${escapeHtml(formatNumber(posts.length))} of ${escapeHtml(formatNumber(total))} mention${total === 1 ? '' : 's'}, newest first.
+        ${moved ? `<strong class="font-semibold text-amber-700">The detail feed has changed since the ${escapeHtml(formatNumber(entry.mentions))}-mention snapshot above.</strong>` : ''}
+      </p>
+      <p>Short excerpt only · open the source for the full context.</p>
+    </div>
+    <div class="space-y-3" data-chatter-mention-list>
+      ${rows || `<div class="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No mention details were returned for ${escapeHtml(entry.name)}.</div>`}
+    </div>`;
+}
+
+function mentionRow(post) {
+  const href = safeExternalUrl(post.url);
+  const author = post.author || post.handle || post.community || post.sourceLabel || 'Source';
+  const when = post.at ? `${formatDate(post.at)} · ${formatTime(post.at)}` : 'Time not published';
+  const excerpt = shortExcerpt(post.text);
+  return `
+    <article class="rounded-xl border border-slate-200 bg-white p-4" data-chatter-mention-row>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+        <span class="font-semibold text-slate-700">${escapeHtml(post.sourceLabel || post.community || 'Source')}</span>
+        <span aria-hidden="true">·</span>
+        <span>${escapeHtml(author)}</span>
+        <span aria-hidden="true">·</span>
+        <span>${escapeHtml(when)}</span>
+        <span class="ml-auto">${sentimentPill({ label: post.sentiment, labelText: titleCase(post.sentiment) })}</span>
+      </div>
+      <p class="mt-2 text-sm font-medium leading-relaxed text-slate-800">${escapeHtml(excerpt || 'No excerpt was published.')}</p>
+      <div class="mt-3">
+        ${href
+          ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" data-chatter-mention-link class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">Open original mention <span aria-hidden="true">↗</span></a>`
+          : '<span class="text-xs text-slate-400">Direct link unavailable from the source.</span>'}
+      </div>
+    </article>`;
+}
+
+function mentionsError(error) {
+  return `
+    <div class="rounded-xl bg-amber-50 px-4 py-5 text-sm text-amber-900 ring-1 ring-amber-200">
+      <p class="font-semibold">The mention list could not be loaded.</p>
+      <p class="mt-1 text-xs leading-relaxed">${escapeHtml(error?.message || 'The source did not return a usable response.')} The count above is unchanged.</p>
+    </div>`;
+}
+
+function shortExcerpt(value) {
+  const words = String(value || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return `${words.slice(0, 24).join(' ')}${words.length > 24 ? '…' : ''}`;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const titleCase = (value) => {
+  const text = String(value || 'neutral');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 
 // ---------------------------------------------------------------------------------------
 // Chrome
 // ---------------------------------------------------------------------------------------
 
-function buildStats(ctx, m, covered) {
+function chatterFootnotes(m) {
   const mood = chatter.overview()?.marketMood;
-  return statStrip([
-    {
-      label: 'Companies we cover',
-      value: formatNumber(m.companies),
-      note: `of ${formatNumber(m.total)} entries in the feed`,
-      help: {
-        title: 'Why only some of them',
-        body:
-          'SentimentDash discovers entries bottom-up from forum topics, so the feed carries companies, brokers, themes and bare words together. ' +
-          'An entry lands in the first section when its slug resolves to a symbol in universe.json, the book, or the Moneycontrol ticker map — ' +
-          `on this run ${m.companies} of ${m.total} did. The rest are not rejected, they are shown below with the reason. ` +
-          'We deliberately do not keep a hand-written list of "brokers and themes to exclude": such a list cannot be checked, rots silently, ' +
-          'and would make the answer depend on what somebody remembered to type.',
-      },
-    },
-    {
-      label: 'Posts in the window',
-      value: m.totalPosts == null ? '—' : formatNumber(m.totalPosts),
-      note: `across ${escapeHtml(sourceSummary(m.sourceTotals))}`,
-    },
-    {
-      label: 'Market mood',
-      value: mood ? mood.labelText : '—',
-      note: mood ? `${mood.percent.bullish}% bullish · ${mood.percent.bearish}% bearish · ${mood.percent.neutral}% neutral` : 'not reported',
-      help: {
-        title: "SentimentDash's sentiment, reproduced",
-        body:
-          'Keyword-scored by them, not by us, and not re-banded here — the same rule the Con-call tab follows with its result score. ' +
-          'A typical run is around 80% neutral, so treat it as a coarse signal: it separates loud enthusiasm from loud complaint, not much finer than that.',
-      },
-    },
-    {
-      hero: true,
-      label: 'Last scrape',
-      value: m.generatedAt ? formatRelativeTime(new Date(m.generatedAt)) : '—',
-      note: `${m.ageSeconds != null ? `${Math.round(m.ageSeconds / 3600)}h old by their clock · ` : ''}re-scraped 01:30 and 13:30 UTC`,
-    },
-  ]);
+  const moodText = mood
+    ? `${escapeHtml(mood.labelText)} (${escapeHtml(String(mood.percent.bullish))}% bullish, ${escapeHtml(String(mood.percent.bearish))}% bearish, ${escapeHtml(String(mood.percent.neutral))}% neutral)`
+    : 'not reported';
+  const scrapeText = m.generatedAt ? formatRelativeTime(new Date(m.generatedAt)) : 'not reported';
+  const sourceAge = m.ageSeconds != null ? `${Math.round(m.ageSeconds / 3600)}h old by the source clock` : 'source age unavailable';
+  return `
+    <div data-chatter-footnotes class="mt-4 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+      <p><strong class="font-semibold text-slate-600">Footnotes.</strong>
+        Coverage: ${escapeHtml(formatNumber(m.companies))} of ${escapeHtml(formatNumber(m.total))} feed entries resolve to a company we cover.
+        Posts: ${m.totalPosts == null ? 'not reported' : escapeHtml(formatNumber(m.totalPosts))} over ${escapeHtml(m.window)}, across ${escapeHtml(sourceSummary(m.sourceTotals))}.
+        Market mood: ${moodText}; keyword-scored by SentimentDash and reproduced unchanged.
+        Last scrape: ${escapeHtml(scrapeText)} (${escapeHtml(sourceAge)}); scheduled at 01:30 and 13:30 UTC.
+      </p>
+    </div>`;
 }
 
 const sourceSummary = (totals) => {
@@ -228,61 +337,79 @@ const sourceSummary = (totals) => {
     .join(' · ');
 };
 
+/**
+ * Export the currently visible table rows, not the whole feed hidden behind the reader's search
+ * and sentiment filters. Both in-page tables use the same upstream metrics, but only Coverage can
+ * honestly carry an NSE symbol; the uncovered export keeps the resolver's reason instead.
+ */
+function exportChatterRows(rows, { covered }) {
+  const m = chatter.meta();
+  const banner = {
+    __banner: true,
+    text:
+      `REAL DATA, NOT OURS. Public Chatter mention counts and sentiment are computed by SentimentDash ` +
+      `across ValuePickr, TradingQnA and Google News over ${m?.window || 'the reported window'}. ` +
+      `The NSE symbol and coverage classification are ours. Captured ${m?.generatedAt || 'time not reported'}; ` +
+      `exported ${new Date().toISOString()}. Mention change is volume between scrapes, never a price return.`,
+  };
+  const value = (row, get) => (row.__banner ? '' : get(row));
+  const columns = [
+    { header: covered ? 'Company' : 'Topic', key: 'name', width: 30, get: (r) => (r.__banner ? r.text : r.name || '') },
+    ...(covered
+      ? [
+          { header: 'NSE ticker', key: 'ticker', width: 16, get: (r) => value(r, (x) => x.ticker || '') },
+          { header: 'Forum topic', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
+          { header: 'Matched company', key: 'matched', width: 30, get: (r) => value(r, (x) => x.matchedName || '') },
+        ]
+      : [
+          { header: 'Topic slug', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
+          { header: 'Coverage result', key: 'coverage', width: 46, get: (r) => value(r, (x) => x.unresolvedReason || 'No NSE symbol resolved') },
+        ]),
+    { header: 'Mentions', key: 'mentions', width: 14, get: (r) => value(r, (x) => x.mentions ?? '') },
+    { header: 'Previous mentions', key: 'mentions_prev', width: 18, get: (r) => value(r, (x) => x.mentionsPrev ?? '') },
+    { header: 'Mention change %', key: 'mention_change', width: 18, get: (r) => value(r, (x) => x.mentionsChangePct ?? '') },
+    { header: 'Mention direction', key: 'direction', width: 18, get: (r) => value(r, (x) => x.direction || '') },
+    { header: 'Sentiment', key: 'sentiment', width: 16, get: (r) => value(r, (x) => x.sentiment?.labelText || '') },
+    { header: 'Sentiment score', key: 'sentiment_score', width: 17, get: (r) => value(r, (x) => x.sentiment?.score ?? '') },
+    { header: 'Bullish mentions', key: 'bullish', width: 17, get: (r) => value(r, (x) => x.sentiment?.bullish ?? '') },
+    { header: 'Bearish mentions', key: 'bearish', width: 17, get: (r) => value(r, (x) => x.sentiment?.bearish ?? '') },
+    { header: 'Neutral mentions', key: 'neutral', width: 17, get: (r) => value(r, (x) => x.sentiment?.neutral ?? '') },
+    { header: 'Sources', key: 'sources', width: 42, get: (r) => value(r, (x) => sourceSummary(x.sources) || x.sourceLabel || '') },
+  ];
+
+  return exportRows({
+    filename: `sattva-public-chatter-${covered ? 'coverage' : 'not-in-coverage'}-${todayStamp()}`,
+    sheetName: covered ? 'Coverage' : 'Not in coverage',
+    columns,
+    rows: [banner, ...rows],
+  });
+}
+
 function buildTopCards(rows) {
   const ranked = rows.filter((r) => r.mentions > 0).slice(0, 10);
   if (ranked.length < 3) return null;
   return topCards({
     title: 'Most discussed — companies we cover',
     items: ranked.map((r) => ({
-      key: r.ticker,
+      key: r.slug,
       name: r.name,
       sub: `${r.ticker} · ${r.sentiment.labelText}`,
       value: r.mentions,
       tone: 'neutral',
     })),
     valueFormat: 'metric',
-    onSelect: (key) => openRow(key),
+    onSelect: (slug) => openMentions(rows.find((r) => r.slug === slug)),
   });
 }
 
-/** The green Live pill, and the modal behind it that says exactly whose each column is. */
+/** The passive green Live status label. */
 const livePill = (m) => `
-  <button type="button" data-chatter-live
-    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+  <span data-chatter-live
+    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
     <span>Live</span>
     <span class="font-medium text-emerald-600">${escapeHtml(formatNumber(m.total))} entries · ${escapeHtml(m.window)}</span>
-  </button>`;
-
-function wireLivePill(root, m) {
-  root.querySelector('[data-chatter-live]')?.addEventListener('click', () => {
-    openModal(
-      `<div class="p-6 sm:p-8">
-        <h3 class="font-display text-xl font-bold text-slate-900">Where this comes from</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-600">
-          Live from the <strong>SentimentDash</strong> API, called <strong>directly from your browser</strong> rather than
-          through this site's Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy
-          returned 404 while the API was perfectly healthy. It counts mentions across <strong>ValuePickr</strong>,
-          <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling ${escapeHtml(m.window)} and scores each
-          post's sentiment by keyword.
-        </p>
-        <dl class="mt-5 space-y-3 text-sm">
-          <div><dt class="font-semibold text-slate-800">Theirs, reproduced unchanged</dt>
-            <dd class="text-slate-600">Mentions, the mention change, the sentiment split and its label, the source breakdown, and the sparkline. None of it is re-banded or recomputed here.</dd></div>
-          <div><dt class="font-semibold text-slate-800">Ours, derived</dt>
-            <dd class="text-slate-600">The NSE symbol. Their payload has no exchange symbol — its <code>ticker</code> is a forum-topic slug like <code>tata-motors</code> — so the symbol is resolved against universe.json, the book and the Moneycontrol ticker map. ${escapeHtml(String(m.companies))} of ${escapeHtml(String(m.total))} entries resolved.</dd></div>
-          <div><dt class="font-semibold text-slate-800">"Mentions Δ" is not a price move</dt>
-            <dd class="text-slate-600">It is the change in mention count between this scrape and the previous one. There is no price, market cap or return anywhere in this feed.</dd></div>
-          <div><dt class="font-semibold text-slate-800">The sparkline has no time axis</dt>
-            <dd class="text-slate-600">Its points are scrape runs, not days. Runs are twice daily but not evenly spaced.</dd></div>
-          <div><dt class="font-semibold text-slate-800">Freshness</dt>
-            <dd class="text-slate-600">Scraped ${m.generatedAt ? escapeHtml(new Date(m.generatedAt).toLocaleString()) : '—'}${m.ageSeconds != null ? `, ${escapeHtml(String(Math.round(m.ageSeconds / 3600)))} hours ago by their own clock` : ''}. This page polls hourly; the upstream refreshes twice a day.</dd></div>
-        </dl>
-      </div>`,
-      { size: 'wide' },
-    );
-  });
-}
+  </span>`;
 
 // ---------------------------------------------------------------------------------------
 // Tables
@@ -313,7 +440,23 @@ const sourceCell = (r) =>
     ? `<span class="text-xs text-slate-500">${escapeHtml(r.sourceLabel)}</span>`
     : '<span class="text-slate-300">—</span>';
 
-function buildCoveredTable(ctx, rows) {
+const mentionsCell = (r) =>
+  `<span data-chatter-mentions-trigger class="font-semibold text-indigo-600 underline decoration-indigo-200 underline-offset-2" title="Open ${escapeHtml(formatNumber(r.mentions))} mentions">${escapeHtml(formatNumber(r.mentions))}</span>`;
+
+// Each in-page tab mounts a different table, so each table must own its own filter definition.
+// Returning a fresh object also prevents one table's live view state from leaking into the other.
+const sentimentFilter = () => ({
+  label: 'Sentiment',
+  options: [
+    { value: 'all', label: 'All sentiment' },
+    { value: 'bullish', label: 'Bullish' },
+    { value: 'bearish', label: 'Bearish' },
+    { value: 'neutral', label: 'Neutral' },
+  ],
+  match: (r, v) => r.sentiment.label === v,
+});
+
+function buildCoveredTable(rows) {
   if (!rows.length) return null;
   const table = scoreTable({
     rows,
@@ -326,21 +469,11 @@ function buildCoveredTable(ctx, rows) {
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.covered,
     exportName: 'chatter-companies',
-    onRowClick: (r) => openRow(r.ticker),
-    filters: [
-      {
-        label: 'Sentiment',
-        options: [
-          { value: 'all', label: 'All sentiment' },
-          { value: 'bullish', label: 'Bullish' },
-          { value: 'bearish', label: 'Bearish' },
-          { value: 'neutral', label: 'Neutral' },
-        ],
-        match: (r, v) => r.sentiment.label === v,
-      },
-    ],
+    onExport: (visible) => exportChatterRows(visible, { covered: true }),
+    onRowClick: openMentions,
+    filters: [sentimentFilter()],
     columns: [
-      { label: 'Mentions', get: (r) => r.mentions, align: 'right', sortable: true, sortValue: (r) => r.mentions },
+      { label: 'Mentions', get: mentionsCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentions },
       {
         label: 'Mentions Δ',
         get: mentionsDeltaCell,
@@ -403,7 +536,7 @@ const emptyCovered = (scope) => `
   </div>`;
 
 function buildOtherTable(rows) {
-  return scoreTable({
+  const table = scoreTable({
     rows,
     key: (r) => r.slug,
     // The uncovered half is BY DEFINITION the entries that resolved to no company — that is what
@@ -419,14 +552,27 @@ function buildOtherTable(rows) {
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.other,
     exportName: 'chatter-uncovered',
+    onExport: (visible) => exportChatterRows(visible, { covered: false }),
     stickyHead: 'max(320px, calc(100vh - 420px))',
+    onRowClick: openMentions,
+    filters: [sentimentFilter()],
     columns: [
-      { label: 'Mentions', get: (r) => r.mentions, align: 'right', sortable: true, sortValue: (r) => r.mentions },
+      { label: 'Mentions', get: mentionsCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentions },
       { label: 'Mentions Δ', get: mentionsDeltaCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentionsChangePct ?? -Infinity },
       { label: 'Sentiment', get: (r) => sentimentPill(r.sentiment), html: true, sortable: true, sortValue: (r) => r.sentiment.score ?? 0 },
       { label: 'Sources', get: sourceCell, html: true },
     ],
   });
+  return {
+    html: table.html,
+    wire: (root) => {
+      const off = table.wire(root);
+      return () => {
+        tableViews.other = table.view ?? tableViews.other;
+        off?.();
+      };
+    },
+  };
 }
 
 function unavailablePanel(reason, url) {

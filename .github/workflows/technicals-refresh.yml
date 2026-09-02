@@ -1,6 +1,8 @@
 name: Data refresh
 
-# The dashboard's committed live baselines. Four scrapes on two schedules:
+# The dashboard's committed live baselines. The full capture runs at 07:00 IST; company news and
+# insider trades are refreshed with the full daily capture. Company news has its own lightweight
+# workflow so it can run again after publishing begins without touching end-of-day market data:
 #
 #   scrape-technicals.mjs        ~400 calendar days of OHLCV for the NSE 500 from Yahoo, plus
 #                                NSE bhavcopy delivery %, recomputed into every indicator.
@@ -14,8 +16,8 @@ name: Data refresh
 #                                what the Superstar Investors grid is painted FROM, because the
 #                                live view is one request per investor and ninety-one round trips
 #                                is most of a minute on any device that has not been here before.
-#   scrape-filings.mjs           news, corporate announcements and insider trades. Also not a
-#                                fallback, and for the same reason: one request per company.
+#   scrape-filings.mjs           news and insider trades. Also not a fallback, and for the same
+#                                reason: one request per company.
 #
 # THE LAST TWO NEED NO SECRET. Both read this dashboard's own Worker, which holds the bearer token
 # the upstreams want — see the header of each script.
@@ -42,19 +44,18 @@ name: Data refresh
 
 on:
   schedule:
-    # 01:30 UTC = 07:00 IST, weekdays. Indian markets close at 15:30 IST, so this picks up
-    # the previous session's closing data before the next one opens.
+    # Full daily capture: previous-session closing data before the next market opens.
     - cron: "30 1 * * 1-5"
   workflow_dispatch:
 
-# Only one refresh in flight at a time — two concurrent runs would race on the same two
-# committed JSON files.
+# Only one refresh in flight at a time — concurrent runs would race on committed snapshots.
 concurrency:
   group: data-refresh
   cancel-in-progress: false
 
 jobs:
   scrape:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 1 * * 1-5'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -118,9 +119,9 @@ jobs:
         continue-on-error: true
         run: node scripts/scrape-super-investors.mjs
 
-      # News, corporate announcements and insider trades. Like the super-investor snapshot it reads
+      # News and insider trades. Like the super-investor snapshot it reads
       # THIS DASHBOARD'S OWN WORKER, so it needs no secret. This one is not a fallback either: those
-      # three tabs are painted from these files, and the live routes are what the reader's Refresh
+      # two tabs are painted from these files, and the live routes are what the reader's Refresh
       # button asks — a walk of forty companies is not work to do on a page load.
       #
       # THE WHOLE UNIVERSE, NOT JUST THE BOOK. This pinned `FILINGS_SCOPE=book`, so the committed
@@ -153,7 +154,6 @@ jobs:
             public/data/concall-scans.json
             public/data/super-investors.json
             public/data/news.json
-            public/data/corp-announcements.json
             public/data/insider-trades.json
           if-no-files-found: warn
 
@@ -165,7 +165,7 @@ jobs:
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
           [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
-          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors news corp-announcements insider-trades; do
+          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors news insider-trades; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done
           if git diff --cached --quiet; then

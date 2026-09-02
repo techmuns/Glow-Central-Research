@@ -135,16 +135,21 @@ export function tabBar({ tabs, activeId, onSelect }) {
   return { html, wire };
 }
 
-// Two-option segmented control (Portfolio ⇄ Universe) with a sliding white "thumb".
+// Scope segmented control with a sliding brand thumb.
 export function segmentedToggle({ options, activeValue, onChange }) {
+  // Every scope label fits comfortably inside 5rem. Fixed equal segments let the active thumb be
+  // positioned without reading offsetWidth/offsetLeft after a tab has inserted a large table.
+  // That read used to force layout of the newly-painted panel and cost 114ms in a transition trace.
+  const activeIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
   const html = `
     <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
-      <span data-segmented-thumb class="absolute inset-y-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-all duration-200 ease-out" style="width:0px;transform:translateX(0px);"></span>
+      <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
+        style="transform:translateX(${activeIndex * 5}rem);"></span>
       ${options
         .map(
           (o) => `
-        <button type="button" data-value="${escapeHtml(o.value)}"
-          class="relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
+        <button type="button" data-value="${escapeHtml(o.value)}" aria-pressed="${o.value === activeValue}"
+          class="relative z-10 w-20 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
           ${escapeHtml(o.label)}
         </button>`
         )
@@ -153,23 +158,12 @@ export function segmentedToggle({ options, activeValue, onChange }) {
 
   function wire(root) {
     const wrap = root.querySelector('[data-segmented]');
-    const thumb = wrap.querySelector('[data-segmented-thumb]');
-
-    function position() {
-      const active = wrap.querySelector(`[data-value="${cssEscape(activeValue)}"]`);
-      if (!active) return;
-      thumb.style.width = `${active.offsetWidth}px`;
-      thumb.style.transform = `translateX(${active.offsetLeft - 2}px)`;
-    }
-
-    wrap.addEventListener('click', (e) => {
+    const onClick = (e) => {
       const btn = e.target.closest('[data-value]');
       if (btn) onChange(btn.dataset.value);
-    });
-
-    requestAnimationFrame(position);
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
+    };
+    wrap.addEventListener('click', onClick);
+    return () => wrap.removeEventListener('click', onClick);
   }
 
   return { html, wire };
@@ -452,17 +446,15 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
  *
  * One pill, one honest timestamp: `getTimestamp` is wired to the last tick of a poller that
  * actually talked to a server (`live.getLastDataTick()`), falling back to when the page loaded its
- * data. Clicking it opens the provenance modal, which is where the removed "Sources" button went —
- * the button is gone from the chrome, the accountability behind it is one click from every screen.
+ * data. It is a passive status label; the old source/freshness popup is intentionally gone.
  *
  * `onRefresh` returns `{ announced }` so the button can report a result instead of just spinning.
  */
-export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null, onOpenSources = null }) {
+export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null }) {
   const html = `
     <div class="flex items-center gap-1.5">
-      <button type="button" data-status-pill
-        title="When a feed last confirmed its data with the server. Click for every source this dashboard uses."
-        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+      <span data-status-pill title="When a feed last confirmed its data with the server"
+        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
         <span class="relative flex h-1.5 w-1.5">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -470,7 +462,7 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
         <span>Live</span>
         <span class="text-emerald-300">·</span>
         <span data-live-time class="tabular-nums font-medium text-emerald-600">—</span>
-      </button>
+      </span>
       <button type="button" data-header-refresh title="Check every live feed for new data now"
         class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
         <svg data-header-refresh-icon width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -482,7 +474,6 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
 
   function wire(root) {
     const timeEl = root.querySelector('[data-live-time]');
-    const pill = root.querySelector('[data-status-pill]');
     const btn = root.querySelector('[data-header-refresh]');
     const icon = root.querySelector('[data-header-refresh-icon]');
     const label = root.querySelector('[data-header-refresh-label]');
@@ -494,7 +485,6 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
     refresh();
     const interval = setInterval(refresh, 15000);
     const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
-    pill.addEventListener('click', () => onOpenSources?.());
 
     // A REFRESH THAT NEVER RETURNS IS THE EXACT FAILURE THIS BUTTON EXISTS TO PREVENT.
     //

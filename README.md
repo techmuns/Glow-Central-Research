@@ -1,19 +1,28 @@
 # Sattva Central Research
 
 An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (daily alerts, earnings, con-calls, public chatter, technical breakouts,
+**Research Central** (AI and general alerts, Ask Research, earnings, con-calls, public chatter, technical breakouts,
 superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**Daily Alerts** is the landing tab: one stream of today, consolidated from four of the tabs —
-Breakouts / Technical, News, Corp Announcements and Insider Trades — red for a price fall past 5%
-and orange for anything else that arrived. It adds no data source of its own, names the tabs it
-deliberately does not fold in, and says per feed whether that feed has actually looked at today,
-because an empty stream and a scrape that has not run are not the same answer.
+**Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
+portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
+real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
+its internal ordering; cards show evidence and a next action without exposing score arithmetic.
+Stale feeds are penalised and named in a compact header warning. **General Alerts** keeps the complete
+newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
+Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
+importance and feed filters. Both views reuse the same feeds and add no source of their own.
 
-Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
-Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
+**Ask Research** is a conversational workspace that assembles a bounded evidence
+packet from every dashboard data module, reports source coverage and provenance, and keeps its
+conversation library on the reader's device. Its optional **Web research** mode sends the same
+dashboard packet to the server-side assistant and requires hosted web search, so current external
+context and dashboard facts are combined in one answer without exposing the provider key.
+
+Static runtime, no bundler, no framework, no npm dependencies for the app itself.
+Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
 
 ![Earnings Hub](docs/screenshots/earnings-hub.png)
 
@@ -21,7 +30,7 @@ Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
 
 ## Status
 
-**All thirteen tabs across both workspaces are built.** See
+**All fifteen tabs across both workspaces are built.** See
 [`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
 deploy notes and the known gaps.
 
@@ -69,6 +78,21 @@ Optionally, run it through the real Worker runtime:
 npx wrangler dev
 ```
 
+Ask Research is intentionally disabled until the server-side secret is present. For local Worker
+development, put `ANTHROPIC_API_KEY=…` in the gitignored `.dev.vars`; for a deployed Worker,
+configure it with `npx wrangler secret put ANTHROPIC_API_KEY`. The model name is the non-secret
+`ANTHROPIC_MODEL` variable in `wrangler.jsonc`. Do not put the key in `public/` or browser storage.
+Conversation history is stored locally, while each submitted question and its bounded dashboard
+evidence packet are sent to Anthropic's Claude Messages API to generate the answer.
+
+The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
+committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):
+
+```bash
+npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs \
+  -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
+```
+
 ---
 
 ## Deploy
@@ -89,7 +113,8 @@ marked slot for future `/api/*` routes.
 
 ```
 public/
-  index.html          design tokens, fonts, Tailwind CDN
+  index.html          design tokens, fonts, committed Tailwind stylesheet
+  css/tailwind.css    generated utility CSS; served directly, never compiled in the browser
   js/
     app.js            bootstrap: load JSON, mount the shell
     core/             state, router, live engine, format, dom helpers
@@ -99,15 +124,18 @@ public/
     data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
                       coverage.js — the 142-company book the Portfolio scope filters by
                       scope.js — the three scopes; every forScope() is built on it
-                      daily-alerts.js — today's readings, taken across four tabs
+                      daily-alerts.js — retained chronological readings across the research feeds
+                      ai-alerts.js — explainable seven-day company ranking over those readings
                       sentiment-shared.js — slug→NSE resolver, shared with the Worker
     scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    tabs/             daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    research/         bounded cross-dashboard evidence catalog + safe answer renderer
+    tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
-worker/index.js       asset serving + /api/* slot
+worker/index.js       asset serving + live read-through APIs + the Ask Research stream
+worker/research.mjs   server-only Anthropic Messages bridge, web search and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
 docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source

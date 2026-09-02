@@ -8,7 +8,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 ## Hard rules
 
 1. **Work on `main` only. Never create a branch.** Commit and push to `main` when done.
-2. **No build step, no bundler, no framework, no npm dependencies for the app itself.**
+2. **No deployment build step, no bundler, no framework, no npm dependencies for the app itself.**
    Vanilla ES modules, served as static files. If you find yourself adding a `package.json`
    for the front-end, stop — that's out of contract.
    (Node 22 scripts under `scripts/` that refresh data are fine and expected.)
@@ -20,7 +20,12 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 3. **Everything must run by opening the static site.** Verify before pushing:
    `python3 -m http.server 8080 -d public`, then drive it with Playwright.
    Zero console errors is the bar.
-4. Tailwind comes from the CDN (`https://cdn.tailwindcss.com`) — do not vendor or compile it.
+4. Tailwind is precompiled into committed `public/css/tailwind.css`; never reintroduce the browser
+   compiler. After changing utility classes, regenerate it with:
+   `npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify`.
+   The source entry is `scripts/tailwind-input.css`; the content/font config is
+   `tailwind.config.cjs`. Commit the generated stylesheet. The on-demand CLI is a maintenance
+   tool, not an app dependency or a deployment step.
 5. Light theme only.
 
 ---
@@ -30,7 +35,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 | Concern | Choice |
 | --- | --- |
 | Markup | `public/index.html`, single entry |
-| CSS | Tailwind via CDN + a small `:root` token block in `index.html` |
+| CSS | Committed precompiled Tailwind + a small `:root` token block in `index.html` |
 | Fonts | Inter 400–800 (body), Plus Jakarta Sans 600–800 (headings, `.font-display`) |
 | JS | Vanilla ES modules, `<script type="module" src="js/app.js">` |
 | Data | JSON in `public/data/`, refreshed by Node 22 scripts in `scripts/` via GitHub Actions |
@@ -42,8 +47,9 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 
 ```
 public/
-  index.html                  design tokens, fonts, Tailwind CDN, #app mount, overlay roots
+  index.html                  design tokens, fonts, compiled CSS link, #app mount, overlay roots
                               (drill z-50 < workspace z-55 < modal z-60)
+  css/tailwind.css            generated Tailwind utilities; committed and served as a static asset
   js/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
@@ -66,7 +72,7 @@ public/
       shell.js                header + tabs + sub-view picker + content host + tab registry
     concall/
       scans.js                the WHOLE Con-call tab, live off StockScans (scores are THEIRS)
-                              — the scan table plus the "Upcoming Concalls" schedule overlay
+                              — the scan table, with no schedule or feed-status header chips
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
     investors/
@@ -75,7 +81,8 @@ public/
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
-      daily-alerts.js         TODAY, across FOUR tabs. Derived: no file, no route of its own
+      daily-alerts.js         RETAINED HISTORY across NINE feeds. Derived: no file, no route of its own
+      ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -97,11 +104,11 @@ public/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
-    tabs/                     daily-alerts, earnings-hub, concall, public-chatter, breakouts,
+    tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      daily-alerts.js         THE LANDING TAB — one stream of today from four tabs, red = a
-                              price fall past MOVE_PCT, orange = an update, plus the panel
-                              saying which feeds have looked
+      ai-alerts.js            ranked company insight cards, strongest evidence first
+      daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
+                              feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
@@ -123,7 +130,7 @@ scripts/
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
-.github/workflows/technicals-refresh.yml   weekdays 07:00 IST
+.github/workflows/technicals-refresh.yml   weekdays 07:00 IST; news + insider follow-up at 09:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -188,7 +195,7 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**Daily Alerts is first, and first is the default landing page.** `handleRoute` falls back to
+**Ask Research is first, and first is the default landing page.** `handleRoute` falls back to
 `ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
@@ -282,20 +289,22 @@ content. `roadmapStrip()` and the older `comingSoonStrip()` are both deleted; do
 either. Listing a gap in the spec is the rule that survives.
 
 **A tab may opt out of the stat strip, and out of sub-views.** The Earnings Hub is one dense table
-and nothing else: no stat cards, no ribbon, no sub-view picker. **Daily Alerts is the third**, and
+and nothing else: no stat cards, no ribbon, no sub-view picker. Public Chatter also omits its four
+summary cards; coverage, post count/source split, mood and scrape timing now sit in a muted footnote
+after both tables. **General Alerts is the third**, and
 it went furthest: no description, no cards, one pill. Three of its four cards counted rows the
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
-The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY
-and a screenshot travels without the modal. **Breakouts / Technical is the second, on all four
+The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY.
+**Breakouts / Technical is the second, on all four
 sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*
 is the count on the Strong chip itself. The rule that survives is not
-"every tab has a stat strip" — it is **the provenance must always be reachable**. There it lives behind a small Live
-pill in the section head, which opens a modal with what is live, what each column is joined from,
-what is missing and what a dash means. Decluttering a page is fine; deleting its accountability is
-not. A tab with `subviews: []` gets no sub-view picker — the shell hides that row and skips
+"every tab has a stat strip" — it is **status should be legible without another interaction**.
+There it lives in a small passive Live label in the section head. It does not open a provenance
+popup; full source metadata remains in the source registry and export disclosures. A tab with
+`subviews: []` gets no sub-view picker — the shell hides that row and skips
 wiring it.
 
 The standard tab body, in order:
@@ -578,11 +587,15 @@ on that feed is the quarter-over-quarter change, and it is headed *Change (deriv
 
 ### Rolling ninety books up into one screen — `quarterSummary()`
 
-The page exists so a reader does not open ninety books one at a time, so the top of it is a
-cross-book roll-up: who bought what, who sold what, and where more than one tracked investor moved
-on the same company. It replaced three stat cards, two of which described the *feed* (how many
-books loaded, what they total) rather than answering anything, and a third that was a pair of
-counts with no names attached — so the only way to act on it was to open the books.
+The Quarterly Changes in-page tab exists so a reader does not open ninety books one at a time. It
+is a cross-book roll-up: who bought what, who sold what, and where more than one tracked investor
+moved on the same company. *All Investors* is the default before it and contains only the investor
+cards. *Data Table* follows Quarterly Changes and contains the full disclosed-positions table with
+its search, filters, watchlist control and export. Keeping those three jobs in separate tabs avoids
+making the investor directory a long preamble to a wide table. The roll-up replaced three stat
+cards, two of which described the *feed* (how many books loaded, what they total) rather than
+answering anything, and a third that was a pair of counts with no names attached — so the only way
+to act on it was to open the books.
 
 `quarterSummary({ include, limit })` in `js/data/super-investors.js` is the whole of it, and it is
 a roll-up of `deriveMoves` rather than a new model. **Four numbers it refuses to invent**, each of
@@ -610,6 +623,14 @@ counted as not comparable rather than reading as an investor who did nothing.
 **The head prints how many books CONTRIBUTED, out of how many are comparable.** Under a narrowed
 scope "5 new across 87 comparable books" is true and sounds like 87 investors moved on five
 companies; *"across 33 of 87"* cannot be read that way.
+
+**Every company row opens the complete cross-investor detail.** The five-row cards abbreviate
+three names to `+1` and a largest-move row necessarily names only the investor who produced that
+move; neither is enough to answer who else holds the company. The popup reads `allHoldings()` and
+lists every tracked investor whose own latest/prior pair contains it, including unchanged holders,
+with the two filed stakes, derived change and current Finology value. A position absent from both
+comparison quarters is old history and stays out; a current one-quarter disclosure stays in and is
+labelled not comparable.
 
 **`scopeFilter(ctx)` is one predicate, used by the summary AND the table under it.** Two predicates
 over the same question is what had the filings tabs reporting different sets in two places on one
@@ -662,6 +683,13 @@ Two things follow that are easy to get wrong the other way:
 **Those shared names describe the shape, not the meaning** — `columnsFor()` in `js/investors/filed.js`
 is the single place that decides what a percentage is called, and every consumer must branch on
 `disclosure` before writing a heading.
+
+**The Institutions Quarterly Changes tab branches before it aggregates.** It mirrors Superstar
+Investors' six-panel cross-book view, but `quarterlySummary()` admits only shareholding books; AMC
+portfolio weights stay under All Institutions. Every company button opens
+`quarterlyCompany(key)`, which includes all relevant quarterly institution books with prior/current
+stake, status, derived pp change, Trendlyne value and shares held. `Filing Awaited` is retained as a
+current pending disclosure and excluded from move counts — never turned into no longer disclosed.
 
 ### An upstream you CANNOT proxy — the same-zone Worker rule
 
@@ -1087,6 +1115,14 @@ the result, so they are already in `news.json` and cost one conditional GET. Mea
 capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was charging the reader
 attention to avoid a cost that had already been paid.
 
+The full data refresh captures news and insider trades at 07:00 IST on weekdays. Company news then
+has its own `company-news-refresh.yml` at 09:00 IST, running only
+`scrape-filings.mjs news`: there is no newer EOD bar at that hour, and a transient Yahoo failure
+must not replace the healthy technical snapshot captured at 07:00. GitHub schedules are
+best-effort, so opening the dashboard on a company-news capture whose Indian calendar date is
+older than today dispatches that dedicated workflow once and watches until the committed file
+reaches the browser. It never falls back to a forty-company page-load walk.
+
 So News now loads like the other two — snapshot on mount, nothing per company — and the walk is
 still the Refresh button's. **The rule that survives is the one that was always doing the work: a
 landing sends no per-company request.** Asking the reader first is the answer when there is nothing
@@ -1126,10 +1162,10 @@ Two things follow that are easy to get wrong:
 **THE FILINGS HEAD IS ONE CHIP, AND ITS GREEN IS CONDITIONAL.** The three filings tabs carry the
 same chip the market-news half of the News tab already wore — a dot and a word, no pill chrome, no
 scope summary beside it — because that is what it was asked to look like and because two chips at
-the top of three tabs across three scopes is furniture. Green + `Live` appears only while the
-capture is still the newest the schedule can produce (`STALE_AFTER_MS`, 72h: the scrape runs
-weekdays 07:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
-same reasoning and the same number as Breakouts). Past that it turns amber and prints the AGE;
+the top of three tabs across three scopes is furniture. Green + `Live` appears only when the
+capture was made on TODAY'S INDIAN CALENDAR DATE. The former 72-hour window painted Tuesday green
+on Wednesday, which is precisely the missing-fresh-data state the chip should expose. A prior-day
+capture turns amber and prints the AGE;
 failures outrank freshness and read `Partial`. **"Show a green Live" and "never paint a green Live
 you have not earned" are only compatible because the green is conditional** — and the suite asserts
 the colour against the measured age, in both directions, so a chip made unconditionally green would
@@ -1411,8 +1447,8 @@ gives us full transcript text. Holding that line took an amber ribbon on one hal
 pill on the other, `LIVE_SUBVIEWS` routing the two through separate code paths, and a rule that
 neither half's poller could repaint the other.
 
-The four synthetic views are gone, and so is the machinery: the tab is one live table plus the
-schedule overlay, `subviews: []`, no picker, no ribbon. **That is the preferred resolution whenever
+The four synthetic views are gone, and so is the machinery: the tab is one live table,
+`subviews: []`, no picker, no ribbon, and no schedule/status chips. **That is the preferred resolution whenever
 a tab acquires two provenances** — not a better ribbon. If the real transcript feed is ever wired
 (BSE publishes filed transcript PDFs), the keyword engine and the Deep Dive workspace are in git
 history at `8e31eec..` and would come back pointed at real text.
@@ -1466,9 +1502,18 @@ the layout it forced was the 1,722-row table underneath. Add ~350ms of string bu
 whole cost was the table, charged to whoever touched the DOM next. Every millisecond of it was
 spent on rows nobody could see; the viewport holds about thirteen.
 
-So `bodyHtml(list, from, to)` takes a range, the initial markup carries `FIRST_PAINT_ROWS` (80), and
-`wire()` appends the rest in adaptive slices under `requestIdleCallback` (with a timeout, so a
-backgrounded tab still finishes). Measured tab-to-tab: **~900ms of blocked main thread → 36–75ms.**
+So `bodyHtml(list, from, to)` takes a range, the initial markup carries `FIRST_PAINT_ROWS` (40), and
+`wire()` appends the rest in adaptive slices of at most 80 rows under `requestIdleCallback` (with a
+timeout, so a backgrounded tab still finishes). Measured tab-to-tab: **~900ms of blocked main
+thread → 36–75ms.**
+
+A later Chrome DevTools interaction trace found two remaining costs. The Tailwind browser compiler
+spent **285ms** rescanning newly inserted tab markup, and the scope thumb's `offsetWidth` /
+`offsetLeft` reads forced another **114ms** layout. Tailwind is now a committed 50.7KB stylesheet
+(about 9KB gzip), and the three equal-width scope segments place the thumb by index with a CSS
+transform. On the same localhost trace, cold LCP moved **237ms → 159ms**, tab INP **77ms → 39ms**,
+and Public Chatter's route LCP **690ms → 89ms**; CLS remained good (0.00 before, 0.02 after). These
+are lab measurements, not field data.
 
 Four rules if you touch it:
 
@@ -1578,6 +1623,12 @@ reconciles against it, and `verify-ui.mjs` asserts two identities numerically; w
 lines would break both and invent quantities nobody supplied. The statement gave names only —
 value and weight were explicitly out of scope. See the table in `docs/DATA-CONTRACTS.md`.
 
+The pencil beside the header scope toggle edits a **device-local overlay**, not either committed
+file. Portfolio and Universe additions/exclusions live in `sattva:scope-lists:v1`; Watchlist edits
+the same `sattva:watchlist` store as table stars. Search is a same-origin call through
+`/api/stock-search`, and only the Worker reads `MUNS_TOKEN`. A Portfolio edit changes research
+filters and denominators only; it must never create a ledger position, quantity or cost.
+
 Three rules:
 
 1. **A line with no ticker is still a holding.** Nineteen of the 142 have no NSE symbol: five
@@ -1668,15 +1719,20 @@ rows says whose they are. Both keep the section whole and say why.
 a message that still reads *"None of your holdings has reported"* to a reader looking at their
 watchlist — a sentence quietly about a different list, on a page that is otherwise correct.
 
-### An empty watchlist is answered by the SHELL, once, for every tab
+### An empty watchlist is answered by the SHELL, once, for every tab except Ask Research
 
-`watchlistEmptyPanel()` says there are zero watchlist companies and how to add one. It lives in the
-shell rather than in nine tabs because an empty scope is a property of the scope, not of any tab —
-and because a table reading *"no results match your filters"* over a list nobody has added to sends
-the reader hunting for a filter to clear.
+`watchlistEmptyPanel()` says there are zero watchlist companies and offers **Add companies to
+watchlist**. The shell wires that action to the same Watchlist editor as the header pencil, without
+changing the current tab or scope. The panel lives in the shell rather than in nine tabs because an
+empty scope is a property of the scope, not of any tab — and because a table reading *"no results
+match your filters"* over a list nobody has added to sends the reader hunting for a filter to clear.
+
+Ask Research declares `meta.allowEmptyScope` because its catalog, per-source status and zero-row
+coverage remain useful even when the list is empty. Keep that exception explicit on the module;
+do not turn it into a shell-wide weakening of the empty-state rule.
 
 **The teardown is decided against what will actually be mounted, not against the tab the route
-names.** Getting that wrong was invisible until two navigations later: landing on Daily Alerts with
+names.** Getting that wrong was invisible until two navigations later: landing on an alerts tab with
 an empty watchlist took the short-circuit branch, so `currentTabModule !== tabModule` was false and
 nothing was destroyed. The module's subscriptions stayed live, its in-flight collect finished, and
 it painted its own table into `contentHost` — which by then belonged to Breakouts. **Nothing threw
@@ -1686,52 +1742,95 @@ contract does not cover: a tab the shell decided not to mount.
 
 ---
 
-## Daily Alerts — the landing tab, and the only one organised by DAY
+## AI Alerts — the explainable priority layer
+
+`js/data/ai-alerts.js` reads `daily-alerts.js` once in retained-history mode, then groups the last
+seven Indian dates by ticker. It adds no source and generates no fact. The ranking is deliberately
+deterministic: importance, source materiality, recency, explicit direction, real Portfolio
+membership, independent-feed corroboration, repeated material events, directional conflict and a
+small sector-cluster adjustment that requires high-importance negative evidence. Stale, incomplete
+and unread feeds lose points. Every contribution is retained in `scoreBreakdown` for deterministic
+verification, but the card does not render scores or their arithmetic. The reader gets the evidence
+and next action without ranking implementation detail.
+
+`coverage.js` is the only portfolio input. Do **not** use `portfolio.js` weights or conviction here:
+that ledger is explicitly illustrative, and an invented position weight must never decide what a
+real reader is told is urgent. Tickerless market-wide news stays in General Alerts; it cannot be
+honestly assigned to a company. Single-source neutral news stays below the surfaced threshold.
+
+Cards show the strongest three events first, a templated insight and review action, source links,
+and a link to General Alerts with the existing table search seeded for the ticker. `rankReport()` is
+pure and exported; test its policy branches with fixtures rather than waiting for today's capture
+to happen to contain every case.
+
+## Ask Research — dashboard evidence first, optional web second
+
+`js/research/estate.js` is a runtime registry, not a second copy of the data. Every adapter reads
+the same module as its owning tab and always returns a catalog/status entry, even when that source
+cannot be read. Row samples are question-ranked and bounded, while coverage, units, periods, as-of
+metadata and live/snapshot/mock provenance remain attached. Adding or removing a dashboard source
+means changing this registry and the focused Ask Research checks together; a source may fail, but it
+may not disappear.
+
+`worker/research.mjs` is the provider boundary. `ANTHROPIC_API_KEY` is a Worker secret and must never
+enter `public/`, browser storage, a request payload or a committed config file. The route is
+same-origin, request-bounded and rate-limited, and only adds Claude's hosted `web_search` when
+the reader explicitly enables Web research. With that option enabled the tool is required, so a
+"dashboard + web" answer cannot quietly skip the web half.
+
+Conversation history is stored on the device, but each submitted question and bounded evidence
+packet are sent to Anthropic's Claude Messages API. The UI says both halves. Model prose is
+untrusted: render it through
+`js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
+aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
+label.
+
+---
+
+## General Alerts — the complete view, and the only one organised as a TIMELINE
 
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
 thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
 happened, and does any of it need me*.
 
 `js/data/daily-alerts.js` takes the readings, `js/tabs/daily-alerts.js` draws them, and **the tab
-adds no data source**: every row comes from a feed that already has its own tab, filtered to today's
-**Indian trading date**. Full shapes in `docs/DATA-CONTRACTS.md`.
+adds no data source**: every row comes from a feed that already has its own tab. The default data
+contract remains one Indian trading date; the timeline requests `includeHistory: true`, which
+keeps every retained row through today, normalizes `day`, and sorts by date then available IST time.
+The table kit progressively paints that finite retained set inside its own fixed-height scroller, so
+scrolling reveals older dates without a per-company walk or a new API. Full shapes and retention
+bounds are in `docs/DATA-CONTRACTS.md`.
 
-**It reads FOUR tabs, and the ones it does not read are named on its face.** Breakouts / Technical,
-News, Corp Announcements and Insider Trades. News contributes twice, because that tab is two feeds
-behind one name — the per-company search and the market-wide capture. The Earnings Hub, Con-call,
-Public Chatter and Super Investors are deliberately out of scope, and the description, the alert
-card's modal, the provenance modal and the Sources entry all say so — otherwise a reader who knows
-this dashboard has an earnings tab and sees no earnings row would reasonably conclude the page was
-broken. **An absent row has to read as a decision, not a fault.** Adding one back is an entry in
-`FEEDS` plus a collector; nothing else is special-cased by feed id.
+**It reads every research tab.** Earnings Hub, Con-call, Public Chatter, Breakouts / Technical,
+Super Investors, News, Corp Announcements and Insider Trades. News contributes twice because the
+tab owns both company and market-wide feeds. Adding a source is an entry in `FEEDS` plus a collector;
+nothing else is special-cased by feed id.
 
-### The two colours are measurements, not opinions
+### Direction and importance are separate, inspectable readings
 
-**RED is a direct negative reading on the row itself, and the row prints the reading.** Across the
-four tabs this page reads there is exactly one such reading: **the price fell more than `MOVE_PCT`
-at today's close**, from the end-of-day scrape behind Breakouts. **ORANGE is everything else that
-arrived today.**
+Every event carries `direction` (`positive | negative | neutral`) and `importance` (`high | low`),
+plus `signalReason` and `importanceReason`. Direction is not importance: a large disposal can be
+Negative and High; a small acquisition can be Positive and Low. A badge without its reason beside
+it would be an unexplained judgement.
 
-A colour whose cause is not on screen beside it is a judgement, and this dashboard does not make
-those — so `reason` is mandatory on an alert and absent on an update.
+Source-provided readings win: earnings uses the filed revenue/net-profit comparison, con-calls and
+chatter reproduce their source's own bands, and price moves use the stated ±`MOVE_PCT` threshold.
+Insider/investor direction is derived from the upstream transaction or disclosed holding change.
+Announcements use the small exported `announcementSignal()` keyword policy and BSE's own critical
+flag. Publisher news stays Neutral because a headline is not structured sentiment data.
+Earnings sign changes remain words — *to profit*, *to loss*, *loss narrowed/widened* — rather than
+being turned back into a misleading growth percentage. An explicit insider Transaction outranks
+conflicting Mode text, and a bare regulatory “order received” is not treated as commercial work won.
+Approval needs a regulator or exchange on the filing; the BSE noun forms “Receipt of … Approval”
+and “Commencement of Commercial Production” are recognized without broadening that rule.
 
-**The other three tabs are deliberately never red, and it is the same rule from the other side.**
-Insider trades carries no model — *"no sentiment, no materiality flag"*, because its columns are the
-upstream's own and unknown at build time — and deciding that "Pledge" is red **is** a materiality
-flag however obvious it looks. BSE's `CATEGORYNAME` is a filing taxonomy, not a verdict. A headline
-is editorial, and reading a sentiment off it would put a model this dashboard does not have over
-somebody else's words. All three print the upstream's own wording and let the reader read it.
+High thresholds are stated in the source registry and export: ±5% price moves; every earnings
+filing; non-neutral/extreme con-call analysis; 10 chatter mentions or 100% absolute mention change;
+insider activity at 1% or ₹10 crore; investor appearance/disappearance or a 1pp change; a BSE
+critical filing or material announcement-rule match. “No longer disclosed” is never renamed
+“sold”; public chatter is dated to its rolling snapshot, not presented as individual posts.
 
-**So a quiet day is a page of orange, and that is the honest rendering** rather than a page with
-something missing. The feeds that DO carry models are on their own tabs, and the alert card's help
-modal says where they went — filed figures on the Earnings Hub, the provider's call tiers on
-Con-call, source-labelled sentiment on Public Chatter.
-
-**The threshold is printed** — on the tab, in the help modal, in the provenance modal and in row 1
-of the export, all four reading the one constant. A page that quietly dropped everything below a
-number the reader cannot see would be deciding what counts as news in secret.
-
-**`moveSeverity(pct)` is exported because it IS the alert rule.** A rule that only runs inside a
+**`moveSeverity(pct)` is exported because it is the price-move entry rule.** A rule that only runs inside a
 collector can only be tested on days the data happens to contain a big faller, which is most days
 not at all — the shipped 31 Aug snapshot has seven moves past the threshold and not one of them
 down. The suite asserts the predicate directly instead of hoping for a red row.
@@ -1745,26 +1844,36 @@ companies have not been checked since"*: **never claim nothing is new.**
 
 It is computed differently depending on what the feed IS, and the distinction matters:
 
-- feeds whose ROWS carry their own date (announcements, insider, news, market news) use
+- feeds whose ROWS carry their own date (earnings, con-calls, announcements, insider, news, market news) use
   `capturedDay >= day` — a later capture still covers an earlier day;
-- feeds that are ONE SNAPSHOT of one day (price moves, chatter) use **`snapshotDay === day`**,
+- feeds that are ONE SNAPSHOT of one day (price moves and chatter) use **`snapshotDay === day`**,
   equals and not `>=`. `pct_change_today` is *that* day's move and no other, so reporting it under a
   different date would stamp one day's measurement with another day's label.
+- investor activity is dated per investor book, using the confirmation represented by the current
+  book rather than the older committed capture that may have seeded it.
+
+Tickerless investor moves remain visible in Universe and are excluded from ticker-narrowed scopes.
+Missing investor books and degraded earnings/con-call fallbacks are reported as incomplete/failed;
+stale last-good investor books are treated the same way. None is allowed to make the coverage chip
+claim the feed is current. Reading a committed earnings/con-call file dates freshness to the
+upstream `fetchedAt`, not to the moment this browser read the file.
+
+The General Alerts Refresh control runs bounded revalidation for earnings, con-calls and chatter, and
+one conditional request for the bulk investor snapshot. It never turns the landing page into the
+Super Investors tab's ninety-one-book upstream walk.
 
 A feed nobody has heard from yet is **`pending`**, drawn as *reading…* and never as *nothing today*:
 a half-finished read must not be allowed to give a finished answer.
 
-**A COLUMN OF EM DASHES IS FURNITURE, AND WHETHER TO DRAW IT IS A QUESTION ABOUT THE ROWS.** Only
-two of the five feeds carry a clock — announcements, and the market-wide capture — so under a
-narrowed scope on a day nothing was filed, every cell in the Time column is a dash. It is dropped
-when **no row on screen has a time**, and that is deliberately not "dropped under Portfolio and
-Watchlist": all 1,199 announcements in the shipped capture carry a real time, so hiding it by scope
-would blank a genuine timestamp the day a book company files. Ask what is on screen, not what scope
-is selected.
+**EVERY HISTORICAL ROW STATES ITS DATE RESOLUTION.** `Date / time` always leads the row. A feed that
+publishes a clock shows `HH:MM IST`; a feed that publishes only a date says `Day only` rather than
+rendering an em dash that could mean missing data. The default sort is the normalized day plus that
+time, newest first. The date dropdown narrows the already-loaded stream to today, seven days,
+thirty days or older rows; it never triggers a fetch.
 
 **AND THE STREAM'S HEIGHT IS MEASURED AT RUNTIME, NOT WRITTEN INTO A `calc()`.** `calc(100vh -
 558px)` encodes the height of everything above the table, and that is not a constant: the chip row
-wraps with the window, there are four feeds under a narrowed scope and five under Universe, and the
+wraps with the window, there are eight feeds under a narrowed scope and nine under Universe, and the
 reader's zoom moves it too. Measured against one window it was exact; on a wider one the table
 stopped ~110px short. `fitStreamToViewport()` reads `[data-table-scroll]`'s own top after the paint
 and re-applies on resize, with the listener in `unsubs` so it dies with the tab.
@@ -1788,26 +1897,24 @@ the FEED, not the selection, so they never move when you tick.
 
 **Market-wide news is not offered as a filter on a narrowed scope at all.** It carries no company,
 so under Portfolio or Watchlist it contributes nothing — and a permanently dead tick box is worse
-than an absent one. The reason it is absent stays in the provenance modal, which lists every feed
-in every scope: *the exclusion must be stated*, which was always the rule, and never that it must
-be stated in the body.
+than an absent one. The reason it is absent stays in the source registry: *the exclusion must be
+stated*, which was always the rule, and never that it must be stated in the body.
 
-**There is no legend strip.** *Red — alert* / *Orange — update* and the note that three of the four
-tabs are never graded live in the modal's *What the colours mean*. A colour whose cause the reader
-cannot look up is a judgement, and this page makes none — but the lookup is a click, not a
-permanent block under the stream.
+**There is no legend strip.** Direction and importance are named directly on every row, with both
+reasons alongside them; thresholds and rule provenance remain in the source registry and export.
 
 **THE PANEL IS ONE ROW OF CHIPS — a dot, a name, a number — and the number is the part that has to
-be guarded.** It was five cards in a white block, each with a sentence and a last-read time, and it
+be guarded.** In history mode the number is the retained row count used by the feed filter, while
+the tooltip separately names how many are on today. It was five cards in a white block, each with a
+sentence and a last-read time, and it
 cost about 300px above the stream it describes; it is 19px now, identical across all three scopes.
 What compressing it may NOT do is let a state print as a count: **a number is a finished answer and
 "has not looked at today" is the absence of one**, so that state prints the word *not checked* and
 `could not be read` prints *unread*, never `0`. `feedState()` returns `short()` beside `label` for
 exactly this reason, and the two are read from one place so they cannot drift. The sentence each
-card used to carry moved to the chip's `title`, and the whole table — state, description, last read
-— is in the provenance modal, which is also where the market-wide feed's *"carries no company, so
-it cannot be narrowed"* reason now lives. The suite asserts that a behind feed's chip contains no
-digit at all.
+card used to carry moved to the chip's `title`; full source descriptions and the market-wide feed's
+*"carries no company, so it cannot be narrowed"* reason remain in the source registry. The suite
+asserts that a behind feed's chip contains no digit at all.
 
 ### Nothing on it walks, and nothing on it blocks on the slowest feed
 
@@ -1818,10 +1925,10 @@ discard its company list, and the Refresh button would then re-read an empty set
 nothing. `seed()` never writes `wanted`.
 
 **`Promise.all` over independent reads is head-of-line blocking with a tidy syntax.** The first
-version awaited every feed together and the landing page sat blank for as long as the slowest —
+version awaited every feed together and the timeline sat blank for as long as the slowest —
 measured at 10–15 seconds on a static origin, because the chatter API is a direct call to somebody
 else's service and an unreachable host takes its own time to say so. Seven feeds that had already
-answered were held hostage by the one that had not, on the first tab a reader sees. Each feed now
+answered were held hostage by the one that had not. Each feed now
 settles independently and the page paints as it lands, coalesced at 250ms with a **trailing throttle,
 not a debounce** — a debounce would keep deferring while feeds kept landing and the page would sit
 still until the slowest finished, which is the thing this exists to stop. Measured after: first paint
@@ -1918,18 +2025,11 @@ Three things that make the trade honest rather than a deletion:
    drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
    the page without its chrome, and it is the one artefact nobody can see a pill on.
 
-**Prefer this shape whenever a caveat is competing with the content it qualifies.** Four times now
-the right answer to "this block is too loud" has been to move the explanation behind a control that
-still states the claim — and never to delete the claim, and never to write a smaller version of the
-block. The fourth is the filings tabs' freshness strip: a permanent grey paragraph under the
-heading — how old the capture is, how many companies were searched, what they answered — with the
-Refresh control inside it. All of it now lives in the provenance modal, the pill on the face keeps
-the claim, and **the only thing left in the body is a strip that appears while a walk is actually
-running**, because progress on work the reader just asked for is feedback rather than chrome. The
-Refresh button moved with the explanation (the market-news Fetch button's shape: wired on
-`#modal-content`, not on the tab root) — but the **failure** panel keeps its own retry control in
-the body, since a reader whose feed could not be read must not have to open a modal to find the
-thing that retries it.
+**Prefer a passive status label whenever a caveat is competing with the content it qualifies.**
+The label must state the material condition on its face and must not open a provenance explainer.
+Full source detail belongs in the registry and export disclosures. Progress on work the reader
+just asked for may still appear in the body because it is feedback rather than permanent chrome;
+failure panels keep their own retry control so recovery never depends on a hidden dialog.
 
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
@@ -2095,9 +2195,8 @@ or not a byte had been confirmed in an hour.
 - `live.register(id, { synthetic: true })` keeps a poller out of `getLastDataTick()`. The heartbeat
   is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
   server does not get to move that clock.
-- **The Sources button is gone from the chrome, not from the app** — the pill opens it. Provenance
-  must stay reachable from every screen (see the honesty rules above), and a freshness control is
-  the right home: *how current is this* and *where did it come from* are one question.
+- **The Sources button and its popup are gone from the chrome.** The status pill is passive.
+  Canonical provenance remains in the source registry and export disclosures.
 - `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
   It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
 
@@ -2272,9 +2371,9 @@ Three rules make that safe, and they are the same ones the store rests on genera
 - **`meta().origin` may never claim a freshness that has not been confirmed.** It distinguishes
   three: `snapshot` for the committed file, `store` for this device's cache, and `live` only once
   every painted book has been confirmed against the server **in this session**. A book the second
-  pass deliberately skipped is *unconfirmed*, not confirmed — see below. The pill follows it and
-  says *Captured* / *Cached* / *Live*; it used to say "Live" unconditionally, in emerald, which was
-  survivable only while every paint really was a fresh read of all ninety-one routes.
+  pass deliberately skipped is *unconfirmed*, not confirmed — see below. The value remains the
+  source of truth for stale handling, exports and verification, but Superstar Investors does not
+  repeat it as a per-view status pill; refresh status and control already live in the global header.
 - **A failed revalidation must not delete a book you already have.** The cached copy is a real read
   of a real filing; replacing it with "could not be read" because a later request timed out throws
   away good data to report a transient network event. Only a book with no cached copy becomes a
@@ -2308,8 +2407,9 @@ Three things keep that from being a freshness claim bought on credit, and all th
   needs a way for them to ask it anyway.
 
 **A repaint is not free either, and per-arrival repainting is the other half of "slow".** The tab
-rebuilds its whole panel — stat strip, ninety cards, a table of every disclosed position — from one
-`onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most one
+rebuilds whichever of its investor cards, quarterly roll-up or disclosed-positions table is active
+from one `onChange`, so ninety arrivals meant ninety rebuilds. Arrivals are coalesced into at most
+one
 repaint per `EMIT_COALESCE_MS` (a trailing throttle, **not** a debounce — a debounce would keep
 deferring while books kept landing and the grid would sit still until the walk finished), and the
 derived views are memoised behind a version counter so they are built once per change rather than
@@ -2352,14 +2452,14 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Refresh button drives | `js/core/refresh.js` (the registry) + `refreshNow()` in `js/core/watch.js` — read *Work the reader has to ask for* first; a per-company feed must never be registered with `live.js` |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
-| Change the cross-book summary at the top of it | `quarterSummary()` in `js/data/super-investors.js` (the roll-up) + `quarterSummaryBlock()` in `js/investors/live.js` (the panels) — read *Rolling ninety books up into one screen* first; the four figures it refuses to invent are the point |
+| Change the cross-book summary in Quarterly Changes | `quarterSummary()` in `js/data/super-investors.js` (the roll-up) + `quarterSummaryBlock()` in `js/investors/live.js` (the panels) — read *Rolling ninety books up into one screen* first; the four figures it refuses to invent are the point |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
 | Refresh the super-investor snapshot | `node scripts/scrape-super-investors.mjs` (`SI_LIMIT=5` for a smoke run) — it reads **our own Worker**, not Finology, so it needs no token; commit `public/data/super-investors.json` |
 | Change which date the Earnings Calendar opens on | `defaultCalendarDate()` in `js/tabs/earnings-hub.js` — it is today, in **IST**, and `?date=` and the reader's own click both win over it |
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
 | Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
-| Change the Con-call tab or its schedule overlay | `js/concall/scans.js` — the whole tab is that one file |
+| Change the Con-call tab | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
 | Change what a Deep Dive report keeps on the device | the saved-report block in `js/data/deep-dive.js` + `KEYS.deepDiveReport` — a report costs a metered run, so read rule 5 there before shortening anything |
 | Refresh the con-call snapshot | `node scripts/scrape-concalls.mjs` |
@@ -2367,14 +2467,19 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
-| Add or remove a company from the book | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Add or remove a company from the committed book default | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
-| Change the Daily Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *Daily Alerts* above first. It has **no feed of its own** and must never send a request per company |
-| Change what makes a Daily Alerts row RED | the per-feed collectors in `js/data/daily-alerts.js` — every alert must carry the `reason` that made it one, and Insider / Announcements stay ungraded |
-| Change the Daily Alerts threshold | `MOVE_PCT` in `js/data/daily-alerts.js` — it is the whole alert rule (via the exported `moveSeverity`), and it is printed on the tab, in two modals and in row 1 of the export, all reading the constant |
-| Change which tabs Daily Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector, and then update the sentence naming what is deliberately excluded; nothing is special-cased by feed id |
+| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
+| Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
+| Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
+| Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
+| Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
+| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are sent to Anthropic's Claude Messages API |
+| Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
+| Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side; the route stays same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
 | Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
 | Change how positions are marked or the curve is built | `js/data/portfolio.js` |
@@ -2401,7 +2506,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
 | Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
-| Make tab switching faster | `scoreTable`'s streaming body in `js/ui/screener.js` — read *Performance on large tables* first; profile before changing it, the cost is rarely where a profile first points |
+| Make tab switching faster | `scoreTable` streaming in `js/ui/screener.js`, the measurement-free scope toggle in `js/ui/components.js`, and committed `public/css/tailwind.css` — read *Performance on large tables* first and profile before changing them |
 | Change what the shell waits for at boot | `CRITICAL_SOURCES` / `DEFERRED_SOURCES` in `js/app.js` — a deferred file needs a consumer that awaits it |
 | Change what the Earnings Calendar shows for a date | `modeFor()` + `renderCalendar()` in `js/tabs/earnings-hub.js` — read *The calendar answers two questions* first |
 | Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
@@ -2429,7 +2534,7 @@ node scripts/verify-ui.mjs
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 13 tabs across both workspaces render their panel
+- all 15 tabs across both workspaces render their panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
@@ -2441,23 +2546,28 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
-- **the dashboard opens on Daily Alerts, in Portfolio scope**, with four stat cards and the
-  gradient hero fourth, no sub-view picker, and the Indian trading date stated rather than a UTC one
-- **it reads exactly the five feeds behind those four tabs** — asserted as an equality, not a floor,
+- **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
+  its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
+- **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
+  and no empty-Watchlist shell replacement
+- **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
-- **it reads exactly four tabs** — Breakouts, News, Corp Announcements, Insider Trades — and says
-  on its face which tabs it deliberately does not consolidate
+- **it reads all eight research tabs**, with company and market-wide News as separate feeds
 - **its coverage panel accounts for every feed by name**, distinguishes *has not looked at today*
   from *nothing today* from *could not be read* from *reading…*
-- **every Daily Alerts alert prints the reading that made it one** and no update carries one;
-  announcements, insider disclosures and news are never graded red; `moveSeverity` is asserted
-  directly at and either side of the threshold, because the shipped data has no down-move to
-  produce a red row; every event id is unique (compared, not counted); and mounting the tab sends
+- **every General Alerts row carries valid direction and importance plus both reasons**;
+  announcement and insider classifiers and `moveSeverity` are asserted directly at their
+  boundaries; every event id is unique (compared, not counted); and mounting the tab sends
   **zero** per-company filings requests
+- **General Alerts history is complete in the table model but paged in the DOM**: the suite asserts
+  more than one retained date, stable unique ids, newest-first date/time order, an 80-row initial
+  paint, the next chronological page on internal scroll, full-data counts under the Today filter,
+  and an explicit date/time resolution on every painted row
 - market-wide news is excluded from a narrowed scope **with the reason stated**, not filtered to
   nothing
 - **an empty watchlist gets its own panel on every tab**, saying there are zero watchlist companies
-  and how to add one — never an empty table under a filter the reader never set
+  and opening the Watchlist editor directly from **Add companies to watchlist** — never an empty
+  table under a filter the reader never set
 - **the star marks a company, not the row it sits on**: on the Earnings Hub the row key is
   Moneycontrol's scID and the watch key is the ticker, starring one row of a company fills the star
   on its other rows, and a legacy composite row key is pruned rather than filed as a company
@@ -2481,10 +2591,10 @@ It covers, beyond the checklist below:
   that needs a period we do not have — the shape every link 404'd with
 - the con-call panel and drill say the analysis is a third party's and **never print the
   provider's brand**
-- **the Sources modal contains no hand-typed figure**: the book count, the uncovered-lines count
+- **the source registry contains no hand-typed figure**: the book count, the uncovered-lines count
   and the reported-companies count each match what the modules report, and no source describes
   itself with a zero
-- the Sources modal opens off the status pill and lists every documented source
+- the status pill is passive and opens no modal; the source registry still lists every documented source
 - the header carries no search box and no Sources button, exactly one status pill reading
   "Live · updated <when>", and a refresh button that reports a result
 - an alert renders in the lower-right corner, never announces the same event twice, caps its stack,
@@ -2542,7 +2652,8 @@ It covers, beyond the checklist below:
 - **a first visit does not fetch ninety-one books either**: the committed snapshot carries one per
   investor with a capture time on it and **no unread book written as an empty one**, a cold device
   paints the whole grid from it with no request per investor — on a static origin with no `/api/`
-  at all — and the pill says **Captured**, not Live, over bytes nobody confirmed this session
+  at all — while `origin` remains `snapshot` over bytes nobody confirmed this session and the view
+  adds no duplicate cache, scope or loading tags
 - **the Earnings Calendar opens on today**, in IST rather than UTC, with today's chip scrolled into
   view; a day still in progress reads *"nothing filed yet"* rather than *"no results were filed"*
 - **switching tabs does not block on building a table**: the initial markup carries a screenful and
@@ -2559,8 +2670,9 @@ It covers, beyond the checklist below:
   the all-exchange list are different universes, and the pill says so instead of asserting a number
 
 > A **SKIP** is the honest answer where the sandbox, not the page, is the reason a check cannot
-> run — no egress to the Tailwind/exceljs CDNs, no Worker on a static origin. The final
-> `zero console errors` check filters exactly those two families and **prints how many it dropped**,
+> run — no egress to the ExcelJS/font CDNs, no Worker on a static origin. Tailwind is local, so
+> layout checks still run. The final `zero console errors` check filters those environment failures
+> and **prints how many it dropped**,
 > so a run that hid a real error behind the filter still shows the count.
 >
 > The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
@@ -2575,8 +2687,6 @@ It covers, beyond the checklist below:
 > measured, and a stand-in that can be told to 503 or hang is what makes the failure paths testable
 > at all.
 
-> Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach
-> `cdn.tailwindcss.com` or Google Fonts. To screenshot with real styling, copy `public/` to a
-> scratch dir, `curl` the Tailwind CDN script and the fonts CSS into it, and repoint
-> `index.html` at the local copies. **Never commit that change** — the committed `index.html`
-> must keep the CDN URLs.
+> Sandbox note: the agent proxy may not reach Google Fonts or ExcelJS. The committed Tailwind
+> stylesheet still gives screenshots the shipped layout and colours; the browser falls back to
+> system fonts when Google Fonts is unavailable. Export checks report SKIP when ExcelJS cannot load.

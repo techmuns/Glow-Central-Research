@@ -247,6 +247,29 @@ export function startLive(live) {
   };
 }
 
+/** Revalidate once for surfaces that do not mount the shared 30-second poller. */
+export async function refresh() {
+  await load();
+  const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
+  if (!out.value?.rows?.length) return cache;
+  if (out.status === 304) {
+    markChecked('live', out.checkedAt);
+    return cache;
+  }
+  const changed = hasChanged(out.value);
+  ingest(out.value, { live: true, origin: 'live', checkedAt: out.checkedAt });
+  if (changed) {
+    for (const fn of listeners) {
+      try {
+        fn(cache);
+      } catch (err) {
+        console.error('[concall-scans] listener failed', err);
+      }
+    }
+  }
+  return cache;
+}
+
 export function stopLive(live) {
   live?.stop?.(LIVE_ID);
 }

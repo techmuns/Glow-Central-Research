@@ -54,8 +54,8 @@
 //      `stale` flag, and a book whose confirmation predates the most recent quarter end.
 //   2. NINETY-ONE INDEXEDDB TRANSACTIONS BEFORE FIRST PAINT. `readEntry` per book, each opening
 //      its own transaction. `readEntries` does the lot in one.
-//   3. NINETY FULL REPAINTS OF A FOUR-THOUSAND-ROW TABLE. Every arriving book emitted, and the tab
-//      rebuilds its whole panel — stat strip, ninety cards and the positions table — on each emit.
+//   3. NINETY FULL REPAINTS OF THE ACTIVE PANEL. Every arriving book emitted, and the tab rebuilt
+//      whichever directory, quarterly summary or positions table was selected on each emit.
 //      Arrivals are now coalesced into at most one repaint per EMIT_COALESCE_MS, which turns that
 //      into a handful. The walk's final emit is still immediate, so the settled state is never
 //      left waiting behind a timer.
@@ -174,9 +174,9 @@ export function onChange(fn) {
 // ---------------------------------------------------------------------------------------
 // Repaints, coalesced
 //
-// A subscriber here is the whole tab panel: stat strip, ninety investor cards and a table of every
-// disclosed position across every book. Rebuilding that is tens of milliseconds, and the walk used
-// to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
+// A subscriber here is the active in-page panel: ninety investor cards, the quarterly summary or a
+// table of every disclosed position across every book. Rebuilding that is tens of milliseconds,
+// and the walk used to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
 // the view "taking too long" even after the data was on the device.
 //
 // A trailing throttle rather than a debounce, deliberately: a debounce would keep deferring while
@@ -301,6 +301,94 @@ export async function refresh() {
   // button that does nothing on the one occasion they were sure something had changed.
   await revalidate({ ignoreWindow: true });
   return { added: Math.max(0, state.books.size - before), checked: state.investors.length, failed: state.failures.size };
+}
+
+/**
+ * Revalidate only the one committed bulk snapshot.
+ *
+ * General Alerts must not turn one header refresh into the ninety-one-request live book walk. This
+ * picks up a newer deployment's scheduled snapshot in one conditional request and replaces only
+ * books that are not known to have been confirmed later on this device.
+ */
+export async function refreshSnapshot() {
+  await load();
+  const gen = generation;
+  let res;
+  try {
+    res = await conditionalJson(SNAPSHOT_PATH, { key: KEYS.investorSnapshot, optional: true });
+  } catch {
+    return state;
+  }
+  if (!current(gen)) return state;
+  const body = res?.value;
+  const incomingAt = Date.parse(body?.capturedAt || '');
+  const heldAt = Date.parse(state.capturedAt || '');
+  if (!body || !Array.isArray(body.investors) || !body.investors.length || !Number.isFinite(incomingAt)) return state;
+  if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
+
+  const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
+  const incomingBooks = new Set(Object.entries(body.books || {}).filter(([, value]) => value && value.ok !== false).map(([slug]) => slug));
+  // A deployment snapshot can be newer than the file that seeded this page and still older than
+  // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
+  // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
+  const deviceNewerInvestors = state.investors.filter((i) => {
+    if (!i?.slug || incomingSlugs.has(i.slug)) return false;
+    const confirmed = Number(state.confirmedAt.get(i.slug));
+    return Number.isFinite(confirmed) && confirmed > incomingAt;
+  });
+  const acceptedSlugs = new Set([...incomingSlugs, ...deviceNewerInvestors.map((i) => i.slug)]);
+  // The list in the newer capture is authoritative for this replacement. Keeping a book whose
+  // investor disappeared would leave `allMoves()` emitting rows the current source no longer
+  // contains. Clear every piece of per-book state together so provenance cannot outlive the data;
+  // the union includes failed books, which have no entry in `state.books` to drive the cleanup.
+  const knownSlugs = new Set([
+    ...state.books.keys(),
+    ...state.confirmedAt.keys(),
+    ...state.failures.keys(),
+    ...state.fromSnapshot,
+    ...state.unconfirmed,
+    ...state.staleBooks,
+  ]);
+  for (const slug of knownSlugs) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    const removedInvestor = !acceptedSlugs.has(slug);
+    const unreadInCapture = !incomingBooks.has(slug) && (!Number.isFinite(confirmed) || confirmed <= incomingAt);
+    if (!removedInvestor && !unreadInCapture) continue;
+    state.books.delete(slug);
+    state.confirmedAt.delete(slug);
+    state.fromSnapshot.delete(slug);
+    state.unconfirmed.delete(slug);
+    state.failures.delete(slug);
+    state.staleBooks.delete(slug);
+  }
+
+  state.capturedAt = body.capturedAt;
+  state.investors = [...body.investors, ...deviceNewerInvestors];
+  state.listOk = true;
+  state.dropped = body.dropped || 0;
+  // `oldestCheckedAt()` starts with this feed-wide floor. Every book accepted below is confirmed
+  // at the capture or is a device book confirmed later, so leaving the old floor in place would
+  // make a fully replaced snapshot look stale after a successful refresh.
+  state.checkedAt = incomingAt;
+  for (const [slug, value] of Object.entries(body.books || {})) {
+    if (!value || value.ok === false) continue;
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed > incomingAt) continue;
+    state.books.set(slug, normalisePortfolio(value, slug));
+    state.confirmedAt.set(slug, incomingAt);
+    state.fromSnapshot.add(slug);
+    state.unconfirmed.add(slug);
+    state.failures.delete(slug);
+    if (value.stale === true) state.staleBooks.add(slug);
+    else state.staleBooks.delete(slug);
+  }
+  for (const slug of state.books.keys()) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed < state.checkedAt) state.checkedAt = confirmed;
+  }
+  bump();
+  emit({ now: true });
+  return state;
 }
 
 /**
@@ -706,7 +794,7 @@ let memo = { version: -1 };
  *
  * Finology's two endpoints disagree: the list says "Abakkus Fund - Sunil Singhania" and the book
  * says "Abakkus Fund - Sunil Singhania Portfolio, Shareholdings & Investments." — their page
- * title, SEO suffix and all. The cards were already reading the list, so the table under them and
+ * title, SEO suffix and all. The cards were already reading the list, so the Data Table and
  * its investor filter were showing a different string for the same person, and the cross-book
  * summary panels were unreadable: three of those suffixes in one line of a small card.
  *
@@ -771,6 +859,9 @@ function orderQuarters(seen) {
 export function allMoves() {
   return derived().moves;
 }
+
+/** The confirmation represented by one investor's current book. */
+export const confirmedAtFor = (slug) => state.confirmedAt.get(slug) || null;
 
 /** Totals for one book. */
 export const totalsFor = (slug) => {

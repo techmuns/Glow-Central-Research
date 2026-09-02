@@ -11,11 +11,9 @@
 // This is a dev script, not part of the app — it uses the system Playwright (see PW_ROOT
 // below) rather than adding an npm dependency, exactly as scrape-technicals.mjs uses none.
 //
-// SANDBOX NOTE: headless Chromium here cannot reach cdn.tailwindcss.com or Google Fonts
-// (the agent proxy only accepts CONNECT). Layout checks still pass because they measure
-// scrollWidth, not typography, but screenshots will be unstyled. To shoot styled captures,
-// copy public/ to a scratch dir, curl the CDN assets into it, repoint index.html at the local
-// copies and serve that — and never commit that rewrite.
+// SANDBOX NOTE: headless Chromium may not reach Google Fonts or the on-demand ExcelJS CDN.
+// Tailwind is a committed same-origin stylesheet, so layout and visual checks still exercise the
+// shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -36,27 +34,24 @@ const ok = (label, cond, detail = '') => {
   if (!cond) failures++;
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${detail ? `  — ${detail}` : ''}`);
 };
-// For the handful of checks that need the Tailwind CDN. Marking them SKIP is honest; asserting
-// them against an unstyled page would be a pass that means nothing.
 const skip = (label, why) => {
   skipped++;
   console.log(`SKIP  ${label}  — ${why}`);
 };
 
-// The two CDN scripts the page loads at runtime. Where there is no egress neither arrives, and a
-// check that needs one is measuring the sandbox rather than the page — so it reports SKIP. These
-// read `errors`, which is populated as the run goes, so call them AFTER the navigation concerned.
+// ExcelJS is loaded only when an export starts. Where there is no egress, an export check is
+// measuring the sandbox rather than the page — so it reports SKIP. This reads `errors`, which is
+// populated as the run goes, so call it AFTER the navigation concerned.
 const cdnBlocked = (re) => errors.some((e) => re.test(e));
 const exceljsBlocked = () => cdnBlocked(/exceljs/i);
-const tailwindBlocked = () => cdnBlocked(/tailwind|cdn\.tailwindcss\.com/i);
 // Errors that belong to the environment rather than the page. Two families, both of which this
 // suite already reports as SKIPs elsewhere, so counting them again as console errors would make
 // the one unambiguous check in the run unreadable:
-//   • the three CDNs the page loads at runtime, unreachable without egress;
+//   • Google Fonts and on-demand ExcelJS, unreachable without egress;
 //   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
 //     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
 // Everything else counts, and the number filtered is always printed rather than swallowed.
-const ENV_ERROR = /tailwind|cdn\.tailwindcss\.com|exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
 // A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
 // failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
 // URL answers 404, not ERR_CONNECTION_RESET, so those still count.
@@ -77,15 +72,70 @@ const downloadOrSkip = async (label, file) => {
   return ok(label, false, 'no download fired');
 };
 
+// The browser never sees MUNS_TOKEN. Prove the Worker client sends the exact stock-search contract
+// the upstream documents — especially static user_index 124 — against a stand-in, never production.
+{
+  const { searchStocks } = await import('../worker/muns.mjs');
+  const realFetch = globalThis.fetch;
+  let requestSeen = null;
+  globalThis.fetch = async (url, init) => {
+    requestSeen = { url: String(url), method: init?.method, headers: init?.headers, body: JSON.parse(init?.body || '{}') };
+    return new Response(JSON.stringify({
+      data: {
+        total_results: 2,
+        results: {
+          RELIANCE: ['India', 'Reliance Industries Ltd', 'Refineries & Marketing'],
+          'Reliance Media': ['India', 'Reliance Media', null],
+        },
+      },
+      success: true,
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const found = await searchStocks({ query: 'RELIAN' }, { MUNS_TOKEN: 'test-token', MUNS_SEARCH_BASE: 'https://search.invalid' });
+    ok('stock search stays behind the Worker and sends query + static user_index 124',
+      requestSeen?.url === 'https://search.invalid/stock/search' && requestSeen?.method === 'POST' &&
+        requestSeen?.body?.query === 'RELIAN' && requestSeen?.body?.user_index === 124 &&
+        requestSeen?.headers?.authorization === 'Bearer test-token' &&
+        requestSeen?.headers?.accept === 'application/json' &&
+        requestSeen?.headers?.['content-type'] === 'application/json');
+    ok('...and normalises the ticker-keyed response for the autocomplete',
+      found.results.length === 2 && found.results[0].ticker === 'RELIANCE' && found.results[0].name === 'Reliance Industries Ltd');
+    ok('...while flagging a company-name key that cannot be used as a ticker', found.results[1].validTicker === false);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+// Insider rows do not currently carry exchange filing ids. Their Source cell must prefer a real
+// URL when one arrives and otherwise narrow the public disclosure index by the exact insider name.
+{
+  const { insiderTradeSourceUrl } = await import('../public/js/tabs/insider-trades.js');
+  const direct = insiderTradeSourceUrl({
+    ticker: 'TEST',
+    cells: { Insider: 'Example Insider', Source: 'https://example.com/filing.pdf' },
+  });
+  const derived = insiderTradeSourceUrl({ ticker: 'JAYNECOIND', cells: { 'Name of Insider': 'POOJAA AGRAWAL', Source: 'BSE' } });
+  ok('insider source links prefer an explicit filing URL', direct === 'https://example.com/filing.pdf', direct || 'no link');
+  ok('...and otherwise narrow the public record to the exact insider',
+    derived === 'https://trendlyne.com/equity/insider-trading-sast/custom/?query=POOJAA%20AGRAWAL', derived || 'no link');
+}
+
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--test-type'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
 const page = await context.newPage();
 
+// The route sweep reaches Public Chatter long before its dedicated block. Install the local feed
+// override before the first document loads so the dashboard and its lazy /posts detail requests
+// are guaranteed to come from the same captured test source.
+if (process.env.CHATTER_STUB) {
+  await context.addInitScript((base) => localStorage.setItem('sattva:chatter-base', base), process.env.CHATTER_STUB);
+}
+
 const errors = [];
 // Record the RESOURCE URL alongside the message. "Failed to load resource: net::ERR_CONNECTION_
-// RESET" names nothing, so without the URL there is no way to tell the Tailwind CDN this sandbox
-// cannot reach from a script the page genuinely lost — and a console check that cannot distinguish
-// those is a check nobody can act on.
+// RESET" names nothing, so without the URL there is no way to tell an unreachable optional CDN
+// from a script the page genuinely lost — and a check that cannot distinguish those is not useful.
 page.on('console', (m) => {
   if (m.type() !== 'error') return;
   const url = (() => { try { return m.location()?.url || ''; } catch { return ''; } })();
@@ -152,12 +202,14 @@ const setHidden = (hidden) =>
  * `scoreTable` paints a screenful and appends the rest while the browser is idle, which is what
  * took a tab switch from ~900ms of blocked main thread to ~60ms. It marks the section
  * `data-rows-pending="N"` while rows are outstanding and drops the attribute when none are — so a
- * check that counts rows waits for that rather than racing it. Every assertion here is about the
- * settled table; the streaming itself is asserted separately in section 11.
+ * check that counts rows waits for that rather than racing it. A `data-scroll-paged` history table
+ * deliberately keeps rows pending until the reader scrolls, so it is excluded here and its model
+ * count is read from the toolbar instead. Every other assertion here is about the settled table;
+ * the streaming itself is asserted separately in section 11.
  */
 const settleTables = () =>
   page
-    .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]'), null, { timeout: 20000 })
+    .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]:not([data-scroll-paged])'), null, { timeout: 20000 })
     .catch(() => {});
 const rowCount = async () => {
   await settleTables();
@@ -272,6 +324,8 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/ai-alerts.js',
+      'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
       'tabs/concall.js',
@@ -297,7 +351,8 @@ const routes = await page.evaluate(async () => {
 
 // The watchlist scope is swept too, but with the list EMPTY it is answered by the shell for every
 // tab and there is nothing tab-specific left to break; the dedicated block below drives it with a
-// company actually starred. Sweeping it empty here would assert the same panel thirteen times.
+// company actually starred. Sweeping it empty here would mostly assert the same shell panel; Ask
+// Research is the deliberate exception and gets an explicit empty-watchlist check below.
 let broken = [];
 for (const [ws, tab, sub] of routes) {
   for (const scope of ['universe', 'portfolio']) {
@@ -328,9 +383,9 @@ ok('Latest Results renders the full listed universe', latestRows > 1000, `${late
 const ehText = await hostText();
 ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\bvs\b/i.test(ehText));
 ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
-// This tab deliberately has no stat strip and no sub-view picker: one table, one small Live button.
+// This tab deliberately has no stat strip and no sub-view picker: one table, one passive Live label.
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
-ok('a single small Live button instead', (await page.locator('[data-live-info]').count()) === 1);
+ok('a single small passive Live label instead', (await page.locator('[data-live-info]').count()) === 1);
 ok('the sub-view picker is hidden for this single-view tab', await page.evaluate(() => {
   const m = document.getElementById('subview-mount');
   return !m || m.classList.contains('hidden') || !m.innerText.trim();
@@ -375,8 +430,8 @@ ok('gross profit is not a column', !ehHeads.some((h) => h.includes('GROSS')));
 
 // The head has to stay put on a 1,300-row table. `sticky` only engages against a scrolling
 // ancestor, so the wrapper must actually scroll — assert the behaviour, not the CSS. Needs real
-// stylesheets: `position: sticky` comes from a Tailwind class, so on an unstyled page the head
-// would scroll away for a reason that has nothing to do with this code.
+// stylesheets: `position: sticky` comes from compiled Tailwind, so a missing generated asset would
+// make the head scroll away for a reason that has nothing to do with this component.
 const ehSticky = await page.evaluate(async () => {
   const box = document.querySelector('[data-table-scroll]');
   const head = document.querySelector('#content-host thead');
@@ -388,7 +443,7 @@ const ehSticky = await page.evaluate(async () => {
 });
 ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
 if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
-else skip('...and the column headings stay put while it does', 'Tailwind CDN unreachable — position:sticky never applied');
+else skip('...and the column headings stay put while it does', 'compiled stylesheet unavailable — position:sticky never applied');
 await page.evaluate(() => (document.querySelector('[data-table-scroll]').scrollTop = 0));
 await page.waitForTimeout(200);
 ok('the serial-number column is gone', !ehHeads.some((h) => h === '#'));
@@ -459,7 +514,7 @@ const ehFit = await page.evaluate(() => {
   return { need: box.scrollWidth, have: box.clientWidth, styled };
 });
 if (ehFit.styled) ok('the table fits at 1440 with no horizontal scrollbar', ehFit.need <= ehFit.have + 1, `${ehFit.need}px in ${ehFit.have}px`);
-else skip('the table fits at 1440 with no horizontal scrollbar', 'Tailwind CDN unreachable — serve a vendored copy to measure this');
+else skip('the table fits at 1440 with no horizontal scrollbar', 'compiled stylesheet unavailable');
 
 // THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
 // same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
@@ -492,14 +547,12 @@ const ehRecon = await page.evaluate(() => {
 });
 ok('the figure columns reconcile with the growth column', ehRecon.checked > 100 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
 
-// The provenance did not vanish with the ribbon — it moved behind the button.
+// Status is visible without turning into another wall of explanatory chrome.
 await page.locator('[data-live-info]').click();
-await page.waitForTimeout(500);
-const liveModal = await page.locator('#modal-content').innerText();
-ok('the Live button opens the provenance', /moneycontrol/i.test(liveModal) && /polled every/i.test(liveModal));
-ok('...and still states the dash rule', /not joined/i.test(liveModal));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.waitForTimeout(200);
+ok('the results status is a passive label, not a provenance popup trigger',
+  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // THE HONESTY CHECK. A percentage across a sign change is not a growth rate, and about 13% of
 // companies have one. These must render as labelled pills, never as a coloured number.
@@ -747,14 +800,12 @@ if (past?.busiest) {
   // difference between them would name a set of companies that does not exist.
   ok('...and never differences "due" against "filed"', !/\d+\s+(did not|failed to|yet to|missing|outstanding)/i.test(shown.text), 'no subtraction of the two counts');
 
-  // The modal behind the pill must answer for THIS table. The schedule's caveats are about a cap
-  // this one does not have, so reusing them would warn about something that is not happening.
+  // The status remains a compact label and no longer opens a verbose explainer.
   await page.locator('[data-cal-info]').first().click();
-  await page.waitForTimeout(400);
-  const repModal = await page.locator('#modal-content').innerText();
-  ok('...and its provenance modal describes filings, not the schedule', /have filed/i.test(repModal) && /not a top-20|no such cap/i.test(repModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the Reported label opens no explainer popup',
+    (await page.locator('[data-cal-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 } else {
   skip('a date that has already reported lists every company that filed', 'the results feed carries no dated rows');
 }
@@ -891,15 +942,6 @@ if (calReady.failed) {
     calSource.count == null || calSource.count >= calSource.rows || calHonesty.total == null,
     `payload: ${calSource.count} scheduled vs ${calSource.rows} named — pill reads "${calHonesty.pill}"`
   );
-  if (calSource.count != null && calSource.count < calSource.rows) {
-    // ...and the reader is told why the number is missing, rather than left with a bare word.
-    await page.locator('[data-cal-info]').first().click();
-    await page.waitForTimeout(400);
-    const why = await page.locator('#modal-content').innerText();
-    ok('...and the modal explains the two exchanges behind it', /same exchanges/i.test(why) && /NSE/.test(why));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-  }
   // The strip going uniformly flat is the endpoint failing, not a quiet fortnight. The Worker
   // substitutes the committed capture's counts; if it ever stops, this catches the dashes.
   if (calSource.found) {
@@ -909,18 +951,15 @@ if (calReady.failed) {
   }
   if (calSource.countSrc === 'snapshot') ok('...with the substituted counts named as a capture', calSource.pill === 'Captured');
   else skip('...with the substituted counts named as a capture', 'the count endpoint is answering live');
-  // The 20-row cap used to be spelled out in a paragraph under the table; that paragraph is gone
-  // and the caveat moved into the pill's modal, which is where "what does this not show" belongs.
-  // The check follows it rather than the prose.
+  // The calendar status is passive in every branch, including a capped schedule.
   if (calHonesty.total != null && calHonesty.rows < calHonesty.total) {
     await page.locator('[data-cal-info]').first().click();
-    await page.waitForTimeout(500);
-    const modal = await page.locator('#modal-content').innerText();
-    ok('...and the modal says the list is a top-N when it is one', /not the full list/i.test(modal) && /largest by market cap/i.test(modal), `${calHonesty.rows} named of ${calHonesty.total}`);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(200);
+    ok('...and the calendar label opens no explainer popup',
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0,
+      `${calHonesty.rows} named of ${calHonesty.total}`);
   } else {
-    skip('...and the modal says the list is a top-N when it is one', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
+    skip('...and the calendar label opens no explainer popup', `${calHonesty.rows} named of ${calHonesty.total} — nothing is being withheld`);
   }
   } // end of the future-dated (schedule) branch
 
@@ -1074,14 +1113,53 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Daily Alerts — the landing tab
-//
-// Two things it has to get right, and they pull in opposite directions: it must consolidate every
-// feed, and it must never let a feed that has not looked at today read as a feed with nothing to
-// report. So the assertions here are as much about the coverage panel as about the stream.
+// 3d. Ask Research is the landing tab; AI Alerts and General Alerts retain their focused checks
 // ---------------------------------------------------------------------------------------
-console.log('\n— daily alerts —');
+console.log('\n— AI alerts —');
 {
+  let askRequest = null;
+  let configShouldFail = true;
+  let configGets = 0;
+  await page.route('**/api/research', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      configGets++;
+      if (configShouldFail) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'temporary' }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true, webResearchAvailable: true, history: 'device' }),
+      });
+    }
+    askRequest = request.postDataJSON();
+    if (/stale scope test/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'STALE_SCOPE_ANSWER' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
+    const events = [
+      { type: 'start' },
+      { type: 'phase', phase: 'Reconciling web sources with dashboard data' },
+      { type: 'text', text: '## Combined view\nDashboard evidence remains traceable. [Dashboard: Earnings Hub]\n\nCurrent web context is linked separately.' },
+      { type: 'sources', sources: [{ title: 'Current research source', url: 'https://example.com/research' }] },
+      { type: 'done' },
+    ];
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/x-ndjson',
+      body: `${events.map((event) => JSON.stringify(event)).join('\n')}\n`,
+    });
+  });
+
   // THE DEFAULT LANDING TAB. The order of WORKSPACES[0].tabs is the only thing that decides this,
   // so a reorder that moved it would surface here rather than in a bug report.
   // A FRESH READER, not this run's accumulated state. Two things have to be true for that:
@@ -1107,18 +1185,262 @@ console.log('\n— daily alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  ok('the dashboard opens on Daily Alerts', /daily-alerts/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Daily Alerts');
+  await page.locator('[data-research-workspace]').waitFor({ state: 'visible', timeout: 15000 });
+  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  await go('/#/research/ai-alerts?scope=portfolio', 4500);
+  await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
+
+  const aiCards = page.locator('[data-ai-card]');
+  const aiCount = await aiCards.count();
+  ok('AI Alerts surfaces a deliberately short first page', aiCount > 0 && aiCount <= 8, `${aiCount} cards`);
+  const renderedCards = await aiCards.evaluateAll((els) => els.map((el) => ({
+    ticker: el.dataset.ticker,
+    score: Number(el.dataset.score),
+    priority: el.dataset.priority,
+    insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
+    why: el.querySelectorAll('[data-ai-why] > div').length,
+    scoreShown: !!el.querySelector('[data-ai-score], [title="Transparent priority score"]'),
+    action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
+    events: el.querySelectorAll('[data-ai-event]').length,
+  })));
+  ok('AI cards are unique by company and ordered highest score first',
+    new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
+      renderedCards.every((card, i) => !i || renderedCards[i - 1].score >= card.score),
+    renderedCards.map((card) => `${card.ticker}:${card.score}`).join(', '));
+  ok('AI Alerts removes the priority banner and ranking breakdown',
+    (await page.locator('[data-ai-alert-summary]').count()) === 0 &&
+      renderedCards.every((card) => card.why === 0 && !card.scoreShown));
+  const aiFeedStatus = (await page.locator('[data-ai-feed-status]').innerText()).trim();
+  ok('the compact header still names stale or unread feeds',
+    /^(Updated|\d+ feeds? (is|are) stale or unread)$/.test(aiFeedStatus), aiFeedStatus);
+  ok('every surfaced card keeps the insight, evidence and next review action',
+    renderedCards.every((card) => card.insight && card.action && card.events > 0));
+
+  const policy = await evalSafe(async () => {
+    const ai = await import('/js/data/ai-alerts.js');
+    const feed = (id, reachesToday = true) => ({ id, label: id, status: 'ok', reachesToday });
+    const event = (overrides = {}) => ({
+      id: 'e1', feed: 'news', feedLabel: 'Company news', day: '2026-09-01', time: null,
+      ticker: 'GOLD', company: 'Gold Ltd', headline: 'Routine publisher story',
+      direction: 'neutral', importance: 'low', signalReason: 'Publisher headline.',
+      importanceReason: 'Low.', url: null, ...overrides,
+    });
+    const holdings = [
+      { ticker: 'GOLD', name: 'Gold Ltd', sector: 'Industrials' },
+      { ticker: 'PEER', name: 'Peer Ltd', sector: 'Industrials' },
+    ];
+    const rank = (events, feeds) => ai.rankReport({ day: '2026-09-01', scope: 'portfolio', events, feeds }, { holdings });
+    const noise = rank([event()], [feed('news')]);
+    const material = rank([
+      event({ id: 'earn', feed: 'earnings', feedLabel: 'Earnings', headline: 'Quarterly result filed', direction: 'positive', importance: 'high' }),
+    ], [feed('earnings')]);
+    const corroborated = rank([
+      event({ id: 'earn', feed: 'earnings', feedLabel: 'Earnings', headline: 'Quarterly result filed', direction: 'positive', importance: 'high' }),
+      event({ id: 'ann', feed: 'announcements', feedLabel: 'Announcements', headline: 'Regulatory approval received', direction: 'positive', importance: 'high' }),
+    ], [feed('earnings'), feed('announcements')]);
+    const current = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider')]);
+    const stale = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider', false)]);
+    const duplicate = rank([
+      event({ id: 'n1', headline: 'Same story' }), event({ id: 'n2', headline: 'Same story' }),
+      event({ id: 'wide', ticker: null, company: 'Market', headline: 'Market-wide story' }),
+    ], [feed('news')]);
+    const weakSector = rank([
+      event({ id: 'weak1', feed: 'insider', ticker: 'GOLD', headline: 'Small disposal', direction: 'negative' }),
+      event({ id: 'weak2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Another small disposal', direction: 'negative' }),
+    ], [feed('insider')]);
+    const materialSector = rank([
+      event({ id: 'risk1', feed: 'insider', ticker: 'GOLD', headline: 'Material disposal', direction: 'negative', importance: 'high' }),
+      event({ id: 'risk2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Material pledge', direction: 'negative', importance: 'high' }),
+    ], [feed('insider')]);
+    const { feedStatus, safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
+    return {
+      min: ai.MIN_SCORE,
+      mustSee: ai.MUST_SEE_SCORE,
+      noiseSurfaced: noise.cards.length,
+      noiseScore: noise.allCards[0]?.score,
+      material: material.allCards[0]?.score,
+      corroborated: corroborated.allCards[0]?.score,
+      current: current.allCards[0]?.score,
+      stale: stale.allCards[0]?.score,
+      staleFeedStatus: feedStatus(stale).label,
+      duplicateEvents: duplicate.allCards[0]?.events.length,
+      marketWideExcluded: duplicate.meta.marketWideExcluded,
+      arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
+      weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      materialSectorBoosted: materialSector.allCards.every((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
+      sourceUrlsSafe: safeSourceUrl('javascript:alert(1)') === null && /^https:/.test(safeSourceUrl('https://example.com/filing')),
+    };
+  });
+  ok('single-source neutral news is suppressed below the published threshold',
+    policy.noiseSurfaced === 0 && policy.noiseScore < policy.min, `${policy.noiseScore}/${policy.min}`);
+  ok('a material event can qualify alone, while independent corroboration ranks higher',
+    policy.material >= policy.min && policy.corroborated > policy.material,
+    `${policy.material} → ${policy.corroborated}`);
+  ok('stale-source evidence receives the documented score penalty',
+    policy.current > policy.stale, `${policy.current} current vs ${policy.stale} stale`);
+  ok('a completed degraded report renders the compact stale-feed warning',
+    policy.staleFeedStatus === '1 feed is stale or unread', policy.staleFeedStatus);
+  ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
+    policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
+    `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
+  ok('the hidden ranking model remains internally consistent', policy.arithmetic);
+  ok('sector context requires material negative evidence rather than tiny negative activity',
+    !policy.weakSectorBoosted && policy.materialSectorBoosted);
+  ok('AI card source links reject executable URL schemes', policy.sourceUrlsSafe);
+
+  const firstTicker = renderedCards[0].ticker;
+  await aiCards.first().locator('[data-open-general]').click();
+  await page.waitForTimeout(5000);
+  ok('a card drills into General Alerts without changing the selected scope',
+    /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
+  const seeded = await page.locator('#content-host [data-table-search]').inputValue();
+  // Count REAL result rows. `tbody tr` includes the one empty-state row, so the old assertion
+  // passed while an uppercase seeded ticker matched nothing and the product visibly said 0 shown.
+  const drilledRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  ok('...and seeds the complete stream to that company, with real matching rows',
+    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every((row) => row.includes(firstTicker)),
+    `${seeded}; ${drilledRows.length} matching result row(s)`);
+// ---------------------------------------------------------------------------------------
+// 3e. Ask Research — dashboard-wide evidence and optional hosted web research
+// ---------------------------------------------------------------------------------------
+  console.log('\n— ask research —');
+  await go('/#/research/ask-research?scope=portfolio', 500);
+
+  const askText = await hostText();
+  ok('Ask Research renders as a complete workspace',
+    (await page.locator('[data-research-workspace]').count()) === 1 && /Research the whole picture/.test(askText));
+  ok('...makes dashboard-wide coverage explicit',
+    /Reads the whole dashboard/.test(askText) && /Every tab/.test(askText) && /Traceable/.test(askText));
+  ok('...offers four scope-aware starting questions',
+    (await page.locator('[data-research-suggestion]').count()) === 4);
+  ok('...and keeps web research optional by default',
+    (await page.locator('[data-research-web]').getAttribute('aria-pressed')) === 'false' &&
+      /Combine dashboard \+ web/.test(await page.locator('[data-research-web]').innerText()));
+  const failedConfigGets = configGets;
+  ok('...fails closed when the configuration check is temporarily unavailable',
+    failedConfigGets > 0 && (await page.locator('[data-research-input]').isDisabled()));
+  configShouldFail = false;
+  await go('/#/research/daily-alerts?scope=portfolio', 300);
+  await go('/#/research/ask-research?scope=portfolio', 500);
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 10000 });
+  ok('...retries a transient configuration failure on the next mount',
+    configGets > failedConfigGets && !(await page.locator('[data-research-input]').isDisabled()),
+    `${failedConfigGets} failed check(s), ${configGets - failedConfigGets} recovery check(s)`);
+
+  const evidenceAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const packet = await buildResearchEvidence({
+      question: 'What needs attention across earnings, calls, chatter, technicals, filings and holdings?',
+      scope: 'portfolio',
+    });
+    return {
+      catalog: packet.catalog.length,
+      sources: packet.sources.length,
+      ready: packet.selection.sourcesReady,
+      statuses: packet.sources.map((source) => `${source.id}:${source.status}`),
+      chars: JSON.stringify(packet).length,
+      unresolvedChatter: packet.sources.find((source) => source.id === 'public-chatter')?.unresolvedTopics?.rowCount || 0,
+    };
+  });
+  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
+      evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
+    `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
+  ok('...and keeps the real evidence packet inside the Worker request bound',
+    evidenceAudit.chars < 120000, `${evidenceAudit.chars.toLocaleString()} chars`);
+  ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+    evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+
+  const watchlistPortfolioAudit = await evalSafe(async () => {
+    const { buildResearchEvidence } = await import('/js/research/estate.js');
+    const portfolio = await import('/js/data/portfolio.js');
+    const watchlist = await import('/js/core/watchlist.js');
+    await portfolio.load();
+    const member = portfolio.forScope('portfolio')[0];
+    watchlist.add(member.ticker, member.name);
+    try {
+      const packet = await buildResearchEvidence({ question: `Summarise ${member.ticker}`, scope: 'watchlist' });
+      const source = packet.sources.find((item) => item.id === 'portfolio');
+      return {
+        ticker: member.ticker,
+        rowCount: source.rowCount,
+        positionCount: source.summary?.positionCount,
+        marketValue: source.summary?.marketValue,
+        expectedMarketValue: member.marketValue,
+        carriesWholeBookReturn: source.summary?.xirr != null || source.summary?.twr != null || source.summary?.maxDrawdown != null,
+      };
+    } finally {
+      watchlist.remove(member.ticker);
+    }
+  });
+  ok('...recomputes Watchlist portfolio totals from only the filtered ticker rows',
+    watchlistPortfolioAudit.rowCount === 1 &&
+      watchlistPortfolioAudit.positionCount === 1 &&
+      Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
+      watchlistPortfolioAudit.carriesWholeBookReturn === false,
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
+
+  await page.locator('[data-research-web]').click();
+  await page.locator('[data-research-input]').fill('Combine the dashboard evidence with current web context.');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Current web context is linked separately/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
+  const combinedAnswer = await page.locator('[data-research-transcript]').innerText();
+  ok('...submits dashboard and web research as one explicit combined request',
+    askRequest?.webResearch === true && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
+    `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
+  ok('...renders the streamed combined answer and linked web provenance',
+    /dashboard \+ web research/i.test(combinedAnswer) &&
+      (await page.locator('.research-source-chip-web[href="https://example.com/research"]').count()) === 1,
+    combinedAnswer.replace(/\s+/g, ' ').slice(0, 240));
+
+  // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
+  // closes. The Ask workspace must cancel at the store boundary, before a response for the old
+  // membership can be committed to device history.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Stale scope test');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Sending /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 10000 });
+  const editedMember = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const scopeLists = await import('/js/core/scope-lists.js');
+    const base = coverage.baseHoldings();
+    const member = base[0];
+    scopeLists.remove('portfolio', member, base);
+    return member?.ticker || member?.name || null;
+  });
+  await page.waitForTimeout(1200);
+  ok('...cancels an in-flight answer when the active scope membership changes',
+    !!editedMember &&
+      (await page.locator('[data-research-input]').inputValue()) === 'Stale scope test' &&
+      !/STALE_SCOPE_ANSWER/.test(await page.locator('[data-research-transcript]').innerText()),
+    editedMember || 'no portfolio member available');
+  await page.evaluate(async () => {
+    const scopeLists = await import('/js/core/scope-lists.js');
+    scopeLists.reset('portfolio');
+  });
+
+  await page.unroute('**/api/research');
+
+  // ---------------------------------------------------------------------------------------
+  // 3f. General Alerts — the complete chronological stream
+  //
+  // It must consolidate every feed, keep today's freshness distinct from retained history, and
+  // reveal older dates through the table's own scroller in strict chronological order.
+  // ---------------------------------------------------------------------------------------
+  console.log('\n— general alerts —');
+  await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   const daText = await hostText();
   // THE FOUR CARDS AND THE PARAGRAPH ARE ONE PILL NOW. Three of the cards counted rows the table
   // beneath them already lists and the fourth printed the date; the description restated what the
   // coverage panel says per feed. What may not be lost with them is the provenance and the day, so
   // both are asserted here rather than the furniture that used to carry them.
-  ok('the landing carries no stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
+  ok('General Alerts carries no redundant stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
   ok('...and no description paragraph competing with the stream',
     !/in one stream\. Red is an alert/.test(daText));
   ok('the sub-view picker is hidden for this single-stream tab', await page.evaluate(() => {
@@ -1130,22 +1452,22 @@ console.log('\n— daily alerts —');
   const dayPillText = await page.locator('[data-alerts-info]').first().innerText();
   ok('it states the Indian trading date rather than a UTC one',
     /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
-  ok('...and the provenance is still one click away', (await page.locator('[data-alerts-info]').count()) === 1);
+  ok('...and the date/status control is a passive label',
+    (await page.locator('[data-alerts-info]').count()) === 1 &&
+      (await page.locator('[data-alerts-info]').evaluate((el) => el.tagName)) === 'SPAN');
+  const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
+  ok('General Alerts states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
-  // FOUR TABS, FIVE FEEDS — News is two feeds behind one name. Asserted exactly rather than as a
-  // floor: the point of this change was to narrow the page, and a `>=` would not notice it widening
-  // back.
-  // FOUR ON A NARROWED SCOPE, FIVE ON UNIVERSE. Market-wide news carries no company, so under
+  // EIGHT ON A NARROWED SCOPE, NINE ON UNIVERSE. Market-wide news carries no company, so under
   // Portfolio it contributes nothing and is not offered as a filter; the reason it is absent stays
-  // in the provenance modal, which lists every feed in every scope. Asserted exactly rather than as
+  // in the registered source metadata. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the four feeds that can be narrowed', feedRows === 4, `${feedRows} feed rows`);
-  ok('...and they are the four tabs asked for, and only those',
-    ['Price moves', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)) &&
-      !/Results|Con-calls|Public chatter|Superstar/.test(panel),
+  ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
+  ok('...and every research tab asked for is represented',
+    ['Price moves', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
@@ -1158,7 +1480,7 @@ console.log('\n— daily alerts —');
     behind.every((c) => /not checked/.test(c.text) && !/\b\d+\b/.test(c.text)),
     behind.length ? behind.map((c) => c.text).join(' | ') : 'every feed has looked at today');
   ok('...and every chip carries the sentence its row used to print',
-    chipStates.length === 4 && chipStates.every((c) => c.title.length > 20),
+    chipStates.length === 8 && chipStates.every((c) => c.title.length > 20),
     `${chipStates.length} chips, shortest title ${Math.min(...chipStates.map((c) => c.title.length))} chars`);
   // AND ASSERTED AT THE RULE, because the check above passes vacuously on any day every feed has
   // looked at today — which is most days. `feedState` is exported for exactly this reason, the same
@@ -1189,53 +1511,91 @@ console.log('\n— daily alerts —');
     `nothing -> "${states.nothing.short}", 30 events -> "${states.some.short}"`);
   ok('...and all five states stay distinguishable by their full wording',
     new Set([states.behind.label, states.failed.label, states.pending.label, states.unscoped.label, states.nothing.label]).size === 5);
-  // AN ABSENT TAB MUST READ AS A DECISION, NOT A FAULT. A reader who knows this dashboard has an
-  // earnings tab and sees no earnings row would otherwise reasonably conclude the page was broken.
-  // It moved with the description, from the page body into the provenance modal the pill opens.
-  // The CLAIM survives the decluttering; only where you read it changed.
+  // The status label must not bring back the long explainer overlay.
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const daModal = await page.locator('#modal-content').innerText();
-  ok('the page names the tabs it deliberately does NOT consolidate',
-    /Earnings Hub/.test(daModal) && /not consolidated here|keep their own tabs/i.test(daModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the General Alerts status opens no explainer popup',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
 
-  // THE COLOURS. Every red row must print the reading that made it red — that is the whole basis
-  // for a colour on this page not being a judgement.
+  // DIRECTION AND IMPORTANCE. Every badge must print the reading that made it so.
   const report = await evalSafe(async () => {
     const da = await import('/js/data/daily-alerts.js');
     // A day the results feed actually holds, so the profit-reading branches are exercised on a
     // static origin too. Today is frequently quiet, and a check that only passes on a busy day is
     // a check that does not run.
-    // A day these four feeds actually hold. The technicals half is a single end-of-day snapshot
+    // A day the retained row-dated feeds actually hold. The technicals half is a single end-of-day snapshot
     // matched by EQUALITY, so it only ever contributes on its own capture date.
     const r = await da.collect({ scope: 'universe', day: '2026-08-31' });
-    const alerts = r.events.filter((e) => e.severity === 'alert');
     return {
       total: r.events.length,
-      alerts: alerts.length,
-      everyAlertHasReason: alerts.every((e) => typeof e.reason === 'string' && e.reason.length > 0),
-      noUpdateHasReason: r.events.filter((e) => e.severity === 'update').every((e) => !e.reason),
-      gradedFeeds: [...new Set(alerts.map((e) => e.feed))],
-      severities: [...new Set(r.events.map((e) => e.severity))],
+      everySignalHasReasons: r.events.every((e) => typeof e.signalReason === 'string' && e.signalReason.length > 0 && typeof e.importanceReason === 'string' && e.importanceReason.length > 0),
+      directions: [...new Set(r.events.map((e) => e.direction))],
+      importance: [...new Set(r.events.map((e) => e.importance))],
       uniqueIds: new Set(r.events.map((e) => e.id)).size,
       feeds: r.feeds.map((f) => ({ id: f.id, status: f.status, reaches: f.reachesToday, n: f.count })),
     };
   });
   ok('the collector reads something across the feeds', report.total > 0, `${report.total} events`);
-  ok('every severity is one of the two documented ones',
-    report.severities.every((v) => v === 'alert' || v === 'update'), report.severities.join('/'));
-  ok('EVERY alert prints the reading that made it one', report.everyAlertHasReason, `${report.alerts} alerts`);
-  ok('...and no update carries one, so the colour and the reason cannot drift apart', report.noUpdateHasReason);
-  // THE THREE FEEDS THAT MUST NEVER BE GRADED. CLAUDE.md is explicit that the insider feed carries
-  // no model — "no sentiment, no materiality flag" — BSE's category is a taxonomy rather than a
-  // verdict, and a headline is editorial.
-  ok('insider disclosures are never graded red', !report.gradedFeeds.includes('insider'), report.gradedFeeds.join(', ') || 'none graded');
-  ok('...and neither are corporate announcements', !report.gradedFeeds.includes('announcements'));
-  ok('...and neither is news', !report.gradedFeeds.includes('news') && !report.gradedFeeds.includes('market-news'));
+  ok('every direction is one of the three documented values',
+    report.directions.every((v) => ['positive', 'negative', 'neutral'].includes(v)), report.directions.join('/'));
+  ok('every importance is High or Low',
+    report.importance.every((v) => ['high', 'low'].includes(v)), report.importance.join('/'));
+  ok('EVERY row prints both readings that made its badges', report.everySignalHasReasons, `${report.total} events`);
+
+  const rules = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const ann = (title, critical = false) => da.announcementSignal({ title, critical });
+    const inside = (Transaction, pct, value, Mode = '') => da.insiderSignal({ Transaction, Mode, 'Trade %': pct, 'Trade Value': value });
+    return {
+      annUpgrade: ann('Credit rating upgraded'),
+      annDefault: ann('Notice of loan default'),
+      annGeneral: ann('Notice of annual general meeting'),
+      annCritical: ann('Notice of annual general meeting', true),
+      annAuditor: ann('Resignation of Statutory Auditors'),
+      annRegulatoryOrder: ann('Adjudication order received from the Registrar of Companies'),
+      annApprovalReceipt: ann('Receipt of In-Principle Approval from the Stock Exchanges for Preferential Issue'),
+      annInternalApproval: ann('Receipt of approval from the customer for revised drawings'),
+      annProductionCommencement: ann('Commencement of Commercial Production at the new facility'),
+      unreadInvestorList: da.investorCoverageState({ ok: false, reason: 'no-route', total: 0, loadedBooks: 0 }),
+      buySmall: inside('Acquisition', '0.20', '1000'),
+      sellPct: inside('Disposal', '1.00', '1000'),
+      disposalByPurchase: inside('Disposal', '', '', 'Market Purchase'),
+      pledge: inside('Pledge', '', '', 'Creation Of Pledge'),
+      release: inside('Revoke', '', '', 'Revocation Of Pledge'),
+      bareRelease: inside('Revoke', '', '', ''),
+    };
+  });
+  ok('announcement rules distinguish upgrade, default and unmatched text',
+    rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
+      rules.annRegulatoryOrder.direction !== 'positive');
+  ok('BSE critical and material announcement matches are High',
+    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  ok('regulatory approval and commercial-production noun forms are Positive and High',
+    rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
+      rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
+      rules.annInternalApproval.direction === 'neutral');
+  ok('an unread investor list is incomplete even when there are no books to count',
+    rules.unreadInvestorList.incomplete === true && /investor list could not be read/.test(rules.unreadInvestorList.problems.join(' ')));
+  ok('insider rules distinguish acquisition, disposal, pledge and release',
+    rules.buySmall.direction === 'positive' && rules.sellPct.direction === 'negative' && rules.pledge.direction === 'negative' &&
+      rules.release.direction === 'positive' && rules.bareRelease.direction === 'positive' && rules.disposalByPurchase.direction === 'negative');
+  ok('insider importance changes exactly at the stated one-percent boundary',
+    rules.buySmall.importance === 'low' && rules.sellPct.importance === 'high');
+
+  const structuralRefresh = await evalSafe(async () => {
+    const e = await import('/js/data/earnings-live.js');
+    const good = { status: 200, fromStore: false, value: { rows: [{ scId: 'A' }], meta: { subType: 'yoy', structureTag: 'new' } } };
+    return {
+      failed: e.structuralRefreshFailure({ status: 503, value: null }, 'yoy', 'new'),
+      stale304: e.structuralRefreshFailure({ status: 304, fromStore: true, value: good.value }, 'yoy', 'new'),
+      valid: e.structuralRefreshFailure(good, 'yoy', 'new'),
+    };
+  });
+  ok('a failed full earnings refresh cannot bless rows a changed structure tag proved stale',
+    !!structuralRefresh.failed && !!structuralRefresh.stale304 && structuralRefresh.valid === null);
 
   // THE ALERT RULE, ASSERTED DIRECTLY. It is the only thing on this page that can make a red row,
   // and the shipped snapshot has seven moves past the threshold with not one of them down — so a
@@ -1259,6 +1619,60 @@ console.log('\n— daily alerts —');
   // A key that means two rows is the failure this dashboard has hit twice; it is never caught by
   // counting, so it is compared.
   ok('every event id is unique', report.uniqueIds === report.total, `${report.uniqueIds} ids for ${report.total} events`);
+  const historyReport = await evalSafe(async () => {
+    const da = await import('/js/data/daily-alerts.js');
+    const r = await da.collect({ scope: 'portfolio', includeHistory: true });
+    const universe = await da.collect({ scope: 'universe', includeHistory: true });
+    const earnings = await import('/js/data/earnings-live.js');
+    const concalls = await import('/js/data/concall-scans.js');
+    const eventByRow = new Map(universe.events.filter((e) => e.feed === 'earnings').map((e) => [e.id, e]));
+    const kindLabel = {
+      turnaround: 'to profit',
+      'slipped-to-loss': 'to loss',
+      'loss-narrowed': 'loss narrowed',
+      'loss-widened': 'loss widened',
+      'loss-flat': 'loss flat',
+    };
+    const dishonestKinds = earnings.all().flatMap((row) => [row.revenue, row.netProfit].map((metric) => ({ row, metric })))
+      .filter(({ metric }) => kindLabel[metric?.kind])
+      .filter(({ row, metric }) => {
+        const id = `earnings:${row.scId || row.ticker}:${row.resultDate}:${String(earnings.meta()?.subType || 'yoy').toUpperCase()}`;
+        const event = eventByRow.get(id);
+        return event && !event.detail.toLowerCase().includes(kindLabel[metric.kind]);
+      }).length;
+    const investorFeed = universe.feeds.find((f) => f.id === 'investors');
+    const earningsFeed = universe.feeds.find((f) => f.id === 'earnings');
+    const concallFeed = universe.feeds.find((f) => f.id === 'concalls');
+    return {
+      events: r.events.length,
+      days: r.meta.days,
+      oldest: r.meta.oldestEventDay,
+      newest: r.meta.newestEventDay,
+      unique: new Set(r.events.map((e) => e.id)).size,
+      scorelessNonNeutralLow: r.events.filter((e) => e.feed === 'concalls' && e.direction !== 'neutral' && /analysis pending/.test(e.detail) && e.importance !== 'high').length,
+      universeTickerlessInvestors: universe.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      portfolioTickerlessInvestors: r.events.filter((e) => e.feed === 'investors' && !e.ticker).length,
+      investorCoverageExplicit: investorFeed?.status === 'failed' && /\d+ of \d+ investor books/.test(investorFeed.note || ''),
+      snapshotFreshnessHonest:
+        (earnings.meta()?.origin !== 'snapshot' || earningsFeed?.asOf === earnings.meta()?.fetchedAt) &&
+        (concalls.meta()?.origin !== 'snapshot' || concallFeed?.asOf === concalls.meta()?.fetchedAt),
+      dishonestKinds,
+      ordered: r.events.every((e, i, rows) => !i || `${rows[i - 1].day}T${rows[i - 1].time || ''}` >= `${e.day}T${e.time || ''}`),
+    };
+  });
+  ok('history mode retains multiple dates with stable unique ids',
+    historyReport.events > report.total && historyReport.days > 1 && historyReport.unique === historyReport.events,
+    `${historyReport.events} events across ${historyReport.days} dates (${historyReport.oldest} → ${historyReport.newest})`);
+  ok('...and orders the data by date and time before the table sees it', historyReport.ordered);
+  ok('scoreless con-calls retain High importance when source sentiment is non-neutral', historyReport.scorelessNonNeutralLow === 0,
+    `${historyReport.scorelessNonNeutralLow} misclassified row(s)`);
+  ok('Universe retains tickerless investor moves while Portfolio excludes them',
+    historyReport.universeTickerlessInvestors > 0 && historyReport.portfolioTickerlessInvestors === 0,
+    `${historyReport.universeTickerlessInvestors} Universe / ${historyReport.portfolioTickerlessInvestors} Portfolio`);
+  ok('an incomplete investor snapshot is named rather than presented as fully current', historyReport.investorCoverageExplicit);
+  ok('reading a committed earnings/con-call file does not advance source freshness', historyReport.snapshotFreshnessHonest);
+  ok('earnings turnaround and loss kinds are named instead of restored as growth rates', historyReport.dishonestKinds === 0,
+    `${historyReport.dishonestKinds} dishonest metric label(s)`);
 
   // A LANDING MUST NOT COST A REQUEST PER COMPANY. This is the same rule the filings tabs follow,
   // and this tab reads three of those feeds.
@@ -1275,18 +1689,13 @@ console.log('\n— daily alerts —');
   // Market-wide news has no company on it, so it cannot be narrowed BY one — the same rule the
   // chatter tab follows for its unresolved half. It must say so rather than filter to nothing.
   await go('/#/research/daily-alerts?scope=portfolio', 5000);
-  // THE FEED IS NOT OFFERED AS A FILTER HERE, so the reason lives where every feed is still listed
-  // in every scope: the provenance modal. The rule is that the exclusion is STATED rather than the
-  // feed silently filtering to nothing — not that it is stated in any particular place.
+  // The feed is not offered as a filter here, and the status remains passive.
   const scopedFeeds = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.dataset.feed));
   ok('market-wide news is not offered as a filter on a narrowed scope', !scopedFeeds.includes('market-news'), scopedFeeds.join(', '));
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const scopedModal = await page.locator('#modal-content').innerText();
-  ok('market-wide news is excluded from a narrowed scope WITH A STATED REASON',
-    /Market news/.test(scopedModal) && /carr(y|ies) no company/i.test(scopedModal) && /Universe/i.test(scopedModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the narrowed-scope status opens no explainer popup',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE LEGEND STRIP IS GONE FROM THE BODY, and what it said is in the modal's "What the colours
   // mean" section — the same trade as the description and the stat cards. The claim may not go:
@@ -1297,43 +1706,117 @@ console.log('\n— daily alerts —');
   // rather than a full Set — the same distinction `scopeTickers` draws, for the same reason.
   await go('/#/research/daily-alerts?scope=universe', 5500);
   await settleTables();
+  // A historical alert stream deliberately keeps only the rows the reader has reached in the
+  // DOM. Its toolbar count is the complete filtered DATA set — the same set search, filters and
+  // export use — whereas `rowCount()` is only the current scroll page.
+  const alertDataCount = async () => {
+    const text = await page.locator('[data-score-table] [data-row-count]').innerText();
+    return Number((text.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
+  };
   const allChecked = await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked');
   ok('the feed filter opens on All', allChecked === 'true');
-  const allRows = await rowCount();
-  // THE NUMBER ON THE CHIP IS THE CONTRACT. Deriving the per-feed split from the row keys would
-  // have measured the wrong thing — those carry short prefixes (`tech:`, `ann:`, `mcnews:`), not
-  // the feed ids the filter uses — and comparing against `undefined` would have made every
-  // expected count 0. Reading the chip's own printed count instead ties the filter to the figure
-  // the reader is looking at when they tick it, which is the invariant that actually matters.
-  const perFeed = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) =>
-    Object.fromEntries(els.map((e) => [e.dataset.feed, Number((e.innerText.match(/(\d[\d,]*)\s*$/) || [])[1]?.replace(/,/g, '') ?? NaN)])));
-  // Tick ONE: the stream must narrow to that feed, not merely reorder. Compared against the feed's
-  // own share of the unfiltered stream rather than against a hard-coded number.
-  await page.locator('[data-feed-toggle="technicals"]').click();
-  await page.waitForTimeout(700);
+  const allRows = await alertDataCount();
+  const currentAlertDay = await evalSafe(async () => (await import('/js/data/daily-alerts.js')).today());
+  const timeline = await evalSafe(() => {
+    const rows = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')];
+    const when = rows.map((row) => {
+      const el = row.querySelector('[data-event-day]');
+      const text = el?.innerText || '';
+      const time = (text.match(/(\d{2}:\d{2}) IST/) || [])[1] || '';
+      return { day: el?.dataset.eventDay || '', time };
+    });
+    return {
+      headers: [...document.querySelectorAll('#content-host thead th')].map((h) => h.innerText.trim()),
+      rows: when.length,
+      days: [...new Set(when.map((x) => x.day).filter(Boolean))],
+      everyResolved: when.every((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.day)),
+      ordered: when.every((x, i) => !i || `${when[i - 1].day}T${when[i - 1].time}` >= `${x.day}T${x.time}`),
+    };
+  });
+  ok('the stream carries an explicit Date / time column', timeline.headers.some((h) => /^DATE \/ TIME/.test(h)), timeline.headers.join(' | '));
+  ok('every row carries its date resolution and the timeline is newest-first', timeline.everyResolved && timeline.ordered,
+    `${timeline.everyResolved ? 'all dated' : 'missing date'} · ordered=${timeline.ordered}`);
+
+  const scrollBefore = await evalSafe(() => {
+    const scroller = document.querySelector('[data-table-scroll]');
+    return {
+      painted: document.querySelectorAll('#content-host tbody tr[data-row-key]').length,
+      pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
+      top: scroller?.scrollTop || 0,
+      scrollHeight: scroller?.scrollHeight || 0,
+      clientHeight: scroller?.clientHeight || 0,
+      lastKey: document.querySelectorAll('#content-host tbody tr[data-row-key]')?.[document.querySelectorAll('#content-host tbody tr[data-row-key]').length - 1]?.dataset.rowKey || null,
+    };
+  });
+  await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await page.waitForFunction((before) => document.querySelectorAll('#content-host tbody tr[data-row-key]').length > before,
+    scrollBefore.painted, { timeout: 3000 });
+  const scrollHistory = await evalSafe(() => {
+    const scroller = document.querySelector('[data-table-scroll]');
+    const rows = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')];
+    return {
+      painted: rows.length,
+      pending: Number(document.querySelector('[data-score-table]')?.dataset.rowsPending || 0),
+      top: scroller?.scrollTop || 0,
+      oldestPaintedDay: rows.at(-1)?.querySelector('[data-event-day]')?.dataset.eventDay || null,
+      lastKey: rows.at(-1)?.dataset.rowKey || null,
+    };
+  });
+  ok('the history table starts with one page instead of painting its full data set',
+    scrollBefore.painted > 0 && scrollBefore.painted < allRows && scrollBefore.pending === allRows - scrollBefore.painted,
+    `${scrollBefore.painted} painted · ${scrollBefore.pending} pending · ${allRows} total`);
+  ok('scrolling the internal table appends the next chronological page',
+    scrollHistory.top > scrollBefore.top && scrollBefore.scrollHeight > scrollBefore.clientHeight &&
+      scrollHistory.painted > scrollBefore.painted && scrollHistory.painted < allRows &&
+      scrollHistory.pending === allRows - scrollHistory.painted && scrollHistory.lastKey !== scrollBefore.lastKey,
+    `painted ${scrollBefore.painted} → ${scrollHistory.painted}; reached ${scrollHistory.oldestPaintedDay}; ${scrollHistory.pending} pending`);
+  await page.locator('[data-table-scroll]').evaluate((el) => { el.scrollTop = 0; });
+
+  const dateFilter = page.locator('select[aria-label="Date range"]');
+  ok('the date filter opens on all available dates', (await dateFilter.inputValue()) === 'all');
+  await dateFilter.selectOption('today');
+  await page.waitForTimeout(400);
   await settleTables();
-  const oneRows = await rowCount();
-  ok('ticking one feed narrows the stream to it', oneRows < allRows && oneRows === (perFeed.technicals || 0),
-    `${allRows} all → ${oneRows} ticked, feed holds ${perFeed.technicals || 0}`);
-  // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
+  const todayRows = await alertDataCount();
+  const todayDays = await page.$$eval('[data-event-day]', (els) => [...new Set(els.map((el) => el.dataset.eventDay))]);
+  // A committed capture can legitimately lag the Indian calendar between scheduled runs. In that
+  // case Today must be an honest empty result, not a reason for this check to demand invented rows.
+  ok('Today only narrows the history without changing the feed', todayRows < allRows && todayDays.every((day) => day === currentAlertDay),
+    `${allRows} history → ${todayRows} today (${todayDays.join(', ')})`);
+  await dateFilter.selectOption('all');
+  await page.waitForTimeout(400);
+  await settleTables();
+  // Use two feeds whose retained snapshots carry history. The coverage chips answer the separate
+  // "looked today?" question, so their current-day figures must not be reused as history totals.
   await page.locator('[data-feed-toggle="insider"]').click();
   await page.waitForTimeout(700);
   await settleTables();
-  const twoRows = await rowCount();
+  const oneRows = await alertDataCount();
+  ok('ticking one feed narrows the stream to it', oneRows > 0 && oneRows < allRows,
+    `${allRows} all → ${oneRows} insider rows`);
+  // Tick a SECOND: the two must ADD, which is what makes it a multi-select rather than a radio.
+  await page.locator('[data-feed-toggle="announcements"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const twoRows = await alertDataCount();
+  // Leave the second feed selected by unticking the first, which measures its full retained count
+  // independently without reaching into collector internals or depending on the capture date.
+  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.waitForTimeout(700);
+  await settleTables();
+  const secondRows = await alertDataCount();
   ok('...and a second tick adds to it rather than replacing it',
-    twoRows === (perFeed.technicals || 0) + (perFeed.insider || 0) && twoRows > oneRows,
-    `${oneRows} + insider ${perFeed.insider || 0} = ${twoRows}`);
+    secondRows > 0 && twoRows === oneRows + secondRows,
+    `${oneRows} insider + ${secondRows} announcements = ${twoRows}`);
   // UNTICKING THE LAST ONE RETURNS TO ALL, never to an empty stream. A reader who has unticked
   // their way to a blank page has no control on screen saying why it is blank, and "nothing today"
   // is a claim this page may not make on the strength of a filter the reader set.
-  await page.locator('[data-feed-toggle="technicals"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('[data-feed-toggle="insider"]').click();
+  await page.locator('[data-feed-toggle="announcements"]').click();
   await page.waitForTimeout(700);
   await settleTables();
   ok('unticking the last feed returns to All rather than emptying the stream',
-    (await rowCount()) === allRows && (await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked')) === 'true',
-    `${await rowCount()} rows back`);
+    (await alertDataCount()) === allRows && (await page.locator('[data-feed-toggle="__all"]').getAttribute('aria-checked')) === 'true',
+    `${await alertDataCount()} rows back`);
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
 
   ok('no legend strip competes with the stream', !/Red — alert/.test(await hostText()));
@@ -1354,8 +1837,8 @@ console.log('\n— daily alerts —');
   // Both directions: dead page below is what was reported, and a table hanging past the fold makes
   // the page scroll as well as the table, which is worse than the gap it was meant to close. The
   // height is MEASURED at runtime rather than written into a `calc()`, because the head above it
-  // is not a fixed size — the chip row wraps with the window, and there are four feeds under a
-  // narrowed scope against five under Universe. A constant was exact on one window and left the
+  // is not a fixed size — the chip row wraps with the window, and there are eight feeds under a
+  // narrowed scope against nine under Universe. A constant was exact on one window and left the
   // table ~110px short on a wider one.
   ok('the stream fills the viewport rather than leaving dead page below it',
     fill && fill.vh - fill.bottom >= 0 && fill.vh - fill.bottom <= 48,
@@ -1372,20 +1855,19 @@ console.log('\n— daily alerts —');
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.waitForTimeout(400);
 
-  // THE TIME COLUMN IS DRIVEN BY THE ROWS, NOT BY THE SCOPE. Only announcements and the market-wide
-  // capture carry a clock, so under a narrowed scope on a day nothing was filed every cell is an em
-  // dash and the column is furniture. Hiding it by SCOPE would have been wrong: all 1,199
-  // announcements in the shipped capture carry a real time, so a book company filing would have had
-  // its timestamp blanked. Asserted as the invariant rather than as "portfolio has no Time column".
+  // DATE IS ALWAYS PRESENT; CLOCK RESOLUTION IS PER ROW. Some feeds publish a minute, others only a
+  // day, and both must remain readable while the history spans many dates.
   for (const sc of ['portfolio', 'universe']) {
     await go(`/#/research/daily-alerts?scope=${sc}`, 4800);
     await settleTables();
     const t = await evalSafe(() => ({
-      hasCol: [...document.querySelectorAll('#content-host thead th')].some((h) => h.innerText.trim() === 'Time'),
-      anyTime: [...document.querySelectorAll('#content-host tbody tr[data-row-key] td:first-child')].some((td) => /\d{1,2}:\d{2}/.test(td.innerText)),
+      hasCol: [...document.querySelectorAll('#content-host thead th')].some((h) => /^Date \/ time/i.test(h.innerText.trim())),
+      rows: [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].length,
+      dated: [...document.querySelectorAll('#content-host [data-event-day]')].filter((el) => /^\d{4}-\d{2}-\d{2}$/.test(el.dataset.eventDay || '')).length,
+      resolution: [...document.querySelectorAll('#content-host [data-event-day]')].every((el) => /\d{2}:\d{2} IST|Day only/.test(el.innerText)),
     }));
-    ok(`the Time column appears exactly when a row in scope has one (${sc})`, t.hasCol === t.anyTime,
-      `column=${t.hasCol} rows-with-a-time=${t.anyTime}`);
+    ok(`every historical row states its date and time resolution (${sc})`, t.hasCol && t.rows > 0 && t.dated === t.rows && t.resolution,
+      `column=${t.hasCol} dated=${t.dated}/${t.rows} resolution=${t.resolution}`);
   }
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
   await settleTables();
@@ -1401,7 +1883,7 @@ console.log('\n— daily alerts —');
     embeddedFill ? `table ends ${embeddedFill.vh - embeddedFill.bottom}px above the fold, ${embeddedFill.height}px tall` : 'no scroll container');
   await page.setViewportSize({ width: 1440, height: 1100 });
 
-  // THE NEWS TIME, ASSERTED AT THE RULE. Daily Alerts read it off `raw.page_age`, and `raw` is
+  // THE NEWS TIME, ASSERTED AT THE RULE. General Alerts read it off `raw.page_age`, and `raw` is
   // stripped before the snapshot is written — so it was present on a live walk and absent on every
   // row that came from the file, which is all of them. It reads `publishedAt` now, a first-class
   // field that survives the strip. That field only reaches the committed capture once the Worker
@@ -1423,17 +1905,14 @@ console.log('\n— daily alerts —');
   ok('...and a day-only value stays null rather than becoming midnight',
     instants.dayOnly === null && instants.bseDay === null && instants.human === null && instants.missing === null,
     `day=${instants.dayOnly} bse=${instants.bseDay} human=${instants.human}`);
-  // The pill reads GENERAL, not UPDATE. `severity` stays `update` in the data — the label is what
-  // the reader sees, and renaming the key would be a data change dressed as a wording change.
-  // CASE-INSENSITIVE, because the pill is uppercased by CSS and `innerText` returns the source
-  // text. Matching the rendered look found nothing at all and reported "0 rows" — a check written
-  // against the screenshot rather than the DOM, which is a pass waiting to happen the day the word
-  // changes back.
-  const signals = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
-    rows.map((r) => (r.innerText.match(/\b(alert|general|update)\b/i) || [])[1]).filter(Boolean).map((x) => x.toLowerCase()));
-  ok('a non-alert row is signalled General, never Update',
-    signals.length > 0 && signals.every((x) => x === 'general' || x === 'alert') && !signals.includes('update'),
-    `${signals.length} rows: ${[...new Set(signals)].join(', ')}`);
+  const badges = await page.$$eval('#content-host tbody tr[data-row-key]', (rows) =>
+    rows.map((r) => ({
+      direction: (r.innerText.match(/\b(positive|negative|neutral)\b/i) || [])[1]?.toLowerCase(),
+      importance: (r.innerText.match(/\b(high|low)\b/i) || [])[1]?.toLowerCase(),
+    })));
+  ok('every painted row shows both direction and importance badges',
+    badges.length > 0 && badges.every((x) => ['positive', 'negative', 'neutral'].includes(x.direction) && ['high', 'low'].includes(x.importance)),
+    `${badges.length} rows`);
 
   // ---- a row goes to the SOURCE, not to another tab of ours ----------------------------
   // The reader has already read the headline here; sending them to a tab to find it again is two
@@ -1461,7 +1940,7 @@ console.log('\n— daily alerts —');
     skip('clicking a row opens the source, not another tab of ours', 'no row in the current capture carries a URL');
   } else {
     const hashBefore = page.url();
-    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(3).click();
+    await page.locator('#content-host tbody tr[data-row-key]').first().locator('td').nth(4).click();
     await page.waitForTimeout(800);
     const opened = await evalSafe(() => window.__opened || []);
     ok('clicking a row opens the source, not another tab of ours',
@@ -1469,12 +1948,9 @@ console.log('\n— daily alerts —');
       `${opened.length} open(s): ${(opened[0] || '(none)').slice(0, 58)} · hash unchanged=${page.url() === hashBefore}`);
   }
   await page.locator('[data-alerts-info]').first().click();
-  await page.waitForTimeout(500);
-  const legendModal = await page.locator('#modal-content').innerText();
-  ok('the legend explains both colours', /Red/.test(legendModal) && /Orange/.test(legendModal) && /What the colours mean/i.test(legendModal));
-  ok('...and says which feeds are never graded', /never red|never graded|always this colour/i.test(legendModal));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the alert-stream status remains popup-free after table interaction',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1489,13 +1965,29 @@ console.log('\n— watchlist scope —');
 {
   await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
 
+  // Ask remains useful in an empty watchlist: its catalog and source-status evidence still explain
+  // what is and is not available, so the shell must not replace it with the generic empty panel.
+  await go('/#/research/ask-research?scope=watchlist', 1200);
+  ok('Ask Research remains available with an empty watchlist',
+    (await page.locator('[data-research-workspace]').count()) === 1 &&
+      (await page.locator('[data-watchlist-empty]').count()) === 0);
+
   // EMPTY IS ITS OWN STATE, answered by the shell for every tab rather than by each tab's "no
   // results match your filters", which would send the reader hunting for a filter to clear.
   await go('/#/research/daily-alerts?scope=watchlist', 1500);
   ok('an empty watchlist gets its own panel, not an empty table', (await page.locator('[data-watchlist-empty]').count()) === 1);
   const emptyText = await hostText();
   ok('...saying there are zero watchlist companies', /zero watchlist companies/i.test(emptyText));
-  ok('...and how to add one', /Universe/.test(emptyText) && /☆/.test(emptyText));
+  const addWatchlist = page.locator('[data-watchlist-add]');
+  ok('...with a direct Add companies to watchlist action',
+    (await addWatchlist.innerText()).trim() === 'Add companies to watchlist');
+  await addWatchlist.click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 3000 });
+  ok('the empty-state action opens the existing editor directly for Watchlist',
+    (await page.locator('[data-scope-editor="watchlist"]').count()) === 1 &&
+      (await page.locator('[data-scope-search]').getAttribute('placeholder'))?.startsWith('Search company'));
+  ok('...without navigating away from the selected Watchlist scope', /scope=watchlist/.test(page.url()));
+  await page.getByRole('button', { name: 'Done' }).click();
   ok('...and it answers every tab, not just this one',
     await (async () => {
       for (const t of ['earnings-hub', 'breakouts', 'corp-announcements']) {
@@ -1606,6 +2098,97 @@ console.log('\n— watchlist scope —');
 }
 
 // ---------------------------------------------------------------------------------------
+// 3f. Editable Portfolio, Watchlist and Universe lists
+//
+// The committed book/universe remain the defaults; edits are a browser-local overlay. The search
+// itself is intercepted here so verification never spends the user's Muns token or calls their
+// production registry.
+// ---------------------------------------------------------------------------------------
+console.log('\n— editable scope lists —');
+{
+  await page.evaluate(() => {
+    localStorage.removeItem('sattva:scope-lists:v1');
+    localStorage.removeItem('sattva:watchlist');
+  });
+  await page.route('**/api/stock-search*', async (route) => {
+    const query = new URL(route.request().url()).searchParams.get('q') || '';
+    const reliance = /relian/i.test(query);
+    const result = reliance
+      ? { ticker: 'RELIANCE', country: 'India', name: 'Reliance Industries Ltd', industry: 'Refineries & Marketing', validTicker: true }
+      : { ticker: 'ALPHACO', country: 'India', name: 'Alpha Company Ltd', industry: 'Industrials', validTicker: true };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, query, totalResults: 1, results: [result] }),
+    });
+  });
+
+  await go('/#/research/insider-trades?scope=portfolio', 1800);
+  ok('the scope control has an editor for the active list', (await page.locator('[data-scope-edit]').count()) === 1);
+  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 4000 });
+  ok('Portfolio opens with the committed 142-company default', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+
+  const listSearch = page.locator('[data-scope-search]');
+  await listSearch.fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('a Muns search result can be added to Portfolio',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '143' &&
+      await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:scope-lists:v1') || '{}').portfolio?.added?.some((e) => e.ticker === 'ALPHACO')));
+  await page.locator('[data-scope-result="0"]').click();
+  ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+
+  await listSearch.fill('IIFL');
+  await page.locator('[data-scope-remove="ticker:IIFL"]').click();
+  ok('a committed Portfolio company can be removed through the local overlay',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
+  await listSearch.fill('');
+  await page.locator('[data-scope-reset]').click();
+  ok('Restore default clears Portfolio edits without rewriting the source file',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await go('/#/research/daily-alerts?scope=watchlist', 900);
+  await page.locator('[data-watchlist-add]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-search]').fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('the empty-state editor adds a company to Watchlist',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '1' &&
+      await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === 'ALPHACO')));
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.waitForTimeout(500);
+  ok('closing the editor repaints an empty Watchlist scope into the newly populated scope',
+    (await page.locator('[data-watchlist-empty]').count()) === 0);
+
+  await go('/#/research/breakouts?scope=universe', 2200);
+  await page.locator('[data-scope-edit]').click();
+  await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 10000 });
+  const universeBefore = Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, ''));
+  await page.locator('[data-scope-search]').fill('ALPHA');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('Universe accepts a company not present in the committed technicals set',
+    Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, '')) === universeBefore + 1);
+  await page.locator('[data-scope-search]').fill('RELIAN');
+  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
+  await page.locator('[data-scope-result="0"]').click();
+  ok('a base Universe company can be excluded from ticker-based feeds', await page.evaluate(async () => {
+    const scope = await import('/js/data/scope.js');
+    return !scope.scopeAllowsTicker('universe', 'RELIANCE');
+  }));
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.unroute('**/api/stock-search*').catch(() => {});
+  await page.evaluate(() => {
+    localStorage.removeItem('sattva:scope-lists:v1');
+    localStorage.removeItem('sattva:watchlist');
+  });
+}
+
+// ---------------------------------------------------------------------------------------
 // 3c. A sub-view's controls must not MOVE when you change sub-view
 //
 // They did: the Earnings Hub's chip row lived in sectionHead's `meta` slot, which is one half of
@@ -1660,9 +2243,8 @@ const ehDrillOpen = await page.evaluate(() => {
   return !!d && d.classList.contains('translate-x-0');
 });
 ok('...and clicking one opens no drill', !ehDrillOpen);
-// The provenance the drill used to carry has to still be reachable, or this is just deletion.
-// It lives behind the Live pill — verified above — which is one click from anywhere on the page.
-ok('...because the provenance moved to the Live pill', (await page.locator('[data-live-info]').count()) === 1);
+// The passive Live label stays visible, but it no longer acts as a route to an explainer dialog.
+ok('...and keeps one passive Live status label', (await page.locator('[data-live-info]').count()) === 1);
 
 // The drill itself still has to work where it IS used. Breakouts is the reference consumer: a
 // scored row with per-rule provenance behind it.
@@ -1779,11 +2361,8 @@ console.log('\n— breakouts: default view and filters —');
 // most of it was already on screen a few pixels lower — "Breakout candidates 21 of 586" is the
 // line under the chip bar, and "Strong breakouts 0" is the count on the Strong chip itself.
 //
-// So it went the way the Earnings Hub's strip and Portfolio's four-line block went, and the rule
-// that survives is the same one: DECLUTTERING A PAGE IS FINE, DELETING ITS ACCOUNTABILITY IS NOT.
-// Which is why the checks come in pairs — the cards are gone AND the modal behind the pill still
-// carries the capture time, the source and every figure they printed. A check that only asserted
-// their removal would pass just as happily for a change that threw the provenance away.
+// So it went the way the Earnings Hub's strip and Portfolio's four-line block went: a compact,
+// passive status label remains while the explanatory popup is removed.
 //
 // The green is the other half. "A green Live is a claim about data and may not be painted
 // unconditionally" is in CLAUDE.md because the header once had a chip reading "just now" whether
@@ -1850,33 +2429,18 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
   ok('the half-mock sub-view is amber instead, and says so on the chip itself',
     es.amber && !es.green && /mock/i.test(es.face), `"${es.face}"`);
 
-  // THE ACCOUNTABILITY HALF. Removing the cards is only correct if what they said is still one
-  // click away.
+  // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
   await page.locator('#content-host [data-live-info]').click();
   await page.waitForTimeout(500);
-  const modal = await page.evaluate(() => {
-    const c = document.getElementById('modal-content');
-    return {
-      open: !document.getElementById('modal-overlay').classList.contains('hidden'),
-      text: (c?.innerText || '').replace(/\s+/g, ' '),
-    };
-  });
-  ok('clicking the pill opens the provenance modal', modal.open && modal.text.length > 200);
-  ok('...which still names the source and the capture time',
-    /Yahoo Finance/i.test(modal.text) && /captured/i.test(modal.text) && /IST/.test(modal.text));
-  ok('...and still carries every figure the four cards printed',
-    /breakout candidates/i.test(modal.text) && /strong breakouts/i.test(modal.text) && /filters active/i.test(modal.text),
-    modal.text.slice(0, 160));
-  ok('...and the help the card\'s "?" used to open',
-    /how breakout quality is graded/i.test(modal.text) && /tight base/i.test(modal.text));
+  ok('clicking a Breakouts status label opens no provenance popup',
+    (await page.locator('#content-host [data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   // THE QUALITY COLUMN IS GONE AND THE RANKING IS THE SCORE. It used to lead on quality and break
   // ties on the score, which put a "Weak base" above a stronger-scoring row — readable while the
   // Quality column was on screen to explain it, and unreadable the moment it came off. Quality is
   // still what the chips select on: it decides WHICH rows are here, the score decides their order.
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
   await settleTables();
   const bo = await evalSafe(() => ({
     heads: [...document.querySelectorAll('#content-host thead th')].map((h) => h.innerText.trim()),
@@ -2056,18 +2620,28 @@ await go('/#/research/earnings-hub?scope=universe', 1800);
 console.log('\n— provenance —');
 await go('/#/research/earnings-hub?scope=universe', 1800);
 ok('the tab renders without a sub-view in the URL', (await rowCount()) > 1000);
+ok('the Earnings view does not print the upstream publisher name', !/money\s*control/i.test(await hostText()));
 // The coverage note and the roadmap card were removed from this tab deliberately — one table,
-// nothing under it. The dash rule they carried lives in the Live pill's modal, checked above.
+// nothing under it. The passive status label must not reintroduce an explainer modal.
 ok('no roadmap placeholder under the table', !/wiring roadmap/i.test(await hostText()));
 ok('...and no coverage paragraph either', !/resolved to an NSE ticker/i.test(await hostText()));
 
-// The Sources button is gone from the header; the provenance it opened is not. The status pill
-// carries it now — freshness and provenance are one question — and the rule that survives is that
-// it stays reachable from every screen.
+// The header status is passive; clicking it must never cover the current task with an explainer.
 await page.locator('[data-status-pill]').first().click();
-await page.waitForTimeout(600);
-const sources = await page.locator('#modal-content').innerText();
-ok('Sources modal lists the live Moneycontrol feed', /moneycontrol/i.test(sources) && /rapid results/i.test(sources));
+await page.waitForTimeout(200);
+ok('the global Live status opens no sources popup',
+  (await page.locator('[data-status-pill]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+
+// The source registry remains data-driven even though it is no longer rendered as a popup.
+const sources = await page.evaluate(async () => {
+  const { sourcesModalHtml } = await import('/js/ui/sources.js');
+  const el = document.createElement('div');
+  el.innerHTML = sourcesModalHtml();
+  return el.innerText;
+});
+ok('the source registry lists the live published-results feed without naming the provider',
+  /live published-results feed/i.test(sources) && !/money\s*control/i.test(sources));
 ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
 
 // NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
@@ -2089,7 +2663,6 @@ if (srcLive.reported > 0) {
 }
 // A count that cannot be read must LOSE ITS CLAUSE, not print a zero or a leftover fragment.
 ok('no source describes itself with a zero count', !/\b0 (companies|holdings|lines|in the current pull)/.test(sources), (sources.match(/\b0 \w+/) || [''])[0]);
-await page.keyboard.press('Escape');
 
 // ---------------------------------------------------------------------------------------
 // 6. Export — the workbook must carry its own provenance
@@ -2227,18 +2800,9 @@ ok('analysed rows carry a summary link', csLink.n > 100, `${csLink.n} links`);
 ok('...on the document route, which needs no period', /\/document\/[^/]+\.pdf$/.test(csLink.sample), csLink.sample);
 ok('...never on the company route, which does', !/\/company\//.test(csLink.sample), csLink.sample);
 
-// The attribution the drill used to carry has to still be reachable, or this is just deletion.
-// It lives behind the Live pill — the same resolution the Earnings Hub took. The provider's BRAND
-// is deliberately absent from every customer-facing surface, so the pair is asserted together:
-// the disclaimer everywhere, the trade name nowhere.
-await page.locator('[data-cs-info]').first().click();
-await page.waitForTimeout(600);
-const csProv = await page.locator('#modal-content').innerText();
-ok('the Live pill attributes the score to a third party', /third-party|provider/i.test(csProv) && /not this dashboard/i.test(csProv));
-ok('...without printing the provider\'s brand', !/stockscans/i.test(csProv), csProv.match(/StockScans/i)?.[0] || '');
-ok('...and quotes their bands rather than inventing any', /80\+ Excellent/.test(csProv));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(400);
+// The scan table needs no extra schedule or feed-status chips competing with its controls.
+ok('the Con-call header omits Upcoming Concalls and Live/call-count chips',
+  (await page.locator('[data-cs-info], [data-open-schedule]').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
 // 6c. The schedule, as an overlay — "Upcoming Concalls"
@@ -2247,6 +2811,7 @@ await page.waitForTimeout(400);
 // The checks that matter: it groups by DATE, marks today, collapses a long day behind "+N more"
 // that actually expands, and searches across every day rather than only the visible ones.
 // ---------------------------------------------------------------------------------------
+if (await page.locator('[data-open-schedule]').count()) {
 await page.locator('[data-open-schedule]').click();
 await page.waitForTimeout(600);
 const calModal = () => page.locator('#modal-content');
@@ -2325,6 +2890,7 @@ ok('schedule times are 12-hour IST, as the provider prints them', /\b\d{1,2}:\d{
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 ok('ESC closes the schedule overlay', (await page.locator('#modal-overlay.is-open').count()) === 0);
+}
 
 // ---------------------------------------------------------------------------------------
 // 6d. The Deep Dive column — triggering someone else's pipeline
@@ -2614,7 +3180,12 @@ const chatterState = await evalSafe(async () => {
     generatedAt: m?.generatedAt || null,
     ageSeconds: m?.ageSeconds ?? null,
     tables: host.querySelectorAll('[data-table-scroll]').length,
+    statCards: host.querySelectorAll('.stat-card').length,
+    footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     headings: [...host.querySelectorAll('h2')].map((h) => h.textContent.trim()),
+    tabs: [...host.querySelectorAll('[data-chatter-section-tabs] [role="tab"]')].map((b) => b.textContent.trim()),
+    selectedTab: host.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.textContent?.trim() || '',
+    panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
     resolvedSample: c.companies().slice(0, 5).map((r) => `${r.slug}->${r.ticker}`),
     unresolvedAllNull: c.uncovered().every((r) => r.ticker === null && !!r.unresolvedReason),
   };
@@ -2631,11 +3202,20 @@ if (!chatterState.ok) {
   ok('the chatter feed is live', chatterState.total > 0, `${chatterState.total} entries`);
   ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,
     `${chatterState.companies} covered + ${chatterState.uncovered} not = ${chatterState.total}`);
-  ok('...rendered as two tables in one view', chatterState.tables === 2, `${chatterState.tables} tables`);
-  ok('...the second section says it is about OUR coverage', /not in our coverage/i.test(chatterState.headings.join(' ')), chatterState.headings.join(' · '));
+  ok('...offers simple Coverage and Not in coverage tabs', chatterState.tabs.join(' | ') === 'Coverage | Not in coverage', chatterState.tabs.join(' | '));
+  ok('...opens on Coverage with only its table visible', chatterState.selectedTab === 'Coverage' && chatterState.panel === 'coverage' && chatterState.tables === 1,
+    `${chatterState.selectedTab} · ${chatterState.panel} · ${chatterState.tables} table(s)`);
+  ok('...with the four summary cards removed', chatterState.statCards === 0, `${chatterState.statCards} stat cards`);
+  ok('...and their coverage, posts, mood and scrape facts retained as footnotes',
+    /Footnotes.*Coverage:.*Posts:.*Market mood:.*Last scrape:/i.test(chatterState.footnotes), chatterState.footnotes);
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+  await page.locator('[data-chatter-live]').click();
+  await page.waitForTimeout(200);
+  ok('the Public Chatter Live label opens no explainer popup',
+    (await page.locator('[data-chatter-live]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE CENTRAL HONESTY CHECK. A mention delta must never be styled like a return: no emerald, no
   // rose, no currency. Those are what make a reader parse it as money.
@@ -2661,13 +3241,117 @@ if (!chatterState.ok) {
   const heads = await evalSafe(() => [...document.querySelectorAll('#content-host thead th')].map((th) => th.textContent.trim()));
   ok('the column says "Mentions", not "Change" or "Return"', heads.some((h) => /mentions/i.test(h)) && !heads.some((h) => /\breturn\b|\bprice\b/i.test(h)), heads.join(' | '));
 
+  const visibleChatterSentiments = async () => evalSafe(() => {
+    const table = document.querySelector('#content-host [data-chatter-panel] table');
+    const headings = [...(table?.querySelectorAll('thead th') || [])].map((th) => th.textContent.trim().toLowerCase());
+    const sentimentIndex = headings.findIndex((heading) => heading === 'sentiment');
+    if (!table || sentimentIndex < 0) return [];
+    return [...table.querySelectorAll('tbody tr')]
+      .map((tr) => tr.querySelectorAll('td')[sentimentIndex]?.textContent?.trim().toLowerCase() || '')
+      .filter(Boolean);
+  });
+
+  const coverageSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
+  await coverageSentiment.selectOption('bullish');
+  await page.waitForTimeout(150);
+  const coverageBullishRows = await visibleChatterSentiments();
+  ok('Coverage Bullish selector shows only bullish companies in its table',
+    coverageBullishRows.length > 0 && coverageBullishRows.every((sentiment) => sentiment === 'bullish'),
+    coverageBullishRows.join(' | '));
+
+  await page.locator('[data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
+  await page.waitForTimeout(300);
+  const notCoveredTab = await evalSafe(() => {
+    const host = document.querySelector('#content-host');
+    return {
+      panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
+      selected: host.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.textContent?.trim() || '',
+      tables: host.querySelectorAll('[data-table-scroll]').length,
+      rows: host.querySelectorAll('tbody tr').length,
+      mostDiscussed: /Most discussed/i.test(host.textContent || ''),
+      footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent || '',
+    };
+  });
+  ok('Not in coverage replaces the covered-company view with its own table',
+    notCoveredTab.panel === 'not-in-coverage' && notCoveredTab.selected === 'Not in coverage' && notCoveredTab.tables === 1 && notCoveredTab.rows > 0,
+    `${notCoveredTab.selected} · ${notCoveredTab.tables} table · ${notCoveredTab.rows} rows`);
+  ok('...does not repeat the Most Discussed ranking', !notCoveredTab.mostDiscussed);
+  ok('...and retains the shared footnotes', /Coverage:.*Posts:.*Market mood:.*Last scrape:/is.test(notCoveredTab.footnotes));
+
+  const mentionTarget = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    const row = c.uncovered()[0];
+    return { slug: row.slug, name: row.name, mentions: row.mentions };
+  });
+  ok('every Not in coverage row makes its mention count visibly clickable',
+    (await page.locator('#content-host [data-chatter-mentions-trigger]').count()) === notCoveredTab.rows,
+    `${await page.locator('#content-host [data-chatter-mentions-trigger]').count()} of ${notCoveredTab.rows}`);
+  await page.locator(`#content-host tr[data-row-key="${mentionTarget.slug}"]`).click();
+  await page.locator('[data-chatter-mention-row]').first().waitFor({ state: 'visible' });
+  const mentionDetail = await evalSafe(() => {
+    const modal = document.querySelector('#modal-content [data-chatter-mentions-dialog]');
+    const rows = [...(modal?.querySelectorAll('[data-chatter-mention-row]') || [])];
+    const links = [...(modal?.querySelectorAll('[data-chatter-mention-link]') || [])];
+    const count = modal?.querySelector('[data-chatter-mention-total]');
+    const detailTotal = Number(count?.dataset.detailTotal);
+    const snapshotTotal = Number(count?.dataset.snapshotTotal);
+    return {
+      heading: modal?.querySelector('h2')?.textContent?.trim() || '',
+      slug: modal?.dataset.chatterSlug || '',
+      rows: rows.length,
+      detailTotal,
+      snapshotTotal,
+      changedIsNamed: detailTotal === snapshotTotal || /changed since/i.test(count?.textContent || ''),
+      links: links.length,
+      safeLinks: links.every((a) => /^https?:\/\//.test(a.href) && a.target === '_blank' && /noopener/.test(a.rel)),
+      shortExcerpts: rows.every((row) => (row.querySelector('p')?.textContent?.trim().split(/\s+/).length || 0) <= 25),
+    };
+  });
+  ok('clicking a company opens every mention currently returned by the detail feed',
+    mentionDetail.heading === mentionTarget.name && mentionDetail.slug === mentionTarget.slug && mentionDetail.rows === mentionDetail.detailTotal,
+    `${mentionDetail.heading} · ${mentionDetail.rows} detail rows · snapshot ${mentionTarget.mentions}`);
+  ok('a detail count that moved since the dashboard snapshot is named, not shown as missing rows', mentionDetail.changedIsNamed,
+    `${mentionDetail.snapshotTotal} snapshot · ${mentionDetail.detailTotal} detail`);
+  ok('every returned mention has a direct, safely opened source link',
+    mentionDetail.links === mentionDetail.rows && mentionDetail.safeLinks,
+    `${mentionDetail.links} links for ${mentionDetail.rows} mentions`);
+  ok('the popup shows only short excerpts rather than copying full posts', mentionDetail.shortExcerpts);
+  await page.locator('#modal-content [data-modal-close]').click();
+
+  const uncoveredSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
+  await uncoveredSentiment.selectOption('bullish');
+  await page.waitForTimeout(150);
+  const uncoveredBullishRows = await visibleChatterSentiments();
+  ok('Not in coverage owns a Bullish selector that shows only bullish companies in its table',
+    uncoveredBullishRows.length > 0 && uncoveredBullishRows.every((sentiment) => sentiment === 'bullish'),
+    uncoveredBullishRows.join(' | '));
+
+  await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').click();
+  await page.waitForTimeout(300);
+  ok('returning to Coverage restores its selected tab',
+    await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').getAttribute('aria-selected') === 'true');
+  const restoredCoverageSentiments = await visibleChatterSentiments();
+  ok('...and restores Coverage\'s own Bullish filter state',
+    await page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]').inputValue() === 'bullish' &&
+      restoredCoverageSentiments.length > 0 && restoredCoverageSentiments.every((sentiment) => sentiment === 'bullish'),
+    restoredCoverageSentiments.join(' | '));
+  await page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]').selectOption('all');
+
   // Scope. The covered half narrows to the book; the uncovered half cannot and must not pretend to.
   await go('/#/research/public-chatter?scope=portfolio', 5000);
   const scoped = await evalSafe(async () => {
     const c = await import('/js/data/chatter-live.js');
-    return { covered: c.forScope('portfolio').length, uncovered: c.uncovered().length, all: c.companies().length };
+    return {
+      covered: c.forScope('portfolio').length,
+      uncovered: c.uncovered().length,
+      all: c.companies().length,
+      window: c.meta()?.window || '30d',
+      text: document.querySelector('#content-host')?.textContent || '',
+    };
   });
   ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
+  ok('...and labels the overlap in short, customer-facing language',
+    scoped.text.includes(`Portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
   ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
     `${scoped.uncovered} rows in both scopes`);
 
@@ -2881,15 +3565,12 @@ if (filedData) {
   // A row awaiting its filing shows a dash for the percentage and says WHY in the change column —
   // Trendlyne's own label. A zero there would report a live position as sold.
   ok('...and a holding awaiting its filing says so rather than showing zero', filedData.awaiting === 0 || /Filing Awaited/i.test(inst));
-  // The paragraph that used to spell this out under the table is gone; the explanation moved into
-  // the pill's modal, where "what does this number mean" already lived. The check follows it —
-  // asserting the prose is still on screen would be asserting the layout, not the disclosure.
+  // The disclosure chip is now a passive label rather than a verbose explainer trigger.
   await page.locator('[data-filed-info]').first().click();
-  await page.waitForTimeout(500);
-  const dashProv = await page.locator('#modal-content').innerText();
-  ok('...and the provenance modal explains what the dash means', /not filed/i.test(dashProv) && /(never sold|as sold|still held)/i.test(dashProv));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the Filed label opens no explainer popup',
+    (await page.locator('[data-filed-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // THE COLUMN SET IS TRENDLYNE'S: Stock, Holding Value, Qty Held, the latest quarter's change and
   // holding percentage, then the eight prior quarters. Thirteen columns, every one sortable.
@@ -2927,12 +3608,8 @@ if (filedData) {
   ok('the thirteen columns fit at 1440 with no scrollbar of their own', filedFit.over <= 0, `${filedFit.over}px over`);
   ok('...and the page never scrolls sideways', filedFit.page <= 0, `${filedFit.page}px`);
 
-  await page.locator('[data-filed-info]').click();
-  await page.waitForTimeout(500);
-  const prov = await page.locator('#modal-content').innerText();
-  ok('the Filed pill explains which numbers are filings', /filing/i.test(prov) && /derivation/i.test(prov));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  ok('the Filed label still names the disclosure on its face',
+    /Filed/i.test(await page.locator('[data-filed-info]').innerText()));
 } else {
   skip('the filed-holdings file loads', 'public/data/institution-holdings.json is not present');
 }
@@ -3091,14 +3768,109 @@ ok('...and separates the AMC\'s figures from the one we compute', /only figure c
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 
-// THE PROVENANCE MODAL, which is where the two disclosures are set against each other.
+// The AMC disclosure label is also passive; the table and drill retain the useful distinctions.
 await page.locator('[data-filed-info]').first().click();
-await page.waitForTimeout(500);
-const amcProv = await page.locator('#modal-content').innerText();
-ok('the Disclosed pill contrasts % to NAV with a shareholding percentage', /% to NAV/i.test(amcProv) && /how much of the company/i.test(amcProv));
-ok('...and says the value is published rather than derived', /published rather than derived/i.test(amcProv));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.waitForTimeout(200);
+ok('the Disclosed label opens no explainer popup',
+  /Disclosed/i.test(await page.locator('[data-filed-info]').innerText()) &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+
+// ---------------------------------------------------------------------------------------
+// 9b-iii. QUARTERLY CHANGES ACROSS INSTITUTION BOOKS.
+//
+// This mirrors the Superstar Investors roll-up without crossing the disclosure boundary above:
+// only quarterly shareholding books enter it. Monthly AMC weights remain under All Institutions.
+// Every company row opens the complete quarterly institution detail rather than abbreviating the
+// only name and number a compact card has room for.
+// ---------------------------------------------------------------------------------------
+await go('/#/research/super-investors/institutions?scope=universe', 2200);
+await waitForPanel();
+const institutionSectionTabs = await page.locator('#content-host [data-filed-section-tabs] [role="tab"]').allTextContents();
+ok('Institutions contains All Institutions and Quarterly Changes tabs',
+  institutionSectionTabs.map((s) => s.trim()).join('|') === 'All Institutions|Quarterly Changes', institutionSectionTabs.join(' | '));
+await page.locator('#content-host [data-filed-section-tabs] [data-tab-id="quarterly-changes"]').click();
+await page.waitForTimeout(450);
+
+const institutionQuarter = await page.evaluate(async () => {
+  const m = await import('/js/data/institution-holdings.js');
+  const q = m.quarterlySummary();
+  const expected = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
+  const quarterly = m.all().filter((f) => f.disclosure === 'shareholding');
+  let awaiting = 0;
+  for (const f of quarterly) {
+    const [latest, prior] = f.periods;
+    for (const h of [...f.holdings, ...f.former]) {
+      const now = h.pctByPeriod[latest];
+      const before = h.pctByPeriod[prior];
+      if (h.changeNote === 'Filing Awaited' && now == null) {
+        awaiting++;
+        continue;
+      }
+      if (now == null && before == null) continue;
+      if (before == null) expected.new++;
+      else if (now == null) expected.exited++;
+      else if (now > before) expected.added++;
+      else if (now < before) expected.trimmed++;
+      else expected.held++;
+    }
+  }
+  const first = q.newEntrants[0] || q.topAdds[0] || q.topTrims[0] || q.exits[0] || null;
+  const details = first ? m.quarterlyCompany(first.key) : [];
+  return {
+    counts: q.counts,
+    expected,
+    quarterlyBooks: quarterly.length,
+    allBooks: m.all().length,
+    comparableBooks: q.comparableBooks,
+    awaiting,
+    waitingMisclassified: q.exits.filter((r) => r.note === 'Filing Awaited').length,
+    first: first ? { key: first.key, name: first.company } : null,
+    details: details.map((d) => ({ institution: d.institution, action: d.action, now: d.now, before: d.before, valueCr: d.valueCr, qty: d.qty })),
+  };
+});
+
+ok('Institution Quarterly Changes replaces the fund table in the same sub-view',
+  (await page.locator('#content-host [data-filed-panel="quarterly-changes"]').count()) === 1 &&
+    (await page.locator('#content-host [data-institution-quarter-summary]').count()) === 1 &&
+    (await page.locator('#content-host [data-table-scroll]').count()) === 0);
+ok('...rolls up the filed latest/prior quarter exactly',
+  JSON.stringify(institutionQuarter.counts) === JSON.stringify(institutionQuarter.expected),
+  `${JSON.stringify(institutionQuarter.counts)} vs ${JSON.stringify(institutionQuarter.expected)}`);
+ok('...includes quarterly institution books and excludes monthly AMC portfolios',
+  institutionQuarter.quarterlyBooks > 0 && institutionQuarter.comparableBooks === institutionQuarter.quarterlyBooks && institutionQuarter.allBooks > institutionQuarter.quarterlyBooks,
+  `${institutionQuarter.comparableBooks} quarterly of ${institutionQuarter.allBooks} total`);
+ok('...never turns Filing Awaited into no longer disclosed',
+  institutionQuarter.awaiting > 0 && institutionQuarter.waitingMisclassified === 0,
+  `${institutionQuarter.awaiting} awaiting, ${institutionQuarter.waitingMisclassified} misclassified`);
+
+const institutionPanels = await page.locator('#content-host [data-institution-quarter-summary] [data-ranked-list]').count();
+const institutionRows = await page.locator('#content-host [data-institution-quarter-summary] [data-ranked-idx]').count();
+const institutionButtons = await page.locator('#content-host [data-institution-quarter-summary] button[data-ranked-idx]').count();
+ok('the institution quarter uses the same six actionable change panels', institutionPanels === 6, `${institutionPanels} panels`);
+ok('every visible institution company is a clickable detail control', institutionRows > 0 && institutionButtons === institutionRows, `${institutionButtons} of ${institutionRows}`);
+
+if (institutionQuarter.first) {
+  await page.locator('#content-host [data-institution-quarter-summary] button[data-ranked-idx]').filter({ hasText: institutionQuarter.first.name }).first().click();
+  await page.waitForTimeout(450);
+  const modal = await page.locator('#modal-content').innerText();
+  const detailHeads = (await page.locator('#modal-content thead th').allTextContents()).map((s) => s.replace(/\s+/g, ' ').trim());
+  const detailRows = await page.locator('#modal-content [data-company-institution-row]').count();
+  ok('clicking an institution company opens its cross-institution popup',
+    (await page.locator('#modal-content [data-company-institution-detail]').count()) === 1 && modal.includes(institutionQuarter.first.name));
+  ok('...names every relevant quarterly institution book',
+    detailRows === institutionQuarter.details.length && institutionQuarter.details.every((d) => modal.includes(d.institution)),
+    `${detailRows} rendered vs ${institutionQuarter.details.length} expected`);
+  for (const want of ['Institution', 'Status', 'Previous stake', 'Current stake', 'Change (derived)', 'Current value (Trendlyne)', 'Shares held']) {
+    ok(`institution company popup column: ${want}`, detailHeads.includes(want), detailHeads.join(' | '));
+  }
+  ok('...shows filed stake, Trendlyne value and share count without calling either a trade size',
+    /Trendlyne's derivation, not an amount bought or sold/i.test(modal) &&
+      institutionQuarter.details.some((d) => d.now != null && modal.includes(`${d.now.toFixed(1)}%`)) &&
+      institutionQuarter.details.some((d) => d.valueCr != null) &&
+      institutionQuarter.details.some((d) => d.qty != null));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+}
 
 // ---------------------------------------------------------------------------------------
 // 9c. Superstar Investors — REAL filed books, off Ticker Finology, behind a credential.
@@ -3155,14 +3927,12 @@ const siProbe = await page.evaluate(async () => {
 
 if (siProbe.state === 'no-route') {
   // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
-  // route at all. This check used to assert the view said it needed the Worker, and that was the
-  // right assertion when nothing else could answer; now the honest outcome is the snapshot,
-  // labelled as such. Only a deployment with neither falls back to naming the missing route.
+  // route at all. Only a deployment with neither falls back to naming the missing route.
   const noWorker = await hostText();
   const fromFile = await page.locator('[data-open-investor]').count();
   ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
-    fromFile > 0 ? /Captured/.test(noWorker) : /needs the Worker/i.test(noWorker),
-    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the missing route');
+    fromFile > 0 || /needs the Worker/i.test(noWorker),
+    fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the missing route');
   skip('the live investor books render', 'no /api/super-investors on this origin');
 } else if (siProbe.state === 'error') {
   // AN UNREACHABLE LIVE ROUTE IS NOT AN EMPTY VIEW — the committed snapshot is a static file and
@@ -3170,15 +3940,15 @@ if (siProbe.state === 'no-route') {
   // which was right when nothing else could answer and became wrong the day the snapshot shipped:
   // running against `wrangler dev` with no MUNS_TOKEN is the first configuration that reaches it
   // WITH a snapshot present, and it reported the good fallback as a failure. Same resolution as
-  // the no-route branch above: with a snapshot the outcome is the snapshot, labelled `Captured`;
-  // only a deployment with neither falls through to naming the reason.
+  // the no-route branch above: with a snapshot the outcome is the snapshot; only a deployment with
+  // neither falls through to naming the reason.
   const errText = await hostText();
   const fromFile = await page.locator('[data-open-investor]').count();
   ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
     fromFile > 0
-      ? /Captured/.test(errText)
+      ? true
       : /token|could not be reached|returned an error|unreadable|does not have the super-investor endpoints|did not answer in time/i.test(errText),
-    fromFile > 0 ? `${fromFile} investors from the snapshot, labelled Captured` : 'no snapshot — the view names the reason');
+    fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the reason');
   // A 404 on the LIST route means the endpoint is absent, not that an investor is missing. The two
   // were once conflated, and the panel said "No such investor" while the real problem was that the
   // backend had never shipped the route — a diagnosis that sent the search in the wrong direction.
@@ -3193,14 +3963,19 @@ if (siProbe.state === 'no-route') {
 
   const cards = await page.locator('[data-open-investor]').count();
   ok('an investor card renders for every investor in their list', cards === siProbe.count, `${cards} cards for ${siProbe.count} investors`);
+  ok('All Investors keeps the directory separate from the disclosed-positions table',
+    (await page.locator('#content-host [data-live-panel="investors"] [data-table-scroll]').count()) === 0 &&
+      (await page.locator('#content-host tr[data-row-key]').count()) === 0);
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+  await page.waitForSelector('#content-host [data-live-panel="data-table"] [data-table-scroll]');
+  await settleTables();
 
   // NO STAT STRIP AT ALL NOW. It was three cards: investors tracked, combined book value, and a
   // "58 new · 400 exits" count. Two described the FEED rather than answering anything a reader
   // came for, and the third was a pair of numbers with no names attached — so the only way to act
   // on it was to open ninety books, which is the thing this page exists to avoid. The roll-up
-  // below replaced it. What the cards genuinely measured did not go: the combined value moved to
-  // the coverage line under the table, and the book counts are on the Live pill and the loading
-  // strip. Asserted as a pair, so removing the cards AND the figures would fail.
+  // below replaced it. The combined value survives in the Data Table coverage line.
   const strip = await page.evaluate(() => ({
     cards: document.querySelectorAll('#content-host .stat-card').length,
     coverage: (document.querySelector('#content-host')?.innerText || '').replace(/\s+/g, ' '),
@@ -3313,6 +4088,8 @@ if (siProbe.state === 'no-route') {
   else skip('a book that could not be read says so rather than showing as empty', 'every book loaded in this run');
 
   // The workspace: three panels, every API field reachable.
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="investors"]').click();
+  await page.waitForSelector('#content-host [data-open-investor]');
   await page.locator('[data-open-investor]').first().click();
   await page.waitForSelector('#workspace-panel', { timeout: 15000 });
   await page.waitForTimeout(400);
@@ -3360,6 +4137,75 @@ if (siProbe.state === 'no-route') {
   if (!booksLoaded) {
     skip('the cross-book summary renders, with a panel per question', 'no investor book loaded by any path');
   } else {
+  const sectionTabs = await page.evaluate(() => {
+    const host = document.getElementById('content-host');
+    const tabs = [...host.querySelectorAll('[data-live-section-tabs] [role="tab"]')];
+    return {
+      labels: tabs.map((tab) => tab.textContent.trim()),
+      selected: tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent.trim() || null,
+      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
+      cards: host.querySelectorAll('[data-open-investor]').length,
+      summary: !!host.querySelector('[data-quarter-summary]'),
+      table: !!host.querySelector('[data-table-scroll]'),
+    };
+  });
+  ok('Superstar Investors contains All Investors, Quarterly Changes and Data Table tabs in that order',
+    sectionTabs.labels.join('|') === 'All Investors|Quarterly Changes|Data Table', sectionTabs.labels.join(' | '));
+  ok('All Investors is the default in-page tab',
+    sectionTabs.selected === 'All Investors' && sectionTabs.panel === 'investors' && sectionTabs.cards > 0 && !sectionTabs.summary && !sectionTabs.table,
+    JSON.stringify(sectionTabs));
+
+  await page.locator('#content-host [data-open-investor]').first().click();
+  await page.waitForSelector('#workspace-overlay.is-open');
+  const workspaceChrome = await page.evaluate(() => {
+    const header = document.querySelector('#workspace-content > div.sticky');
+    const text = header?.innerText || '';
+    return {
+      sourceSubtitle: /Ticker Finology\s*·/i.test(text),
+      filedBadge: /Filed holdings/i.test(text),
+      externalAction: /Open on Finology/i.test(text) || !!header?.querySelector('a[href*="ticker.finology.in/investor"]'),
+    };
+  });
+  ok('the investor workspace has no source subtitle, filed badge or Finology action',
+    !workspaceChrome.sourceSubtitle && !workspaceChrome.filedBadge && !workspaceChrome.externalAction,
+    JSON.stringify(workspaceChrome));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+  await page.waitForSelector('#content-host [data-live-panel="data-table"] [data-table-scroll]');
+  await settleTables();
+  const dataTable = await page.evaluate(() => {
+    const host = document.getElementById('content-host');
+    return {
+      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
+      heading: /All disclosed positions/i.test(host.innerText),
+      rows: host.querySelectorAll('tr[data-row-key]').length,
+      cards: host.querySelectorAll('[data-open-investor]').length,
+      summary: !!host.querySelector('[data-quarter-summary]'),
+      search: !!host.querySelector('input[placeholder*="Search"]'),
+      filters: host.querySelectorAll('select').length,
+      watchlistButton: [...host.querySelectorAll('button')].some((b) => /Watchlist/i.test(b.innerText)),
+      exportButton: [...host.querySelectorAll('button')].some((b) => /Export Excel/i.test(b.innerText)),
+    };
+  });
+  ok('Data Table owns the complete disclosed-positions table, separate from cards and the quarterly roll-up',
+    dataTable.panel === 'data-table' && dataTable.heading && dataTable.rows > 0 && dataTable.cards === 0 && !dataTable.summary,
+    JSON.stringify(dataTable));
+  ok('Data Table keeps the table search, investor/change filters and export action',
+    dataTable.search && dataTable.filters >= 2 && dataTable.watchlistButton && dataTable.exportButton,
+    JSON.stringify(dataTable));
+  ok('switching to Data Table leaves focus on its selected tab',
+    await page.evaluate(() => document.activeElement?.matches('[data-live-section-tabs] [data-tab-id="data-table"]')));
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
+  await page.waitForSelector('#content-host [data-quarter-summary]');
+  ok('Quarterly Changes replaces the directory in the same Superstar Investors tab',
+    (await page.locator('#content-host [data-live-panel="quarterly-changes"]').count()) === 1 &&
+      (await page.locator('#content-host [data-open-investor]').count()) === 0);
+  ok('switching in-page tabs leaves focus on the selected replacement tab',
+    await page.evaluate(() => document.activeElement?.matches('[data-live-section-tabs] [data-tab-id="quarterly-changes"]')));
+
   // ---------------------------------------------------------------------------------------
   // THE CROSS-BOOK SUMMARY — and the four numbers it refuses to invent
   //
@@ -3450,28 +4296,95 @@ if (siProbe.state === 'no-route') {
   ok('investor names come from the list, not the book\'s SEO page title',
     !summary.suffixed && !summary.tableSuffixed);
 
+  // A compact summary row is a lead, not the answer: "+1" cannot tell the reader who the third
+  // investor was, and one ranked mover says nothing about the other investors holding the same
+  // company. Every visible company therefore opens the complete latest/prior cross-book detail.
+  const companyButtons = page.locator('#content-host [data-quarter-summary] [data-ranked-idx]');
+  const companyButtonCount = await companyButtons.count();
+  ok('every visible Quarterly Changes company is a clickable detail control',
+    companyButtonCount > 0 &&
+      companyButtonCount === (await page.locator('#content-host [data-quarter-summary] [data-ranked-list] .divide-y > *').count()),
+    `${companyButtonCount} company buttons`);
+
+  if (companyButtonCount) {
+    const firstCompanyButton = companyButtons.first();
+    const company = await firstCompanyButton.locator('span.font-semibold').first().innerText();
+    const expectedInvestors = await page.evaluate(async (name) => {
+      const feed = await import('/js/data/super-investors.js');
+      return feed
+        .allHoldings()
+        .filter((r) => r.company === name)
+        .map((r) => {
+          const [latest, prior] = r.quarters || [];
+          return {
+            investor: r.investor,
+            now: latest ? r.quarterlyHoldings[latest] : null,
+            before: prior ? r.quarterlyHoldings[prior] : null,
+          };
+        })
+        .filter((r) => r.now != null || r.before != null)
+        .map((r) => r.investor)
+        .sort();
+    }, company);
+
+    await firstCompanyButton.click();
+    await page.waitForSelector('#modal-overlay.is-open [data-company-investor-detail]');
+    const companyDetail = await page.evaluate(() => {
+      const drill = document.querySelector('#modal-content [data-company-investor-detail]');
+      const headers = [...(drill?.querySelectorAll('th') || [])].map((h) => h.textContent.trim());
+      const rows = [...(drill?.querySelectorAll('[data-company-investor-row]') || [])];
+      return {
+        title: drill?.querySelector('h2')?.innerText.trim() || '',
+        headers,
+        investors: rows.map((r) => r.querySelector('td')?.innerText.trim() || '').sort(),
+        measures: rows.every((r) => r.querySelectorAll('td').length === 6),
+        hasStake: rows.some((r) => /\d+\.\d\d%/.test(r.innerText)),
+        note: (drill?.querySelector('p.mb-4')?.innerText || '').replace(/\s+/g, ' '),
+      };
+    });
+    ok('clicking a company opens its cross-investor popup', companyDetail.title === company, companyDetail.title);
+    ok('the popup lists every relevant superstar investor, not only the shortened card names',
+      JSON.stringify(companyDetail.investors) === JSON.stringify(expectedInvestors),
+      `${companyDetail.investors.length} shown vs ${expectedInvestors.length} expected`);
+    ok('the popup shows status, previous stake, current stake, derived change and current value',
+      companyDetail.measures && companyDetail.hasStake &&
+        companyDetail.headers.join('|') === 'Investor|Status|Previous stake|Current stake|Change (derived)|Current value (Finology)',
+      companyDetail.headers.join(' | '));
+    ok('the popup distinguishes current position value from an amount bought or sold',
+      /not an amount bought or sold/i.test(companyDetail.note) && /not disclosed, not zero/i.test(companyDetail.note),
+      companyDetail.note.slice(0, 150));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+  }
+
   // The summary and the table under it must narrow through ONE predicate. Two predicates over the
-  // same question is what had the filings tabs reporting different sets in two places on a page.
+  // same question is what had the filings tabs reporting different sets in two places. They now
+  // live in separate in-page tabs, so read each panel in turn and compare their complete sets.
   await go('/#/research/super-investors?scope=portfolio', 9000);
   await waitForPanel();
+  ok('the selected in-page tab survives a scope change',
+    (await page.locator('#content-host [data-live-panel="quarterly-changes"]').count()) === 1);
+  const scoped = await page.evaluate(() => {
+    const host = document.getElementById('content-host');
+    const sec = host.querySelector('[data-quarter-summary]');
+    return {
+      head: (sec?.querySelector('p')?.innerText || '').replace(/\s+/g, ' '),
+      names: [...(sec?.querySelectorAll('[data-ranked-list] .divide-y > * span.font-semibold') || [])].map((n) => n.innerText.trim()),
+    };
+  });
+
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
   // The table streams its rows in, so a comparison against it has to wait for the settled set —
   // otherwise a company the summary names could be absent purely because its row had not been
   // appended yet, which would fail for a reason that is not about scope at all.
   await settleTables();
-  const scoped = await page.evaluate(async () => {
-    const feed = await import('/js/data/super-investors.js');
+  const scopedTableText = await page.evaluate(() => {
     const host = document.getElementById('content-host');
-    const sec = host.querySelector('[data-quarter-summary]');
-    const names = [...sec.querySelectorAll('[data-ranked-list] .divide-y > * span.font-semibold')].map((n) => n.innerText.trim());
     // Against the table's whole text rather than a per-row first line — that was the rank cell,
     // so nothing ever matched and the check failed for a reason that had nothing to do with scope.
-    const tableText = [...host.querySelectorAll('tr[data-row-key]')].map((tr) => tr.innerText).join(' | ');
-    return {
-      head: (sec?.querySelector('p')?.innerText || '').replace(/\s+/g, ' '),
-      names,
-      missing: names.filter((n) => !tableText.includes(n)),
-    };
+    return [...host.querySelectorAll('tr[data-row-key]')].map((tr) => tr.innerText).join(' | ');
   });
+  const missing = scoped.names.filter((name) => !scopedTableText.includes(name));
   // `quarterSummary({})` is unscoped by construction, so the scoped head must report FEWER
   // contributing books than the feed has comparable ones — a scope that narrowed nothing would
   // print "87 of 87" here and look identical to a working one.
@@ -3479,10 +4392,18 @@ if (siProbe.state === 'no-route') {
   const comparable = Number(/across ([\d,]+) of ([\d,]+) comparable books/.exec(scoped.head)?.[2]?.replace(/,/g, '') ?? -1);
   ok('a narrowed scope narrows the summary too', contributing > 0 && contributing < comparable, scoped.head.slice(0, 130));
   ok('...and every company it names is one the table below also shows',
-    scoped.names.length > 0 && scoped.missing.length === 0,
-    `${scoped.names.length} named, ${scoped.missing.length} absent from the table${scoped.missing.length ? `: ${scoped.missing.slice(0, 2).join(', ')}` : ''}`);
+    scoped.names.length > 0 && missing.length === 0,
+    `${scoped.names.length} named, ${missing.length} absent from the table${missing.length ? `: ${missing.slice(0, 2).join(', ')}` : ''}`);
   await go('/#/research/super-investors?scope=universe', 9000);
   await waitForPanel();
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
+  await go('/#/research/super-investors/institutions?scope=universe', 2500);
+  await waitForPanel();
+  await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
+  await waitForPanel();
+  ok('returning from Institutions resets the in-page tab to All Investors',
+    (await page.locator('#content-host [data-live-panel="investors"]').count()) === 1 &&
+      (await page.locator('#content-host [data-tab-id="investors"][aria-selected="true"]').count()) === 1);
   }
 }
 
@@ -3634,47 +4555,26 @@ if (siProbe.state === 'live') {
     const painted = await page.evaluate(async () => {
       const m = (await import('/js/data/super-investors.js')).meta();
       return { total: m.total, loaded: m.loadedBooks, origin: m.origin, fromSnapshot: m.fromSnapshot, capturedAt: m.capturedAt,
-        pill: document.querySelector('[data-si-info]')?.innerText.replace(/\s+/g, ' ') || '' };
+        statusTags: document.querySelectorAll('[data-si-info]').length };
     });
     ok('a first visit paints the grid out of it', painted.loaded > painted.total * 0.9, `${painted.loaded} of ${painted.total} books`);
     ok('...with no request per investor', fresh.length < painted.total, `${fresh.length} requests for ${painted.total} investors`);
-    // The speed may not be bought with a freshness claim. Nobody confirmed these bytes in this
-    // session, so the pill may not say "Live" over them — the same rule the filings pills follow.
-    ok('...and the pill says Captured rather than Live', painted.origin === 'snapshot' && /Captured/.test(painted.pill), `origin=${painted.origin} pill="${painted.pill}"`);
+    ok('...and adds no per-view cache/status tag', painted.origin === 'snapshot' && painted.statusTags === 0, `origin=${painted.origin}, tags=${painted.statusTags}`);
   }
 }
 
-// The provenance modal has to say whose numbers these are, on any state.
-await page.locator('[data-si-info]').first().click().catch(() => {});
-await page.waitForTimeout(500);
-if (await page.locator('#modal-overlay.is-open').count()) {
-  const t = await page.locator('#modal-content').innerText();
-  ok('the Live pill says the percentages are filings and the value is theirs', /Not ours/i.test(t) && /Finology's own derivation/i.test(t));
-  ok('...and explains that a blank quarter is not a zero', /not disclosed/i.test(t) && /not zero/i.test(t));
-
-  // THE ESCAPE HATCH FOR THE REVALIDATION SKIP. Not asking is only defensible if the reader can
-  // ask; and because a re-read discards the state while ninety-one requests are still in flight,
-  // what it must not do is leave a failure state on screen for something that has not failed.
-  if (siProbe.state === 'live') {
-    ok('...and offers a re-read, so the six-hour skip is the reader’s to override', /re-read everything now/i.test(t));
-    await page.locator('#modal-content [data-si-reread]').click();
-    await page.waitForTimeout(1200);
-    await page
-      .waitForFunction(async () => (await import('/js/data/super-investors.js')).meta().pending === 0, null, { timeout: 45000 })
-      .catch(() => {});
-    await page.waitForTimeout(600);
-    const afterReread = await hostText();
-    ok('...and a re-read repaints the books rather than an error panel',
-      !/returned an error|could not be reached|No positions are shown/i.test(afterReread) && (await page.locator('[data-open-investor]').count()) > 0,
-      afterReread.slice(0, 70).replace(/\s+/g, ' '));
-  } else {
-    skip('...and offers a re-read, so the six-hour skip is the reader’s to override', `the upstream is ${siProbe.state}`);
-  }
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-} else {
-  skip('the Live pill says the percentages are filings and the value is theirs', 'the feed is unavailable, so there is no pill to open');
-}
+const cleanInvestorChrome = await page.evaluate(() => {
+  const host = document.getElementById('content-host');
+  const text = host?.innerText || '';
+  return {
+    statusTags: host?.querySelectorAll('[data-si-info]').length || 0,
+    scopeTag: /(?:Portfolio|Watchlist|Universe)\s*·\s*[\d,]+\s+investors/i.test(text),
+    loadingStrip: /Reading\s+[\d,]+\s+more\s+books?\s+from\s+Finology/i.test(text),
+  };
+});
+ok('Superstar Investors adds no cache, scope or loading tags',
+  cleanInvestorChrome.statusTags === 0 && !cleanInvestorChrome.scopeTag && !cleanInvestorChrome.loadingStrip,
+  JSON.stringify(cleanInvestorChrome));
 
 // ---------------------------------------------------------------------------------------
 // 10. Scope and exports on both new tabs
@@ -3706,7 +4606,11 @@ await go('/#/research/public-chatter?scope=portfolio', 1500);
   if (!/Portfolio/.test(settled)) ok('...and a failure names the URL it asked for', /https?:\/\//.test(settled));
 }
 await go('/#/research/super-investors/superstar-investors?scope=portfolio', 2500);
-ok('investors portfolio scope labels', /Portfolio/.test(await hostText()));
+ok('investors do not repeat the Portfolio scope as a content tag',
+  !/Portfolio\s*·\s*[\d,]+\s+investors/i.test(await hostText()));
+await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+await page.waitForSelector('#content-host [data-live-panel="data-table"]');
+await settleTables();
 // Either the scope note, or — when the feed is unavailable on this origin — the named reason it
 // is unavailable. What must never happen is an empty panel that explains neither.
 {
@@ -3726,6 +4630,11 @@ for (const [hash, label] of [
   ['/#/research/super-investors/superstar-investors?scope=universe', 'investors'],
 ]) {
   await go(hash, 2500);
+  if (label === 'investors' && (await page.locator('#content-host [data-tab-id="data-table"]').count())) {
+    await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
+    await page.waitForSelector('#content-host [data-live-panel="data-table"]');
+    await settleTables();
+  }
   // A view with no data has no table and therefore no export button — that is the correct
   // behaviour, not a missing feature, so it reports SKIP rather than hanging on a click.
   const btn = page.locator('#content-host button:has-text("Export")').first();
@@ -3737,6 +4646,22 @@ for (const [hash, label] of [
   await btn.click();
   const file = await dl;
   await downloadOrSkip(`${label} export downloads`, file);
+  if (label === 'chatter' && file) {
+    ok('...with a coverage-specific workbook name',
+      /^sattva-public-chatter-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(file.suggestedFilename()),
+      file.suggestedFilename());
+    await page.locator('#content-host [data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
+    await page.waitForSelector('#content-host [data-chatter-panel="not-in-coverage"]');
+    await settleTables();
+    const otherBtn = page.locator('#content-host button:has-text("Export")').first();
+    const otherDl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
+    await otherBtn.click();
+    const otherFile = await otherDl;
+    await downloadOrSkip('not-in-coverage chatter export downloads', otherFile);
+    if (otherFile) ok('...with an uncovered-topic workbook name',
+      /^sattva-public-chatter-not-in-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(otherFile.suggestedFilename()),
+      otherFile.suggestedFilename());
+  }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -3894,8 +4819,7 @@ ok('excluded tickers are named, and coverage is reported', curveChecks.coverage 
 // generator script, the mark's age, the curve's window and the excluded tickers. It was the
 // first thing anyone saw here, above the money, on every view. The Earnings Hub rule applies —
 // decluttering a page is fine, deleting its accountability is not — so what is asserted is the
-// pair: the paragraph is gone from the body, and the CLAIM is still on the face of a pill on
-// every sub-view with the whole paragraph one click behind it.
+// pair: the paragraph is gone from the body, and the claim stays on the face as a passive label.
 // ---------------------------------------------------------------------------------------
 console.log('\n— portfolio: provenance —');
 for (const [route, label] of [
@@ -3914,15 +4838,10 @@ for (const [route, label] of [
 }
 {
   await page.locator('#content-host [data-pf-info]').first().click();
-  await page.waitForTimeout(600);
-  const pfModal = await page.locator('#modal-content').innerText();
-  ok('the pill opens the provenance in full', /gen-mock-transactions/.test(pfModal) && /synthetic/i.test(pfModal));
-  ok('...still separating the invented trades from the real prices', /Every price in it is real/i.test(pfModal));
-  const pfExcluded = await page.evaluate(async () => (await import('/js/data/portfolio.js')).meta()?.excluded?.length || 0);
-  if (pfExcluded) ok('...and still names what the equity curve cannot value', /Excluded from the equity curve/i.test(pfModal));
-  else skip('...and still names what the equity curve cannot value', 'nothing is excluded in this data');
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('the portfolio provenance label opens no explainer popup',
+    (await page.locator('#content-host [data-pf-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -3934,20 +4853,18 @@ console.log('\n— portfolio: no-live-price fallback —');
   const fbErrors = [];
   fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
   await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  // `domcontentloaded`, not `networkidle`, for the same reason `go()` uses it: the Tailwind CDN
-  // request never settles in a sandbox with no egress, so networkidle waits out its full timeout
-  // and takes the run with it. The explicit settle below is what this check actually needs.
+  // `domcontentloaded`, not `networkidle`, because optional external resources and long-lived
+  // requests need not settle. The explicit settle below is what this check actually needs.
   await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
   await fb.waitForTimeout(2200);
   const t = await fb.locator('#content-host').innerText();
-  // The pill's FACE changes in this state, not just the modal behind it: a position shown at
+  // The label's FACE changes in this state: a position shown at
   // cost reports a P&L of exactly zero, and a zero meaning "no price" must not look like a zero
   // meaning "flat". A caveat one click away would not be read in time to stop that.
   ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
   ok('...on the face of the pill, not only inside it', /Marks unavailable/.test(await fb.locator('[data-pf-info]').first().innerText()));
   ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
-  // Ours only. A sandbox with no egress logs "tailwind is not defined" on every page it opens,
-  // and counting that as this fallback throwing would blame the page for the network.
+  // Ours only. Optional external-resource failures are filtered by `ownError` above.
   const fbOwn = fbErrors.filter(ownError);
   ok('...without throwing', fbOwn.length === 0, fbOwn.join(' | ') || `${fbErrors.length - fbOwn.length} CDN error(s) ignored`);
   await fb.close();
@@ -4151,13 +5068,13 @@ console.log('\n— header status and live alerts —');
       styled: getComputedStyle(card).backgroundColor !== 'rgba(0, 0, 0, 0)',
     };
   });
-  // Needs Tailwind: without it the card has no background, so `elementFromPoint` finds whatever is
-  // behind it and the check measures the stylesheet rather than the component.
+  // Needs the compiled stylesheet: without it the card has no background, so `elementFromPoint`
+  // finds whatever is behind it and the check measures the asset rather than the component.
   if (visible.styled) {
     ok('...and is actually painted, not just present at opacity 0', visible.ok && visible.opacity > 0.5,
       `opacity ${visible.opacity}, topmost element at its centre is ${visible.ok ? 'the card' : visible.why}`);
   } else {
-    skip('...and is actually painted, not just present at opacity 0', 'Tailwind CDN unreachable — the card has no background to hit-test');
+    skip('...and is actually painted, not just present at opacity 0', 'compiled stylesheet unavailable — the card has no background to hit-test');
   }
   ok('...the same event never announces twice', alerts.dupeRejected);
   ok('...and the stack is capped rather than unbounded', alerts.cards <= 4, `${alerts.cards} visible after 7 pushes`);
@@ -4168,9 +5085,9 @@ console.log('\n— header status and live alerts —');
   if (Number.isFinite(alerts.z) && Number.isFinite(drillZ) && Number.isFinite(wsZ)) {
     ok('alerts sit BEHIND the drill, the workspace and modals', alerts.z < drillZ && alerts.z < wsZ, `toast z-${alerts.z} < drill z-${drillZ} < workspace z-${wsZ}`);
   } else {
-    // The stacking order lives entirely in Tailwind's z-* utilities, so with the CDN blocked every
-    // one of them computes to `auto`. Reporting that as a failure would be measuring the network.
-    skip('alerts sit BEHIND the drill, the workspace and modals', 'Tailwind CDN unreachable — every z-index computes to auto');
+    // The stacking order lives entirely in Tailwind's z-* utilities, so with the generated asset
+    // missing every one computes to `auto`.
+    skip('alerts sit BEHIND the drill, the workspace and modals', 'compiled stylesheet unavailable — every z-index computes to auto');
   }
 
   // The honesty rules the alert text has to obey. Both are the same failure mode the tables
@@ -4336,18 +5253,25 @@ console.log('\n— news, announcements and insider trades —');
   const chipTitle = (await page.locator('[data-filings-info]').first().getAttribute('title')) || '';
   ok('...and the chip still reaches the denominator, in companies',
     /of the book's [\d,]+ companies/.test(chipTitle), chipTitle.slice(0, 110));
-  // Green `Live` is CONDITIONAL, exactly as the market-news chip's is: it may only appear while the
-  // capture is still the newest the schedule can produce. Asserted against the measured age rather
-  // than assumed, so a chip that went unconditionally green would fail here.
+  // Green `Live` is CONDITIONAL: it may only appear when the capture was made TODAY in India. The
+  // old 72-hour window painted Tuesday green on Wednesday, exactly the stale-day state this label
+  // is supposed to expose.
   const chipState = await evalSafe(async () => {
     const m = (await import('/js/data/filings.js')).news.meta();
+    const refresh = await import('/js/data/company-news-refresh.js');
     const el = document.querySelector('[data-filings-info]');
-    return { age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null, cls: el?.className || '', txt: el?.innerText.trim() || '' };
+    return {
+      age: m.capturedAt ? Date.now() - Date.parse(m.capturedAt) : null,
+      sameDay: refresh.captureIsToday(m.capturedAt),
+      partial: m.failed > 0 || !!m.reason,
+      cls: el?.className || '',
+      txt: el?.innerText.trim() || '',
+    };
   });
-  const chipFresh = chipState.age !== null && chipState.age < 72 * 3600 * 1000;
-  ok('...and its green Live is earned by the capture\u2019s age, not painted unconditionally',
-    chipFresh ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
-    `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} chip="${chipState.txt}"`);
+  const earnsLive = chipState.sameDay && !chipState.partial;
+  ok('...and green Live requires both today\u2019s capture and complete coverage',
+    earnsLive ? /emerald/.test(chipState.cls) : /amber/.test(chipState.cls),
+    `age=${chipState.age === null ? 'none' : Math.round(chipState.age / 3600000) + 'h'} partial=${chipState.partial} chip="${chipState.txt}"`);
 
   // ---- the walk: still one request per company, and only when asked ------------------------
   const picked = (book?.fresh || []).map((b) => b.ticker);
@@ -4358,15 +5282,18 @@ console.log('\n— news, announcements and insider trades —');
     seen.news.length = 0;
     await go('/#/research/news?scope=watchlist', 4000);
     ok('a watchlist of uncaptured companies still sends nothing on load', seen.news.length === 0, `${seen.news.length} request(s)`);
-    // The account lives in the provenance modal now, not in a paragraph under the heading — and so
-    // does the control that acts on it. Both are opened here, which is also what a reader does.
+    // The status label stays passive; the header Refresh control performs the requested walk.
     await page.locator('[data-filings-info]').first().click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
     ok('...and says how many have not been asked about rather than claiming there is no news',
-      /ha(s|ve) not been asked about|were searched/.test(await page.locator('#modal-content').innerText()));
+      /of the \d+ companies you track appear on this feed|Nothing tracked yet/i.test(
+        (await page.locator('[data-filings-info]').getAttribute('title')) || ''
+      ));
+    ok('...and the filings status opens no explainer popup',
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
     seen.news.length = 0;
-    await page.locator('#modal-content [data-filings-refresh]').first().click();
+    await page.locator('[data-header-refresh]').click();
     await page.waitForTimeout(6000);
     const newsUrls = seen.news.map((u) => new URL(u));
     // EXACTLY one each. A walk that leaks an extra request per render is the failure mode here.
@@ -4445,20 +5372,19 @@ console.log('\n— news, announcements and insider trades —');
   ok('...while a narrowed scope gets the per-company table and no market fetch control', await (async () => {
     await go('/#/research/news?scope=portfolio', 4000);
     await settleTables();
-    return (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 && (await page.locator('[data-mcnews-fetch]').count()) === 0;
+    return (await page.locator('#content-host tbody tr[data-row-key]').count()) > 0 &&
+      (await page.locator('[data-mcnews-fetch]').count()) === 0 &&
+      !/money\s*control/i.test(await hostText());
   })());
   await go('/#/research/news?scope=universe', 3500);
 
-  // THE TAB'S CHROME IS ONE CHIP. The freshness card — a button, a sentence about the scheduled
-  // job, a result line — was a lot of furniture above a list whose headlines are the point, so it
-  // went the way the Earnings Hub's ribbon and Portfolio's went: the explanation moved behind a
-  // control that still states the claim. What must NOT have gone with it is the provenance or the
-  // fetch, so both are asserted to be one click away.
+  // The tab keeps one passive status chip and no freshness-card or popup furniture.
   const headText = (await page.locator('#content-host').innerText().catch(() => '')).replace(/\s+/g, ' ');
   ok('the news head carries one small status chip and no freshness card',
     (await page.locator('[data-mcnews-info]').count()) === 1 &&
       (await page.locator('#content-host [data-mcnews-fetch]').count()) === 0 &&
-      !/a scheduled job also reads it/i.test(headText),
+      !/a scheduled job also reads it/i.test(headText) &&
+      !/money\s*control/i.test(headText),
     headText.slice(0, 110));
 
   // "LIVE" IS A CLAIM ABOUT DATA. Green may appear only while the capture really is the newest the
@@ -4480,17 +5406,12 @@ console.log('\n— news, announcements and insider trades —');
     chip.dot && chip.green === shouldBeGreen && (shouldBeGreen ? /^Live$/i.test(chip.text) : !/^Live$/i.test(chip.text)),
     `"${chip.text}" · ${chip.ageMin}m old · ${chip.green ? 'green' : 'amber'}`);
 
-  // Provenance and the fetch must still be reachable — one click, on the chip.
+  // The status chip must not open the removed provenance/fetch popup.
   await page.locator('[data-mcnews-info]').click();
-  await page.waitForTimeout(600);
-  const modal = (await page.locator('#modal-content').innerText().catch(() => '')).replace(/\s+/g, ' ');
-  ok('...and the chip opens the provenance, with the Fetch control inside it',
-    (await page.locator('#modal-content [data-mcnews-fetch]').count()) === 1 &&
-      /Moneycontrol last read/i.test(modal) && /TLS fingerprint/i.test(modal),
-    modal.slice(0, 110));
-  ok('...and no run link or step-by-step prose anywhere', !/watch the run/i.test(modal) && (await page.locator('[data-mcnews-scrape-note]').count()) === 0);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(200);
+  ok('...and the market-news status opens no explainer popup',
+    (await page.locator('[data-mcnews-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // -------------------------------------------------------------------------------------
   // THE UNIVERSE HALF IS AN EDITORIAL LIST, NOT A TABLE — thumbnail, headline, standfirst, in the
@@ -4721,12 +5642,9 @@ console.log('\n— news, announcements and insider trades —');
   ok('...and re-opening it inside the same window dispatches nothing more', secondOpen === 0,
     `${secondOpen} POST(s) on the second open`);
   await page.locator('[data-mcnews-info]').click();
-  await page.waitForTimeout(500);
-  ok('...and the control says it fetches, not that it checks a file',
-    /fetch/i.test(await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '')),
-    (await page.locator('#modal-content [data-mcnews-fetch]').innerText().catch(() => '(missing)')).replace(/\s+/g, ' '));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  ok('...and the reopened status remains popup-free',
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
   // A GET must not be able to start a run: a prefetcher or a link preview would trip it.
   const dispatchGet = await evalSafe(async () => {
@@ -4908,6 +5826,60 @@ console.log('\n— news, announcements and insider trades —');
 
   // The headline IS the row, so it gets the width — but not at the cost of a scrollbar under it.
   await go('/#/research/news?scope=portfolio', 3000);
+
+  // COMPANY NEWS IS A DAILY BULK CAPTURE. Opening the dashboard on yesterday's file dispatches
+  // one dedicated refresh; opening on today's does not. Script the Worker response so this test
+  // never starts a real Action, and disable the long deployment watch — the gate and the request
+  // are what this check owns.
+  const companyNewsAuto = await (async () => {
+    const requests = [];
+    await page.route('**/api/company-news/refresh*', (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true, dispatched: true, workflow: 'company-news-refresh.yml' }),
+      });
+    });
+    const result = await evalSafe(async () => {
+      const mod = await import('/js/data/company-news-refresh.js');
+      const filings = await import('/js/data/filings.js');
+      await filings.news.seed();
+      const capturedAt = filings.news.meta().capturedAt;
+
+      mod.resetForTest();
+      const capturedMs = Date.parse(capturedAt || '');
+      const tomorrow = Number.isFinite(capturedMs) ? capturedMs + 36 * 60 * 60 * 1000 : Date.now() + 36 * 60 * 60 * 1000;
+      const stale = await mod.ensureCompanyNewsFresh({ now: () => tomorrow, watch: false });
+
+      mod.resetForTest();
+      const current = await mod.ensureCompanyNewsFresh({ now: () => capturedMs, watch: false });
+      return { stale, current, capturedAt };
+    });
+    await page.unroute('**/api/company-news/refresh*').catch(() => {});
+    return { result, requests };
+  })();
+  ok('opening the dashboard on yesterday company news dispatches its dedicated refresh',
+    companyNewsAuto.result?.stale?.outcome === 'dispatched' && companyNewsAuto.requests.length === 1 &&
+      /[?&]source=auto\b/.test(companyNewsAuto.requests[0]),
+    `${companyNewsAuto.result?.stale?.outcome || 'no outcome'} · ${companyNewsAuto.requests.join(' | ') || 'no request'}`);
+  ok('...while a capture from today starts no workflow',
+    companyNewsAuto.result?.current?.outcome === 'current' && companyNewsAuto.requests.length === 1,
+    `${companyNewsAuto.result?.current?.outcome || 'no outcome'} · ${companyNewsAuto.requests.length} total request(s)`);
+
+  const statusText = await page.locator('[data-filings-info]').textContent().catch(() => '');
+  const captureDay = await evalSafe(async () => {
+    const refresh = await import('/js/data/company-news-refresh.js');
+    const filings = await import('/js/data/filings.js');
+    return {
+      capture: refresh.istDay(filings.news.meta().capturedAt),
+      today: refresh.istDay(Date.now()),
+    };
+  });
+  ok('yesterday company news cannot wear a green `Live` label',
+    captureDay?.capture === captureDay?.today || !/\bLive\b/i.test(statusText || ''),
+    `capture=${captureDay?.capture}, today=${captureDay?.today}, status=${JSON.stringify(statusText)}`);
+
   const newsFit = await page.evaluate(() => {
     const el = document.querySelector('[data-table-scroll]');
     return el ? { need: el.scrollWidth, have: el.clientWidth } : null;
@@ -4923,6 +5895,7 @@ console.log('\n— news, announcements and insider trades —');
   // rows would not have caught it; comparing them does.
   const paint = await evalSafe(async () => {
     const m = await import('/js/data/filings.js');
+    const { withoutPublisherName } = await import('/js/core/source-copy.js');
     const rows = m.news.rows();
     if (!rows.length) return null;
     const tally = (list) => {
@@ -4930,7 +5903,9 @@ console.log('\n— news, announcements and insider trades —');
       for (const k of list) c.set(k, (c.get(k) || 0) + 1);
       return c;
     };
-    const data = tally(rows.map((r) => `${r.ticker}||${r.title}`));
+    // The UI removes a publisher name duplicated at the end of a headline. Compare that same
+    // display value on both sides; source-copy cleanup is not a row-cache mismatch.
+    const data = tally(rows.map((r) => `${r.ticker}||${withoutPublisherName(r.title)}`));
     const dom = tally(
       [...document.querySelectorAll('[data-table-scroll] tbody tr')].map((tr) => {
         const d = tr.querySelectorAll('td div.truncate');
@@ -4944,6 +5919,65 @@ console.log('\n— news, announcements and insider trades —');
   else ok('every rendered row is a row the feed actually holds', paint.mismatched === 0, `${paint.domRows} drawn from ${paint.rows}${paint.mismatched ? ` — ${paint.sample.join('; ')}` : ''}`);
 
   await go('/#/research/insider-trades?scope=portfolio', 2500);
+  const insiderSources = await page.evaluate(() => {
+    const table = document.querySelector('#content-host [data-score-table]');
+    const headers = [...(table?.querySelectorAll('thead th') || [])].map((th) => th.textContent.trim().replace(/[▴▾]$/, '').trim());
+    const sourceIndex = headers.indexOf('Source');
+    const rows = [...(table?.querySelectorAll('tbody tr[data-row-key]') || [])].slice(0, 80);
+    const cells = sourceIndex < 0 ? [] : rows.map((tr) => tr.children[sourceIndex]);
+    const links = cells.map((cell) => cell?.querySelector('a[data-insider-source-link]'));
+    return {
+      headers,
+      rows: rows.length,
+      linked: links.filter(Boolean).length,
+      onlyArrow: cells.every((cell) => cell?.textContent.trim() === '↗'),
+      safe: links.every((a) => {
+        if (!a || a.target !== '_blank' || !/noopener/.test(a.rel)) return false;
+        const url = new URL(a.href);
+        return /https?:/.test(url.protocol) && (url.hostname !== 'trendlyne.com' || !!url.searchParams.get('query'));
+      }),
+    };
+  });
+  ok('Insider Trades has one Source column and no duplicate Link column',
+    insiderSources.headers.filter((h) => h === 'Source').length === 1 && !insiderSources.headers.includes('Link'), insiderSources.headers.slice(-4).join(' · '));
+  ok('every rendered insider source is only a working evidence arrow',
+    insiderSources.rows > 0 && insiderSources.linked === insiderSources.rows && insiderSources.onlyArrow && insiderSources.safe,
+    `${insiderSources.linked} links across ${insiderSources.rows} sampled rows`);
+  const insiderFilters = await page.evaluate(async () => {
+    const selects = [...document.querySelectorAll('[data-table-filter]')];
+    const countText = document.querySelector('[data-row-count]')?.textContent || '';
+    const total = Number((countText.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
+    const results = [];
+    for (const select of selects) {
+      const choice = [...select.options].find((o) => o.value !== 'all');
+      if (!choice) continue;
+      select.value = choice.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const shown = Number((document.querySelector('[data-row-count]')?.textContent || '').match(/\d+/)?.[0] || 0);
+      results.push({ label: select.getAttribute('aria-label'), choice: choice.textContent, shown });
+      select.value = 'all';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return {
+      labels: selects.map((s) => s.getAttribute('aria-label')),
+      optionCounts: selects.map((s) => s.options.length),
+      countText,
+      total,
+      results,
+    };
+  });
+  ok('the Insider Trades toolbar separates trade rows from portfolio companies',
+    /^[\d,]+ trades from [\d,]+ portfolio companies$/i.test(insiderFilters.countText.trim()), insiderFilters.countText.trim());
+  ok('insider trades offers Category, Transaction type and Mode filters',
+    ['Category', 'Transaction type', 'Mode'].every((label) => insiderFilters.labels.includes(label)),
+    insiderFilters.labels.join(' · '));
+  ok('...each dropdown is populated from the rows in scope',
+    insiderFilters.optionCounts.length === 3 && insiderFilters.optionCounts.every((n) => n > 1),
+    insiderFilters.optionCounts.join(' · '));
+  ok('...and each selection narrows the table',
+    insiderFilters.results.length === 3 && insiderFilters.results.every((r) => r.shown > 0 && r.shown < insiderFilters.total),
+    insiderFilters.results.map((r) => `${r.label}: ${r.choice} → ${r.shown}`).join(' · '));
   await drive('insider', 'insider-trades');
   const insUrls = seen.insider.map((u) => new URL(u));
   ok('a refresh asks insider trades per company, once each', insUrls.length > 1 && new Set(insUrls.map((u) => u.pathname)).size === insUrls.length, `${insUrls.length} request(s)`);
@@ -4987,29 +6021,23 @@ console.log('\n— news, announcements and insider trades —');
     // statement nobody can make without asking every company — the honest line is about US.
     const strip = await hostText();
     if (st.rows) {
-      // THE ACCOUNT MOVED BEHIND THE PILL, SO THAT IS WHERE IT IS ASSERTED. A permanent grey
-      // paragraph under the heading was competing with the table it qualifies; what may not move
-      // is the claim itself, so the pill must exist on the face and the modal must still carry
-      // how current this is, the per-company account, and the control that asks.
+      // The compact feed status remains on the face and never launches an explainer overlay.
       ok('the page body carries no permanent freshness paragraph', !/Showing the (news|filings)/i.test(strip));
       ok('...and the provenance pill is on the face instead', (await page.locator('[data-filings-info]').count()) > 0);
       await page.locator('[data-filings-info]').first().click();
-      await page.waitForTimeout(500);
-      const modalText = await page.locator('#modal-content').innerText();
-      ok('...and says how current it is rather than claiming nothing is new',
-        /Showing the (news|filings)/i.test(modalText) && !/(nothing|no) new (data|filings|announcements) (is )?available/i.test(modalText),
-        (modalText.split('\n').find((l) => /Showing the/.test(l)) || '').slice(0, 90));
-      ok('...and accounts for the companies in scope rather than leaving a gap to misread',
-        /were searched|filed nothing in the last|whole exchange by date/i.test(modalText));
-      ok('...and offers a control that asks', (await page.locator('#modal-content [data-filings-refresh]').count()) > 0);
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(200);
+      ok('...and opens no provenance popup',
+        (await page.locator('[data-filings-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+          (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+      ok('...and accounts for the companies in scope on its tooltip',
+        /companies appear on this feed/i.test((await page.locator('[data-filings-info]').getAttribute('title')) || ''));
+      ok('...and the global Refresh control remains available', (await page.locator('[data-header-refresh]').count()) === 1);
     } else {
       skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');
       skip('...and the provenance pill is on the face instead', 'no rows cached on this origin');
-      skip('...and says how current it is rather than claiming nothing is new', 'no rows cached on this origin');
+      skip('...and opens no provenance popup', 'no rows cached on this origin');
       skip('...and accounts for the companies in scope rather than leaving a gap to misread', 'no rows cached on this origin');
-      skip('...and offers a control that asks', 'no rows cached on this origin');
+      skip('...and the global Refresh control remains available', 'no rows cached on this origin');
     }
   }
 
@@ -5099,12 +6127,9 @@ console.log('\n— sub-view picker and the removed roadmap card —');
   // invisibility while every click handler goes on working — a control that looks broken and
   // tests as fine. That is exactly what the first cut of this picker did.
   //
-  // It is asserted as a CLASS contract rather than as geometry, and the distinction is the whole
-  // point here: with no egress to the Tailwind CDN this suite drives an effectively UNSTYLED
-  // page, where `overflow-hidden` does nothing and every box measures full width. The first
-  // version of this check read the open menu's box and passed with `w:1424 h:21` — which it
-  // would have done just as happily with the clipping bug still in place. A check that cannot
-  // fail is not a check.
+  // It is asserted as a CLASS contract rather than as geometry because class ownership is the
+  // durable cause of this bug. The first version read the open menu's box and could pass even when
+  // an ancestor clipped it; a check that cannot fail is not a check.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
   await page.locator('#subview-mount [data-dd-trigger]').click();
@@ -5143,6 +6168,9 @@ for (const width of [1440, 1024, 390]) {
   await go('/#/research/earnings-hub?scope=universe', 1600);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`no sideways page scroll at ${width}px`, overflow <= 0, `${overflow}px`);
+  await go('/#/research/ai-alerts?scope=portfolio', 4500);
+  const aiOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok(`AI Alerts cards: no sideways page scroll at ${width}px`, aiOverflow <= 0, `${aiOverflow}px`);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -5221,14 +6249,11 @@ const freshness = await page.evaluate(async () => {
 });
 ok('the feed records where this paint came from', !!freshness?.origin, `origin=${freshness?.origin}`);
 ok('...and when the server last confirmed it', Number.isFinite(freshness?.checkedAt), String(freshness?.checkedAt));
-const provenance = await page.evaluate(() => {
-  document.querySelector('[data-live-info]')?.click();
-  return new Promise((r) => setTimeout(() => r(document.querySelector('#modal-content')?.innerText || ''), 400));
-});
-ok('the Live pill says where the figures came from', /Painted from/.test(provenance));
-ok('...and never presents a cached copy as a live one', !/Painted from this device/.test(provenance) || /last confirmed|could not be reached/.test(provenance));
-await page.keyboard.press('Escape');
-await page.waitForTimeout(300);
+await page.locator('[data-live-info]').click();
+await page.waitForTimeout(200);
+ok('the feed status stays passive when the paint came from cache',
+  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+    (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // Con-call: same contract, one channel — nothing on a con-call row moves on a tick, so the
 // conditional GET does the whole job there and no projection exists.
@@ -5292,9 +6317,10 @@ ok('no static-file loader still uses cache: no-store', noStore.out.length === 0,
 // 18. Moving between tabs — the table streams instead of blocking, and still ends up complete
 //
 // Building and laying out 1,722 rows cost ~900ms of blocked main thread on every mount of the
-// Earnings Hub, for a viewport that shows about thirteen. A CPU profile blamed the scope toggle,
-// because reading `offsetLeft` for its sliding thumb is what forced the layout — the cost was the
-// table's all along.
+// Earnings Hub, for a viewport that shows about thirteen. A later trace found two costs still on
+// every switch: the Tailwind browser compiler rescanning injected markup, and the scope thumb
+// forcing layout through offset measurements. CSS is now precompiled; the thumb moves by index;
+// and the table's initial and idle batches stay small.
 //
 // So `scoreTable` paints a screenful and appends the rest while the browser is idle. Both halves
 // of that need asserting: the switch has to be fast, AND the table has to end up whole. A fast
@@ -5302,6 +6328,21 @@ ok('no static-file loader still uses cache: no-store', noStore.out.length === 0,
 // the one it fixed.
 // ---------------------------------------------------------------------------------------
 console.log('\n— tab switching —');
+const tabSpeedContracts = await page.evaluate(async () => {
+  const index = await (await fetch('/index.html', { cache: 'no-store' })).text();
+  const css = await (await fetch('/css/tailwind.css', { cache: 'no-store' })).text();
+  const components = await (await fetch('/js/ui/components.js', { cache: 'no-store' })).text();
+  const scopeToggle = components.split('export function segmentedToggle')[1]?.split('export function')[0] || '';
+  return {
+    localCssLinked: /href=["']\/css\/tailwind\.css["']/.test(index),
+    runtimeCompilerGone: !/cdn\.tailwindcss\.com|tailwind\.config/.test(index),
+    cssBytes: css.length,
+    scopeMeasuresLayout: /\.(?:offsetWidth|offsetLeft|getBoundingClientRect)\b/.test(scopeToggle),
+  };
+});
+ok('Tailwind ships as a substantial same-origin stylesheet', tabSpeedContracts.localCssLinked && tabSpeedContracts.cssBytes > 30000, `${tabSpeedContracts.cssBytes} bytes`);
+ok('the browser-side Tailwind compiler stays out of the hot path', tabSpeedContracts.runtimeCompilerGone);
+ok('the scope toggle positions its thumb without forcing layout', !tabSpeedContracts.scopeMeasuresLayout);
 await go('/#/research/earnings-hub?scope=universe', 1200);
 await waitForPanel();
 await settleTables();
@@ -5322,7 +6363,8 @@ const switchCost = await page.evaluate(async () => {
   return times;
 });
 // Generous on purpose: this runs on shared CI hardware and the point is the order of magnitude,
-// not a stopwatch. Before streaming, the two Earnings Hub entries alone measured 866ms and 1,536ms.
+// not a stopwatch. Before streaming, the two Earnings Hub entries alone measured 866ms and 1,536ms;
+// the current Chrome DevTools interaction trace measured 39ms INP.
 ok('switching tabs does not block on building the whole table', Math.max(...switchCost) < 400, `${switchCost.join('ms, ')}ms`);
 
 // Asserted on the markup `scoreTable` returns rather than by racing the fill on screen: the whole
@@ -5341,7 +6383,7 @@ const streamed = await page.evaluate(async () => {
     pending: Number(/data-rows-pending="(\d+)"/.exec(t.html)?.[1] || 0),
   };
 });
-ok('the first paint carries a screenful, not the whole feed', streamed.inFirstPaint > 0 && streamed.inFirstPaint <= 120 && streamed.inFirstPaint < streamed.total, `${streamed.inFirstPaint} of ${streamed.total} rows in the initial markup`);
+ok('the first paint carries a screenful, not the whole feed', streamed.inFirstPaint > 0 && streamed.inFirstPaint <= 60 && streamed.inFirstPaint < streamed.total, `${streamed.inFirstPaint} of ${streamed.total} rows in the initial markup`);
 ok('...and says how many are still to come rather than hiding them', streamed.pending === streamed.total - streamed.inFirstPaint, `${streamed.pending} pending`);
 await settleTables();
 const afterStream = await page.locator('tr[data-row-key]').count();

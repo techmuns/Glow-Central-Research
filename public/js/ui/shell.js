@@ -8,11 +8,14 @@ import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { openModal, closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
-import { sourcesModalHtml } from './sources.js';
+import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
+import { openScopeEditor } from './scope-editor.js';
 
+import * as aiAlerts from '../tabs/ai-alerts.js';
+import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -39,11 +42,11 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// DAILY ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
@@ -81,8 +84,18 @@ export function mount(root) {
   // under the handler that is painting it is a different bug for the same money.
   watchlist.onChange(() => {
     if (state.scope !== 'watchlist') return;
+    // The editor deliberately batches its repaint until it closes, so several additions can be
+    // made without the route remount closing the modal after the first click.
+    if (document.querySelector('[data-scope-editor]')) return;
     setTimeout(() => {
       if (state.scope === 'watchlist') handleRoute(root, router.parseHash());
+    }, 0);
+  });
+
+  scopeLists.onChange((scope) => {
+    if (state.scope !== scope || document.querySelector('[data-scope-editor]')) return;
+    setTimeout(() => {
+      if (state.scope === scope) handleRoute(root, router.parseHash());
     }, 0);
   });
 
@@ -106,6 +119,7 @@ function shellTemplate() {
                title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
             <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
+            <div id="scope-edit-mount"></div>
           </div>
           <div id="status-mount"></div>
         </div>
@@ -136,16 +150,14 @@ function shellTemplate() {
  * time a poller actually confirmed something — with the page-load time as the fallback for before
  * any poller has ticked.
  *
- * The Sources button is gone from the chrome, not the app: the pill opens it. Provenance has to
- * stay reachable from every screen (see the honesty rules in CLAUDE.md), and a freshness control
- * is the right place for it — "how current is this, and where did it come from" is one question.
+ * The pill is deliberately passive. Source/freshness explainer popups were removed from the
+ * dashboard; Refresh remains the only action in this compact header cluster.
  */
 function wireStaticHeader(root) {
   const status = statusControl({
     getTimestamp: () => live.getLastDataTick() ?? state.dataLoadedAt,
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow(),
-    onOpenSources: () => openModal(sourcesModalHtml(), { size: 'magazine' }),
   });
   $('#status-mount', root).innerHTML = status.html;
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
@@ -174,7 +186,16 @@ function handleRoute(root, rawRoute) {
   saveLastRoute(router.buildHash(resolved));
 
   renderRouteChrome(root, ws, tabModule, resolved);
-  mountTab(tabModule, resolved);
+  mountTab(root, tabModule, resolved);
+}
+
+function editScope(root, scope) {
+  openScopeEditor({
+    scope,
+    // Closing the editor commits one route repaint. A zero-delay deferral lets the generic modal
+    // finish clearing its own focus trap before the tab starts creating new controls.
+    onChanged: () => setTimeout(() => handleRoute(root, router.parseHash()), 0),
+  });
 }
 
 function renderRouteChrome(root, ws, tabModule, resolved) {
@@ -194,6 +215,21 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   const toggleMount = $('#scope-toggle-mount', root);
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
+
+  const editMount = $('#scope-edit-mount', root);
+  editMount.innerHTML = `
+    <button type="button" data-scope-edit aria-label="Edit ${escapeHtml(scopeLabel(resolved.scope))} companies"
+      title="Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m11.5 5.5 3 3" stroke-linecap="round"></path>
+      </svg>
+    </button>`;
+  const editButton = editMount.querySelector('[data-scope-edit]');
+  const onEdit = () => editScope(root, resolved.scope);
+  editButton.addEventListener('click', onEdit);
+  chromeDisposers.push(() => editButton.removeEventListener('click', onEdit));
 
   // THE WORKSPACE SWITCHER IS GONE FROM THE CHROME.
   //
@@ -267,7 +303,7 @@ function disposeChrome() {
   chromeDisposers = [];
 }
 
-function mountTab(tabModule, resolved) {
+function mountTab(root, tabModule, resolved) {
   // A drill panel, modal or workspace opened on the previous view must never survive a route
   // change — it would be showing a row that is no longer on screen. `silent` because the URL
   // is already being rewritten by the navigation that triggered this; letting the overlay run
@@ -285,18 +321,18 @@ function mountTab(tabModule, resolved) {
   //
   // The shell stays generic: it is not interpreting the tab, it is answering a question the header
   // control it owns has just been used to ask.
-  const mountable = !(resolved.scope === 'watchlist' && watchlist.size() === 0);
+  const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchlist.size() === 0);
   const nextModule = mountable ? tabModule : null;
 
   // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route
   // names — and the first version of this got that wrong in a way that was invisible until two
   // navigations later.
   //
-  // Landing on Daily Alerts with an empty watchlist takes the branch below, so the module was
+  // Landing on an alerts tab with an empty watchlist takes the branch below, so the module was
   // already `currentTabModule` and `currentTabModule !== tabModule` was false: nothing was
   // destroyed. Its subscriptions stayed live, its in-flight collect finished, and it painted its
   // own table into `contentHost` — which by then belonged to Breakouts. The reader saw Breakouts'
-  // chrome over Daily Alerts' rows, on a page where nothing had thrown and no state was wrong.
+  // chrome over General Alerts' rows, on a page where nothing had thrown and no state was wrong.
   // Exactly the lifecycle failure the module contract in CLAUDE.md is written about, arrived at
   // from the one direction the contract does not cover: a tab the shell decided not to mount.
   if (currentTabModule && currentTabModule !== nextModule) {
@@ -309,13 +345,13 @@ function mountTab(tabModule, resolved) {
   currentTabModule = nextModule;
 
   if (!nextModule) {
-    // The way out lands on THIS tab under Universe, not on some other tab's universe: the reader
-    // chose this page, and sending them somewhere else to find a star to click is asking them to
-    // navigate back afterwards.
     contentHost.innerHTML = watchlistEmptyPanel({
       tabTitle: tabModule.meta.title,
-      universeHref: router.buildHash({ ...resolved, scope: 'universe' }),
     });
+    // This is the same editor as the pencil in the header, opened explicitly for Watchlist. The
+    // empty state stays on the page the reader chose, and closing after an addition remounts that
+    // page with the newly populated scope.
+    contentHost.querySelector('[data-watchlist-add]')?.addEventListener('click', () => editScope(root, 'watchlist'));
     return;
   }
 
@@ -334,7 +370,7 @@ function mountTab(tabModule, resolved) {
       const route = { workspace: state.workspace, tab: state.tab, subview: state.subview, scope: state.scope, params: next };
       router.replaceRoute(route);
       saveLastRoute(router.buildHash(route));
-      mountTab(tabModule, route);
+      mountTab(root, tabModule, route);
     },
     // Same URL write, but WITHOUT re-mounting the panel. For state that lives in an overlay
     // rather than in the page body: the Deep Dive mirrors its open company and internal tab

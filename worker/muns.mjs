@@ -32,6 +32,7 @@ import { normaliseAnnouncement, normaliseArticle, normaliseInsiderTrades, collec
 
 export const FASTAPI_BASE = 'https://fastapi.muns.io';
 export const NESTJS_BASE = 'https://devde.muns.io';
+export const STOCK_SEARCH_BASE = 'https://birdnest.muns.io';
 
 // A RETRY CEILING HAS TO MATCH ITS OWN RATIONALE, and this one did not.
 //
@@ -53,6 +54,7 @@ const BACKOFF_MS = 500;
 
 const newsBase = (env) => (env?.MUNS_NEWS_BASE || FASTAPI_BASE).replace(/\/+$/, '');
 const filingsBase = (env) => (env?.MUNS_BASE || NESTJS_BASE).replace(/\/+$/, '');
+const stockSearchBase = (env) => (env?.MUNS_SEARCH_BASE || STOCK_SEARCH_BASE).replace(/\/+$/, '');
 const tokenFor = (env, kind) => (kind === 'news' ? env?.MUNS_NEWS_TOKEN || env?.MUNS_TOKEN : env?.MUNS_TOKEN) || null;
 
 /** A failure that names itself, so the UI can say which of them an operator has to fix. */
@@ -137,6 +139,50 @@ async function request(url, { method = 'GET', body = null, token, label }) {
     if (attempt < ATTEMPTS && Date.now() < deadline) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
   }
   throw last || new MunsError('unreachable', `${label} could not be reached.`, { url });
+}
+
+// ---------------------------------------------------------------------------------------
+// Company search — POST birdnest.muns.io/stock/search
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Search Muns' stock registry. `user_index` is part of that endpoint's contract and is always the
+ * documented static value 124; it is never accepted from the browser. The upstream returns an
+ * object keyed by ticker, so normalise it into an ordered array the autocomplete can render.
+ */
+export async function searchStocks({ query }, env) {
+  const q = String(query || '').trim();
+  const url = `${stockSearchBase(env)}/stock/search`;
+  if (q.length < 2 || q.length > 80) throw new MunsError('shape', 'Company search needs between 2 and 80 characters.', { url });
+
+  const { json } = await request(url, {
+    method: 'POST',
+    body: { query: q, user_index: 124 },
+    token: tokenFor(env),
+    label: 'The company-search API',
+  });
+  if (!json) throw new MunsError('shape', 'The company-search API answered with something that is not JSON.', { url });
+
+  const raw = json?.data?.results;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new MunsError('shape', 'The company-search API returned no readable result map.', { url });
+  }
+  const results = Object.entries(raw).map(([rawTicker, value]) => {
+    const cells = Array.isArray(value) ? value : [];
+    const ticker = String(rawTicker || '').trim().toUpperCase();
+    return {
+      ticker,
+      country: cells[0] == null ? null : String(cells[0]),
+      name: cells[1] == null ? ticker : String(cells[1]),
+      industry: cells[2] == null ? null : String(cells[2]),
+      validTicker: /^[A-Z0-9&.\-]{1,20}$/.test(ticker),
+    };
+  });
+  return {
+    query: q,
+    totalResults: Number.isFinite(json?.data?.total_results) ? json.data.total_results : results.length,
+    results,
+  };
 }
 
 // ---------------------------------------------------------------------------------------

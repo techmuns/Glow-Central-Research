@@ -30,6 +30,7 @@ import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
 import * as marketNews from '../data/market-news.js';
 import * as refreshRegistry from './refresh.js';
+import { withoutPublisherName } from './source-copy.js';
 
 // How long the header's Refresh waits for the per-company feeds before saying they are still
 // going. Long enough for a warm walk to finish, short enough that the button is not dead.
@@ -201,7 +202,7 @@ function announceMarketNews() {
     notifications.push({
       key: marketNewsKey(a),
       kind: 'news',
-      title: a.title || 'A story was published',
+      title: withoutPublisherName(a.title) || 'A story was published',
       detail: marketNewsDetail(a),
       // The publisher's own thumbnail, the same one the card on the tab shows. Hot-linked, never
       // copied, and dropped by the alert if it is not an https URL.
@@ -213,10 +214,10 @@ function announceMarketNews() {
 }
 
 export function marketNewsDetail(a) {
-  const section = a.section ? a.section.replace(/-/g, ' ') : null;
-  const lead = a.summary ? String(a.summary).slice(0, 140) : null;
+  const section = a.section ? withoutPublisherName(a.section.replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher') : null;
+  const lead = a.summary ? withoutPublisherName(a.summary).slice(0, 140) : null;
   if (lead && section) return `${section} · ${lead}`;
-  return lead || (section ? `Published under ${section}` : 'Published on Moneycontrol');
+  return lead || (section ? `Published under ${section}` : 'Market news published');
 }
 
 function announceConcalls() {

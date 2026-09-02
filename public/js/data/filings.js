@@ -318,7 +318,7 @@ export function createFeed(kind) {
    * The committed snapshot and this device, and NOTHING ELSE — no walk, and no claim on `wanted`.
    *
    * For a reader that wants the rows this feed already holds without being the tab that owns it.
-   * The Daily Alerts tab is the one consumer: it consolidates today's filings across every feed,
+   * General Alerts is the one consumer: it consolidates today's filings across every feed,
    * and it must not be the thing that decides which companies the Corporate Announcements tab will
    * later refresh.
    *
@@ -476,6 +476,23 @@ export function createFeed(kind) {
     return { added: Math.max(0, rowCountNow() - before), checked: Math.min(queue.length, LIVE_LIMIT), failed: state.failures.size };
   }
 
+  /**
+   * Re-read only the committed bulk capture.
+   *
+   * The app-wide company-news freshness check uses this after its dedicated Action finishes. It
+   * must not call `refresh()`: for a per-company feed that method continues into a forty-company
+   * live walk, while the Action has already done the complete universe walk once for everybody.
+   * One conditional GET is the whole operation here, and `emit()` lets a mounted News tab replace
+   * yesterday's rows as soon as the new deployment reaches the browser.
+   */
+  async function refreshSnapshot() {
+    const before = state.capturedAt;
+    const available = await seedFromSnapshot({ replace: true });
+    state.loaded = true;
+    emit();
+    return { available, changed: !!state.capturedAt && state.capturedAt !== before, capturedAt: state.capturedAt };
+  }
+
   const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
 
   /**
@@ -537,7 +554,11 @@ export function createFeed(kind) {
     if (!body || typeof body !== 'object') return false;
 
     const capturedAt = body.capturedAt || body.generated_at || null;
-    const newer = replace && capturedAt && capturedAt !== state.capturedAt;
+    const nextCaptured = Date.parse(capturedAt || '');
+    const heldCaptured = Date.parse(state.capturedAt || '');
+    // "Newer" is chronological, not merely different. A rollback or stale edge response must not
+    // replace rows this browser has already proved came from a later capture.
+    const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured);
     if (!replace || newer) state.capturedAt = capturedAt;
     if (Array.isArray(body.headers) && body.headers.length) state.headers = body.headers;
     // What the file declares about its own coverage and window. Read before the early return, so a
@@ -548,20 +569,52 @@ export function createFeed(kind) {
     state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;
     if (replace && !newer) return state.rows.size > 0;
 
+    if (newer) {
+      // A replacement snapshot is a replacement, not an additive merge. Companies that aged out
+      // of the rolling window or answered empty in the new run must lose yesterday's rows now,
+      // without waiting for a page reload. Preserve only companies read live in this session —
+      // those bytes are newer than the bulk file by definition.
+      for (const t of state.fromSnapshot) {
+        if (!state.confirmedHere.has(t)) state.rows.delete(t);
+      }
+      state.fromSnapshot.clear();
+      state.askedEmpty.clear();
+      for (const [t, failure] of state.failures) {
+        if (failure?.fromSnapshot) state.failures.delete(t);
+      }
+    }
+
     const byTicker = body.byTicker || {};
+    const snapshotWins = (t) => !state.confirmedHere.has(t) || (state.confirmedAt.get(t) || 0) <= nextCaptured;
     for (const [ticker, list] of Object.entries(byTicker)) {
       if (!Array.isArray(list) || !list.length) continue;
       const t = ticker.toUpperCase();
       // On the initial seed the device's copy has already been placed and is newer; on a refresh a
-      // newer capture wins over a company nobody has confirmed in this session.
-      if (state.rows.has(t) && !(newer && !state.confirmedHere.has(t))) continue;
+      // newer capture wins unless this session confirmed the company AFTER the capture was made.
+      if (state.rows.has(t) && !(newer && snapshotWins(t))) continue;
       state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
       state.fromSnapshot.add(t);
+      if (newer) {
+        state.confirmedHere.delete(t);
+        state.confirmedAt.delete(t);
+      }
     }
     // Companies the capture ASKED and that answered nothing. They get no rows — there are none —
     // but they are covered, so they must not be reported as waiting to be asked about.
     for (const t of Array.isArray(body.empty) ? body.empty : []) {
-      if (typeof t === 'string' && t) state.askedEmpty.add(t.toUpperCase());
+      if (typeof t !== 'string' || !t) continue;
+      const ticker = t.toUpperCase();
+      // A newer bulk search that found nothing must remove an older live row too. Without this,
+      // yesterday's article survives until reload even though the replacement capture explicitly
+      // says the company is empty in the current window.
+      const wins = !newer || snapshotWins(ticker);
+      if (newer && wins) {
+        state.rows.delete(ticker);
+        state.fromSnapshot.delete(ticker);
+        state.confirmedHere.delete(ticker);
+        state.confirmedAt.delete(ticker);
+      }
+      if (wins) state.askedEmpty.add(ticker);
     }
     // Companies the capture ASKED and could not read. A third answer again, distinct from having
     // rows and from having none: the pill turns amber for these, the coverage sentence names them
@@ -655,6 +708,7 @@ export function createFeed(kind) {
     load,
     loadOne,
     refresh,
+    refreshSnapshot,
     rows,
     forTicker,
     wasAskedEmpty,
