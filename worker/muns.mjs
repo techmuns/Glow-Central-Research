@@ -32,14 +32,29 @@ import { normaliseAnnouncement, normaliseArticle, normaliseInsiderTrades, collec
 
 export const FASTAPI_BASE = 'https://fastapi.muns.io';
 export const NESTJS_BASE = 'https://devde.muns.io';
+export const STOCK_SEARCH_BASE = 'https://birdnest.muns.io';
 
-// The registry's own numbers: 30s timeout, 3 attempts, backoff factor 2.
-const TIMEOUT_MS = 30_000;
-const ATTEMPTS = 3;
-const BACKOFF_MS = 1_000;
+// A RETRY CEILING HAS TO MATCH ITS OWN RATIONALE, and this one did not.
+//
+// The registry's own numbers are 30s, 3 attempts, backoff factor 2 — which with the backoff is
+// 30 + 1 + 30 + 2 + 30 = **93 seconds** before a failing company can say so. Measured, with the
+// insider-trades upstream down: every ticker took 93.5s. The browser walks forty companies four at
+// a time, so a dead upstream cost **fifteen and a half minutes** of a spinning strip over an empty
+// table, and the scheduled scrape would spend fifteen hours on six hundred of them.
+//
+// So there is an absolute DEADLINE_MS, and it is the guarantee that matters: each attempt gets what
+// is LEFT of it, so a slow first attempt shortens the second instead of being added to it. Same
+// arrangement, and the same reasoning, as worker/finology.mjs — see the note about it in CLAUDE.md.
+//
+// Retrying hard into a struggling upstream also makes the struggle worse, once per company.
+const TIMEOUT_MS = 12_000;
+const DEADLINE_MS = 20_000;
+const ATTEMPTS = 2;
+const BACKOFF_MS = 500;
 
 const newsBase = (env) => (env?.MUNS_NEWS_BASE || FASTAPI_BASE).replace(/\/+$/, '');
 const filingsBase = (env) => (env?.MUNS_BASE || NESTJS_BASE).replace(/\/+$/, '');
+const stockSearchBase = (env) => (env?.MUNS_SEARCH_BASE || STOCK_SEARCH_BASE).replace(/\/+$/, '');
 const tokenFor = (env, kind) => (kind === 'news' ? env?.MUNS_NEWS_TOKEN || env?.MUNS_TOKEN : env?.MUNS_TOKEN) || null;
 
 /** A failure that names itself, so the UI can say which of them an operator has to fix. */
@@ -70,9 +85,14 @@ async function request(url, { method = 'GET', body = null, token, label }) {
   }
 
   let last = null;
+  const deadline = Date.now() + DEADLINE_MS;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    // What is LEFT of the deadline, never a fresh full timeout. A first attempt that burns most of
+    // the budget leaves the second a short one rather than doubling the wait.
+    const budget = Math.min(TIMEOUT_MS, deadline - Date.now());
+    if (budget <= 0) break;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), budget);
     try {
       const res = await fetch(url, {
         method,
@@ -113,12 +133,56 @@ async function request(url, { method = 'GET', body = null, token, label }) {
       if (err instanceof MunsError && err.reason !== 'upstream') throw err;
       last =
         err.name === 'AbortError'
-          ? new MunsError('timeout', `${label} did not answer within ${TIMEOUT_MS / 1000}s.`, { url })
+          ? new MunsError('timeout', `${label} did not answer within ${Math.round(DEADLINE_MS / 1000)}s.`, { url })
           : last || new MunsError('unreachable', `${label} could not be reached: ${String(err?.message || err)}`, { url });
     }
-    if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
+    if (attempt < ATTEMPTS && Date.now() < deadline) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
   }
   throw last || new MunsError('unreachable', `${label} could not be reached.`, { url });
+}
+
+// ---------------------------------------------------------------------------------------
+// Company search — POST birdnest.muns.io/stock/search
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Search Muns' stock registry. `user_index` is part of that endpoint's contract and is always the
+ * documented static value 124; it is never accepted from the browser. The upstream returns an
+ * object keyed by ticker, so normalise it into an ordered array the autocomplete can render.
+ */
+export async function searchStocks({ query }, env) {
+  const q = String(query || '').trim();
+  const url = `${stockSearchBase(env)}/stock/search`;
+  if (q.length < 2 || q.length > 80) throw new MunsError('shape', 'Company search needs between 2 and 80 characters.', { url });
+
+  const { json } = await request(url, {
+    method: 'POST',
+    body: { query: q, user_index: 124 },
+    token: tokenFor(env),
+    label: 'The company-search API',
+  });
+  if (!json) throw new MunsError('shape', 'The company-search API answered with something that is not JSON.', { url });
+
+  const raw = json?.data?.results;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new MunsError('shape', 'The company-search API returned no readable result map.', { url });
+  }
+  const results = Object.entries(raw).map(([rawTicker, value]) => {
+    const cells = Array.isArray(value) ? value : [];
+    const ticker = String(rawTicker || '').trim().toUpperCase();
+    return {
+      ticker,
+      country: cells[0] == null ? null : String(cells[0]),
+      name: cells[1] == null ? ticker : String(cells[1]),
+      industry: cells[2] == null ? null : String(cells[2]),
+      validTicker: /^[A-Z0-9&.\-]{1,20}$/.test(ticker),
+    };
+  });
+  return {
+    query: q,
+    totalResults: Number.isFinite(json?.data?.total_results) ? json.data.total_results : results.length,
+    results,
+  };
 }
 
 // ---------------------------------------------------------------------------------------

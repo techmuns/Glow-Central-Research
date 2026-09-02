@@ -54,8 +54,8 @@
 //      `stale` flag, and a book whose confirmation predates the most recent quarter end.
 //   2. NINETY-ONE INDEXEDDB TRANSACTIONS BEFORE FIRST PAINT. `readEntry` per book, each opening
 //      its own transaction. `readEntries` does the lot in one.
-//   3. NINETY FULL REPAINTS OF A FOUR-THOUSAND-ROW TABLE. Every arriving book emitted, and the tab
-//      rebuilds its whole panel — stat strip, ninety cards and the positions table — on each emit.
+//   3. NINETY FULL REPAINTS OF THE ACTIVE PANEL. Every arriving book emitted, and the tab rebuilt
+//      whichever directory, quarterly summary or positions table was selected on each emit.
 //      Arrivals are now coalesced into at most one repaint per EMIT_COALESCE_MS, which turns that
 //      into a handful. The walk's final emit is still immediate, so the settled state is never
 //      left waiting behind a timer.
@@ -67,7 +67,7 @@
 // re-read control in the Live pill's modal, and it asks for everything again.
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
-import { normalisePortfolio, deriveMoves, summarise, quarterOrder } from './finology-shared.js';
+import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2 } from './finology-shared.js';
 
 const LIST_PATH = 'api/super-investors';
 const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
@@ -174,9 +174,9 @@ export function onChange(fn) {
 // ---------------------------------------------------------------------------------------
 // Repaints, coalesced
 //
-// A subscriber here is the whole tab panel: stat strip, ninety investor cards and a table of every
-// disclosed position across every book. Rebuilding that is tens of milliseconds, and the walk used
-// to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
+// A subscriber here is the active in-page panel: ninety investor cards, the quarterly summary or a
+// table of every disclosed position across every book. Rebuilding that is tens of milliseconds,
+// and the walk used to trigger one per arriving book. Ninety of them, back to back, is what a reader experienced as
 // the view "taking too long" even after the data was on the device.
 //
 // A trailing throttle rather than a debounce, deliberately: a debounce would keep deferring while
@@ -292,9 +292,103 @@ export function invalidate() {
  * know whether anything has moved in the last six hours has a control that asks. It is wired to
  * the Live pill's modal in js/investors/live.js and to nothing automatic.
  */
-export function refresh() {
+export async function refresh() {
+  const before = state.books.size;
   invalidate();
-  return load();
+  await load();
+  // IGNORING THE WINDOW IS THE POINT. A reader who presses Refresh is saying "ask anyway", and a
+  // refresh that quietly skipped every book because the committed capture was recent would be a
+  // button that does nothing on the one occasion they were sure something had changed.
+  await revalidate({ ignoreWindow: true });
+  return { added: Math.max(0, state.books.size - before), checked: state.investors.length, failed: state.failures.size };
+}
+
+/**
+ * Revalidate only the one committed bulk snapshot.
+ *
+ * General Alerts must not turn one header refresh into the ninety-one-request live book walk. This
+ * picks up a newer deployment's scheduled snapshot in one conditional request and replaces only
+ * books that are not known to have been confirmed later on this device.
+ */
+export async function refreshSnapshot() {
+  await load();
+  const gen = generation;
+  let res;
+  try {
+    res = await conditionalJson(SNAPSHOT_PATH, { key: KEYS.investorSnapshot, optional: true });
+  } catch {
+    return state;
+  }
+  if (!current(gen)) return state;
+  const body = res?.value;
+  const incomingAt = Date.parse(body?.capturedAt || '');
+  const heldAt = Date.parse(state.capturedAt || '');
+  if (!body || !Array.isArray(body.investors) || !body.investors.length || !Number.isFinite(incomingAt)) return state;
+  if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
+
+  const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
+  const incomingBooks = new Set(Object.entries(body.books || {}).filter(([, value]) => value && value.ok !== false).map(([slug]) => slug));
+  // A deployment snapshot can be newer than the file that seeded this page and still older than
+  // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
+  // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
+  const deviceNewerInvestors = state.investors.filter((i) => {
+    if (!i?.slug || incomingSlugs.has(i.slug)) return false;
+    const confirmed = Number(state.confirmedAt.get(i.slug));
+    return Number.isFinite(confirmed) && confirmed > incomingAt;
+  });
+  const acceptedSlugs = new Set([...incomingSlugs, ...deviceNewerInvestors.map((i) => i.slug)]);
+  // The list in the newer capture is authoritative for this replacement. Keeping a book whose
+  // investor disappeared would leave `allMoves()` emitting rows the current source no longer
+  // contains. Clear every piece of per-book state together so provenance cannot outlive the data;
+  // the union includes failed books, which have no entry in `state.books` to drive the cleanup.
+  const knownSlugs = new Set([
+    ...state.books.keys(),
+    ...state.confirmedAt.keys(),
+    ...state.failures.keys(),
+    ...state.fromSnapshot,
+    ...state.unconfirmed,
+    ...state.staleBooks,
+  ]);
+  for (const slug of knownSlugs) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    const removedInvestor = !acceptedSlugs.has(slug);
+    const unreadInCapture = !incomingBooks.has(slug) && (!Number.isFinite(confirmed) || confirmed <= incomingAt);
+    if (!removedInvestor && !unreadInCapture) continue;
+    state.books.delete(slug);
+    state.confirmedAt.delete(slug);
+    state.fromSnapshot.delete(slug);
+    state.unconfirmed.delete(slug);
+    state.failures.delete(slug);
+    state.staleBooks.delete(slug);
+  }
+
+  state.capturedAt = body.capturedAt;
+  state.investors = [...body.investors, ...deviceNewerInvestors];
+  state.listOk = true;
+  state.dropped = body.dropped || 0;
+  // `oldestCheckedAt()` starts with this feed-wide floor. Every book accepted below is confirmed
+  // at the capture or is a device book confirmed later, so leaving the old floor in place would
+  // make a fully replaced snapshot look stale after a successful refresh.
+  state.checkedAt = incomingAt;
+  for (const [slug, value] of Object.entries(body.books || {})) {
+    if (!value || value.ok === false) continue;
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed > incomingAt) continue;
+    state.books.set(slug, normalisePortfolio(value, slug));
+    state.confirmedAt.set(slug, incomingAt);
+    state.fromSnapshot.add(slug);
+    state.unconfirmed.add(slug);
+    state.failures.delete(slug);
+    if (value.stale === true) state.staleBooks.add(slug);
+    else state.staleBooks.delete(slug);
+  }
+  for (const slug of state.books.keys()) {
+    const confirmed = Number(state.confirmedAt.get(slug));
+    if (Number.isFinite(confirmed) && confirmed < state.checkedAt) state.checkedAt = confirmed;
+  }
+  bump();
+  emit({ now: true });
+  return state;
 }
 
 /**
@@ -324,9 +418,14 @@ export function load() {
       state.loaded = true;
       state.origin = 'store';
       emit({ now: true });
-      // Confirm in the background. Deliberately not awaited — the caller's `then` should fire on
-      // the paint it can already make, not on a revalidation the reader will never notice.
-      revalidate();
+      // AND NOTHING IS WALKED. Confirming ninety books is ninety round trips, each of which may be
+      // a live scrape upstream, and it is work nobody asked for over a grid that is already
+      // complete and already labelled with where it came from. `refresh()` is what asks — the
+      // header's Refresh button, and *Re-read everything now* in the Live pill's modal.
+      //
+      // The LIST is a single request and does tell us something a snapshot cannot: whether an
+      // investor has been added or removed. That one is worth making, and it is one.
+      confirmList();
       return state;
     }
 
@@ -477,6 +576,36 @@ async function seedFromSnapshot(gen) {
 }
 
 /**
+ * One request: has the investor LIST changed?
+ *
+ * Cheap enough to make on a load that otherwise asks for nothing, and it answers the one question
+ * the committed snapshot genuinely cannot — an investor added or dropped upstream. It confirms no
+ * BOOK, so `meta().origin` keeps saying `snapshot` / `store`, which is what it should say.
+ */
+async function confirmList() {
+  const gen = generation;
+  let res;
+  try {
+    res = await conditionalJson(LIST_PATH, { key: KEYS.investorList, optional: true });
+  } catch {
+    return;
+  }
+  if (!current(gen)) return;
+  const body = res?.value;
+  if (!body || body.ok === false || !Array.isArray(body.investors)) return;
+  state.checkedAt = res.checkedAt;
+  state.dropped = body.dropped || 0;
+  if (body.fetchedAt) state.fetchedAt = body.fetchedAt;
+  state.stale = body.stale === true;
+  state.staleReason = body.stale === true ? body.staleReason || null : null;
+  if (body.investors.length !== state.investors.length) {
+    state.investors = body.investors;
+    bump();
+    emit({ now: true });
+  }
+}
+
+/**
  * Pass two: confirm what was painted from the device, and fill in what was not.
  *
  * Every book goes back through `conditionalJson`, so an unchanged one is a bodyless 304 and its row
@@ -485,7 +614,7 @@ async function seedFromSnapshot(gen) {
  * copy on screen and is recorded against the investor, because a book we HAVE is better than a gap,
  * and pretending the fund holds nothing would be worse than both.
  */
-async function revalidate() {
+async function revalidate({ ignoreWindow = false } = {}) {
   if (state.revalidating) return;
   const gen = generation;
   state.revalidating = true;
@@ -530,7 +659,7 @@ async function revalidate() {
         bump();
       }
     }
-    await walkBooks({ force: true });
+    await walkBooks({ force: true, ignoreWindow });
   } finally {
     // Only the pass that owns the current state may report on it. An abandoned pass finishing here
     // would clear `revalidating` and flip `origin` to `live` for a re-read that has not run yet.
@@ -560,9 +689,9 @@ async function revalidate() {
  * have at all, a book the Worker served from its last-good copy during an outage, and a book whose
  * confirmation predates the most recent quarter end.
  */
-async function walkBooks({ force = false } = {}) {
+async function walkBooks({ force = false, ignoreWindow = false } = {}) {
   const gen = generation;
-  const queue = state.investors.map((i) => i.slug).filter(Boolean).filter((slug) => !force || needsRevalidation(slug));
+  const queue = state.investors.map((i) => i.slug).filter(Boolean).filter((slug) => !force || ignoreWindow || needsRevalidation(slug));
   const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
     for (;;) {
       // A re-read abandons this walk. Ninety-one requests deep, continuing would spend them all
@@ -680,6 +809,23 @@ export function movesFor(slug) {
 // ---------------------------------------------------------------------------------------
 let memo = { version: -1 };
 
+/**
+ * The name to SHOW for an investor, which is the list's, not the book's.
+ *
+ * Finology's two endpoints disagree: the list says "Abakkus Fund - Sunil Singhania" and the book
+ * says "Abakkus Fund - Sunil Singhania Portfolio, Shareholdings & Investments." — their page
+ * title, SEO suffix and all. The cards were already reading the list, so the Data Table and
+ * its investor filter were showing a different string for the same person, and the cross-book
+ * summary panels were unreadable: three of those suffixes in one line of a small card.
+ *
+ * Resolved here rather than by stripping the suffix with a regex — the list is the authoritative
+ * display name, and a pattern match would quietly fail the day they reword it. Falls back to the
+ * book's own name so a book that arrives before the list still renders something real.
+ */
+function displayName(b) {
+  return state.investors.find((i) => i.slug === b.slug)?.name || b.name;
+}
+
 function derived() {
   if (memo.version === version) return memo;
 
@@ -687,12 +833,13 @@ function derived() {
   const holdings = [];
   const seenQuarters = [];
   for (const b of state.books.values()) {
+    const investor = displayName(b);
     for (const q of b.quarters) if (!seenQuarters.includes(q)) seenQuarters.push(q);
 
     const [latest] = b.quarters;
     for (const h of b.holdings) {
       holdings.push({
-        investor: b.name,
+        investor,
         slug: b.slug,
         company: h.company,
         companySlug: h.companySlug,
@@ -706,7 +853,7 @@ function derived() {
 
     const { comparable, latest: l, prior, moves: ms } = deriveMoves(b);
     if (!comparable) continue;
-    for (const m of ms) moves.push({ ...m, investor: b.name, slug: b.slug, latest: l, prior });
+    for (const m of ms) moves.push({ ...m, investor, slug: b.slug, latest: l, prior });
   }
 
   memo = { version, moves, holdings, quarters: orderQuarters(seenQuarters) };
@@ -733,11 +880,116 @@ export function allMoves() {
   return derived().moves;
 }
 
+/** The confirmation represented by one investor's current book. */
+export const confirmedAtFor = (slug) => state.confirmedAt.get(slug) || null;
+
 /** Totals for one book. */
 export const totalsFor = (slug) => {
   const b = state.books.get(slug);
   return b ? summarise(b) : null;
 };
+
+/**
+ * THE QUARTER, ROLLED UP ACROSS EVERY COMPARABLE BOOK.
+ *
+ * The page exists so a reader does not have to open ninety books one at a time, and this is the
+ * function that answers that. It is a roll-up of `deriveMoves` — counting and grouping their
+ * numbers — and it invents nothing beyond the percentage-point subtraction that module already
+ * documents as the one derived figure here.
+ *
+ * FOUR THINGS IT DELIBERATELY WILL NOT DO, each of which is the obvious feature request:
+ *
+ *  1. **No rupee size on any move.** `valueCr` is Finology's derivation of what a position is
+ *     WORTH NOW, not what was traded. Ranking "largest buys" by it would answer "who holds the
+ *     biggest position that also grew", and print a rupee figure for a trade nobody disclosed.
+ *     Increases and reductions are therefore ranked in PERCENTAGE POINTS of the company, which is
+ *     the only size the filing actually states.
+ *  2. **No size at all on a new or exited position.** `deriveMoves` leaves `deltaPp` null for both
+ *     on purpose — a position appearing is a change of disclosure, not a move of "the whole
+ *     holding" — so new entrants are ranked by the stake they now disclose, and exits carry no
+ *     figure. Sorting them into the increase/reduction lists would fabricate the very number that
+ *     module refuses to state.
+ *  3. **"Exited" is not "sold".** Below the disclosure threshold a real holding vanishes from the
+ *     shareholding pattern. The wording on every surface is "no longer disclosed".
+ *  4. **Consensus is a COUNT, not a signal.** `consensusBuys` says how many tracked investors
+ *     added or newly disclosed the same company. It is not a recommendation, it is not weighted,
+ *     and it is not scored — this dashboard adds no model to somebody else's filings.
+ *
+ * AND THE BOOKS ARE NOT ALL ON THE SAME QUARTER. `deriveMoves` compares each book's own two most
+ * recent quarters, so across ninety investors this can span several (latest, prior) pairs. That is
+ * a fact about their publishing, not an error, and `pairs` reports it so the UI can say so rather
+ * than implying one clean quarter boundary.
+ *
+ * `include(company)` narrows to the scope the view is showing. It is passed in rather than read
+ * here so the summary and the table below it filter through ONE predicate — two predicates over
+ * the same question is the shape that had the filings tabs reporting different companies in two
+ * places on one screen.
+ */
+export function quarterSummary({ include = null, limit = 5 } = {}) {
+  const all = derived().moves;
+  const moves = include ? all.filter((m) => include(m.company)) : all;
+
+  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
+  for (const m of moves) if (counts[m.action] != null) counts[m.action] += 1;
+
+  // Grouped on the company, carrying who did what — the roll-up a reader would otherwise do by
+  // opening every book. `companySlug` rides along so a row can link out to Finology's own page.
+  const group = (actions) => {
+    const byCompany = new Map();
+    for (const m of moves) {
+      if (!actions.includes(m.action)) continue;
+      if (!byCompany.has(m.company)) byCompany.set(m.company, { company: m.company, companySlug: m.companySlug, investors: [] });
+      byCompany.get(m.company).investors.push({ investor: m.investor, slug: m.slug, action: m.action, deltaPp: m.deltaPp, now: m.now });
+    }
+    return [...byCompany.values()]
+      .filter((c) => c.investors.length > 1)
+      // Most investors first. The tie-break sums only the moves that HAVE a size — a company two
+      // investors newly disclosed sums to 0pp and must not therefore rank below one with a single
+      // measured +0.1pp; `sized` keeps that visible instead of letting a null read as zero.
+      .map((c) => ({
+        ...c,
+        count: c.investors.length,
+        sized: c.investors.filter((i) => i.deltaPp != null).length,
+        sumPp: round2(c.investors.reduce((a, i) => a + (i.deltaPp ?? 0), 0)),
+      }))
+      .sort((a, b) => b.count - a.count || Math.abs(b.sumPp) - Math.abs(a.sumPp));
+  };
+
+  const byAction = (action) => moves.filter((m) => m.action === action);
+
+  // Every (latest, prior) pair the comparable books were measured across.
+  const pairs = [];
+  for (const m of moves) {
+    if (!pairs.some((p) => p.latest === m.latest && p.prior === m.prior)) pairs.push({ latest: m.latest, prior: m.prior });
+  }
+
+  // A book with one published quarter is not comparable and contributes nothing — counted, so the
+  // panel can say so rather than letting it read as an investor who did nothing.
+  let comparableBooks = 0;
+  let singleQuarterBooks = 0;
+  for (const b of state.books.values()) (b.quarters.length > 1 ? comparableBooks++ : singleQuarterBooks++);
+
+  return {
+    counts,
+    total: moves.length,
+    pairs,
+    comparableBooks,
+    singleQuarterBooks,
+    // Books that actually contributed a move to THIS (possibly scoped) set. Under a narrowed
+    // scope `comparableBooks` alone would read as though all of them had — "5 new across 87
+    // comparable books" is true and sounds like 87 investors moved on five companies.
+    contributingBooks: new Set(moves.map((m) => m.slug)).size,
+    consensusBuys: group(['new', 'added']).slice(0, limit),
+    consensusExits: group(['exited', 'trimmed']).slice(0, limit),
+    // Ranked by the stake they now disclose — a filed figure — never by a change they did not make.
+    newEntrants: byAction('new').sort((a, b) => (b.now ?? 0) - (a.now ?? 0)),
+    topAdds: byAction('added').sort((a, b) => b.deltaPp - a.deltaPp),
+    topTrims: byAction('trimmed').sort((a, b) => a.deltaPp - b.deltaPp),
+    // No sort key exists for these and none is invented: an exit has no size, so they come out in
+    // book order rather than ranked by a figure that would have to be made up.
+    exits: byAction('exited'),
+  };
+}
 
 /**
  * Companies held by more than one tracked investor, most-held first.
@@ -755,7 +1007,7 @@ export function overlaps() {
       if (h.quarterlyHoldings[latest] == null) continue;
       const key = h.company;
       if (!byCompany.has(key)) byCompany.set(key, { company: key, companySlug: h.companySlug, holders: [] });
-      byCompany.get(key).holders.push({ investor: b.name, slug: b.slug, pct: h.quarterlyHoldings[latest], valueCr: h.valueCr });
+      byCompany.get(key).holders.push({ investor: displayName(b), slug: b.slug, pct: h.quarterlyHoldings[latest], valueCr: h.valueCr });
     }
   }
   return [...byCompany.values()]

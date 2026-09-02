@@ -9,7 +9,7 @@
 // page. Sub-view switches, scope changes, chip filters and sorts all operate on that cached
 // list — nothing below refetches or rescores.
 
-import { statStrip, topCards, scoreTable, sectionHead, roadmapStrip, openModal } from '../ui/screener.js';
+import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { legendStrip } from '../ui/visual.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
@@ -26,21 +26,12 @@ export const meta = {
   title: 'Breakouts / Technical',
   subtitle: 'Live technical scoring across the NSE 500 and every listed holding — 16 rules, 24 points.',
   subviews: [
-    { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
+    { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'fii-accumulation', label: 'FII Accumulation' },
     { id: 'earnings-surprise', label: 'Earnings Surprise' },
   ],
 };
-
-const FEATURES = [
-  'Intraday refresh via the live-quote endpoint',
-  'Sector-relative strength ranking',
-  'Saved scans and threshold alerts',
-  'Historical score trend per company',
-  'TradingView indicator overlay (technicals-source.json)',
-  'Backtesting a scan over past snapshots',
-];
 
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
@@ -81,11 +72,11 @@ function loadingHtml() {
 function paint(ctx) {
   const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const view = {
-    'technical-scanner': renderScanner,
     'strong-breakouts': renderStrongBreakouts,
+    'technical-scanner': renderScanner,
     'fii-accumulation': renderFiiAccumulation,
     'earnings-surprise': renderEarningsSurprise,
-  }[ctx.subview] || renderScanner;
+  }[ctx.subview] || renderStrongBreakouts;
 
   // Earnings Surprise is the one sub-view here whose left-hand columns come off `ctx.data`, and
   // that corpus is no longer in front of the shell's first paint (see js/app.js). Waiting for it
@@ -172,15 +163,165 @@ const tableBase = (rows, ctx) => ({
 
 // ---- freshness + stat strip ---------------------------------------------------------------
 
-function freshnessCard() {
+// ---- the Live pill — what the four stat cards became ---------------------------------------
+//
+// Every sub-view here opened with a 4-up KPI row: two or three counts, and the gradient freshness
+// hero. It was the first object on the page, above the table those counts describe, and most of
+// what it said was already on screen a few pixels lower — "Breakout candidates 21 of 586" is the
+// line under the chip bar, and "Strong breakouts 0" is the count on the Strong chip itself.
+//
+// So it goes the way the Earnings Hub's strip and Portfolio's four-line block went: the
+// explanation moves behind a control that still states the claim, and the claim is never deleted.
+// The pill's modal carries every figure the cards carried, the source, the capture time, and the
+// help each card's "?" used to open. Decluttering a page is fine; deleting its accountability
+// is not.
+//
+// A GREEN "LIVE" IS A CLAIM ABOUT DATA AND IS NOT PAINTED UNCONDITIONALLY. That rule is in
+// CLAUDE.md because the header once had a green chip reading "just now" whether or not a byte had
+// been confirmed in an hour. Here the claim is checked against the schedule rather than a
+// constant: see lastExpectedRefresh.
+
+// THIS FEED IS END-OF-DAY, AND THAT IS WHAT MAKES THE THRESHOLD WHAT IT IS.
+//
+// The first cut of this derived freshness from the cron — `30 1 * * 1-5` UTC, weekdays 07:00 IST
+// — and called the capture stale the moment a scheduled run had not landed. Two things are wrong
+// with that, and the second is the one written down in CLAUDE.md:
+//
+//   1. A 22-hour-old EOD capture is CURRENT. Yesterday's close is the newest close there is; no
+//      scrape at any hour can produce a fresher one until the market closes again. Reporting it
+//      as stale describes the scraper's timetable, not the data.
+//   2. "Never write a cadence into the UI from the cron expression: the expression is a request,
+//      not a promise." Measured on this repository's own market-news job, GitHub fired 12 of 124
+//      scheduled runs. A chip keyed to a schedule that is not honoured would sit amber most of
+//      the week with nothing actually wrong — which teaches the reader to ignore it, and then it
+//      is worth nothing on the day something IS wrong.
+//
+// So the threshold is the schedule's own WORST CASE, the same shape the market-news chip uses:
+// Friday's capture is still the newest thing that exists on Monday morning, so three days is the
+// widest legitimate gap. Past that, a weekday has been missed and the chip says how old it is
+// rather than claiming anything.
+const STALE_AFTER_MS = 72 * 60 * 60 * 1000;
+
+export function freshnessOf(generatedAt, now = Date.now()) {
+  // Exported and pure so the suite can assert both sides of the boundary directly, rather than
+  // waiting for a day the shipped snapshot happens to be stale on.
+  const raw = generatedAt ? new Date(generatedAt) : null;
+  const ts = raw && !Number.isNaN(raw.getTime()) ? raw : null;
+  // No capture time is its own state. It is not "live", and it is not stale either — nothing is
+  // known, and saying so is the only honest option.
+  if (!ts) return { state: 'unknown', ts: null };
+  return { state: now - ts.getTime() <= STALE_AFTER_MS ? 'live' : 'stale', ts };
+}
+
+function freshness() {
   const m = technicals.meta();
-  const ts = m?.generated_at ? new Date(m.generated_at) : null;
-  return {
-    hero: true,
-    label: 'Last Refresh',
-    value: ts ? formatRelativeTime(ts) : '—',
-    note: `${m?.source || 'Yahoo Finance'} EOD · ${technicals.coverage().label}`,
-  };
+  return { ...freshnessOf(m?.generated_at), meta: m };
+}
+
+const TONE = {
+  live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  stale: 'bg-slate-50 text-slate-600 ring-slate-200',
+  unknown: 'bg-slate-100 text-slate-600 ring-slate-300',
+  mock: 'bg-amber-50 text-amber-800 ring-amber-300',
+};
+const DOT = {
+  live: '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>',
+  stale: '',
+  unknown: '<span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>',
+  mock: '',
+};
+
+/**
+ * livePill({ facts, bodyHtml, more, mock }) — one chip in the section head, and behind it
+ * everything the stat cards used to print.
+ *
+ * `facts` are the figures the removed cards carried, `bodyHtml` the help their "?" opened, and
+ * `more` an optional { label, open() } for help too long to inline.
+ *
+ * `mock` forces the amber treatment and puts the mixed provenance on the FACE of the chip, not
+ * merely inside it — a screenshot travels without the modal, so a synthetic number may never sit
+ * under a green "Live".
+ */
+function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {}) {
+  const f = freshness();
+  const tone = mock ? 'mock' : f.state;
+  const face = mock
+    ? 'Mock earnings · live technicals'
+    : f.state === 'live'
+      ? 'Up to date'
+      : f.state === 'stale'
+        ? `Updated ${formatRelativeTime(f.ts)}`
+        : 'Updating';
+  const coverage = f.meta?.company_count
+    ? `${formatNumber(f.meta.scored_count || 0)} of ${formatNumber(f.meta.company_count)} companies scored`
+    : null;
+  const title = mock
+    ? 'Two provenances on one screen — click for what is mock and what is live'
+    : f.state === 'live'
+      ? `End-of-day data, captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''} — click for the source and the figures`
+      : f.state === 'stale'
+        ? `End-of-day data captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''}`
+        : 'This feed carries no capture time — click for what is known';
+
+  const html = `
+    <span data-live-info title="${escapeHtml(title.replace(/\s*— click.*$/i, ''))}"
+      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${TONE[tone]}">
+      ${DOT[tone]}<span>${escapeHtml(face)}</span>
+    </span>`;
+
+  function wire() {}
+
+  return { html, wire };
+}
+
+function pillModalBody({ f, facts, bodyHtml, more, mock }) {
+  const m = f.meta;
+  const captured = f.ts
+    ? `${escapeHtml(formatRelativeTime(f.ts))} <span class="text-slate-400">· ${escapeHtml(f.ts.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }))} IST</span>`
+    : '<span class="text-slate-400">not stated by the feed</span>';
+  const note = mock
+    ? '<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">The earnings half of this table is <strong>mock data</strong>. Only the technical score is live. Nothing is combined across the two.</p>'
+    : f.state === 'stale'
+      ? `<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">This capture is more than three days old, which is wider than any weekend gap — at least one weekday scrape has not landed. The figures below are from ${escapeHtml(formatRelativeTime(f.ts))}.</p>`
+      : f.state === 'unknown'
+        ? '<p class="mt-3 rounded-xl bg-slate-100 p-3 text-[12px] leading-relaxed text-slate-700 ring-1 ring-slate-200">The feed did not state when it was captured, so its age cannot be reported. It is not being claimed as current.</p>'
+        : '';
+
+  const factRows = facts
+    .filter((c) => c)
+    .map(
+      (c) => `
+      <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(c.label)}</div>
+        <div class="text-sm font-bold tabular-nums text-slate-900">${escapeHtml(String(c.value))}</div>
+        ${c.note ? `<div class="text-[11px] text-slate-500">${escapeHtml(c.note)}</div>` : ''}
+      </div>`
+    )
+    .join('');
+
+  return `
+    <div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
+      <div class="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 class="font-display text-xl font-bold text-slate-900">Where these figures come from</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            ${escapeHtml(m?.source || 'Yahoo Finance')} end-of-day OHLCV plus NSE delivery data, scraped on a
+            weekday 07:00 IST schedule and committed to the repo. ${escapeHtml(technicals.coverage().label)}.
+          </p>
+        </div>
+        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="mb-4 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Captured</div>
+        <div class="text-sm font-semibold text-slate-900">${captured}</div>
+      </div>
+      ${note}
+
+      ${factRows ? `<div class="mt-4"><div class="mb-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700">This view</div><div class="grid gap-2 sm:grid-cols-3">${factRows}</div></div>` : ''}
+      ${bodyHtml ? `<div class="mt-4 text-[13px] leading-relaxed text-slate-700">${bodyHtml}</div>` : ''}
+      ${more ? `<button type="button" data-live-more class="mt-4 text-xs font-semibold text-indigo-600 underline-offset-2 hover:underline">${escapeHtml(more.label)} →</button>` : ''}
+    </div>`;
 }
 
 function scoringHelpModalBody() {
@@ -249,17 +390,14 @@ function renderScanner(ctx, rows) {
   const scored = rows.filter((s) => !s.tickerError);
   const maxPoints = scored[0]?.totalMax ?? 24;
 
-  const stats = statStrip([
-    { label: 'Universe', value: formatNumber(rows.length), note: `${m?.source || 'Yahoo Finance'} EOD · ${technicals.coverage().label}` },
-    {
-      label: 'Scoring Method',
-      value: `${ACTIVE_RULES.length} / ${ACTIVE_RULES.length}`,
-      note: 'Active rules',
-      help: { title: 'Technicals scoring', body: '' }, // body unused — we open the full modal below
-    },
-    { label: 'Max Score', value: `${maxPoints} pts`, note: 'All rules active' },
-    freshnessCard(),
-  ]);
+  const pill = livePill({
+    facts: [
+      { label: 'Universe', value: formatNumber(rows.length), note: 'companies scored' },
+      { label: 'Scoring method', value: `${ACTIVE_RULES.length} / ${ACTIVE_RULES.length}`, note: 'active rules' },
+      { label: 'Max score', value: `${maxPoints} pts`, note: 'all rules active' },
+    ],
+    more: { label: 'How the 16-rule score works', open: () => openModal(scoringHelpModalBody(), { size: 'wide' }) },
+  });
 
   const cards = topCards({
     title: 'Top 10 by Technicals Score',
@@ -320,47 +458,51 @@ function renderScanner(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
-      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies', book: coverage.meta() }),
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies', book: coverage.meta() })}</div>`,
     })}
     ${refreshBar()}
-    ${stats.html}
     ${cards.html}
     ${table.html}
     ${legendStrip({ note: `Scored from ${m?.source || 'Yahoo Finance'} daily OHLCV plus NSE delivery data. ${m?.failures || 0} of ${m?.company_count || 0} companies have no usable price history and score 0 of 0.` })}
-    ${roadmapStrip(FEATURES)}
   `;
 
-  stats.wire(ctx.root);
+  pill.wire(ctx.root);
   cards.wire(ctx.root);
   table.wire(ctx.root);
   wireRefreshBar(ctx, table);
-
-  // Replace the generic help handler with the full 16-rule modal.
-  const helpBtn = ctx.root.querySelector('[data-stat-help]');
-  if (helpBtn) {
-    const fresh = helpBtn.cloneNode(true);
-    helpBtn.replaceWith(fresh);
-    fresh.addEventListener('click', () => openModal(scoringHelpModalBody(), { size: 'wide' }));
-  }
 }
 
 // ---- (b) Strong Breakouts ------------------------------------------------------------------
 
+// Every group leads with `all` and every group defaults to it, so the sub-view opens on the
+// widest answer it can give and the reader narrows from there rather than discovering, after the
+// fact, that a chip they never touched had been hiding rows. The trend filter is the one that used
+// to do that: it shipped on "Above 200 DMA only", and a breakout below the primary trend line was
+// simply absent from a table that gave no sign it was withholding anything.
+//
+// `all` means this group applies NO constraint. In `strength` that is every breakout grade the feed
+// can report — the group grades a breakout, and `no_breakout` is the absence of one rather than a
+// fourth grade, so it stays out of this view exactly as it always has. The line under the chips
+// prints the matched count over every company with a detectable base, which is what keeps that
+// difference visible rather than implied.
+//
+// `aliases` retires the old `any` ids without breaking a saved link — see readChipState.
 const BREAKOUT_FILTERS = {
   strength: {
     param: 'bo',
     label: 'Breakout strength',
     multi: true,
+    aliases: { any: 'all' },
     options: [
+      { id: 'all', label: 'All' },
       { id: 'strong', label: 'Strong' },
       { id: 'weak_base', label: 'Weak base' },
       { id: 'low_volume', label: 'Low volume' },
-      { id: 'any', label: 'Any breakout' },
     ],
     test: (s, ids) => {
       const q = s.company.consolidation_breakout?.quality;
       if (!q) return false;
-      if (ids.includes('any')) return q !== 'no_breakout';
+      if (ids.includes('all')) return q !== 'no_breakout';
       return ids.includes(q);
     },
   },
@@ -368,14 +510,15 @@ const BREAKOUT_FILTERS = {
     param: 'vol',
     label: 'Volume confirm',
     multi: false,
+    aliases: { any: 'all' },
     options: [
+      { id: 'all', label: 'All' },
       { id: '1.5', label: '≥ 1.5×' },
       { id: '1.0', label: '≥ 1.0×' },
-      { id: 'any', label: 'Any' },
     ],
     test: (s, ids) => {
       const id = ids[0];
-      if (!id || id === 'any') return true;
+      if (!id || id === 'all') return true;
       const r = s.company.consolidation_breakout?.today_volume_ratio;
       return r != null && r >= Number(id);
     },
@@ -384,15 +527,16 @@ const BREAKOUT_FILTERS = {
     param: 'near',
     label: '52W proximity',
     multi: false,
+    aliases: { any: 'all' },
     options: [
+      { id: 'all', label: 'All' },
       { id: '5', label: 'Within 5%' },
       { id: '10', label: 'Within 10%' },
       { id: '20', label: 'Within 20%' },
-      { id: 'any', label: 'Any' },
     ],
     test: (s, ids) => {
       const id = ids[0];
-      if (!id || id === 'any') return true;
+      if (!id || id === 'all') return true;
       const p = s.company.high_proximity_pct;
       if (p == null) return false;
       return (1 - p) * 100 <= Number(id);
@@ -402,22 +546,30 @@ const BREAKOUT_FILTERS = {
     param: 'dma',
     label: 'Trend filter',
     multi: false,
+    // 'any' was this group's include-everything id, so it aliases onto 'all' rather than being
+    // dropped: a bookmarked `?dma=any` still means what its author meant.
+    aliases: { any: 'all' },
     options: [
+      { id: 'all', label: 'All' },
       { id: 'above', label: 'Above 200 DMA only' },
-      { id: 'any', label: 'Include below 200 DMA' },
     ],
-    test: (s, ids) => (ids[0] === 'any' ? true : s.company.above_200dma === true),
+    // Only 'above' constrains. Written this way round so an id this group no longer knows widens
+    // the view rather than silently emptying it.
+    test: (s, ids) => (ids[0] === 'above' ? s.company.above_200dma === true : true),
   },
 };
 
-// Defaults: any breakout, any volume, any proximity, above-200-DMA ON (per spec).
-const BREAKOUT_DEFAULTS = { bo: 'any', vol: 'any', near: 'any', dma: 'above' };
+// Defaults: all of everything. Nothing on this sub-view is narrowed until the reader narrows it.
+const BREAKOUT_DEFAULTS = { bo: 'all', vol: 'all', near: 'all', dma: 'all' };
 
-function readChipState(params, defaults) {
+function readChipState(params, defaults, groups = null) {
+  const aliasFor = (param) => Object.values(groups || {}).find((g) => g.param === param)?.aliases || null;
   const state = {};
   for (const [key, def] of Object.entries(defaults)) {
     const raw = params[key];
-    state[key] = raw == null || raw === '' ? def.split(',') : String(raw).split(',');
+    const ids = raw == null || raw === '' ? def.split(',') : String(raw).split(',');
+    const alias = aliasFor(key);
+    state[key] = alias ? ids.map((id) => alias[id] || id) : ids;
   }
   return state;
 }
@@ -461,25 +613,19 @@ function wireChipBar(root, groups, state, onChange) {
     let next;
     if (!g.multi) {
       next = [id];
-    } else if (id === 'any') {
-      next = ['any'];
+    } else if (id === 'all') {
+      next = ['all'];
     } else {
-      const without = cur.filter((x) => x !== 'any');
+      const without = cur.filter((x) => x !== 'all');
       next = without.includes(id) ? without.filter((x) => x !== id) : [...without, id];
-      if (!next.length) next = ['any'];
+      if (!next.length) next = ['all'];
     }
     onChange(g.param, next);
   });
 }
 
-// Breakout quality ranks strong > weak_base > low_volume > none; ties break on score.
-const QUALITY_RANK = { strong: 3, weak_base: 2, low_volume: 1, no_breakout: 0 };
-function breakoutRank(s) {
-  return QUALITY_RANK[s.company.consolidation_breakout?.quality] ?? 0;
-}
-
 function renderStrongBreakouts(ctx, rows) {
-  const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS);
+  const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
 
   // Live counts per chip: how many rows would remain if that chip alone were toggled on,
@@ -497,44 +643,51 @@ function renderStrongBreakouts(ctx, rows) {
 
   const filtered = withBreakout
     .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
-    .sort((a, b) => breakoutRank(b) - breakoutRank(a) || b.totalPoints - a.totalPoints);
+    // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
+    // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
+    // columns left on screen once the Quality column came off. The quality is still what the chip
+    // filters select on — it decides WHICH rows are here, and the score decides their order.
+    .sort((a, b) => b.totalPoints - a.totalPoints);
 
   const strongCount = filtered.filter((s) => s.company.consolidation_breakout?.quality === 'strong').length;
+  const basingCount = withBreakout.filter((s) => s.company.consolidation_breakout?.quality === 'no_breakout').length;
 
-  const stats = statStrip([
-    { label: 'Breakout candidates', value: formatNumber(filtered.length), note: `of ${withBreakout.length} with a base` },
-    { label: 'Strong breakouts', value: formatNumber(strongCount), note: 'tight base + volume' },
-    {
-      label: 'Filters active',
-      value: Object.entries(state).filter(([k, v]) => v.join(',') !== BREAKOUT_DEFAULTS[k]).length || '—',
-      note: 'chips reflected in the URL',
-      help: {
-        title: 'How breakout quality is graded',
-        body: `<p>The base is the prior 30 trading days (≈ 6 weeks), excluding today.</p>
+  const pill = livePill({
+    facts: [
+      { label: 'Breakout candidates', value: formatNumber(filtered.length), note: `of ${withBreakout.length} with a base` },
+      { label: 'Strong breakouts', value: formatNumber(strongCount), note: 'tight base + volume' },
+      {
+        label: 'Filters active',
+        value: Object.entries(state).filter(([k, v]) => v.join(',') !== BREAKOUT_DEFAULTS[k]).length || '—',
+        note: 'chips reflected in the URL',
+      },
+    ],
+    bodyHtml: `<h3 class="mb-1 text-xs font-bold uppercase tracking-wider text-indigo-700">How breakout quality is graded</h3><p>The base is the prior 30 trading days (≈ 6 weeks), excluding today.</p>
                <ul class="mt-2 list-disc space-y-1 pl-5">
                  <li><strong>Strong</strong> — tight base (range &lt; 12% of average price) <em>and</em> today's close above the base high <em>and</em> volume &gt; 1.5× the base average.</li>
                  <li><strong>Weak base</strong> — broke out on volume, but the base wasn't tight.</li>
                  <li><strong>Low volume</strong> — closed above the base high without volume confirmation. Suspect.</li>
                </ul>
-               <p class="mt-3 text-slate-500">The trend filter defaults to above-200-DMA only, because a breakout below the primary trend line is a hard fail in the client framework. Turn it off to see those too.</p>`,
-      },
-    },
-    freshnessCard(),
-  ]);
+               <p class="mt-3 text-slate-500">Every filter opens on <strong>All</strong>, so nothing is held back until you hold it back. The trend filter is the one worth reaching for first — a breakout below the primary trend line is a hard fail in the client framework, and <em>Above 200 DMA only</em> drops those.</p>
+               <p class="mt-2 text-slate-500"><strong>All</strong> under Breakout strength means every grade above, not every company${
+                 basingCount
+                   ? `: the ${formatNumber(basingCount)} names whose base has not broken out are counted in the line beneath the chips, and are not this sub-view's subject`
+                   : ''
+               }.</p>`,
+  });
 
   const table = scoreTable({
     ...tableBase(filtered, ctx),
     showScore: true,
     score: scoreOf,
     columns: [
-      { label: 'Quality', get: (s) => qualityPill(s.company.consolidation_breakout?.quality), html: true, sortValue: (s) => breakoutRank(s) },
       { label: 'Base range %', get: (s) => `${num(s.company.consolidation_breakout?.base_range_pct, 1)}%`, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_range_pct ?? 999 },
       { label: 'Base high', get: (s) => formatRupee(s.company.consolidation_breakout?.base_max, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_max ?? 0 },
       { label: 'Today close', get: (s) => formatRupee(s.company.consolidation_breakout?.today_close, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_close ?? 0 },
       { label: 'Volume ratio', get: (s) => volRatioCell(s.company.consolidation_breakout?.today_volume_ratio), html: true, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? 0 },
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
     ],
-    initialSort: null, // pre-sorted by breakout quality then score
+    initialSort: null, // pre-sorted by score
     exportName: `glow-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
@@ -542,34 +695,22 @@ function renderStrongBreakouts(ctx, rows) {
   ctx.root.innerHTML = `
     ${sectionHead({
       title: meta.title,
-      description: 'Companies breaking out of a 6-week base, ranked by breakout quality then technical score.',
-      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() }),
+      description: 'Companies breaking out of a 6-week base, ranked by technical score.',
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() })}</div>`,
     })}
-    ${stats.html}
     ${chipBar(BREAKOUT_FILTERS, state, counts)}
     <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${withBreakout.length}</span> companies with a detectable base match these filters.</div>
     ${table.html}
     ${legendStrip()}
-    ${roadmapStrip(FEATURES)}
   `;
 
-  stats.wire(ctx.root);
+  pill.wire(ctx.root);
   table.wire(ctx.root);
   wireChipBar(ctx.root, BREAKOUT_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
 }
 
-function qualityPill(q) {
-  const map = {
-    strong: ['Strong', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
-    weak_base: ['Weak base', 'bg-amber-50 text-amber-700 ring-amber-200'],
-    low_volume: ['Low volume', 'bg-amber-50 text-amber-700 ring-amber-200'],
-    no_breakout: ['No breakout', 'bg-slate-100 text-slate-600 ring-slate-200'],
-  };
-  const [label, cls] = map[q] || ['—', 'bg-slate-100 text-slate-500 ring-slate-200'];
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${label}</span>`;
-}
 function volRatioCell(r) {
   if (r == null) return '—';
   return toneSpan(`${num(r, 2)}×`, r >= 1.5 ? 'pos' : r >= 1 ? 'warn' : 'neg');
@@ -625,7 +766,7 @@ const FII_FILTERS = {
 const FII_DEFAULTS = { side: 'fii', mag: '0' };
 
 function renderFiiAccumulation(ctx, rows) {
-  const state = readChipState(ctx.params || {}, FII_DEFAULTS);
+  const state = readChipState(ctx.params || {}, FII_DEFAULTS, FII_FILTERS);
   const withHold = rows.filter((s) => !s.tickerError && (s.company.chg_fii_hold != null || s.company.chg_dii_hold != null));
 
   const counts = {};
@@ -644,22 +785,16 @@ function renderFiiAccumulation(ctx, rows) {
   const exiting = withHold.filter((s) => (s.company.chg_fii_hold ?? 0) < -2).length;
   const avgFii = withHold.length ? withHold.reduce((s, r) => s + (r.company.chg_fii_hold ?? 0), 0) / withHold.length : 0;
 
-  const stats = statStrip([
-    { label: 'Matching names', value: formatNumber(filtered.length), note: `of ${withHold.length} with shareholding data` },
-    { label: 'Avg FII change', value: formatPct(avgFii, { decimals: 2 }), note: 'percentage points, latest period' },
-    {
-      label: 'FII exiting sharply',
-      value: formatNumber(exiting),
-      note: 'below −2% — flagged rose',
-      help: {
-        title: 'Institutional Activity and the −2% caution',
-        body: `<p>The Institutional Activity rule scores the sum of the FII and DII holding change: net positive earns the point, net negative earns zero.</p>
-               <p class="mt-2">There is one caution branch: if the combined figure is positive but <strong>FII alone is falling by more than 2%</strong>, the rule downgrades to partial rather than a clean pass — domestic buying is masking a foreign exit.</p>
+  const pill = livePill({
+    facts: [
+      { label: 'Matching names', value: formatNumber(filtered.length), note: `of ${withHold.length} with shareholding data` },
+      { label: 'Avg FII change', value: formatPct(avgFii, { decimals: 2 }), note: 'percentage points, latest period' },
+      { label: 'FII exiting sharply', value: formatNumber(exiting), note: 'below −2% — flagged rose' },
+    ],
+    bodyHtml: `<h3 class="mb-1 text-xs font-bold uppercase tracking-wider text-indigo-700">Institutional Activity and the −2% caution</h3><p>The Institutional Activity rule scores the sum of the FII and DII holding change: net positive earns the point, net negative earns zero.</p>
+               <p class="mt-2">There is one caution branch: if the combined figure is positive but <strong>FII alone is falling by more than 2%</strong>, the rule is marked mixed rather than a clean pass — domestic buying is masking a foreign exit.</p>
                <p class="mt-3 text-slate-500">Those companies are flagged in rose on this tab so the divergence is visible before you open the drill. Holding changes come from the Screener shareholding export, refreshed with the universe file.</p>`,
-      },
-    },
-    freshnessCard(),
-  ]);
+  });
 
   const table = scoreTable({
     ...tableBase(filtered, ctx),
@@ -686,17 +821,15 @@ function renderFiiAccumulation(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Institutional holding changes from the latest Screener shareholding export, joined to the live technical score.',
-      meta: scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'names', book: coverage.meta() }),
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'names', book: coverage.meta() })}</div>`,
     })}
-    ${stats.html}
     ${chipBar(FII_FILTERS, state, counts)}
     <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${withHold.length}</span> names with shareholding data match these filters.</div>
     ${table.html}
     ${legendStrip()}
-    ${roadmapStrip(FEATURES)}
   `;
 
-  stats.wire(ctx.root);
+  pill.wire(ctx.root);
   table.wire(ctx.root);
   wireChipBar(ctx.root, FII_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
@@ -718,35 +851,38 @@ function renderEarningsSurprise(ctx, rows) {
   // The honest join: mock earnings on the left, the REAL technical score on the right.
   // Deliberately NOT blended into a composite — the two sides have different provenance.
   const byTicker = new Map(rows.map((s) => [s.company.ticker, s]));
-  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || ctx.scope !== 'portfolio');
+  // `rows` arrived already narrowed to the scope, so under Portfolio or Watchlist an earnings row
+  // with no technical row is a company outside the scope — not a company with no technicals.
+  const narrowed = ctx.scope !== 'universe';
+  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || !narrowed);
 
   const joined = earnings
     .map((e) => ({ earnings: e, tech: byTicker.get(e.ticker) || null }))
-    .filter((j) => (ctx.scope === 'portfolio' ? !!j.tech : true))
+    .filter((j) => (narrowed ? !!j.tech : true))
     .sort((a, b) => b.earnings.surprisePct - a.earnings.surprisePct);
 
   const withTech = joined.filter((j) => j.tech && !j.tech.tickerError).length;
   const beats = joined.filter((j) => j.earnings.resultTag === 'Beat').length;
 
-  const stats = statStrip([
-    { label: 'Results joined', value: formatNumber(joined.length), note: `${withTech} with a live technical score` },
-    { label: 'Beats', value: formatNumber(beats), note: `${joined.length - beats} in-line or miss` },
-    {
-      label: 'Provenance',
-      value: 'Mixed',
-      note: 'mock earnings · live technicals',
-      help: {
-        title: 'Two different sources on one screen',
-        body: `<p>This view deliberately keeps two provenances side by side rather than blending them:</p>
+  // `mock` rather than the plain freshness pill, and it is the one sub-view here that gets it: a
+  // green "Live" in the head of a table whose earnings columns are invented would be the chip
+  // claiming more than it can support. The amber ribbon below states the same thing — this is the
+  // pill agreeing with it, not repeating it by accident.
+  const pill = livePill({
+    mock: true,
+    facts: [
+      { label: 'Results joined', value: formatNumber(joined.length), note: `${withTech} with a live technical score` },
+      { label: 'Beats', value: formatNumber(beats), note: `${joined.length - beats} in-line or miss` },
+      { label: 'Provenance', value: 'Mixed', note: 'mock earnings · live technicals' },
+    ],
+    bodyHtml: `<h3 class="mb-1 text-xs font-bold uppercase tracking-wider text-indigo-700">Two different sources on one screen</h3>
+               <p>This view deliberately keeps two provenances side by side rather than blending them:</p>
                <ul class="mt-2 list-disc space-y-1 pl-5">
                  <li><strong>Earnings columns</strong> (surprise %, beat/miss, revenue and PAT growth) are <em>mock data</em> from <code class="rounded bg-slate-100 px-1">mock/earnings.json</code>. Swapping in a real filings feed is documented in docs/DATA-CONTRACTS.md under “Wiring the real feed”.</li>
                  <li><strong>Technical score</strong> is <em>live</em> — computed today from Yahoo Finance daily OHLCV by the same 16-rule model as the rest of this tab.</li>
                </ul>
                <p class="mt-3 text-slate-500">No composite is computed across the two. Combining a mock number with a live one into a single score would make the mock half invisible, and the result would look more trustworthy than it is.</p>`,
-      },
-    },
-    freshnessCard(),
-  ]);
+  });
 
   const table = scoreTable({
     rows: joined,
@@ -776,19 +912,17 @@ function renderEarningsSurprise(ctx, rows) {
     ${sectionHead({
       title: meta.title,
       description: 'Earnings surprise against the live technical score for the same company.',
-      meta: scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() }),
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() })}</div>`,
     })}
     <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
       <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
       <span>Earnings figures are <strong>mock</strong>. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
     </div>
-    ${stats.html}
     ${table.html}
     ${legendStrip()}
-    ${roadmapStrip(FEATURES)}
   `;
 
-  stats.wire(ctx.root);
+  pill.wire(ctx.root);
   table.wire(ctx.root);
 }
 

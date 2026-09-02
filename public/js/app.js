@@ -12,6 +12,7 @@ import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
+import { startCaptureWatchdog } from './data/capture-watchdog.js';
 
 // Add a file here and every tab can read it off `ctx.data.<key>` — no other wiring needed.
 //
@@ -42,8 +43,8 @@ const DEFERRED_SOURCES = {
   portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   // The broad market universe the filings feeds walk — ~1,900 companies above a market-cap floor,
-  // ordered by market cap. Deferred: only the two filings tabs read it, and only when Refresh is
-  // pressed, by which point the deferred pass has long landed. See js/data/tracked-universe.js.
+  // ordered by market cap. Deferred: only the filings tabs read it, and only when a walk runs, by
+  // which point the deferred pass has long landed. See js/data/tracked-universe.js.
   trackedUniverse: 'data/tracked-universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
@@ -104,7 +105,7 @@ function loadDeferred(data) {
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
 
-      // The filings tracking universe (Corporate Announcements, Insider Trades).
+      // The filings tracking universe (Corporate Announcements, Insider Trades, company News).
       primeTrackedUniverse(data.trackedUniverse);
 
       // Portfolio Analytics: the holdings config and the ledger are both small and already fetched
@@ -145,6 +146,11 @@ async function boot() {
     return;
   }
   mount(root);
+
+  // GitHub schedules are best-effort. One small timestamp request checks every committed capture
+  // after first paint and dispatches only the ones outside their real operating window. The Worker
+  // declines duplicate runs across readers; landed files repaint any feed already on screen.
+  startCaptureWatchdog();
 }
 
 boot();

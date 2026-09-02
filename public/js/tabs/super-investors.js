@@ -1,17 +1,18 @@
 // tabs/super-investors.js — who owns what, from two live sources and nothing else.
 //
 //   Superstar Investors  every tracked investor's book, live off Ticker Finology  → investors/live.js
-//   Institutions         every tracked scheme's returns and peer rank, off AmfiBeas → investors/fund-returns.js
+//   Institutions         funds, from shareholding filings and AMC portfolios      → investors/filed.js
+//   Fund Returns         every tracked scheme's returns and peer rank, off AmfiBeas → investors/fund-returns.js
 //
-// THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. Both sub-views own their own rendering,
-// provenance and export; all that is left here is the tab contract, the two lifetimes, and the
+// THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. All three sub-views own their own rendering,
+// provenance and export; all that is left here is the tab contract, the lifetimes, and the
 // loading state.
 //
-// THE INSTITUTIONS SUB-VIEW WAS REBUILT. It used to be filed shareholdings (Trendlyne) and AMC
-// portfolios (`js/investors/filed.js` over `institution-holdings.json`); it now renders the AmfiBeas
-// "Returns & Ranking" table — every tracked mutual fund and ETF, its point-to-point return for each
-// period and its rank within its own cohort. The URL id stays `institutions` so saved links keep
-// working; the old view's modules are left on disk, dormant, rather than deleted in the same change.
+// FUND RETURNS IS THE THIRD SUB-VIEW, AND IT IS A DIFFERENT KIND OF DISCLOSURE AGAIN. Institutions
+// is who holds what (filed shareholdings and AMC portfolios); Fund Returns is how every tracked
+// mutual fund and ETF performed — point-to-point returns per period and a rank within its own
+// cohort, computed by AmfiBeas from AMFI's daily NAV and reproduced here unchanged. Nothing on it
+// is a holding, so nothing on it sums, ranks or joins with the other two views.
 //
 // THE SYNTHETIC HALF IS GONE, AND ITS MACHINERY WITH IT. There used to be a third sub-view, Fund
 // Flows, running on `superinvestors.json` / `institutions.json` — real names against generated
@@ -27,24 +28,23 @@
 // AMFI publish the real monthly figures and it comes back pointed at those.
 
 import { sectionHead } from '../ui/screener.js';
+import { renderFiled } from '../investors/filed.js';
 import { renderFundReturns } from '../investors/fund-returns.js';
 import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
+import * as refreshRegistry from '../core/refresh.js';
+import * as filed from '../data/institution-holdings.js';
 import * as fundReturns from '../data/fund-returns.js';
 
 export const meta = {
   id: 'super-investors',
   title: 'Super Investors',
-  subtitle: 'Superstar-investor holdings and every tracked scheme’s returns and peer rank.',
+  subtitle: 'Superstar-investor and institutional holdings, quarter on quarter and month on month — and every tracked scheme’s returns and peer rank.',
   subviews: [
     { id: 'superstar-investors', label: 'Superstar Investors' },
-    // The URL id stays `institutions` for saved-link stability; the label is what the reader sees.
-    { id: 'institutions', label: 'Fund Returns' },
+    { id: 'institutions', label: 'Institutions' },
+    { id: 'fund-returns', label: 'Fund Returns' },
   ],
-  // A compact dropdown selector rather than the left rail: both sub-views are wide (a 90-card grid
-  // and a 15-column table), so the ~240px rail column was empty space beside them. The dropdown
-  // frees the full width. Routing is unchanged — the shell just moves the selector. See shell.js.
-  subviewLayout: 'dropdown',
 };
 
 let renderToken = 0;
@@ -56,16 +56,28 @@ let disposers = [];
 // at a time) and the table's search/sort/filter state, carried across those repaints so a book
 // landing mid-read does not throw away what the reader had set up.
 let liveUnsub = null;
+let liveUnregister = null;
 let liveView = null;
+// The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
+// chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
+// leaving Super Investors resets it.
+let liveSection = 'investors';
+// Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
+// is a cross-book destination whose selection survives a scope repaint but not leaving the view.
+let filedSection = 'institutions';
 
 // ---------------------------------------------------------------------------------------
 // Entry
 // ---------------------------------------------------------------------------------------
 
 export function render(ctx) {
+  // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
+  // Investors so returning from Institutions opens on the documented All Investors default.
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';
+  if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
-  const view = { institutions: renderInstitutions }[ctx.subview] || renderIndividuals;
+  const view = { institutions: renderInstitutions, 'fund-returns': renderFundReturnsView }[ctx.subview] || renderIndividuals;
   view(ctx);
 }
 
@@ -78,9 +90,13 @@ export function destroy() {
   // place it can be released. Without this, every visit stacks another repainter on a dead ctx.
   liveUnsub?.();
   liveUnsub = null;
+  liveUnregister?.();
+  liveUnregister = null;
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
+  liveSection = 'investors';
+  filedSection = 'institutions';
 }
 
 function loadingHtml() {
@@ -117,15 +133,28 @@ function renderIndividuals(ctx) {
     return;
   }
 
-  renderLive(ctx, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+  paintIndividuals(ctx);
 
   // Repaint as each book lands. The subscription is a mount-lifetime thing, so it is released in
   // destroy() and not by the next repaint — otherwise the first arrival would tear down the
   // subscription that produced it.
+  // THE HEADER'S REFRESH BUTTON RE-READS THE BOOKS, and nothing else does. Ninety-one round trips
+  // is not work to do on a page load: the grid is painted from the committed snapshot and this
+  // device, and asking the server about all of it is what the reader presses a button for.
+  if (!liveUnregister) {
+    liveUnregister = refreshRegistry.register('superstar-investors', {
+      label: 'Superstar Investors',
+      refresh: () => liveInvestors.refresh(),
+    });
+  }
+
+  // THE GUARD IS `ctxRef`, NOT A CAPTURED TOKEN. `renderToken` increments on every render — which a
+  // scope toggle always causes — so a handler holding the value it had at subscribe time goes deaf
+  // the first time the reader touches the toggle, and the grid stops updating with nothing on
+  // screen to say so. Same bug, and same fix, as the three filings tabs.
   if (!liveUnsub) {
-    const token = renderToken;
     liveUnsub = liveInvestors.onChange(() => {
-      if (token !== renderToken || ctxRef?.subview !== 'superstar-investors') return;
+      if (ctxRef?.subview !== 'superstar-investors') return;
       // A re-read from the Live pill discards the whole feed and starts again, so for a moment
       // there is no list. Rendering the panel then would put "the API returned an error" on screen
       // for something the reader just asked for and which has not failed. The skeleton is the
@@ -134,13 +163,99 @@ function renderIndividuals(ctx) {
         ctxRef.root.innerHTML = loadingHtml();
         return;
       }
-      renderLive(ctxRef, { disposers, tableView: liveView, onView: (v) => (liveView = v) });
+      paintIndividuals(ctxRef);
     });
   }
 }
 
+function paintIndividuals(ctx) {
+  disposers.forEach((d) => d && d());
+  disposers = [];
+  renderLive(ctx, {
+    disposers,
+    section: liveSection,
+    tableView: liveView,
+    onView: (v) => (liveView = v),
+    onSection: (section) => {
+      if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;
+      liveSection = section;
+      paintIndividuals(ctxRef);
+      // The click removed the button that held focus when it repainted the root. Put focus on its
+      // selected replacement so a keyboard reader can continue from the in-page tabs.
+      ctxRef.root.querySelector('[data-live-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------------------
-// Institutions — every tracked scheme's returns and peer rank, off AmfiBeas
+// Institutions — filed shareholdings and AMC portfolios
+// ---------------------------------------------------------------------------------------
+
+/**
+ * One table per fund, with a picker across the top.
+ *
+ * Two kinds of fund sit behind that picker and they measure different things — see the header of
+ * js/investors/filed.js. This function does not know or care which; `renderFiled` branches.
+ */
+function renderInstitutions(ctx) {
+  disposers.forEach((d) => d && d());
+  disposers = [];
+
+  // The holdings file is 347KB and this is the only view that reads it, so it is no longer in
+  // front of the shell's first paint (see js/app.js). `filed.load()` is idempotent and resolves at
+  // once when the bootstrap pass has already primed it — so on any visit but a cold one this is a
+  // resolved promise and the shimmer never renders. It must be awaited rather than raced: an
+  // unprimed `filed.all()` is empty, and an empty book on screen is a claim that nobody holds
+  // anything, which is exactly the failure the panel below is written to avoid.
+  if (!filed.all().length) {
+    const token = renderToken;
+    ctx.root.innerHTML = loadingHtml();
+    filed.load().then(() => {
+      if (token === renderToken) paintInstitutions(ctx);
+    });
+    return;
+  }
+  paintInstitutions(ctx);
+}
+
+function paintInstitutions(ctx) {
+  disposers.forEach((d) => d && d());
+  disposers = [];
+  const panel = renderFiled(ctx, {
+    disposers,
+    section: filedSection,
+    onSection: (section) => {
+      if (section === filedSection || ctxRef?.subview !== 'institutions') return;
+      filedSection = section;
+      paintInstitutions(ctxRef);
+      ctxRef.root.querySelector('[data-filed-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
+    },
+  });
+  if (!panel.html) {
+    // No holdings file on disk. Say so rather than rendering an empty table, which would read as a
+    // fund that holds nothing.
+    ctx.root.innerHTML = `
+      ${sectionHead({ title: 'Institutions', description: 'Fund holdings, from shareholding filings and AMC portfolio disclosures.' })}
+      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+        <h3 class="font-display text-base font-bold text-slate-900">No holdings file loaded</h3>
+        <p class="mt-1.5 text-sm leading-relaxed text-slate-600">
+          <code class="rounded bg-slate-100 px-1">public/data/institution-holdings.json</code> did not load at bootstrap.
+          It is written by <code class="rounded bg-slate-100 px-1">scripts/scrape-institution-holdings.mjs</code> and
+          <code class="rounded bg-slate-100 px-1">scripts/import-amc-portfolio.mjs</code>.
+        </p>
+        <p class="mt-3 text-xs text-slate-500">
+          <strong>Nothing is shown.</strong> Not an empty book — there is simply no file to read.
+        </p>
+      </div>`;
+    return;
+  }
+
+  ctx.root.innerHTML = panel.html;
+  panel.wire(ctx.root);
+}
+
+// ---------------------------------------------------------------------------------------
+// Fund Returns — every tracked scheme's returns and peer rank, off AmfiBeas
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -152,13 +267,13 @@ function renderIndividuals(ctx) {
  * so the panel renders either the table or a named failure (with a retry), and `paint` is safe to
  * call again from the retry button.
  */
-function renderInstitutions(ctx) {
+function renderFundReturnsView(ctx) {
   disposers.forEach((d) => d && d());
   disposers = [];
   const token = renderToken;
 
   const paint = () => {
-    if (token !== renderToken || ctxRef?.subview !== 'institutions') return;
+    if (token !== renderToken || ctxRef?.subview !== 'fund-returns') return;
     // A repaint (the failure view's retry) must release the previous paint's listeners first, or
     // each retry stacks another on the document.
     disposers.forEach((d) => d && d());
@@ -180,3 +295,6 @@ function renderInstitutions(ctx) {
     if (token === renderToken) paint();
   });
 }
+
+/** Exposed for the verification suite, which asserts the two kinds never merge. */
+export const _funds = () => filed.all();

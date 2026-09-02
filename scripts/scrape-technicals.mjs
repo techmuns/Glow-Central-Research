@@ -30,7 +30,8 @@
 //         TECH_LIMIT=15 node scripts/scrape-technicals.mjs
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
-import { fetchBars } from './lib/yahoo.mjs';
+import { fetchBars, dayMove } from './lib/yahoo.mjs';
+import { verifyMoves } from './lib/muns-market-data.mjs';
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { abdiRanaldoSpreadPct, amihudImpactPct, liquidityTier } from "./lib/liquidity-estimators.mjs";
@@ -240,6 +241,16 @@ async function run() {
     if ((i + 1) % 25 === 0) flush(results, indexBars, failures);   // checkpoint
   }
 
+  // Every move that reaches the check threshold is re-derived from the Muns market-data
+  // endpoint's own closes before the file is written. MUNS_VERIFY=0 skips it; MUNS_TOKEN is sent
+  // when present. A refusal or a missing day leaves Yahoo's figure and says it was not checked.
+  if (process.env.MUNS_VERIFY !== "0") {
+    console.log("\nVerifying flagged day moves against the Muns market-data endpoint...");
+    moveVerification = await verifyMoves(results, { log: (line) => console.log(line) });
+    console.log(`  flagged ${moveVerification.flagged} · confirmed ${moveVerification.confirmed} · corrected ${moveVerification.corrected} · unavailable ${moveVerification.unavailable}`);
+  } else {
+    moveVerification = { skipped: true, reason: "MUNS_VERIFY=0" };
+  }
   flush(results, indexBars, failures);
 
   // ATR Stability accumulator: append today's atr14_pct per ticker to a
@@ -287,6 +298,15 @@ function parsePercentValue(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+let moveVerification = null;
+
+/** The most common `bar_date` among priced rows — the session this file's closes belong to. */
+function priceDateOf(rows) {
+  const counts = new Map();
+  for (const r of rows) if (r.bar_date) counts.set(r.bar_date, (counts.get(r.bar_date) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] ?? null;
+}
+
 function flush(scraped, indexBars, failures) {
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   // On a full run `carried` is empty and this is just `scraped`. On a gap-fill it is every row the
@@ -312,6 +332,15 @@ function flush(scraped, indexBars, failures) {
   const payload = {
     generated_at: new Date().toISOString(),
     source: "Yahoo Finance",
+    // THE DATE THE CLOSES ARE FOR. `generated_at` is when the file was written; on a 07:00 IST
+    // run that is the morning AFTER these closes, and a reader — or the alerts page — dating a
+    // move by the capture stamps one day's session with the next day's label. The modal
+    // `bar_date` across priced rows; `price_date_rows` says how many rows share it.
+    price_date: priceDateOf(results),
+    price_date_rows: results.filter((r) => r.bar_date === priceDateOf(results)).length,
+    // What the Muns market-data endpoint said about every move that reached the check
+    // threshold — see scripts/lib/muns-market-data.mjs. Null when the check did not run.
+    move_verification: moveVerification,
     index_symbol: INDEX_SYMBOL,
     index_close: indexBars.at(-1)?.close ?? null,
     index_6m_return: indexBars.length >= 126
@@ -448,14 +477,21 @@ function computeIndicators(bars, indexBars, indexReturns, indexClose) {
   // stock and index histories were different lengths).
   const beta = computeBeta(bars, indexBars);
 
-  // Today's % change vs yesterday's close — feeds the market-wide
-  // Advances/Declines breadth computation in the Sentiment tab.
-  const prevClose = n >= 2 ? close[n - 2] : null;
-  const pctChangeToday = prevClose ? ((cmp - prevClose) / prevClose) * 100 : null;
+  // The day move — between the last two COMPLETED bars, and dated by both of them. `fetchBars`
+  // has already dropped a session still in progress (see lib/yahoo.mjs), and `dayMove` refuses
+  // a gap wider than a long weekend, so this can no longer be a mid-morning print against a
+  // close from two sessions back. Feeds the Advances/Declines breadth and the ±5% price alert.
+  const move = dayMove(bars);
 
   return {
     cmp,
-    pct_change_today: pctChangeToday == null ? null : round(pctChangeToday, 2),
+    // The date of the close `cmp` IS, and the date of the close it is compared with. A close
+    // without its date was how a 2 September file came to print 1 September's session under
+    // 2 September's label.
+    bar_date: move.date,
+    prev_bar_date: move.prevDate,
+    bar_gap_days: move.gapDays,
+    pct_change_today: move.pct == null ? null : round(move.pct, 2),
     ema50: round(ema50),
     sma50: round(sma50),
     sma200: sma200 == null ? null : round(sma200),

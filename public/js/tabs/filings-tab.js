@@ -15,17 +15,21 @@
 // which are the upstream's words; the article and the PDF stay where they are published. Same rule
 // as the con-call tab: surface the index, link to the content.
 //
-// THE SCOPE TOGGLE IS THE POINT OF THE TAB. Portfolio narrows to the book's tickers and Universe
-// widens to everything the snapshot covers, and both print their denominator — a list of 40 rows
-// looks complete until you know how many companies were asked about.
+// THE SCOPE TOGGLE IS THE POINT OF THE TAB. Portfolio narrows to the book's tickers, Watchlist to
+// the companies the reader starred, and Universe widens to everything the snapshot covers. All
+// three print their denominator — a list of 40 rows looks complete until you know how many
+// companies were asked about.
 
-import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
-import { scopeSummary } from '../ui/components.js';
+import { scoreTable, sectionHead, openModal, closeModal } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
+import { filterByScope, scopePossessive } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
 import * as trackedUniverse from '../data/tracked-universe.js';
+import * as scopeLists from '../core/scope-lists.js';
+import * as refreshRegistry from '../core/refresh.js';
 
 const REASONS = {
   'no-route': {
@@ -45,7 +49,7 @@ const REASONS = {
     title: 'The API is rate limiting this deployment',
     body: 'These endpoints allow about 60 requests a minute and this deployment has passed that. It clears on its own; the committed snapshot exists so a normal visit does not spend that budget at all.',
   },
-  timeout: { title: 'The API did not answer in time', body: 'The request was given 30 seconds and retried, and the upstream did not respond.' },
+  timeout: { title: 'The API did not answer in time', body: 'The request was given its full budget and retried, and the upstream did not respond. The budget is deliberately short — a dead upstream that took ninety seconds per company is what made these tabs look broken rather than slow.' },
   unreachable: { title: 'The API could not be reached', body: 'The upstream did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
   upstream: { title: 'The API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
   shape: { title: 'The API returned something unreadable', body: 'The response was not in a shape this dashboard could read. That is a change on their side worth looking at.' },
@@ -63,6 +67,7 @@ const REASONS = {
  * @param {Function} cfg.provenance  (meta) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
+ * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
@@ -70,47 +75,13 @@ export function makeFilingsTab(cfg) {
   let token = 0;
   let disposers = [];
   let unsub = null;
+  let unregister = null;
   let view = null;
   let ctxRef = null;
-
-  // ---- manual refresh (Corp Announcements, Insider Trades) -----------------------------
-  // These two are cache-first: the mount paints what is stored and the live walk runs only when the
-  // reader presses Refresh. See render()/paint()/doRefresh below.
-  let refreshing = false;
-  let refreshMsg = null; // { text, tone } — a transient result shown on the button after a refresh
-  let refreshTimer = null;
-
-  // ---- picker mode (News only) --------------------------------------------------------
-  //
-  // When `cfg.picker` is set the tab does NOT auto-walk everything in scope. Instead the reader
-  // chooses companies and the results are GATED on that selection: nothing is fetched or shown
-  // until at least one company is picked and "Search news" is pressed. Everything below render()
-  // that is picker-specific keys off this being set; the other two filings tabs leave it null and
-  // keep their scope-driven behaviour untouched. See renderPicker/paintPicker below.
-  const picker = cfg.picker || null;
-  let selection = picker ? loadSelection() : []; // [{ ticker, name }]
-  let searched = null; // the selection last run through the feed THIS page-load (Set of tickers), or null
-  let searching = false; // a walk is in flight for the current selection
-
-  function loadSelection() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(cfg.picker.storageKey) || '[]');
-      if (!Array.isArray(raw)) return [];
-      return raw
-        .filter((c) => c && c.ticker)
-        .map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name || null }))
-        .slice(0, cfg.picker.max || 20);
-    } catch {
-      return [];
-    }
-  }
-  function saveSelection() {
-    try {
-      localStorage.setItem(cfg.picker.storageKey, JSON.stringify(selection));
-    } catch {
-      // localStorage unavailable (private mode, quota) — the selection just won't survive a reload.
-    }
-  }
+  // What the tab's Refresh control should say right now. Module-level because it has to outlive the
+  // repaints the refresh itself causes — see `wireRefresh`.
+  let refreshLabel = 'Check for new';
+  let labelReset = null;
 
   /**
    * The companies to ask about, as `{ ticker, name }`.
@@ -121,34 +92,33 @@ export function makeFilingsTab(cfg) {
    */
   function tickersFor(ctx) {
     const mcap = (t) => trackedUniverse.marketCapOf(t) ?? -1;
-    const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: String(h.ticker).toUpperCase(), name: h.name }));
-
+    const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
     // PORTFOLIO — the holdings, biggest first, so a bounded refresh covers the largest positions
     // before the smaller ones.
-    if (ctx.scope === 'portfolio') {
-      return [...book].sort((a, b) => mcap(b.ticker) - mcap(a.ticker));
-    }
-
-    // UNIVERSE — the whole tracked market universe, BIGGEST MARKET CAP FIRST (the priority the reader
-    // asked for: RELIANCE, BHARTIARTL, HDFCBANK… down the list), with any book holding that is not in
-    // it — a small-cap or a BSE-only line — appended, so a company is never dropped from its own
-    // dashboard. Until the universe file lands this falls back to the book alone; it is only read on a
-    // Refresh press, by which point the deferred load has resolved.
+    if (ctx.scope === 'portfolio') return [...book].sort((a, b) => mcap(b.ticker) - mcap(a.ticker));
+    // The watchlist carries the name the row was starred under, which is exactly what the news
+    // search needs — and it is the only name we have for a watched company outside the book.
+    if (ctx.scope === 'watchlist') return watchlist.all().map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
+    // UNIVERSE — the whole TRACKED MARKET UNIVERSE (js/data/tracked-universe.js: every listed company
+    // above a market-cap floor, ~1,900 of them), BIGGEST MARKET CAP FIRST — RELIANCE, BHARTIARTL,
+    // HDFCBANK… down the list — so a walk cut short by LIVE_LIMIT has covered the names where a
+    // filing matters most. The book and every company the committed snapshot already covers are
+    // appended, so a small-cap or BSE-only holding is never dropped from its own dashboard. This is
+    // the SAME list the scheduled scrape walks, so the snapshot and an on-demand Refresh cannot
+    // disagree about who is in scope. Until the universe file lands (it is deferred, and small) this
+    // is the book plus the snapshot alone; render() re-declares the list when it does.
     const seen = new Set();
     const out = [];
-    for (const c of trackedUniverse.all()) {
-      const t = c.ticker.toUpperCase();
-      if (seen.has(t)) continue;
+    const add = (ticker, name) => {
+      const t = String(ticker || '').toUpperCase();
+      if (!t || seen.has(t)) return;
       seen.add(t);
-      out.push({ ticker: t, name: c.name });
-    }
-    for (const b of book) {
-      if (!seen.has(b.ticker)) {
-        seen.add(b.ticker);
-        out.push(b);
-      }
-    }
-    return out;
+      out.push({ ticker: t, name: name || null });
+    };
+    for (const c of trackedUniverse.all()) add(c.ticker, c.name);
+    for (const b of book) add(b.ticker, b.name);
+    for (const r of cfg.feed.rows()) add(r.ticker, null);
+    return scopeLists.apply('universe', out);
   }
 
   function render(ctx) {
@@ -157,211 +127,144 @@ export function makeFilingsTab(cfg) {
     disposers.forEach((d) => d && d());
     disposers = [];
 
-    // PICKER MODE — gated on the reader's selection, so no walk fires on mount. The subscription is
-    // still set up before any early return (same reasoning as below), guarded by `ctxRef` so a
-    // scope change — which re-runs render() — cannot orphan it. A persisted selection is searched
-    // once per page-load (searched === null) so a reload restores the results; a return to the tab
-    // within the same page-load just repaints from what the feed already holds.
-    if (picker) {
-      // Widen the autocomplete to the tracked universe; it reads live per keystroke, so this just
-      // needs to have landed by the time the reader types (it is a small deferred file).
-      trackedUniverse.load();
-      if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paintPicker(ctxRef));
-      if (searched === null && selection.length) runSearch(ctx);
-      else paintPicker(ctx);
-      return;
+    // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
+    //
+    // Rows arrive a few at a time while the walk runs and the tab has to repaint as they land. An
+    // earlier version set this up below, after `paint()` — which the first visit never reaches,
+    // because it returns early into `load().then(paint)`. The result was a tab that painted its
+    // empty first frame and then froze: the walk completed, forty companies failed, and the screen
+    // still said "reading 40 more" with a table of nothing. The state was right and only the paint
+    // was stale, which is the worst version of this bug because nothing looks broken.
+    //
+    // AND THE GUARD IS `ctxRef`, NOT THE TOKEN. The token check was `mine !== token`, with `mine`
+    // captured at subscribe time and the subscription created once — so the second `render()`, which
+    // a scope toggle always causes and which is the entire point of these tabs, incremented `token`
+    // and killed it. Measured: the feed went on to 40 companies and 4,583 rows while the screen sat
+    // at 21 and the pill still read "21 companies". Nothing threw, nothing failed, and the tab
+    // simply stopped. `ctxRef` is what the guard was for — it is set by every render and cleared by
+    // destroy(), so it tracks "is this tab still mounted" without going stale.
+    //
+    // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
+    // subscription that produced it.
+    if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
+
+    // THE HEADER'S REFRESH BUTTON IS WHAT WALKS THESE ROUTES, and only while this tab is mounted.
+    // Registration is per mounted tab on purpose: a reader on News should not pay for the other two
+    // feeds' walks, so the button's cost stays bounded and predictable rather than a lottery.
+    if (!unregister) {
+      unregister = refreshRegistry.register(cfg.id, {
+        label: cfg.title,
+        refresh: () => cfg.feed.refresh(),
+      });
     }
 
-    // ANNOUNCEMENTS & INSIDER TRADES — cache-first, refreshed on demand.
-    //
-    // These two used to run a live walk on every visit, a few companies at a time, repainting the
-    // table as each one landed — the flicker the reader sees, and somebody else's rate limit spent on
-    // every navigation. Now the mount paints the cache alone (instant, identical on every return) and
-    // the walk happens only when Refresh is pressed: one quiet pass, one repaint at the end (see
-    // doRefresh + feed.refresh).
-    //
-    // THERE IS NO onChange SUBSCRIPTION HERE, unlike the picker path above. Nothing arrives
-    // asynchronously to react to any more — load() is cache-only and refresh() is quiet — so the tab
-    // paints explicitly at each step, which is what keeps the table from rebuilding company by
-    // company. It also sidesteps the failure mode the picker's ctxRef-guarded subscription defends
-    // against: with no subscription, a re-render cannot orphan one.
+    // ALL THREE TABS LOAD THE SAME WAY: the committed snapshot and this device, no per-company
+    // request. News used to be the exception — it made the reader name companies before it would
+    // show anything, because a live walk of the universe is one search per company against a
+    // sixty-a-minute cap. But the scrape already walks the book on a schedule and commits the
+    // result, so the rows for a scoped view are sitting in the snapshot and cost one conditional
+    // GET to paint. Asking the reader to pick first was spending their attention to avoid a cost
+    // that had already been paid. The walk still exists for whatever the snapshot misses, and it is
+    // still the Refresh button that starts it.
+    // THE SCOPE IS RE-DECLARED ON EVERY RENDER, not just the first. The feed loads once and lives
+    // at module level, but which companies are in scope changes with the toggle — and `wanted` is
+    // what the freshness strip counts as unchecked and what Refresh walks. Setting it only inside
+    // `load()` let the first scope to mount own the list for the life of the page.
+    // THE TRACKED UNIVERSE IS DEFERRED, and Universe scope wants it. It is a small file that the
+    // bootstrap's deferred pass has almost always landed before a reader reaches this tab; when it
+    // has not, paint with what is known now and render again once it lands — render() is safe to
+    // call repeatedly by contract, and `wanted` is what the freshness strip counts and Refresh walks,
+    // so it must end up declared over the full list rather than the book alone.
+    if (ctx.scope === 'universe' && !trackedUniverse.isLoaded()) {
+      trackedUniverse.load().then((payload) => {
+        if (payload && t === token && ctxRef) render(ctxRef);
+      });
+    }
+    const items = tickersFor(ctx);
+    cfg.feed.setWanted(items);
+
     if (!cfg.feed.isLoaded()) {
       ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
-      // Make sure the tracking universe is available before seeding the cache, so seedFromDevice reads
-      // every tracked company's stored rows — not just the book's. It is a small deferred file and the
-      // fetch is shared per path, so this is cheap even on a cold visit.
-      trackedUniverse
-        .load()
-        .then(() => (t === token ? cfg.feed.load(tickersFor(ctx)) : null))
-        .then(() => {
-          if (t === token) paint(ctx);
-        });
+      cfg.feed.load(items).then(() => {
+        if (t === token) paint(ctx);
+      });
       return;
     }
     paint(ctx);
   }
 
   function paint(ctx) {
-    // paint() is called on mount, on scope change, and from doRefresh — so it owns its cleanup rather
-    // than leaning on render()'s, and never lets a previous table's listeners accumulate.
-    disposers.forEach((d) => d && d());
-    disposers = [];
-
     const m = cfg.feed.meta();
-    const book = new Set(coverage.holdings().map((h) => h.ticker).filter(Boolean));
-    const all = cfg.feed.rows();
-    const rows = ctx.scope === 'portfolio' ? all.filter((r) => r.ticker && book.has(String(r.ticker).toUpperCase())) : all;
-    const headMeta = `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}${refreshButton()}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: cfg.noun, book: coverage.meta() })}</div>`;
-    const head = sectionHead({ title: cfg.title, description: cfg.subtitle, meta: headMeta });
+    let all = cfg.feed.rows();
 
-    // NOTHING AT ALL, AND A REASON WHY. The refresh button stays, so a reader who fixes the cause
-    // (a renewed token, the Worker coming up) can retry in place.
+    // THE FEED OUTLIVES THE SCOPE, so the rows are narrowed by the scope on every paint.
+    // `createFeed` is module-level and keeps every company it has ever loaded — which is what makes
+    // a second visit instant, and which would otherwise paint a book company's rows into a
+    // watchlist view long after the reader switched.
+    // AN EMPTY SEARCH RESULT IS NOT AN ARTICLE. The news scrape writes one all-null row for a
+    // company it searched and found nothing for — 62 of them in the shipped capture — and rendering
+    // those as rows put 62 "(untitled)" articles in front of the reader that no upstream ever
+    // published. The company was still COVERED, which is a different fact and one the coverage note
+    // below still counts: searched-and-empty is not the same as never-asked, and neither is an
+    // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
+    if (cfg.keepRow) all = all.filter(cfg.keepRow);
+
+    const rows = filterByScope(all, ctx.scope, coverage.holdings());
+
+    // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
+    // with articles" cannot tell whether the other 81 were searched and had nothing or were never
+    // searched at all — and those are opposite claims: one is the feed working, the other is the
+    // feed incomplete. Measured on the shipped captures: news asked all 123 listed book companies
+    // and 62 genuinely had none, while insider looked short only because a company answering "no
+    // trades" was written nowhere. So the strip states the breakdown rather than leaving a
+    // subtraction on screen for the reader to misread.
+    const scoped = tickersFor(ctx);
+    const cov = {
+      inScope: scoped.length,
+      withRows: new Set(rows.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
+      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.ticker)).length,
+      failed: scoped.filter((c) => cfg.feed.failureFor(c.ticker)).length,
+      unlisted: ctx.scope === 'portfolio' ? coverage.meta().uncovered || 0 : 0,
+      noun: cfg.noun,
+      windowDays: m.windowDays,
+      coversUniverse: m.coversUniverse,
+    };
+
+    // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
+    // real answer and renders as an empty table with its own message.
     if (!rows.length && m.reason) {
-      ctx.root.innerHTML = `${head}${unavailablePanel(m)}`;
-      wireRefresh(ctx);
+      // THE PICKER SURVIVES THE FAILURE STATE. It used to be dropped here, which meant a reader
+      // whose search hit an unreachable route lost the only control that could change it — and a
+      // reload with companies still in the URL painted no chips, so the address bar and the screen
+      // disagreed about what had been asked for. A control that selects the thing that failed must
+      // outlive the failure.
+      ctx.root.innerHTML = `
+        ${sectionHead({
+          title: cfg.title,
+          description: cfg.subtitle,
+          meta: pill(m, ctx.scope, []),
+        })}
+        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
+      wireRefresh(ctx.root);
       return;
     }
 
-    // NOTHING CACHED YET, and no failure — the cold-cache state. Invite a fetch rather than showing an
-    // empty table that reads as "no filings exist". Once fetched, the device store makes the return
-    // visit land here with rows and skip this panel.
-    if (!rows.length && m.covered === 0) {
-      ctx.root.innerHTML = `${head}${emptyCachePanel()}`;
-      wireRefresh(ctx);
-      return;
-    }
-
-    const table = tableFor(ctx, rows, m);
-    ctx.root.innerHTML = `
-      ${head}
-      ${refreshableStrip(m)}
-      ${table.html}`;
-    disposers.push(table.wire(ctx.root));
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
-    wireRefresh(ctx);
-  }
-
-  // ---- the Refresh control ------------------------------------------------------------
-
-  /** The Refresh control beside the freshness pill — it runs the manual walk and reports the result. */
-  function refreshButton() {
-    const label = refreshing ? 'Checking…' : refreshMsg ? refreshMsg.text : 'Refresh';
-    const tone = !refreshing && refreshMsg ? (refreshMsg.tone === 'good' ? 'text-emerald-700' : refreshMsg.tone === 'bad' ? 'text-rose-700' : 'text-slate-600') : 'text-slate-600';
-    return `
-      <button type="button" data-refresh ${refreshing ? 'disabled' : ''}
-        title="Fetch newly filed ${escapeHtml(cfg.noun)} for the companies in scope. Only companies whose data may have changed are re-checked, and results are stored on this device."
-        class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold ${tone} ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-70">
-        <svg data-refresh-icon class="${refreshing ? 'spin-slow' : ''}" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
-        </svg>
-        <span data-refresh-label>${escapeHtml(label)}</span>
-      </button>`;
-  }
-
-  function wireRefresh(ctx) {
-    const btn = ctx.root.querySelector('[data-refresh]');
-    if (btn) btn.addEventListener('click', () => doRefresh(ctx));
-  }
-
-  /**
-   * Run the manual walk: spin the button IN PLACE (no repaint, so nothing flickers), fetch quietly,
-   * then repaint ONCE with everything that landed and report the result on the button. This is the
-   * whole point of the change — the reader sees a small spinner, then the finished table, never the
-   * table rebuilding company by company.
-   */
-  async function doRefresh(ctx) {
-    if (refreshing) return;
-    refreshing = true;
-    refreshMsg = null;
-    const btn = ctx.root.querySelector('[data-refresh]');
-    if (btn) {
-      btn.disabled = true;
-      btn.querySelector('[data-refresh-icon]')?.classList.add('spin-slow');
-      const lbl = btn.querySelector('[data-refresh-label]');
-      if (lbl) lbl.textContent = 'Checking…';
-    }
-    let summary = null;
-    try {
-      summary = await cfg.feed.refresh(tickersFor(ctx));
-    } catch {
-      summary = null;
-    }
-    refreshing = false;
-    // Paint the CURRENT ctx, not the one captured before the await. A scope toggle mid-walk swaps
-    // ctxRef, and bailing on a ctx mismatch would leave the button stuck spinning (the re-render
-    // painted it while the walk was still in flight) and the freshly fetched rows unpainted. ctxRef
-    // is null only once the tab is fully unmounted, where there is nothing to paint.
-    if (!ctxRef) return;
-    refreshMsg = summarizeRefresh(summary);
-    paint(ctxRef); // ONE repaint, all the new data at once
-    clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => {
-      refreshMsg = null;
-      // Reset the label AND its success/fail colour — clearing only the text would leave an idle
-      // "Refresh" painted emerald or rose.
-      const b = ctxRef?.root?.querySelector('[data-refresh]');
-      if (b) {
-        b.classList.remove('text-emerald-700', 'text-rose-700');
-        b.classList.add('text-slate-600');
-        const lbl = b.querySelector('[data-refresh-label]');
-        if (lbl) lbl.textContent = 'Refresh';
-      }
-    }, 6000);
-  }
-
-  function summarizeRefresh(summary) {
-    // New rows win the label even if some companies also failed — the failures are already named in
-    // the panel and pill, and "12 new" is the more useful thing to say when data did land. Only when
-    // nothing landed does a feed-level failure (no route, expired token) get the button.
-    if (summary && summary.newRows > 0) return { text: `${formatNumber(summary.newRows)} new`, tone: 'good' };
-    if (!summary || cfg.feed.meta().reason) return { text: "Couldn't refresh", tone: 'bad' };
-    // Nothing was live-walked: every company in scope is covered by the committed snapshot (refreshed
-    // on a schedule, not by this button) or was confirmed inside its window. "Up to date" would claim
-    // a currency this press did not — and for the snapshot rows cannot — establish, so don't.
-    if (summary.asked === 0) return { text: 'Nothing to re-check', tone: 'neutral' };
-    return { text: 'Up to date', tone: 'neutral' };
-  }
-
-  /** The cold-cache face: nothing stored yet, so nothing has been fetched. */
-  function emptyCachePanel() {
-    return `
-      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
-        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 ring-1 ring-indigo-100">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-        </div>
-        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">Nothing cached yet</h3>
-        <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-          Press <strong>Refresh</strong> to fetch the latest ${escapeHtml(cfg.noun)} for the companies in scope. They are then
-          stored on this device, so coming back here is instant — and Refresh only ever re-checks what may have changed.
-        </p>
-      </div>`;
-  }
-
-  /** After a bounded refresh, say how many companies are still in scope but were not fetched this time. */
-  function refreshableStrip(m) {
-    if (!m.truncated) return '';
-    return `
-      <div class="mb-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-100">
-        <span class="mt-0.5 flex-shrink-0 text-slate-400" aria-hidden="true">ℹ</span>
-        <span><strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'company is' : 'companies are'} in scope but ${
-          m.truncated === 1 ? 'was' : 'were'
-        } not fetched this time — these upstreams allow about sixty requests a minute, so each Refresh fetches a batch. Press <strong>Refresh</strong> again to fetch more.</span>
-      </div>`;
-  }
-
-  /**
-   * The results table — one config, shared by the scope-driven paint() and the picker's paintPicker().
-   *
-   * A ROW KEY MAY NEVER CONTAIN THE ROW'S POSITION. This is what made News look duplicated, and the
-   * data was innocent throughout: 741 rows, zero repeated (ticker, headline) pairs, and 160 repeated
-   * pairs ON SCREEN. `scoreTable` caches a row's markup by key and, on a repaint whose row set the
-   * DOM already holds, MOVES the existing `<tr>` nodes rather than re-parsing them — correct only if
-   * a key identifies a row. The old key was `ticker-date-INDEX`, and these tables grow while the walk
-   * runs, so every arrival shifted the indices and a cached `<tr>` was moved onto a different article.
-   * A stable, content-derived key fixes it at source; a collision suffix keeps genuinely identical
-   * rows (the insider feed's same-day, same-size filings) unique without reintroducing the position.
-   */
-  function tableFor(ctx, rows, m) {
+    // A ROW KEY MAY NEVER CONTAIN THE ROW'S POSITION. This is what made News look duplicated, and
+    // the data was innocent throughout: 741 rows, zero repeated (ticker, headline) pairs, and 160
+    // repeated pairs ON SCREEN — the same headline two and three times while others were missing,
+    // and the row count still exactly right.
+    //
+    // `scoreTable` caches a row's markup by its key and, on a repaint whose row set the DOM already
+    // holds, MOVES the existing `<tr>` nodes rather than re-parsing them (see "Performance on large
+    // tables" in CLAUDE.md). That is correct only if a key identifies a row. The key here was
+    // `ticker-date-INDEX`, and these tables grow while the walk runs — so every arrival shifted the
+    // indices, key `RELIANCE-2026-08-12-7` came to mean a different article, and the cached `<tr>`
+    // for the old one was moved into its place. A stable, content-derived key fixes it at source.
+    //
+    // Genuinely identical rows do exist — the insider feed carries same-day, same-size filings by
+    // different people — so a collision suffix keeps the keys unique. It is safe precisely because
+    // the rows it separates carry the same content: the failure mode being closed here is one key
+    // meaning two DIFFERENT rows, never two keys meaning the same one.
     const rowKeys = new Map();
     const keySeen = new Map();
     for (const r of rows) {
@@ -370,9 +273,15 @@ export function makeFilingsTab(cfg) {
       keySeen.set(base, n);
       rowKeys.set(r, n === 1 ? base : `${base}#${n}`);
     }
+
     const table = scoreTable({
       rows,
       key: (r) => rowKeys.get(r) || '',
+      // THE STAR MARKS THE COMPANY, NOT THE ROW. `key` above identifies the row and is not a
+      // ticker here, so without this the watchlist would fill with row ids and the Watchlist scope
+      // — which narrows every feed on this dashboard by symbol — would have nothing to match.
+      watchKey: (r) => r.ticker || null,
+      watchName: (r) => r.company || cfg.rowName(r) || r.ticker,
       name: (r) => cfg.rowName(r),
       nameLabel: cfg.nameLabel || 'Headline',
       sub: (r) => cfg.rowSub(r),
@@ -385,323 +294,118 @@ export function makeFilingsTab(cfg) {
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
-      link: (r) => r.url || null,
+      link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
-      exportName: `glow-${cfg.id}`,
+      // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
+      // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
+      // Recompute both figures from the visible row DATA whenever search or a filter changes.
+      countLabel: (visible) => {
+        const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+        const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
+        const companyNoun =
+          ctx.scope === 'portfolio'
+            ? `portfolio ${companies === 1 ? 'company' : 'companies'}`
+            : ctx.scope === 'watchlist'
+              ? `watchlist ${companies === 1 ? 'company' : 'companies'}`
+              : companies === 1
+                ? 'company'
+                : 'companies';
+        return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
+      },
+      exportName: `sattva-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, m),
-      emptyMessage: picker
-        ? `No ${cfg.noun} for the selected ${selection.length === 1 ? 'company' : 'companies'} in the last ${m.windowDays} days.`
-        : ctx.scope === 'portfolio'
-          ? `No ${cfg.noun} for your holdings in the last ${m.windowDays} days.`
+      // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
+      // articles in the last 30 days" is a claim about the upstream that nobody measured — these
+      // routes have no index, so the only honest statement is how many were not asked about. The
+      // strip above says the same thing; this stops the table contradicting it at a glance.
+      emptyMessage: m.outstanding
+        ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
+        : scopePossessive(ctx.scope)
+          ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
           : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
-    return table;
-  }
 
-  // ---- picker mode rendering ----------------------------------------------------------
-
-  /** Run the feed for the current selection, painting the loading state first and results after. */
-  function runSearch(ctx) {
-    const sel = selection.slice();
-    if (!sel.length) return;
-    searched = new Set(sel.map((c) => c.ticker.toUpperCase()));
-    searching = true;
-    paintPicker(ctx);
-    cfg.feed
-      .ensure(sel)
-      .catch(() => {})
-      .then(() => {
-        searching = false;
-        // Guard on the LATEST ctx, not the one captured here: a scope change swaps ctxRef while the
-        // walk runs, and painting the stale ctx would write into a torn-down root. ctxRef is null
-        // once the tab is unmounted, so this simply does nothing then.
-        if (ctxRef) paintPicker(ctxRef);
-      });
-  }
-
-  /** Empty the selection and forget its results. The gate closes again. */
-  function clearSelection(ctx) {
-    selection = [];
-    searched = null;
-    searching = false;
-    saveSelection();
-    cfg.feed.ensure([]); // prune the feed so a later, unrelated read cannot resurface these rows
-    paintPicker(ctx);
-  }
-
-  /** The company universe the picker searches: the book, the ~1,900-company tracked universe, and the
-   *  NSE-500 universe — deduped, once each has landed. */
-  function companyList(ctx) {
-    const seen = new Map();
-    const add = (ticker, name) => {
-      const t = String(ticker || '').toUpperCase();
-      if (t && !seen.has(t)) seen.set(t, { ticker, name: name || null });
-    };
-    for (const h of coverage.tracked()) add(h.ticker, h.name);
-    for (const c of trackedUniverse.all()) add(c.ticker, c.name); // the broad market universe
-    const uni = ctx.data && Array.isArray(ctx.data.universe) ? ctx.data.universe : [];
-    for (const u of uni) if (u && u.ticker) add(u.ticker, u.name);
-    return [...seen.values()].sort((a, b) => String(a.name || a.ticker).localeCompare(String(b.name || b.ticker)));
-  }
-
-  function paintPicker(ctx) {
-    // paintPicker is called directly on every add/remove/search, not only through render(), so it
-    // owns its own listener cleanup — the picker installs a document-level click handler that would
-    // otherwise leak on each repaint.
-    disposers.forEach((d) => d && d());
-    disposers = [];
-
-    const m = cfg.feed.meta();
-    const selSet = new Set(selection.map((c) => c.ticker.toUpperCase()));
-    const rows = cfg.feed.rows().filter((r) => selSet.has(String(r.ticker).toUpperCase()));
-    const headHtml = sectionHead({
-      title: cfg.title,
-      description: cfg.subtitle,
-      meta: selection.length ? `<div class="flex flex-wrap items-center justify-end gap-2">${pill(m)}</div>` : '',
-    });
-
-    // The gate: nothing chosen, so nothing has been fetched and nothing is shown but the prompt.
-    if (!selection.length) {
-      ctx.root.innerHTML = `${headHtml}${pickerBar(ctx)}${promptPanel()}`;
-      disposers.push(wirePicker(ctx.root, ctx));
-      return;
-    }
-
-    // Chosen, but the feed cannot answer at all — a static origin with no /api/news, or an
-    // operator-level failure. Keep the picker so the reader can still change the selection.
-    if (!rows.length && m.reason) {
-      ctx.root.innerHTML = `${headHtml}${pickerBar(ctx)}${unavailablePanel(m)}`;
-      disposers.push(wirePicker(ctx.root, ctx));
-      return;
-    }
-
-    const table = tableFor(ctx, rows, m);
     ctx.root.innerHTML = `
-      ${headHtml}
-      ${pickerBar(ctx)}
-      ${walkStrip(m)}
-      ${pendingHint()}
-      ${accountingNote(m)}
+      ${sectionHead({
+        title: cfg.title,
+        description: cfg.subtitle,
+        // ONE CHIP, THE SAME ONE THE MARKET-NEWS HALF OF THIS TAB ALREADY WEARS. The scope summary
+        // that used to sit beside it — "Portfolio · 23 of 142 companies with articles" — has moved
+        // into the modal, whole and worded exactly as it was. The DENOMINATOR RULE is not waived by
+        // that: 23 rows still look complete until you know the book is 142, so the number still has
+        // to be reachable, and the chip is what reaches it. What it stops doing is competing with
+        // the table for the top of the page on every one of three tabs and three scopes.
+        meta: pill(m, ctx.scope, rows),
+        // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
+        // whether it renders beside the title or wraps under it depends on how wide the chips and
+        // the description happen to be, and both change as companies are added. A control that
+        // moves when you use it reads as a different page.
+      })}
+      ${busyStrip(m)}
       ${table.html}`;
-    disposers.push(wirePicker(ctx.root, ctx));
+
     disposers.push(table.wire(ctx.root));
-    ctx.root.querySelector('[data-filings-info]')?.addEventListener('click', () => openModal(cfg.provenance(m), { size: 'default' }));
-  }
-
-  /** The COMPANIES card: selected chips, the name/symbol search, and Search / Clear. */
-  function pickerBar(ctx) {
-    const canSearch = selection.some((c) => !(searched && searched.has(c.ticker.toUpperCase())));
-    const atMax = selection.length >= (picker.max || 20);
-    const chips = selection
-      .map(
-        (c) => `
-        <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-1 pl-2.5 pr-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-          <span title="${escapeHtml(c.name || c.ticker)}">${escapeHtml(c.ticker)}</span>
-          <button type="button" data-picker-remove="${escapeHtml(c.ticker)}" aria-label="Remove ${escapeHtml(c.name || c.ticker)}"
-            class="flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 transition-colors hover:bg-indigo-100 hover:text-indigo-700">&times;</button>
-        </span>`
-      )
-      .join('');
-    return `
-      <div data-picker class="mb-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Companies</span>
-          ${chips || '<span class="text-xs text-slate-400">none selected yet</span>'}
-        </div>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <div class="relative min-w-[240px] max-w-md flex-1" data-picker-search-root>
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" data-picker-input autocomplete="off" ${atMax ? 'disabled' : ''}
-              placeholder="${atMax ? `Limit of ${picker.max} reached — remove one to add another` : 'Search a company by name or symbol…'}"
-              class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
-            <div data-picker-results class="scrollbar-thin absolute left-0 right-0 top-full z-40 mt-1 hidden max-h-72 overflow-y-auto rounded-lg bg-white shadow-xl ring-1 ring-slate-200"></div>
-          </div>
-          <button type="button" data-picker-search ${canSearch && !searching ? '' : 'disabled'}
-            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
-            ${searching ? 'Searching…' : 'Search news'}
-          </button>
-          <button type="button" data-picker-clear ${selection.length ? '' : 'disabled'}
-            class="rounded-lg px-2 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 disabled:opacity-40">Clear</button>
-          <span class="ml-auto text-xs tabular-nums text-slate-400">${selection.length} of ${picker.max} max</span>
-        </div>
-      </div>`;
-  }
-
-  function wirePicker(root, ctx) {
-    const el = root.querySelector('[data-picker]');
-    if (!el) return () => {};
-    const input = el.querySelector('[data-picker-input]');
-    const results = el.querySelector('[data-picker-results]');
-    // Recomputed on demand rather than captured once: the NSE-500 universe is a DEFERRED bootstrap
-    // file, so the very first render of this tab may see the book alone. Reading it live means the
-    // suggestions widen to the full universe as soon as it lands, without a rebuild of the picker.
-    const currentList = () => companyList(ctx);
-    const selectedSet = () => new Set(selection.map((c) => c.ticker.toUpperCase()));
-
-    const closeResults = () => {
-      if (results) {
-        results.classList.add('hidden');
-        results.innerHTML = '';
-      }
-    };
-    function renderResults(q) {
-      if (!results) return;
-      const sel = selectedSet();
-      const ql = q.toLowerCase();
-      const matches = currentList()
-        .filter((c) => !sel.has(c.ticker.toUpperCase()) && (c.ticker.toLowerCase().includes(ql) || String(c.name || '').toLowerCase().includes(ql)))
-        .slice(0, 8);
-      results.innerHTML = matches.length
-        ? matches
-            .map(
-              (c) => `
-          <button type="button" data-picker-add="${escapeHtml(c.ticker)}" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-indigo-50/60">
-            <span class="font-semibold text-slate-800">${escapeHtml(c.ticker)}</span>
-            <span class="truncate text-slate-400">${escapeHtml(c.name || '')}</span>
-          </button>`
-            )
-            .join('')
-        : '<div class="px-3 py-2 text-xs text-slate-400">No matching company in your book or the NSE-500 universe.</div>';
-      results.classList.remove('hidden');
-    }
-
-    function addByTicker(ticker) {
-      const t = String(ticker).toUpperCase();
-      if (!t || selection.some((c) => c.ticker.toUpperCase() === t)) return;
-      if (selection.length >= (picker.max || 20)) return;
-      const found = currentList().find((c) => c.ticker.toUpperCase() === t) || { ticker: t, name: null };
-      selection = [...selection, { ticker: found.ticker, name: found.name || null }];
-      saveSelection();
-      if (input) input.value = '';
-      closeResults();
-      paintPicker(ctx);
-    }
-    function removeByTicker(ticker) {
-      const t = String(ticker).toUpperCase();
-      selection = selection.filter((c) => c.ticker.toUpperCase() !== t);
-      saveSelection();
-      paintPicker(ctx);
-    }
-
-    input?.addEventListener('input', () => {
-      const q = input.value.trim();
-      if (!q) return closeResults();
-      renderResults(q);
-    });
-    input?.addEventListener('focus', () => {
-      const q = input.value.trim();
-      if (q) renderResults(q);
-    });
-    input?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const first = results?.querySelector('[data-picker-add]');
-        if (first) {
-          e.preventDefault();
-          addByTicker(first.dataset.pickerAdd);
-        }
-      } else if (e.key === 'Escape') {
-        closeResults();
-      }
-    });
-    // mousedown, not click, so the add fires before the input's blur can hide the dropdown.
-    results?.addEventListener('mousedown', (e) => {
-      const btn = e.target.closest('[data-picker-add]');
-      if (btn) {
-        e.preventDefault();
-        addByTicker(btn.dataset.pickerAdd);
-      }
-    });
-    el.addEventListener('click', (e) => {
-      const rm = e.target.closest('[data-picker-remove]');
-      if (rm) return removeByTicker(rm.dataset.pickerRemove);
-      if (e.target.closest('[data-picker-search]')) return void (selection.length && runSearch(ctx));
-      if (e.target.closest('[data-picker-clear]')) return clearSelection(ctx);
-    });
-
-    const onDocClick = (e) => {
-      if (!el.contains(e.target)) closeResults();
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }
-
-  /** The gate's face: no company chosen, so no request has been made. */
-  function promptPanel() {
-    return `
-      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
-        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 ring-1 ring-indigo-100">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        </div>
-        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">Pick the companies you want news for</h3>
-        <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-          Search a company by name or symbol above and add up to ${picker.max}, then press
-          <strong>Search news</strong> to pull their recent headlines — one live search per company,
-          newest first. Nothing is loaded until you choose, so the results are only ever the companies you asked for.
-        </p>
-      </div>`;
-  }
-
-  /** Selected companies not yet run through the feed — a nudge to press Search. */
-  function pendingHint() {
-    if (searching || !searched) return '';
-    const adds = selection.filter((c) => !searched.has(c.ticker.toUpperCase()));
-    if (!adds.length) return '';
-    return `
-      <div class="mb-4 flex items-center gap-2 rounded-xl bg-indigo-50/70 p-3 text-xs text-indigo-700 ring-1 ring-indigo-100">
-        <span class="text-indigo-500">↻</span>
-        <span>You've added <strong>${adds.length}</strong> ${adds.length === 1 ? 'company' : 'companies'} — press <strong>Search news</strong> to load ${adds.length === 1 ? 'it' : 'them'}.</span>
-      </div>`;
+    // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
+    // heading — how old the capture is, how many companies were searched, what they answered —
+    // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
+    // Portfolio's four-line block and the market-news freshness card all made. What stays on the
+    // face is the claim: a pill whose colour and word are earned by the data. What moves behind
+    // the click is the explanation, and the Refresh control with it.
+    wireRefresh(ctx.root);
   }
 
   /**
-   * The honest tally for selected companies that produced no article rows.
+   * The tab's own Refresh, which is the header button's action scoped to this feed.
    *
-   * Two states, kept distinct as everywhere else in this feed: a company with no news in the window,
-   * and a company that could not be read at all. Neither is invented as a table row — an em-dash
-   * "headline" would read as a broken article — so they are named here instead. Suppressed while the
-   * walk is still running, because a company with no rows YET is pending, not empty.
+   * IT SAYS WHAT IT FOUND. "Up to date" is a real answer and the common one; a spinner that vanishes
+   * leaves the reader unsure whether anything was checked — the same rule the header button follows,
+   * and the reason the label is restored on a timer rather than immediately.
    */
-  function accountingNote(m) {
-    if (searching || m.pending) return '';
-    const withRows = new Set(cfg.feed.rows().map((r) => String(r.ticker).toUpperCase()));
-    const empty = [];
-    const failed = [];
-    for (const c of selection) {
-      const t = c.ticker.toUpperCase();
-      if (withRows.has(t)) continue;
-      (cfg.feed.failureFor(t) ? failed : empty).push(c);
-    }
-    if (!empty.length && !failed.length) return '';
-    const names = (cs) => cs.map((c) => `<span class="font-medium">${escapeHtml(c.ticker)}</span>`).join(', ');
-    const parts = [];
-    if (empty.length)
-      parts.push(
-        `<p class="text-xs text-slate-500"><strong>${empty.length}</strong> of your ${selection.length} selected ${
-          selection.length === 1 ? 'company' : 'companies'
-        } had no news in the last ${escapeHtml(String(m.windowDays))} days: ${names(empty)}.</p>`
-      );
-    if (failed.length)
-      parts.push(
-        `<p class="mt-1 text-xs text-amber-700"><strong>${failed.length}</strong> could not be read just now and ${
-          failed.length === 1 ? 'is' : 'are'
-        } not shown as empty: ${names(failed)}.</p>`
-      );
-    return `<div class="mb-4 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">${parts.join('')}</div>`;
+  /**
+   * ONE refresh action, reached from two places: the button inside the provenance modal, and the
+   * one on the failure panel — which stays in the page body, because a reader whose feed could not
+   * be read must not have to open a modal to find the control that retries it.
+   */
+  async function doRefresh() {
+    clearTimeout(labelReset);
+    const out = await refreshRegistry.refreshOne(cfg.id);
+    // THE RESULT LIVES IN `refreshLabel`, NOT ON A NODE. Rows land while the walk runs and every
+    // arrival repaints the panel, so whichever button was pressed is long gone by the time there
+    // is anything to report.
+    refreshLabel = out.error ? 'Couldn’t check' : out.added ? `${formatNumber(out.added)} new` : 'Up to date';
+    if (ctxRef) paint(ctxRef);
+    labelReset = setTimeout(() => {
+      refreshLabel = 'Check for new';
+      if (ctxRef) paint(ctxRef);
+    }, 6000);
+  }
+
+  const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
+
+  function wireRefresh(root) {
+    const btn = root.querySelector('[data-filings-refresh]');
+    if (!btn) return;
+    const onClick = async () => {
+      if (btn.disabled) return;
+      await doRefresh();
+    };
+    btn.addEventListener('click', onClick);
+    disposers.push(() => btn.removeEventListener('click', onClick));
   }
 
   function destroy() {
     token++;
     ctxRef = null;
-    searching = false;
-    refreshing = false;
-    refreshMsg = null;
-    clearTimeout(refreshTimer);
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();
     unsub = null;
+    unregister?.();
+    unregister = null;
+    clearTimeout(labelReset);
+    refreshLabel = 'Check for new';
     view = null;
   }
 
@@ -712,6 +416,7 @@ export function makeFilingsTab(cfg) {
 // Shared furniture
 // ---------------------------------------------------------------------------------------
 
+
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">
     ${Array.from({ length: 3 }).map(() => '<div class="skeleton-shimmer h-20 rounded-2xl bg-slate-100"></div>').join('')}
@@ -719,65 +424,185 @@ const loadingHtml = () => `
   <div class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"></div>`;
 
 /**
- * The pill, which is the one always-visible statement of where this came from.
+ * The section head is one chip, and it opens everything else.
  *
- * Sky for a snapshot, emerald for live, amber where some companies could not be read. It never says
- * "Live" for rows that came off a committed file — the same rule the calendar follows.
+ * Same contract as the market-news chip: recent captures say `Up to date`; older captures show
+ * their age. Coverage and retry details stay in provenance while the face uses calm customer
+ * language. The demand-driven watchdog starts recovery automatically; an internal pipeline state
+ * is not the label a customer needs above the table.
  */
-function pill(m) {
-  const bad = m.failed > 0 || !!m.reason;
-  // NOTHING LOADED IS NOT "LIVE". With cache-first mount a tab can sit at zero companies before its
-  // first Refresh, and `origin` is null there — which the label logic below would otherwise spell as
-  // "Live". A freshness control may never claim a freshness it has not got, so the empty state gets
-  // its own neutral chip that says exactly what is true: nothing has been fetched yet.
-  if (!bad && !m.covered) {
-    return `
-      <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
-        class="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-100">
-        <span class="h-1.5 w-1.5 rounded-full bg-slate-300"></span><span>Not fetched</span>
-        <span class="font-normal opacity-70">${escapeHtml(String(m.windowDays))}d window</span>
-      </button>`;
-  }
-  // `store` counts as a snapshot for colour AND for wording: those rows are bytes this device kept
-  // from an earlier visit, and the server has not confirmed them in this session. Saying "Live"
-  // over them is the one thing a freshness control may not do.
-  const snap = m.origin === 'snapshot' || m.origin === 'store';
-  const cls = bad
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : snap
-      ? 'bg-sky-50 text-sky-800 ring-sky-300 hover:bg-sky-100'
-      : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
-  const dot = bad
-    ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
-    : snap
-      ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
-      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
-  const label = bad ? 'Partial' : m.origin === 'snapshot' ? 'Captured' : m.origin === 'store' ? 'Cached' : m.origin === 'mixed' ? 'Captured + live' : 'Live';
-  return `
-    <button type="button" data-filings-info title="Where this comes from, how far back it reaches, and what is missing"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
-      ${dot}<span>${escapeHtml(label)}</span>
-      <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.covered))} companies · ${escapeHtml(String(m.windowDays))}d</span>
-    </button>`;
+function pill(m, scope, rows) {
+  const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
+  const age = Number.isFinite(at) ? Date.now() - at : null;
+  const maxAge = m.kind === 'announcements' ? 90 * 60 * 1000 : m.kind === 'news' ? 3 * 60 * 60 * 1000 : 6 * 60 * 60 * 1000;
+  const fresh = age !== null && age >= 0 && age <= maxAge;
+  const tone = fresh ? 'text-emerald-700' : 'text-slate-500';
+  // The face is calm and useful. Coverage/retry details remain in provenance while the watchdog
+  // fixes them in the background; internal pipeline vocabulary is not customer guidance.
+  const label = age === null ? 'Updating' : fresh ? 'Up to date' : `Updated ${formatRelativeTime(at)}`;
+  return `<span data-filings-info
+      title="${escapeHtml(scopeTitle(scope, rows, m))}"
+      class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
+      ${escapeHtml(label)}
+    </span>`;
 }
 
-/** While a live walk is running, say so — a half-filled table should explain itself. */
-function walkStrip(m) {
-  if (!m.pending && !m.inFlight && !m.truncated) return '';
+/**
+ * The denominator, as the chip's tooltip and as a line in its modal.
+ *
+ * THE RULE IS THAT THE NUMBER STAYS REACHABLE, not that it stays on the page. Twenty-three rows
+ * look complete until you know the book is a hundred and forty-two, and that is still true — so
+ * `scopeSummary`'s sentence is reproduced here whole rather than dropped when its pill came off
+ * the head. What changed is that it is one hover or one click away instead of occupying the top
+ * of three tabs across three scopes.
+ */
+function scopeTitle(scope, rows, m) {
+  const n = new Set((rows || []).map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+  const book = coverage.meta();
+  if (scope === 'portfolio' && book?.count) {
+    return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
+      (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
+      '';
+  }
+  if (scope === 'watchlist') {
+    const tracked = watchlist.size();
+    return tracked
+      ? `${formatNumber(n)} of the ${formatNumber(tracked)} companies you track appear on this feed.`
+      : 'Nothing tracked yet.';
+  }
+  return `${formatNumber(n)} companies appear on this feed.`;
+}
+
+/**
+ * How current this is, and what it would take to be more current.
+ *
+ * IT SAYS WHAT WE KNOW, NOT WHAT WE GUESS. These upstreams answer per company and have no index, so
+ * "is there anything new?" cannot be answered without asking about every company — which is the
+ * expensive thing this whole arrangement exists to keep off a page load. What CAN be said honestly
+ * is when the data on screen was captured and how many companies nobody has asked about since, and
+ * that is what this prints. The reader decides whether to spend the requests.
+ *
+ * It replaced a strip that read "Reading 40 more companies…" on every single visit. That was true
+ * and it was also the problem: it described work nobody had asked for, and when the upstream was
+ * down it counted forty companies down for a quarter of an hour over an empty table.
+ */
+/**
+ * How many companies in scope were actually asked, and what they answered.
+ *
+ * THE FAILURE THIS CLOSES is a reader counting the gap themselves and reading it as a fetch that
+ * did not happen. "Portfolio · 61 of 142 companies with articles" is true and says nothing about
+ * whether the other 81 were searched — and on the shipped captures they were: 123 of the book's
+ * 142 lines carry an NSE symbol, all 123 were searched, and 62 genuinely had no news in the
+ * window. The other 19 hold no symbol at all, so no feed here can ever reach them.
+ *
+ * Every clause is dropped when its number is zero rather than printed as a nil — a sentence built
+ * around a number reads as broken prose the moment the number is not there, and a nil reads as a
+ * measurement. A date-indexed capture says something different and says it in its own words: it
+ * asked the exchange, not the companies, so "asked" is the wrong verb for it entirely.
+ */
+function coverageSentence(m, cov) {
+  if (!cov || !cov.inScope) return '';
+  const n = (x) => escapeHtml(formatNumber(x));
+  const co = (x, one, many) => `${x === 1 ? one : many}`;
+
+  if (cov.coversUniverse) {
+    // Nothing was asked company by company here, so there is no company that went unasked. What
+    // the reader is owed instead is that an absence in this feed is a real answer.
+    return ` The capture reads the whole exchange by date, so a company with nothing here filed
+      nothing in the last ${n(m.windowDays)} days — ${n(cov.withRows)} of ${n(cov.inScope)}
+      ${co(cov.inScope, 'company', 'companies')} in scope filed something.`;
+  }
+
+  const parts = [];
+  const asked = cov.withRows + cov.askedEmpty;
+  if (asked) {
+    parts.push(`<strong>${n(asked)}</strong> of ${n(cov.inScope)} ${co(cov.inScope, 'company', 'companies')} in scope
+      ${co(asked, 'was', 'were')} searched`);
+  }
+  if (cov.askedEmpty) {
+    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} in the last ${n(m.windowDays)} days`);
+  }
+  // TRIED AND FAILED IS NOT NEVER REACHED, and saying both about the same company says nothing
+  // twice. The strip used to print "3 companies have not been checked since" and then "3 could not
+  // be read" in the next breath — one backlog, two names for it, and the reader left to work out
+  // whether that was three companies or six.
+  if (cov.failed) parts.push(`${n(cov.failed)} could not be read and will be retried`);
+  const unreached = Math.max(0, (m.outstanding || 0) - cov.failed);
+  if (unreached) {
+    parts.push(`${n(unreached)} ${co(unreached, 'has', 'have')} not been asked about since — these routes
+      answer one company at a time and have no index, so that can only be found out by asking`);
+  }
+  if (!parts.length) return '';
+
+  // The book's permanent gap, and only under Portfolio — a watchlist entry came from a feed, so
+  // its gap is never "this line has no symbol".
+  const unlisted = cov.unlisted
+    ? ` A further ${n(cov.unlisted)} book ${co(cov.unlisted, 'line carries', 'lines carry')} no NSE symbol, so no feed here can show ${co(cov.unlisted, 'it', 'them')}.`
+    : '';
+  return ` ${parts.join(', ')}.${unlisted}`;
+}
+
+/**
+ * The ONLY thing left in the page body, and only while a walk is actually running.
+ *
+ * A permanent freshness paragraph is chrome; a progress line for work the reader just asked for is
+ * feedback, and without it a Refresh press would have no visible effect at all until rows landed.
+ * It disappears the moment the walk settles, which is what makes it not the thing that was removed.
+ */
+/**
+ * The provenance modal, which is now also where the freshness line and the Refresh control live.
+ *
+ * The button is wired on `#modal-content` rather than on the tab root, because `openModal` mounts
+ * outside it — the same shape `market-news-view.js` uses for its Fetch control. Pressing it closes
+ * the modal, so the reader is returned to the page where the progress strip and the arriving rows
+ * actually are; leaving them looking at a static panel while the work happened behind it was the
+ * one way this could be worse than the strip it replaces.
+ */
+function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
+  return function openProvenance(m, cov, scope, rows) {
+    openModal(
+      `${cfg.provenance(m)}
+       <div class="border-t border-slate-100 px-7 py-5">
+         <p class="text-xs leading-relaxed text-slate-600">${freshnessLine(m)}${coverageSentence(m, cov)}</p>
+         <p class="mt-2 text-xs leading-relaxed text-slate-600">${escapeHtml(scopeTitle(scope, rows, m).replace(' Click for where this comes from.', ''))}</p>
+         <button type="button" data-filings-refresh
+           class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
+           ${m.pending || m.inFlight ? 'disabled' : ''}>
+           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+           </svg>
+           <span>${escapeHtml(m.pending || m.inFlight ? 'Checking…' : refreshLabelRef())}</span>
+         </button>
+       </div>`,
+      { size: 'default' }
+    );
+    const host = document.getElementById('modal-content');
+    host?.querySelector('[data-filings-refresh]')?.addEventListener('click', () => {
+      closeModal();
+      onRefresh();
+    });
+  };
+}
+
+/** How old this is, in one clause, with nothing claimed that was not measured. */
+function freshnessLine(m) {
+  const captured = m.capturedAt ? `captured ${escapeHtml(formatRelativeTime(Date.parse(m.capturedAt)))}` : null;
+  const refreshed = m.lastRefreshAt ? `checked directly ${escapeHtml(formatRelativeTime(m.lastRefreshAt))}` : null;
+  const when = [refreshed, captured].filter(Boolean).join(' · ');
+  const retained = m.fallbackCount && m.oldestDataAt
+    ? ` The oldest retained company answer was captured ${escapeHtml(formatRelativeTime(Date.parse(m.oldestDataAt)))}.`
+    : '';
+  return when ? `Showing the ${escapeHtml(m.kind === 'news' ? 'news' : 'filings')} ${when}.${retained}` : '';
+}
+
+function busyStrip(m) {
+  if (!(m.pending || m.inFlight)) return '';
   return `
-    <div class="mb-5 flex items-start gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
-      <span class="relative mt-1 flex h-2 w-2 flex-shrink-0">
-        ${m.pending ? '<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>' : ''}
-        <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-600"></span>
-      </span>
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-indigo-50/70 p-3 ring-1 ring-indigo-100">
       <p class="text-xs leading-relaxed text-slate-600">
-        ${m.pending ? `Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.` : ''}
-        ${
-          m.truncated
-            ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'company is' : 'companies are'} in scope but were not asked about on this visit —
-                these upstreams allow about sixty requests a minute, so a live walk is bounded and the committed snapshot is what covers the rest.`
-            : ''
-        }
+        Reading <strong>${escapeHtml(formatNumber(m.pending))}</strong> more ${m.pending === 1 ? 'company' : 'companies'}. Each is a separate request upstream, so they arrive a few at a time.
+        ${m.coldStart ? ' Nothing was cached for this deployment yet, so this first read is automatic.' : ''}
+        ${m.truncated ? ` <strong>${escapeHtml(formatNumber(m.truncated))}</strong> more ${m.truncated === 1 ? 'is' : 'are'} in scope and will not be asked about in this pass.` : ''}
       </p>
     </div>`;
 }
@@ -789,7 +614,7 @@ function walkStrip(m) {
  * skeletons, which here would promise data that is not coming until an operator acts. It also
  * escapes its body, so the very command a reader needs would render as literal angle brackets.
  */
-function unavailablePanel(m) {
+function unavailablePanel(m, label = 'Try again') {
   const r = REASONS[m.reason] || REASONS.upstream;
   const operator = ['no-token', 'unauthorised', 'rate-limited'].includes(m.reason);
   return `
@@ -808,6 +633,13 @@ function unavailablePanel(m) {
             <strong>Nothing is shown.</strong> Not "no news" and not last week's — there is nothing to display until the feed
             answers, and inventing rows to fill the space would be worse than the gap.
           </p>
+          <button type="button" data-filings-refresh
+            class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+            </svg>
+            <span data-filings-refresh-label>${escapeHtml(label)}</span>
+          </button>
         </div>
       </div>
     </div>`;
@@ -821,11 +653,20 @@ export function coverageBlock(m) {
       <strong>${escapeHtml(formatNumber(m.rowCount))}</strong> rows across
       <strong>${escapeHtml(formatNumber(m.covered))}</strong> companies, reaching back
       <strong>${escapeHtml(String(m.windowDays))} days</strong>.
-      ${m.snapshotCount ? `${escapeHtml(formatNumber(m.snapshotCount))} came from the committed snapshot${m.capturedAt ? `, captured ${escapeHtml(formatRelativeTime(Date.parse(m.capturedAt)))}` : ''}.` : 'No committed snapshot has been written yet, so everything here was read live.'}
+      ${m.snapshotCount ? `${escapeHtml(formatNumber(m.snapshotCount))} came from the committed snapshot${m.capturedAt ? `, captured ${escapeHtml(formatRelativeTime(Date.parse(m.capturedAt)))}` : ''}.` : 'No committed snapshot has been written yet, so everything here was checked directly.'}
+      ${m.fallbackCount ? ` ${escapeHtml(formatNumber(m.fallbackCount))} ${m.fallbackCount === 1 ? 'company retains' : 'companies retain'} its last successful answer while the current read is retried.` : ''}
       ${m.failed ? ` <strong class="text-amber-700">${escapeHtml(formatNumber(m.failed))}</strong> ${m.failed === 1 ? 'company' : 'companies'} could not be read and ${m.failed === 1 ? 'is' : 'are'} absent rather than shown as having nothing.` : ''}
       ${m.truncated ? ` ${escapeHtml(formatNumber(m.truncated))} more were in scope but not asked about on this visit — these upstreams allow about sixty requests a minute.` : ''}
     </p>
-    <p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
-       listed at all. Those are different states and the pill counts them separately.</p>
+    ${
+      m.coversUniverse
+        ? `<p class="mt-2 text-xs"><strong>Read by date, not by company.</strong> The question asked was <em>what was filed on
+             these dates</em>, across ${m.exchangeCompanies ? `all <strong>${escapeHtml(formatNumber(m.exchangeCompanies))}</strong> active listings` : 'the whole exchange'} —
+             not <em>what did these companies file</em>. So <strong>a company absent from this file filed nothing in the
+             window</strong>, rather than being one there was no request budget to ask about. That distinction is the entire
+             reason this feed changed source.</p>`
+        : `<p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
+       listed at all. Those are different states and the pill counts them separately.</p>`
+    }
     ${deliveryNote({ origin: m.origin === 'live' || m.origin === 'mixed' ? 'live' : 'store', checkedAt: m.checkedAt, fetchedAt: m.capturedAt ? Date.parse(m.capturedAt) : null, persisted: m.persisted })}`;
 }

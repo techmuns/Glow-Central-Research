@@ -7,10 +7,16 @@ import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
-import { tabBar, railNav, segmentedToggle, statusControl, emptyState } from './components.js';
-import { openModal, closeDrill, closeModal, closeWorkspace } from './screener.js';
-import { sourcesModalHtml } from './sources.js';
+import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
+import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
+import { SCOPES, scopeLabel } from '../data/scope.js';
+import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
+import { openScopeEditor } from './scope-editor.js';
 
+import * as aiAlerts from '../tabs/ai-alerts.js';
+import * as askResearch from '../tabs/ask-research.js';
+import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
 import * as publicChatter from '../tabs/public-chatter.js';
@@ -35,8 +41,12 @@ import * as drawdown from '../portfolio/drawdown.js';
 // Hidden rather than removed from the array on purpose. Dropping the entry would make every
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
+//
+// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// an unknown or absent tab, so the order of this array IS the default landing page — there is no
+// second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
@@ -61,6 +71,34 @@ export function mount(root) {
   // open, which is the only way an alert can fire while the reader is looking elsewhere.
   watch.start(live);
 
+  // WHILE THE WATCHLIST SCOPE IS OPEN, THE WATCHLIST IS THE ROW SET.
+  //
+  // Every other control that changes what a scoped tab shows goes through the router, so the tab
+  // re-renders. The star does not — it writes to `localStorage` from inside a table's own click
+  // handler — and under Watchlist scope the only thing you can do with it is UNSTAR, which takes a
+  // company out of the scope. Without this the row stayed on screen, hollow-starred, belonging to a
+  // scope it had just left: the state was right and only the screen disagreed, which is the shape
+  // of bug this codebase keeps finding.
+  //
+  // Deferred by a tick because the change arrives mid-`repaint()`, and remounting the tab out from
+  // under the handler that is painting it is a different bug for the same money.
+  watchlist.onChange(() => {
+    if (state.scope !== 'watchlist') return;
+    // The editor deliberately batches its repaint until it closes, so several additions can be
+    // made without the route remount closing the modal after the first click.
+    if (document.querySelector('[data-scope-editor]')) return;
+    setTimeout(() => {
+      if (state.scope === 'watchlist') handleRoute(root, router.parseHash());
+    }, 0);
+  });
+
+  scopeLists.onChange((scope) => {
+    if (state.scope !== scope || document.querySelector('[data-scope-editor]')) return;
+    setTimeout(() => {
+      if (state.scope === scope) handleRoute(root, router.parseHash());
+    }, 0);
+  });
+
   router.start((rawRoute) => handleRoute(root, rawRoute));
 }
 
@@ -78,9 +116,10 @@ function shellTemplate() {
 
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
           <div class="flex items-center gap-1.5"
-               title="Data scope: whether the tab you are on covers every listed company or only your holdings. This is not the Workspace switcher on the left — that picks which tabs exist.">
+               title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
             <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
+            <div id="scope-edit-mount"></div>
           </div>
           <div id="status-mount"></div>
         </div>
@@ -91,14 +130,9 @@ function shellTemplate() {
       <div id="tabbar-mount" class="min-w-0"></div>
     </nav>
 
-    <div class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-6 lg:flex-row">
-      <aside id="rail-aside" class="lg:w-60 lg:flex-shrink-0">
-        <div id="aside-content" class="lg:sticky lg:top-6"></div>
-      </aside>
-      <main class="fade-in min-w-0 flex-1">
-        <!-- Shell-owned slot for a tab whose sub-views render as a compact dropdown instead of the
-             left rail (meta.subviewLayout === 'dropdown'). Empty — and zero-height — for rail tabs. -->
-        <div id="subview-bar-mount"></div>
+    <div class="mx-auto max-w-[1400px] px-6 py-6">
+      <div id="subview-mount" class="mb-5"></div>
+      <main class="fade-in min-w-0">
         <div id="content-host"></div>
       </main>
     </div>`;
@@ -108,7 +142,8 @@ function shellTemplate() {
 
 /**
  * One status control where there used to be a search box, a Sources button, a Live chip and an
- * Updated chip.
+ * Updated chip. It now says Connected because the timestamp belongs to the newest active feed,
+ * not to every data set in the dashboard.
  *
  * The two chips said different things about the same subject and neither was quite true: the green
  * one tracked the 20-second heartbeat, which asks nothing of any server, and the white one tracked
@@ -116,16 +151,14 @@ function shellTemplate() {
  * time a poller actually confirmed something — with the page-load time as the fallback for before
  * any poller has ticked.
  *
- * The Sources button is gone from the chrome, not the app: the pill opens it. Provenance has to
- * stay reachable from every screen (see the honesty rules in CLAUDE.md), and a freshness control
- * is the right place for it — "how current is this, and where did it come from" is one question.
+ * The pill is deliberately passive. Source/freshness explainer popups were removed from the
+ * dashboard; Refresh remains the only action in this compact header cluster.
  */
 function wireStaticHeader(root) {
   const status = statusControl({
     getTimestamp: () => live.getLastDataTick() ?? state.dataLoadedAt,
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow(),
-    onOpenSources: () => openModal(sourcesModalHtml(), { size: 'magazine' }),
   });
   $('#status-mount', root).innerHTML = status.html;
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
@@ -154,7 +187,16 @@ function handleRoute(root, rawRoute) {
   saveLastRoute(router.buildHash(resolved));
 
   renderRouteChrome(root, ws, tabModule, resolved);
-  mountTab(tabModule, resolved);
+  mountTab(root, tabModule, resolved);
+}
+
+function editScope(root, scope) {
+  openScopeEditor({
+    scope,
+    // Closing the editor commits one route repaint. A zero-delay deferral lets the generic modal
+    // finish clearing its own focus trap before the tab starts creating new controls.
+    onChanged: () => setTimeout(() => handleRoute(root, router.parseHash()), 0),
+  });
 }
 
 function renderRouteChrome(root, ws, tabModule, resolved) {
@@ -163,17 +205,32 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
 
+  // Portfolio → Watchlist → Universe, widest last. That is the reader's own priority order and it
+  // reads left to right as "mine, watched, everything"; reversing it would put the least specific
+  // answer first, which is what the old two-option toggle did.
   const toggle = segmentedToggle({
-    options: [
-      { value: 'universe', label: 'Universe' },
-      { value: 'portfolio', label: 'Portfolio' },
-    ],
+    options: SCOPES.map((value) => ({ value, label: scopeLabel(value) })),
     activeValue: resolved.scope,
     onChange: goScope,
   });
   const toggleMount = $('#scope-toggle-mount', root);
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
+
+  const editMount = $('#scope-edit-mount', root);
+  editMount.innerHTML = `
+    <button type="button" data-scope-edit aria-label="Edit ${escapeHtml(scopeLabel(resolved.scope))} companies"
+      title="Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m11.5 5.5 3 3" stroke-linecap="round"></path>
+      </svg>
+    </button>`;
+  const editButton = editMount.querySelector('[data-scope-edit]');
+  const onEdit = () => editScope(root, resolved.scope);
+  editButton.addEventListener('click', onEdit);
+  chromeDisposers.push(() => editButton.removeEventListener('click', onEdit));
 
   // THE WORKSPACE SWITCHER IS GONE FROM THE CHROME.
   //
@@ -184,63 +241,43 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   //
   // Portfolio Analytics itself is untouched and still routes; see WORKSPACES above.
 
+  // THE SUB-VIEW RAIL IS A DROPDOWN NOW, AT EVERY WIDTH.
+  //
+  // It used to be a 240px left column above 1024px and a dropdown below it. The column cost the
+  // content 240px of the 1400px it has, permanently, to show at most four short labels — and the
+  // tables it sat beside are the widest things here: Institutions carries thirteen numeric
+  // columns and the Earnings Hub ten, both tuned column by column (`dense`, `wrapHeads`,
+  // `nameMaxPx`) to fit inside what was left. Giving the content the full width is worth more
+  // than a permanently-visible list of four.
+  //
+  // The kicker reads "View" rather than the tab's own title: the section head immediately below
+  // prints that title as the page's heading, and the rail card's header was repeating it.
   const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
   const activeSubviewLabel = subviewItems.find((s) => s.id === resolved.subview)?.label || '';
+  const subviewPicker = dropdownMenu({
+    key: 'subview',
+    kicker: 'View',
+    valueLabel: activeSubviewLabel,
+    items: subviewItems,
+    activeId: resolved.subview,
+    onSelect: goSubview,
+    title: `Switch between ${tabModule.meta.title} views`,
+  });
 
   const hasSubviews = subviewItems.length > 0;
-  // A tab may ask for a compact dropdown selector instead of the left rail (meta.subviewLayout ===
-  // 'dropdown'). The rail costs a ~240px column at every width, which is a lot of empty space beside
-  // a wide table or a card grid; a dropdown frees the full width for the panel. Routing is identical
-  // — same items, same `goSubview` — so this is purely where the selector sits.
-  const useDropdown = tabModule.meta.subviewLayout === 'dropdown' && hasSubviews;
-
-  const asideEl = $('#aside-content', root);
-  const asideWrap = $('#rail-aside', root);
-  const subBarMount = $('#subview-bar-mount', root);
-
-  // Reset both slots each route, then fill exactly one. Hiding the aside (display:none) drops it as
-  // a flex item, so `main` spans the full width with no leftover gap.
-  asideEl.innerHTML = '';
-  subBarMount.innerHTML = '';
-  asideWrap.classList.toggle('hidden', !hasSubviews || useDropdown);
-
-  if (useDropdown) {
-    const compact = dropdownMenu({
-      key: 'subview-compact',
-      kicker: tabModule.meta.title,
-      valueLabel: activeSubviewLabel,
-      items: subviewItems,
-      activeId: resolved.subview,
-      onSelect: goSubview,
-    });
-    subBarMount.innerHTML = `
-      <div data-subview-dropdown class="mb-5 w-full max-w-[17rem] rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        ${compact.html}
+  const subviewMount = $('#subview-mount', root);
+  // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
+  // rendering an empty control — same rule the rail followed.
+  subviewMount.classList.toggle('hidden', !hasSubviews);
+  if (!hasSubviews) {
+    subviewMount.innerHTML = '';
+  } else {
+    subviewMount.innerHTML = `
+      <div class="w-full max-w-[15rem] rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+        ${subviewPicker.html}
       </div>`;
-    chromeDisposers.push(compact.wire(subBarMount));
-  } else if (hasSubviews) {
-    const rail = railNav({ items: subviewItems, activeId: resolved.subview, onSelect: goSubview });
-    const mobileSubDropdown = dropdownMenu({
-      key: 'subview-mobile',
-      kicker: tabModule.meta.title,
-      valueLabel: activeSubviewLabel,
-      items: subviewItems,
-      activeId: resolved.subview,
-      onSelect: goSubview,
-    });
-    asideEl.innerHTML = `
-      <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-        <div class="p-2">
-          <div class="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(tabModule.meta.title)}</div>
-          ${rail.html}
-        </div>
-      </div>
-      <div class="mt-3 lg:hidden">${mobileSubDropdown.html}</div>`;
-    chromeDisposers.push(rail.wire(asideEl));
-    chromeDisposers.push(mobileSubDropdown.wire(asideEl));
+    chromeDisposers.push(subviewPicker.wire(subviewMount));
   }
-
-
 
   const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
   const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab });
@@ -267,7 +304,7 @@ function disposeChrome() {
   chromeDisposers = [];
 }
 
-function mountTab(tabModule, resolved) {
+function mountTab(root, tabModule, resolved) {
   // A drill panel, modal or workspace opened on the previous view must never survive a route
   // change — it would be showing a row that is no longer on screen. `silent` because the URL
   // is already being rewritten by the navigation that triggered this; letting the overlay run
@@ -276,14 +313,48 @@ function mountTab(tabModule, resolved) {
   closeModal();
   closeWorkspace({ silent: true });
 
-  if (currentTabModule && currentTabModule !== tabModule) {
+  // A SCOPE NARROWED TO NOTHING IS ANSWERED HERE, ONCE, FOR EVERY TAB.
+  //
+  // An empty watchlist is a fact about the SCOPE, not about any tab — nine tabs would otherwise
+  // each need their own version of the same sentence, and nine copies is nine chances for one of
+  // them to say something slightly different (or to render "no results match your filters" over a
+  // list the reader has simply never added to, which sends them hunting for a filter to clear).
+  //
+  // The shell stays generic: it is not interpreting the tab, it is answering a question the header
+  // control it owns has just been used to ask.
+  const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchlist.size() === 0);
+  const nextModule = mountable ? tabModule : null;
+
+  // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route
+  // names — and the first version of this got that wrong in a way that was invisible until two
+  // navigations later.
+  //
+  // Landing on an alerts tab with an empty watchlist takes the branch below, so the module was
+  // already `currentTabModule` and `currentTabModule !== tabModule` was false: nothing was
+  // destroyed. Its subscriptions stayed live, its in-flight collect finished, and it painted its
+  // own table into `contentHost` — which by then belonged to Breakouts. The reader saw Breakouts'
+  // chrome over General Alerts' rows, on a page where nothing had thrown and no state was wrong.
+  // Exactly the lifecycle failure the module contract in CLAUDE.md is written about, arrived at
+  // from the one direction the contract does not cover: a tab the shell decided not to mount.
+  if (currentTabModule && currentTabModule !== nextModule) {
     try {
       currentTabModule.destroy?.();
     } catch (err) {
       console.error(`[shell] destroy() failed for "${currentTabModule.meta?.id}"`, err);
     }
   }
-  currentTabModule = tabModule;
+  currentTabModule = nextModule;
+
+  if (!nextModule) {
+    contentHost.innerHTML = watchlistEmptyPanel({
+      tabTitle: tabModule.meta.title,
+    });
+    // This is the same editor as the pencil in the header, opened explicitly for Watchlist. The
+    // empty state stays on the page the reader chose, and closing after an addition remounts that
+    // page with the newly populated scope.
+    contentHost.querySelector('[data-watchlist-add]')?.addEventListener('click', () => editScope(root, 'watchlist'));
+    return;
+  }
 
   const ctx = {
     scope: resolved.scope,
@@ -300,7 +371,7 @@ function mountTab(tabModule, resolved) {
       const route = { workspace: state.workspace, tab: state.tab, subview: state.subview, scope: state.scope, params: next };
       router.replaceRoute(route);
       saveLastRoute(router.buildHash(route));
-      mountTab(tabModule, route);
+      mountTab(root, tabModule, route);
     },
     // Same URL write, but WITHOUT re-mounting the panel. For state that lives in an overlay
     // rather than in the page body: the Deep Dive mirrors its open company and internal tab
@@ -354,7 +425,7 @@ function goScope(scope) {
   router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
 }
 
-// ---- Small local dropdown used by the workspace switcher + the mobile sub-view picker -------
+// ---- Small local dropdown, used by the sub-view picker -------------------------------------
 // (Not in ui/components.js because it's specifically about app navigation chrome, not a
 // general-purpose primitive other tabs would reuse.)
 

@@ -47,6 +47,7 @@ import * as feed from '../data/concall-scans.js';
 import * as deepDive from '../data/deep-dive.js';
 import { openDeepDive } from './deep-dive.js';
 import * as coverage from '../data/coverage.js';
+import { scopePossessive } from '../data/scope.js';
 
 const ATTRIBUTION = 'Scores, sentiment and highlights are the research provider’s own analysis, shown unchanged.';
 
@@ -98,25 +99,25 @@ function whenCell(iso) {
 }
 
 // ---------------------------------------------------------------------------------------
-// The Live pill and its provenance modal
+// The passive Live/Snapshot status pill
 // ---------------------------------------------------------------------------------------
 export function livePill(m) {
   if (!m) return '';
   const degraded = !!m.degraded;
   const cls = degraded
-    ? 'bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100'
-    : 'bg-emerald-50 text-emerald-800 ring-emerald-300 hover:bg-emerald-100';
+    ? 'bg-amber-50 text-amber-800 ring-amber-300'
+    : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
   const dot = degraded
     ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
     : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
   const fresh = feed.newArrivals().length;
   return `
-    <button type="button" data-cs-info title="Where this comes from, and what is ours versus theirs"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${cls}">
+    <span data-cs-info title="Current con-call feed status"
+      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
       ${dot}<span>${degraded ? 'Snapshot' : 'Live'}</span>
       <span class="font-normal opacity-70">${escapeHtml(formatNumber(m.count || 0))} calls</span>
       ${fresh ? `<span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">+${fresh} new</span>` : ''}
-    </button>`;
+    </span>`;
 }
 
 export function wireLivePill(root, m) {
@@ -200,6 +201,11 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   const table = scoreTable({
     rows,
     key: rowKey,
+    // THE STAR MARKS THE COMPANY, NOT THE ROW. `key` above identifies the row and is not a ticker
+    // here, so without this the watchlist would fill with row ids and the Watchlist scope — which
+    // narrows every feed on this dashboard by symbol — would have nothing it could match.
+    watchKey: (r) => r.ticker || null,
+    watchName: (r) => r.name || r.ticker,
     name: (r) => r.name,
     nameLabel: 'Company',
     sub: (r) => `${r.ticker || 'no ticker'} · ${r.industry || '—'}`,
@@ -285,23 +291,19 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     initialSort: { key: 'Call', dir: 'desc' },
     exportName: 'glow-concall-scans',
     onExport: (visible) => exportScans(visible, m),
-    emptyMessage: ctx.scope === 'portfolio' ? 'None of your holdings has held a call this quarter.' : 'No calls match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has held a call this quarter.` : 'No calls match your filters.',
     initialView: tableView,
   });
   onView?.(table.view);
-
-  const scheduled = feed.forScope(ctx.scope, coverage.holdings(), feed.upcoming());
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Concall Scans',
       description: `Every earnings call held this quarter, newest first. Times are IST. ${ATTRIBUTION}`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${scheduleButton(scheduled.length)}${livePill(m)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() })}</div>`,
+      meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() }),
     })}
     ${table.html}
   `;
-  wireLivePill(ctx.root, m);
-  ctx.root.querySelector('[data-open-schedule]')?.addEventListener('click', () => openScheduleModal(scheduled, { scope: ctx.scope }));
   disposers.push(table.wire(ctx.root));
 
   // Delegated on the host rather than per button: the table body is rebuilt on every sort, filter
@@ -358,7 +360,9 @@ function loadReady() {
 }
 
 /** The row key, in one place, because the Deep Dive button carries it back. */
-const rowKey = (r) => `${r.companyKey}|${r.when}`;
+// The feed's own id, not a key of this tab's making — the provider can hold two analyses of one
+// call, so (company, time) is not unique. See `rowIdOf` in js/data/concall-scans.js.
+const rowKey = (r) => feed.rowUid(r);
 
 /**
  * The Deep Dive cell.
@@ -513,7 +517,7 @@ function scheduleBodyHtml(rows, scope) {
 
   if (!matched.length) {
     return `<div class="px-6 py-14 text-center">
-      <p class="text-sm font-semibold text-slate-700">${q ? 'No company matches that search' : scope === 'portfolio' ? 'None of your holdings has a call scheduled' : 'Nothing is scheduled yet'}</p>
+      <p class="text-sm font-semibold text-slate-700">${q ? 'No company matches that search' : scopePossessive(scope) ? `None of ${scopePossessive(scope)} has a call scheduled` : 'Nothing is scheduled yet'}</p>
       <p class="mt-1 text-xs text-slate-500">${
         q
           ? 'Only companies with a call already on the schedule appear here.'

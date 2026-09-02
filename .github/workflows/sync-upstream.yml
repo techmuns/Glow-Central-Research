@@ -1,0 +1,185 @@
+name: Sync from Sattva
+
+# THE UPSTREAM SYNC. This repository is a downstream of techmuns/Sattva-Central-Research — the code
+# is written there and merged here, so a bug fixed upstream is fixed here within a day and a feature
+# built there arrives without anyone porting it. Read CLAUDE.md, "This dashboard is a downstream of
+# Sattva", for who owns which files; this workflow is the mechanism that section describes.
+#
+# WHAT ONE RUN DOES
+#   1. Fetches Sattva's main. Nothing to do if it is already an ancestor of ours.
+#   2. Merges it. `.gitattributes` keeps THIS repository's copy of every generated file (the data
+#      captures under public/data/ and the compiled stylesheet) whenever both sides changed one, so
+#      those never conflict; the merge driver they name is configured below.
+#   3. On a CLEAN merge: rebuilds public/css/tailwind.css from tailwind.config.cjs (the palette is
+#      ours; the class names are upstream's), syntax-checks every JS file, runs the offline verify
+#      scripts and a wrangler dry-run, and pushes to main only if all of that passes. Checks failing
+#      on a clean merge push the merge to a branch and open a PR instead, so main never goes red.
+#   4. On a CONFLICT: commits the merge WITH ITS CONFLICT MARKERS on a branch and opens a PR that
+#      names every conflicted file. That PR's CI is red on purpose until a person — or a Claude
+#      session pointed at the PR — resolves it. Nothing conflicted ever reaches main from here.
+#
+# WHY A PR AND NOT A GUESS. Resolving a conflict as "theirs" would silently drop a Glow-only feature
+# from a shared file (super-investors.js wires Fund Returns in; sources.js carries its entry); "ours"
+# would silently drop an upstream fix. Neither is a decision a cron job should make.
+#
+# THE PUSH TOKEN. Pushes made with the default GITHUB_TOKEN do NOT trigger other workflows, so a
+# deployment that publishes through .github/workflows/deploy.yml (CLOUDFLARE_API_TOKEN set) would
+# not deploy a synced main. Cloudflare's Git integration watches the branch directly and is
+# unaffected. If deploy.yml is the publish path here, add a fine-grained PAT with "Contents: read
+# and write" + "Pull requests: read and write" on this repository as the secret SYNC_PUSH_TOKEN and
+# the push will trigger it; without the secret the workflow falls back to GITHUB_TOKEN.
+
+on:
+  schedule:
+    # 02:00 UTC = 07:30 IST daily. GitHub's scheduler is best-effort (see the note in
+    # wrangler.jsonc about how often it actually fires here), so the manual trigger below is the
+    # one to rely on when a fix is wanted now.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: techmuns/Sattva-Central-Research
+  UPSTREAM_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Fetch upstream
+        id: fetch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The `ours` merge driver named in .gitattributes: keep our copy, report success.
+          git config merge.ours.driver true
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream "${UPSTREAM_BRANCH}"
+          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" HEAD; then
+            echo "Already up to date with ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}."
+            echo "behind=0" >> "$GITHUB_OUTPUT"
+          else
+            n=$(git rev-list --count "HEAD..upstream/${UPSTREAM_BRANCH}")
+            echo "behind=$n" >> "$GITHUB_OUTPUT"
+            echo "### ${n} upstream commit(s) to merge" >> "$GITHUB_STEP_SUMMARY"
+            git log --no-merges --format='- %h %s' "HEAD..upstream/${UPSTREAM_BRANCH}" | grep -v -E 'data refresh|news refresh|announcements refresh|trades refresh|snapshot refresh' | head -60 >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Merge
+        id: merge
+        if: steps.fetch.outputs.behind != '0'
+        run: |
+          set +e
+          git merge --no-ff --no-edit "upstream/${UPSTREAM_BRANCH}" \
+            -m "Sync from ${UPSTREAM_REPO} ($(date -u +%Y-%m-%d))"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            conflicted=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            echo "conflicted=$conflicted" >> "$GITHUB_OUTPUT"
+            echo "Merge conflicts in: $conflicted"
+          fi
+
+      # ---- clean merge: rebuild, check, push ------------------------------------------------
+      - name: Rebuild the stylesheet with this deployment's palette
+        if: steps.merge.outputs.conflict == 'false'
+        run: |
+          npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
+          if ! git diff --quiet -- public/css/tailwind.css; then
+            git add public/css/tailwind.css
+            git commit -q -m "Rebuild the stylesheet after the upstream sync"
+          fi
+
+      - name: Check the merged tree
+        id: check
+        if: steps.merge.outputs.conflict == 'false'
+        continue-on-error: true
+        run: |
+          set -e
+          find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+          # Parses every file the way the browser will; `--check` guesses CJS for some and passes them.
+          node --experimental-vm-modules --no-warnings scripts/verify-syntax.mjs
+          node scripts/verify-filings-snapshot.mjs
+          node scripts/verify-capture-watchdog.mjs
+          npx --yes wrangler@4 deploy --dry-run
+          # The brand and the deployment must still be ours after the merge.
+          grep -q '"name": "glow-central-research"' wrangler.jsonc
+          grep -q '"GH_REPO": "techmuns/Glow-Central-Research"' wrangler.jsonc
+          grep -q '<title>Glow Central Research</title>' public/index.html
+          # The scheduled filings walks read through THIS deployment's Worker (it holds the Muns token).
+          grep -q "FILINGS_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-filings.mjs
+          grep -q "SI_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-super-investors.mjs
+          if grep -rn 'Sattva Central Research' public/js worker --include='*.js' --include='*.mjs'; then
+            echo "::error::An upstream brand string reached reader-facing code — rename it to Glow before this can ship."
+            exit 1
+          fi
+
+      - name: Push to main
+        if: steps.merge.outputs.conflict == 'false' && steps.check.outcome == 'success'
+        run: |
+          git push origin HEAD:main
+          echo "### Synced and pushed to main" >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- a clean merge whose checks failed, or a conflicted merge: branch + PR -----------
+      - name: Open a PR for a person to finish
+        if: steps.merge.outputs.conflict == 'true' || (steps.merge.outputs.conflict == 'false' && steps.check.outcome != 'success')
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
+          CONFLICT: ${{ steps.merge.outputs.conflict }}
+          CONFLICTED: ${{ steps.merge.outputs.conflicted }}
+        run: |
+          branch="sync/sattva-$(date -u +%Y%m%d-%H%M)"
+          if [ "$CONFLICT" = "true" ]; then
+            # Commit the conflicted state as-is. The markers are the handoff: the PR's CI stays red
+            # until every file listed below is resolved.
+            git add -A
+            git -c core.hooksPath=/dev/null commit -q -m "WIP: sync from ${UPSTREAM_REPO} — conflicts to resolve" || true
+            title="Sync from Sattva ($(date -u +%Y-%m-%d)) — needs conflict resolution"
+            body=$(cat <<BODY
+          The daily sync from \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\` hit merge conflicts. This branch holds the merge **with its conflict markers committed**, so CI is red on purpose.
+
+          **Conflicted files:**
+          $(for f in $CONFLICTED; do echo "- \`$f\`"; done)
+
+          **How to resolve** (locally, or by starting a Claude Code session on this PR):
+          1. \`git checkout $branch\`
+          2. Resolve each file above — toward upstream for Sattva-owned code, toward this repo for the Glow-owned files listed in CLAUDE.md, *This dashboard is a downstream of Sattva*.
+          3. Rebuild the stylesheet: \`npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify\`
+          4. Run the checks in CLAUDE.md, *Verification checklist before pushing*.
+          5. Commit, push, merge this PR.
+
+          After a merge, re-check the three things a sync can quietly break: white text on the brand gradient, a one-argument \`edgeKey()\` in a new Worker route, and any new "Sattva Central Research" string in reader-facing copy.
+          BODY
+          )
+          else
+            title="Sync from Sattva ($(date -u +%Y-%m-%d)) — checks failed on a clean merge"
+            body=$(cat <<BODY
+          The daily sync from \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\` merged cleanly but the post-merge checks failed (syntax check, offline verify scripts, wrangler dry-run, or a brand/deployment guard). See the workflow run log for which one.
+
+          Fix it on this branch, run the checks in CLAUDE.md, *Verification checklist before pushing*, and merge.
+          BODY
+          )
+          fi
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --base main --head "$branch" --title "$title" --body "$body"
+          echo "### Opened a PR on $branch — $title" >> "$GITHUB_STEP_SUMMARY"

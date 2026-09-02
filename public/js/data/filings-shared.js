@@ -47,6 +47,28 @@ export const safeUrl = (v) => {
   return s && /^https?:\/\//i.test(s) ? s : null;
 };
 
+const INSIDER_URL_FIELDS = ['link', 'url', 'source', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
+
+/** Prefer the filing URL carried upstream; otherwise narrow a public disclosure search by insider. */
+export function insiderTradeSourceUrl(row) {
+  const candidates = [row?.url, pickField(row?.cells, INSIDER_URL_FIELDS)];
+  for (const value of candidates) {
+    const direct = safeUrl(value);
+    if (direct) return direct;
+    const embedded = String(value || '').match(/https?:\/\/[^\s<>)]+/i)?.[0] || null;
+    const parsed = safeUrl(embedded);
+    if (parsed) return parsed;
+  }
+
+  // The current table carries an exchange name but no exchange filing id. An exact-person search
+  // is the narrowest traceable public record we can derive without inventing an identifier.
+  const cells = row?.cells || {};
+  const nameKey = Object.keys(cells).find((key) => /person|insider|holder|acquirer/i.test(key))
+    || Object.keys(cells).find((key) => /name/i.test(key));
+  const query = String((nameKey ? cells[nameKey] : null) || row?.ticker || '').trim();
+  return query ? `https://trendlyne.com/equity/insider-trading-sast/custom/?query=${encodeURIComponent(query)}` : null;
+}
+
 /**
  * A date in whatever the upstream felt like, normalised to YYYY-MM-DD, or null.
  *
@@ -69,6 +91,30 @@ export function isoDate(v) {
   const t = Date.parse(s);
   if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
   return null;
+}
+
+/**
+ * The same value as a full instant, or null — for upstreams that carry a TIME as well as a date.
+ *
+ * IT HAS TO BE ITS OWN COMMITTED FIELD, and that is the whole point of it. General Alerts read the
+ * news time off `raw.page_age`, and `raw` is the upstream record again — deliberately stripped by
+ * `scrape-filings.mjs` before writing, because committing it would multiply the snapshot several
+ * times over. So the time was present on a live-walked row and absent on every row that came from
+ * the file, which is all of them: the TIME column read an em dash for every company story on the
+ * page while market-wide news, whose `publishedAt` IS committed, showed times beside it. It looked
+ * exactly like a scope bug and was a field that never survived the write.
+ *
+ * Returns null where the upstream gave only a day. A date with a zero time would claim midnight.
+ */
+export function isoInstant(v) {
+  const s = str(v);
+  if (!s) return null;
+  // A bare YYYY-MM-DD carries no time, and neither do the day-only forms `isoDate` understands.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{8}$/.test(s)) return null;
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  // Guard against a parse that invented midnight from a day-only string in some other shape.
+  return /\d{1,2}:\d{2}/.test(s) ? new Date(t).toISOString() : null;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -238,6 +284,9 @@ export function normaliseArticle(r, query = null) {
     // which is deliberately LAST: it parses to nothing, so it only ever confirms there is no date
     // rather than inventing one.
     date: isoDate(pickField(r, ['page_age', 'pageAge', 'date', 'publishedAt', 'published_at', 'published', 'pubDate', 'datetime', 'timestamp'])),
+    // The instant, where the upstream gave one — a first-class field precisely so it survives the
+    // `raw` strip that `scrape-filings.mjs` does before committing. See `isoInstant`.
+    publishedAt: isoInstant(pickField(r, ['page_age', 'pageAge', 'publishedAt', 'published_at', 'published', 'pubDate', 'datetime', 'timestamp'])),
     title: str(pickField(r, ['title', 'headline', 'name'])),
     source: str(pickField(profile, ['name', 'title'])) || str(pickField(r, ['source', 'publisher', 'site', 'domain', 'provider'])),
     url: safeUrl(pickField(r, ['url', 'link', 'href', 'articleUrl'])),
