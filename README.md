@@ -79,8 +79,10 @@ npx wrangler dev
 ```
 
 Ask Research is intentionally disabled until a server-side Muns session token is present. It prefers
-`MUNS_LLM_TOKEN`, then falls back to the existing `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`; the former
-`ANTHROPIC_API_KEY` binding remains a migration fallback for the current deployment. For local Worker
+`MUNS_LLM_TOKEN`, then falls back to the existing `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`. The former
+`ANTHROPIC_API_KEY` binding is read only while `MUNS_LLM_LEGACY_ANTHROPIC_BINDING` explicitly confirms
+that it now contains a Muns token; this prevents a genuine Anthropic credential from being sent to
+another service. For local Worker
 development, put the token in the gitignored `.dev.vars`; for production, configure the dedicated
 secret with `npx wrangler secret put MUNS_LLM_TOKEN`. Do not put it in `public/` or browser storage.
 Conversation history is stored locally, while each submitted question and its bounded dashboard

@@ -22,6 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 const { DASHBOARD_RESEARCH_SOURCES, fitEvidenceToBudget } = await import('../public/js/research/estate.js');
 const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
+const askResearchSource = readFileSync(new URL('../public/js/tabs/ask-research.js', import.meta.url), 'utf8');
 
 let checks = 0;
 const ok = (label, fn) => {
@@ -57,13 +58,23 @@ ok('Public Chatter evidence preserves failure state and separately samples unres
   assert.match(estateSource, /const unresolved = chatter\.uncovered\(\);[\s\S]*?unresolvedTopics: \{/);
 });
 
+ok('saved web-researched answers retain their historical provenance after the provider migration', () => {
+  assert.match(askResearchSource, /webResearch: message\.webResearch === true/);
+  assert.match(askResearchSource, /message\.webResearch \? 'Dashboard \+ web research' : 'Dashboard research'/);
+  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, scope: evidence\.scope, webResearch: false/);
+});
+
 ok('configuration accepts the dedicated or existing Muns session-token bindings', () => {
   assert.equal(researchConfigured({}), false);
   assert.equal(researchConfigured({ MUNS_TOKEN: 'short' }), false);
   assert.equal(researchConfigured({ MUNS_TOKEN: 'muns-session-token-value' }), true);
   assert.equal(researchConfigured({ MUNS_NEWS_TOKEN: 'muns-news-session-token' }), true);
   assert.equal(researchConfigured({ MUNS_LLM_TOKEN: 'muns-llm-session-token' }), true);
-  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'legacy-muns-session-token' }), true);
+  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'real-anthropic-key-must-not-leave' }), false);
+  assert.equal(researchConfigured({
+    ANTHROPIC_API_KEY: 'legacy-muns-session-token',
+    MUNS_LLM_LEGACY_ANTHROPIC_BINDING: 'confirmed-muns-token',
+  }), true);
 });
 
 const valid = validateResearchBody({
@@ -131,7 +142,8 @@ ok('the Muns request preserves evidence and selects low-latency local streaming 
   assert.equal(request.llm_type, 'local_llm');
   assert.equal(request.stream, true);
   assert.equal(request.temperature, 0.2);
-  assert.equal(request.max_tokens, 1_024);
+  assert.equal(request.max_tokens, 768);
+  assert.match(request.query, /Complete the answer within 450 words/);
   assert.match(request.query, /DASHBOARD_EVIDENCE object is the only source of dashboard facts/);
   assert.match(request.query, /USER: Earlier question/);
   assert.match(request.query, /QUESTION:\nWhat changed\?/);

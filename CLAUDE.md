@@ -1780,6 +1780,10 @@ claim one. The browser preserves every source's status, coverage and provenance,
 remaining 15K-character evidence budget across question-ranked rows so the request fits the local
 model's 8K-token context.
 
+The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
+`MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced
+its value with a Muns token. Remove that migration opt-in after installing `MUNS_LLM_TOKEN`.
+
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through

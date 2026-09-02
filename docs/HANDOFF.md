@@ -308,8 +308,9 @@ catalog and its zero-row coverage are still useful evidence, so this module decl
 
 Local static serving shows the complete workspace but disables the composer. To exercise answers,
 run `npx wrangler dev` with `MUNS_LLM_TOKEN=…` in the gitignored `.dev.vars`. Production prefers
-`npx wrangler secret put MUNS_LLM_TOKEN`, falls back to `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`, and keeps
-the former `ANTHROPIC_API_KEY` name as a migration fallback for the currently deployed token.
+`npx wrangler secret put MUNS_LLM_TOKEN` and falls back to `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`. The
+former `ANTHROPIC_API_KEY` name is read only when `MUNS_LLM_LEGACY_ANTHROPIC_BINDING` equals
+`confirmed-muns-token`; remove that migration opt-in after installing the correctly named secret.
 Never put that value in `public/`, `wrangler.jsonc` or browser storage.
 
 ---

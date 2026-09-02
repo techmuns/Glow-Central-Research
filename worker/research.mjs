@@ -8,7 +8,7 @@ const MUNS_LLM_BASE = 'https://fastapi.muns.io';
 const MUNS_LLM_PATH = '/query-router';
 const DEFAULT_LLM_TYPE = 'local_llm';
 const DEFAULT_TEMPERATURE = 0.2;
-const DEFAULT_MAX_TOKENS = 1_024;
+const DEFAULT_MAX_TOKENS = 768;
 const MAX_BODY_BYTES = 180_000;
 const MAX_EVIDENCE_CHARS = 16_000;
 const MAX_QUESTION_CHARS = 1_500;
@@ -38,7 +38,7 @@ Lead with a clear answer. For every material dashboard claim, cite the owning pa
 
 Do not use general or remembered world knowledge as a substitute for missing dashboard data. If the supplied evidence cannot answer the question, say what is missing.
 
-Prefer a concise synthesis with short headings or bullets only when they improve scanability. Do not give personalised investment advice or tell the reader to buy, sell, or deploy capital.`;
+Prefer a concise synthesis with short headings or bullets only when they improve scanability. Complete the answer within 450 words. Do not give personalised investment advice or tell the reader to buy, sell, or deploy capital.`;
 
 const encoder = new TextEncoder();
 
@@ -52,9 +52,14 @@ export function researchConfigured(env) {
 }
 
 function researchToken(env) {
-  // ANTHROPIC_API_KEY is a migration-only fallback: production already has the Muns session token
-  // under that old name. Prefer an accurately named binding as soon as one is added.
-  return String(env?.MUNS_LLM_TOKEN || env?.MUNS_NEWS_TOKEN || env?.MUNS_TOKEN || env?.ANTHROPIC_API_KEY || '').trim();
+  const token = env?.MUNS_LLM_TOKEN || env?.MUNS_NEWS_TOKEN || env?.MUNS_TOKEN;
+  if (token) return String(token).trim();
+  // Never forward a genuine Anthropic credential to Muns. This exact opt-in exists only because
+  // the current deployment was confirmed to hold a Muns token under the former binding name.
+  if (env?.MUNS_LLM_LEGACY_ANTHROPIC_BINDING === 'confirmed-muns-token') {
+    return String(env?.ANTHROPIC_API_KEY || '').trim();
+  }
+  return '';
 }
 
 function sameOrigin(request) {

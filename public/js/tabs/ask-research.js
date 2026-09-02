@@ -60,7 +60,9 @@ function normaliseSession(raw) {
         .map((message) => ({
           role: message.role,
           text: message.text.slice(0, MAX_MESSAGE_CHARS),
-          webResearch: false,
+          // Keep the provenance of answers saved before the Muns migration. New requests are
+          // dashboard-only, but rewriting an older answer's origin would be misleading.
+          webResearch: message.webResearch === true,
           dashboardSources: Array.isArray(message.dashboardSources) ? message.dashboardSources.slice(0, 16) : [],
           webSources: Array.isArray(message.webSources) ? message.webSources.slice(0, 12) : [],
         }))
@@ -471,7 +473,7 @@ function messageNode(message) {
   const article = el('article', { class: 'research-assistant-answer' });
   const label = el('div', { class: 'research-answer-label' });
   label.appendChild(el('span', { class: 'research-mini-spark', 'aria-hidden': 'true' }, '✦'));
-  label.appendChild(el('span', {}, 'Dashboard research'));
+  label.appendChild(el('span', {}, message.webResearch ? 'Dashboard + web research' : 'Dashboard research'));
   article.appendChild(label);
   const body = el('div', { class: 'research-answer-body' });
   renderResearchAnswer(body, message.text);
