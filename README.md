@@ -21,8 +21,8 @@ conversation library on the reader's device. Its optional **Web research** mode 
 dashboard packet to the server-side assistant and requires hosted web search, so current external
 context and dashboard facts are combined in one answer without exposing the provider key.
 
-Static site, no build step, no bundler, no framework, no npm dependencies for the app itself.
-Vanilla ES modules and Tailwind from a CDN. Hosted as a Cloudflare Worker.
+Static runtime, no bundler, no framework, no npm dependencies for the app itself.
+Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
 
 ![Earnings Hub](docs/screenshots/earnings-hub.png)
 
@@ -85,6 +85,14 @@ configure it with `npx wrangler secret put ANTHROPIC_API_KEY`. The model name is
 Conversation history is stored locally, while each submitted question and its bounded dashboard
 evidence packet are sent to Anthropic's Claude Messages API to generate the answer.
 
+The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
+committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):
+
+```bash
+npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs \
+  -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
+```
+
 ---
 
 ## Deploy
@@ -105,7 +113,8 @@ marked slot for future `/api/*` routes.
 
 ```
 public/
-  index.html          design tokens, fonts, Tailwind CDN
+  index.html          design tokens, fonts, committed Tailwind stylesheet
+  css/tailwind.css    generated utility CSS; served directly, never compiled in the browser
   js/
     app.js            bootstrap: load JSON, mount the shell
     core/             state, router, live engine, format, dom helpers

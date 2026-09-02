@@ -16,6 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="/css/tailwind.css" />
 
     <script>
       // The Concall Deep Dive dashboard — a SEPARATE deployment that runs its own LLM pipeline
@@ -28,10 +29,8 @@
       // `localStorage['sattva:deepdive-base']` overrides this, which is how verify-ui.mjs points
       // a whole verification run at a stub.
       //
-      // IN ITS OWN BLOCK, BEFORE THE CDN. It first shared the Tailwind config script below, and
-      // when the CDN was unreachable `tailwind.config = …` threw on the line above it — so this
-      // assignment never ran and the column silently fell back to asking for a URL. An unrelated
-      // network failure must not be able to unwire a feature.
+      // Kept in its own block so an unrelated resource failure can never prevent the assignment
+      // and silently send the Deep Dive column back to asking readers for a URL.
       //
       // That endpoint is unauthenticated, so this line makes it reachable by anyone who loads the
       // page. Putting auth on `POST /api/analyze` belongs on that Worker — see docs/HANDOFF.md §9.
@@ -48,21 +47,6 @@
       // `localStorage['sattva:chatter-base']` overrides it, which is how verify-ui.mjs points the
       // feed at a stub.
       window.SATTVA_CHATTER_URL = 'https://sentimentdash-api.tech-441.workers.dev/v1';
-    </script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Tailwind CDN config — no build step, no bundler (see CLAUDE.md).
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-              display: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'sans-serif'],
-            },
-          },
-        },
-      };
     </script>
 
     <style>

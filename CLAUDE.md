@@ -8,7 +8,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 ## Hard rules
 
 1. **Work on `main` only. Never create a branch.** Commit and push to `main` when done.
-2. **No build step, no bundler, no framework, no npm dependencies for the app itself.**
+2. **No deployment build step, no bundler, no framework, no npm dependencies for the app itself.**
    Vanilla ES modules, served as static files. If you find yourself adding a `package.json`
    for the front-end, stop — that's out of contract.
    (Node 22 scripts under `scripts/` that refresh data are fine and expected.)
@@ -20,7 +20,12 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 3. **Everything must run by opening the static site.** Verify before pushing:
    `python3 -m http.server 8080 -d public`, then drive it with Playwright.
    Zero console errors is the bar.
-4. Tailwind comes from the CDN (`https://cdn.tailwindcss.com`) — do not vendor or compile it.
+4. Tailwind is precompiled into committed `public/css/tailwind.css`; never reintroduce the browser
+   compiler. After changing utility classes, regenerate it with:
+   `npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify`.
+   The source entry is `scripts/tailwind-input.css`; the content/font config is
+   `tailwind.config.cjs`. Commit the generated stylesheet. The on-demand CLI is a maintenance
+   tool, not an app dependency or a deployment step.
 5. Light theme only.
 
 ---
@@ -30,7 +35,7 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 | Concern | Choice |
 | --- | --- |
 | Markup | `public/index.html`, single entry |
-| CSS | Tailwind via CDN + a small `:root` token block in `index.html` |
+| CSS | Committed precompiled Tailwind + a small `:root` token block in `index.html` |
 | Fonts | Inter 400–800 (body), Plus Jakarta Sans 600–800 (headings, `.font-display`) |
 | JS | Vanilla ES modules, `<script type="module" src="js/app.js">` |
 | Data | JSON in `public/data/`, refreshed by Node 22 scripts in `scripts/` via GitHub Actions |
@@ -42,8 +47,9 @@ Read this before touching anything. `docs/SPEC.md` has the product detail;
 
 ```
 public/
-  index.html                  design tokens, fonts, Tailwind CDN, #app mount, overlay roots
+  index.html                  design tokens, fonts, compiled CSS link, #app mount, overlay roots
                               (drill z-50 < workspace z-55 < modal z-60)
+  css/tailwind.css            generated Tailwind utilities; committed and served as a static asset
   js/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
@@ -1492,9 +1498,18 @@ the layout it forced was the 1,722-row table underneath. Add ~350ms of string bu
 whole cost was the table, charged to whoever touched the DOM next. Every millisecond of it was
 spent on rows nobody could see; the viewport holds about thirteen.
 
-So `bodyHtml(list, from, to)` takes a range, the initial markup carries `FIRST_PAINT_ROWS` (80), and
-`wire()` appends the rest in adaptive slices under `requestIdleCallback` (with a timeout, so a
-backgrounded tab still finishes). Measured tab-to-tab: **~900ms of blocked main thread → 36–75ms.**
+So `bodyHtml(list, from, to)` takes a range, the initial markup carries `FIRST_PAINT_ROWS` (40), and
+`wire()` appends the rest in adaptive slices of at most 80 rows under `requestIdleCallback` (with a
+timeout, so a backgrounded tab still finishes). Measured tab-to-tab: **~900ms of blocked main
+thread → 36–75ms.**
+
+A later Chrome DevTools interaction trace found two remaining costs. The Tailwind browser compiler
+spent **285ms** rescanning newly inserted tab markup, and the scope thumb's `offsetWidth` /
+`offsetLeft` reads forced another **114ms** layout. Tailwind is now a committed 50.7KB stylesheet
+(about 9KB gzip), and the three equal-width scope segments place the thumb by index with a CSS
+transform. On the same localhost trace, cold LCP moved **237ms → 159ms**, tab INP **77ms → 39ms**,
+and Public Chatter's route LCP **690ms → 89ms**; CLS remained good (0.00 before, 0.02 after). These
+are lab measurements, not field data.
 
 Four rules if you touch it:
 
@@ -2486,7 +2501,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add persisted state | `js/core/state.js` |
 | Add a polled/live data source | `js/core/live.js` + `live.register` in the owning tab |
 | Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
-| Make tab switching faster | `scoreTable`'s streaming body in `js/ui/screener.js` — read *Performance on large tables* first; profile before changing it, the cost is rarely where a profile first points |
+| Make tab switching faster | `scoreTable` streaming in `js/ui/screener.js`, the measurement-free scope toggle in `js/ui/components.js`, and committed `public/css/tailwind.css` — read *Performance on large tables* first and profile before changing them |
 | Change what the shell waits for at boot | `CRITICAL_SOURCES` / `DEFERRED_SOURCES` in `js/app.js` — a deferred file needs a consumer that awaits it |
 | Change what the Earnings Calendar shows for a date | `modeFor()` + `renderCalendar()` in `js/tabs/earnings-hub.js` — read *The calendar answers two questions* first |
 | Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
@@ -2649,8 +2664,9 @@ It covers, beyond the checklist below:
   the all-exchange list are different universes, and the pill says so instead of asserting a number
 
 > A **SKIP** is the honest answer where the sandbox, not the page, is the reason a check cannot
-> run — no egress to the Tailwind/exceljs CDNs, no Worker on a static origin. The final
-> `zero console errors` check filters exactly those two families and **prints how many it dropped**,
+> run — no egress to the ExcelJS/font CDNs, no Worker on a static origin. Tailwind is local, so
+> layout checks still run. The final `zero console errors` check filters those environment failures
+> and **prints how many it dropped**,
 > so a run that hid a real error behind the filter still shows the count.
 >
 > The caching checks need a Worker. Against a plain `python3 -m http.server` there is no
@@ -2665,8 +2681,6 @@ It covers, beyond the checklist below:
 > measured, and a stand-in that can be told to 503 or hang is what makes the failure paths testable
 > at all.
 
-> Sandbox note: the agent proxy only accepts CONNECT, so headless Chromium cannot reach
-> `cdn.tailwindcss.com` or Google Fonts. To screenshot with real styling, copy `public/` to a
-> scratch dir, `curl` the Tailwind CDN script and the fonts CSS into it, and repoint
-> `index.html` at the local copies. **Never commit that change** — the committed `index.html`
-> must keep the CDN URLs.
+> Sandbox note: the agent proxy may not reach Google Fonts or ExcelJS. The committed Tailwind
+> stylesheet still gives screenshots the shipped layout and colours; the browser falls back to
+> system fonts when Google Fonts is unavailable. Export checks report SKIP when ExcelJS cannot load.

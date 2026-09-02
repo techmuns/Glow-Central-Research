@@ -1,8 +1,9 @@
 # Sattva Central Research — Product Spec
 
-An Indian-equities research and portfolio analytics dashboard. Static site, no build step,
-no framework, no npm dependencies for the app itself. Hosted as a Cloudflare Worker that
-serves `public/` and the live `/api/*` routes.
+An Indian-equities research and portfolio analytics dashboard. Static runtime, no bundler,
+no framework, no npm dependencies for the app itself. Tailwind is precompiled into a committed
+same-origin stylesheet, so deployment still serves `public/` directly. Hosted as a Cloudflare
+Worker that serves those assets and the live `/api/*` routes.
 
 ---
 

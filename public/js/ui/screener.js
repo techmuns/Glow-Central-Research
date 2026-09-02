@@ -671,9 +671,12 @@ export function scoreTable(config) {
   // holding every visible row, and Ctrl-F, screenshots and "N of M shown" behave as they did. The
   // section carries `data-rows-pending` until the fill completes, so a test (or anything else)
   // can wait for the settled table rather than racing it.
-  const FIRST_PAINT_ROWS = 80; // comfortably more than any viewport shows
-  const MIN_SLICE = 100;
-  const MAX_SLICE = 800;
+  const FIRST_PAINT_ROWS = 40; // comfortably more than any viewport shows
+  // The old adaptive ceiling reached 800 rows. HTML insertion looked cheap, but the style/layout
+  // work landed on the next frame: traces showed 40–88ms layout blocks while a table filled. Keep
+  // each background batch below a screenful so loading can never monopolise an interaction frame.
+  const MIN_SLICE = 20;
+  const MAX_SLICE = 80;
 
   // requestIdleCallback where it exists, with a timeout so a busy or backgrounded tab still
   // finishes. Safari has no rIC, hence the fallback — a slower fill is fine, a stalled one is not.
@@ -793,12 +796,11 @@ export function scoreTable(config) {
       body.insertAdjacentHTML('beforeend', bodyHtml(current, filled, end));
       filled = end;
       markPending(current.length - filled);
-      // Adapt: the cost per row swings by an order of magnitude between a three-column table and
-      // a thirteen-column one, so a fixed slice is either janky on one or pointlessly slow on the
-      // other. Aim at roughly a frame's worth of work per slice.
+      // Adapt inside the strict ceiling above: the cost per row swings by an order of magnitude
+      // between a three-column table and a thirteen-column one.
       const ms = performance.now() - started;
-      if (ms > 24) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
-      else if (ms < 8) slice = Math.min(MAX_SLICE, slice * 2);
+      if (ms > 12) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
+      else if (ms < 4) slice = Math.min(MAX_SLICE, slice * 2);
       if (filled < current.length) {
         if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
       } else {
