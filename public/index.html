@@ -18,6 +18,23 @@
     />
     <link rel="stylesheet" href="/css/tailwind.css" />
 
+    <!-- THE MUNSHOT DASHBOARD SDK. A CLASSIC, BLOCKING SCRIPT, IN <head>, BEFORE js/app.js.
+         Every part of that sentence is load-bearing and each one fails silently if ignored:
+
+         * CLASSIC, not type="module" — the bundle is an IIFE assigned to `var
+           MunshotDashboardSDK`. Loaded this way the global is the module namespace carrying
+           `createDashboardClientSdk`; loaded as a module the same name instead carries
+           `{ createClient, Client }`. js/core/sdk.js probes for both, but this is the tested form.
+         * NOT async or defer — js/core/sdk.js constructs the client at import time so its window
+           listener is live before the host can post `host:init`, and that ordering only holds if
+           the global exists before the module graph runs. A deferred SDK is a dashboard that
+           renders perfectly and never receives a session token.
+
+         Absence is a supported state, not a failure: served as a plain static site (which is how
+         scripts/verify-ui.mjs drives it) there is no host, js/core/sdk.js falls back to its no-op
+         client, and the dashboard paints from its committed snapshots exactly as before. -->
+    <script src="https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js"></script>
+
     <script>
       // The Concall Deep Dive dashboard — a SEPARATE deployment that runs its own LLM pipeline
       // over a company's call. The Con-call tab's Deep Dive column talks to it.

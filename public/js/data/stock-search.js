@@ -1,4 +1,9 @@
 // data/stock-search.js — browser client for the Worker-held Muns company search credential.
+//
+// Inside the Munshot host the reader's own session token rides along too, which is what lets this
+// route answer on a deployment where `MUNS_TOKEN` was never installed. See js/core/host-context.js.
+
+import { authHeaders } from '../core/host-context.js';
 
 export async function searchCompanies(query, { signal } = {}) {
   const q = String(query || '').trim();
@@ -6,6 +11,7 @@ export async function searchCompanies(query, { signal } = {}) {
 
   const res = await fetch(`api/stock-search?q=${encodeURIComponent(q)}`, {
     cache: 'no-store',
+    headers: { accept: 'application/json', ...authHeaders('api/stock-search') },
     signal,
   });
   let body = null;

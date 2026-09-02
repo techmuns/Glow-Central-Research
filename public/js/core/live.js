@@ -10,6 +10,8 @@
 // again. A failed fetch never throws into the UI: it logs, backs off, and keeps the last good
 // data on screen.
 
+import { authHeaders } from './host-context.js';
+
 const pollers = new Map(); // id -> poller record
 let lastGlobalTick = null;
 // The last tick of a poller that actually ASKED A SERVER SOMETHING. The heartbeat exists only to
@@ -209,7 +211,12 @@ export function mockFetcher(path, { jitter = 0.02 } = {}) {
 //   live.register('technicals', { intervalMs: 30000, fetcher: live.realFetcher('/api/technicals') })
 export function realFetcher(url, options = {}) {
   return async function fetchLive() {
-    const res = await fetch(url, options);
+    // The reader's session token is read PER TICK rather than captured when the fetcher was built.
+    // A poller registered before the host finished its handshake would otherwise send an
+    // unauthenticated request for the life of the page, and a token refreshed on login would never
+    // reach the wire. `authHeaders` returns {} off-host and for any non-Munshot address, so this is
+    // a no-op on a static origin.
+    const res = await fetch(url, { ...options, headers: { ...(options.headers || {}), ...authHeaders(url) } });
     if (!res.ok) throw new Error(`realFetcher: ${url} -> ${res.status}`);
     return res.json();
   };

@@ -1,5 +1,6 @@
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
+import { authHeaders } from '../core/host-context.js';
 import { empty, el } from '../core/dom.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
@@ -317,7 +318,7 @@ async function ensureConfig() {
   // keep their explanatory state visible, but let the next mount retry instead of wedging the SPA.
   if (configState && configState.retryable !== true) return configState;
   if (configPromise) return configPromise;
-  configPromise = fetch('api/research', { headers: { accept: 'application/json' }, cache: 'no-store' })
+  configPromise = fetch('api/research', { headers: { accept: 'application/json', ...authHeaders('api/research') }, cache: 'no-store' })
     .then(async (response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.json();
@@ -597,7 +598,7 @@ async function submitCurrent() {
     const history = session.messages.slice(0, -1).map((message) => ({ role: message.role, text: message.text }));
     const response = await fetch('api/research', {
       method: 'POST',
-      headers: { accept: 'application/x-ndjson', 'content-type': 'application/json' },
+      headers: { accept: 'application/x-ndjson', 'content-type': 'application/json', ...authHeaders('api/research') },
       body: JSON.stringify({ question, scope: evidence.scope, webResearch: false, history, evidence }),
       signal: generation.controller.signal,
     });

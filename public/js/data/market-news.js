@@ -38,6 +38,7 @@
 // are never stamped with `firstSeenAt`, which is when WE saw the story and is a fact about the
 // scraper, not about the story.
 
+import { authHeaders } from '../core/host-context.js';
 import { conditionalJson, KEYS } from '../core/store.js';
 
 const SNAPSHOT = 'data/market-news.json';
@@ -263,7 +264,7 @@ const PUBLISH_GRACE_MS = 150000;
 
 async function askWorker(path, { method = 'GET' } = {}) {
   try {
-    const res = await fetch(path, { method, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: { accept: 'application/json' } });
+    const res = await fetch(path, { method, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: { accept: 'application/json', ...authHeaders(path) } });
     // A STATIC ORIGIN HAS NO WORKER, and that is a configuration fact rather than a failure of the
     // scrape. Saying "could not start" there would send an operator looking for a broken token
     // that does not exist.

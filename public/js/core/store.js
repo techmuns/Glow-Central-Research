@@ -28,6 +28,8 @@
 //   survive a reload. Nothing in the app may treat a store miss as an error — a miss means
 //   "fetch it", which is exactly what the code did before this module existed.
 
+import { authHeaders } from './host-context.js';
+
 const DB_NAME = 'sattva-cache';
 const DB_VERSION = 1;
 const STORE = 'payloads';
@@ -249,7 +251,10 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
     // `no-cache`, NOT `no-store`: revalidate on every call, but let the browser reuse the bytes it
     // already holds when the server says they are still good. `no-store` would forbid that reuse
     // and put the whole payload back on the wire every single tick.
-    res = await fetch(path, { headers: { accept: 'application/json' }, cache: 'no-cache', signal });
+    // `authHeaders(path)` is an ALLOW-LIST and spreads to nothing for everything that is not a
+    // Munshot API — every `data/*.json` committed file goes through here too, and a static asset
+    // neither needs the reader's JWT nor should carry it. See js/core/host-context.js.
+    res = await fetch(path, { headers: { accept: 'application/json', ...authHeaders(path) }, cache: 'no-cache', signal });
   } catch (err) {
     if (optional) return miss(0);
     throw err;
