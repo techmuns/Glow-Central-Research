@@ -1,18 +1,20 @@
-// worker/research.mjs — Ask Research's server-only OpenAI bridge.
+// worker/research.mjs — Ask Research's server-only Anthropic bridge.
 //
 // The browser assembles a bounded evidence packet through the dashboard's canonical data modules.
 // This route keeps the provider credential off the device, applies the final evidence-only
-// instruction, optionally requires OpenAI's hosted web search, and normalises the provider's SSE
+// instruction, optionally requires Claude's hosted web search, and normalises the provider's SSE
 // stream to small NDJSON events the dashboard can consume safely.
 
-const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const DEFAULT_MODEL = 'gpt-5.4-mini';
+const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const MAX_BODY_BYTES = 180_000;
 const MAX_EVIDENCE_CHARS = 120_000;
 const MAX_QUESTION_CHARS = 1_500;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_CHARS = 24_000;
 const MAX_UPSTREAM_ERROR_BYTES = 8_000;
+const MAX_PAUSE_CONTINUATIONS = 2;
 const REQUEST_TIMEOUT_MS = 45_000;
 
 const JSON_HEADERS = {
@@ -46,7 +48,7 @@ const responseJson = (body, status = 200) =>
 const ndjson = (controller, event) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
 
 export function researchConfigured(env) {
-  return typeof env?.OPENAI_API_KEY === 'string' && env.OPENAI_API_KEY.trim().length > 10;
+  return typeof env?.ANTHROPIC_API_KEY === 'string' && env.ANTHROPIC_API_KEY.trim().length > 10;
 }
 
 function sameOrigin(request) {
@@ -119,7 +121,7 @@ function cleanHistory(input) {
     const text = typeof item?.text === 'string' ? item.text.trim().slice(0, 4_000) : '';
     if (!role || !text || chars + text.length > MAX_HISTORY_CHARS) continue;
     chars += text.length;
-    out.push({ role, content: [{ type: 'input_text', text }] });
+    out.push({ role, content: [{ type: 'text', text }] });
   }
   return out.reverse();
 }
@@ -151,7 +153,7 @@ export function validateResearchBody(body) {
   };
 }
 
-export function buildOpenAIRequest(input, env) {
+export function buildAnthropicRequest(input, env) {
   const questionWithEvidence = [
     `ACTIVE_SCOPE: ${input.scope}`,
     `WEB_RESEARCH: ${input.webResearch ? 'enabled and required' : 'disabled'}`,
@@ -160,55 +162,61 @@ export function buildOpenAIRequest(input, env) {
   ].join('\n\n');
 
   const body = {
-    model: env.OPENAI_MODEL || DEFAULT_MODEL,
-    instructions: SYSTEM_INSTRUCTIONS,
-    input: [...input.history, { role: 'user', content: [{ type: 'input_text', text: questionWithEvidence }] }],
-    max_output_tokens: 1_800,
-    store: false,
+    model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+    max_tokens: 1_800,
+    system: SYSTEM_INSTRUCTIONS,
+    messages: [...input.history, { role: 'user', content: [{ type: 'text', text: questionWithEvidence }] }],
     stream: true,
   };
   if (input.webResearch) {
-    body.tools = [{ type: 'web_search' }];
-    body.tool_choice = 'required';
-    body.include = ['web_search_call.action.sources'];
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+    body.tool_choice = { type: 'tool', name: 'web_search' };
   }
   return body;
 }
 
-function citationOf(annotation) {
-  if (!annotation || typeof annotation !== 'object') return null;
-  const value = annotation.url_citation || annotation;
+function webSourceOf(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (!['web_search_result', 'web_search_result_location'].includes(value.type)) return null;
   const url = value.url;
-  if (value.type !== 'url_citation' && annotation.type !== 'url_citation') return null;
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return null;
-  return { url, title: typeof value.title === 'string' && value.title.trim() ? value.title.trim().slice(0, 180) : new URL(url).hostname };
+  let hostname;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return null;
+  }
+  return {
+    url,
+    title: typeof value.title === 'string' && value.title.trim() ? value.title.trim().slice(0, 180) : hostname,
+  };
 }
 
-export function extractWebSources(response) {
+export function extractWebSources(value) {
   const found = [];
   const add = (source) => {
     if (!source?.url || found.some((item) => item.url === source.url)) return;
     found.push(source);
   };
-  for (const item of response?.output || []) {
-    if (item?.type === 'message') {
-      for (const content of item.content || []) {
-        for (const annotation of content?.annotations || []) add(citationOf(annotation));
-      }
+  const visit = (node) => {
+    if (!node || typeof node !== 'object' || found.length >= 12) return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
     }
-    if (item?.type === 'web_search_call') {
-      for (const source of item?.action?.sources || []) {
-        if (typeof source?.url !== 'string' || !/^https?:\/\//i.test(source.url)) continue;
-        add({ url: source.url, title: String(source.title || new URL(source.url).hostname).slice(0, 180) });
-      }
+    add(webSourceOf(node));
+    for (const [key, child] of Object.entries(node)) {
+      // Search-result payloads can contain a large opaque field that is never useful to the UI.
+      if (key !== 'encrypted_content') visit(child);
     }
-  }
+  };
+  visit(value);
   return found.slice(0, 12);
 }
 
 /**
- * Pull complete SSE data payloads out of a buffer. OpenAI sends one JSON object per SSE block;
- * event names are also repeated inside each object's `type`, so the `data:` lines are sufficient.
+ * Pull complete SSE data payloads out of a buffer. Anthropic repeats each named SSE event in the
+ * JSON object's `type`, so the `data:` lines are sufficient for the provider-normalising stream.
  */
 export function takeSseEvents(buffer) {
   const normalised = buffer.replaceAll('\r\n', '\n');
@@ -240,19 +248,145 @@ function describeUpstreamFailure(status, detail) {
   return parsed ? String(parsed).slice(0, 240) : `The research provider returned HTTP ${status}.`;
 }
 
-async function streamOpenAI(request, env, input) {
+async function streamAnthropic(request, env, body) {
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = AbortSignal.any([request.signal, timeoutSignal]);
-  return fetch(OPENAI_RESPONSES_URL, {
+  return fetch(ANTHROPIC_MESSAGES_URL, {
     method: 'POST',
     headers: {
       accept: 'text/event-stream',
-      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      'anthropic-version': ANTHROPIC_VERSION,
       'content-type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY,
     },
-    body: JSON.stringify(buildOpenAIRequest(input, env)),
+    body: JSON.stringify(body),
     signal,
   });
+}
+
+function mergeSources(primary, secondary) {
+  const byUrl = new Map();
+  for (const source of [...primary, ...secondary]) {
+    if (source?.url && !byUrl.has(source.url)) byUrl.set(source.url, source);
+  }
+  return [...byUrl.values()].slice(0, 12);
+}
+
+function cloneProviderBlock(block) {
+  return JSON.parse(JSON.stringify(block));
+}
+
+async function consumeAnthropicStream(stream, controller) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const content = [];
+  const inputFragments = new Map();
+  const citedSources = [];
+  const resultSources = [];
+  let buffer = '';
+  let completed = false;
+  let wroteText = false;
+  let stopReason = null;
+  let webSearchFailed = null;
+  let providerStreamFailure = null;
+
+  const rememberSources = (event, target) => {
+    for (const source of extractWebSources(event)) {
+      if (!target.some((item) => item.url === source.url)) target.push(source);
+    }
+  };
+
+  const consumeProviderEvent = (event) => {
+    if (event.type === 'content_block_start') {
+      const block = event.content_block;
+      if (Number.isInteger(event.index) && block && typeof block === 'object') {
+        content[event.index] = cloneProviderBlock(block);
+      }
+      if (block?.type === 'server_tool_use' && block.name === 'web_search') {
+        ndjson(controller, { type: 'phase', phase: 'Searching the web for current context' });
+      } else if (block?.type === 'web_search_tool_result') {
+        ndjson(controller, { type: 'phase', phase: 'Reconciling web sources with dashboard data' });
+        rememberSources(block, resultSources);
+        if (block.content?.type === 'web_search_tool_result_error') {
+          webSearchFailed = block.content.error_code || 'unavailable';
+        }
+      } else if (block?.type === 'text') {
+        rememberSources(block, citedSources);
+        if (typeof block.text === 'string' && block.text) {
+          wroteText = true;
+          ndjson(controller, { type: 'text', text: block.text });
+        }
+      }
+    } else if (event.type === 'content_block_delta') {
+      const block = content[event.index];
+      if (event.delta?.type === 'text_delta' && typeof event.delta.text === 'string') {
+        if (block?.type === 'text') block.text = `${block.text || ''}${event.delta.text}`;
+        wroteText = true;
+        ndjson(controller, { type: 'text', text: event.delta.text });
+      } else if (event.delta?.type === 'citations_delta' && event.delta.citation) {
+        if (block?.type === 'text') {
+          if (!Array.isArray(block.citations)) block.citations = [];
+          block.citations.push(cloneProviderBlock(event.delta.citation));
+        }
+        rememberSources(event.delta.citation, citedSources);
+      } else if (event.delta?.type === 'input_json_delta' && typeof event.delta.partial_json === 'string') {
+        inputFragments.set(event.index, `${inputFragments.get(event.index) || ''}${event.delta.partial_json}`);
+      } else if (event.delta?.type === 'thinking_delta' && block?.type === 'thinking') {
+        block.thinking = `${block.thinking || ''}${event.delta.thinking || ''}`;
+      } else if (event.delta?.type === 'signature_delta' && block?.type === 'thinking') {
+        block.signature = `${block.signature || ''}${event.delta.signature || ''}`;
+      }
+    } else if (event.type === 'content_block_stop') {
+      const partialJson = inputFragments.get(event.index);
+      if (partialJson !== undefined) {
+        try {
+          if (content[event.index]) content[event.index].input = JSON.parse(partialJson || '{}');
+        } catch {
+          providerStreamFailure = 'Claude returned an invalid streamed tool request.';
+        }
+      }
+    } else if (event.type === 'message_delta') {
+      stopReason = event.delta?.stop_reason || stopReason;
+    } else if (event.type === 'message_stop') {
+      completed = true;
+    } else if (event.type === 'error') {
+      providerStreamFailure = String(event.error?.message || 'The research provider could not complete the answer.').slice(0, 260);
+    }
+  };
+
+  const consumeRaw = (raw) => {
+    try {
+      consumeProviderEvent(JSON.parse(raw));
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = takeSseEvents(buffer);
+    buffer = parsed.rest;
+    for (const raw of parsed.events) consumeRaw(raw);
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    const parsed = takeSseEvents(`${buffer}\n\n`);
+    for (const raw of parsed.events) consumeRaw(raw);
+  }
+
+  return {
+    citedSources,
+    completed,
+    content: content.filter(Boolean),
+    providerStreamFailure,
+    resultSources,
+    stopReason,
+    webSearchFailed,
+    wroteText,
+  };
 }
 
 function researchStream(request, env, input) {
@@ -261,61 +395,60 @@ function researchStream(request, env, input) {
       ndjson(controller, { type: 'start' });
       ndjson(controller, { type: 'phase', phase: input.webResearch ? 'Combining dashboard evidence with the web' : 'Writing from dashboard evidence' });
 
-      let upstream;
       try {
-        upstream = await streamOpenAI(request, env, input);
-        if (!upstream.ok) {
-          const detail = await readBoundedText(upstream.body, MAX_UPSTREAM_ERROR_BYTES);
-          ndjson(controller, { type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
-          return;
-        }
-        if (!upstream.body) {
-          ndjson(controller, { type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
-          return;
-        }
-
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let completed = false;
+        let providerBody = buildAnthropicRequest(input, env);
         let wroteText = false;
+        let completed = false;
+        let stopReason = null;
+        let citedSources = [];
+        let resultSources = [];
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const parsed = takeSseEvents(buffer);
-          buffer = parsed.rest;
-          for (const raw of parsed.events) {
-            if (raw === '[DONE]') continue;
-            let event;
-            try {
-              event = JSON.parse(raw);
-            } catch {
-              continue;
-            }
-            if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
-              wroteText = true;
-              ndjson(controller, { type: 'text', text: event.delta });
-            } else if (event.type === 'response.web_search_call.searching') {
-              ndjson(controller, { type: 'phase', phase: 'Searching the web for current context' });
-            } else if (event.type === 'response.web_search_call.completed') {
-              ndjson(controller, { type: 'phase', phase: 'Reconciling web sources with dashboard data' });
-            } else if (event.type === 'response.completed') {
-              completed = event.response?.status === 'completed';
-              const sources = extractWebSources(event.response);
-              if (sources.length) ndjson(controller, { type: 'sources', sources });
-            } else if (event.type === 'response.failed' || event.type === 'response.incomplete') {
-              const message = event.response?.error?.message || 'The research provider could not complete the answer.';
-              ndjson(controller, { type: 'error', reason: event.type, message: String(message).slice(0, 260) });
-              return;
-            }
+        for (let continuation = 0; continuation <= MAX_PAUSE_CONTINUATIONS; continuation += 1) {
+          const upstream = await streamAnthropic(request, env, providerBody);
+          if (!upstream.ok) {
+            const detail = await readBoundedText(upstream.body, MAX_UPSTREAM_ERROR_BYTES);
+            ndjson(controller, { type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
+            return;
           }
+          if (!upstream.body) {
+            ndjson(controller, { type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
+            return;
+          }
+
+          const segment = await consumeAnthropicStream(upstream.body, controller);
+          citedSources = mergeSources(citedSources, segment.citedSources);
+          resultSources = mergeSources(resultSources, segment.resultSources);
+          wroteText ||= segment.wroteText;
+          completed = segment.completed;
+          stopReason = segment.stopReason;
+
+          if (segment.providerStreamFailure) {
+            ndjson(controller, { type: 'error', reason: 'provider', message: segment.providerStreamFailure });
+            return;
+          }
+          if (segment.webSearchFailed) {
+            ndjson(controller, { type: 'error', reason: 'web_search_failed', message: 'Claude could not complete the requested web research. Please try again.' });
+            return;
+          }
+          if (stopReason !== 'pause_turn') break;
+          if (!completed || !segment.content.length || continuation === MAX_PAUSE_CONTINUATIONS) {
+            ndjson(controller, { type: 'error', reason: 'continuation_limit', message: 'Claude paused the web research repeatedly. Please try a narrower question.' });
+            return;
+          }
+
+          ndjson(controller, { type: 'phase', phase: 'Continuing Claude web research' });
+          const { tool_choice: _toolChoice, ...continuationBody } = providerBody;
+          providerBody = {
+            ...continuationBody,
+            messages: [...providerBody.messages, { role: 'assistant', content: segment.content }],
+          };
         }
 
-        if (!completed || !wroteText) {
+        if (!completed || !wroteText || !['end_turn', 'stop_sequence'].includes(stopReason)) {
           ndjson(controller, { type: 'error', reason: 'incomplete_stream', message: 'The answer stream ended before a complete response arrived.' });
         } else {
+          const sources = mergeSources(citedSources, resultSources);
+          if (sources.length) ndjson(controller, { type: 'sources', sources });
           ndjson(controller, { type: 'done' });
         }
       } catch (error) {

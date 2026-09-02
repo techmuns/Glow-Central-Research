@@ -181,7 +181,7 @@ function template(scope) {
           </div>
           <div class="research-session-list scrollbar-thin" data-research-sessions></div>
           <div class="border-t border-slate-100 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
-            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent to OpenAI for the answer.
+            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent to Claude for the answer.
           </div>
         </aside>
 
@@ -332,7 +332,7 @@ async function ensureConfig() {
         configured: body?.configured === true,
         webResearchAvailable: body?.webResearchAvailable === true,
         retryable: false,
-        message: body?.configured ? '' : 'Ask Research is not configured on this server. Add the server-side OpenAI key to enable answers.',
+        message: body?.configured ? '' : 'Ask Research is not configured on this server. Add the server-side Anthropic key to enable answers.',
       };
       return configState;
     })
@@ -341,7 +341,7 @@ async function ensureConfig() {
         configured: false,
         webResearchAvailable: false,
         retryable: true,
-        message: 'Ask Research needs the Cloudflare Worker runtime and its server-side OpenAI key.',
+        message: 'Ask Research needs the Cloudflare Worker runtime and its server-side Anthropic key.',
       };
       return configState;
     })

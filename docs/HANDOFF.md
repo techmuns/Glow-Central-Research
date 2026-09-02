@@ -32,8 +32,8 @@ are derived views with no data source of their own. See §4c and §4e.
 modules behind every other research tab plus Portfolio Analytics, recording a status for each source
 so an unavailable feed cannot disappear silently. Its optional Web research mode requires hosted
 search and combines linked current context with the dashboard evidence. The browser holds no provider
-credential; set `OPENAI_API_KEY` as a Worker secret. Conversation history is device-local, but each
-submitted question and evidence packet are sent to OpenAI with response storage disabled. See §4d.
+credential; set `ANTHROPIC_API_KEY` as a Worker secret. Conversation history is device-local, but each
+submitted question and evidence packet are sent to Anthropic's Claude Messages API. See §4d.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
@@ -243,7 +243,7 @@ public/js/
                            daily-alerts.js — retained history, newest first (§4e)
 worker/
   index.js                 asset serving + live /api routes, including /api/research
-  research.mjs             server-only OpenAI stream, hosted web search and request limits (§4d)
+  research.mjs             server-only Anthropic stream, hosted web search and request limits (§4d)
   http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
                            stand-in, so the caching semantics under test are the shipped ones
   mc.mjs                   Moneycontrol client + normaliser, shared with scripts/
@@ -290,9 +290,9 @@ always include every source. The packet is bounded before it leaves the browser 
 measures about 55K characters for the default Portfolio question.
 
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
-`OPENAI_API_KEY` server-side, sets `store: false`, rejects cross-origin and oversized requests,
-rate-limits the paid upstream, and streams normalized NDJSON back to the browser. With Web research
-enabled, the Responses request sets `web_search` and requires the tool; web URLs render as separate
+`ANTHROPIC_API_KEY` server-side, rejects cross-origin and oversized requests, rate-limits the paid
+upstream, and streams normalized NDJSON back to the browser. With Web research enabled, the Claude
+Messages request sets and requires Anthropic's hosted `web_search` tool; web URLs render as separate
 source chips. Model text is rendered through a small DOM-based Markdown subset and never reaches
 `innerHTML`.
 
@@ -301,8 +301,8 @@ catalog and its zero-row coverage are still useful evidence, so this module decl
 `meta.allowEmptyScope`; every other tab retains the shared empty-Watchlist behavior.
 
 Local static serving shows the complete workspace but disables the composer. To exercise answers,
-run `npx wrangler dev` with `OPENAI_API_KEY=…` in the gitignored `.dev.vars`. Production uses
-`npx wrangler secret put OPENAI_API_KEY`. Never put that value in `public/`, `wrangler.jsonc` or
+run `npx wrangler dev` with `ANTHROPIC_API_KEY=…` in the gitignored `.dev.vars`. Production uses
+`npx wrangler secret put ANTHROPIC_API_KEY`. Never put that value in `public/`, `wrangler.jsonc` or
 browser storage.
 
 ---

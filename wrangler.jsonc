@@ -26,8 +26,8 @@
     "GH_REF": "main",
 
     // Non-secret model choice for Ask Research. The credential stays in the secret binding:
-    // `npx wrangler secret put OPENAI_API_KEY` (and `.dev.vars` for local Worker development).
-    "OPENAI_MODEL": "gpt-5.4-mini"
+    // `npx wrangler secret put ANTHROPIC_API_KEY` (and `.dev.vars` for local Worker development).
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated
