@@ -23,6 +23,8 @@ exposing the session token or waiting for the complete model response.
 
 **Two macro tabs lead the bar.** *Macro Research* (commodities, global indices, currencies, rates and bonds, with a returns table, overlay charts and the US yield curve) and *Economy & Macro* (the indicator grid and the data release calendar) are ported from the GlowVentures cockpit; every figure on them is read from a series store harvested there and copied here daily — nothing is scored or recomputed.
 
+**The Family Book is the real book.** *Family Book* shows every position the family's wealth platforms report — consolidated in the GlowVentures repository from the platforms' own statements and copied here daily as `public/data/book.json`, each duplicate report counted once, blanks kept as blanks. *Ask Research* answers portfolio questions from that same file; the illustrative FIFO ledger under the hidden Portfolio Analytics workspace is no longer an evidence source.
+
 **Glow is a downstream of [Sattva Central Research](https://github.com/techmuns/Sattva-Central-Research).**
 The code is merged from there daily by a GitHub Action, so fixes and features built in Sattva land
 here without porting; Glow keeps its own brand, palette, book and universe, plus two features of its

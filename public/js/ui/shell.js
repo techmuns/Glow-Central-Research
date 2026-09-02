@@ -18,6 +18,7 @@ import { mountHostTicker } from './host-ticker.js';
 import * as aiAlerts from '../tabs/ai-alerts.js';
 import * as macroResearch from '../tabs/macro-research.js';
 import * as economyMacro from '../tabs/economy-macro.js';
+import * as familyBook from '../tabs/family-book.js';
 import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
@@ -51,7 +52,7 @@ import * as drawdown from '../portfolio/drawdown.js';
 // landing page, so `landingTab()` below resolves an unknown or absent tab to the router's default
 // and falls back to the first entry only if that id is missing.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [macroResearch, economyMacro, askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [macroResearch, economyMacro, familyBook, askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
