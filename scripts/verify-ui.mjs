@@ -1105,7 +1105,7 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. AI Alerts is the landing tab; Ask Research and General Alerts retain their focused checks
+// 3d. Ask Research is the landing tab; AI Alerts and General Alerts retain their focused checks
 // ---------------------------------------------------------------------------------------
 console.log('\n— AI alerts —');
 {
@@ -1177,16 +1177,19 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
-  ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
+  await page.locator('[data-research-workspace]').waitFor({ state: 'visible', timeout: 15000 });
+  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
 
+  await go('/#/research/ai-alerts?scope=portfolio', 4500);
+  await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
+
   const aiCards = page.locator('[data-ai-card]');
   const aiCount = await aiCards.count();
-  ok('the landing page surfaces a deliberately short first page', aiCount > 0 && aiCount <= 8, `${aiCount} cards`);
+  ok('AI Alerts surfaces a deliberately short first page', aiCount > 0 && aiCount <= 8, `${aiCount} cards`);
   const renderedCards = await aiCards.evaluateAll((els) => els.map((el) => ({
     ticker: el.dataset.ticker,
     score: Number(el.dataset.score),

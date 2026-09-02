@@ -138,9 +138,9 @@ export function sourceGroups() {
 
     return [
     {
-      // THE ALERT PAIR COMES FIRST BECAUSE AI ALERTS IS THE LANDING TAB, and this is the only group
-      // whose whole point is that it introduces NOTHING. A reader is owed "no new feed" before
-      // looking for a source that does not exist.
+      // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
+      // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
+      // not exist.
       title: 'AI & General Alerts',
       icon: '🔔',
       tabs: 'AI Alerts · General Alerts',

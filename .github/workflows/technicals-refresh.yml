@@ -1,6 +1,6 @@
 name: Data refresh
 
-# The dashboard's committed live baselines. Four scrapes on two schedules:
+# The dashboard's committed live baselines. The full capture runs twice each weekday:
 #
 #   scrape-technicals.mjs        ~400 calendar days of OHLCV for the NSE 500 from Yahoo, plus
 #                                NSE bhavcopy delivery %, recomputed into every indicator.
@@ -42,9 +42,11 @@ name: Data refresh
 
 on:
   schedule:
-    # 01:30 UTC = 07:00 IST, weekdays. Indian markets close at 15:30 IST, so this picks up
-    # the previous session's closing data before the next one opens.
-    - cron: "30 1 * * 1-5"
+    # 01:30 UTC = 07:00 IST, weekdays. This picks up the previous session's closing data before
+    # the next one opens. 03:30 UTC = 09:00 IST gives the company-news and filings inputs a second
+    # same-day capture after stories have started to publish, and reduces the impact of delays or
+    # skipped runs in GitHub's best-effort scheduler.
+    - cron: "30 1,3 * * 1-5"
   workflow_dispatch:
 
 # Only one refresh in flight at a time — two concurrent runs would race on the same two

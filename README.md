@@ -6,7 +6,7 @@ superstar investors, news, announcements, insider trades) and **Portfolio Analyt
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**AI Alerts** is the landing tab: an explainable seven-day priority queue that groups events by
+**Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
 real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
 its internal ordering; cards show evidence and a next action without exposing score arithmetic.
@@ -39,7 +39,7 @@ deploy notes and the known gaps.
 **Two more surfaces are genuinely live.**
 
 *Breakouts / Technical* scores 535 NSE-500 companies against a 16-rule, 24-point model from a
-daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
+daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 and 09:00 IST by
 [a GitHub Action](.github/workflows/technicals-refresh.yml).
 
 *Portfolio Analytics* marks every position to market from that same feed, and builds its equity

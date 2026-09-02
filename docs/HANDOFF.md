@@ -19,10 +19,10 @@ Two workspaces, fifteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **AI Alerts** · General Alerts · Ask Research · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | **Ask Research** · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**AI Alerts is the landing tab.** It ranks the last seven days of company-specific events from all
+**Ask Research is the landing tab.** AI Alerts ranks the last seven days of company-specific events from all
 nine alert feeds into a concise portfolio priority queue. **General Alerts** keeps the complete
 newest-first stream (News contributes company and market-wide feeds). Direction and importance stay
 separate, every General row states both reasons, and AI cards show the strongest evidence and next
@@ -53,9 +53,9 @@ This is the first thing to check before quoting any number off a screen.
 
 | Feed | File | Source | Cadence |
 | --- | --- | --- | --- |
-| Technicals: OHLCV, indicators, delivery %, FII/DII deltas for the NSE 500 | `public/data/technicals.json` (763 KB) | Yahoo Finance EOD + NSE delivery | Weekdays 07:00 IST |
-| ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 IST |
-| **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 IST |
+| Technicals: OHLCV, indicators, delivery %, FII/DII deltas for the NSE 500 | `public/data/technicals.json` (763 KB) | Yahoo Finance EOD + NSE delivery | Weekdays 07:00 and 09:00 IST |
+| ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 and 09:00 IST |
+| **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 and 09:00 IST |
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
 | **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
 | **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | called direct from the browser, **not** proxied — see §5e | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), hourly client poll** |
@@ -264,7 +264,7 @@ all.
 
 ## 4c. AI Alerts
 
-**AI Alerts is the default, prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
+**AI Alerts is the prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
 days of company-specific General Alerts by ticker. It ranks materiality, recency, direction, real
 Portfolio membership, independent-feed corroboration, repeated high-importance events,
 directional conflict and high-importance negative clusters inside a portfolio sector. A stale, failed

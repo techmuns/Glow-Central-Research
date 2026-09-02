@@ -100,7 +100,7 @@ public/
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      ai-alerts.js            THE LANDING TAB — ranked company insight cards, strongest evidence first
+      ai-alerts.js            ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
@@ -124,7 +124,7 @@ scripts/
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
-.github/workflows/technicals-refresh.yml   weekdays 07:00 IST
+.github/workflows/technicals-refresh.yml   weekdays 07:00 and 09:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -189,7 +189,7 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**AI Alerts is first, and first is the default landing page.** `handleRoute` falls back to
+**Ask Research is first, and first is the default landing page.** `handleRoute` falls back to
 `ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
@@ -1150,7 +1150,7 @@ same chip the market-news half of the News tab already wore — a dot and a word
 scope summary beside it — because that is what it was asked to look like and because two chips at
 the top of three tabs across three scopes is furniture. Green + `Live` appears only while the
 capture is still the newest the schedule can produce (`STALE_AFTER_MS`, 72h: the scrape runs
-weekdays 07:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
+weekdays 07:00 and 09:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
 same reasoning and the same number as Breakouts). Past that it turns amber and prints the AGE;
 failures outrank freshness and read `Partial`. **"Show a green Live" and "never paint a green Live
 you have not earned" are only compatible because the green is conditional** — and the suite asserts
@@ -2009,7 +2009,7 @@ failure panels keep their own retry control so recovery never depends on a hidde
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
 Breakouts' pill is the third consumer of that rule, and it got the threshold wrong first in a way
-worth keeping. The scrape runs weekdays 07:00 IST (`30 1 * * 1-5`), so the obvious rule is "amber
+worth keeping. The scrape runs weekdays at 07:00 and 09:00 IST (`30 1,3 * * 1-5`), so the obvious rule is "amber
 once a scheduled run has not landed". Two things are wrong with it:
 
 1. **A 22-hour-old END-OF-DAY capture is current.** Yesterday's close is the newest close there
@@ -2521,8 +2521,8 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
-- **the dashboard opens on AI Alerts, in Portfolio scope**, with no sub-view picker; its cards are
-  unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
+- **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
+  its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
 - **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
   and no empty-Watchlist shell replacement
 - **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,

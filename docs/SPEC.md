@@ -27,9 +27,9 @@ A springy indigo→purple underline scales in under the active tab; active tab i
 inactive slate with hover. Order is fixed:
 
 **Research Central**
-1. AI Alerts *(the default landing tab)*
-2. General Alerts
-3. Ask Research
+1. Ask Research *(the default landing tab)*
+2. AI Alerts
+3. General Alerts
 4. Earnings Hub
 5. Con-call
 6. Public Chatter
@@ -70,7 +70,7 @@ spans the full 1400px on every tab.
 Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
 removed from the chrome, so Research Central's tabs are the whole navigation for now.
 
-**AI Alerts is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
+**Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
 second place recording it that could disagree with the array.
 
@@ -174,7 +174,7 @@ Hash-based and shareable:
 ```
 
 - Unknown workspace / tab / sub-view falls back to the first valid option at that level;
-  a completely unknown route lands on `#/research/ai-alerts`.
+  a completely unknown route lands on `#/research/ask-research`.
 - With no hash present, the last route is restored from `localStorage`.
 - Browser back/forward work; scope changes and route normalisation use `replaceState` so they
   don't pollute history.
