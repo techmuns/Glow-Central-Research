@@ -44,7 +44,7 @@ const SOURCE_BY_ID = new Map(DASHBOARD_RESEARCH_SOURCES.map((source) => [source.
 const LOADER_TIMEOUT_MS = 14_000;
 const DEFAULT_ROW_LIMIT = 8;
 const MATCH_ROW_LIMIT = 14;
-export const RESEARCH_EVIDENCE_CHAR_BUDGET = 15_000;
+export const RESEARCH_EVIDENCE_CHAR_BUDGET = 10_000;
 
 const STOP_WORDS = new Set([
   'a', 'about', 'all', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can', 'compare', 'dashboard', 'did', 'do', 'for', 'from', 'give', 'has', 'have', 'how', 'i',
@@ -189,7 +189,11 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     }
   }
 
-  packet.selection.evidenceChars = JSON.stringify(packet).length;
+  for (let attempts = 0; attempts < 3; attempts += 1) {
+    const measured = JSON.stringify(packet).length;
+    if (packet.selection.evidenceChars === measured) break;
+    packet.selection.evidenceChars = measured;
+  }
   return packet;
 }
 

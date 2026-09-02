@@ -1777,8 +1777,9 @@ same-origin, request-bounded and rate-limited. It calls `fastapi.muns.io/query-r
 `llm_type: local_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
 browser immediately. That provider contract has no web-search option, so the UI must not offer or
 claim one. The browser preserves every source's status, coverage and provenance, then shares the
-remaining 15K-character evidence budget across question-ranked rows so the request fits the local
-model's 8K-token context.
+remaining 10K-character evidence budget across question-ranked rows so the request fits the local
+model's 8K-token context. UI-only routes and the duplicate catalog stay in the browser rather than
+being repeated in the model prompt.
 
 The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
 `MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced

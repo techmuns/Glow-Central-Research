@@ -1350,7 +1350,7 @@ console.log('\n— AI alerts —');
       evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the real evidence packet inside the Worker request bound',
-    evidenceAudit.chars <= 15000, `${evidenceAudit.chars.toLocaleString()} chars`);
+    evidenceAudit.chars <= 10000, `${evidenceAudit.chars.toLocaleString()} chars`);
   ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
     evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
 

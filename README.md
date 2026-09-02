@@ -89,7 +89,8 @@ Conversation history is stored locally, while each submitted question and its bo
 evidence packet are streamed through `https://fastapi.muns.io/query-router` using the low-latency
 `local_llm` route. `MUNS_LLM_TYPE=hosted_llm` remains available as an explicit operator override.
 Every dashboard source keeps its status and provenance while ranked row samples share a
-15K-character budget sized for the local model's context window.
+10K-character budget sized for the local model's context window. UI-only routes and the duplicate
+catalog stay in the browser rather than being repeated in the model prompt.
 
 The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
 committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):

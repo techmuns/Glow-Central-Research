@@ -291,9 +291,12 @@ illustrative; `coverage.js` supplies the real 142-company membership and sector 
 Con-call, Public Chatter, Breakouts, both Super Investor disclosures, both News feeds, exchange
 filings, Insider Trades, General Alerts and Portfolio Analytics. Each adapter contributes coverage,
 as-of metadata, units and a question-ranked row sample; the catalog and a ready/unavailable status
-always include every source. The packet is bounded to 15K characters before it leaves the browser:
+always include every source. The packet is bounded to 10K characters before it leaves the browser:
 every source keeps its status, coverage and provenance first, then the remaining space is shared
 across question-ranked rows so it fits the low-latency model's 8K-token context.
+The Worker removes the duplicate catalog, descriptions and UI routes from the model prompt because
+the `sources` array already carries the same identities and statuses; the browser retains them for
+source chips.
 
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
 a Muns session token server-side, rejects cross-origin and oversized requests, rate-limits the paid

@@ -316,9 +316,10 @@ It forwards each upstream NDJSON text chunk immediately, while the answer cites 
 claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
 route is same-origin, size-bounded and rate-limited. Conversation history stays in device
 `localStorage`; the provider has no web-search contract, so the workspace makes no web-research
-claim or control. Every source retains status, coverage and provenance inside a 15K-character
+claim or control. Every source retains status, coverage and provenance inside a 10K-character
 evidence budget; question-ranked rows share the remaining space so the request stays within the
-local model's 8K-token context.
+local model's 8K-token context. UI-only routes and the duplicate catalog are omitted from the model
+prompt, but remain in the browser for source chips.
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —

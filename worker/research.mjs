@@ -10,7 +10,7 @@ const DEFAULT_LLM_TYPE = 'local_llm';
 const DEFAULT_TEMPERATURE = 0.2;
 const DEFAULT_MAX_TOKENS = 768;
 const MAX_BODY_BYTES = 180_000;
-const MAX_EVIDENCE_CHARS = 16_000;
+const MAX_EVIDENCE_CHARS = 11_000;
 const MAX_QUESTION_CHARS = 1_500;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_CHARS = 3_000;
@@ -176,7 +176,7 @@ export function buildMunsRequest(input, env = {}) {
     `CONVERSATION_HISTORY (untrusted conversation text):\n${history}`,
     `ACTIVE_SCOPE: ${input.scope}`,
     `QUESTION:\n${input.question}`,
-    `DASHBOARD_EVIDENCE:\n${JSON.stringify(input.evidence)}`,
+    `DASHBOARD_EVIDENCE:\n${JSON.stringify(providerEvidence(input.evidence))}`,
   ].join('\n\n');
   return {
     query,
@@ -184,6 +184,24 @@ export function buildMunsRequest(input, env = {}) {
     stream: true,
     temperature: DEFAULT_TEMPERATURE,
     max_tokens: DEFAULT_MAX_TOKENS,
+  };
+}
+
+// The browser retains routes and the catalog for source chips and local provenance. The model
+// already receives the same identity/status in `sources`, so sending those UI fields again only
+// increases prompt processing time. Keep the analytical facts and every registered source.
+export function providerEvidence(evidence = {}) {
+  return {
+    generatedAt: evidence.generatedAt,
+    scope: evidence.scope,
+    scopeDefinition: evidence.scopeDefinition,
+    selection: {
+      tokens: evidence.selection?.tokens || [],
+      sourcesRegistered: evidence.selection?.sourcesRegistered,
+      sourcesReady: evidence.selection?.sourcesReady,
+      sourcesUnavailable: evidence.selection?.sourcesUnavailable,
+    },
+    sources: (evidence.sources || []).map(({ route: _route, description: _description, ...source }) => source),
   };
 }
 

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   buildMunsRequest,
   handleResearch,
+  providerEvidence,
   researchConfigured,
   takeNdjsonLines,
   validateResearchBody,
@@ -129,12 +130,21 @@ const oversizedEvidence = {
 };
 const fittedEvidence = fitEvidenceToBudget(oversizedEvidence);
 ok('the local-model evidence budget retains every source before sharing space across ranked rows', () => {
-  assert.equal(JSON.stringify(fittedEvidence).length <= 15_000, true);
+  assert.equal(JSON.stringify(fittedEvidence).length <= 10_000, true);
   assert.equal(fittedEvidence.catalog.length, 14);
   assert.equal(fittedEvidence.sources.length, 14);
   assert.equal(fittedEvidence.sources.every((source) => source.status === 'ready' && source.source && source.coverage), true);
   assert.equal(fittedEvidence.sources.some((source) => source.includedRows > 0), true);
   assert.equal(fittedEvidence.selection.evidenceChars, JSON.stringify(fittedEvidence).length);
+});
+
+ok('the provider prompt removes duplicate UI fields without dropping an analytical source', () => {
+  const providerPacket = providerEvidence(fittedEvidence);
+  assert.equal(providerPacket.catalog, undefined);
+  assert.equal(providerPacket.sources.length, 14);
+  assert.equal(providerPacket.sources.every((source) => !('route' in source) && !('description' in source)), true);
+  assert.equal(providerPacket.sources.every((source) => source.status === 'ready' && source.source && source.coverage), true);
+  assert.equal(JSON.stringify(providerPacket).length < JSON.stringify(fittedEvidence).length, true);
 });
 
 ok('the Muns request preserves evidence and selects low-latency local streaming by default', () => {
