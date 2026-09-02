@@ -44,6 +44,9 @@ export const meta = {
   title: 'Macro Research',
   subtitle: 'Historical prices, returns and comparison for commodities, global equity indices, currencies and benchmark yields — every figure computed from a stored daily series.',
   subviews: Object.entries(VIEWS).map(([id, v]) => ({ id, label: v.label })),
+  // Scope does not apply here, so an EMPTY watchlist must not replace the tab with the shell's
+  // "add companies" panel — the same opt-out Ask Research uses.
+  allowEmptyScope: true,
 };
 
 // ---- state that survives repaints within the tab ------------------------------------------

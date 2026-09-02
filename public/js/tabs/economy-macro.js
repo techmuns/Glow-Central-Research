@@ -29,6 +29,9 @@ export const meta = {
   title: 'Economy & Macro',
   subtitle: 'Growth, inflation, labour, government, fixed income, banking, housing, household, consumption and capital-market series — with the data release calendar.',
   subviews: [],
+  // Scope does not apply here, so an EMPTY watchlist must not replace the tab with the shell's
+  // "add companies" panel — the same opt-out Ask Research uses.
+  allowEmptyScope: true,
 };
 
 // `seriesId` maps a row to a harvested series. A row WITHOUT one renders absent.

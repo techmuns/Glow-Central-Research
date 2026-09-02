@@ -36,7 +36,7 @@
 // the single module-scoped client — is a one-to-one port and should be kept that way.
 
 export const DASHBOARD_ID = 'sattva-central-research';
-export const DASHBOARD_NAME = 'Sattva Central Research';
+export const DASHBOARD_NAME = 'Glow Central Research';
 
 /**
  * @typedef {Object} SessionContext
