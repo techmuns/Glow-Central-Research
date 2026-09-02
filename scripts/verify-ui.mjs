@@ -522,7 +522,8 @@ console.log('\n— family book —');
   ok('...and the head says the figures are statements, with their date', /Statements · as of/.test(bookHead));
   const dashTitles = await page.locator('[data-book-table] tbody td span[title*="not zero"], [data-book-table] tbody td span[title*="Not zero"]').count();
   ok('a missing cost renders as a dash that says it is not zero', dashTitles > 0, `${dashTitles} such cells on the painted rows`);
-  ok('the EOD mark column is headed as derived', /EOD mark\s*\(derived\)/.test(bookHead));
+  // `innerText` applies the heading's CSS `uppercase`, so the match is case-insensitive.
+  ok('the EOD mark column is headed as derived', /EOD mark\s*\(derived\)/i.test(bookHead));
   await page.locator('[data-book-info]').click();
   await page.waitForTimeout(300);
   const bookModal = await page.locator('#modal-content').innerText().catch(() => '');
