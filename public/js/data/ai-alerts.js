@@ -6,7 +6,8 @@
 //
 // THE SCORE IS NOT AN LLM OPINION. The upstream data is already structured — direction,
 // importance, source, date and company — so a deterministic model is faster, testable and cannot
-// hallucinate a filing. Every point is returned in `scoreBreakdown` and printed on the card.
+// hallucinate a filing. Every point is returned in `scoreBreakdown` for deterministic verification;
+// the card keeps the arithmetic hidden and shows the evidence and next action instead.
 //
 // PORTFOLIO HONESTY: `coverage.js` is the real 142-company book used by the Research scope. The
 // separate Portfolio Analytics ledger is explicitly illustrative, so its weights and conviction

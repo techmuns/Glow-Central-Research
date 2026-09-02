@@ -1725,9 +1725,9 @@ seven Indian dates by ticker. It adds no source and generates no fact. The ranki
 deterministic: importance, source materiality, recency, explicit direction, real Portfolio
 membership, independent-feed corroboration, repeated material events, directional conflict and a
 small sector-cluster adjustment that requires high-importance negative evidence. Stale, incomplete
-and unread feeds lose points. Every
-contribution is rendered from `scoreBreakdown`, so the order can be audited rather than trusted as
-an opaque AI opinion.
+and unread feeds lose points. Every contribution is retained in `scoreBreakdown` for deterministic
+verification, but the card does not render scores or their arithmetic. The reader gets the evidence
+and next action without ranking implementation detail.
 
 `coverage.js` is the only portfolio input. Do **not** use `portfolio.js` weights or conviction here:
 that ledger is explicitly illustrative, and an invented position weight must never decide what a
@@ -2447,7 +2447,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
-| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, explain every point, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
+| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
 | Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
@@ -2522,7 +2522,7 @@ It covers, beyond the checklist below:
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
 - **the dashboard opens on AI Alerts, in Portfolio scope**, with no sub-view picker; its cards are
-  unique by ticker, score-descending, above the surfaced threshold and explain every point
+  unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
 - **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
   and no empty-Watchlist shell replacement
 - **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,

@@ -1177,7 +1177,7 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.locator('[data-ai-feed-status]').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
   ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
@@ -1246,7 +1246,7 @@ console.log('\n— AI alerts —');
       event({ id: 'risk1', feed: 'insider', ticker: 'GOLD', headline: 'Material disposal', direction: 'negative', importance: 'high' }),
       event({ id: 'risk2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Material pledge', direction: 'negative', importance: 'high' }),
     ], [feed('insider')]);
-    const { safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
+    const { feedStatus, safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
     return {
       min: ai.MIN_SCORE,
       mustSee: ai.MUST_SEE_SCORE,
@@ -1256,6 +1256,7 @@ console.log('\n— AI alerts —');
       corroborated: corroborated.allCards[0]?.score,
       current: current.allCards[0]?.score,
       stale: stale.allCards[0]?.score,
+      staleFeedStatus: feedStatus(stale).label,
       duplicateEvents: duplicate.allCards[0]?.events.length,
       marketWideExcluded: duplicate.meta.marketWideExcluded,
       arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
@@ -1271,6 +1272,8 @@ console.log('\n— AI alerts —');
     `${policy.material} → ${policy.corroborated}`);
   ok('stale-source evidence receives the documented score penalty',
     policy.current > policy.stale, `${policy.current} current vs ${policy.stale} stale`);
+  ok('a completed degraded report renders the compact stale-feed warning',
+    policy.staleFeedStatus === '1 feed is stale or unread', policy.staleFeedStatus);
   ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
     policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
     `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);

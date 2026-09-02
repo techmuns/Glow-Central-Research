@@ -106,17 +106,12 @@ function paint(ctx) {
 
 function head(ctx) {
   const m = report?.meta || {};
-  const pending = report?.pending || 0;
-  const feedStatus = pending
-    ? pill({ label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' })
-    : m.staleFeeds
-      ? pill({ label: `${m.staleFeeds} ${m.staleFeeds === 1 ? 'feed is' : 'feeds are'} stale or unread`, tone: 'caution' })
-      : pill({ label: 'Updated', tone: 'positive' });
+  const status = feedStatus(report);
   return sectionHead({
     title: 'AI Alerts',
     description: 'Important company signals from the last seven days.',
     meta: `<div class="flex flex-wrap items-center justify-end gap-2">
-      <span data-ai-feed-status>${feedStatus}</span>
+      <span data-ai-feed-status data-state="${status.state}">${pill({ label: status.label, tone: status.tone })}</span>
       ${scopeSummary({
         scope: ctx.scope,
         count: m.activeCompanies || 0,
@@ -126,6 +121,28 @@ function head(ctx) {
       ${pill({ label: `${alerts.WINDOW_DAYS}-day window`, tone: 'brand', title: `${fmtDay(m.firstDay)} through ${fmtDay(report?.day)}` })}
     </div>`,
   });
+}
+
+/** Keep collection state compact, explicit and independently testable. */
+export function feedStatus(rep) {
+  const pending = rep ? Number(rep.pending || 0) : null;
+  if (pending === null) return { label: 'Reading feeds…', tone: 'neutral', state: 'pending' };
+  if (pending > 0) {
+    return {
+      label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`,
+      tone: 'neutral',
+      state: 'pending',
+    };
+  }
+  const staleFeeds = Number(rep.meta?.staleFeeds || 0);
+  if (staleFeeds > 0) {
+    return {
+      label: `${staleFeeds} ${staleFeeds === 1 ? 'feed is' : 'feeds are'} stale or unread`,
+      tone: 'caution',
+      state: 'complete',
+    };
+  }
+  return { label: 'Updated', tone: 'positive', state: 'complete' };
 }
 
 function controls(rep, visibleCount) {
