@@ -498,8 +498,13 @@ export function scoreTable(config) {
 
   function visibleRows() {
     const watched = view.watchOnly ? loadWatchlist() : null;
+    // Keep the input exactly as the reader (or a deep link) supplied it, but compare one canonical
+    // case. Typed searches already arrived lower-cased through the input handler; seeded searches
+    // did not, so an AI Alert link carrying `RKFORGE` could never match a haystack containing
+    // `rkforge` even though the search box visibly held the right ticker.
+    const needle = String(view.q || '').trim().toLowerCase();
     let out = rows.filter((row) => {
-      if (view.q && !haystack(row).includes(view.q)) return false;
+      if (needle && !haystack(row).includes(needle)) return false;
       if (watched) {
         const wk = watchKeyOf(row);
         if (!wk || !watched.has(wk)) return false;

@@ -69,11 +69,11 @@ export function render(ctx) {
   ctxRef = ctx;
 
   // AI ALERTS LINKS TO THE COMPLETE EVIDENCE FOR ONE COMPANY. Seed the existing table search
-  // rather than inventing a second company filter, and clear only a query that came from such a
-  // link when the URL stops carrying it. A search typed directly in this tab still survives its
-  // normal feed repaints.
+  // rather than inventing a second company filter. Entering through that link resets an earlier
+  // General Alerts filter state: "See all" cannot quietly retain e.g. Today-only or one feed and
+  // then show an empty subset. Subsequent feed repaints retain the new table's own state as usual.
   const requestedCompany = String(ctx.params?.company || '').trim();
-  if (requestedCompany && requestedCompany !== routeCompany) tableView = { ...(tableView || {}), q: requestedCompany };
+  if (requestedCompany && requestedCompany !== routeCompany) tableView = { q: requestedCompany };
   else if (!requestedCompany && routeCompany) tableView = { ...(tableView || {}), q: '' };
   routeCompany = requestedCompany || null;
 
