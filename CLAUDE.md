@@ -1776,7 +1776,9 @@ never enter `public/`, browser storage, a request payload or a committed config 
 same-origin, request-bounded and rate-limited. It calls `fastapi.muns.io/query-router` with
 `llm_type: local_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
 browser immediately. That provider contract has no web-search option, so the UI must not offer or
-claim one.
+claim one. The browser preserves every source's status, coverage and provenance, then shares the
+remaining 15K-character evidence budget across question-ranked rows so the request fits the local
+model's 8K-token context.
 
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is

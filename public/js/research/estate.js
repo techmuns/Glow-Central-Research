@@ -44,6 +44,7 @@ const SOURCE_BY_ID = new Map(DASHBOARD_RESEARCH_SOURCES.map((source) => [source.
 const LOADER_TIMEOUT_MS = 14_000;
 const DEFAULT_ROW_LIMIT = 8;
 const MATCH_ROW_LIMIT = 14;
+export const RESEARCH_EVIDENCE_CHAR_BUDGET = 15_000;
 
 const STOP_WORDS = new Set([
   'a', 'about', 'all', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can', 'compare', 'dashboard', 'did', 'do', 'for', 'from', 'give', 'has', 'have', 'how', 'i',
@@ -85,6 +86,111 @@ function chooseRows(rows, tokens, mapRow, compare = null) {
     matchedRows: hits.length,
     omittedRows: Math.max(0, mapped.length - Math.min(mapped.length, limit)),
   };
+}
+
+function boundedMetadata(value, depth = 0) {
+  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') return clipped(value, depth ? 300 : 420);
+  if (Array.isArray(value)) return value.slice(0, 8).map((item) => boundedMetadata(item, depth + 1));
+  if (typeof value !== 'object' || depth > 5) return null;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, boundedMetadata(item, depth + 1)]));
+}
+
+function count(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function rowlessSample(sample = {}) {
+  const rows = Array.isArray(sample.rows) ? sample.rows : [];
+  return {
+    ...sample,
+    rows: [],
+    includedRows: 0,
+    omittedRows: count(sample.omittedRows) + rows.length,
+  };
+}
+
+// The low-latency Muns model has an 8K-token context. Preserve every source's identity, status,
+// coverage and provenance first, then spend the remaining packet budget on question-ranked rows in
+// round-robin order. This prevents one verbose feed from crowding the other dashboard tabs out.
+export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET) {
+  const sourceInputs = Array.isArray(evidence?.sources) ? evidence.sources : [];
+  const sources = sourceInputs.map((packet) => {
+    const base = rowlessSample({
+      id: packet.id,
+      tab: packet.tab,
+      route: packet.route,
+      description: packet.description,
+      status: packet.status,
+      error: packet.error,
+      source: packet.source,
+      asOf: packet.asOf,
+      rowCount: packet.rowCount,
+      coverage: boundedMetadata(packet.coverage),
+      definition: packet.definition,
+      dataQuality: packet.dataQuality,
+      summary: boundedMetadata(packet.summary),
+      matchedRows: packet.matchedRows,
+      omittedRows: packet.omittedRows,
+      rows: packet.rows,
+    });
+    if (packet.unresolvedTopics) base.unresolvedTopics = rowlessSample(boundedMetadata(packet.unresolvedTopics));
+    return base;
+  });
+
+  const packet = {
+    generatedAt: evidence?.generatedAt || new Date().toISOString(),
+    scope: evidence?.scope || 'portfolio',
+    scopeDefinition: clipped(evidence?.scopeDefinition, 360),
+    selection: {
+      ...boundedMetadata(evidence?.selection || {}),
+      evidenceCharBudget: charBudget,
+      evidenceChars: charBudget,
+      budgetMethod: 'Every source keeps status, coverage and provenance; remaining space is shared across question-ranked row samples.',
+    },
+    catalog: (evidence?.catalog || []).map((source) => ({
+      id: source.id,
+      tab: source.tab,
+      route: source.route,
+      status: source.status,
+      rowCount: source.rowCount ?? null,
+      error: source.error || null,
+    })),
+    sources,
+  };
+
+  const candidates = [];
+  sourceInputs.forEach((source, sourceIndex) => {
+    const addCandidates = (rows, matchedRows, target) => {
+      (rows || []).forEach((row, rowIndex) => candidates.push({
+        sourceIndex,
+        rowIndex,
+        priority: rowIndex * 2 + (count(matchedRows) > 0 ? 0 : 1),
+        row: boundedMetadata(row),
+        target,
+      }));
+    };
+    addCandidates(source.rows, source.matchedRows, 'rows');
+    addCandidates(source.unresolvedTopics?.rows, source.unresolvedTopics?.matchedRows, 'unresolvedTopics');
+  });
+  candidates.sort((a, b) => a.priority - b.priority || a.sourceIndex - b.sourceIndex || a.rowIndex - b.rowIndex);
+
+  for (const candidate of candidates) {
+    const source = packet.sources[candidate.sourceIndex];
+    const sample = candidate.target === 'rows' ? source : source.unresolvedTopics;
+    if (!sample) continue;
+    sample.rows.push(candidate.row);
+    sample.includedRows += 1;
+    sample.omittedRows = Math.max(0, sample.omittedRows - 1);
+    if (JSON.stringify(packet).length > charBudget) {
+      sample.rows.pop();
+      sample.includedRows -= 1;
+      sample.omittedRows += 1;
+    }
+  }
+
+  packet.selection.evidenceChars = JSON.stringify(packet).length;
+  return packet;
 }
 
 function sourcePacket(id, details) {
@@ -581,7 +687,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
 
   const ready = packets.filter((packet) => packet.status === 'ready');
   const unavailable = packets.filter((packet) => packet.status !== 'ready');
-  return {
+  return fitEvidenceToBudget({
     generatedAt: new Date().toISOString(),
     scope,
     scopeDefinition:
@@ -602,7 +708,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
       return { ...source, status: packet?.status || 'unavailable', rowCount: packet?.rowCount ?? null, error: packet?.error || null };
     }),
     sources: packets,
-  };
+  });
 }
 
 export function researchSuggestions(scope = 'portfolio') {

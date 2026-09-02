@@ -8,12 +8,12 @@ const MUNS_LLM_BASE = 'https://fastapi.muns.io';
 const MUNS_LLM_PATH = '/query-router';
 const DEFAULT_LLM_TYPE = 'local_llm';
 const DEFAULT_TEMPERATURE = 0.2;
-const DEFAULT_MAX_TOKENS = 1_800;
+const DEFAULT_MAX_TOKENS = 1_024;
 const MAX_BODY_BYTES = 180_000;
-const MAX_EVIDENCE_CHARS = 120_000;
+const MAX_EVIDENCE_CHARS = 16_000;
 const MAX_QUESTION_CHARS = 1_500;
 const MAX_HISTORY_MESSAGES = 12;
-const MAX_HISTORY_CHARS = 24_000;
+const MAX_HISTORY_CHARS = 3_000;
 const MAX_UPSTREAM_ERROR_BYTES = 8_000;
 const REQUEST_TIMEOUT_MS = 45_000;
 
@@ -124,10 +124,11 @@ function cleanHistory(input) {
   // immediately preceding answer more than an older turn that merely appeared first in the slice.
   for (const item of input.slice(-MAX_HISTORY_MESSAGES).reverse()) {
     const role = item?.role === 'assistant' ? 'assistant' : item?.role === 'user' ? 'user' : null;
-    const text = typeof item?.text === 'string' ? item.text.trim().slice(0, 4_000) : '';
-    if (!role || !text || chars + text.length > MAX_HISTORY_CHARS) continue;
-    chars += text.length;
-    out.push({ role, text });
+    const text = typeof item?.text === 'string' ? item.text.trim().slice(0, 2_000) : '';
+    if (!role || !text || chars >= MAX_HISTORY_CHARS) continue;
+    const kept = text.slice(0, MAX_HISTORY_CHARS - chars);
+    chars += kept.length;
+    out.push({ role, text: kept });
   }
   return out.reverse();
 }

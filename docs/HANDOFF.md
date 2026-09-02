@@ -291,15 +291,15 @@ illustrative; `coverage.js` supplies the real 142-company membership and sector 
 Con-call, Public Chatter, Breakouts, both Super Investor disclosures, both News feeds, exchange
 filings, Insider Trades, General Alerts and Portfolio Analytics. Each adapter contributes coverage,
 as-of metadata, units and a question-ranked row sample; the catalog and a ready/unavailable status
-always include every source. The packet is bounded before it leaves the browser and currently
-measures about 55K characters for the default Portfolio question.
+always include every source. The packet is bounded to 15K characters before it leaves the browser:
+every source keeps its status, coverage and provenance first, then the remaining space is shared
+across question-ranked rows so it fits the low-latency model's 8K-token context.
 
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
 a Muns session token server-side, rejects cross-origin and oversized requests, rate-limits the paid
 upstream, and streams normalized NDJSON back to the browser. It calls `fastapi.muns.io/query-router`
 with `llm_type: local_llm` and `stream: true` for low first-token latency; the upstream contract has
-no web-search mode, so the
-UI makes no such claim. Model text is rendered through a small DOM-based Markdown subset and never
+no web-search mode, so the UI makes no such claim. Model text is rendered through a small DOM-based Markdown subset and never
 reaches `innerHTML`.
 
 An empty Watchlist does not replace this tab with the shell's generic empty panel. The source

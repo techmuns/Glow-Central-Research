@@ -20,7 +20,7 @@ Object.defineProperty(globalThis, 'localStorage', {
     removeItem: (key) => memoryStorage.delete(key),
   },
 });
-const { DASHBOARD_RESEARCH_SOURCES } = await import('../public/js/research/estate.js');
+const { DASHBOARD_RESEARCH_SOURCES, fitEvidenceToBudget } = await import('../public/js/research/estate.js');
 const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
 
 let checks = 0;
@@ -92,7 +92,38 @@ const boundedHistory = validateResearchBody({
   evidence: { catalog: [], sources: [] },
 }).history;
 ok('history budgeting retains the newest messages and restores chronological order', () => {
-  assert.deepEqual(boundedHistory.map((message) => message.text.slice(0, 3)), ['m06', 'm07', 'm08', 'm09', 'm10', 'm11']);
+  assert.deepEqual(boundedHistory.map((message) => message.text.slice(0, 3)), ['m10', 'm11']);
+  assert.equal(boundedHistory.reduce((sum, message) => sum + message.text.length, 0), 3_000);
+});
+
+const oversizedEvidence = {
+  generatedAt: '2026-09-02T09:00:00.000Z',
+  scope: 'portfolio',
+  selection: { sourcesRegistered: 14, sourcesReady: 14 },
+  catalog: Array.from({ length: 14 }, (_, index) => ({ id: `source-${index}`, tab: `Tab ${index}`, route: `#/tab-${index}`, status: 'ready', rowCount: 20 })),
+  sources: Array.from({ length: 14 }, (_, index) => ({
+    id: `source-${index}`,
+    tab: `Tab ${index}`,
+    route: `#/tab-${index}`,
+    description: `Description ${index}`,
+    status: 'ready',
+    source: `Provider ${index}`,
+    asOf: '2026-09-02',
+    rowCount: 20,
+    coverage: { scope: 'portfolio', total: 20 },
+    matchedRows: index === 0 ? 8 : 0,
+    omittedRows: 0,
+    rows: Array.from({ length: 20 }, (_, row) => ({ company: `Company ${index}-${row}`, detail: 'x'.repeat(900) })),
+  })),
+};
+const fittedEvidence = fitEvidenceToBudget(oversizedEvidence);
+ok('the local-model evidence budget retains every source before sharing space across ranked rows', () => {
+  assert.equal(JSON.stringify(fittedEvidence).length <= 15_000, true);
+  assert.equal(fittedEvidence.catalog.length, 14);
+  assert.equal(fittedEvidence.sources.length, 14);
+  assert.equal(fittedEvidence.sources.every((source) => source.status === 'ready' && source.source && source.coverage), true);
+  assert.equal(fittedEvidence.sources.some((source) => source.includedRows > 0), true);
+  assert.equal(fittedEvidence.selection.evidenceChars, JSON.stringify(fittedEvidence).length);
 });
 
 ok('the Muns request preserves evidence and selects low-latency local streaming by default', () => {
@@ -100,7 +131,7 @@ ok('the Muns request preserves evidence and selects low-latency local streaming 
   assert.equal(request.llm_type, 'local_llm');
   assert.equal(request.stream, true);
   assert.equal(request.temperature, 0.2);
-  assert.equal(request.max_tokens, 1_800);
+  assert.equal(request.max_tokens, 1_024);
   assert.match(request.query, /DASHBOARD_EVIDENCE object is the only source of dashboard facts/);
   assert.match(request.query, /USER: Earlier question/);
   assert.match(request.query, /QUESTION:\nWhat changed\?/);
