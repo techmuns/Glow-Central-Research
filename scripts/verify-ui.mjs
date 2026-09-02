@@ -1204,8 +1204,9 @@ console.log('\n— AI alerts —');
     insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
     why: el.querySelectorAll('[data-ai-why] > div').length,
     scoreShown: !!el.querySelector('[data-ai-score], [title="Transparent priority score"]'),
-    action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
+    reviewNext: !!el.querySelector('[data-ai-action]') || /review next/i.test(el.textContent || ''),
     events: el.querySelectorAll('[data-ai-event]').length,
+    linkedEvents: el.querySelectorAll('a[data-ai-evidence-link][href]').length,
   })));
   ok('AI cards are unique by company and ordered highest score first',
     new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
@@ -1217,8 +1218,15 @@ console.log('\n— AI alerts —');
   const aiFeedStatus = (await page.locator('[data-ai-feed-status]').innerText()).trim();
   ok('the compact header still names stale or unread feeds',
     /^(Updated|\d+ feeds? (is|are) stale or unread)$/.test(aiFeedStatus), aiFeedStatus);
-  ok('every surfaced card keeps the insight, evidence and next review action',
-    renderedCards.every((card) => card.insight && card.action && card.events > 0));
+  ok('every surfaced card keeps the insight and evidence without a Review next block',
+    renderedCards.every((card) => card.insight && !card.reviewNext && card.events > 0));
+  ok('every visible evidence row links to its traceable source',
+    renderedCards.every((card) => card.linkedEvents === card.events));
+
+  const aiCardBoxes = await Promise.all([aiCards.nth(0).boundingBox(), aiCards.nth(1).boundingBox()]);
+  ok('AI Alerts uses two cards side by side on desktop',
+    aiCardBoxes.every(Boolean) && Math.abs(aiCardBoxes[0].y - aiCardBoxes[1].y) < 2 && aiCardBoxes[1].x > aiCardBoxes[0].x,
+    aiCardBoxes.every(Boolean) ? `x ${Math.round(aiCardBoxes[0].x)} + ${Math.round(aiCardBoxes[1].x)}` : 'card missing');
 
   const policy = await evalSafe(async () => {
     const ai = await import('/js/data/ai-alerts.js');
@@ -1256,7 +1264,7 @@ console.log('\n— AI alerts —');
       event({ id: 'risk1', feed: 'insider', ticker: 'GOLD', headline: 'Material disposal', direction: 'negative', importance: 'high' }),
       event({ id: 'risk2', feed: 'insider', ticker: 'PEER', company: 'Peer Ltd', headline: 'Material pledge', direction: 'negative', importance: 'high' }),
     ], [feed('insider')]);
-    const { feedStatus, safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
+    const { evidenceDestination, feedStatus, safeSourceUrl } = await import('/js/tabs/ai-alerts.js');
     return {
       min: ai.MIN_SCORE,
       mustSee: ai.MUST_SEE_SCORE,
@@ -1273,6 +1281,9 @@ console.log('\n— AI alerts —');
       weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
       materialSectorBoosted: materialSector.allCards.every((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
       sourceUrlsSafe: safeSourceUrl('javascript:alert(1)') === null && /^https:/.test(safeSourceUrl('https://example.com/filing')),
+      evidenceLinksSafe:
+        evidenceDestination({ url: 'https://example.com/filing', headline: 'Filing' }, 'portfolio').external === true &&
+        evidenceDestination({ url: 'javascript:alert(1)', tab: 'insider-trades', ticker: 'GOLD' }, 'watchlist').href === '#/research/insider-trades?scope=watchlist&company=GOLD',
     };
   });
   ok('single-source neutral news is suppressed below the published threshold',
@@ -1291,6 +1302,7 @@ console.log('\n— AI alerts —');
   ok('sector context requires material negative evidence rather than tiny negative activity',
     !policy.weakSectorBoosted && policy.materialSectorBoosted);
   ok('AI card source links reject executable URL schemes', policy.sourceUrlsSafe);
+  ok('evidence links prefer public records and safely fall back to owning dashboard tabs', policy.evidenceLinksSafe);
 
   const firstTicker = renderedCards[0].ticker;
   await aiCards.first().locator('[data-open-general]').click();

@@ -47,6 +47,7 @@ import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as investors from './super-investors.js';
 import { announcements, insider, news } from './filings.js';
+import { insiderTradeSourceUrl } from './filings-shared.js';
 import { scopeMatcher } from './scope.js';
 import * as coverage from './coverage.js';
 
@@ -790,7 +791,10 @@ function fromInsider({ day, wanted, includeHistory }) {
       company: pick('Company') || r.ticker || '—',
       headline: [pick('Insider'), pick('Transaction', 'Acq/Disp', 'Mode')].filter(Boolean).join(' — ') || 'Insider disclosure',
       detail: [pick('Category'), pick('Mode'), pick('Trade Shares') ? `${pick('Trade Shares')} shares` : null].filter(Boolean).join(' · ') || 'Details not carried',
-      url: null,
+      // Prefer the exchange filing URL when one is carried; otherwise use the same exact-insider
+      // public disclosure search as the Insider Trades tab. AI Alerts can then trace this evidence
+      // to a public record instead of ending at a derived dashboard sentence.
+      url: insiderTradeSourceUrl(r),
     };
   });
 
