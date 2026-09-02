@@ -3537,35 +3537,6 @@ ok(
 // ---------------------------------------------------------------------------------------
 console.log('\n— super investors —');
 
-// BOTH SUB-VIEWS ARE REAL NOW. Fund Flows was the last synthetic surface on this tab and it is
-// gone, along with `js/data/investors.js`, `js/investors/deep-dive.js` and the two mock payloads —
-// the Con-call resolution applied again: when a tab acquires two provenances, remove the synthetic
-// one rather than write a better ribbon. So the assertion inverts: there must be NO ribbon
-// anywhere on this tab, and no route to a view that would need one.
-for (const sub of ['superstar-investors', 'institutions', 'fund-returns']) {
-  await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
-  const txt = await hostText();
-  ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
-  const ribbons = await page.locator('[data-mock-ribbon]').count();
-  ok(`investors ${sub}: no ribbon, because nothing on it is synthetic`, ribbons === 0, `${ribbons} ribbons`);
-}
-ok('the tab offers exactly three sub-views, all real', await page.evaluate(async () => {
-  const m = await import('/js/tabs/super-investors.js');
-  return m.meta.subviews.length === 3 && !m.meta.subviews.some((s) => s.id === 'fund-flows') && m.meta.subviews.some((s) => s.id === 'fund-returns');
-}));
-// These four 404s are the point of the check, not a symptom — see `expectError` at the top.
-expectError(/js\/data\/investors\.js|js\/investors\/deep-dive\.js|mock\/superinvestors\.json|mock\/fund-flows\.json/);
-ok('...and the synthetic investor modules are gone from the served site', await page.evaluate(async () => {
-  for (const f of ['js/data/investors.js', 'js/investors/deep-dive.js', 'data/mock/superinvestors.json', 'data/mock/fund-flows.json']) {
-    const res = await fetch(f, { cache: 'no-cache' }).catch(() => null);
-    if (res && res.ok) return false;
-  }
-  return true;
-}));
-await go('/#/research/super-investors/fund-flows?scope=universe', 1800);
-const staleLink = await hostText();
-ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
-
 // ---------------------------------------------------------------------------------------
 // 9a. Fund Returns — the third sub-view — renders the AmfiBeas "Returns & Ranking" table
 // (js/investors/fund-returns.js), called straight from the browser like the chatter feed. The API
@@ -3573,6 +3544,10 @@ ok('an old Fund Flows link lands on a real view rather than an error', staleLink
 // egress — in exactly the shape docs/DATA-CONTRACTS.md documents. `amfiMode` flips it to a 404 for
 // the failure path. 10Y is null for every scheme, so its column must be hidden; some ranks are null
 // (cohort too small) and must sit beside a real return as an em dash, never a zero.
+//
+// THE STUB IS INSTALLED BEFORE THE SUB-VIEW SWEEP BELOW, not beside its own checks: the sweep renders
+// every sub-view and asserts real content, and on a sandbox with no egress an unstubbed Fund Returns
+// renders its named-failure panel instead of the table — a test-order artefact, not a finding.
 // ---------------------------------------------------------------------------------------
 const AMFI_PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
 let amfiMode = 'ok';
@@ -3606,6 +3581,35 @@ await go('/#/research/super-investors/fund-returns?scope=universe', 300);
 await page.evaluate(() => localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.stub'));
 await page.reload({ waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(400);
+
+// BOTH SUB-VIEWS ARE REAL NOW. Fund Flows was the last synthetic surface on this tab and it is
+// gone, along with `js/data/investors.js`, `js/investors/deep-dive.js` and the two mock payloads —
+// the Con-call resolution applied again: when a tab acquires two provenances, remove the synthetic
+// one rather than write a better ribbon. So the assertion inverts: there must be NO ribbon
+// anywhere on this tab, and no route to a view that would need one.
+for (const sub of ['superstar-investors', 'institutions', 'fund-returns']) {
+  await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
+  const txt = await hostText();
+  ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
+  const ribbons = await page.locator('[data-mock-ribbon]').count();
+  ok(`investors ${sub}: no ribbon, because nothing on it is synthetic`, ribbons === 0, `${ribbons} ribbons`);
+}
+ok('the tab offers exactly three sub-views, all real', await page.evaluate(async () => {
+  const m = await import('/js/tabs/super-investors.js');
+  return m.meta.subviews.length === 3 && !m.meta.subviews.some((s) => s.id === 'fund-flows') && m.meta.subviews.some((s) => s.id === 'fund-returns');
+}));
+// These four 404s are the point of the check, not a symptom — see `expectError` at the top.
+expectError(/js\/data\/investors\.js|js\/investors\/deep-dive\.js|mock\/superinvestors\.json|mock\/fund-flows\.json/);
+ok('...and the synthetic investor modules are gone from the served site', await page.evaluate(async () => {
+  for (const f of ['js/data/investors.js', 'js/investors/deep-dive.js', 'data/mock/superinvestors.json', 'data/mock/fund-flows.json']) {
+    const res = await fetch(f, { cache: 'no-cache' }).catch(() => null);
+    if (res && res.ok) return false;
+  }
+  return true;
+}));
+await go('/#/research/super-investors/fund-flows?scope=universe', 1800);
+const staleLink = await hostText();
+ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
 
 // Fund Returns — the AmfiBeas "Returns & Ranking" table, reproduced.
 // It sits beside Institutions (filed shareholdings) rather than replacing it. Every return and every
