@@ -25,9 +25,13 @@
     "GH_REPO": "techmuns/Sattva-Central-Research",
     "GH_REF": "main",
 
-    // Non-secret model choice for Ask Research. The credential stays in the secret binding:
-    // `npx wrangler secret put ANTHROPIC_API_KEY` (and `.dev.vars` for local Worker development).
-    "ANTHROPIC_MODEL": "claude-sonnet-4-6"
+    // Ask Research streams the low-latency model through Muns' query router. The session credential
+    // is a Worker secret: prefer `MUNS_LLM_TOKEN`, with existing Muns tokens as fallbacks.
+    "MUNS_LLM_BASE": "https://fastapi.muns.io",
+    "MUNS_LLM_TYPE": "local_llm",
+    // The operator confirmed this old binding now contains a Muns token, not an Anthropic key.
+    // Remove this migration opt-in after `MUNS_LLM_TOKEN` is installed.
+    "MUNS_LLM_LEGACY_ANTHROPIC_BINDING": "confirmed-muns-token"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated

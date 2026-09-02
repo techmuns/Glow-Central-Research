@@ -1763,7 +1763,7 @@ and a link to General Alerts with the existing table search seeded for the ticke
 pure and exported; test its policy branches with fixtures rather than waiting for today's capture
 to happen to contain every case.
 
-## Ask Research — dashboard evidence first, optional web second
+## Ask Research — dashboard evidence, streamed immediately
 
 `js/research/estate.js` is a runtime registry, not a second copy of the data. Every adapter reads
 the same module as its owning tab and always returns a catalog/status entry, even when that source
@@ -1772,14 +1772,22 @@ metadata and live/snapshot/mock provenance remain attached. Adding or removing a
 means changing this registry and the focused Ask Research checks together; a source may fail, but it
 may not disappear.
 
-`worker/research.mjs` is the provider boundary. `ANTHROPIC_API_KEY` is a Worker secret and must never
-enter `public/`, browser storage, a request payload or a committed config file. The route is
-same-origin, request-bounded and rate-limited, and only adds Claude's hosted `web_search` when
-the reader explicitly enables Web research. With that option enabled the tool is required, so a
-"dashboard + web" answer cannot quietly skip the web half.
+`worker/research.mjs` is the provider boundary. A Muns session token is a Worker secret and must
+never enter `public/`, browser storage, a request payload or a committed config file. The route is
+same-origin, request-bounded and rate-limited. It calls `fastapi.muns.io/query-router` with
+`llm_type: local_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
+browser immediately. That provider contract has no web-search option, so the UI must not offer or
+claim one. The browser preserves every source's status, coverage and provenance, then shares the
+remaining 10K-character evidence budget across question-ranked rows so the request fits the local
+model's 8K-token context. UI-only routes and the duplicate catalog stay in the browser rather than
+being repeated in the model prompt.
+
+The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
+`MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced
+its value with a Muns token. Remove that migration opt-in after installing `MUNS_LLM_TOKEN`.
 
 Conversation history is stored on the device, but each submitted question and bounded evidence
-packet are sent to Anthropic's Claude Messages API. The UI says both halves. Model prose is
+packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through
 `js/research/renderer.js`'s DOM-based subset, never by assigning it to `innerHTML`. A scope change
 aborts in-flight work so evidence assembled under one scope cannot land beneath another scope's
@@ -2477,7 +2485,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
-| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are sent to Anthropic's Claude Messages API |
+| Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, and the packet must stay below the Worker bound |
 | Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side; the route stays same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
@@ -2548,8 +2556,8 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
-- **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
-  and no empty-Watchlist shell replacement
+- **Ask Research keeps all fourteen evidence sources represented**, streams the dashboard answer,
+  makes no unsupported web-search claim, and has no empty-Watchlist shell replacement
 - **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
   because a `>=` would not notice the page widening back to feeds it was narrowed away from
 - **it reads all eight research tabs**, with company and market-wide News as separate feeds

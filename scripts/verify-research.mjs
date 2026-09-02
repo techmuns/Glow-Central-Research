@@ -4,16 +4,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  buildAnthropicRequest,
-  extractWebSources,
+  buildMunsRequest,
   handleResearch,
+  providerEvidence,
   researchConfigured,
-  takeSseEvents,
+  takeNdjsonLines,
   validateResearchBody,
 } from '../worker/research.mjs';
 
-// The browser modules initialise against localStorage. Give the Node check the same tiny contract
-// before importing the runtime catalog, without relying on Node's experimental Web Storage flag.
 const memoryStorage = new Map();
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
@@ -23,15 +21,23 @@ Object.defineProperty(globalThis, 'localStorage', {
     removeItem: (key) => memoryStorage.delete(key),
   },
 });
-const { DASHBOARD_RESEARCH_SOURCES } = await import('../public/js/research/estate.js');
+const { DASHBOARD_RESEARCH_SOURCES, fitEvidenceToBudget } = await import('../public/js/research/estate.js');
 const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
+const askResearchSource = readFileSync(new URL('../public/js/tabs/ask-research.js', import.meta.url), 'utf8');
 
 let checks = 0;
 const ok = (label, fn) => {
   fn();
   checks += 1;
-  console.log(`PASS  ${label}`);
+  console.log('PASS  ' + label);
 };
+const requestFor = (body) => new Request('https://dashboard.example/api/research', {
+  method: 'POST',
+  headers: { origin: 'https://dashboard.example', 'content-type': 'application/json' },
+  body: JSON.stringify(body),
+});
+const parseEvents = async (response) =>
+  (await response.text()).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 
 ok('the runtime research catalog covers every visible research tab and hidden portfolio analytics', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
@@ -53,10 +59,23 @@ ok('Public Chatter evidence preserves failure state and separately samples unres
   assert.match(estateSource, /const unresolved = chatter\.uncovered\(\);[\s\S]*?unresolvedTopics: \{/);
 });
 
-ok('configuration requires a non-trivial server-side API key', () => {
+ok('saved web-researched answers retain their historical provenance after the provider migration', () => {
+  assert.match(askResearchSource, /webResearch: message\.webResearch === true/);
+  assert.match(askResearchSource, /message\.webResearch \? 'Dashboard \+ web research' : 'Dashboard research'/);
+  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, scope: evidence\.scope, webResearch: false/);
+});
+
+ok('configuration accepts the dedicated or existing Muns session-token bindings', () => {
   assert.equal(researchConfigured({}), false);
-  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'short' }), false);
-  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }), true);
+  assert.equal(researchConfigured({ MUNS_TOKEN: 'short' }), false);
+  assert.equal(researchConfigured({ MUNS_TOKEN: 'muns-session-token-value' }), true);
+  assert.equal(researchConfigured({ MUNS_NEWS_TOKEN: 'muns-news-session-token' }), true);
+  assert.equal(researchConfigured({ MUNS_LLM_TOKEN: 'muns-llm-session-token' }), true);
+  assert.equal(researchConfigured({ ANTHROPIC_API_KEY: 'real-anthropic-key-must-not-leave' }), false);
+  assert.equal(researchConfigured({
+    ANTHROPIC_API_KEY: 'legacy-muns-session-token',
+    MUNS_LLM_LEGACY_ANTHROPIC_BINDING: 'confirmed-muns-token',
+  }), true);
 });
 
 const valid = validateResearchBody({
@@ -67,16 +86,16 @@ const valid = validateResearchBody({
   evidence: { catalog: [{ id: 'earnings-hub' }], sources: [] },
 });
 
-ok('request validation bounds and normalises history', () => {
+ok('request validation bounds history and disables unsupported web mode', () => {
   assert.equal(valid.ok, true);
-  assert.equal(valid.history.length, 1);
-  assert.equal(valid.webResearch, true);
+  assert.deepEqual(valid.history, [{ role: 'user', text: 'Earlier question' }]);
+  assert.equal(valid.webResearch, false);
   assert.equal(validateResearchBody({ evidence: {} }).error, 'missing_question');
 });
 
 const longHistory = Array.from({ length: 12 }, (_, index) => ({
   role: index % 2 ? 'assistant' : 'user',
-  text: `m${String(index).padStart(2, '0')}-${'x'.repeat(3_996)}`,
+  text: 'm' + String(index).padStart(2, '0') + '-' + 'x'.repeat(3_996),
 }));
 const boundedHistory = validateResearchBody({
   question: 'Follow up',
@@ -85,106 +104,111 @@ const boundedHistory = validateResearchBody({
   evidence: { catalog: [], sources: [] },
 }).history;
 ok('history budgeting retains the newest messages and restores chronological order', () => {
-  assert.deepEqual(
-    boundedHistory.map((message) => message.content[0].text.slice(0, 3)),
-    ['m06', 'm07', 'm08', 'm09', 'm10', 'm11']
-  );
+  assert.deepEqual(boundedHistory.map((message) => message.text.slice(0, 3)), ['m10', 'm11']);
+  assert.equal(boundedHistory.reduce((sum, message) => sum + message.text.length, 0), 3_000);
 });
 
-ok('web mode requires Claude hosted search and preserves the dashboard evidence packet', () => {
-  const request = buildAnthropicRequest(valid, { ANTHROPIC_MODEL: 'claude-test' });
-  assert.equal(request.model, 'claude-test');
-  assert.deepEqual(request.tools, [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }]);
-  assert.deepEqual(request.tool_choice, { type: 'tool', name: 'web_search' });
-  assert.match(request.system, /DASHBOARD_EVIDENCE object is the only source of dashboard facts/);
-  assert.match(request.messages.at(-1).content[0].text, /DASHBOARD_EVIDENCE:/);
-  assert.equal('store' in request, false);
+const oversizedEvidence = {
+  generatedAt: '2026-09-02T09:00:00.000Z',
+  scope: 'portfolio',
+  selection: { sourcesRegistered: 14, sourcesReady: 14 },
+  catalog: Array.from({ length: 14 }, (_, index) => ({ id: `source-${index}`, tab: `Tab ${index}`, route: `#/tab-${index}`, status: 'ready', rowCount: 20 })),
+  sources: Array.from({ length: 14 }, (_, index) => ({
+    id: `source-${index}`,
+    tab: `Tab ${index}`,
+    route: `#/tab-${index}`,
+    description: `Description ${index}`,
+    status: 'ready',
+    source: `Provider ${index}`,
+    asOf: '2026-09-02',
+    rowCount: 20,
+    coverage: { scope: 'portfolio', total: 20 },
+    matchedRows: index === 0 ? 8 : 0,
+    omittedRows: 0,
+    rows: Array.from({ length: 20 }, (_, row) => ({ company: `Company ${index}-${row}`, detail: 'x'.repeat(900) })),
+  })),
+};
+const fittedEvidence = fitEvidenceToBudget(oversizedEvidence);
+ok('the local-model evidence budget retains every source before sharing space across ranked rows', () => {
+  assert.equal(JSON.stringify(fittedEvidence).length <= 10_000, true);
+  assert.equal(fittedEvidence.catalog.length, 14);
+  assert.equal(fittedEvidence.sources.length, 14);
+  assert.equal(fittedEvidence.sources.every((source) => source.tab && source.route && source.status === 'ready' && source.source && source.coverage), true);
+  assert.equal(fittedEvidence.sources.some((source) => source.includedRows > 0), true);
+  assert.equal(fittedEvidence.selection.evidenceChars, JSON.stringify(fittedEvidence).length);
+});
+
+ok('the provider prompt removes duplicate UI fields without dropping an analytical source', () => {
+  const providerPacket = providerEvidence(fittedEvidence);
+  assert.equal(providerPacket.catalog, undefined);
+  assert.equal(providerPacket.sources.length, 14);
+  assert.equal(providerPacket.sources.every((source) => !('route' in source) && !('description' in source)), true);
+  assert.equal(providerPacket.sources.every((source) => source.status === 'ready' && source.source && source.coverage), true);
+  assert.equal(JSON.stringify(providerPacket).length < JSON.stringify(fittedEvidence).length, true);
+});
+
+ok('the Muns request preserves evidence and selects low-latency local streaming by default', () => {
+  const request = buildMunsRequest(valid);
+  assert.equal(request.llm_type, 'local_llm');
   assert.equal(request.stream, true);
+  assert.equal(request.temperature, 0.2);
+  assert.equal(request.max_tokens, 768);
+  assert.match(request.query, /Complete the answer within 450 words/);
+  assert.match(request.query, /DASHBOARD_EVIDENCE object is the only source of dashboard facts/);
+  assert.match(request.query, /USER: Earlier question/);
+  assert.match(request.query, /QUESTION:\nWhat changed\?/);
+  assert.match(request.query, /DASHBOARD_EVIDENCE:/);
+  assert.equal(buildMunsRequest(valid, { MUNS_LLM_TYPE: 'hosted_llm' }).llm_type, 'hosted_llm');
 });
 
-ok('SSE framing waits for complete blocks', () => {
-  const first = takeSseEvents('event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel');
-  assert.equal(first.events.length, 0);
-  const second = takeSseEvents(`${first.rest}lo"}}\n\n`);
-  assert.equal(second.events.length, 1);
-  assert.equal(JSON.parse(second.events[0]).delta.text, 'Hello');
+ok('NDJSON framing waits for complete network chunks', () => {
+  const first = takeNdjsonLines('{"text":"Hel');
+  assert.deepEqual(first.lines, []);
+  const second = takeNdjsonLines(first.rest + 'lo"}\n{"text":"world"}\n');
+  assert.deepEqual(second.lines.map((line) => JSON.parse(line).text), ['Hello', 'world']);
+  assert.equal(second.rest, '');
 });
 
-ok('web citations are de-duplicated and bounded', () => {
-  const sources = extractWebSources({
-    content: [
-      { type: 'web_search_result_location', url: 'https://example.com/a', title: 'Example A' },
-      { type: 'web_search_result', url: 'https://example.com/a', title: 'Duplicate', encrypted_content: 'opaque' },
-      { type: 'web_search_result', url: 'https://example.org/b', title: 'Example B' },
-    ],
-  });
-  assert.deepEqual(sources.map((source) => source.url), ['https://example.com/a', 'https://example.org/b']);
-});
+const body = {
+  question: 'What changed?',
+  scope: 'portfolio',
+  webResearch: false,
+  history: [],
+  evidence: {
+    catalog: [{ id: 'earnings-hub', status: 'ready' }],
+    sources: [{ id: 'earnings-hub', status: 'ready', rows: [] }],
+  },
+};
 
 const originalFetch = globalThis.fetch;
 try {
   globalThis.fetch = async (url, init) => {
-    assert.equal(String(url), 'https://api.anthropic.com/v1/messages');
-    assert.equal(init.headers['x-api-key'], 'sk-ant-test-research-key');
-    assert.equal(init.headers['anthropic-version'], '2023-06-01');
-    assert.equal(init.headers.authorization, undefined);
+    assert.equal(String(url), 'https://fastapi.muns.io/query-router');
+    assert.equal(init.headers.authorization, 'Bearer llm-token-wins-over-the-fallback');
+    assert.equal(init.headers.accept, 'application/x-ndjson');
     const requested = JSON.parse(init.body);
-    assert.equal(requested.model, 'claude-test');
-    assert.equal(requested.tools[0].type, 'web_search_20250305');
-    const sse = [
-      'event: message_start',
-      'data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[]}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_test","name":"web_search","input":{}}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srvtoolu_test","content":[{"type":"web_search_result","url":"https://example.com/result","title":"Result source","encrypted_content":"opaque"}]}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}',
-      '',
-      'event: content_block_delta',
-      'data: {"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"Earnings improved. [Dashboard: Earnings Hub]"}}',
-      '',
-      'event: content_block_delta',
-      'data: {"type":"content_block_delta","index":2,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","url":"https://example.com/result","title":"Result source","cited_text":"Earnings improved"}}}',
-      '',
-      'event: message_delta',
-      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}',
-      '',
-      'event: message_stop',
-      'data: {"type":"message_stop"}',
-      '',
-    ].join('\n');
-    return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    assert.equal(requested.llm_type, 'local_llm');
+    assert.equal(requested.stream, true);
+    assert.match(requested.query, /QUESTION:\nWhat changed\?/);
+    return new Response('{"text":"Earnings"}\n{"text":" improved. [Dashboard: Earnings Hub]"}\n', {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' },
+    });
   };
 
-  const body = JSON.stringify({
-    question: 'What changed?',
-    scope: 'portfolio',
-    webResearch: true,
-    history: [],
-    evidence: { catalog: [{ id: 'earnings-hub', status: 'ready' }], sources: [{ id: 'earnings-hub', status: 'ready', rows: [] }] },
+  const response = await handleResearch(requestFor(body), {
+    MUNS_LLM_TOKEN: 'llm-token-wins-over-the-fallback',
+    MUNS_NEWS_TOKEN: 'news-token-fallback',
+    MUNS_TOKEN: 'general-token-fallback',
+    RESEARCH_RATE_LIMITER: { limit: async () => ({ success: true }) },
   });
-  const response = await handleResearch(
-    new Request('https://dashboard.example/api/research', {
-      method: 'POST',
-      headers: { origin: 'https://dashboard.example', 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)) },
-      body,
-    }),
-    {
-      ANTHROPIC_API_KEY: 'sk-ant-test-research-key',
-      ANTHROPIC_MODEL: 'claude-test',
-      RESEARCH_RATE_LIMITER: { limit: async () => ({ success: true }) },
-    }
-  );
-  const events = (await response.text()).trim().split('\n').map((line) => JSON.parse(line));
-
-  ok('the Worker streams normalised text, web sources and a valid completion', () => {
+  const events = await parseEvents(response);
+  ok('the Worker forwards every Muns text chunk and completes the dashboard stream', () => {
     assert.equal(response.status, 200);
-    assert.equal(events.some((event) => event.type === 'text' && /Earnings improved/.test(event.text)), true);
-    assert.equal(events.some((event) => event.type === 'sources' && event.sources[0]?.url === 'https://example.com/result'), true);
+    assert.deepEqual(events.filter((event) => event.type === 'text').map((event) => event.text), [
+      'Earnings',
+      ' improved. [Dashboard: Earnings Hub]',
+    ]);
     assert.equal(events.at(-1).type, 'done');
   });
 } finally {
@@ -192,84 +216,52 @@ try {
 }
 
 try {
-  let providerCalls = 0;
-  globalThis.fetch = async (_url, init) => {
-    providerCalls += 1;
-    const requested = JSON.parse(init.body);
-    if (providerCalls === 1) {
-      const sse = [
-        'event: message_start',
-        'data: {"type":"message_start","message":{"id":"msg_pause","type":"message","role":"assistant","content":[]}}',
-        '',
-        'event: content_block_start',
-        'data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_pause","name":"web_search","input":{}}}',
-        '',
-        'event: content_block_delta',
-        'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"query\\":\\"latest results\\"}"}}',
-        '',
-        'event: content_block_stop',
-        'data: {"type":"content_block_stop","index":0}',
-        '',
-        'event: message_delta',
-        'data: {"type":"message_delta","delta":{"stop_reason":"pause_turn","stop_sequence":null}}',
-        '',
-        'event: message_stop',
-        'data: {"type":"message_stop"}',
-        '',
-      ].join('\n');
-      return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
-    }
-
-    assert.equal('tool_choice' in requested, false);
-    assert.equal(requested.tools[0].name, 'web_search');
-    assert.equal(requested.messages.at(-1).role, 'assistant');
-    assert.equal(requested.messages.at(-1).content[0].id, 'srvtoolu_pause');
-    assert.deepEqual(requested.messages.at(-1).content[0].input, { query: 'latest results' });
-    const sse = [
-      'event: message_start',
-      'data: {"type":"message_start","message":{"id":"msg_resume","type":"message","role":"assistant","content":[]}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":0,"content_block":{"type":"web_search_tool_result","tool_use_id":"srvtoolu_pause","content":[{"type":"web_search_result","url":"https://example.com/resumed","title":"Resumed source","encrypted_content":"opaque"}]}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}',
-      '',
-      'event: content_block_delta',
-      'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Continued answer"}}',
-      '',
-      'event: message_delta',
-      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null}}',
-      '',
-      'event: message_stop',
-      'data: {"type":"message_stop"}',
-      '',
-    ].join('\n');
-    return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
-  };
-
-  const body = JSON.stringify({
-    question: 'Continue if research pauses',
-    scope: 'portfolio',
-    webResearch: true,
-    history: [],
-    evidence: { catalog: [], sources: [] },
+  let releaseProvider;
+  globalThis.fetch = async () => new Promise((resolve) => {
+    releaseProvider = () => resolve(new Response('{"text":"Ready"}\n', {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' },
+    }));
   });
-  const response = await handleResearch(
-    new Request('https://dashboard.example/api/research', {
-      method: 'POST',
-      headers: { origin: 'https://dashboard.example', 'content-type': 'application/json' },
-      body,
-    }),
-    { ANTHROPIC_API_KEY: 'sk-ant-test-research-key', ANTHROPIC_MODEL: 'claude-test' }
-  );
-  const events = (await response.text()).trim().split('\n').map((line) => JSON.parse(line));
+  const response = await handleResearch(requestFor(body), { MUNS_TOKEN: 'muns-session-token-value' });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const first = decoder.decode((await reader.read()).value);
+  const second = decoder.decode((await reader.read()).value);
+  ok('the browser receives working status without waiting for the provider first token', () => {
+    assert.match(first + second, /"type":"start"/);
+    assert.match(first + second, /"type":"phase"/);
+    assert.equal(typeof releaseProvider, 'function');
+  });
+  releaseProvider();
+  while (!(await reader.read()).done) {
+    // Drain the completion so every promise is accounted for.
+  }
+} finally {
+  globalThis.fetch = originalFetch;
+}
 
-  ok('a paused server-side search resumes with Claude content and finishes normally', () => {
-    assert.equal(providerCalls, 2);
-    assert.equal(events.some((event) => event.type === 'phase' && /Continuing Claude/.test(event.phase)), true);
-    assert.equal(events.some((event) => event.type === 'text' && event.text === 'Continued answer'), true);
-    assert.equal(events.at(-1).type, 'done');
+try {
+  globalThis.fetch = async () => new Response('{"error":"Token expired"}\n', {
+    status: 200,
+    headers: { 'content-type': 'application/x-ndjson' },
+  });
+  const response = await handleResearch(requestFor(body), { MUNS_TOKEN: 'muns-session-token-value' });
+  const events = await parseEvents(response);
+  ok('an error event inside a successful upstream stream fails closed', () => {
+    assert.equal(events.some((event) => event.type === 'error' && event.message === 'Token expired'), true);
+    assert.notEqual(events.at(-1).type, 'done');
+  });
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
+try {
+  globalThis.fetch = async () => new Response('{"error":{"message":"expired"}}', { status: 401 });
+  const response = await handleResearch(requestFor(body), { MUNS_TOKEN: 'muns-session-token-value' });
+  const events = await parseEvents(response);
+  ok('an HTTP authentication failure gives a safe operator-facing error', () => {
+    assert.equal(events.some((event) => event.type === 'error' && /session token/i.test(event.message)), true);
   });
 } finally {
   globalThis.fetch = originalFetch;
@@ -281,13 +273,22 @@ ok('the configuration route fails closed without exposing provider details', () 
   assert.deepEqual(configBody, { configured: false, webResearchAvailable: false, history: 'device' });
 });
 
+const configured = await handleResearch(
+  new Request('https://dashboard.example/api/research'),
+  { MUNS_NEWS_TOKEN: 'muns-news-session-token' }
+);
+const configuredBody = await configured.json();
+ok('the configuration route advertises dashboard research without unsupported web mode', () => {
+  assert.deepEqual(configuredBody, { configured: true, webResearchAvailable: false, history: 'device' });
+});
+
 const wrongOrigin = await handleResearch(
   new Request('https://dashboard.example/api/research', {
     method: 'POST',
     headers: { origin: 'https://elsewhere.example', 'content-type': 'application/json' },
     body: JSON.stringify({ question: 'Test', evidence: {} }),
   }),
-  { ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }
+  { MUNS_TOKEN: 'muns-session-token-value' }
 );
 ok('the paid research route rejects cross-origin submissions', () => {
   assert.equal(wrongOrigin.status, 403);
@@ -299,10 +300,10 @@ const oversized = await handleResearch(
     headers: { origin: 'https://dashboard.example', 'content-type': 'application/json' },
     body: 'x'.repeat(180_001),
   }),
-  { ANTHROPIC_API_KEY: 'sk-ant-test-research-key' }
+  { MUNS_TOKEN: 'muns-session-token-value' }
 );
-ok('the request-body bound is enforced on bytes even without a content-length header', () => {
+ok('the request-body bound is enforced on bytes without a content-length header', () => {
   assert.equal(oversized.status, 413);
 });
 
-console.log(`\n${checks} Ask Research checks passed.`);
+console.log('\n' + checks + ' Ask Research checks passed.');
