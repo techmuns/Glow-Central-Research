@@ -414,8 +414,8 @@ const loadingHtml = () => `
  * normal state is green, and a feed that has quietly stopped refreshing cannot wear it.
  *
  * `STALE_AFTER_MS` is the schedule's own worst case rather than its period. The scrape runs
- * weekdays at 07:00 and 09:00 IST, so Friday's capture is still the newest thing that exists on
- * Monday morning — three days is the widest legitimate gap, the same reasoning and the same number
+ * on weekday schedules, so Friday's capture is still the newest thing that exists on Monday
+ * morning — three days is the widest legitimate gap, the same reasoning and the same number
  * as Breakouts' pill. Keying it to the period instead would sit amber all weekend with nothing wrong,
  * which teaches the reader to ignore the one chip that is supposed to mean something.
  *

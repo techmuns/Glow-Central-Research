@@ -74,7 +74,7 @@ The three Super Investors files load at bootstrap and seed `js/data/investors.js
 ## `public/data/technicals.json` — LIVE
 
 **The dashboard's one genuinely live feed.** Written by `scripts/scrape-technicals.mjs`, refreshed
-weekdays at 07:00 and 09:00 IST by `.github/workflows/technicals-refresh.yml`, and consumed by
+weekdays at 07:00 IST by `.github/workflows/technicals-refresh.yml`, and consumed by
 `public/js/data/technicals.js`, which scores every row through `public/js/scoring/tech-scoring.js`.
 
 ### The universe is the index PLUS the book, and that is not cosmetic
@@ -249,7 +249,7 @@ and the UI ranks the row last and labels it "no data" — it is never dropped si
 back-filled. Common causes: a recent listing with fewer than 60 bars, or a ticker renamed or
 demerged since the universe export.
 
-**Refresh cadence** — weekdays 07:00 and 09:00 IST via GitHub Actions, plus manual `workflow_dispatch`.
+**Refresh cadence** — weekdays 07:00 IST via GitHub Actions, plus manual `workflow_dispatch`.
 **Real source** — Yahoo Finance Chart v8 (`TICKER.NS`, falling back to `.BO`) and the Nifty 500
 index `^CRSLDX`; NSE `sec_bhavdata_full` for delivery %.
 **Consumed by** — the whole Breakouts / Technical tab, and the global search drill from any tab.
@@ -558,7 +558,7 @@ equity curve — never marked at zero, which would invent a −100% position.
 ## `public/data/portfolio-history.json` — LIVE
 
 **Three years of real daily closes.** Written by `scripts/scrape-portfolio-history.mjs`, refreshed
-weekdays at 07:00 and 09:00 IST alongside the technicals scrape, and consumed by `js/data/portfolio.js` to build
+weekdays 07:00 IST alongside the technicals scrape, and consumed by `js/data/portfolio.js` to build
 the equity curve, the drawdown series and the benchmark comparison.
 
 This file is real because the alternative is the worst thing in the dashboard to fake: a max
@@ -606,7 +606,7 @@ figure nothing contradicts it.
    `valuationQtyByDate` — the holding expressed in **current share terms** — and the curve values
    against that. Against a back-adjusted series the two corrections cancel exactly.
 
-**Refresh cadence** — weekdays 07:00 and 09:00 IST, `.github/workflows/technicals-refresh.yml`.
+**Refresh cadence** — weekdays 07:00 IST, `.github/workflows/technicals-refresh.yml`.
 **Real source** — Yahoo Finance Chart v8 (`query1.finance.yahoo.com`), via `scripts/lib/yahoo.mjs`.
 **Consumed by** — `js/data/portfolio.js` → Drawdown (all three sub-views) and Overview's benchmark line.
 **Bootstrap note** — the scraper derives its ticker list from `portfolio.json` + the ledger. A ticker
@@ -2550,7 +2550,8 @@ stops for the day, which is why it is not a step in the 07:00 data refresh.
 
 ### News and insider trades: snapshot first, live walk second
 
-These two are still per-ticker, capped at ~60 requests a minute.
+These two are still per-ticker, capped at ~60 requests a minute. They are captured at 07:00 and
+again at 09:00 IST on weekdays; the second pass excludes the unchanged EOD technical snapshots.
 
 **News is a search endpoint** — there is no "everything published today" request to make — so there
 is no axis to switch to the way announcements had one. It used to make the reader name companies

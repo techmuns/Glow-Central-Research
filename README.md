@@ -39,7 +39,7 @@ deploy notes and the known gaps.
 **Two more surfaces are genuinely live.**
 
 *Breakouts / Technical* scores 535 NSE-500 companies against a 16-rule, 24-point model from a
-daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 and 09:00 IST by
+daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
 [a GitHub Action](.github/workflows/technicals-refresh.yml).
 
 *Portfolio Analytics* marks every position to market from that same feed, and builds its equity

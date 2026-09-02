@@ -53,9 +53,9 @@ This is the first thing to check before quoting any number off a screen.
 
 | Feed | File | Source | Cadence |
 | --- | --- | --- | --- |
-| Technicals: OHLCV, indicators, delivery %, FII/DII deltas for the NSE 500 | `public/data/technicals.json` (763 KB) | Yahoo Finance EOD + NSE delivery | Weekdays 07:00 and 09:00 IST |
-| ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 and 09:00 IST |
-| **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 and 09:00 IST |
+| Technicals: OHLCV, indicators, delivery %, FII/DII deltas for the NSE 500 | `public/data/technicals.json` (763 KB) | Yahoo Finance EOD + NSE delivery | Weekdays 07:00 IST |
+| ATR history for the ATR-stability rule | `public/data/atr-history.json` (568 KB) | Same scrape | Weekdays 07:00 IST |
+| **Three years of daily closes for every portfolio ticker + the Nifty 500** | `public/data/portfolio-history.json` (284 KB) | Yahoo Finance | Weekdays 07:00 IST |
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
 | **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
 | **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | called direct from the browser, **not** proxied — see §5e | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), hourly client poll** |

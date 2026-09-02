@@ -3,8 +3,8 @@ name: Corporate announcements refresh
 # Corporate announcements, read from BSE's DATE index rather than one request per company.
 #
 # WHY THIS IS ITS OWN JOB AND NOT A STEP IN THE DAILY REFRESH
-#   The first full refresh runs at 07:00 IST so it picks up the previous session's closing prices.
-#   Its 09:00 fallback is still far too early for filings submitted all day and well past the close —
+#   The full refresh runs at 07:00 IST so it picks up the previous session's closing prices. The
+#   09:00 company-news/insider pass is still far too early for filings submitted well past the close —
 #   the latest in a normal day lands around 19:00 IST — so this runs after filing stops.
 #
 # COST: about twenty requests for the whole exchange, a few seconds. It replaced a per-company walk

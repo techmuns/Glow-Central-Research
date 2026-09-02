@@ -124,7 +124,7 @@ scripts/
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
-.github/workflows/technicals-refresh.yml   weekdays 07:00 and 09:00 IST
+.github/workflows/technicals-refresh.yml   weekdays 07:00 IST; news + insider follow-up at 09:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -1109,6 +1109,10 @@ the result, so they are already in `news.json` and cost one conditional GET. Mea
 capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was charging the reader
 attention to avoid a cost that had already been paid.
 
+The scheduled walk runs at 07:00 and 09:00 IST on weekdays. The 09:00 job runs only
+`scrape-filings.mjs`: there is no newer EOD bar at that hour, and a transient Yahoo failure must not
+replace the healthy technical snapshot captured at 07:00.
+
 So News now loads like the other two — snapshot on mount, nothing per company — and the walk is
 still the Refresh button's. **The rule that survives is the one that was always doing the work: a
 landing sends no per-company request.** Asking the reader first is the answer when there is nothing
@@ -1150,7 +1154,7 @@ same chip the market-news half of the News tab already wore — a dot and a word
 scope summary beside it — because that is what it was asked to look like and because two chips at
 the top of three tabs across three scopes is furniture. Green + `Live` appears only while the
 capture is still the newest the schedule can produce (`STALE_AFTER_MS`, 72h: the scrape runs
-weekdays 07:00 and 09:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
+weekdays 07:00 IST, so Friday's capture is the newest thing that exists on Monday morning — the
 same reasoning and the same number as Breakouts). Past that it turns amber and prints the AGE;
 failures outrank freshness and read `Partial`. **"Show a green Live" and "never paint a green Live
 you have not earned" are only compatible because the green is conditional** — and the suite asserts
@@ -2009,7 +2013,7 @@ failure panels keep their own retry control so recovery never depends on a hidde
 ### A green "Live" is a claim about data — and its threshold comes from the DATA, not the cron
 
 Breakouts' pill is the third consumer of that rule, and it got the threshold wrong first in a way
-worth keeping. The scrape runs weekdays at 07:00 and 09:00 IST (`30 1,3 * * 1-5`), so the obvious rule is "amber
+worth keeping. The scrape runs weekdays 07:00 IST (`30 1 * * 1-5`), so the obvious rule is "amber
 once a scheduled run has not landed". Two things are wrong with it:
 
 1. **A 22-hour-old END-OF-DAY capture is current.** Yesterday's close is the newest close there
