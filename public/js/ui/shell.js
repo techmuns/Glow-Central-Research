@@ -13,6 +13,7 @@ import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
+import { mountHostTicker } from './host-ticker.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
 import * as askResearch from '../tabs/ask-research.js';
@@ -121,6 +122,12 @@ function shellTemplate() {
             <div id="scope-toggle-mount"></div>
             <div id="scope-edit-mount"></div>
           </div>
+          <!-- The company the Munshot host has selected, when it has selected one. Hidden and
+               zero-cost otherwise, including on a static origin with no host at all. The hidden
+               attribute is set as a PROPERTY by mountHostTicker rather than as a utility class,
+               so an empty mount cannot leave the header's gap-2 showing a gap with nothing in
+               it. (No backticks in here: this comment lives inside a template literal.) -->
+          <div id="host-ticker-mount" hidden></div>
           <div id="status-mount"></div>
         </div>
       </div>
@@ -132,7 +139,11 @@ function shellTemplate() {
 
     <div class="mx-auto max-w-[1400px] px-6 py-6">
       <div id="subview-mount" class="mb-5"></div>
-      <main class="fade-in min-w-0">
+      <!-- #dashboard-main is the capture root the host asks for on dashboard.capture.visual
+           (js/core/host-capture.js). It is the CONTENT region deliberately: the header's scope
+           toggle and status pill are this app's own chrome, and a picture of the tab is what the
+           host is asking for. (No backticks in here: this comment is inside a template literal.) -->
+      <main id="dashboard-main" class="fade-in min-w-0">
         <div id="content-host"></div>
       </main>
     </div>`;
@@ -164,7 +175,17 @@ function wireStaticHeader(root) {
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
   // of the static header. Putting it there would stop its clock the first time the reader changed
   // tab, leaving a pill frozen on whatever it last said.
-  headerDisposer = status.wire(root);
+  const offStatus = status.wire(root);
+
+  // The host's selected company, for the same reason and with the same lifetime: the host can
+  // change its selection while the reader is on any tab, so this subscription belongs to the
+  // header rather than to whichever tab happens to be mounted.
+  const offHostTicker = mountHostTicker($('#host-ticker-mount', root));
+
+  headerDisposer = () => {
+    offStatus?.();
+    offHostTicker?.();
+  };
 }
 
 // ---- Route-dependent chrome: workspace dropdown, rail, top tabs, scope toggle ---------------

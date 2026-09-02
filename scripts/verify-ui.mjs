@@ -47,11 +47,15 @@ const exceljsBlocked = () => cdnBlocked(/exceljs/i);
 // Errors that belong to the environment rather than the page. Two families, both of which this
 // suite already reports as SKIPs elsewhere, so counting them again as console errors would make
 // the one unambiguous check in the run unreadable:
-//   • Google Fonts and on-demand ExcelJS, unreachable without egress;
+//   • Google Fonts, on-demand ExcelJS and html-to-image, and the Munshot Dashboard SDK bundle —
+//     all unreachable without egress. The SDK's absence is a SUPPORTED state, not a degraded one:
+//     js/core/sdk.js falls back to its no-op client and the dashboard runs exactly as it does
+//     outside the host, which is the mode this whole suite drives it in. The handshake itself is
+//     asserted against the real bundle by scripts/verify-sdk.mjs, which serves it from disk.
 //   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
 //     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
 // Everything else counts, and the number filtered is always printed rather than swallowed.
-const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)|munshot-dashboard-sdk|munshot\.s3\./i;
 // A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
 // failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
 // URL answers 404, not ERR_CONNECTION_RESET, so those still count.

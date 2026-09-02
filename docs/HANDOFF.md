@@ -879,6 +879,25 @@ echo 'MUNS_TOKEN="…"' >> .dev.vars     # local, gitignored
 `env.MUNS_BASE` redirects the upstream, which is how a verification run drives the whole path
 against a stand-in instead of scraping their production.
 
+**And there is now a second way that credential can arrive — the reader's own.** This dashboard is
+embedded in the Munshot host, which hands the browser the signed-in reader's session JWT over the
+SDK channel; the browser sends it on our same-origin `api/…` routes, and `withCallerToken()` in
+`worker/muns.mjs` uses it to fill an **absent** `MUNS_TOKEN`. A configured secret always wins, so
+the block above is unchanged for any deployment that has one. What it removes is the case where the
+secret was never installed: `no-token` is a hard failure on screen — News, Announcements, Insider
+Trades, stock search, the investor books and Ask Research all show nothing — and clearing it needed
+an operator in the Cloudflare dashboard. A signed-in reader now clears it for themselves.
+
+Two things that follow, and neither is optional:
+
+- **It does not replace the secret for anything unattended.** A GitHub Action has no host and no
+  reader, so every scheduled scrape still needs `MUNS_TOKEN` in the repository's secret store. The
+  same is true of the Worker's own `scheduled()` handler.
+- **These routes share URL-keyed edge-cache entries**, which is safe only because every upstream
+  behind them returns market data — the same filings and books whoever asks. A future route whose
+  response is specific to the caller must not be given that env; read the note above
+  `withCallerToken` before adding one.
+
 The Superstar surface is split into three in-page tabs in this order: **All Investors** for the
 card directory, **Quarterly Changes** for the six cross-book summaries, and **Data Table** for every
 disclosed investor-company position. Data Table retains the wide quarter history, search,
