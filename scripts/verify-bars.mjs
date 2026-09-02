@@ -4,7 +4,10 @@
 
 import assert from 'node:assert/strict';
 import { completedBars, dayMove, istDay, MAX_DAY_MOVE_GAP_DAYS } from './lib/yahoo.mjs';
-import { parseMarketData, moveFromBars, verifyMoves } from './lib/muns-market-data.mjs';
+import { parseMarketData, moveFromBars, verifyMoves, saveChecks, loadChecks } from './lib/muns-market-data.mjs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 let checks = 0;
 const ok = (label, fn) => {
@@ -178,6 +181,18 @@ ok('a name the checks file already answers is never asked again, and a new answe
   assert.equal(cachedRows[1].move_check, 'confirmed');
   assert.equal(remembered.checks['BBB@2026-09-02'].prevDate, '2026-09-01');
   assert.deepEqual({ cached: cachedSummary.cached, requests: cachedSummary.requests, checked: cachedSummary.checked }, { cached: 1, requests: 1, checked: 1 });
+});
+
+const checksPath = join(mkdtempSync(join(tmpdir(), 'checks-')), 'price-move-checks.json');
+ok('the checks file is written only when its answers change, so an empty pass makes no commit', () => {
+  const store = { checks: { 'AAA@2026-09-02': { pct: 1, close: 101, prevClose: 100, prevDate: '2026-09-01', checkedAt: 'x' }, 'OLD@2026-08-01': { pct: 0, close: 1, prevClose: 1, prevDate: '2026-07-31', checkedAt: 'x' } } };
+  assert.equal(saveChecks(checksPath, store, new Date('2026-09-02T19:00:00Z')), true);
+  const written = JSON.parse(readFileSync(checksPath, 'utf8'));
+  assert.deepEqual(Object.keys(written.checks), ['AAA@2026-09-02'], 'answers older than the keep window are pruned');
+  assert.equal(saveChecks(checksPath, loadChecks(checksPath), new Date('2026-09-02T20:00:00Z')), false);
+  assert.equal(JSON.parse(readFileSync(checksPath, 'utf8')).updated_at, written.updated_at, 'an unchanged pass leaves the file byte-for-byte');
+  store.checks['BBB@2026-09-02'] = { pct: -2, close: 98, prevClose: 100, prevDate: '2026-09-01', checkedAt: 'y' };
+  assert.equal(saveChecks(checksPath, store, new Date('2026-09-02T21:00:00Z')), true);
 });
 
 console.log('\n' + checks + ' price-bar checks passed.');

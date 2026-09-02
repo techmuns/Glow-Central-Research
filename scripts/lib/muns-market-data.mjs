@@ -39,12 +39,24 @@ export function loadChecks(path = CHECKS_PATH) {
   }
 }
 
+/**
+ * Write the checks file — only when its ANSWERS changed. The first follow-up pass verified
+ * nothing and still produced a commit, because `updated_at` moved; an hourly commit that carries
+ * only a timestamp is noise in the history and a deploy for nothing. Returns whether it wrote.
+ */
 export function saveChecks(path, store, now = new Date()) {
   const cutoff = new Date(now.getTime() - CHECKS_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
   const checks = Object.fromEntries(Object.entries(store.checks || {}).filter(([key]) => (key.split('@')[1] || '') >= cutoff).sort(([a], [b]) => a.localeCompare(b)));
+  let existing = null;
+  try {
+    existing = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    existing = null;
+  }
+  if (existing && JSON.stringify(existing.checks || {}) === JSON.stringify(checks)) return false;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify({ source: SOURCE_LABEL, keep_days: CHECKS_KEEP_DAYS, updated_at: now.toISOString(), count: Object.keys(checks).length, checks }, null, 1) + '\n');
-  return checks;
+  return true;
 }
 
 /** Apply one endpoint answer to a row, and say so on the row. */
