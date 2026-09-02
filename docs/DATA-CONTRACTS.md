@@ -431,7 +431,12 @@ morning's EOD percentage next to an intraday price would render two measurements
 
 ## `public/data/portfolio-companies.json` — REAL, the book the Portfolio scope means
 
-Every company the family office holds directly, as at the statement date, resolved to NSE symbols.
+Every listed company the family office holds directly, resolved to NSE symbols. **The book is read
+from the family office's own repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`, the
+positions file generated from the custody workbooks — by `scripts/sync-family-book.mjs`, one line
+per equity ISIN, into `scripts/fixtures/family-book.json`; `scripts/resolve-portfolio-companies.mjs`
+turns that into this file. It used to be a list of names typed into the resolver from a statement,
+which was a second copy of a book that lives somewhere else, and a second copy can only drift.
 This is what the **Portfolio / Universe toggle filters by** on every research tab: Earnings Hub,
 Con-call, Breakouts, Public Chatter, Institutions and Superstar Investors all ask *"is this ticker
 one of ours?"* and this file is the answer. Loaded at bootstrap onto `ctx.data.portfolioCompanies`
@@ -455,22 +460,28 @@ different questions, two files:
 {
   "_provenance": "…",
   "asOf": "2026-06-30",
-  "source": "family office direct-equity statement",
+  "source": "techmuns/Sattva-Family · src/data/sattvaData.ts",
+  "sourceCommit": { "sha": "…", "date": "2026-08-30T09:12:44Z" },   // null when read from a local path
+  "syncedAt": "2026-09-02T20:44:28.685Z",
   "count": 142, "resolved": 123, "unlisted": 11, "bseOnly": 5, "unresolved": 3,
   "holdings": [
-    { "name": "Mangalore Petrochemicals and Refinery", "ticker": "MRPL", "sector": "Unclassified",
+    { "isin": "INE103A01014", "name": "Mangalore Petrochemicals and Refinery",
+      "bookName": "MANGALORE PETROCHEMICALS AND REFINERY LIMITED", "ticker": "MRPL", "sector": "Unclassified",
       "listed": true, "matchedName": "MANGALORE REFINERY & PETROCHEMICALS", "matchedBy": "confirmed:yahoo" },
-    { "name": "Turtlemint Fintech Solutions", "ticker": null, "sector": "Financials",
-      "listed": false, "reason": "unlisted — private company, held directly" }
+    { "isin": "INE0OC301013", "name": "Turtlemint Fintech Solutions", "bookName": "TURTLEMINT FINTECH SOLUTIONS LIMITED",
+      "ticker": null, "sector": "Financials", "listed": false, "reason": "unlisted — private company, held directly" }
   ]
 }
 ```
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `asOf` | string | Statement date, `YYYY-MM-DD`. |
+| `asOf` | string | The family file's own `asOf` — the custody workbook date, `YYYY-MM-DD`. |
+| `source` / `sourceCommit` / `syncedAt` | string / object \| null / string | Where the book was read from, which commit of theirs (null on a local read), and when. |
 | `count` / `resolved` / `unlisted` / `bseOnly` / `unresolved` | number | `resolved + unlisted + bseOnly + unresolved === count`, asserted by the suite. |
-| `holdings[].name` | string | **The statement's own wording**, never the exchange's. This is what the reader recognises. |
+| `holdings[].isin` | string | **The identity of a line.** One equity ISIN (`INE…`) is one holding, however many entities hold it and whatever each calls it. Unique; asserted. |
+| `holdings[].name` | string | The display name — what the reader recognises. From `DISPLAY_NAMES` in the resolver where a line has one; otherwise the full name on the feed it resolved on, or the custodian's wording title-cased. Never blank. |
+| `holdings[].bookName` | string | **The custodian's own wording**, as their file carries it — upper-cased, cut at twenty characters ("JUBILANT PHARMOVA LT"). Kept beside the display name as the audit trail back to the source. |
 | `holdings[].ticker` | string \| **null** | NSE symbol, or `null` — see below. |
 | `holdings[].sector` | string | From the statement; `Unclassified` where it gave none. |
 | `holdings[].listed` | boolean | Whether the company is listed at all, which is a different fact from whether we resolved it. |
@@ -498,9 +509,65 @@ the tabs surface them as **held but not covered**:
 · 96 of 142 reported"*. A count with no denominator is the thing to avoid: 96 rows looks complete
 until you know the book is 142.
 
+### The sync — `scripts/sync-family-book.mjs` and `scripts/fixtures/family-book.json`
+
+```bash
+node scripts/sync-family-book.mjs                 # read the family repo, write the fixture, re-resolve
+FAMILY_BOOK_PATH=../sattva-family/src/data/sattvaData.ts node scripts/sync-family-book.mjs   # a local clone
+node scripts/sync-family-book.mjs --no-resolve    # the fixture only
+```
+
+The family repository is private, so a fetch needs `FAMILY_REPO_TOKEN` — a fine-grained token on
+`techmuns/Sattva-Family` alone with **Contents: read** — and the script exits non-zero naming that
+secret when it has neither the token nor a local path. It reads `src/data/sattvaData.ts` through the
+GitHub contents API, parses the `SATTVA_POSITIONS` literal (333 positions across the family's
+seventeen entities), keeps **one line per `INE…` ISIN** and writes the fixture:
+
+```jsonc
+{ "source": "techmuns/Sattva-Family · src/data/sattvaData.ts", "asOf": "2026-06-30",
+  "sourceCommit": { "sha": "…", "date": "…" }, "fetchedAt": "…",
+  "positions": 333, "excluded": { "etf": 4, "liquid": 2, "other": 1 }, "count": 142,
+  "lines": [ { "isin": "INE004A01022", "name": "Protean eGov Technologies Ltd", "sector": "Information Technology" } ] }
+```
+
+Three things it refuses to do:
+
+- **Carry a value.** Their file has quantity, cost, market value and P&L on every line; none of it
+  reaches the fixture, and the suite asserts each line is exactly `{ isin, name, sector }`. The book
+  answers *is this company one of ours?* and a stale rupee figure beside a live price is the kind of
+  number this dashboard does not show.
+- **Treat fund units as companies.** `INF…` ISINs — the gold, silver and liquid ETFs — are counted
+  under `excluded` and not carried, because no research feed here is keyed by them. The ISIN prefix
+  decides, not their `assetClass`: the Liquid BeES line is filed as "Equity".
+- **Overwrite a good fixture with a bad read.** A regex that stopped matching their file would parse
+  to nothing, and an empty book would make "Portfolio" mean nothing on every tab at once. The shape
+  is asserted, and a result below 80% of the committed line count is refused.
+
+It is byte-stable when nothing moved — `fetchedAt` alone never makes a commit — and prints which
+ISINs were added and removed since the committed fixture.
+
+**Refresh cadence** — `.github/workflows/family-book-sync.yml`: 06:00 IST weekdays, by hand, and on
+`repository_dispatch` with event type `family-book-updated`, which is what lets the family repository
+poke this one the moment its book changes. GitHub's cron is best-effort; the dispatch is the path
+that keeps the two genuinely in sync. From the family repository's own workflow, one step:
+
+```yaml
+- run: |
+    curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+      https://api.github.com/repos/techmuns/Sattva-Central-Research/dispatches \
+      -d '{"event_type":"family-book-updated"}'
+  env: { TOKEN: "${{ secrets.RESEARCH_REPO_TOKEN }}" }   # a token on THIS repo with Contents: write
+```
+
 ### Resolution — `scripts/resolve-portfolio-companies.mjs`
 
-Run it to rebuild the file; `--net` lets it reach Yahoo's symbol search for the leftovers.
+Run it to rebuild the file from the fixture; `--net` lets it reach Yahoo's symbol search for the
+leftovers. **Every hand-checked table in it is keyed by ISIN, never by name** — the custodian's names
+are cut at twenty characters and spelt differently across entities, and a table keyed on one spelling
+would silently detach the day their file carried another. `DISPLAY_NAMES` is the one table that
+carries a name: the reader-facing wording for each known ISIN. A new ISIN that is not in it yet is
+shown under the name the feed it resolved on prints, or the custodian's wording title-cased, and the
+run reports it under *NEW LINES* so someone can add the entry — never dropped, never guessed.
 
 It matches against the feeds already in the repo (StockScans' con-call index, the Moneycontrol
 ticker map, the screener export) before going out to the network, exact match first, then a
@@ -508,15 +575,18 @@ ticker map, the screener export) before going out to the network, exact match fi
 Petrochemicals and Refinery"* has to reach *"MANGALORE REFINERY & PETRO…"* somehow. Ten symbols that
 prefix-matching would have got wrong or missed are pinned in a `CONFIRMED` table, each checked
 against Yahoo by hand, and the not-listed lines are pinned in `NOT_LISTED_EQUITY` so a future run
-cannot quietly "resolve" a private company to a same-named listed one.
+cannot quietly "resolve" a private company to a same-named listed one. Eight more that Yahoo's search
+placed on an earlier `--net` run are pinned there too, so the scheduled sync resolves the whole book
+from the files on disk and never depends on somebody else's search box being reachable.
 
 **A collision guard fails the run rather than shipping a silent merge.** Two book lines that resolve
 to one symbol means one of them is wrong, and the pair that proved it is *Allcargo Global* and
 *Allcargo Logistics* — genuinely two companies, `AGL` and `ALLCARGO`. Without the guard one would
 have inherited the other's rows and the reader would have seen a holding they do not own.
 
-**Refresh cadence** — when the statement changes; re-run the resolver and commit the diff.
-**Real source** — the family office's direct-equity statement.
+**Refresh cadence** — whenever the family repository's book changes, through the sync above; the
+resolver is re-run by the same job.
+**Real source** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`, generated there from the custody workbooks.
 **Consumed by** — `js/data/coverage.js`, and through it every tab's `forScope()` and the header search.
 
 ---
