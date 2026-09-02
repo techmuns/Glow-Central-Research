@@ -1827,12 +1827,13 @@ console.log('\n— AI alerts —');
   // THE TABLE FILLS THE PAGE. The head above it is one line of chips now, so a scroll container
   // still sized for a description, four stat cards and a legend left a band of dead page beneath
   // it. Measured against the viewport rather than against a magic number.
-  const fill = await evalSafe(() => {
+  const measureStreamFill = () => evalSafe(() => {
     const el = document.querySelector('[data-table-scroll]');
     if (!el) return null;
     const r = el.getBoundingClientRect();
     return { bottom: Math.round(r.bottom), vh: window.innerHeight, height: Math.round(r.height) };
   });
+  const fill = await measureStreamFill();
   // Both directions: dead page below is what was reported, and a table hanging past the fold makes
   // the page scroll as well as the table, which is worse than the gap it was meant to close. The
   // height is MEASURED at runtime rather than written into a `calc()`, because the head above it
@@ -1870,6 +1871,17 @@ console.log('\n— AI alerts —');
   }
   await go('/#/research/daily-alerts?scope=portfolio', 4500);
   await settleTables();
+
+  // The dashboard is commonly opened inside a host panel whose CSS viewport is shorter than a
+  // full browser window (the reported screenshot was this case). `vh` must keep the table fitted
+  // there too; a desktop-only measurement can pass while the embedded view keeps the original gap.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(150);
+  const embeddedFill = await measureStreamFill();
+  ok('...and still fills a shorter embedded dashboard panel',
+    embeddedFill && embeddedFill.vh - embeddedFill.bottom >= 0 && embeddedFill.vh - embeddedFill.bottom <= 48,
+    embeddedFill ? `table ends ${embeddedFill.vh - embeddedFill.bottom}px above the fold, ${embeddedFill.height}px tall` : 'no scroll container');
+  await page.setViewportSize({ width: 1440, height: 1100 });
 
   // THE NEWS TIME, ASSERTED AT THE RULE. General Alerts read it off `raw.page_age`, and `raw` is
   // stripped before the snapshot is written — so it was present on a live walk and absent on every
