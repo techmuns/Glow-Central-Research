@@ -14,6 +14,7 @@ const MAX_QUESTION_CHARS = 1_500;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_CHARS = 24_000;
 const MAX_UPSTREAM_ERROR_BYTES = 8_000;
+const MAX_PAUSE_CONTINUATIONS = 2;
 const REQUEST_TIMEOUT_MS = 45_000;
 
 const JSON_HEADERS = {
@@ -247,7 +248,7 @@ function describeUpstreamFailure(status, detail) {
   return parsed ? String(parsed).slice(0, 240) : `The research provider returned HTTP ${status}.`;
 }
 
-async function streamAnthropic(request, env, input) {
+async function streamAnthropic(request, env, body) {
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = AbortSignal.any([request.signal, timeoutSignal]);
   return fetch(ANTHROPIC_MESSAGES_URL, {
@@ -258,7 +259,7 @@ async function streamAnthropic(request, env, input) {
       'content-type': 'application/json',
       'x-api-key': env.ANTHROPIC_API_KEY,
     },
-    body: JSON.stringify(buildAnthropicRequest(input, env)),
+    body: JSON.stringify(body),
     signal,
   });
 }
@@ -271,109 +272,179 @@ function mergeSources(primary, secondary) {
   return [...byUrl.values()].slice(0, 12);
 }
 
+function cloneProviderBlock(block) {
+  return JSON.parse(JSON.stringify(block));
+}
+
+async function consumeAnthropicStream(stream, controller) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const content = [];
+  const inputFragments = new Map();
+  const citedSources = [];
+  const resultSources = [];
+  let buffer = '';
+  let completed = false;
+  let wroteText = false;
+  let stopReason = null;
+  let webSearchFailed = null;
+  let providerStreamFailure = null;
+
+  const rememberSources = (event, target) => {
+    for (const source of extractWebSources(event)) {
+      if (!target.some((item) => item.url === source.url)) target.push(source);
+    }
+  };
+
+  const consumeProviderEvent = (event) => {
+    if (event.type === 'content_block_start') {
+      const block = event.content_block;
+      if (Number.isInteger(event.index) && block && typeof block === 'object') {
+        content[event.index] = cloneProviderBlock(block);
+      }
+      if (block?.type === 'server_tool_use' && block.name === 'web_search') {
+        ndjson(controller, { type: 'phase', phase: 'Searching the web for current context' });
+      } else if (block?.type === 'web_search_tool_result') {
+        ndjson(controller, { type: 'phase', phase: 'Reconciling web sources with dashboard data' });
+        rememberSources(block, resultSources);
+        if (block.content?.type === 'web_search_tool_result_error') {
+          webSearchFailed = block.content.error_code || 'unavailable';
+        }
+      } else if (block?.type === 'text') {
+        rememberSources(block, citedSources);
+        if (typeof block.text === 'string' && block.text) {
+          wroteText = true;
+          ndjson(controller, { type: 'text', text: block.text });
+        }
+      }
+    } else if (event.type === 'content_block_delta') {
+      const block = content[event.index];
+      if (event.delta?.type === 'text_delta' && typeof event.delta.text === 'string') {
+        if (block?.type === 'text') block.text = `${block.text || ''}${event.delta.text}`;
+        wroteText = true;
+        ndjson(controller, { type: 'text', text: event.delta.text });
+      } else if (event.delta?.type === 'citations_delta' && event.delta.citation) {
+        if (block?.type === 'text') {
+          if (!Array.isArray(block.citations)) block.citations = [];
+          block.citations.push(cloneProviderBlock(event.delta.citation));
+        }
+        rememberSources(event.delta.citation, citedSources);
+      } else if (event.delta?.type === 'input_json_delta' && typeof event.delta.partial_json === 'string') {
+        inputFragments.set(event.index, `${inputFragments.get(event.index) || ''}${event.delta.partial_json}`);
+      } else if (event.delta?.type === 'thinking_delta' && block?.type === 'thinking') {
+        block.thinking = `${block.thinking || ''}${event.delta.thinking || ''}`;
+      } else if (event.delta?.type === 'signature_delta' && block?.type === 'thinking') {
+        block.signature = `${block.signature || ''}${event.delta.signature || ''}`;
+      }
+    } else if (event.type === 'content_block_stop') {
+      const partialJson = inputFragments.get(event.index);
+      if (partialJson !== undefined) {
+        try {
+          if (content[event.index]) content[event.index].input = JSON.parse(partialJson || '{}');
+        } catch {
+          providerStreamFailure = 'Claude returned an invalid streamed tool request.';
+        }
+      }
+    } else if (event.type === 'message_delta') {
+      stopReason = event.delta?.stop_reason || stopReason;
+    } else if (event.type === 'message_stop') {
+      completed = true;
+    } else if (event.type === 'error') {
+      providerStreamFailure = String(event.error?.message || 'The research provider could not complete the answer.').slice(0, 260);
+    }
+  };
+
+  const consumeRaw = (raw) => {
+    try {
+      consumeProviderEvent(JSON.parse(raw));
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = takeSseEvents(buffer);
+    buffer = parsed.rest;
+    for (const raw of parsed.events) consumeRaw(raw);
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    const parsed = takeSseEvents(`${buffer}\n\n`);
+    for (const raw of parsed.events) consumeRaw(raw);
+  }
+
+  return {
+    citedSources,
+    completed,
+    content: content.filter(Boolean),
+    providerStreamFailure,
+    resultSources,
+    stopReason,
+    webSearchFailed,
+    wroteText,
+  };
+}
+
 function researchStream(request, env, input) {
   return new ReadableStream({
     async start(controller) {
       ndjson(controller, { type: 'start' });
       ndjson(controller, { type: 'phase', phase: input.webResearch ? 'Combining dashboard evidence with the web' : 'Writing from dashboard evidence' });
 
-      let upstream;
       try {
-        upstream = await streamAnthropic(request, env, input);
-        if (!upstream.ok) {
-          const detail = await readBoundedText(upstream.body, MAX_UPSTREAM_ERROR_BYTES);
-          ndjson(controller, { type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
-          return;
-        }
-        if (!upstream.body) {
-          ndjson(controller, { type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
-          return;
-        }
-
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let completed = false;
+        let providerBody = buildAnthropicRequest(input, env);
         let wroteText = false;
+        let completed = false;
         let stopReason = null;
-        let webSearchFailed = null;
-        let providerStreamFailure = null;
-        const citedSources = [];
-        const resultSources = [];
+        let citedSources = [];
+        let resultSources = [];
 
-        const rememberSources = (event, target) => {
-          for (const source of extractWebSources(event)) {
-            if (!target.some((item) => item.url === source.url)) target.push(source);
+        for (let continuation = 0; continuation <= MAX_PAUSE_CONTINUATIONS; continuation += 1) {
+          const upstream = await streamAnthropic(request, env, providerBody);
+          if (!upstream.ok) {
+            const detail = await readBoundedText(upstream.body, MAX_UPSTREAM_ERROR_BYTES);
+            ndjson(controller, { type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
+            return;
           }
-        };
+          if (!upstream.body) {
+            ndjson(controller, { type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
+            return;
+          }
 
-        const consumeProviderEvent = (event) => {
-          if (event.type === 'content_block_start') {
-            const block = event.content_block;
-            if (block?.type === 'server_tool_use' && block.name === 'web_search') {
-              ndjson(controller, { type: 'phase', phase: 'Searching the web for current context' });
-            } else if (block?.type === 'web_search_tool_result') {
-              ndjson(controller, { type: 'phase', phase: 'Reconciling web sources with dashboard data' });
-              rememberSources(block, resultSources);
-              if (block.content?.type === 'web_search_tool_result_error') {
-                webSearchFailed = block.content.error_code || 'unavailable';
-              }
-            } else if (block?.type === 'text' && typeof block.text === 'string' && block.text) {
-              rememberSources(block, citedSources);
-              wroteText = true;
-              ndjson(controller, { type: 'text', text: block.text });
-            }
-          } else if (event.type === 'content_block_delta') {
-            if (event.delta?.type === 'text_delta' && typeof event.delta.text === 'string') {
-              wroteText = true;
-              ndjson(controller, { type: 'text', text: event.delta.text });
-            } else if (event.delta?.type === 'citations_delta') {
-              rememberSources(event.delta.citation, citedSources);
-            }
-          } else if (event.type === 'message_delta') {
-            stopReason = event.delta?.stop_reason || stopReason;
-          } else if (event.type === 'message_stop') {
-            completed = true;
-          } else if (event.type === 'error') {
-            providerStreamFailure = String(event.error?.message || 'The research provider could not complete the answer.').slice(0, 260);
-          }
-        };
+          const segment = await consumeAnthropicStream(upstream.body, controller);
+          citedSources = mergeSources(citedSources, segment.citedSources);
+          resultSources = mergeSources(resultSources, segment.resultSources);
+          wroteText ||= segment.wroteText;
+          completed = segment.completed;
+          stopReason = segment.stopReason;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const parsed = takeSseEvents(buffer);
-          buffer = parsed.rest;
-          for (const raw of parsed.events) {
-            let event;
-            try {
-              event = JSON.parse(raw);
-            } catch {
-              continue;
-            }
-            consumeProviderEvent(event);
+          if (segment.providerStreamFailure) {
+            ndjson(controller, { type: 'error', reason: 'provider', message: segment.providerStreamFailure });
+            return;
           }
+          if (segment.webSearchFailed) {
+            ndjson(controller, { type: 'error', reason: 'web_search_failed', message: 'Claude could not complete the requested web research. Please try again.' });
+            return;
+          }
+          if (stopReason !== 'pause_turn') break;
+          if (!completed || !segment.content.length || continuation === MAX_PAUSE_CONTINUATIONS) {
+            ndjson(controller, { type: 'error', reason: 'continuation_limit', message: 'Claude paused the web research repeatedly. Please try a narrower question.' });
+            return;
+          }
+
+          ndjson(controller, { type: 'phase', phase: 'Continuing Claude web research' });
+          const { tool_choice: _toolChoice, ...continuationBody } = providerBody;
+          providerBody = {
+            ...continuationBody,
+            messages: [...providerBody.messages, { role: 'assistant', content: segment.content }],
+          };
         }
 
-        buffer += decoder.decode();
-        if (buffer.trim()) {
-          const parsed = takeSseEvents(`${buffer}\n\n`);
-          for (const raw of parsed.events) {
-            try {
-              consumeProviderEvent(JSON.parse(raw));
-            } catch (error) {
-              if (error instanceof SyntaxError) continue;
-              throw error;
-            }
-          }
-        }
-
-        if (providerStreamFailure) {
-          ndjson(controller, { type: 'error', reason: 'provider', message: providerStreamFailure });
-        } else if (webSearchFailed) {
-          ndjson(controller, { type: 'error', reason: 'web_search_failed', message: 'Claude could not complete the requested web research. Please try again.' });
-        } else if (!completed || !wroteText || !['end_turn', 'stop_sequence'].includes(stopReason)) {
+        if (!completed || !wroteText || !['end_turn', 'stop_sequence'].includes(stopReason)) {
           ndjson(controller, { type: 'error', reason: 'incomplete_stream', message: 'The answer stream ended before a complete response arrived.' });
         } else {
           const sources = mergeSources(citedSources, resultSources);

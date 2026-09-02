@@ -191,6 +191,90 @@ try {
   globalThis.fetch = originalFetch;
 }
 
+try {
+  let providerCalls = 0;
+  globalThis.fetch = async (_url, init) => {
+    providerCalls += 1;
+    const requested = JSON.parse(init.body);
+    if (providerCalls === 1) {
+      const sse = [
+        'event: message_start',
+        'data: {"type":"message_start","message":{"id":"msg_pause","type":"message","role":"assistant","content":[]}}',
+        '',
+        'event: content_block_start',
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_pause","name":"web_search","input":{}}}',
+        '',
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"query\\":\\"latest results\\"}"}}',
+        '',
+        'event: content_block_stop',
+        'data: {"type":"content_block_stop","index":0}',
+        '',
+        'event: message_delta',
+        'data: {"type":"message_delta","delta":{"stop_reason":"pause_turn","stop_sequence":null}}',
+        '',
+        'event: message_stop',
+        'data: {"type":"message_stop"}',
+        '',
+      ].join('\n');
+      return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    }
+
+    assert.equal('tool_choice' in requested, false);
+    assert.equal(requested.tools[0].name, 'web_search');
+    assert.equal(requested.messages.at(-1).role, 'assistant');
+    assert.equal(requested.messages.at(-1).content[0].id, 'srvtoolu_pause');
+    assert.deepEqual(requested.messages.at(-1).content[0].input, { query: 'latest results' });
+    const sse = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"id":"msg_resume","type":"message","role":"assistant","content":[]}}',
+      '',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"web_search_tool_result","tool_use_id":"srvtoolu_pause","content":[{"type":"web_search_result","url":"https://example.com/resumed","title":"Resumed source","encrypted_content":"opaque"}]}}',
+      '',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Continued answer"}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
+    ].join('\n');
+    return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  };
+
+  const body = JSON.stringify({
+    question: 'Continue if research pauses',
+    scope: 'portfolio',
+    webResearch: true,
+    history: [],
+    evidence: { catalog: [], sources: [] },
+  });
+  const response = await handleResearch(
+    new Request('https://dashboard.example/api/research', {
+      method: 'POST',
+      headers: { origin: 'https://dashboard.example', 'content-type': 'application/json' },
+      body,
+    }),
+    { ANTHROPIC_API_KEY: 'sk-ant-test-research-key', ANTHROPIC_MODEL: 'claude-test' }
+  );
+  const events = (await response.text()).trim().split('\n').map((line) => JSON.parse(line));
+
+  ok('a paused server-side search resumes with Claude content and finishes normally', () => {
+    assert.equal(providerCalls, 2);
+    assert.equal(events.some((event) => event.type === 'phase' && /Continuing Claude/.test(event.phase)), true);
+    assert.equal(events.some((event) => event.type === 'text' && event.text === 'Continued answer'), true);
+    assert.equal(events.at(-1).type, 'done');
+  });
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
 const notConfigured = await handleResearch(new Request('https://dashboard.example/api/research'), {});
 const configBody = await notConfigured.json();
 ok('the configuration route fails closed without exposing provider details', () => {
