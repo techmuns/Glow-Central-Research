@@ -297,7 +297,8 @@ measures about 55K characters for the default Portfolio question.
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
 a Muns session token server-side, rejects cross-origin and oversized requests, rate-limits the paid
 upstream, and streams normalized NDJSON back to the browser. It calls `fastapi.muns.io/query-router`
-with `llm_type: hosted_llm` and `stream: true`; the upstream contract has no web-search mode, so the
+with `llm_type: local_llm` and `stream: true` for low first-token latency; the upstream contract has
+no web-search mode, so the
 UI makes no such claim. Model text is rendered through a small DOM-based Markdown subset and never
 reaches `innerHTML`.
 

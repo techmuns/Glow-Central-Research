@@ -95,9 +95,9 @@ ok('history budgeting retains the newest messages and restores chronological ord
   assert.deepEqual(boundedHistory.map((message) => message.text.slice(0, 3)), ['m06', 'm07', 'm08', 'm09', 'm10', 'm11']);
 });
 
-ok('the Muns request preserves evidence and selects hosted streaming by default', () => {
+ok('the Muns request preserves evidence and selects low-latency local streaming by default', () => {
   const request = buildMunsRequest(valid);
-  assert.equal(request.llm_type, 'hosted_llm');
+  assert.equal(request.llm_type, 'local_llm');
   assert.equal(request.stream, true);
   assert.equal(request.temperature, 0.2);
   assert.equal(request.max_tokens, 1_800);
@@ -105,7 +105,7 @@ ok('the Muns request preserves evidence and selects hosted streaming by default'
   assert.match(request.query, /USER: Earlier question/);
   assert.match(request.query, /QUESTION:\nWhat changed\?/);
   assert.match(request.query, /DASHBOARD_EVIDENCE:/);
-  assert.equal(buildMunsRequest(valid, { MUNS_LLM_TYPE: 'local_llm' }).llm_type, 'local_llm');
+  assert.equal(buildMunsRequest(valid, { MUNS_LLM_TYPE: 'hosted_llm' }).llm_type, 'hosted_llm');
 });
 
 ok('NDJSON framing waits for complete network chunks', () => {
@@ -134,7 +134,7 @@ try {
     assert.equal(init.headers.authorization, 'Bearer llm-token-wins-over-the-fallback');
     assert.equal(init.headers.accept, 'application/x-ndjson');
     const requested = JSON.parse(init.body);
-    assert.equal(requested.llm_type, 'hosted_llm');
+    assert.equal(requested.llm_type, 'local_llm');
     assert.equal(requested.stream, true);
     assert.match(requested.query, /QUESTION:\nWhat changed\?/);
     return new Response('{"text":"Earnings"}\n{"text":" improved. [Dashboard: Earnings Hub]"}\n', {

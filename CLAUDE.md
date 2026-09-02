@@ -1774,7 +1774,7 @@ may not disappear.
 `worker/research.mjs` is the provider boundary. A Muns session token is a Worker secret and must
 never enter `public/`, browser storage, a request payload or a committed config file. The route is
 same-origin, request-bounded and rate-limited. It calls `fastapi.muns.io/query-router` with
-`llm_type: hosted_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
+`llm_type: local_llm` and `stream: true`, then forwards every upstream NDJSON text chunk to the
 browser immediately. That provider contract has no web-search option, so the UI must not offer or
 claim one.
 

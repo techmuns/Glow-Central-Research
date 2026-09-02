@@ -6,7 +6,7 @@
 
 const MUNS_LLM_BASE = 'https://fastapi.muns.io';
 const MUNS_LLM_PATH = '/query-router';
-const DEFAULT_LLM_TYPE = 'hosted_llm';
+const DEFAULT_LLM_TYPE = 'local_llm';
 const DEFAULT_TEMPERATURE = 0.2;
 const DEFAULT_MAX_TOKENS = 1_800;
 const MAX_BODY_BYTES = 180_000;
@@ -174,7 +174,7 @@ export function buildMunsRequest(input, env = {}) {
   ].join('\n\n');
   return {
     query,
-    llm_type: env.MUNS_LLM_TYPE === 'local_llm' ? 'local_llm' : DEFAULT_LLM_TYPE,
+    llm_type: env.MUNS_LLM_TYPE === 'hosted_llm' ? 'hosted_llm' : DEFAULT_LLM_TYPE,
     stream: true,
     temperature: DEFAULT_TEMPERATURE,
     max_tokens: DEFAULT_MAX_TOKENS,

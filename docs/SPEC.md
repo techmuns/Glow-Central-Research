@@ -309,7 +309,9 @@ the hidden Portfolio Analytics workspace. Every registered source contributes it
 as-of metadata and provenance; question-matched rows are included within the Worker request bound,
 so one slow or unavailable feed is reported rather than silently omitted.
 
-The Worker sends the packet to Muns' `/query-router` with `llm_type: hosted_llm` and `stream: true`.
+The Worker sends the packet to Muns' `/query-router` with `llm_type: local_llm` and `stream: true`
+for the shortest first-token delay. Operators can explicitly select `hosted_llm` with
+`MUNS_LLM_TYPE` when answer quality matters more than latency.
 It forwards each upstream NDJSON text chunk immediately, while the answer cites material dashboard
 claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
 route is same-origin, size-bounded and rate-limited. Conversation history stays in device

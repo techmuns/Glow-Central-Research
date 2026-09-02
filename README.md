@@ -84,7 +84,8 @@ Ask Research is intentionally disabled until a server-side Muns session token is
 development, put the token in the gitignored `.dev.vars`; for production, configure the dedicated
 secret with `npx wrangler secret put MUNS_LLM_TOKEN`. Do not put it in `public/` or browser storage.
 Conversation history is stored locally, while each submitted question and its bounded dashboard
-evidence packet are streamed through `https://fastapi.muns.io/query-router` using `hosted_llm`.
+evidence packet are streamed through `https://fastapi.muns.io/query-router` using the low-latency
+`local_llm` route. `MUNS_LLM_TYPE=hosted_llm` remains available as an explicit operator override.
 
 The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
 committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):

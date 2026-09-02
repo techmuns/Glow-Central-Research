@@ -29,7 +29,7 @@
     // a Worker secret: prefer `MUNS_LLM_TOKEN`, with existing Muns tokens and the former
     // `ANTHROPIC_API_KEY` binding retained as rollout fallbacks.
     "MUNS_LLM_BASE": "https://fastapi.muns.io",
-    "MUNS_LLM_TYPE": "hosted_llm"
+    "MUNS_LLM_TYPE": "local_llm"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated
