@@ -97,13 +97,11 @@ breaks**: the button says the deployment has no token and names that command, an
 scheduled files remain readable. Automatic recovery and the Fetch button require the token because
 both dispatch a fixed GitHub workflow. Full contract in `docs/DATA-CONTRACTS.md`.
 
-**Known upstream fault, live now.** Moneycontrol's results-calendar count endpoint
-(`indexId=N`) started answering `0` for every date on 14 Aug 2026 — a 200 with `success: 1` and
-zeros throughout, not an error. The Worker now falls back to the committed capture's counts and
-labels them, so the strip reads 171 / 225 / 258 / 235 rather than a row of em dashes. `indexId=B`
-(BSE) is unaffected and is deliberately **not** substituted: it is a different universe. If the NSE
-index recovers, the fallback stops firing on its own — nothing needs undoing. See *When the count
-endpoint goes flat* in `docs/DATA-CONTRACTS.md`.
+**Calendar zero-feed guard.** Moneycontrol's results-calendar count endpoint has answered a valid
+all-zero window while the HTML calendar and recent capture named companies. The Worker substitutes
+captured counts only when an overlapping capture contradicts the flat feed, labels that origin,
+and never changes exchange populations. See *When the count endpoint goes flat* in
+`docs/DATA-CONTRACTS.md`.
 
 **Institutions — three funds, and TWO DIFFERENT DISCLOSURES behind a fund picker.** This is the one
 view where the same-looking number means two different things, so read the header of
@@ -186,6 +184,8 @@ stops qualifying the content and starts warning about it.
 python3 -m http.server 8080 -d public
 
 # verify (Chromium is preinstalled — never run `playwright install`)
+node scripts/verify-calendar.mjs                # Moneycontrol calendar parser + pagination contract
+node scripts/verify-research.mjs                # Ask Research evidence + Worker contract
 node scripts/verify-ui.mjs                      # ~180 checks, exits non-zero on the first failure
 
 # refresh the live feeds
@@ -753,39 +753,21 @@ Analytics' four); scope picks *whose data* the open tab shows. Removing either s
 Both carry a tooltip saying so, and the scope toggle now has a "Scope" kicker to match the
 dropdown's "Workspace" one.
 
-**The calendar's company list is usually a CAPTURE, and the pill says so.** `api.moneycontrol.com`
-is open; `www.moneycontrol.com` is behind Akamai and answers a Cloudflare Worker with a 200 whose
-body has no app payload, while answering a laptop or a GitHub runner normally. The list only exists
-inside that page. So `scripts/scrape-calendar.mjs` captures it where it works, the Worker prefers a
-live read and falls back to the capture, and the tab shows a sky **Captured** pill with the age
-instead of a green Live one. The per-date counts stay live in both cases — that is the safeguard:
-a schedule that has moved since the capture makes the count and the list disagree on screen.
+**The calendar's company list can be a CAPTURE, and the pill says so.** `api.moneycontrol.com` is
+open; the widget and pagination routes on `www.moneycontrol.com` sit behind Akamai and can answer a
+Cloudflare Worker differently from a laptop or GitHub runner. `scripts/scrape-calendar.mjs` follows
+every page where it works, the Worker prefers a live read and falls back to that dated capture, and
+the tab shows **Captured** rather than **Live** when it does.
 
-**The Calendar view is deliberately allowed to be incomplete, and to say so.** Moneycontrol
-publishes the per-date COUNT through a clean JSON API (complete) and the company LIST through the
-calendar page (the 20 largest by market cap, un-pageable — the route its own "load more" uses is
-Akamai-blocked to non-browser clients). Both numbers travel in the payload and both are printed:
-"170 companies report on this date… 20 are named here". Full rules in `docs/DATA-CONTRACTS.md`.
+**The Calendar is now complete and all-exchange.** Counts and rows both use `indexId=All`; the
+first 20 rows come from `/earnings-widget` and every remaining page from
+`/pagination/earnings-pagination`. On 13 Aug 2026 that means all 585 names across 30 pages, not the
+first 20. `complete`, `pagesFetched` and independent count/list provenance travel in the payload.
 
-**But only for a date still to come.** All of the above is about a *schedule*, and it was being used
-to answer questions about the past as well — so walking back through the strip showed twenty names
-on the handful of dates the capture reached and an amber "counts only for this date" note on every
-other, while the results feed in the very same tab held every filing on those dates with its figures
-attached. A date that has already happened is now read from `feed.reportedOn()`: every company that
-filed, no cap, no capture age, and no request at all. `modeFor()` picks by the date, bounded by
-`feed.dateRange()` so a date *before* the feed's window falls back to the schedule rather than
-rendering an empty table that would read as "nobody filed".
-
-The two are never mixed and never subtracted. Companies file a day either side of their announced
-date, so "234 due, 210 filed" is not "24 missing", and the pill, the note, the modal and the export
-banner each say which of the two questions the rows under them answer.
-
-**A count SMALLER than the rows beneath it is not always a fault.** The strip is `indexId=N` (NSE);
-the list is `indexId=All`. On 17 Aug 2026 the count read 1 above three named companies — one NSE and
-two BSE-only — and every number was right. The UI declines to print a total it cannot stand behind
-(`believableCount()`), prints "schedule" instead, and explains the two exchanges in the modal. Do not
-"fix" this by aligning the two `indexId` values: that restates every count in the strip as a
-different universe under the same label, which is the move we already refuse for `indexId=B`.
+**Calendar means schedule on every date.** It no longer turns today or a past date into the filed-
+results feed. On 2 Sep 2026 the linked calendar listed Technocraft Ventures and BSE-only Vivanta
+Industries while only Technocraft had filed; the old switch made the Calendar display one where its
+source displayed two. **Earnings Reported** remains the separate filed-results view.
 
 **The date strip is anchored on today, and restores its own scroll.** It used to request a window
 around the *selected* date, so each click merged in new chips and slid the rest along; then the panel
@@ -1198,6 +1180,8 @@ the single place a gap is written down. The ones that matter most:
 
 ```bash
 python3 -m http.server 8080 -d public
+node scripts/verify-calendar.mjs
+node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 ```
 

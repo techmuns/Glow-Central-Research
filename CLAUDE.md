@@ -2238,36 +2238,24 @@ scID → ticker (1,319/1,319), ticker → market cap and industry, and (ticker, 
 result-day close (1,312/1,319). Every miss renders as an em dash and the coverage note under the
 table counts them. **A dash means "not joined"; it never means zero.**
 
-### The calendar answers two questions, and picks by the date
+### The calendar has one meaning: scheduled results
 
-The Earnings Hub's Calendar half asks **who is due** — and for a date that has already happened
-that is the weaker question, badly answered: Moneycontrol cap their schedule page at the twenty
-largest, and the committed capture only reaches a few weeks. So a past date used to show twenty
-names on a good day and an amber *"counts only for this date"* note on every date outside the
-capture's window, while the results feed two modules away held every filing on that date with its
-figures attached.
+The Earnings Hub keeps the two questions in separate views:
 
-So the source is chosen from the date, in `modeFor()`:
+| View | Source | Meaning |
+| --- | --- | --- |
+| **Earnings Calendar** | `/api/earnings-calendar` | who was scheduled on the selected date, past or future |
+| **Earnings Reported** | `/api/earnings` | who has filed this quarter and what they reported |
 
-| The date is | Source | Complete? | Requests |
-| --- | --- | --- | --- |
-| today or earlier, inside `feed.dateRange()` | `feed.reportedOn(date)` — who **filed** | yes, no cap | none — it is in memory |
-| later, or before the feed's first date | `/api/earnings-calendar` — who is **scheduled** | no — the top 20 | one, and `list=none` is not it |
+Do not select between them by date. On 2 Sep 2026 Moneycontrol's calendar listed Technocraft
+Ventures and BSE-only Vivanta Industries, while the filings feed had only Technocraft. Switching a
+today/past Calendar date to filings made a source-labelled screen display one row where the linked
+source displayed two.
 
-Four rules hold it together:
-
-1. **Never both in one table, and never differenced.** A filing is a measurement; a schedule is a
-   claim about the future. Companies file a day either side of their announced date, so *"234 due,
-   210 filed"* is not *"24 missing"* — the two are printed side by side and nothing subtracts them.
-2. **Every surface says which question it answered**: the pill (*Reported · 210 filed* vs
-   *Scheduled* / *Captured*), the note above the table, the provenance modal, and row 1 of the
-   export. The export most of all — a workbook leaves the page without any of the chrome.
-3. **A date before the feed's first date is not "nobody filed".** That is why `modeFor` checks the
-   range and falls through to the schedule rather than rendering an empty *Reported* table. Same
-   rule as everywhere: a missing value is not a measured zero.
-4. **A reported date makes no request for a company list.** It asks `list=none`, which is a
-   different representation with its own cache key and `listRequested: false` — see
-   `docs/DATA-CONTRACTS.md`. And when the strip already covers the date it asks for nothing at all.
+The calendar count and rows both use `indexId=All`. The first page comes from `/earnings-widget`
+and the Worker follows every `/pagination/earnings-pagination` page, so a complete response has
+`scheduledCount === rows.length`. A live-count/captured-list race can still disagree; omit the
+rendered total in that state instead of presenting mixed observations as one fact.
 
 The date strip has its own trap, and it is a UI one. It used to request a window around the
 **selected** date, so every click merged new chips in and slid the existing ones along; then the
@@ -2534,7 +2522,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
 | Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
-| Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — read the top-20 cap **and the Akamai note** in `docs/DATA-CONTRACTS.md` first |
+| Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — preserve All-exchange count/list parity, complete pagination and the Akamai capture fallback in `docs/DATA-CONTRACTS.md` |
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
@@ -2613,7 +2601,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Stop a feed re-downloading itself | `js/core/store.js` (client) + `worker/http.mjs` (ETag/304) — read *Never re-download what the reader already has* first |
 | Make tab switching faster | `scoreTable` streaming in `js/ui/screener.js`, the measurement-free scope toggle in `js/ui/components.js`, and committed `public/css/tailwind.css` — read *Performance on large tables* first and profile before changing them |
 | Change what the shell waits for at boot | `CRITICAL_SOURCES` / `DEFERRED_SOURCES` in `js/app.js` — a deferred file needs a consumer that awaits it |
-| Change what the Earnings Calendar shows for a date | `modeFor()` + `renderCalendar()` in `js/tabs/earnings-hub.js` — read *The calendar answers two questions* first |
+| Change what the Earnings Calendar shows for a date | `renderCalendar()` in `js/tabs/earnings-hub.js` plus `/api/earnings-calendar` — keep the Calendar scheduled and Earnings Reported filed |
 | Change what counts as a content change | `withTag` / `VOLATILE_KEYS` in `worker/http.mjs`, and `structureTagOf` in `worker/index.js` |
 | Add a cached feed to the device store | give it a key in `KEYS` (`js/core/store.js`) and fetch it with `conditionalJson` — unless the upstream sends no ETag, as the Deep Dive reports do, in which case `readEntry` / `writeEntry` directly and say why in a comment |
 | Add a new JSON file | drop it in `public/data/`, add to `DATA_SOURCES` in `js/app.js`, document it in `docs/DATA-CONTRACTS.md` |
@@ -2633,6 +2621,8 @@ Then run the suite — ~410 Playwright assertions, exits non-zero at the end if 
 (Chromium is preinstalled — never run `playwright install`):
 
 ```bash
+node scripts/verify-calendar.mjs
+node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 ```
 
@@ -2763,19 +2753,18 @@ It covers, beyond the checklist below:
   at all — while `origin` remains `snapshot` over bytes nobody confirmed this session and the view
   adds no duplicate cache, scope or loading tags
 - **the Earnings Calendar opens on today**, in IST rather than UTC, with today's chip scrolled into
-  view; a day still in progress reads *"nothing filed yet"* rather than *"no results were filed"*
+  view; the selected date remains a schedule rather than changing meaning according to the clock
 - **switching tabs does not block on building a table**: the initial markup carries a screenful and
   says how many rows are outstanding, every row still arrives, the row count reports the whole
   visible set rather than what has been painted, and no switch blocks the main thread past 400ms
 - **the shell blocks on one bootstrap file**, the book — and a deferred feed still reaches the view
   that needs it rather than that view rendering an empty answer
-- **the Earnings Calendar answers a past date from the filings**: every company that filed, more
-  than the schedule page could name, labelled as filings and not as a schedule, with the reported
-  figures on the row and no arithmetic between "due" and "filed"
+- **the Earnings Calendar remains the all-exchange schedule on past, present and future dates**;
+  Earnings Reported remains the separate filed-results view
 - **the date strip holds still**: the selected chip is in view after a click, and the chip set does
   not reshuffle around it
-- **a count below the companies named under it is never printed as a total** — the NSE count and
-  the all-exchange list are different universes, and the pill says so instead of asserting a number
+- **a complete Calendar payload has one row per scheduled company across every pagination page**;
+  a mixed-time count/list mismatch is never printed as a verified total
 
 > A **SKIP** is the honest answer where the sandbox, not the page, is the reason a check cannot
 > run — no egress to the ExcelJS/font CDNs, no Worker on a static origin. Tailwind is local, so
