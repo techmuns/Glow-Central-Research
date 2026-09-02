@@ -199,20 +199,12 @@ function cardMarkup(card) {
           </div>
         </div>
 
-        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,.6fr)]">
-          <div>
-            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Evidence</div>
-            <div class="mt-2 divide-y divide-slate-100 rounded-xl bg-slate-50/70 ring-1 ring-slate-100">
-              ${events.map(eventMarkup).join('')}
-            </div>
-            ${card.events.length > events.length ? `<p class="mt-2 text-xs text-slate-400">+ ${escapeHtml(formatNumber(card.events.length - events.length))} more recent ${card.events.length - events.length === 1 ? 'event' : 'events'} in General Alerts</p>` : ''}
+        <div class="mt-4">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Evidence</div>
+          <div class="mt-2 divide-y divide-slate-100 rounded-xl bg-slate-50/70 ring-1 ring-slate-100">
+            ${events.map(eventMarkup).join('')}
           </div>
-          <aside>
-            <div data-ai-action class="rounded-xl bg-indigo-50/70 p-3 text-xs leading-relaxed text-indigo-900 ring-1 ring-indigo-100">
-              <span class="font-bold uppercase tracking-wide text-indigo-600">Review next</span>
-              <p class="mt-1">${escapeHtml(card.action)}</p>
-            </div>
-          </aside>
+          ${card.events.length > events.length ? `<p class="mt-2 text-xs text-slate-400">+ ${escapeHtml(formatNumber(card.events.length - events.length))} more recent ${card.events.length - events.length === 1 ? 'event' : 'events'} in General Alerts</p>` : ''}
         </div>
       </div>
       <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3">

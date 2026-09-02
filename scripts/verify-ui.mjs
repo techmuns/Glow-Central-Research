@@ -1204,7 +1204,7 @@ console.log('\n— AI alerts —');
     insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
     why: el.querySelectorAll('[data-ai-why] > div').length,
     scoreShown: !!el.querySelector('[data-ai-score], [title="Transparent priority score"]'),
-    action: !!el.querySelector('[data-ai-action]')?.textContent?.trim(),
+    reviewNext: !!el.querySelector('[data-ai-action]') || /review next/i.test(el.textContent || ''),
     events: el.querySelectorAll('[data-ai-event]').length,
   })));
   ok('AI cards are unique by company and ordered highest score first',
@@ -1217,8 +1217,8 @@ console.log('\n— AI alerts —');
   const aiFeedStatus = (await page.locator('[data-ai-feed-status]').innerText()).trim();
   ok('the compact header still names stale or unread feeds',
     /^(Updated|\d+ feeds? (is|are) stale or unread)$/.test(aiFeedStatus), aiFeedStatus);
-  ok('every surfaced card keeps the insight, evidence and next review action',
-    renderedCards.every((card) => card.insight && card.action && card.events > 0));
+  ok('every surfaced card keeps the insight and evidence without a Review next block',
+    renderedCards.every((card) => card.insight && !card.reviewNext && card.events > 0));
 
   const policy = await evalSafe(async () => {
     const ai = await import('/js/data/ai-alerts.js');

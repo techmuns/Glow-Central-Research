@@ -112,13 +112,6 @@ function insightFor(card) {
   return `${card.topEvent.headline}. It ranks here because of its materiality, recency and portfolio relevance.`;
 }
 
-function actionFor(card) {
-  if (card.mixed) return 'Read the conflicting source items and update the company thesis only after they reconcile.';
-  if (card.directions.negative > 0 && card.highCount > 0) return 'Review the source filing or disclosure and reassess the risk to the thesis.';
-  if (card.directions.positive > 0 && card.highCount > 0) return 'Check whether the new evidence changes the thesis, estimates or valuation.';
-  return 'Keep this company on the review list and verify the primary source.';
-}
-
 /**
  * Pure ranking function. It is exported because the scoring thresholds and noise suppression are
  * product rules; testing only whatever today's capture happens to contain would leave branches
@@ -216,7 +209,6 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
     }
     card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE ? 'important' : 'watch';
     card.insight = insightFor(card);
-    card.action = actionFor(card);
     return card;
   });
 
