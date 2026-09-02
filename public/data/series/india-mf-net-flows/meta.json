@@ -1,0 +1,24 @@
+{
+ "id": "india-mf-net-flows",
+ "label": "Mutual Fund Net Flows",
+ "category": "economy",
+ "group": "Capital markets",
+ "unit": "INR Cr",
+ "kind": "price",
+ "frequency": "monthly",
+ "provenance": "official-file",
+ "source": {
+  "name": "AMFI (Association of Mutual Funds in India)",
+  "symbol": "grand-total/net",
+  "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+  "exchange": null,
+  "upstreamCurrency": "INR"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2019-04-30",
+ "last": "2026-07-31",
+ "count": 88,
+ "retrievedAt": "2026-08-12T03:28:15.827Z",
+ "staleSince": null
+}

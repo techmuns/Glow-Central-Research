@@ -1,0 +1,24 @@
+{
+ "id": "aluminium",
+ "label": "Aluminium",
+ "category": "commodities",
+ "group": "Industrial Metals",
+ "unit": "USD/t",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "ALI=F",
+  "url": "https://finance.yahoo.com/quote/ALI%3DF",
+  "exchange": "COMEX",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2014-05-06",
+ "last": "2026-09-01",
+ "count": 3063,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

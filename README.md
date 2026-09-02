@@ -21,6 +21,8 @@ conversation library on the reader's device. The Worker sends the bounded packet
 LLM router and forwards each NDJSON text chunk immediately, so answers render progressively without
 exposing the session token or waiting for the complete model response.
 
+**Two macro tabs lead the bar.** *Macro Research* (commodities, global indices, currencies, rates and bonds, with a returns table, overlay charts and the US yield curve) and *Economy & Macro* (the indicator grid and the data release calendar) are ported from the GlowVentures cockpit; every figure on them is read from a series store harvested there and copied here daily — nothing is scored or recomputed.
+
 **Glow is a downstream of [Sattva Central Research](https://github.com/techmuns/Sattva-Central-Research).**
 The code is merged from there daily by a GitHub Action, so fixes and features built in Sattva land
 here without porting; Glow keeps its own brand, palette, book and universe, plus two features of its

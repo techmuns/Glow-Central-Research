@@ -1,0 +1,24 @@
+{
+ "id": "sp500",
+ "label": "S&P 500",
+ "category": "indices",
+ "group": "United States",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^GSPC",
+  "url": "https://finance.yahoo.com/quote/%5EGSPC",
+  "exchange": "SNP",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1970-01-02",
+ "last": "2026-09-01",
+ "count": 14288,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

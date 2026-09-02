@@ -39,7 +39,7 @@
 //
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
-import { scoreTable, sectionHead } from '../ui/screener.js';
+import { scoreTable, sectionHead, companySeededView } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { withoutPublisherName } from '../core/source-copy.js';
@@ -79,6 +79,8 @@ let calendarTableView = null;
 // The table is rebuilt whenever a company files. Carrying its view forward means the reader's
 // search, filters, watchlist toggle and sort survive that rebuild instead of resetting under them.
 let tableView = null;
+// The `?company=` a citation or an AI Alerts card arrived with — seeded into the search once.
+let routeCompany = null;
 // Set when a QoQ/YoY switch was asked for and could not be made. Rendered as an amber note rather
 // than swallowed, because the alternative is one comparison shown under the other's label.
 let periodError = null;
@@ -86,6 +88,9 @@ let periodError = null;
 export function render(ctx) {
   const token = ++renderToken;
   ctx.root.innerHTML = loadingHtml();
+  const seeded = companySeededView(ctx, routeCompany, tableView);
+  routeCompany = seeded.company;
+  tableView = seeded.view;
 
   feed
     .load()
@@ -133,6 +138,7 @@ export function destroy() {
   // Leaving the tab is a deliberate exit; coming back should be a clean table, not last visit's
   // half-applied filter. Only a live repaint carries the view forward.
   tableView = null;
+  routeCompany = null;
   periodError = null;
   calendarDate = null;
   stripScrollLeft = null;

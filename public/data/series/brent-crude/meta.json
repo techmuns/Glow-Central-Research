@@ -1,0 +1,24 @@
+{
+ "id": "brent-crude",
+ "label": "Brent Crude",
+ "category": "commodities",
+ "group": "Energy",
+ "unit": "USD/bbl",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "BZ=F",
+  "url": "https://finance.yahoo.com/quote/BZ%3DF",
+  "exchange": "NY Mercantile",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2007-07-30",
+ "last": "2026-09-01",
+ "count": 4752,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

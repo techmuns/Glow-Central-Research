@@ -47,11 +47,15 @@ const exceljsBlocked = () => cdnBlocked(/exceljs/i);
 // Errors that belong to the environment rather than the page. Two families, both of which this
 // suite already reports as SKIPs elsewhere, so counting them again as console errors would make
 // the one unambiguous check in the run unreadable:
-//   • Google Fonts and on-demand ExcelJS, unreachable without egress;
+//   • Google Fonts, on-demand ExcelJS and html-to-image, and the Munshot Dashboard SDK bundle —
+//     all unreachable without egress. The SDK's absence is a SUPPORTED state, not a degraded one:
+//     js/core/sdk.js falls back to its no-op client and the dashboard runs exactly as it does
+//     outside the host, which is the mode this whole suite drives it in. The handshake itself is
+//     asserted against the real bundle by scripts/verify-sdk.mjs, which serves it from disk.
 //   • `/api/*` 404s, which is what a plain `python3 -m http.server` correctly does with a route
 //     only the Worker serves. Against `npx wrangler dev` these exist and are not filtered.
 // Everything else counts, and the number filtered is always printed rather than swallowed.
-const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)/i;
+const ENV_ERROR = /exceljs|cdn\.jsdelivr|fonts\.g(oogleapis|static)|munshot-dashboard-sdk|munshot\.s3\./i;
 // A cross-origin upstream that could not be connected to at all. `net::ERR_*` is a transport
 // failure — no egress — and every such feed is already reported as its own SKIP above. A wrong
 // URL answers 404, not ERR_CONNECTION_RESET, so those still count.
@@ -324,6 +328,8 @@ await go('/#/', 1300);
 const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
+      'tabs/macro-research.js',
+      'tabs/economy-macro.js',
       'tabs/ai-alerts.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
@@ -371,6 +377,84 @@ ok('hash reflects the route', page.url().includes('breakouts/strong-breakouts'))
 await page.goBack();
 await page.waitForTimeout(600);
 ok('browser back navigates', !page.url().includes('strong-breakouts'));
+
+// ---------------------------------------------------------------------------------------
+// 1b. The two macro tabs — GLOW-OWNED. Macro Research reads the committed series store; Economy &
+// Macro adds the release calendar, which needs the Worker and is stubbed here from page.route in
+// exactly the shape worker/econ-calendar.mjs returns. Nothing on either tab is scored or
+// recomputed, so the checks are about reproduction and about a null never becoming a zero.
+// ---------------------------------------------------------------------------------------
+console.log('\n— macro tabs —');
+const CAL_FIXTURE = (() => {
+  const today = new Date();
+  const iso = (d, h) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), h, 30)).toISOString();
+  const dayOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() + 1)).toISOString();
+  return [
+    { id: 'e1', date: iso(today, 10), country: 'IN', title: 'Inflation Rate YoY', indicator: 'CPI', category: 'prce', period: 'Aug', referenceDate: null, importance: 1, actual: 4.45, forecast: 4.5, previous: 4.83, unit: '%', currency: 'INR', source: 'Ministry of Statistics and Programme Implementation (MOSPI)', source_url: 'https://mospi.gov.in/', comment: null },
+    { id: 'e2', date: iso(today, 13), country: 'US', title: 'ISM Manufacturing PMI', indicator: 'PMI', category: 'bsnss', period: 'Aug', referenceDate: null, importance: 1, actual: 54.6, forecast: 55.2, previous: 55.6, unit: null, currency: 'USD', source: 'Institute for Supply Management', source_url: 'https://www.ismworld.org/', comment: null },
+    { id: 'e3', date: dayOnly, country: 'IN', title: 'Total Vehicle Sales', indicator: 'VEH', category: 'cnsm', period: 'Aug', referenceDate: null, importance: 0, actual: null, forecast: null, previous: 371.62, unit: 'K', currency: 'INR', source: 'Society of Indian Automobile Manufacturers', source_url: null, comment: null },
+    { id: 'e4', date: iso(today, 14), country: 'US', title: '4-Week Bill Auction', indicator: 'AUC', category: 'bnd', period: null, referenceDate: null, importance: -1, actual: 4.21, forecast: null, previous: 4.2, unit: '%', currency: 'USD', source: 'U.S. Department of the Treasury', source_url: null, comment: null },
+  ];
+})();
+await page.route('**/api/econ-calendar*', async (route) => {
+  const u = new URL(route.request().url());
+  const shaped = CAL_FIXTURE.map((e) => ({ ...e, sourceUrl: e.source_url, source_url: undefined }));
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, cached: false, stale: false, from: u.searchParams.get('from'), to: u.searchParams.get('to'), countries: (u.searchParams.get('countries') || '').split(',').filter(Boolean), events: shaped, count: shaped.length, truncated: false, truncatedSlices: 0, slices: 1, slicesFailed: 0, source: 'TradingView economic calendar', fetchedAt: new Date().toISOString() }) });
+});
+
+await go('/#/research/macro-research/commodities?scope=portfolio', 2000);
+await waitForPanel();
+await settleTables();
+const macroRows = await rowCount();
+ok('Macro Research renders the commodity series from the committed store', macroRows > 10, `${macroRows} series`);
+const macroText = await hostText();
+ok('...saying scope does not apply rather than pretending to narrow', /scope does not apply/i.test(macroText));
+ok('...with the returns table carrying the CAGR footnote', /CAGR/.test(macroText));
+ok('...and a chart drawn as inline SVG', (await page.locator('#content-host svg[data-chart-svg]').count()) >= 1);
+ok('...never a ribbon, because nothing on it is synthetic', (await page.locator('[data-mock-ribbon]').count()) === 0);
+const macroHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase().replace(/\s*[▾▴]$/, '').replace(/\s+/g, ' ')));
+ok('the horizon columns are the spec\'s, in its order', ['1D', '1W', '1M', '3M', '6M', 'QTD', 'YTD', '1Y', '3Y*', '5Y*', '10Y*', 'MAX*'].every((h) => macroHeads.includes(h)), macroHeads.join(' | '));
+const dashCells = await page.$$eval('#content-host tbody td', (tds) => tds.filter((td) => td.innerText.trim() === '—').length);
+ok('a horizon a series cannot reach is an em dash, never a zero', dashCells > 0, `${dashCells} absent cells`);
+const chipsBefore = await page.locator('[data-chart-chips] button').count();
+await page.locator('#content-host tbody tr').nth(2).click();
+await page.waitForTimeout(900);
+const chipsAfter = await page.locator('[data-chart-chips] button').count();
+ok('clicking a row adds it to the overlay', chipsAfter === chipsBefore + 1, `${chipsBefore} → ${chipsAfter}`);
+ok('...and the URL carries the selection', /[?&]s=/.test(page.url()));
+await page.locator('[data-range="1Y"]').click();
+await page.waitForTimeout(900);
+ok('a range button repoints the chart and the URL', /range=1Y/.test(page.url()) && (await page.locator('#content-host svg[data-chart-svg]').count()) >= 1);
+await page.locator('[data-macro-info]').click();
+await page.waitForTimeout(400);
+const macroModal = await page.locator('#modal-content').innerText();
+ok('the provenance modal names the harvester and says the figures are not ours', /GlowVentures/i.test(macroModal) && /not ours/i.test(macroModal));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+await go('/#/research/macro-research/rates?scope=universe', 2200);
+await waitForPanel();
+ok('Rates & Bonds draws the Treasury yield curve from stored tenors', (await page.locator('[data-yield-curve] svg').count()) === 1);
+ok('...and labels the spread it CAN compute as 10Y−3M', /10Y\s*−\s*3M/.test(await hostText()));
+
+await go('/#/research/economy-macro?scope=portfolio', 2200);
+await waitForPanel();
+await settleTables();
+const econText = await hostText();
+ok('Economy & Macro renders the release calendar from the stubbed Worker route', (await rowCount()) >= 3, `${await rowCount()} releases`);
+ok('...naming the publishing agency on the row', /MOSPI/.test(econText));
+ok('...with a surprise only where both actual and consensus exist', /-0\.05/.test(econText) && (await page.locator('#content-host tbody td span[title*="No consensus"]').count()) >= 1);
+ok('...and a day-only release shown without an invented clock', (await page.locator('#content-host tbody td span[title*="no time"]').count()) === 1);
+const liveRows = await page.locator('[data-econ-row]').count();
+ok('the indicator grid has live rows from the series store', liveRows > 5, `${liveRows} live rows`);
+ok('...and shows an unsourced row as absent, never as a sample figure', (await page.locator('[data-econ-category] span[title*="No series in the harvest store"]').count()) > 5);
+await page.locator('[data-econ-row]').first().click();
+await page.waitForTimeout(1200);
+ok('clicking a live row opens its history as a bar chart', (await page.locator('[data-econ-chart] svg[data-chart-svg]').count()) === 1);
+await page.locator('[data-impact="high"]').click();
+await page.waitForTimeout(500);
+ok('the impact chips filter the calendar rows', (await rowCount()) < 3, `${await rowCount()} after dropping High`);
+await page.locator('[data-impact="high"]').click();
+await page.waitForTimeout(300);
 
 // ---------------------------------------------------------------------------------------
 // 2. Earnings Hub — the LIVE results feed
@@ -1124,7 +1208,19 @@ console.log('\n— AI alerts —');
   await page.waitForTimeout(4500);
   await page.locator('[data-research-workspace]').waitFor({ state: 'visible', timeout: 15000 });
   ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
+  // GLOW DIVERGENCE: upstream asserts Ask Research is the FIRST tab in the bar. Here the two
+  // Glow-owned macro tabs sit in front of it by request ("put it as two new tabs in the research
+  // central on top"), and the LANDING tab is still Ask Research via router.DEFAULT_ROUTE — the
+  // shell's `landingTab()` resolves it by id, never by position. So the bar order and the landing
+  // page are asserted separately, and a merge that restores the upstream line must be re-applied.
+  const barOrder = (await page.locator('[data-tab-id]').allInnerTexts()).map((t) => t.trim());
+  ok('...and the tab bar puts the two macro tabs first, then Ask Research',
+    barOrder[0] === 'Macro Research' && barOrder[1] === 'Economy & Macro' && barOrder[2] === 'Ask Research',
+    barOrder.slice(0, 4).join(' · '));
+  ok('...so the landing tab is chosen by id, not by bar position',
+    (await page.locator('[data-tab-id][aria-selected="true"]').getAttribute('data-tab-id')) === 'ask-research'
+      && barOrder[0] !== 'Ask Research',
+    await page.locator('[data-tab-id][aria-selected="true"]').getAttribute('data-tab-id'));
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
@@ -1401,6 +1497,45 @@ console.log('\n— AI alerts —');
     /dashboard research/i.test(researchAnswer) &&
       (await page.locator('.research-source-chip-web').count()) === 0,
     researchAnswer.replace(/\s+/g, ' ').slice(0, 240));
+  // A CITATION IS A LINK INTO THE DASHBOARD. `[Dashboard: Earnings Hub]` in the stubbed answer must
+  // render as an anchor to that tab's route in the active scope — and, because this question named
+  // no company, without a `company=` seed it would have no honest value for.
+  const citation = await page.evaluate(() => {
+    const a = document.querySelector('[data-research-transcript] a.research-cite');
+    return a ? { href: a.getAttribute('href'), text: a.textContent.trim(), unresolved: document.querySelectorAll('[data-research-transcript] .research-cite-unresolved').length } : null;
+  });
+  ok('...and renders every [Dashboard: Page] citation as a link into that tab',
+    !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
+    citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
+
+  // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
+  // again on first paint and the result stored on the message — so a conversation from before
+  // the link change opens General Alerts on the company's nineteen rows, not on all 21,000.
+  const legacyMember = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const member = coverage.holdings().find((h) => h.ticker && h.name && h.name.split(' ').length >= 2);
+    const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
+    stored.unshift({ id: 'legacy-answer', title: 'legacy', createdAt: '2026-09-01T00:00:00Z', updatedAt: '2099-01-01T00:00:00Z', messages: [
+      { role: 'user', text: `anything i should know about ${member.name.toLowerCase()}?` },
+      { role: 'assistant', text: 'Filed today. [Dashboard: General Alerts]', dashboardSources: [{ id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts' }], webSources: [] },
+    ] });
+    localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
+    return member.ticker;
+  });
+  // A real reload: the tab reads its library once, at module load, so a hash navigation would not see
+  // the injected conversation.
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  await page.locator('[data-research-session="legacy-answer"]').click();
+  await page.waitForFunction(() => /company=/.test(document.querySelector('[data-research-transcript] a.research-cite')?.getAttribute('href') || ''), null, { timeout: 20000 }).catch(() => {});
+  const legacyHref = await page.locator('[data-research-transcript] a.research-cite').first().getAttribute('href').catch(() => null);
+  ok('...and an answer saved without its companies is backfilled from its question, so its citations deep-link too',
+    !!legacyHref && legacyHref === `#/research/daily-alerts?scope=portfolio&company=${legacyMember}`,
+    `${legacyMember}: ${legacyHref || 'no link'}`);
+  await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]').filter((s) => s.id !== 'legacy-answer');
+    localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
+  });
 
   // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old
@@ -1429,6 +1564,22 @@ console.log('\n— AI alerts —');
   });
 
   await page.unroute('**/api/research');
+
+  // EVERY TABLE TAB HONOURS `?company=` THE SAME WAY: the first paint after the parameter appears
+  // opens the table searched for that company, which is what a citation deep-links to. Asserted on
+  // the Earnings Hub with a company that actually filed, so the seeded search has rows to show.
+  const seedTicker = await page.evaluate(async () => {
+    const earnings = await import('/js/data/earnings-live.js');
+    await earnings.load();
+    return earnings.all().find((r) => r.ticker)?.ticker || null;
+  });
+  await go(`/#/research/earnings-hub?scope=universe&company=${encodeURIComponent(seedTicker || '')}`, 2500);
+  await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
+  const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
+  const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  ok('a table tab opened with ?company= is searched for that company',
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream

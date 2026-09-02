@@ -1,0 +1,6407 @@
+{
+ "generatedAt": "2026-09-02T06:50:36.493Z",
+ "categories": [
+  {
+   "key": "commodities",
+   "label": "Commodities"
+  },
+  {
+   "key": "indices",
+   "label": "Global Indices"
+  },
+  {
+   "key": "currencies",
+   "label": "Currencies"
+  },
+  {
+   "key": "rates",
+   "label": "Rates & Bonds"
+  },
+  {
+   "key": "economy",
+   "label": "Economy"
+  }
+ ],
+ "series": [
+  {
+   "id": "brent-crude",
+   "label": "Brent Crude",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/bbl",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "BZ=F",
+    "url": "https://finance.yahoo.com/quote/BZ%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2007-07-30",
+   "last": "2026-09-01",
+   "count": 4752,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 94.65,
+   "returns": {
+    "d1": 4.597193060006632,
+    "w1": 6.8525626552269125,
+    "m1": 5.026631158455386,
+    "m3": -1.4062499999999978,
+    "m6": 16.277641277641287,
+    "qtd": 29.799780581459135,
+    "ytd": 55.54642563681185,
+    "y1": 38.945977686435704,
+    "y3": 2.244938436485344,
+    "y5": 5.326897258157537,
+    "y10": 7.293200774030972,
+    "max": 1.174297569894156
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2007-07-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 118.35,
+   "low52": 58.92
+  },
+  {
+   "id": "wti-crude",
+   "label": "WTI Crude",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/bbl",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "CL=F",
+    "url": "https://finance.yahoo.com/quote/CL%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USD"
+   },
+   "note": "WTI settled NEGATIVE on 20 April 2020 (−$37.63). The band allows it because it happened; a floor at zero would reject a real print.",
+   "accumulating": false,
+   "first": "2000-08-23",
+   "last": "2026-09-01",
+   "count": 6534,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 90.22,
+   "returns": {
+    "d1": 5.200559701492535,
+    "w1": 9.543467702768327,
+    "m1": 6.554860044880129,
+    "m3": -3.7755972696245754,
+    "m6": 21.003218884120155,
+    "qtd": 29.812949640287776,
+    "ytd": 57.12295367467781,
+    "y1": 40.946727073894685,
+    "y3": 1.7870468961629804,
+    "y5": 5.212773927185754,
+    "y10": 7.340969118055285,
+    "max": 4.057175239901523
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-08-23",
+     "2026-09-01"
+    ]
+   },
+   "high52": 112.95,
+   "low52": 55.27
+  },
+  {
+   "id": "natural-gas",
+   "label": "Natural Gas",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/MMBtu",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "NG=F",
+    "url": "https://finance.yahoo.com/quote/NG%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-08-30",
+   "last": "2026-09-01",
+   "count": 6531,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 2.904,
+   "returns": {
+    "d1": -1.056218057921643,
+    "w1": 4.837545126353793,
+    "m1": 5.715325809974514,
+    "m3": -8.304389011682979,
+    "m6": -4.91159135559921,
+    "qtd": -11.328244274809162,
+    "ytd": -21.21540965816604,
+    "y1": -3.1031031031031,
+    "y3": 1.6480080748635162,
+    "y5": -8.95646410263934,
+    "y10": 0.3942458225172141,
+    "max": -1.9178643193927591
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-08-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 7.46,
+   "low52": 2.523
+  },
+  {
+   "id": "lng",
+   "label": "LNG (Japan)",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/MMBtu",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Liquefied natural gas, Japan",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1977-01-01",
+   "last": "2026-07-01",
+   "count": 595,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 11.8,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 0.08481764206955678,
+    "m3": -24.600638977635782,
+    "m6": 4.240282685512375,
+    "qtd": null,
+    "ytd": 4.240282685512375,
+    "y1": -0.9235936188077165,
+    "y3": -3.151226587119249,
+    "y5": 2.6374841535737437,
+    "y10": 5.729661917554241,
+    "max": 2.9713758308904215
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1977-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 15.65,
+   "low52": 11.1
+  },
+  {
+   "id": "thermal-coal",
+   "label": "Thermal Coal (Australian)",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Coal, Australian",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1970-01-01",
+   "last": "2026-07-01",
+   "count": 679,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 131.9,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -4.76534296028881,
+    "m3": 0.763941940412538,
+    "m6": 22.46982358402971,
+    "qtd": null,
+    "ytd": 22.46982358402971,
+    "y1": 16.829052258635958,
+    "y3": -2.106181872925106,
+    "y5": -2.7972493473892968,
+    "y10": 7.982630596844453,
+    "max": 5.13295788907695
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1970-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 138.6,
+   "low52": 106.3
+  },
+  {
+   "id": "electricity-india",
+   "label": "Electricity (IEX day-ahead)",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "INR/MWh",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Indian Energy Exchange",
+    "symbol": "DAM MCP",
+    "url": "https://www.iexindia.com/market-data/day-ahead-market/market-snapshot",
+    "exchange": "IEX",
+    "upstreamCurrency": null
+   },
+   "note": "The day's AVERAGE market clearing price across all 96 fifteen-minute blocks. Indian spot power swings from roughly ₹1,100 to the ₹10,000 ceiling within a single day, so no one block is 'the price'.",
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 7251.079,
+   "returns": {
+    "d1": 21.655683771818634,
+    "w1": 14.202180228323114,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 92.2106368117398
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "gold",
+   "label": "Gold",
+   "category": "commodities",
+   "group": "Precious Metals",
+   "unit": "USD/oz",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "GC=F",
+    "url": "https://finance.yahoo.com/quote/GC%3DF",
+    "exchange": "COMEX",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-08-30",
+   "last": "2026-09-01",
+   "count": 6525,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 4348,
+   "returns": {
+    "d1": -1.8753808309449171,
+    "w1": -6.25471637092776,
+    "m1": 7.381887332987569,
+    "m3": -3.143169009378277,
+    "m6": -14.86862199945177,
+    "qtd": 8.081234930025595,
+    "ytd": 0.5178472350656493,
+    "y1": 25.16912801911506,
+    "y3": 30.86320155310245,
+    "y5": 19.18916591570323,
+    "y10": 12.648072453010606,
+    "max": 11.217564381934686
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-08-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 5318.4,
+   "low52": 3549.4
+  },
+  {
+   "id": "silver",
+   "label": "Silver",
+   "category": "commodities",
+   "group": "Precious Metals",
+   "unit": "USD/oz",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "SI=F",
+    "url": "https://finance.yahoo.com/quote/SI%3DF",
+    "exchange": "COMEX",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-08-30",
+   "last": "2026-09-01",
+   "count": 6527,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 64.618,
+   "returns": {
+    "d1": -2.42068226091422,
+    "w1": -5.8540707500437055,
+    "m1": 12.201559271413931,
+    "m3": -14.198457064705039,
+    "m6": -22.074695802129696,
+    "qtd": 8.643677387897842,
+    "ytd": -7.864944249579386,
+    "y1": 60.74129353233828,
+    "y3": 38.661436825306964,
+    "y5": 22.050977106907645,
+    "y10": 12.863949248280338,
+    "max": 10.401312088170233
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-08-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 115.08,
+   "low52": 40.878
+  },
+  {
+   "id": "platinum",
+   "label": "Platinum",
+   "category": "commodities",
+   "group": "Precious Metals",
+   "unit": "USD/oz",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "PL=F",
+    "url": "https://finance.yahoo.com/quote/PL%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1997-10-29",
+   "last": "2026-09-01",
+   "count": 6553,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1761.5,
+   "returns": {
+    "d1": -1.5041377767837205,
+    "w1": -4.917413365000534,
+    "m1": 6.738168817790702,
+    "m3": -9.079178280169309,
+    "m6": -15.100250626566424,
+    "qtd": 13.630499290414132,
+    "ytd": -13.418530351437695,
+    "y1": 28.981474701618204,
+    "y3": 22.182388878610215,
+    "y5": 12.135219616003301,
+    "y10": 5.217320904748157,
+    "max": 5.250033310820723
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1997-10-29",
+     "2026-09-01"
+    ]
+   },
+   "high52": 2852.4,
+   "low52": 1367.3
+  },
+  {
+   "id": "palladium",
+   "label": "Palladium",
+   "category": "commodities",
+   "group": "Precious Metals",
+   "unit": "USD/oz",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "PA=F",
+    "url": "https://finance.yahoo.com/quote/PA%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1998-09-28",
+   "last": "2026-09-01",
+   "count": 6564,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1317.2,
+   "returns": {
+    "d1": -3.3531440311101335,
+    "w1": -1.1036864629476728,
+    "m1": 3.2612104107870854,
+    "m3": -4.0710800378705,
+    "m6": -19.437308868501525,
+    "qtd": 9.76666666666668,
+    "ytd": -19.150503314510193,
+    "y1": 19.18204849800942,
+    "y3": 2.6661600999283053,
+    "y5": -11.29530323411726,
+    "y10": 6.929675134229818,
+    "max": 5.5616126342378225
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1998-09-28",
+     "2026-09-01"
+    ]
+   },
+   "high52": 2169.9,
+   "low52": 1111.6
+  },
+  {
+   "id": "copper",
+   "label": "Copper",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/lb",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "HG=F",
+    "url": "https://finance.yahoo.com/quote/HG%3DF",
+    "exchange": "COMEX",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-08-30",
+   "last": "2026-09-01",
+   "count": 6530,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 6.5065,
+   "returns": {
+    "d1": -1.319481307348147,
+    "w1": -3.0255607720396482,
+    "m1": 1.095400870105645,
+    "m3": -2.1505376344086002,
+    "m6": 12.695938338962499,
+    "qtd": 5.070649979814301,
+    "ytd": 15.568383658969797,
+    "y1": 43.996901626646,
+    "y3": 19.498249527369627,
+    "y5": 8.693308368920437,
+    "y10": 12.13125199766203,
+    "max": 7.973697644136668
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-08-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 6.7095,
+   "low52": 4.4825
+  },
+  {
+   "id": "aluminium",
+   "label": "Aluminium",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "ALI=F",
+    "url": "https://finance.yahoo.com/quote/ALI%3DF",
+    "exchange": "COMEX",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2014-05-06",
+   "last": "2026-09-01",
+   "count": 3063,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 3413.5,
+   "returns": {
+    "d1": 1.0958092699540956,
+    "w1": -0.16816553337720697,
+    "m1": 2.361496364045279,
+    "m3": -15.804402787198624,
+    "m6": 7.825949616994388,
+    "qtd": -0.6331416927443434,
+    "ytd": 17.453763440860225,
+    "y1": 35.73913907943136,
+    "y3": 15.48159943955909,
+    "y5": 4.625107933906358,
+    "y10": 7.577891793488045,
+    "max": 3.733865716624196
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2014-05-06",
+     "2026-09-01"
+    ]
+   },
+   "high52": 4195,
+   "low52": 2488.75
+  },
+  {
+   "id": "steel-hrc",
+   "label": "Steel (HRC)",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/short ton",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "HRC=F",
+    "url": "https://finance.yahoo.com/quote/HRC%3DF",
+    "exchange": "COMEX",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2008-10-20",
+   "last": "2026-09-01",
+   "count": 4456,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1212,
+   "returns": {
+    "d1": 0.41425020712511085,
+    "w1": 1.3377926421404673,
+    "m1": 1.7632241813602123,
+    "m3": 7.829181494661919,
+    "m6": 19.291338582677177,
+    "qtd": 4.935064935064926,
+    "ytd": 29.62566844919785,
+    "y1": 52.83732660781841,
+    "y3": 18.952300206005578,
+    "y5": -9.013305894231083,
+    "y10": 8.12718582842904,
+    "max": 3.2880022621965654
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2008-10-20",
+     "2026-09-01"
+    ]
+   },
+   "high52": 1212,
+   "low52": 795
+  },
+  {
+   "id": "zinc",
+   "label": "Zinc",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Zinc",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "The band starts at 50 because zinc genuinely traded near $180/t through the 1960s. An earlier 200 floor blocked eighteen real observations — the gate working correctly against a band that was wrong.",
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:34:57.674Z",
+   "staleSince": "2026-07-01",
+   "last_value": 3599,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 1.6953941791466587,
+    "m3": 6.985731272294893,
+    "m6": 13.60479797979799,
+    "qtd": null,
+    "ytd": 13.60479797979799,
+    "y1": 30.256967064784646,
+    "y3": 14.3779418896546,
+    "y5": 4.07184318427356,
+    "y10": 5.127366160037905,
+    "max": 4.0247674795505395
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 3599,
+   "low52": 2763
+  },
+  {
+   "id": "nickel",
+   "label": "Nickel",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Nickel",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 16651,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -5.327496020013644,
+    "m3": -7.298741788219576,
+    "m6": 11.871808653587745,
+    "qtd": null,
+    "ytd": 11.871808653587745,
+    "y1": 10.755620593321801,
+    "y3": -7.575128566487265,
+    "y5": -2.418542584781791,
+    "y10": 4.958949804309465,
+    "max": 3.5555620145865774
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 18806,
+   "low52": 14671
+  },
+  {
+   "id": "lead",
+   "label": "Lead",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Lead",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 1842,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -5.344295991778003,
+    "m3": -4.5595854922279795,
+    "m6": -5.051546391752582,
+    "qtd": null,
+    "ytd": -5.051546391752582,
+    "y1": -7.576517812343198,
+    "y3": -4.4108018554527835,
+    "y5": -4.657576232337835,
+    "y10": 0.03808702737020386,
+    "max": 3.3493540436626557
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 1998,
+   "low52": 1842
+  },
+  {
+   "id": "tin",
+   "label": "Tin",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Tin",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 52971,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -0.1244414276825645,
+    "m3": 8.533786829488177,
+    "m6": 28.508005822416305,
+    "qtd": null,
+    "ytd": 28.508005822416305,
+    "y1": 57.60487950014876,
+    "y3": 22.59756321680111,
+    "y5": 9.261218166031782,
+    "y10": 11.507711466071612,
+    "max": 4.914805492970609
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 53563,
+   "low52": 33610
+  },
+  {
+   "id": "iron-ore",
+   "label": "Iron Ore (cfr spot)",
+   "category": "commodities",
+   "group": "Industrial Metals",
+   "unit": "USD/dmtu",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Iron ore, cfr spot",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "Quoted per DRY METRIC TONNE UNIT (dmtu), the World Bank's own basis — one percent of iron content per tonne. It is not the $/tonne headline the trade press quotes, and the two differ by roughly the ore grade.",
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 98.2,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -2.57936507936507,
+    "m3": -7.445805843543818,
+    "m6": -6.118546845124273,
+    "qtd": null,
+    "ytd": -6.118546845124273,
+    "y1": 0.9249743062692772,
+    "y3": -4.961363574440226,
+    "y5": -14.436272669929927,
+    "y10": 5.535577192204433,
+    "max": 3.291339410195282
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 108.6,
+   "low52": 97.3
+  },
+  {
+   "id": "wheat",
+   "label": "Wheat",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/bu",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "ZW=F",
+    "url": "https://finance.yahoo.com/quote/ZW%3DF",
+    "exchange": "CBOT",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-07-17",
+   "last": "2026-09-01",
+   "count": 6549,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 764,
+   "returns": {
+    "d1": 0.991407799074695,
+    "w1": 11.451495258935074,
+    "m1": 19.515056707078603,
+    "m3": 26.69983416252073,
+    "m6": 33.508082131935346,
+    "qtd": 31.554024967714156,
+    "ytd": 50.69033530571991,
+    "y1": 47.49034749034748,
+    "y3": 10.41617019504577,
+    "y5": 1.6503798207477605,
+    "y10": 7.429148975466959,
+    "max": 4.465914051301323
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-07-17",
+     "2026-09-01"
+    ]
+   },
+   "high52": 767,
+   "low52": 495
+  },
+  {
+   "id": "rice",
+   "label": "Rice",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USD/cwt",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "ZR=F",
+    "url": "https://finance.yahoo.com/quote/ZR%3DF",
+    "exchange": "CBOT",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1999-09-14",
+   "last": "2026-09-01",
+   "count": 6759,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 15.33,
+   "returns": {
+    "d1": 0.5245901639344241,
+    "w1": 6.532314107018755,
+    "m1": 9.813753581661878,
+    "m3": 21.09004739336493,
+    "m6": 44.82758620689653,
+    "qtd": 19.57878315132604,
+    "ytd": 59.7707139134966,
+    "y1": 30.02544529262088,
+    "y3": -2.7053777962282366,
+    "y5": 3.2672501628429496,
+    "y10": 4.837547324556457,
+    "max": 3.286782957763501
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1999-09-14",
+     "2026-09-01"
+    ]
+   },
+   "high52": 15.33,
+   "low52": 9.38
+  },
+  {
+   "id": "corn",
+   "label": "Corn",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/bu",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "ZC=F",
+    "url": "https://finance.yahoo.com/quote/ZC%3DF",
+    "exchange": "CBOT",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-07-17",
+   "last": "2026-09-01",
+   "count": 6537,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 521.5,
+   "returns": {
+    "d1": 1.2621359223300876,
+    "w1": 4.195804195804187,
+    "m1": 18.321043675553028,
+    "m3": 18.38819523269013,
+    "m6": 20.09211283822683,
+    "qtd": 26.347668079951546,
+    "ytd": 18.455423055082342,
+    "y1": 31.030150753768847,
+    "y3": 3.914104755953929,
+    "y5": 0.2027063799990403,
+    "y10": 5.122812168961377,
+    "max": 4.172530768759253
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-07-17",
+     "2026-09-01"
+    ]
+   },
+   "high52": 521.5,
+   "low52": 397.25
+  },
+  {
+   "id": "soybean",
+   "label": "Soybean",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/bu",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "ZS=F",
+    "url": "https://finance.yahoo.com/quote/ZS%3DF",
+    "exchange": "CBOT",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-09-15",
+   "last": "2026-09-01",
+   "count": 6529,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1306.75,
+   "returns": {
+    "d1": 2.4701039011958414,
+    "w1": 6.412866449511401,
+    "m1": 11.49744027303754,
+    "m3": 12.143316884788668,
+    "m6": 13.065109236426565,
+    "qtd": 17.013655697336016,
+    "ytd": 26.807375060650163,
+    "y1": 26.042922594646733,
+    "y3": -1.231419168557113,
+    "y5": 0.4265820385406016,
+    "y10": 3.0420839026695123,
+    "max": 3.820231130306184
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-09-15",
+     "2026-09-01"
+    ]
+   },
+   "high52": 1306.75,
+   "low52": 1001.75
+  },
+  {
+   "id": "cotton",
+   "label": "Cotton",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/lb",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "CT=F",
+    "url": "https://finance.yahoo.com/quote/CT%3DF",
+    "exchange": "NY Mercantile",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-01-03",
+   "last": "2026-09-01",
+   "count": 6687,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 90.01,
+   "returns": {
+    "d1": -1.8429661941112285,
+    "w1": 3.3647220946256384,
+    "m1": 11.813664596273288,
+    "m3": 16.835410176531674,
+    "m6": 45.08381689232755,
+    "qtd": 24.633065632788707,
+    "ytd": 40.04978994865414,
+    "y1": 38.03097684404235,
+    "y3": 0.14853815676316717,
+    "y5": -1.10320319672349,
+    "y10": 2.9194360398130836,
+    "max": 2.1484025965269105
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-01-03",
+     "2026-09-01"
+    ]
+   },
+   "high52": 91.7,
+   "low52": 61.06
+  },
+  {
+   "id": "sugar",
+   "label": "Sugar",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/lb",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "SB=F",
+    "url": "https://finance.yahoo.com/quote/SB%3DF",
+    "exchange": "ICE Futures",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-03-01",
+   "last": "2026-09-01",
+   "count": 6648,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 18.36,
+   "returns": {
+    "d1": 3.0881527231892303,
+    "w1": 6.311522872032427,
+    "m1": 25.23874488403819,
+    "m3": 27.677329624478443,
+    "m6": 31.80186647523331,
+    "qtd": 28.03347280334727,
+    "ytd": 22.3184543637575,
+    "y1": 12.156383628588863,
+    "y3": -10.729876133737227,
+    "y5": -1.5990869408700648,
+    "y10": -0.9411082144323735,
+    "max": 4.9675446871418005
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-03-01",
+     "2026-09-01"
+    ]
+   },
+   "high52": 18.36,
+   "low52": 13.31
+  },
+  {
+   "id": "coffee",
+   "label": "Coffee",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USc/lb",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "KC=F",
+    "url": "https://finance.yahoo.com/quote/KC%3DF",
+    "exchange": "ICE Futures",
+    "upstreamCurrency": "USX"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2000-01-03",
+   "last": "2026-09-01",
+   "count": 6685,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 342.25,
+   "returns": {
+    "d1": -0.4797906368130156,
+    "w1": -7.848680667743668,
+    "m1": 3.056308340861169,
+    "m3": 32.040895061728406,
+    "m6": 19.27165011326015,
+    "qtd": 9.977506426735228,
+    "ytd": -1.8637992831541217,
+    "y1": -13.75834698248709,
+    "y3": 31.364015563862058,
+    "y5": 12.276306328018617,
+    "y10": 8.595288450906292,
+    "max": 4.1248196037731555
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2000-01-03",
+     "2026-09-01"
+    ]
+   },
+   "high52": 432.35,
+   "low52": 244.4
+  },
+  {
+   "id": "palm-oil",
+   "label": "Palm Oil",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Palm oil",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 1101,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -0.27173913043477826,
+    "m3": -3.926701570680624,
+    "m6": 12.346938775510207,
+    "qtd": null,
+    "ytd": 12.346938775510207,
+    "y1": 12.807377049180335,
+    "y3": 7.793368901997422,
+    "y5": 0.7050451669224023,
+    "y10": 4.968416397274744,
+    "max": 2.362832611556387
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 1146,
+   "low52": 976
+  },
+  {
+   "id": "rubber",
+   "label": "Rubber (TSR20)",
+   "category": "commodities",
+   "group": "Agriculture",
+   "unit": "USD/kg",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Rubber, TSR20",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1999-01-01",
+   "last": "2026-07-01",
+   "count": 331,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 2.14,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -4.8888888888888875,
+    "m3": 3.8834951456310662,
+    "m6": 22.988505747126453,
+    "qtd": null,
+    "ytd": 22.988505747126453,
+    "y1": 27.380952380952394,
+    "y3": 18.070213319667694,
+    "y5": 5.596244056002431,
+    "y10": 5.274560324877342,
+    "max": 4.733356741979522
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1999-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 2.25,
+   "low52": 1.68
+  },
+  {
+   "id": "urea",
+   "label": "Urea",
+   "category": "commodities",
+   "group": "Fertilisers",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Urea",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 400,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -11.719267269918344,
+    "m3": -53.32010736375305,
+    "m6": 1.9108280254777066,
+    "qtd": null,
+    "ytd": 1.9108280254777066,
+    "y1": -19.354838709677423,
+    "y3": 6.130152841374881,
+    "y5": -1.9551733971560403,
+    "y10": 8.253726820414432,
+    "max": 3.4363424133086795
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 856.9,
+   "low52": 392.5
+  },
+  {
+   "id": "dap",
+   "label": "DAP",
+   "category": "commodities",
+   "group": "Fertilisers",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "DAP",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1967-01-01",
+   "last": "2026-07-01",
+   "count": 715,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 781.3,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -0.3189589180913499,
+    "m3": 7.720943058044938,
+    "m6": 24.50996015936253,
+    "qtd": null,
+    "ytd": 24.50996015936253,
+    "y1": 6.154891304347809,
+    "y3": 19.411794907317525,
+    "y5": 4.972213455603658,
+    "y10": 9.857299408797559,
+    "max": 4.176069744786948
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1967-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 795.1,
+   "low52": 619.2
+  },
+  {
+   "id": "phosphate-rock",
+   "label": "Phosphate Rock",
+   "category": "commodities",
+   "group": "Fertilisers",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Phosphate rock",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 170,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 8.349267049075838,
+    "m3": 11.475409836065564,
+    "m6": 11.475409836065564,
+    "qtd": null,
+    "ytd": 11.475409836065564,
+    "y1": 11.475409836065564,
+    "y3": -20.819316627362006,
+    "y5": 6.343619607898998,
+    "y10": 4.402578717370598,
+    "max": 3.9418243432289612
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 170,
+   "low52": 152.5
+  },
+  {
+   "id": "potassium-chloride",
+   "label": "Potash (KCl)",
+   "category": "commodities",
+   "group": "Fertilisers",
+   "unit": "USD/t",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "World Bank Pink Sheet",
+    "symbol": "Potassium chloride",
+    "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-01-01",
+   "last": "2026-07-01",
+   "count": 799,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2026-07-01",
+   "last_value": 396.5,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -1.4906832298136607,
+    "m3": -1.1961126339396944,
+    "m6": 10.66145687970974,
+    "qtd": null,
+    "ytd": 10.66145687970974,
+    "y1": 9.379310344827596,
+    "y3": 5.122904266174966,
+    "y5": -8.932726692527348,
+    "y10": 3.4485695139937267,
+    "max": 4.0386615241846835
+   },
+   "spans": {
+    "m1": [
+     "2026-06-01",
+     "2026-07-01"
+    ],
+    "m3": [
+     "2026-04-01",
+     "2026-07-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-07-01"
+    ],
+    "y1": [
+     "2025-07-01",
+     "2026-07-01"
+    ],
+    "y3": [
+     "2023-07-01",
+     "2026-07-01"
+    ],
+    "y5": [
+     "2021-07-01",
+     "2026-07-01"
+    ],
+    "y10": [
+     "2016-07-01",
+     "2026-07-01"
+    ],
+    "max": [
+     "1960-01-01",
+     "2026-07-01"
+    ]
+   },
+   "high52": 405,
+   "low52": 352
+  },
+  {
+   "id": "bcom-index",
+   "label": "Bloomberg Commodity Index",
+   "category": "commodities",
+   "group": "Others",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^BCOM",
+    "url": "https://finance.yahoo.com/quote/%5EBCOM",
+    "exchange": "Chicago Options",
+    "upstreamCurrency": "USD"
+   },
+   "note": "Shown IN PLACE OF the CRB index the spec names. CRB is Refinitiv's proprietary index with no free feed; BCOM is a different index tracking a similar basket, and is labelled as itself rather than presented as CRB.",
+   "accumulating": false,
+   "first": "1991-01-02",
+   "last": "2026-07-17",
+   "count": 8923,
+   "retrievedAt": "2026-08-31T08:09:13.812Z",
+   "staleSince": "2026-07-17",
+   "last_value": 131.38,
+   "returns": {
+    "d1": 1.2796793092815228,
+    "w1": 3.579312519709865,
+    "m1": 2.4804992199688014,
+    "m3": -0.07605719501064812,
+    "m6": 15.661589928690889,
+    "qtd": 6.656924825458677,
+    "ytd": 19.773908286990615,
+    "y1": 25.78267113451411,
+    "y3": 7.793630419782249,
+    "y5": 6.824797588212794,
+    "y10": 4.361954576584415,
+    "max": 0.7709487806873527
+   },
+   "spans": {
+    "d1": [
+     "2026-07-16",
+     "2026-07-17"
+    ],
+    "w1": [
+     "2026-07-10",
+     "2026-07-17"
+    ],
+    "m1": [
+     "2026-06-17",
+     "2026-07-17"
+    ],
+    "m3": [
+     "2026-04-17",
+     "2026-07-17"
+    ],
+    "m6": [
+     "2026-01-16",
+     "2026-07-17"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-17"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-17"
+    ],
+    "y1": [
+     "2025-07-17",
+     "2026-07-17"
+    ],
+    "y3": [
+     "2023-07-18",
+     "2026-07-17"
+    ],
+    "y5": [
+     "2021-07-16",
+     "2026-07-17"
+    ],
+    "y10": [
+     "2016-07-19",
+     "2026-07-17"
+    ],
+    "max": [
+     "1991-01-02",
+     "2026-07-17"
+    ]
+   },
+   "high52": 143.14,
+   "low52": 99.5
+  },
+  {
+   "id": "sp500",
+   "label": "S&P 500",
+   "category": "indices",
+   "group": "United States",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^GSPC",
+    "url": "https://finance.yahoo.com/quote/%5EGSPC",
+    "exchange": "SNP",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1970-01-02",
+   "last": "2026-09-01",
+   "count": 14288,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 7631.47,
+   "returns": {
+    "d1": -0.7112803045481897,
+    "w1": -0.5966957047287558,
+    "m1": 1.8925941156678672,
+    "m3": 0.28502795087375077,
+    "m6": 11.953707330455089,
+    "qtd": 1.7616169913166058,
+    "ytd": 11.48155722737565,
+    "y1": 18.12945609000256,
+    "y3": 19.1081473101554,
+    "y5": 10.96851626111006,
+    "y10": 13.354280757059112,
+    "max": 8.08890796465298
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1970-01-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 7798.99,
+   "low52": 6343.72
+  },
+  {
+   "id": "nasdaq",
+   "label": "Nasdaq Composite",
+   "category": "indices",
+   "group": "United States",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^IXIC",
+    "url": "https://finance.yahoo.com/quote/%5EIXIC",
+    "exchange": "Nasdaq GIDS",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1971-02-05",
+   "last": "2026-09-01",
+   "count": 14010,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 26099.77,
+   "returns": {
+    "d1": -1.0281033366716041,
+    "w1": -0.19704565356215564,
+    "m1": 2.860898129373357,
+    "m3": -3.6692022927670154,
+    "m6": 15.912996093120269,
+    "qtd": -0.43469602940749974,
+    "ytd": 12.295762970382484,
+    "y1": 21.64577463639945,
+    "y3": 22.97603942027797,
+    "y5": 11.235617929859586,
+    "y10": 17.402455336636315,
+    "max": 10.532000451329848
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1971-02-05",
+     "2026-09-01"
+    ]
+   },
+   "high52": 27093.9,
+   "low52": 20794.64
+  },
+  {
+   "id": "dow-jones",
+   "label": "Dow Jones Industrial",
+   "category": "indices",
+   "group": "United States",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^DJI",
+    "url": "https://finance.yahoo.com/quote/%5EDJI",
+    "exchange": "DJI",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1992-01-02",
+   "last": "2026-09-01",
+   "count": 8728,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 52766.88,
+   "returns": {
+    "d1": -0.7878403862678018,
+    "w1": -1.5128020396659836,
+    "m1": 0.5370102674991273,
+    "m3": 2.843798183472712,
+    "m6": 8.794841867027392,
+    "qtd": 0.8556705760026873,
+    "ytd": 9.786242265146639,
+    "y1": 15.856886657731884,
+    "y3": 14.839218645684493,
+    "y5": 8.289875103993861,
+    "y10": 11.059715374317737,
+    "max": 8.448405366057576
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1992-01-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 54349.12,
+   "low52": 45166.64
+  },
+  {
+   "id": "russell-2000",
+   "label": "Russell 2000",
+   "category": "indices",
+   "group": "United States",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^RUT",
+    "url": "https://finance.yahoo.com/quote/%5ERUT",
+    "exchange": "Chicago Options",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1987-09-10",
+   "last": "2026-09-01",
+   "count": 9818,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 2920.13,
+   "returns": {
+    "d1": -1.2285003974361053,
+    "w1": -2.986358894625285,
+    "m1": -0.38241896197643843,
+    "m3": -0.40348435858605924,
+    "m6": 11.952721250134179,
+    "qtd": -3.4466682317308983,
+    "ytd": 17.6565628890653,
+    "y1": 23.39863591416571,
+    "y3": 14.980427863799829,
+    "y5": 4.856965747435438,
+    "y10": 8.843073375955978,
+    "max": 7.585228736860139
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1987-09-10",
+     "2026-09-01"
+    ]
+   },
+   "high52": 3068.42,
+   "low52": 2305.11
+  },
+  {
+   "id": "ftse-100",
+   "label": "FTSE 100",
+   "category": "indices",
+   "group": "Europe",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^FTSE",
+    "url": "https://finance.yahoo.com/quote/%5EFTSE",
+    "exchange": "FTSE Index",
+    "upstreamCurrency": "GBP"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1984-01-03",
+   "last": "2026-09-01",
+   "count": 10777,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 10789.3,
+   "returns": {
+    "d1": -0.32334654434929,
+    "w1": -0.890117763774334,
+    "m1": -0.7250577377830636,
+    "m3": 4.008290355232069,
+    "m6": 2.911074865749086,
+    "qtd": 2.7836259538348562,
+    "ytd": 8.63825845298749,
+    "y1": 17.322183921794633,
+    "y3": 13.062525975361062,
+    "y5": 8.540823677085463,
+    "y10": 4.581871599103526,
+    "max": 5.740015406726862
+   },
+   "spans": {
+    "d1": [
+     "2026-08-28",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1984-01-03",
+     "2026-09-01"
+    ]
+   },
+   "high52": 10910.6,
+   "low52": 9116.7
+  },
+  {
+   "id": "dax",
+   "label": "DAX",
+   "category": "indices",
+   "group": "Europe",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^GDAXI",
+    "url": "https://finance.yahoo.com/quote/%5EGDAXI",
+    "exchange": "XETRA",
+    "upstreamCurrency": "EUR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1987-12-30",
+   "last": "2026-09-01",
+   "count": 9779,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 25970.11,
+   "returns": {
+    "d1": -1.0968039969365684,
+    "w1": -1.1270403645149196,
+    "m1": 1.3300043231871062,
+    "m3": 3.3670366026022025,
+    "m6": 9.160993919880278,
+    "qtd": 3.897853280209751,
+    "ytd": 6.041956831265782,
+    "y1": 8.040743293868324,
+    "y3": 17.910759857546065,
+    "y5": 10.400209735902898,
+    "y10": 9.29255301201588,
+    "max": 8.77219816312429
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-30",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1987-12-30",
+     "2026-09-01"
+    ]
+   },
+   "high52": 26569.99,
+   "low52": 22300.75
+  },
+  {
+   "id": "cac-40",
+   "label": "CAC 40",
+   "category": "indices",
+   "group": "Europe",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^FCHI",
+    "url": "https://finance.yahoo.com/quote/%5EFCHI",
+    "exchange": "Paris",
+    "upstreamCurrency": "EUR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1990-03-01",
+   "last": "2026-09-01",
+   "count": 9271,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 8301.85,
+   "returns": {
+    "d1": -0.39174515567820256,
+    "w1": -1.627523935918096,
+    "m1": -2.4418189253599287,
+    "m3": 1.1299669025434111,
+    "m6": 2.4434095441173698,
+    "qtd": -1.215375077790426,
+    "ytd": 1.86943984293515,
+    "y1": 7.705730484308315,
+    "y3": 4.394386662281402,
+    "y5": 4.1881358012796355,
+    "y10": 6.2189270834495325,
+    "max": 4.226362653278648
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1990-03-01",
+     "2026-09-01"
+    ]
+   },
+   "high52": 8726.03,
+   "low52": 7654.25
+  },
+  {
+   "id": "nikkei-225",
+   "label": "Nikkei 225",
+   "category": "indices",
+   "group": "Asia",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^N225",
+    "url": "https://finance.yahoo.com/quote/%5EN225",
+    "exchange": "Osaka",
+    "upstreamCurrency": "JPY"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1970-01-05",
+   "last": "2026-09-01",
+   "count": 13933,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 66215.34,
+   "returns": {
+    "d1": -0.14566006448613056,
+    "w1": 0.5449885455376169,
+    "m1": 2.879524290878388,
+    "m3": -0.7775618632953729,
+    "m6": 17.655397523590022,
+    "qtd": -5.490797335857578,
+    "ytd": 31.537592362892887,
+    "y1": 56.95008081530661,
+    "y3": 26.493048396692597,
+    "y5": 18.342382681659263,
+    "y10": 14.621368099902021,
+    "max": 6.028199128305944
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-30",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1970-01-05",
+     "2026-09-01"
+    ]
+   },
+   "high52": 72366.34,
+   "low52": 41938.89
+  },
+  {
+   "id": "hang-seng",
+   "label": "Hang Seng",
+   "category": "indices",
+   "group": "Asia",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^HSI",
+    "url": "https://finance.yahoo.com/quote/%5EHSI",
+    "exchange": "HKSE",
+    "upstreamCurrency": "HKD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1986-12-31",
+   "last": "2026-09-01",
+   "count": 9789,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 25329.73,
+   "returns": {
+    "d1": -0.9279934790916045,
+    "w1": -0.7109454315964436,
+    "m1": -2.142987116193018,
+    "m3": -2.7213353242451888,
+    "m6": -1.7011356686256862,
+    "qtd": 10.701926749769019,
+    "ytd": -1.1736389479113596,
+    "y1": -1.1230248791642472,
+    "y3": 11.265171524856111,
+    "y5": -0.5904508017228416,
+    "y10": 0.8535274971100737,
+    "max": 5.939310845901291
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1986-12-31",
+     "2026-09-01"
+    ]
+   },
+   "high52": 27968.09,
+   "low52": 22671.86
+  },
+  {
+   "id": "shanghai-composite",
+   "label": "Shanghai Composite",
+   "category": "indices",
+   "group": "Asia",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "000001.SS",
+    "url": "https://finance.yahoo.com/quote/000001.SS",
+    "exchange": "Shanghai",
+    "upstreamCurrency": "CNY"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1997-07-02",
+   "last": "2026-09-01",
+   "count": 7067,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 3979.888,
+   "returns": {
+    "d1": -0.16080082321993094,
+    "w1": 2.3253446185766746,
+    "m1": 3.8521896467412553,
+    "m3": -2.3364813935945694,
+    "m6": -3.4634785755659814,
+    "qtd": -2.7967244016640302,
+    "ytd": 0.2783684905413031,
+    "y1": 2.692714882167113,
+    "y3": 8.29723519021015,
+    "y5": 2.044859920754538,
+    "y10": 2.639699129209516,
+    "max": 4.199127073523479
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1997-07-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 4242.572,
+   "low52": 3764.155
+  },
+  {
+   "id": "nifty-50",
+   "label": "Nifty 50",
+   "category": "indices",
+   "group": "India",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^NSEI",
+    "url": "https://finance.yahoo.com/quote/%5ENSEI",
+    "exchange": "NSE",
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2007-09-17",
+   "last": "2026-09-01",
+   "count": 4651,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 24055.8,
+   "returns": {
+    "d1": -0.10215777146559413,
+    "w1": -1.1454906706719448,
+    "m1": -1.3443461999048556,
+    "m3": 2.4368121514847685,
+    "m6": -3.2570971257595893,
+    "qtd": 0.7963294679613986,
+    "ytd": -7.936592982670987,
+    "y1": -2.3116704331564764,
+    "y3": 7.366585626878486,
+    "y5": 6.901999138143267,
+    "y10": 10.571713199303879,
+    "max": 9.252298854277385
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "2007-09-17",
+     "2026-09-01"
+    ]
+   },
+   "high52": 26328.55,
+   "low52": 22331.4
+  },
+  {
+   "id": "sensex",
+   "label": "Sensex",
+   "category": "indices",
+   "group": "India",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^BSESN",
+    "url": "https://finance.yahoo.com/quote/%5EBSESN",
+    "exchange": "BSE",
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1997-07-01",
+   "last": "2026-09-01",
+   "count": 7186,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 76944.28,
+   "returns": {
+    "d1": -0.016879496894839363,
+    "w1": -0.9166183875598088,
+    "m1": -1.4730332324984108,
+    "m3": 3.073603372760081,
+    "m6": -4.105953662097606,
+    "qtd": 0.6088102735050116,
+    "ytd": -9.711642490196038,
+    "y1": -4.255872214208045,
+    "y3": 5.573741737143045,
+    "y5": 5.8736164537372515,
+    "y10": 10.433782113285606,
+    "max": 10.393494138460113
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-09-01",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1997-07-01",
+     "2026-09-01"
+    ]
+   },
+   "high52": 85762.01,
+   "low52": 71947.55
+  },
+  {
+   "id": "usd-inr",
+   "label": "USD / INR",
+   "category": "currencies",
+   "group": "India",
+   "unit": "INR per USD",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "INR=X",
+    "url": "https://finance.yahoo.com/quote/INR%3DX",
+    "exchange": "CCY",
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2003-12-01",
+   "last": "2026-08-31",
+   "count": 5903,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 95.1144,
+   "returns": {
+    "d1": -0.278778741522101,
+    "w1": -0.6358966644414932,
+    "m1": -0.5961239402705432,
+    "m3": -0.4573454706053526,
+    "m6": 4.429971146118339,
+    "qtd": 0.20691544280326823,
+    "ytd": 5.954144730832556,
+    "y1": 7.87088754886629,
+    "y3": 4.778724506993592,
+    "y5": 5.443100616808838,
+    "y10": 3.5995429330049733,
+    "max": 3.273546293545637
+   },
+   "spans": {
+    "d1": [
+     "2026-08-30",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-30",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-08-31"
+    ],
+    "y5": [
+     "2021-09-01",
+     "2026-08-31"
+    ],
+    "y10": [
+     "2016-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "2003-12-01",
+     "2026-08-31"
+    ]
+   },
+   "high52": 96.8769,
+   "low52": 87.7403
+  },
+  {
+   "id": "eur-usd",
+   "label": "EUR / USD",
+   "category": "currencies",
+   "group": "Majors",
+   "unit": "USD per EUR",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "EURUSD=X",
+    "url": "https://finance.yahoo.com/quote/EURUSD%3DX",
+    "exchange": "CCY",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2003-12-01",
+   "last": "2026-08-31",
+   "count": 5906,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1.1618,
+   "returns": {
+    "d1": 0.25023729398567784,
+    "w1": -0.42852245457662974,
+    "m1": 0.8156889968760739,
+    "m3": -0.14611087236785503,
+    "m6": -1.1990815545539601,
+    "qtd": 1.796197318846926,
+    "ytd": -1.0981527198433705,
+    "y1": -0.6329113924050667,
+    "y3": 2.324196839103654,
+    "y5": -0.3797867392637544,
+    "y10": 0.36634517981395387,
+    "max": -0.12928624946745293
+   },
+   "spans": {
+    "d1": [
+     "2026-08-30",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-30",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-08-31"
+    ],
+    "y5": [
+     "2021-09-01",
+     "2026-08-31"
+    ],
+    "y10": [
+     "2016-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "2003-12-01",
+     "2026-08-31"
+    ]
+   },
+   "high52": 1.2018,
+   "low52": 1.1354
+  },
+  {
+   "id": "gbp-usd",
+   "label": "GBP / USD",
+   "category": "currencies",
+   "group": "Majors",
+   "unit": "USD per GBP",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "GBPUSD=X",
+    "url": "https://finance.yahoo.com/quote/GBPUSD%3DX",
+    "exchange": "CCY",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2003-12-01",
+   "last": "2026-08-31",
+   "count": 5918,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 1.355,
+   "returns": {
+    "d1": 0.07385524372229835,
+    "w1": -0.6452559026250082,
+    "m1": 0.6611693039149991,
+    "m3": 0.6686478454680511,
+    "m6": 1.0666069963451985,
+    "qtd": 2.2564334767187333,
+    "ytd": 0.616321378183704,
+    "y1": 0.34063981042653513,
+    "y3": 2.254966453037155,
+    "y5": -0.32471423869856464,
+    "y10": 0.20533456511266923,
+    "max": -1.039487366293057
+   },
+   "spans": {
+    "d1": [
+     "2026-08-30",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-30",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-08-31"
+    ],
+    "y5": [
+     "2021-09-01",
+     "2026-08-31"
+    ],
+    "y10": [
+     "2016-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "2003-12-01",
+     "2026-08-31"
+    ]
+   },
+   "high52": 1.3825,
+   "low52": 1.3022
+  },
+  {
+   "id": "usd-jpy",
+   "label": "USD / JPY",
+   "category": "currencies",
+   "group": "Majors",
+   "unit": "JPY per USD",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "JPY=X",
+    "url": "https://finance.yahoo.com/quote/JPY%3DX",
+    "exchange": "CCY",
+    "upstreamCurrency": "JPY"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1996-10-30",
+   "last": "2026-08-31",
+   "count": 7741,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 159.747,
+   "returns": {
+    "d1": -0.23419642522576334,
+    "w1": 0.38205593851916575,
+    "m1": -0.2721886841924426,
+    "m3": 0.0695331880027128,
+    "m6": 1.9880868016318498,
+    "qtd": -1.7715276582138229,
+    "ytd": 2.131536381247079,
+    "y1": 8.599767500356915,
+    "y3": 3.168475827008499,
+    "y5": 7.734395573525954,
+    "y10": 4.4620841024212154,
+    "max": 1.1319573792083037
+   },
+   "spans": {
+    "d1": [
+     "2026-08-30",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-30",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-08-31"
+    ],
+    "y5": [
+     "2021-09-01",
+     "2026-08-31"
+    ],
+    "y10": [
+     "2016-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "1996-10-30",
+     "2026-08-31"
+    ]
+   },
+   "high52": 163.864,
+   "low52": 146.413
+  },
+  {
+   "id": "usd-cny",
+   "label": "USD / CNY",
+   "category": "currencies",
+   "group": "Majors",
+   "unit": "CNY per USD",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "CNY=X",
+    "url": "https://finance.yahoo.com/quote/CNY%3DX",
+    "exchange": "CCY",
+    "upstreamCurrency": "CNY"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2001-06-24",
+   "last": "2026-08-31",
+   "count": 6305,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 6.726,
+   "returns": {
+    "d1": 0,
+    "w1": 0.06099465924813696,
+    "m1": -0.42931162102146647,
+    "m3": -0.5764966740576472,
+    "m6": -1.9233292990565642,
+    "qtd": -0.9950541686292946,
+    "ytd": -3.860722402481387,
+    "y1": -5.671491080444291,
+    "y3": -2.500044645978994,
+    "y5": 0.8139718871461588,
+    "y10": 0.08637929295294278,
+    "max": -0.8204071877129682
+   },
+   "spans": {
+    "d1": [
+     "2026-08-30",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-30",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-08-31",
+     "2026-08-31"
+    ],
+    "y5": [
+     "2021-09-01",
+     "2026-08-31"
+    ],
+    "y10": [
+     "2016-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "2001-06-24",
+     "2026-08-31"
+    ]
+   },
+   "high52": 7.1718,
+   "low52": 6.7203
+  },
+  {
+   "id": "dxy",
+   "label": "Dollar Index (DXY)",
+   "category": "currencies",
+   "group": "Majors",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "DX-Y.NYB",
+    "url": "https://finance.yahoo.com/quote/DX-Y.NYB",
+    "exchange": "ICE Futures",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1971-01-04",
+   "last": "2026-09-01",
+   "count": 14134,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 99.67,
+   "returns": {
+    "d1": 0.24137584230110587,
+    "w1": 0.758188435099072,
+    "m1": -0.1302605210420804,
+    "m3": 0.45353759322717124,
+    "m6": 0.6259464916708701,
+    "qtd": -1.5021247158810147,
+    "ytd": 1.4143264143264167,
+    "y1": 1.9433364017592325,
+    "y3": -1.4829272988131192,
+    "y5": 1.5647643721361515,
+    "y10": 0.3885855115639991,
+    "max": -0.3408507201532296
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1971-01-04",
+     "2026-09-01"
+    ]
+   },
+   "high52": 101.61,
+   "low52": 96.22
+  },
+  {
+   "id": "us-10y",
+   "label": "US 10 Year Treasury",
+   "category": "rates",
+   "group": "Government Bonds",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^TNX",
+    "url": "https://finance.yahoo.com/quote/%5ETNX",
+    "exchange": "Cboe Indices",
+    "upstreamCurrency": "USD"
+   },
+   "note": "CBOE's 10-year Treasury yield index — the yield itself, in percent, not a price.",
+   "accumulating": false,
+   "first": "1970-01-02",
+   "last": "2026-09-01",
+   "count": 14186,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 4.796,
+   "returns": {
+    "d1": 0.038000000000000256,
+    "w1": 0.15700000000000003,
+    "m1": 0.051000000000000156,
+    "m3": 0.3410000000000002,
+    "m6": 0.7400000000000002,
+    "qtd": 0.3780000000000001,
+    "ytd": 0.633,
+    "y1": 0.569,
+    "y3": 0.6230000000000002,
+    "y5": 3.5020000000000002,
+    "y10": 3.2,
+    "max": -3.064
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1970-01-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 4.796,
+   "low52": 3.953
+  },
+  {
+   "id": "us-3m",
+   "label": "US 13 Week T-Bill",
+   "category": "rates",
+   "group": "Government Bonds",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^IRX",
+    "url": "https://finance.yahoo.com/quote/%5EIRX",
+    "exchange": "Cboe Indices",
+    "upstreamCurrency": "USD"
+   },
+   "note": "The short end of the US curve. `tenorYears` on the curve view places it at 0.25.",
+   "accumulating": false,
+   "first": "1970-01-02",
+   "last": "2026-09-01",
+   "count": 14186,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 3.772,
+   "returns": {
+    "d1": 0.03999999999999959,
+    "w1": 0.06699999999999973,
+    "m1": 0.08999999999999986,
+    "m3": 0.15399999999999991,
+    "m6": 0.1769999999999996,
+    "qtd": 0.03999999999999959,
+    "ytd": 0.22499999999999964,
+    "y1": -0.27100000000000035,
+    "y3": -1.496,
+    "y5": 3.7319999999999998,
+    "y10": 3.469,
+    "max": -4.148
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1970-01-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 4.032,
+   "low52": 3.507
+  },
+  {
+   "id": "us-5y",
+   "label": "US 5 Year Treasury",
+   "category": "rates",
+   "group": "Government Bonds",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^FVX",
+    "url": "https://finance.yahoo.com/quote/%5EFVX",
+    "exchange": "Cboe Indices",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1970-01-02",
+   "last": "2026-09-01",
+   "count": 14186,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 4.557,
+   "returns": {
+    "d1": 0.05000000000000071,
+    "w1": 0.2060000000000004,
+    "m1": 0.09700000000000042,
+    "m3": 0.3800000000000008,
+    "m6": 0.9260000000000006,
+    "qtd": 0.37100000000000044,
+    "ytd": 0.8350000000000004,
+    "y1": 0.8580000000000005,
+    "y3": 0.266,
+    "y5": 3.7810000000000006,
+    "y10": 3.3670000000000004,
+    "max": -3.632999999999999
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1970-01-02",
+     "2026-09-01"
+    ]
+   },
+   "high52": 4.557,
+   "low52": 3.512
+  },
+  {
+   "id": "us-30y",
+   "label": "US 30 Year Treasury",
+   "category": "rates",
+   "group": "Government Bonds",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "Yahoo Finance",
+    "symbol": "^TYX",
+    "url": "https://finance.yahoo.com/quote/%5ETYX",
+    "exchange": "Cboe Indices",
+    "upstreamCurrency": "USD"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1977-02-15",
+   "last": "2026-09-01",
+   "count": 12412,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 5.268,
+   "returns": {
+    "d1": 0.019000000000000128,
+    "w1": 0.09399999999999942,
+    "m1": -0.007000000000000561,
+    "m3": 0.30100000000000016,
+    "m6": 0.5659999999999998,
+    "qtd": 0.36599999999999966,
+    "ytd": 0.42799999999999994,
+    "y1": 0.351,
+    "y3": 0.9829999999999997,
+    "y5": 3.3609999999999998,
+    "y10": 2.997,
+    "max": -2.4320000000000004
+   },
+   "spans": {
+    "d1": [
+     "2026-08-31",
+     "2026-09-01"
+    ],
+    "w1": [
+     "2026-08-25",
+     "2026-09-01"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-09-01"
+    ],
+    "m3": [
+     "2026-06-02",
+     "2026-09-01"
+    ],
+    "m6": [
+     "2026-03-03",
+     "2026-09-01"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-09-01"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-09-01"
+    ],
+    "y1": [
+     "2025-08-29",
+     "2026-09-01"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-09-01"
+    ],
+    "y5": [
+     "2021-09-02",
+     "2026-09-01"
+    ],
+    "y10": [
+     "2016-09-02",
+     "2026-09-01"
+    ],
+    "max": [
+     "1977-02-15",
+     "2026-09-01"
+    ]
+   },
+   "high52": 5.309,
+   "low52": 4.539
+  },
+  {
+   "id": "india-10y",
+   "label": "India 10 Year G-Sec",
+   "category": "rates",
+   "group": "Government Bonds",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "monthly",
+   "provenance": "official-api",
+   "source": {
+    "name": "FRED (Federal Reserve Bank of St. Louis)",
+    "symbol": "INDIRLTLT01STM",
+    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=INDIRLTLT01STM",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "MONTHLY, not daily — the OECD long-term government bond yield for India (10-year benchmark) as republished by FRED. The daily benchmark yield is on the RBI's own site and still needs a reader; this is the monthly figure, and the frequency travels with the series so no 1-day or 1-week return is ever computed from it.",
+   "accumulating": false,
+   "first": "2011-12-01",
+   "last": "2026-06-01",
+   "count": 175,
+   "retrievedAt": "2026-08-18T02:55:00.181Z",
+   "staleSince": "2026-06-01",
+   "last_value": 6.89,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -0.1299999999999999,
+    "m3": 0.04999999999999982,
+    "m6": 0.2574999999999994,
+    "qtd": 0.04999999999999982,
+    "ytd": 0.2574999999999994,
+    "y1": 0.5824999999999996,
+    "y3": -0.1640000000000006,
+    "y5": 0.6223000000000001,
+    "y10": -0.6126000000000005,
+    "max": -1.6700000000000008
+   },
+   "spans": {
+    "m1": [
+     "2026-05-01",
+     "2026-06-01"
+    ],
+    "m3": [
+     "2026-03-01",
+     "2026-06-01"
+    ],
+    "m6": [
+     "2025-12-01",
+     "2026-06-01"
+    ],
+    "qtd": [
+     "2026-03-01",
+     "2026-06-01"
+    ],
+    "ytd": [
+     "2025-12-01",
+     "2026-06-01"
+    ],
+    "y1": [
+     "2025-06-01",
+     "2026-06-01"
+    ],
+    "y3": [
+     "2023-06-01",
+     "2026-06-01"
+    ],
+    "y5": [
+     "2021-06-01",
+     "2026-06-01"
+    ],
+    "y10": [
+     "2016-06-01",
+     "2026-06-01"
+    ],
+    "max": [
+     "2011-12-01",
+     "2026-06-01"
+    ]
+   },
+   "high52": 7.05,
+   "low52": 6.3075
+  },
+  {
+   "id": "credit-spreads",
+   "label": "US Corporate Credit Spread (ICE BofA OAS)",
+   "category": "rates",
+   "group": "Credit Markets",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "official-api",
+   "source": {
+    "name": "FRED (Federal Reserve Bank of St. Louis)",
+    "symbol": "BAMLC0A0CM",
+    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLC0A0CM",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "ICE BofA US Corporate Index option-adjusted spread — a US spread, and the label says so. India has no free equivalent, and carrying this one under an unqualified 'Corporate Credit Spreads' would let a reader take a US number for their own market, which is the same substitution the industry page refuses when a global benchmark stands in for a domestic price. HISTORY IS SHORT AND THAT IS THE SOURCE'S DOING: the ICE BofA family is licensed, so FRED redistributes only a rolling ~3-year window (DGS10 from the same endpoint returns 1962 onwards, so this is not a request the harvester is getting wrong). The store accumulates from here, and any horizon longer than what is held stays absent rather than being answered from a shorter window.",
+   "accumulating": false,
+   "first": "2023-08-11",
+   "last": "2026-08-31",
+   "count": 800,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 0.8,
+   "returns": {
+    "d1": 0.010000000000000009,
+    "w1": -0.010000000000000009,
+    "m1": 0.010000000000000009,
+    "m3": 0.07000000000000006,
+    "m6": -0.04999999999999993,
+    "qtd": 0.040000000000000036,
+    "ytd": 0.010000000000000009,
+    "y1": -0.010000000000000009,
+    "y3": -0.41999999999999993,
+    "y5": null,
+    "y10": null,
+    "max": -0.41999999999999993
+   },
+   "spans": {
+    "d1": [
+     "2026-08-28",
+     "2026-08-31"
+    ],
+    "w1": [
+     "2026-08-24",
+     "2026-08-31"
+    ],
+    "m1": [
+     "2026-07-31",
+     "2026-08-31"
+    ],
+    "m3": [
+     "2026-06-01",
+     "2026-08-31"
+    ],
+    "m6": [
+     "2026-03-02",
+     "2026-08-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-08-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-08-31"
+    ],
+    "y1": [
+     "2025-08-31",
+     "2026-08-31"
+    ],
+    "y3": [
+     "2023-09-01",
+     "2026-08-31"
+    ],
+    "max": [
+     "2023-08-11",
+     "2026-08-31"
+    ]
+   },
+   "high52": 0.94,
+   "low52": 0.73
+  },
+  {
+   "id": "india-repo-rate",
+   "label": "RBI Repo Rate",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "Policy Repo Rate",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 5.25,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-sdf-rate",
+   "label": "Standing Deposit Facility",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "Standing Deposit Facility Rate",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 5,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-msf-rate",
+   "label": "Marginal Standing Facility",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "Marginal Standing Facility Rate",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 5.5,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-bank-rate",
+   "label": "RBI Bank Rate",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "Bank Rate",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 5.5,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-reverse-repo",
+   "label": "Fixed Reverse Repo Rate",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "Fixed Reverse Repo Rate",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 3.35,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-crr",
+   "label": "Cash Reserve Ratio (CRR)",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "CRR",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 3,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-slr",
+   "label": "Statutory Liquidity Ratio (SLR)",
+   "category": "rates",
+   "group": "Policy Rates",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "daily",
+   "provenance": "scraped-official",
+   "source": {
+    "name": "Reserve Bank of India",
+    "symbol": "SLR",
+    "url": "https://www.rbi.org.in/",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": true,
+   "first": "2026-08-10",
+   "last": "2026-09-02",
+   "count": 24,
+   "retrievedAt": "2026-09-02T06:50:36.493Z",
+   "staleSince": null,
+   "last_value": 18,
+   "returns": {
+    "d1": 0,
+    "w1": 0,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": null,
+    "y3": null,
+    "y5": null,
+    "y10": null,
+    "max": 0
+   },
+   "spans": {
+    "d1": [
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "w1": [
+     "2026-08-26",
+     "2026-09-02"
+    ],
+    "max": [
+     "2026-08-10",
+     "2026-09-02"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-mf-aum",
+   "label": "Mutual Fund AUM",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "grand-total/aum",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:29:14.453Z",
+   "staleSince": null,
+   "last_value": 8575656.52,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 4.295254938679061,
+    "m3": 4.678353179840777,
+    "m6": 6.883353393730185,
+    "qtd": 4.295254938679061,
+    "ytd": 6.883353393730185,
+    "y1": 13.796309515365568,
+    "y3": 22.73605706059374,
+    "y5": 19.41627097710903,
+    "y10": null,
+    "max": 18.66513201614859
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 8575656.52,
+   "low52": 7373376.98
+  },
+  {
+   "id": "india-mf-net-flows",
+   "label": "Mutual Fund Net Flows",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "grand-total/net",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:28:15.827Z",
+   "staleSince": null,
+   "last_value": 235902.39,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": -26.829959822331663,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": 31.94065851424468,
+    "y3": 42.18593122904033,
+    "y5": 15.605872212786132,
+    "y10": null,
+    "max": 12.49118720080833
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 322402.98,
+   "low52": -239910
+  },
+  {
+   "id": "india-mf-equity-flows",
+   "label": "Equity MF Net Flows",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "equity/net",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:26:30.066Z",
+   "staleSince": null,
+   "last_value": 24697.39,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -14.758428503928256,
+    "m3": -35.751140732878596,
+    "m6": -11.965006134584444,
+    "qtd": -14.758428503928256,
+    "ytd": -11.965006134584444,
+    "y1": -42.163862176203416,
+    "y3": 47.93810152044169,
+    "y5": 1.805900358128243,
+    "y10": null,
+    "max": 26.04499883113722
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 42702.35,
+   "low52": 22907.77
+  },
+  {
+   "id": "india-mf-debt-flows",
+   "label": "Debt MF Net Flows",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "debt/net",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:26:30.066Z",
+   "staleSince": null,
+   "last_value": 187511.32,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": -24.234798468447394,
+    "m6": null,
+    "qtd": null,
+    "ytd": null,
+    "y1": 75.57037498538173,
+    "y3": 45.04020177430923,
+    "y5": 20.539706916033463,
+    "y10": null,
+    "max": 6.235682413292842
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 247490.03,
+   "low52": -294987.18
+  },
+  {
+   "id": "india-mf-folios",
+   "label": "Mutual Fund Folios",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "count",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "grand-total/folios",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:28:15.827Z",
+   "staleSince": null,
+   "last_value": 280865000,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 0.8132895379427296,
+    "m3": 2.017221519664125,
+    "m6": 7.506555425276118,
+    "qtd": 0.8132895379427296,
+    "ytd": 7.506555425276118,
+    "y1": 14.300846689834824,
+    "y3": 22.861697702164264,
+    "y5": 21.63609185949358,
+    "y10": null,
+    "max": 18.355396488791165
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 280865000,
+   "low52": 245724339
+  },
+  {
+   "id": "india-etf-gold-flows",
+   "label": "Gold ETF Net Flows",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "gold-etf/net",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:26:30.066Z",
+   "staleSince": null,
+   "last_value": 1558.746,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -54.73014888337468,
+    "m3": -48.73075609953445,
+    "m6": -86.61646091524324,
+    "qtd": -54.73014888337468,
+    "ytd": -86.61646091524324,
+    "y1": 24.09469355000502,
+    "y3": 50.60777002875909,
+    "y5": null,
+    "y10": null,
+    "max": null
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 24039.96,
+   "low52": -725.039
+  },
+  {
+   "id": "india-etf-other-flows",
+   "label": "Other ETF Net Flows",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-file",
+   "source": {
+    "name": "AMFI (Association of Mutual Funds in India)",
+    "symbol": "other-etf/net",
+    "url": "https://www.amfiindia.com/research-information/amfi-monthly",
+    "exchange": null,
+    "upstreamCurrency": "INR"
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "2019-04-30",
+   "last": "2026-07-31",
+   "count": 88,
+   "retrievedAt": "2026-08-12T03:26:30.066Z",
+   "staleSince": null,
+   "last_value": 9512.048,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -28.144580351962865,
+    "m3": -11.555817555970037,
+    "m6": -27.935973041280537,
+    "qtd": -28.144580351962865,
+    "ytd": -27.935973041280537,
+    "y1": 112.46895181321412,
+    "y3": null,
+    "y5": 7.7663175943250895,
+    "y10": null,
+    "max": null
+   },
+   "spans": {
+    "m1": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "m3": [
+     "2026-04-30",
+     "2026-07-31"
+    ],
+    "m6": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "qtd": [
+     "2026-06-30",
+     "2026-07-31"
+    ],
+    "ytd": [
+     "2025-12-31",
+     "2026-07-31"
+    ],
+    "y1": [
+     "2025-07-31",
+     "2026-07-31"
+    ],
+    "y3": [
+     "2023-07-31",
+     "2026-07-31"
+    ],
+    "y5": [
+     "2021-07-31",
+     "2026-07-31"
+    ],
+    "max": [
+     "2019-04-30",
+     "2026-07-31"
+    ]
+   },
+   "high52": 19802.41,
+   "low52": -620.222
+  },
+  {
+   "id": "india-wpi",
+   "label": "India Wholesale Price Index",
+   "category": "economy",
+   "group": "Inflation",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-api",
+   "source": {
+    "name": "data.gov.in (Open Government Data, India)",
+    "symbol": "All Commodities",
+    "url": "https://www.data.gov.in/resource/239ac3d0-f08d-40d0-b03c-9b7a426a62d5",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "Base 2011-12 = 100, Office of the Economic Adviser. DISCONTINUED: the resource is titled 'till last month' and its catalogue record is touched daily, but the last month it carries is October 2023 — verified against the resource's own declared schema, so the source stops there rather than the read being truncated. Carried as history, never as a current reading. The headline 'All Commodities' row is read as published; the other 868 rows are individual commodities and averaging them would produce an index nobody published.",
+   "accumulating": false,
+   "first": "2012-04-01",
+   "last": "2023-10-01",
+   "count": 139,
+   "retrievedAt": "2026-08-11T04:21:22.200Z",
+   "staleSince": "2023-10-01",
+   "last_value": 152.5,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": 0.46113306982871194,
+    "m3": 0.2629848783694877,
+    "m6": 0.9265387160820593,
+    "qtd": null,
+    "ytd": 1.3289036544850585,
+    "y1": -0.2616088947024253,
+    "y3": 7.260040832366355,
+    "y5": 4.564594165030922,
+    "y10": 2.8987790071610897,
+    "max": 3.3244928078784763
+   },
+   "spans": {
+    "m1": [
+     "2023-09-01",
+     "2023-10-01"
+    ],
+    "m3": [
+     "2023-07-01",
+     "2023-10-01"
+    ],
+    "m6": [
+     "2023-04-01",
+     "2023-10-01"
+    ],
+    "ytd": [
+     "2022-12-01",
+     "2023-10-01"
+    ],
+    "y1": [
+     "2022-10-01",
+     "2023-10-01"
+    ],
+    "y3": [
+     "2020-10-01",
+     "2023-10-01"
+    ],
+    "y5": [
+     "2018-10-01",
+     "2023-10-01"
+    ],
+    "y10": [
+     "2013-10-01",
+     "2023-10-01"
+    ],
+    "max": [
+     "2012-04-01",
+     "2023-10-01"
+    ]
+   },
+   "high52": 152.9,
+   "low52": 148.9
+  },
+  {
+   "id": "india-iip",
+   "label": "India Index of Industrial Production",
+   "category": "economy",
+   "group": "Economic growth",
+   "unit": "index",
+   "kind": "price",
+   "frequency": "monthly",
+   "provenance": "official-api",
+   "source": {
+    "name": "data.gov.in (Open Government Data, India)",
+    "symbol": "General",
+    "url": "https://www.data.gov.in/resource/31d53713-46c6-48bd-951a-4d986272fd96",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": "Base 2011-12 = 100, MoSPI all-India IIP. DISCONTINUED: last month carried is February 2023, verified against the resource's declared schema. Carried as history, never as a current reading. The 'General' row is the ministry's own aggregate computed with the official weights; the other rows are NIC industry divisions and are not summed here. The +67% move at 2020-05 is the COVID collapse and rebound — a real move, which the gate warns on rather than blocks.",
+   "accumulating": false,
+   "first": "2012-04-01",
+   "last": "2023-02-01",
+   "count": 131,
+   "retrievedAt": "2026-08-11T04:21:22.200Z",
+   "staleSince": "2023-02-01",
+   "last_value": 138.7,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": -5.5820285908781635,
+    "m3": 0.726216412490932,
+    "m6": 5.475285171102651,
+    "qtd": -4.542326221610471,
+    "ytd": -4.542326221610471,
+    "y1": 5.555555555555536,
+    "y3": 1.1052155255739216,
+    "y5": 1.7143942898165898,
+    "y10": 3.182420878849501,
+    "max": 3.131788755496956
+   },
+   "spans": {
+    "m1": [
+     "2023-01-01",
+     "2023-02-01"
+    ],
+    "m3": [
+     "2022-11-01",
+     "2023-02-01"
+    ],
+    "m6": [
+     "2022-08-01",
+     "2023-02-01"
+    ],
+    "qtd": [
+     "2022-12-01",
+     "2023-02-01"
+    ],
+    "ytd": [
+     "2022-12-01",
+     "2023-02-01"
+    ],
+    "y1": [
+     "2022-02-01",
+     "2023-02-01"
+    ],
+    "y3": [
+     "2020-02-01",
+     "2023-02-01"
+    ],
+    "y5": [
+     "2018-02-01",
+     "2023-02-01"
+    ],
+    "y10": [
+     "2013-02-01",
+     "2023-02-01"
+    ],
+    "max": [
+     "2012-04-01",
+     "2023-02-01"
+    ]
+   },
+   "high52": 148.8,
+   "low52": 129.5
+  },
+  {
+   "id": "india-gdp-growth",
+   "label": "India GDP growth",
+   "category": "economy",
+   "group": "Economic growth",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "annual",
+   "provenance": "official-api",
+   "source": {
+    "name": "World Bank Open Data",
+    "symbol": "NY.GDP.MKTP.KD.ZG",
+    "url": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=500",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1961-12-31",
+   "last": "2025-12-31",
+   "count": 65,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": null,
+   "last_value": 7.5667,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": 0.4673999999999996,
+    "y1": 0.4673999999999996,
+    "y3": -0.04269999999999996,
+    "y5": 13.3444,
+    "y10": -0.42959999999999976,
+    "max": 3.844
+   },
+   "spans": {
+    "ytd": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y1": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y3": [
+     "2022-12-31",
+     "2025-12-31"
+    ],
+    "y5": [
+     "2020-12-31",
+     "2025-12-31"
+    ],
+    "y10": [
+     "2015-12-31",
+     "2025-12-31"
+    ],
+    "max": [
+     "1961-12-31",
+     "2025-12-31"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-cpi",
+   "label": "India CPI inflation",
+   "category": "economy",
+   "group": "Inflation",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "annual",
+   "provenance": "official-api",
+   "source": {
+    "name": "World Bank Open Data",
+    "symbol": "FP.CPI.TOTL.ZG",
+    "url": "https://api.worldbank.org/v2/country/IN/indicator/FP.CPI.TOTL.ZG?format=json&per_page=500",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1960-12-31",
+   "last": "2025-12-31",
+   "count": 66,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": null,
+   "last_value": 2.3988,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": -2.5542000000000002,
+    "y1": -2.5542000000000002,
+    "y3": -4.3002,
+    "y5": -4.224600000000001,
+    "y10": -2.5082,
+    "max": 0.6189
+   },
+   "spans": {
+    "ytd": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y1": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y3": [
+     "2022-12-31",
+     "2025-12-31"
+    ],
+    "y5": [
+     "2020-12-31",
+     "2025-12-31"
+    ],
+    "y10": [
+     "2015-12-31",
+     "2025-12-31"
+    ],
+    "max": [
+     "1960-12-31",
+     "2025-12-31"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-unemployment",
+   "label": "India unemployment rate",
+   "category": "economy",
+   "group": "Labour market",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "annual",
+   "provenance": "official-api",
+   "source": {
+    "name": "World Bank Open Data",
+    "symbol": "SL.UEM.TOTL.ZS",
+    "url": "https://api.worldbank.org/v2/country/IN/indicator/SL.UEM.TOTL.ZS?format=json&per_page=500",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1991-12-31",
+   "last": "2025-12-31",
+   "count": 35,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": null,
+   "last_value": 4.219,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": 0.04600000000000026,
+    "y1": 0.04600000000000026,
+    "y3": -0.6029999999999998,
+    "y5": -3.6399999999999997,
+    "y10": -3.4099999999999993,
+    "max": -3.4219999999999997
+   },
+   "spans": {
+    "ytd": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y1": [
+     "2024-12-31",
+     "2025-12-31"
+    ],
+    "y3": [
+     "2022-12-31",
+     "2025-12-31"
+    ],
+    "y5": [
+     "2020-12-31",
+     "2025-12-31"
+    ],
+    "y10": [
+     "2015-12-31",
+     "2025-12-31"
+    ],
+    "max": [
+     "1991-12-31",
+     "2025-12-31"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  },
+  {
+   "id": "india-govt-debt-gdp",
+   "label": "India government debt / GDP",
+   "category": "economy",
+   "group": "Government",
+   "unit": "%",
+   "kind": "yield",
+   "frequency": "annual",
+   "provenance": "official-api",
+   "source": {
+    "name": "World Bank Open Data",
+    "symbol": "GC.DOD.TOTL.GD.ZS",
+    "url": "https://api.worldbank.org/v2/country/IN/indicator/GC.DOD.TOTL.GD.ZS?format=json&per_page=500",
+    "exchange": null,
+    "upstreamCurrency": null
+   },
+   "note": null,
+   "accumulating": false,
+   "first": "1990-12-31",
+   "last": "2018-12-31",
+   "count": 29,
+   "retrievedAt": "2026-08-10T09:33:18.721Z",
+   "staleSince": "2018-12-31",
+   "last_value": 46.5225,
+   "returns": {
+    "d1": null,
+    "w1": null,
+    "m1": null,
+    "m3": null,
+    "m6": null,
+    "qtd": null,
+    "ytd": -1.0610999999999962,
+    "y1": -1.0610999999999962,
+    "y3": -3.4421999999999997,
+    "y5": -3.7892999999999972,
+    "y10": -10.7697,
+    "max": -4.260799999999996
+   },
+   "spans": {
+    "ytd": [
+     "2017-12-31",
+     "2018-12-31"
+    ],
+    "y1": [
+     "2017-12-31",
+     "2018-12-31"
+    ],
+    "y3": [
+     "2015-12-31",
+     "2018-12-31"
+    ],
+    "y5": [
+     "2013-12-31",
+     "2018-12-31"
+    ],
+    "y10": [
+     "2008-12-31",
+     "2018-12-31"
+    ],
+    "max": [
+     "1990-12-31",
+     "2018-12-31"
+    ]
+   },
+   "high52": null,
+   "low52": null
+  }
+ ],
+ "absent": [
+  {
+   "id": "coking-coal",
+   "label": "Coking Coal",
+   "category": "commodities",
+   "group": "Energy",
+   "unit": "USD/t",
+   "absent": "Neither a free daily feed nor the World Bank Pink Sheet carries coking (metallurgical) coal — the Pink Sheet publishes thermal coal only. It needs a commercial source such as Platts or Argus."
+  },
+  {
+   "id": "crb-index",
+   "label": "CRB Commodity Index",
+   "category": "commodities",
+   "group": "Others",
+   "unit": "index",
+   "absent": "Refinitiv/CoreCommodity proprietary — no free feed at any frequency. The Bloomberg Commodity Index is carried alongside as a comparable basket, under its own name."
+  },
+  {
+   "id": "baltic-dry",
+   "label": "Baltic Dry Index",
+   "category": "commodities",
+   "group": "Others",
+   "unit": "index",
+   "absent": "Baltic Exchange licenses the BDI; no free API publishes it. Queued for the Phase 1 aggregator harvest."
+  },
+  {
+   "id": "container-freight",
+   "label": "Container Freight Index",
+   "category": "commodities",
+   "group": "Others",
+   "unit": "USD/FEU",
+   "absent": "Freightos FBX and Drewry WCI publish weekly on their own pages with no API. Queued for the Phase 1 aggregator harvest."
+  },
+  {
+   "id": "rail-freight",
+   "label": "Rail Freight",
+   "category": "commodities",
+   "group": "Others",
+   "unit": "index",
+   "absent": "Indian Railways freight volumes come from the Ministry of Railways monthly release — Phase 2 India harvest."
+  },
+  {
+   "id": "india-sip-flows",
+   "label": "SIP Contributions",
+   "category": "economy",
+   "group": "Capital markets",
+   "unit": "INR Cr",
+   "absent": "The AMFI monthly workbook now read for MF flows, folios and AUM does not carry SIP contributions, and the monthly-report page links no SIP file. It is published separately and needs its own source located."
+  },
+  {
+   "id": "india-petroleum-consumption",
+   "label": "India petroleum products consumption",
+   "category": "economy",
+   "group": "Consumption",
+   "unit": "'000 MT",
+   "absent": "PPAC publishes consumption monthly and CURRENT — its July 2026 flash report was on the site when this was checked — but as PDF only, with no spreadsheet or API alongside. It needs a reader for that report's layout, not a URL."
+  },
+  {
+   "id": "india-vehicle-sales",
+   "label": "India vehicle sales",
+   "category": "economy",
+   "group": "Consumption",
+   "unit": "units",
+   "absent": "SIAM puts its production and sales statistics behind a member subscription — the public pages carry login and subscription prompts and no data. This one is a commercial licence, not a reader."
+  }
+ ],
+ "failed": [
+  {
+   "id": "india-power-capacity",
+   "label": "India installed power capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-coal",
+   "label": "India coal capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-solar",
+   "label": "India solar capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-wind",
+   "label": "India wind capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-hydro",
+   "label": "India hydro capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-nuclear",
+   "label": "India nuclear capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  },
+  {
+   "id": "india-power-nonfossil",
+   "label": "India non-fossil capacity",
+   "category": "economy",
+   "group": "Power",
+   "error": "CEA: no \"Summary\" worksheet (found: IC_July 2026)",
+   "kept": 1
+  }
+ ]
+}

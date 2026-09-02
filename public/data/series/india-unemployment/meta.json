@@ -1,0 +1,24 @@
+{
+ "id": "india-unemployment",
+ "label": "India unemployment rate",
+ "category": "economy",
+ "group": "Labour market",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "annual",
+ "provenance": "official-api",
+ "source": {
+  "name": "World Bank Open Data",
+  "symbol": "SL.UEM.TOTL.ZS",
+  "url": "https://api.worldbank.org/v2/country/IN/indicator/SL.UEM.TOTL.ZS?format=json&per_page=500",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1991-12-31",
+ "last": "2025-12-31",
+ "count": 35,
+ "retrievedAt": "2026-08-10T09:33:18.721Z",
+ "staleSince": null
+}

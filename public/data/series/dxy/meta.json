@@ -1,0 +1,24 @@
+{
+ "id": "dxy",
+ "label": "Dollar Index (DXY)",
+ "category": "currencies",
+ "group": "Majors",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "DX-Y.NYB",
+  "url": "https://finance.yahoo.com/quote/DX-Y.NYB",
+  "exchange": "ICE Futures",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1971-01-04",
+ "last": "2026-09-01",
+ "count": 14134,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

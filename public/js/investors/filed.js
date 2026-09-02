@@ -116,6 +116,7 @@ export function renderFiled(ctx, { disposers = [], section = 'institutions', onS
     columns: columnsFor(fund),
     filters: filtersFor(fund),
     searchable: (r) => `${r.name} ${r.ticker || ''} ${r.sector || ''} ${r.industry || ''}`,
+    initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
     initialSort: { key: filing ? 'Holding Value' : 'Value (AMC)', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
     exportName: `glow-${fund.investorId}-holdings`,

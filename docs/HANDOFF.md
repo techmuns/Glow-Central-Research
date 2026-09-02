@@ -20,7 +20,7 @@ Two workspaces, fifteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **Ask Research** · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | Macro Research · Economy & Macro (both Glow-owned, first in the bar) · **Ask Research** (the landing tab) · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
 **This repository is Glow Central Research, a downstream of Sattva Central Research.** The code is
@@ -888,6 +888,25 @@ echo 'MUNS_TOKEN="…"' >> .dev.vars     # local, gitignored
 `env.MUNS_BASE` redirects the upstream, which is how a verification run drives the whole path
 against a stand-in instead of scraping their production.
 
+**And there is now a second way that credential can arrive — the reader's own.** This dashboard is
+embedded in the Munshot host, which hands the browser the signed-in reader's session JWT over the
+SDK channel; the browser sends it on our same-origin `api/…` routes, and `withCallerToken()` in
+`worker/muns.mjs` uses it to fill an **absent** `MUNS_TOKEN`. A configured secret always wins, so
+the block above is unchanged for any deployment that has one. What it removes is the case where the
+secret was never installed: `no-token` is a hard failure on screen — News, Announcements, Insider
+Trades, stock search, the investor books and Ask Research all show nothing — and clearing it needed
+an operator in the Cloudflare dashboard. A signed-in reader now clears it for themselves.
+
+Two things that follow, and neither is optional:
+
+- **It does not replace the secret for anything unattended.** A GitHub Action has no host and no
+  reader, so every scheduled scrape still needs `MUNS_TOKEN` in the repository's secret store. The
+  same is true of the Worker's own `scheduled()` handler.
+- **These routes share URL-keyed edge-cache entries**, which is safe only because every upstream
+  behind them returns market data — the same filings and books whoever asks. A future route whose
+  response is specific to the caller must not be given that env; read the note above
+  `withCallerToken` before adding one.
+
 The Superstar surface is split into three in-page tabs in this order: **All Investors** for the
 card directory, **Quarterly Changes** for the six cross-book summaries, and **Data Table** for every
 disclosed investor-company position. Data Table retains the wide quarter history, search,
@@ -1018,6 +1037,7 @@ only**, with the single permission **Actions: read and write**.
 | --- | --- | --- |
 | `MUNS_TOKEN` (optional) | `technicals-refresh.yml` only — the flagged-move re-derivation calls Muns directly. The company-news and insider-trades walks need no repository secret: they read through this Worker, which holds the token | the re-derivation records a refusal and the run still succeeds |
 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` — **only** if the site publishes through that workflow rather than Cloudflare's Git integration | `deploy.yml` reports *skipped* on every run, which is correct when the Git integration is the publish path |
+| `GLOWVENTURES_READ_TOKEN` | `series-refresh.yml` — copies the macro series store from the private techmuns/GlowVentures repository every morning. A fine-grained PAT for that one repository with *Contents: read* | the store is not refreshed; the two macro tabs keep the committed copy and print its harvest time |
 | `SYNC_PUSH_TOKEN` (optional) | `sync-upstream.yml` — a fine-grained PAT with *Contents* and *Pull requests* read/write on this repo, so a synced `main` triggers `deploy.yml` and `verify.yml` (pushes made with the default `GITHUB_TOKEN` do not trigger other workflows) | the sync still pushes; only workflows that key off that push do not run. Irrelevant when Cloudflare's Git integration publishes |
 
 **Publishing is Cloudflare's Git integration, verified.** The Worker is connected to this repository

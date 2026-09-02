@@ -1,0 +1,24 @@
+{
+ "id": "lng",
+ "label": "LNG (Japan)",
+ "category": "commodities",
+ "group": "Energy",
+ "unit": "USD/MMBtu",
+ "kind": "price",
+ "frequency": "monthly",
+ "provenance": "official-file",
+ "source": {
+  "name": "World Bank Pink Sheet",
+  "symbol": "Liquefied natural gas, Japan",
+  "url": "https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1977-01-01",
+ "last": "2026-07-01",
+ "count": 595,
+ "retrievedAt": "2026-08-10T09:33:18.721Z",
+ "staleSince": "2026-07-01"
+}

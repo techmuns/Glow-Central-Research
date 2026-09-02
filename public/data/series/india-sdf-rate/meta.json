@@ -1,0 +1,24 @@
+{
+ "id": "india-sdf-rate",
+ "label": "Standing Deposit Facility",
+ "category": "rates",
+ "group": "Policy Rates",
+ "unit": "%",
+ "kind": "yield",
+ "frequency": "daily",
+ "provenance": "scraped-official",
+ "source": {
+  "name": "Reserve Bank of India",
+  "symbol": "Standing Deposit Facility Rate",
+  "url": "https://www.rbi.org.in/",
+  "exchange": null,
+  "upstreamCurrency": null
+ },
+ "note": null,
+ "accumulating": true,
+ "first": "2026-08-10",
+ "last": "2026-09-02",
+ "count": 24,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

@@ -9,6 +9,7 @@
 // page. Sub-view switches, scope changes, chip filters and sorts all operate on that cached
 // list — nothing below refetches or rescores.
 
+import { authHeaders } from '../core/host-context.js';
 import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { legendStrip } from '../ui/visual.js';
 import { scopeSummary } from '../ui/components.js';
@@ -415,6 +416,8 @@ function renderScanner(ctx, rows) {
 
   const table = scoreTable({
     ...tableBase(rows, ctx),
+    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
+    initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -1047,7 +1050,7 @@ async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
   try {
     const res = await fetch(LIVE_PRICES_ENDPOINT, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...authHeaders(LIVE_PRICES_ENDPOINT) },
       body: JSON.stringify({ tickers }),
       signal: ctl.signal,
     });

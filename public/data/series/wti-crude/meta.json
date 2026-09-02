@@ -1,0 +1,24 @@
+{
+ "id": "wti-crude",
+ "label": "WTI Crude",
+ "category": "commodities",
+ "group": "Energy",
+ "unit": "USD/bbl",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "CL=F",
+  "url": "https://finance.yahoo.com/quote/CL%3DF",
+  "exchange": "NY Mercantile",
+  "upstreamCurrency": "USD"
+ },
+ "note": "WTI settled NEGATIVE on 20 April 2020 (−$37.63). The band allows it because it happened; a floor at zero would reject a real print.",
+ "accumulating": false,
+ "first": "2000-08-23",
+ "last": "2026-09-01",
+ "count": 6534,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

@@ -1,0 +1,24 @@
+{
+ "id": "wheat",
+ "label": "Wheat",
+ "category": "commodities",
+ "group": "Agriculture",
+ "unit": "USc/bu",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "ZW=F",
+  "url": "https://finance.yahoo.com/quote/ZW%3DF",
+  "exchange": "CBOT",
+  "upstreamCurrency": "USX"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "2000-07-17",
+ "last": "2026-09-01",
+ "count": 6549,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

@@ -117,7 +117,15 @@ Root is an **object** with a metadata header and a `companies` array.
 | `generated_at` | string | ISO 8601 UTC | When the scrape finished. Drives the gradient "Last Refresh" card. **Not** the date of the closes — see `price_date`. |
 | `price_date` | string \| null | YYYY-MM-DD (IST) | The session the closes belong to: the most common `bar_date` across priced rows. On the scheduled 07:00 IST run this is the previous trading day. General Alerts dates every price move by this (per row `bar_date`), never by `generated_at`. |
 | `price_date_rows` | number | count | How many rows share `price_date`. A row on another date is a company whose latest Yahoo bar lags. |
-| `move_verification` | object \| null | — | What `scripts/lib/muns-market-data.mjs` did: `{ source, threshold_pct, flagged, checked, confirmed, corrected, unavailable, skipped }`. Null when the check was skipped (`MUNS_VERIFY=0`). |
+| `move_verification` | object \| null | — | What `scripts/lib/muns-market-data.mjs` did, across the scrape and every follow-up pass: `{ source, threshold_pct, alert_pct, flagged, cached, checked, confirmed, corrected, unavailable, refusals, elapsed_ms, budget_exhausted, passes?, last_pass_at? }`. Null when the check was skipped (`MUNS_VERIFY=0`). |
+
+**`price-move-checks.json`** sits beside it: every answer the Muns market-data endpoint has given,
+keyed `TICKER@bar_date` → `{ pct, close, prevClose, prevDate, checkedAt }`, pruned to ten days. It
+exists because the endpoint's anonymous quota is a few requests an hour and a refusal outlasts a
+run: the daily scrape asks what it can and commits, and `.github/workflows/price-move-verify.yml`
+runs `scripts/verify-price-moves.mjs` hourly through the Indian day to ask only about the rows still
+`unavailable` — reading this file first, so no name is asked twice. A `MUNS_TOKEN` repository secret
+is sent as a Bearer token by both jobs and is what lets one pass answer the whole set.
 | `source` | string | — | Always `"Yahoo Finance"` today. |
 | `index_symbol` | string | — | `^CRSLDX` — Nifty 500 on Yahoo. |
 | `index_close` | number | index points | Latest index close. |
@@ -206,7 +214,7 @@ substitutes a guess.
 | `bar_gap_days` | number \| null | days | Calendar distance between the two. A weekend is 3, a holiday weekend 4. |
 | `pct_change_today` | number \| null | percent | `cmp` vs the close on `prev_bar_date`. **Null when the gap exceeds 4 days** — Yahoo skipped a session, and the figure would be a multi-day move under a one-day label. Feeds `market_breadth` and the ±5% price alert. |
 | `move_source` | string | — | Present when the move was re-derived from the Muns market-data endpoint (`fastapi.muns.io/market_data`); absent when it is Yahoo's. |
-| `move_check` | string | `confirmed` \| `corrected` \| `unavailable` | Only on rows whose move reached the check threshold (4%). `unavailable` keeps Yahoo's figure and `move_check_reason` says why (rate-limited, day not carried). |
+| `move_check` | string | `confirmed` \| `corrected` \| `unavailable` | Only on rows whose move reached the check threshold (4%). `unavailable` keeps Yahoo's figure and `move_check_reason` says why: `rate-limited`, `no close for <date>` (the endpoint has not published that session yet — it lags the close by hours), `<date> not published by the endpoint yet` (the pass stopped early once three answers in a row lacked it), `verification budget exhausted`. |
 | `move_prev_date`, `move_close`, `move_prev_close` | — | — | The endpoint's two closes and the prior date, when it answered. |
 | `ema50` | number | ₹ | 50-day exponential moving average. |
 | `sma50` | number | ₹ | 50-day simple moving average. |
@@ -1858,6 +1866,86 @@ workbook, re-run. The workbooks are committed so the import reproduces from the 
 `scripts/lib/xlsx-read.mjs` reads them with nothing but the Node standard library — an .xlsx is a
 ZIP of XML, both of which `node:zlib` and a tag scanner already handle. This repo has no
 `package.json` and a one-off data import is not the thing that should introduce one.
+
+---
+
+## `public/data/series/` — the macro series store (GLOW-OWNED, copied from GlowVentures)
+
+The store behind **Macro Research** and **Economy & Macro**. Written by `npm run harvest` in
+`techmuns/GlowVentures` (nightly, 02:00 UTC), copied here by `.github/workflows/series-refresh.yml`
+(03:30 UTC, needs `GLOWVENTURES_READ_TOKEN` — that repository is private). Read by
+`js/data/series.js`; nothing here is computed by this dashboard.
+
+```
+public/data/series/index.json            the manifest — every series' metadata AND its returns table
+public/data/series/<id>/<year>.json      daily observations, ONE FILE PER CALENDAR YEAR
+public/data/series/<id>/series.json      the whole run of a monthly or annual series
+public/data/series/<id>/meta.json        the harvester's own per-series record (not read here)
+```
+
+```jsonc
+{
+  "generatedAt": "2026-09-02T06:50:36Z",       // the harvest time — printed on both tabs
+  "categories": [{ "key": "commodities", "label": "Commodities" }, …],   // + indices, currencies, rates, economy
+  "series": [{
+    "id": "brent-crude", "label": "Brent Crude", "category": "commodities", "group": "Energy",
+    "unit": "USD/bbl",                          // DECLARED, never inferred — Yahoo quotes grains in US cents ("USc/bu")
+    "kind": "price",                            // or "yield": returns are then ABSOLUTE percentage-point changes
+    "frequency": "daily",                       // daily | monthly | annual | accumulating sources publish only today
+    "provenance": "official-api",
+    "source": { "name": "Yahoo Finance", "symbol": "BZ=F", "url": "…", "exchange": "NY Mercantile", "upstreamCurrency": "USD" },
+    "note": null, "accumulating": false,
+    "first": "2007-07-30", "last": "2026-09-01", "count": 4752, "retrievedAt": "…", "staleSince": null,
+    "last_value": 94.65,
+    "returns": { "d1": 4.6, "w1": 6.85, "m1": 5.03, "m3": -1.41, "m6": 16.28, "qtd": 29.8, "ytd": 55.5, "y1": 38.9, "y3": 2.24, "y5": 5.33, "y10": 7.29, "max": 1.17 },
+    "spans":   { "d1": ["2026-08-31", "2026-09-01"], … },   // the two dates behind every horizon — the cell's tooltip
+    "high52": 118.35, "low52": 58.92
+  }],
+  "absent": [{ "id": "coking-coal", "label": "…", "category": "commodities", "group": "Energy", "unit": "…", "absent": "why no free source serves it" }],
+  "failed": [{ "id": "…", "label": "…", "category": "…", "group": "…", "error": "…", "kept": 1234 }]
+}
+```
+
+**Field semantics, and the rules the tabs enforce:**
+
+- `returns.*` are the harvester's, computed against the FULL stored history with every horizon
+  independent: `y3`/`y5`/`y10`/`max` are CAGR for a price series and absolute percentage-point
+  change for a yield (`kind: "yield"`, rendered in basis points); the shorter horizons are cumulative.
+  A horizon the series cannot reach back to is **null → em dash**. A horizon shorter than the
+  publication period does not exist (no `d1` on a monthly series).
+- `high52`/`low52` are null unless the window holds at least eight observations over 180 days;
+  annual series never report one.
+- `accumulating: true` marks a source that publishes only its current value (RBI policy rates, IEX);
+  the row reads *building · N* and every horizon stays absent until the store can answer one.
+- `staleSince` is set when the source has not published within its own cadence; the row says so.
+- **The three client-side transforms are presentation and say so**: a range slice
+  (`sliceRange`), a coarser resample that takes each period's LAST observation (`resample`, offered
+  only for frequencies every charted series can honestly be shown at), and a rebase to 100 for
+  overlays in different units (`rebase`, stated under the chart).
+
+### `GET /api/econ-calendar` — the release calendar (GLOW-OWNED, `worker/econ-calendar.mjs`)
+
+`?from=YYYY-MM-DD&to=YYYY-MM-DD[&countries=IN,US]`, at most 120 days. Proxies TradingView's
+`economic-calendar.tradingview.com/events`, which needs Origin/Referer headers a browser cannot set
+and no token. Fetched in ≤7-day slices merged on the event id (one response is silently capped at
+2,000 rows); held six hours at the edge in one host-scoped bundle, served without a re-fetch for
+fifteen minutes; when every slice fails the last held copy is served with `stale: true` and `ageS`.
+
+```jsonc
+{ "ok": true, "cached": false, "stale": false, "from": "…", "to": "…", "countries": ["IN","US"],
+  "events": [{ "id": "…", "date": "2026-09-02T10:30:00.000Z",   // a midnight-UTC stamp = day-only, no clock
+    "country": "IN", "title": "Inflation Rate YoY", "indicator": "…", "category": "prce",   // prce lbr gdp mny gov trd bsnss cnsm hse bnd enrg mrkt
+    "period": "Aug", "referenceDate": null,
+    "importance": 1,                              // -1 low · 0 medium · 1 high · null unranked (VERIFIED, not assumed)
+    "actual": 4.45, "forecast": 4.5, "previous": 4.83,   // null = not published, NEVER 0
+    "unit": "%", "currency": "INR", "source": "Ministry of Statistics and Programme Implementation (MOSPI)", "sourceUrl": "…", "comment": null }],
+  "count": 68, "truncated": false, "truncatedSlices": 0, "slices": 1, "slicesFailed": 0,
+  "source": "TradingView economic calendar", "fetchedAt": "…" }
+// failure: { "ok": false, "failureCode": "BAD_RANGE" | "RANGE_TOO_WIDE" | "UPSTREAM_ERROR" | "UPSTREAM_NO_RESPONSE" | "NETWORK", "upstreamStatus": 403, "detail": "…" }
+```
+
+Surprise is computed on the client as actual − forecast **only where both are numbers**, shown with
+a sign and no verdict. On a static origin there is no route, and the tab says exactly that.
 
 ---
 

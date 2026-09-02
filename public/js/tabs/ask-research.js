@@ -1,10 +1,11 @@
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
+import { authHeaders } from '../core/host-context.js';
 import { empty, el } from '../core/dom.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { scopeLabel } from '../data/scope.js';
-import { buildResearchEvidence, researchSuggestions } from '../research/estate.js';
+import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
 
 export const meta = {
@@ -48,6 +49,7 @@ function newSession() {
     streamText: '',
     streamSources: [],
     streamDashboard: [],
+    streamCompanies: [],
   };
 }
 
@@ -64,6 +66,8 @@ function normaliseSession(raw) {
           // dashboard-only, but rewriting an older answer's origin would be misleading.
           webResearch: message.webResearch === true,
           dashboardSources: Array.isArray(message.dashboardSources) ? message.dashboardSources.slice(0, 16) : [],
+          // The companies the question resolved to, so a saved answer's citations still deep-link.
+          companies: Array.isArray(message.companies) ? message.companies.filter((c) => c && typeof c.ticker === 'string').slice(0, 6).map((c) => ({ ticker: c.ticker, name: typeof c.name === 'string' ? c.name : c.ticker })) : undefined,
           webSources: Array.isArray(message.webSources) ? message.webSources.slice(0, 12) : [],
         }))
     : [];
@@ -81,6 +85,7 @@ function normaliseSession(raw) {
     streamText: '',
     streamSources: [],
     streamDashboard: [],
+    streamCompanies: [],
   };
 }
 
@@ -317,7 +322,7 @@ async function ensureConfig() {
   // keep their explanatory state visible, but let the next mount retry instead of wedging the SPA.
   if (configState && configState.retryable !== true) return configState;
   if (configPromise) return configPromise;
-  configPromise = fetch('api/research', { headers: { accept: 'application/json' }, cache: 'no-store' })
+  configPromise = fetch('api/research', { headers: { accept: 'application/json', ...authHeaders('api/research') }, cache: 'no-store' })
     .then(async (response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.json();
@@ -350,6 +355,37 @@ function paintAll() {
   paintSidebar();
   paintTranscript();
   paintComposer();
+  backfillCompanies(currentSession());
+}
+
+// ANSWERS SAVED BEFORE THEIR COMPANIES WERE STORED WITH THEM. A citation deep-links to the company
+// the question named, and that used to be known only while the answer streamed — so every answer
+// in a conversation from before this shipped opened the bare tab: General Alerts with 21,000 rows
+// instead of the nineteen about IIFL. Resolve the question again, once, with the same resolver a
+// live question uses; store the result on the message so it is never asked twice; repaint.
+const backfilling = new Set();
+function backfillCompanies(session) {
+  if (!session || !ctxRef) return;
+  const scope = ctxRef.scope;
+  session.messages.forEach((message, index) => {
+    if (message.role !== 'assistant' || Array.isArray(message.companies) || backfilling.has(message)) return;
+    const question = session.messages.slice(0, index).reverse().find((item) => item.role === 'user')?.text;
+    if (!question) {
+      message.companies = [];
+      return;
+    }
+    backfilling.add(message);
+    resolveQuestionCompanies(question, scope)
+      .then((companies) => {
+        message.companies = companies.map((company) => ({ ticker: company.ticker, name: company.name }));
+        persistSessions();
+        if (ctxRef && activeId === session.id && !isBusy(session)) paintTranscript();
+      })
+      .catch(() => {
+        message.companies = [];
+      })
+      .finally(() => backfilling.delete(message));
+  });
 }
 
 function paintSidebar() {
@@ -464,6 +500,31 @@ function openingState(scope) {
   return wrap;
 }
 
+/**
+ * The link a `[Dashboard: Page]` citation opens — the page's own route, in the current scope,
+ * seeded with the company the answer is about when there is exactly one. Names are matched by tab
+ * title first (what the model is told to cite) and by source id second; a name that matches no
+ * registered source resolves to nothing, and the renderer leaves it as text.
+ */
+function citeResolver(companies = []) {
+  const scope = ctxRef?.scope || 'portfolio';
+  const company = companies.length === 1 ? companies[0] : null;
+  return (name) => {
+    const wanted = String(name || '').trim().toLowerCase();
+    const source = DASHBOARD_RESEARCH_SOURCES.find((item) => item.tab.toLowerCase() === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
+    if (!source) return null;
+    return { href: dashboardHref(source.route, scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
+  };
+}
+
+function dashboardHref(route, scope, company) {
+  const [path, query = ''] = String(route || '#').split('?');
+  const params = new URLSearchParams(query);
+  params.set('scope', scope);
+  if (company?.ticker) params.set('company', company.ticker);
+  return `${path}?${params.toString()}`;
+}
+
 function messageNode(message) {
   if (message.role === 'user') {
     const row = el('div', { class: 'research-user-row' });
@@ -476,10 +537,15 @@ function messageNode(message) {
   label.appendChild(el('span', {}, message.webResearch ? 'Dashboard + web research' : 'Dashboard research'));
   article.appendChild(label);
   const body = el('div', { class: 'research-answer-body' });
-  renderResearchAnswer(body, message.text);
+  const companies = message.companies || [];
+  renderResearchAnswer(body, message.text, { cite: citeResolver(companies) });
   article.appendChild(body);
   const sources = el('div', { class: 'research-sources' });
-  renderResearchSources(sources, { dashboard: message.dashboardSources, web: message.webSources });
+  const company = companies.length === 1 ? companies[0] : null;
+  renderResearchSources(sources, {
+    dashboard: (message.dashboardSources || []).map((item) => ({ ...item, route: dashboardHref(item.route, ctxRef?.scope || 'portfolio', company) })),
+    web: message.webSources,
+  });
   article.appendChild(sources);
   return article;
 }
@@ -492,7 +558,7 @@ function streamNode(session) {
   article.appendChild(label);
   if (session.streamText) {
     const body = el('div', { class: 'research-answer-body' });
-    renderResearchAnswer(body, session.streamText);
+    renderResearchAnswer(body, session.streamText, { cite: citeResolver(session.streamCompanies || []) });
     article.appendChild(body);
   } else {
     article.appendChild(el('div', { class: 'research-thinking' }, [
@@ -585,19 +651,31 @@ async function submitCurrent() {
   paintAll();
 
   try {
-    const evidence = await buildResearchEvidence({
-      question,
-      scope: ctxRef?.scope || 'portfolio',
-      onProgress: ({ completed, total, source }) => setPhase(session, `Reading ${source} · ${completed} of ${total}`),
+    // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
+    // can take ten seconds on a cold page, and a scope change during it used to leave the
+    // composer empty and the phase running until then — the reader's question looked lost.
+    const aborted = new Promise((_, reject) => {
+      generation.controller.signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true });
     });
+    const evidence = await Promise.race([
+      buildResearchEvidence({
+        question,
+        scope: ctxRef?.scope || 'portfolio',
+        onProgress: ({ completed, total, source }) => {
+          if (!generation.controller.signal.aborted) setPhase(session, `Reading ${source} · ${completed} of ${total}`);
+        },
+      }),
+      aborted,
+    ]);
     if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     session.streamDashboard = dashboardSources(evidence);
+    session.streamCompanies = (evidence.selection?.companies || []).map((company) => ({ ticker: company.ticker, name: company.name }));
     setPhase(session, 'Writing from dashboard evidence…');
 
     const history = session.messages.slice(0, -1).map((message) => ({ role: message.role, text: message.text }));
     const response = await fetch('api/research', {
       method: 'POST',
-      headers: { accept: 'application/x-ndjson', 'content-type': 'application/json' },
+      headers: { accept: 'application/x-ndjson', 'content-type': 'application/json', ...authHeaders('api/research') },
       body: JSON.stringify({ question, scope: evidence.scope, webResearch: false, history, evidence }),
       signal: generation.controller.signal,
     });
@@ -614,6 +692,7 @@ async function submitCurrent() {
     session.streamText = '';
     session.streamSources = [];
     session.streamDashboard = [];
+    session.streamCompanies = [];
     session.status = error?.name === 'AbortError' ? 'idle' : 'needs-attention';
     session.error = error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
     session.phase = '';
@@ -678,12 +757,14 @@ async function consumeStream(stream, session, generation) {
     webResearch: false,
     dashboardSources: session.streamDashboard,
     webSources: session.streamSources,
+    companies: session.streamCompanies || [],
   });
   session.messages = session.messages.slice(-MAX_MESSAGES);
   session.updatedAt = new Date().toISOString();
   session.streamText = '';
   session.streamSources = [];
   session.streamDashboard = [];
+  session.streamCompanies = [];
   session.status = 'idle';
   session.phase = '';
   session.error = null;

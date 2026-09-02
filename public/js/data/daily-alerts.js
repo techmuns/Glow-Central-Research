@@ -847,7 +847,11 @@ function fromTechnicals({ day, wanted, includeHistory }) {
     // and, like every other feed's rows, it is reported only inside the requested window.
     if (!inRequestedWindow(barDay, day, includeHistory)) continue;
     const down = move < 0;
-    const verified = c.move_source ? ` Re-derived from the Muns market-data endpoint's closes (${c.move_check}).` : '';
+    const verified = c.move_source
+      ? ` Re-derived from the Muns market-data endpoint's closes (${c.move_check}).`
+      : c.move_check === 'unavailable'
+        ? " Yahoo's figure; the Muns market-data endpoint has not answered for this name yet."
+        : '';
     events.push({
       id: `tech:${c.ticker}:${barDay}`,
       ...signal(

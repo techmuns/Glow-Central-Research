@@ -1,0 +1,24 @@
+{
+ "id": "dax",
+ "label": "DAX",
+ "category": "indices",
+ "group": "Europe",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^GDAXI",
+  "url": "https://finance.yahoo.com/quote/%5EGDAXI",
+  "exchange": "XETRA",
+  "upstreamCurrency": "EUR"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1987-12-30",
+ "last": "2026-09-01",
+ "count": 9779,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

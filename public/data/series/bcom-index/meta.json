@@ -1,0 +1,24 @@
+{
+ "id": "bcom-index",
+ "label": "Bloomberg Commodity Index",
+ "category": "commodities",
+ "group": "Others",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^BCOM",
+  "url": "https://finance.yahoo.com/quote/%5EBCOM",
+  "exchange": "Chicago Options",
+  "upstreamCurrency": "USD"
+ },
+ "note": "Shown IN PLACE OF the CRB index the spec names. CRB is Refinitiv's proprietary index with no free feed; BCOM is a different index tracking a similar basket, and is labelled as itself rather than presented as CRB.",
+ "accumulating": false,
+ "first": "1991-01-02",
+ "last": "2026-07-17",
+ "count": 8923,
+ "retrievedAt": "2026-08-31T08:09:13.812Z",
+ "staleSince": "2026-07-17"
+}

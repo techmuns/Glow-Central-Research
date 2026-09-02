@@ -1,0 +1,24 @@
+{
+ "id": "dow-jones",
+ "label": "Dow Jones Industrial",
+ "category": "indices",
+ "group": "United States",
+ "unit": "index",
+ "kind": "price",
+ "frequency": "daily",
+ "provenance": "official-api",
+ "source": {
+  "name": "Yahoo Finance",
+  "symbol": "^DJI",
+  "url": "https://finance.yahoo.com/quote/%5EDJI",
+  "exchange": "DJI",
+  "upstreamCurrency": "USD"
+ },
+ "note": null,
+ "accumulating": false,
+ "first": "1992-01-02",
+ "last": "2026-09-01",
+ "count": 8728,
+ "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "staleSince": null
+}

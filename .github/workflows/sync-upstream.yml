@@ -22,19 +22,31 @@ name: Sync from Sattva
 # from a shared file (super-investors.js wires Fund Returns in; sources.js carries its entry); "ours"
 # would silently drop an upstream fix. Neither is a decision a cron job should make.
 #
-# THE PUSH TOKEN. Pushes made with the default GITHUB_TOKEN do NOT trigger other workflows, so a
-# deployment that publishes through .github/workflows/deploy.yml (CLOUDFLARE_API_TOKEN set) would
-# not deploy a synced main. Cloudflare's Git integration watches the branch directly and is
-# unaffected. If deploy.yml is the publish path here, add a fine-grained PAT with "Contents: read
-# and write" + "Pull requests: read and write" on this repository as the secret SYNC_PUSH_TOKEN and
-# the push will trigger it; without the secret the workflow falls back to GITHUB_TOKEN.
+# THE PUSH TOKEN — SYNC_PUSH_TOKEN — IS NEEDED THE MOMENT SATTVA CHANGES A WORKFLOW FILE. GitHub
+# refuses any push made with the default GITHUB_TOKEN that adds or edits `.github/workflows/*`
+# ("refusing to allow a GitHub App to create or update workflow … without `workflows` permission"),
+# and Sattva adds and edits workflows often — the first run of this job died exactly there, on
+# price-move-verify.yml. A fine-grained personal access token for THIS repository with
+# "Contents: read and write", "Workflows: read and write" and "Pull requests: read and write" is the
+# fix; add it under Settings → Secrets and variables → Actions as SYNC_PUSH_TOKEN. Without it the job
+# still syncs a merge that touches no workflow, and STOPS with that message — rather than a failed
+# push — when one does. The same token also lets a synced main trigger deploy.yml/verify.yml
+# (pushes made with GITHUB_TOKEN never trigger other workflows) and lets the conflict path open a PR.
+#
+# BRAND STRINGS ARE RENAMED, NOT FLAGGED. Every reader-facing string upstream writes as
+# 'Sattva Central Research' is what Glow calls 'Glow Central Research' — a mechanical rename, and
+# leaving it to a person would turn every upstream file that mentions the product into a red run.
+# So the check step renames the exact quoted brand string across public/js and worker, commits it,
+# and only then fails on anything the rename did not cover. Internal keys (`sattva:` storage keys,
+# `x-sattva-*` headers, `SATTVA_*` globals) do not contain that string and are deliberately untouched.
 
 on:
   schedule:
-    # 02:00 UTC = 07:30 IST daily. GitHub's scheduler is best-effort (see the note in
-    # wrangler.jsonc about how often it actually fires here), so the manual trigger below is the
-    # one to rely on when a fix is wanted now.
-    - cron: "0 2 * * *"
+    # Every six hours, so a PR merged in Sattva during the day is here the same day. A run that
+    # finds nothing new costs a checkout and exits. GitHub's scheduler is best-effort (see the note
+    # in wrangler.jsonc about how often it actually fires here), so the manual trigger below is the
+    # one to rely on when a fix is wanted now: Actions → "Sync from Sattva" → Run workflow.
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -101,6 +113,36 @@ jobs:
           fi
 
       # ---- clean merge: rebuild, check, push ------------------------------------------------
+      - name: Stop early if the merge touches a workflow and no push token is set
+        if: steps.merge.outputs.conflict == 'false'
+        env:
+          HAS_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN != '' }}
+        run: |
+          changed=$(git diff --name-only ORIG_HEAD HEAD -- .github/workflows | tr '\n' ' ')
+          if [ -n "$changed" ] && [ "$HAS_TOKEN" != "true" ]; then
+            echo "::error title=SYNC_PUSH_TOKEN needed::This sync changes workflow files ($changed). GitHub refuses that push from the default GITHUB_TOKEN. Add a fine-grained PAT for this repository with Contents + Workflows + Pull requests read/write as the secret SYNC_PUSH_TOKEN, then re-run."
+            {
+              echo "### Stopped — SYNC_PUSH_TOKEN is needed"
+              echo ""
+              echo "Sattva's changes include workflow files (\`$changed\`), and GitHub refuses a push that touches \`.github/workflows/\` from the default token. Nothing was pushed."
+              echo ""
+              echo "Add the secret **SYNC_PUSH_TOKEN** under *Settings → Secrets and variables → Actions*: a fine-grained personal access token for this repository with **Contents: read and write**, **Workflows: read and write** and **Pull requests: read and write**. Then re-run this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Rename the brand strings that arrived with the merge
+        if: steps.merge.outputs.conflict == 'false'
+        run: |
+          grep -rl "Sattva Central Research" public/js worker --include='*.js' --include='*.mjs' | xargs -r sed -i 's/Sattva Central Research/Glow Central Research/g'
+          if ! git diff --quiet; then
+            git add -A public/js worker
+            git commit -q -m "Rename the brand strings that arrived with the sync"
+            echo "Renamed: $(git show --stat --format= HEAD | tail -1)"
+          else
+            echo "No brand strings to rename."
+          fi
+
       - name: Rebuild the stylesheet with this deployment's palette
         if: steps.merge.outputs.conflict == 'false'
         run: |

@@ -13,8 +13,11 @@ import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
+import { mountHostTicker } from './host-ticker.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
+import * as macroResearch from '../tabs/macro-research.js';
+import * as economyMacro from '../tabs/economy-macro.js';
 import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
@@ -42,13 +45,18 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
-// an unknown or absent tab, so the order of this array IS the default landing page — there is no
-// second place recording it that could disagree.
+// THE LANDING TAB IS `router.DEFAULT_ROUTE.tab` (Ask Research), NOT THE FIRST ENTRY. It used to be
+// the first entry, and that was load-bearing; Glow puts its two macro tabs first in the bar
+// (Macro Research, Economy & Macro — GLOW-OWNED, see CLAUDE.md) without wanting them to become the
+// landing page, so `landingTab()` below resolves an unknown or absent tab to the router's default
+// and falls back to the first entry only if that id is missing.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [macroResearch, economyMacro, askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
+
+/** The tab a workspace opens on: the router's default when the workspace carries it, else its first entry. */
+const landingTab = (ws) => ws.tabs.find((t) => t.meta.id === router.DEFAULT_ROUTE.tab) || ws.tabs[0];
 
 let contentHost = null;
 let currentTabModule = null;
@@ -121,6 +129,12 @@ function shellTemplate() {
             <div id="scope-toggle-mount"></div>
             <div id="scope-edit-mount"></div>
           </div>
+          <!-- The company the Munshot host has selected, when it has selected one. Hidden and
+               zero-cost otherwise, including on a static origin with no host at all. The hidden
+               attribute is set as a PROPERTY by mountHostTicker rather than as a utility class,
+               so an empty mount cannot leave the header's gap-2 showing a gap with nothing in
+               it. (No backticks in here: this comment lives inside a template literal.) -->
+          <div id="host-ticker-mount" hidden></div>
           <div id="status-mount"></div>
         </div>
       </div>
@@ -132,7 +146,11 @@ function shellTemplate() {
 
     <div class="mx-auto max-w-[1400px] px-6 py-6">
       <div id="subview-mount" class="mb-5"></div>
-      <main class="fade-in min-w-0">
+      <!-- #dashboard-main is the capture root the host asks for on dashboard.capture.visual
+           (js/core/host-capture.js). It is the CONTENT region deliberately: the header's scope
+           toggle and status pill are this app's own chrome, and a picture of the tab is what the
+           host is asking for. (No backticks in here: this comment is inside a template literal.) -->
+      <main id="dashboard-main" class="fade-in min-w-0">
         <div id="content-host"></div>
       </main>
     </div>`;
@@ -164,14 +182,24 @@ function wireStaticHeader(root) {
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
   // of the static header. Putting it there would stop its clock the first time the reader changed
   // tab, leaving a pill frozen on whatever it last said.
-  headerDisposer = status.wire(root);
+  const offStatus = status.wire(root);
+
+  // The host's selected company, for the same reason and with the same lifetime: the host can
+  // change its selection while the reader is on any tab, so this subscription belongs to the
+  // header rather than to whichever tab happens to be mounted.
+  const offHostTicker = mountHostTicker($('#host-ticker-mount', root));
+
+  headerDisposer = () => {
+    offStatus?.();
+    offHostTicker?.();
+  };
 }
 
 // ---- Route-dependent chrome: workspace dropdown, rail, top tabs, scope toggle ---------------
 
 function handleRoute(root, rawRoute) {
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || ws.tabs[0];
+  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || landingTab(ws);
   const subviews = tabModule.meta.subviews || [];
   const subviewValid = subviews.some((s) => s.id === rawRoute.subview);
   const subview = subviewValid ? rawRoute.subview : subviews[0]?.id || null;
@@ -405,13 +433,13 @@ function mountTab(root, tabModule, resolved) {
 function goWorkspace(id) {
   const ws = WORKSPACES.find((w) => w.id === id);
   if (!ws) return;
-  const firstTab = ws.tabs[0];
+  const firstTab = landingTab(ws);
   router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];
+  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || landingTab(ws);
   router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 
