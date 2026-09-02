@@ -6,10 +6,11 @@ superstar investors, news, announcements, insider trades) and **Portfolio Analyt
 allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
 toggle that applies to every tab.
 
-**AI Alerts** is the landing tab: an explainable seven-day priority queue that groups events by
+**Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
 real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
-the score printed on every card; stale feeds are penalised. **General Alerts** keeps the complete
+its internal ordering; cards show evidence and a next action without exposing score arithmetic.
+Stale feeds are penalised and named in a compact header warning. **General Alerts** keeps the complete
 newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
 Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
 importance and feed filters. Both views reuse the same feeds and add no source of their own.

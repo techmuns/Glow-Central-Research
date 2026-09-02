@@ -2550,7 +2550,8 @@ stops for the day, which is why it is not a step in the 07:00 data refresh.
 
 ### News and insider trades: snapshot first, live walk second
 
-These two are still per-ticker, capped at ~60 requests a minute.
+These two are still per-ticker, capped at ~60 requests a minute. They are captured at 07:00 and
+again at 09:00 IST on weekdays; the second pass excludes the unchanged EOD technical snapshots.
 
 **News is a search endpoint** — there is no "everything published today" request to make — so there
 is no axis to switch to the way announcements had one. It used to make the reader name companies
@@ -3145,7 +3146,7 @@ The score begins with the strongest event and then adds smaller company-level co
   high-importance negative evidence (routine small activity cannot create the cluster);
 - a penalty where the source is stale, failed, incomplete or unread.
 
-Every contribution is returned as `{ label, points }` in `scoreBreakdown` and rendered on the card.
+Every contribution is returned as `{ label, points }` in `scoreBreakdown` for deterministic ordering and verification, but the score arithmetic is not rendered on the card.
 The derived `insight` and `action` strings are templates over those structured facts, not generated
 claims. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
 verified with fixtures independently of what happens to be in today's capture.

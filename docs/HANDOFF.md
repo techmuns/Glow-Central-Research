@@ -19,14 +19,15 @@ Two workspaces, fifteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **AI Alerts** · General Alerts · Ask Research · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | **Ask Research** · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
-**AI Alerts is the landing tab.** It ranks the last seven days of company-specific events from all
-nine alert feeds into an explainable portfolio priority queue. **General Alerts** keeps the complete
+**Ask Research is the landing tab.** AI Alerts ranks the last seven days of company-specific events from all
+nine alert feeds into a concise portfolio priority queue. **General Alerts** keeps the complete
 newest-first stream (News contributes company and market-wide feeds). Direction and importance stay
-separate, every General row states both reasons, and every AI card shows its score breakdown. Both
-are derived views with no data source of their own. See §4c and §4e.
+separate, every General row states both reasons, and AI cards show the strongest evidence and next
+action without exposing score arithmetic. Both are derived views with no data source of their own.
+See §4c and §4e.
 
 **Ask Research** builds one bounded evidence packet from the runtime data
 modules behind every other research tab plus Portfolio Analytics, recording a status for each source
@@ -263,12 +264,14 @@ all.
 
 ## 4c. AI Alerts
 
-**AI Alerts is the default, prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
+**AI Alerts is the prioritised reading list.** `js/data/ai-alerts.js` groups the last seven
 days of company-specific General Alerts by ticker. It ranks materiality, recency, direction, real
 Portfolio membership, independent-feed corroboration, repeated high-importance events,
-directional conflict and high-importance negative clusters inside a portfolio sector. A stale, failed or unread
-feed subtracts points. Cards are sorted by score, show the exact point breakdown and the strongest
-three source events, and link to General Alerts pre-filtered for that company.
+directional conflict and high-importance negative clusters inside a portfolio sector. A stale, failed
+or unread feed subtracts points. Cards are sorted by score internally, show the strongest three source
+events and next action, and keep the score arithmetic out of the UI. They link to General Alerts
+pre-filtered for that company. A compact header status still names stale or unread feeds so a partial
+queue cannot look fully current.
 
 The model is deliberately deterministic rather than generative: the feeds already carry the
 structured facts needed to prioritise them, so a repeatable rule cannot invent a filing or silently

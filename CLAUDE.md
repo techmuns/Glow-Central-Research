@@ -100,7 +100,7 @@ public/
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
-      ai-alerts.js            THE LANDING TAB — ranked company insight cards, strongest evidence first
+      ai-alerts.js            ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
@@ -124,7 +124,7 @@ scripts/
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
-.github/workflows/technicals-refresh.yml   weekdays 07:00 IST
+.github/workflows/technicals-refresh.yml   weekdays 07:00 IST; news + insider follow-up at 09:00 IST
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -189,7 +189,7 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**AI Alerts is first, and first is the default landing page.** `handleRoute` falls back to
+**Ask Research is first, and first is the default landing page.** `handleRoute` falls back to
 `ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
@@ -1109,6 +1109,10 @@ the result, so they are already in `news.json` and cost one conditional GET. Mea
 capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was charging the reader
 attention to avoid a cost that had already been paid.
 
+The scheduled walk runs at 07:00 and 09:00 IST on weekdays. The 09:00 job runs only
+`scrape-filings.mjs`: there is no newer EOD bar at that hour, and a transient Yahoo failure must not
+replace the healthy technical snapshot captured at 07:00.
+
 So News now loads like the other two — snapshot on mount, nothing per company — and the walk is
 still the Refresh button's. **The rule that survives is the one that was always doing the work: a
 landing sends no per-company request.** Asking the reader first is the answer when there is nothing
@@ -1725,9 +1729,9 @@ seven Indian dates by ticker. It adds no source and generates no fact. The ranki
 deterministic: importance, source materiality, recency, explicit direction, real Portfolio
 membership, independent-feed corroboration, repeated material events, directional conflict and a
 small sector-cluster adjustment that requires high-importance negative evidence. Stale, incomplete
-and unread feeds lose points. Every
-contribution is rendered from `scoreBreakdown`, so the order can be audited rather than trusted as
-an opaque AI opinion.
+and unread feeds lose points. Every contribution is retained in `scoreBreakdown` for deterministic
+verification, but the card does not render scores or their arithmetic. The reader gets the evidence
+and next action without ranking implementation detail.
 
 `coverage.js` is the only portfolio input. Do **not** use `portfolio.js` weights or conviction here:
 that ledger is explicitly illustrative, and an invented position weight must never decide what a
@@ -2448,7 +2452,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
-| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, explain every point, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
+| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
 | Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
@@ -2522,8 +2526,8 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
-- **the dashboard opens on AI Alerts, in Portfolio scope**, with no sub-view picker; its cards are
-  unique by ticker, score-descending, above the surfaced threshold and explain every point
+- **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
+  its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
 - **Ask Research keeps all fourteen evidence sources represented**, an optional combined web request,
   and no empty-Watchlist shell replacement
 - **General Alerts reads exactly the nine feeds behind all eight research tabs** — asserted as an equality, not a floor,
