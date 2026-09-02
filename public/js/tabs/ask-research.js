@@ -10,7 +10,7 @@ import { renderResearchAnswer, renderResearchSources } from '../research/rendere
 export const meta = {
   id: 'ask-research',
   title: 'Ask Research',
-  subtitle: 'Ask across every dashboard tab, with optional current web research.',
+  subtitle: 'Ask across every dashboard tab.',
   subviews: [],
   allowEmptyScope: true,
 };
@@ -60,7 +60,7 @@ function normaliseSession(raw) {
         .map((message) => ({
           role: message.role,
           text: message.text.slice(0, MAX_MESSAGE_CHARS),
-          webResearch: message.webResearch === true,
+          webResearch: false,
           dashboardSources: Array.isArray(message.dashboardSources) ? message.dashboardSources.slice(0, 16) : [],
           webSources: Array.isArray(message.webSources) ? message.webSources.slice(0, 12) : [],
         }))
@@ -72,7 +72,7 @@ function normaliseSession(raw) {
     updatedAt: raw.updatedAt || raw.createdAt || new Date().toISOString(),
     messages,
     draft: '',
-    webResearch: raw.webResearch === true,
+    webResearch: false,
     status: 'idle',
     phase: '',
     error: null,
@@ -181,7 +181,7 @@ function template(scope) {
           </div>
           <div class="research-session-list scrollbar-thin" data-research-sessions></div>
           <div class="border-t border-slate-100 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
-            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent to Claude for the answer.
+            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent securely for the answer.
           </div>
         </aside>
 
@@ -194,17 +194,13 @@ function template(scope) {
             <div class="research-composer" data-research-composer>
               <textarea rows="1" maxlength="1500" data-research-input placeholder="Ask about anything in these reports…" aria-label="Ask about the dashboard"></textarea>
               <div class="research-composer-actions">
-                <button type="button" class="research-web-button" data-research-web aria-pressed="false">
-                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.65" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3.5 10h13M10 3c2 2.1 3 4.4 3 7s-1 4.9-3 7c-2-2.1-3-4.4-3-7s1-4.9 3-7Z"/></svg>
-                  <span><strong>Web research</strong><small>Combine dashboard + web</small></span>
-                </button>
                 <button type="button" class="research-send-button" data-research-send aria-label="Send question">
                   <span>Send</span>
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 10 11-6-3 12-2.3-4.1L4 10Z" stroke-linejoin="round"/><path d="m9.7 11.9 2.4-3.1" stroke-linecap="round"/></svg>
                 </button>
               </div>
             </div>
-            <p class="mt-2 text-center text-[10px] text-slate-400">Dashboard figures remain the source of truth. Web research is clearly separated and linked.</p>
+            <p class="mt-2 text-center text-[10px] text-slate-400">Dashboard figures remain the source of truth.</p>
           </div>
         </div>
       </div>
@@ -270,11 +266,6 @@ function wire(root) {
       activeId = session.id;
       paintAll();
       root.querySelector('[data-research-input]')?.focus();
-    } else if (event.target.closest('[data-research-web]')) {
-      const session = currentSession();
-      if (!session || isBusy(session) || !configState?.webResearchAvailable) return;
-      session.webResearch = !session.webResearch;
-      paintComposer();
     } else if (event.target.closest('[data-research-send]')) {
       submitCurrent();
     } else if (suggestion) {
@@ -332,7 +323,7 @@ async function ensureConfig() {
         configured: body?.configured === true,
         webResearchAvailable: body?.webResearchAvailable === true,
         retryable: false,
-        message: body?.configured ? '' : 'Ask Research is not configured on this server. Add the server-side Anthropic key to enable answers.',
+        message: body?.configured ? '' : 'Ask Research is not configured on this server. Add the server-side Muns session token to enable answers.',
       };
       return configState;
     })
@@ -341,7 +332,7 @@ async function ensureConfig() {
         configured: false,
         webResearchAvailable: false,
         retryable: true,
-        message: 'Ask Research needs the Cloudflare Worker runtime and its server-side Anthropic key.',
+        message: 'Ask Research needs the Cloudflare Worker runtime and its server-side Muns session token.',
       };
       return configState;
     })
@@ -446,7 +437,7 @@ function openingState(scope) {
   for (const item of [
     ['Every tab', 'Earnings, calls, chatter, technicals, filings, investor books and portfolio analytics.'],
     ['Traceable', 'Material figures name the dashboard page they came from.'],
-    ['Optional web', 'Turn on web research to combine current external context with dashboard evidence.'],
+    ['Evidence-led', 'Answers stay grounded in the dashboard packet sent with each question.'],
   ]) {
     const card = el('div', { class: 'research-promise' });
     card.appendChild(el('span', { class: 'research-promise-dot' }));
@@ -480,7 +471,7 @@ function messageNode(message) {
   const article = el('article', { class: 'research-assistant-answer' });
   const label = el('div', { class: 'research-answer-label' });
   label.appendChild(el('span', { class: 'research-mini-spark', 'aria-hidden': 'true' }, '✦'));
-  label.appendChild(el('span', {}, message.webResearch ? 'Dashboard + web research' : 'Dashboard research'));
+  label.appendChild(el('span', {}, 'Dashboard research'));
   article.appendChild(label);
   const body = el('div', { class: 'research-answer-body' });
   renderResearchAnswer(body, message.text);
@@ -495,7 +486,7 @@ function streamNode(session) {
   const article = el('article', { class: 'research-assistant-answer is-streaming', 'aria-live': 'off' });
   const label = el('div', { class: 'research-answer-label' });
   label.appendChild(el('span', { class: 'research-live-dot', 'aria-hidden': 'true' }));
-  label.appendChild(el('span', {}, session.webResearch ? 'Dashboard + web research' : 'Dashboard research'));
+  label.appendChild(el('span', {}, 'Dashboard research'));
   article.appendChild(label);
   if (session.streamText) {
     const body = el('div', { class: 'research-answer-body' });
@@ -514,7 +505,6 @@ function paintComposer() {
   const session = currentSession();
   if (!root || !session) return;
   const input = root.querySelector('[data-research-input]');
-  const web = root.querySelector('[data-research-web]');
   const composer = root.querySelector('[data-research-composer]');
   const notice = root.querySelector('[data-research-config]');
   const phase = root.querySelector('[data-research-phase]');
@@ -526,11 +516,6 @@ function paintComposer() {
   input.placeholder = configured ? 'Ask about anything in these reports…' : 'Assistant is not configured';
   autoSize(input);
   composer.classList.toggle('is-disabled', !configured);
-
-  web.disabled = busy || !configState?.webResearchAvailable;
-  web.classList.toggle('is-active', session.webResearch);
-  web.setAttribute('aria-pressed', String(session.webResearch));
-  web.querySelector('small').textContent = session.webResearch ? 'Dashboard + current web' : 'Combine dashboard + web';
 
   notice.classList.toggle('hidden', configured || configState === null);
   notice.textContent = configState?.message || '';
@@ -605,13 +590,13 @@ async function submitCurrent() {
     });
     if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     session.streamDashboard = dashboardSources(evidence);
-    setPhase(session, session.webResearch ? 'Sending dashboard evidence and starting web research…' : 'Writing from dashboard evidence…');
+    setPhase(session, 'Writing from dashboard evidence…');
 
     const history = session.messages.slice(0, -1).map((message) => ({ role: message.role, text: message.text }));
     const response = await fetch('api/research', {
       method: 'POST',
       headers: { accept: 'application/x-ndjson', 'content-type': 'application/json' },
-      body: JSON.stringify({ question, scope: evidence.scope, webResearch: session.webResearch, history, evidence }),
+      body: JSON.stringify({ question, scope: evidence.scope, webResearch: false, history, evidence }),
       signal: generation.controller.signal,
     });
     if (!response.ok) {
@@ -688,7 +673,7 @@ async function consumeStream(stream, session, generation) {
   session.messages.push({
     role: 'assistant',
     text: session.streamText.slice(0, MAX_MESSAGE_CHARS),
-    webResearch: session.webResearch,
+    webResearch: false,
     dashboardSources: session.streamDashboard,
     webSources: session.streamSources,
   });

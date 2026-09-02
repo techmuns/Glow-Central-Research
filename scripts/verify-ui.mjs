@@ -1134,7 +1134,7 @@ console.log('\n— AI alerts —');
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ configured: true, webResearchAvailable: true, history: 'device' }),
+        body: JSON.stringify({ configured: true, webResearchAvailable: false, history: 'device' }),
       });
     }
     askRequest = request.postDataJSON();
@@ -1148,9 +1148,8 @@ console.log('\n— AI alerts —');
     }
     const events = [
       { type: 'start' },
-      { type: 'phase', phase: 'Reconciling web sources with dashboard data' },
-      { type: 'text', text: '## Combined view\nDashboard evidence remains traceable. [Dashboard: Earnings Hub]\n\nCurrent web context is linked separately.' },
-      { type: 'sources', sources: [{ title: 'Current research source', url: 'https://example.com/research' }] },
+      { type: 'phase', phase: 'Writing from dashboard evidence' },
+      { type: 'text', text: '## Dashboard view\nDashboard evidence remains traceable. [Dashboard: Earnings Hub]' },
       { type: 'done' },
     ];
     return route.fulfill({
@@ -1306,7 +1305,7 @@ console.log('\n— AI alerts —');
     seeded === firstTicker && drilledRows.length > 0 && drilledRows.every((row) => row.includes(firstTicker)),
     `${seeded}; ${drilledRows.length} matching result row(s)`);
 // ---------------------------------------------------------------------------------------
-// 3e. Ask Research — dashboard-wide evidence and optional hosted web research
+// 3e. Ask Research — dashboard-wide evidence through the streaming Muns LLM provider
 // ---------------------------------------------------------------------------------------
   console.log('\n— ask research —');
   await go('/#/research/ask-research?scope=portfolio', 500);
@@ -1318,9 +1317,8 @@ console.log('\n— AI alerts —');
     /Reads the whole dashboard/.test(askText) && /Every tab/.test(askText) && /Traceable/.test(askText));
   ok('...offers four scope-aware starting questions',
     (await page.locator('[data-research-suggestion]').count()) === 4);
-  ok('...and keeps web research optional by default',
-    (await page.locator('[data-research-web]').getAttribute('aria-pressed')) === 'false' &&
-      /Combine dashboard \+ web/.test(await page.locator('[data-research-web]').innerText()));
+  ok('...keeps the workspace honest about dashboard-only research',
+    (await page.locator('[data-research-web]').count()) === 0 && /Evidence-led/.test(askText));
   const failedConfigGets = configGets;
   ok('...fails closed when the configuration check is temporarily unavailable',
     failedConfigGets > 0 && (await page.locator('[data-research-input]').isDisabled()));
@@ -1385,18 +1383,17 @@ console.log('\n— AI alerts —');
       watchlistPortfolioAudit.carriesWholeBookReturn === false,
     `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
 
-  await page.locator('[data-research-web]').click();
-  await page.locator('[data-research-input]').fill('Combine the dashboard evidence with current web context.');
+  await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();
-  await page.waitForFunction(() => /Current web context is linked separately/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
-  const combinedAnswer = await page.locator('[data-research-transcript]').innerText();
-  ok('...submits dashboard and web research as one explicit combined request',
-    askRequest?.webResearch === true && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
+  await page.waitForFunction(() => /Dashboard evidence remains traceable/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
+  const researchAnswer = await page.locator('[data-research-transcript]').innerText();
+  ok('...submits the complete dashboard packet without claiming unsupported web research',
+    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
     `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
-  ok('...renders the streamed combined answer and linked web provenance',
-    /dashboard \+ web research/i.test(combinedAnswer) &&
-      (await page.locator('.research-source-chip-web[href="https://example.com/research"]').count()) === 1,
-    combinedAnswer.replace(/\s+/g, ' ').slice(0, 240));
+  ok('...renders the streamed dashboard answer without a fabricated web source',
+    /dashboard research/i.test(researchAnswer) &&
+      (await page.locator('.research-source-chip-web').count()) === 0,
+    researchAnswer.replace(/\s+/g, ' ').slice(0, 240));
 
   // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old

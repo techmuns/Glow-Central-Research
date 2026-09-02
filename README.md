@@ -17,9 +17,9 @@ importance and feed filters. Both views reuse the same feeds and add no source o
 
 **Ask Research** is a conversational workspace that assembles a bounded evidence
 packet from every dashboard data module, reports source coverage and provenance, and keeps its
-conversation library on the reader's device. Its optional **Web research** mode sends the same
-dashboard packet to the server-side assistant and requires hosted web search, so current external
-context and dashboard facts are combined in one answer without exposing the provider key.
+conversation library on the reader's device. The Worker sends the bounded packet to Muns' hosted
+LLM router and forwards each NDJSON text chunk immediately, so answers render progressively without
+exposing the session token or waiting for the complete model response.
 
 Static runtime, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
@@ -78,12 +78,13 @@ Optionally, run it through the real Worker runtime:
 npx wrangler dev
 ```
 
-Ask Research is intentionally disabled until the server-side secret is present. For local Worker
-development, put `ANTHROPIC_API_KEY=…` in the gitignored `.dev.vars`; for a deployed Worker,
-configure it with `npx wrangler secret put ANTHROPIC_API_KEY`. The model name is the non-secret
-`ANTHROPIC_MODEL` variable in `wrangler.jsonc`. Do not put the key in `public/` or browser storage.
+Ask Research is intentionally disabled until a server-side Muns session token is present. It prefers
+`MUNS_LLM_TOKEN`, then falls back to the existing `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`; the former
+`ANTHROPIC_API_KEY` binding remains a migration fallback for the current deployment. For local Worker
+development, put the token in the gitignored `.dev.vars`; for production, configure the dedicated
+secret with `npx wrangler secret put MUNS_LLM_TOKEN`. Do not put it in `public/` or browser storage.
 Conversation history is stored locally, while each submitted question and its bounded dashboard
-evidence packet are sent to Anthropic's Claude Messages API to generate the answer.
+evidence packet are streamed through `https://fastapi.muns.io/query-router` using `hosted_llm`.
 
 The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
 committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):
@@ -135,7 +136,7 @@ public/
   data/               portfolio-companies.json (the book), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
 worker/index.js       asset serving + live read-through APIs + the Ask Research stream
-worker/research.mjs   server-only Anthropic Messages bridge, web search and request limits
+worker/research.mjs   server-only streaming Muns LLM bridge and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
 docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source

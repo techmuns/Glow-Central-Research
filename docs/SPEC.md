@@ -309,12 +309,12 @@ the hidden Portfolio Analytics workspace. Every registered source contributes it
 as-of metadata and provenance; question-matched rows are included within the Worker request bound,
 so one slow or unavailable feed is reported rather than silently omitted.
 
-The optional **Web research** button sends the same packet through the Worker and requires Claude's
-hosted web search. The answer distinguishes dashboard facts from current web findings, renders web
-links separately, and cites material dashboard claims by page. The Anthropic API key is a Worker
-secret; the browser never receives it, and the paid route is same-origin, size-bounded and
-rate-limited. Conversation history stays in device `localStorage`, while each submitted question
-and evidence packet are sent to Anthropic's Claude Messages API to generate the answer.
+The Worker sends the packet to Muns' `/query-router` with `llm_type: hosted_llm` and `stream: true`.
+It forwards each upstream NDJSON text chunk immediately, while the answer cites material dashboard
+claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
+route is same-origin, size-bounded and rate-limited. Conversation history stays in device
+`localStorage`; the provider has no web-search contract, so the workspace makes no web-research
+claim or control.
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —

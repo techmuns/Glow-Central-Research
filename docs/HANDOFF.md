@@ -32,10 +32,10 @@ See §4c and §4e.
 
 **Ask Research** builds one bounded evidence packet from the runtime data
 modules behind every other research tab plus Portfolio Analytics, recording a status for each source
-so an unavailable feed cannot disappear silently. Its optional Web research mode requires hosted
-search and combines linked current context with the dashboard evidence. The browser holds no provider
-credential; set `ANTHROPIC_API_KEY` as a Worker secret. Conversation history is device-local, but each
-submitted question and evidence packet are sent to Anthropic's Claude Messages API. See §4d.
+so an unavailable feed cannot disappear silently. The Worker streams that packet through Muns'
+hosted LLM router and forwards each NDJSON text chunk as it arrives. The browser holds no provider
+credential; configure a Muns session-token secret. Conversation history is device-local, but each
+submitted question and evidence packet are sent to the hosted model. See §4d.
 
 **Three scopes, not two**: Portfolio (the book) · Watchlist (companies the reader starred) ·
 Universe. Portfolio is the default. The pencil beside the toggle edits the active list on this
@@ -246,7 +246,7 @@ public/js/
                            daily-alerts.js — retained history, newest first (§4e)
 worker/
   index.js                 asset serving + live /api routes, including /api/research
-  research.mjs             server-only Anthropic stream, hosted web search and request limits (§4d)
+  research.mjs             server-only streaming Muns LLM bridge and request limits (§4d)
   http.mjs                 content ETags, 304s, CORS — imported by the Worker AND by any local
                            stand-in, so the caching semantics under test are the shipped ones
   mc.mjs                   Moneycontrol client + normaliser, shared with scripts/
@@ -295,20 +295,21 @@ always include every source. The packet is bounded before it leaves the browser 
 measures about 55K characters for the default Portfolio question.
 
 `POST /api/research` in `worker/research.mjs` is the only provider boundary. It keeps
-`ANTHROPIC_API_KEY` server-side, rejects cross-origin and oversized requests, rate-limits the paid
-upstream, and streams normalized NDJSON back to the browser. With Web research enabled, the Claude
-Messages request sets and requires Anthropic's hosted `web_search` tool; web URLs render as separate
-source chips. Model text is rendered through a small DOM-based Markdown subset and never reaches
-`innerHTML`.
+a Muns session token server-side, rejects cross-origin and oversized requests, rate-limits the paid
+upstream, and streams normalized NDJSON back to the browser. It calls `fastapi.muns.io/query-router`
+with `llm_type: hosted_llm` and `stream: true`; the upstream contract has no web-search mode, so the
+UI makes no such claim. Model text is rendered through a small DOM-based Markdown subset and never
+reaches `innerHTML`.
 
 An empty Watchlist does not replace this tab with the shell's generic empty panel. The source
 catalog and its zero-row coverage are still useful evidence, so this module declares
 `meta.allowEmptyScope`; every other tab retains the shared empty-Watchlist behavior.
 
 Local static serving shows the complete workspace but disables the composer. To exercise answers,
-run `npx wrangler dev` with `ANTHROPIC_API_KEY=…` in the gitignored `.dev.vars`. Production uses
-`npx wrangler secret put ANTHROPIC_API_KEY`. Never put that value in `public/`, `wrangler.jsonc` or
-browser storage.
+run `npx wrangler dev` with `MUNS_LLM_TOKEN=…` in the gitignored `.dev.vars`. Production prefers
+`npx wrangler secret put MUNS_LLM_TOKEN`, falls back to `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`, and keeps
+the former `ANTHROPIC_API_KEY` name as a migration fallback for the currently deployed token.
+Never put that value in `public/`, `wrangler.jsonc` or browser storage.
 
 ---
 
