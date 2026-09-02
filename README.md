@@ -222,6 +222,8 @@ Seeded, so output is byte-stable.
 
 ```bash
 python3 -m http.server 8080 -d public &
+node scripts/verify-calendar.mjs
+node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 ```
 

@@ -2,25 +2,18 @@
 //
 //   await loadDate('2026-08-13');   // strip + that date's companies
 //   strip()                         // [{ date, displayDate, count }], newest date first
-//   forDate(iso)                    // { rows, scheduledCount, capped, degraded, ... } or null
+//   forDate(iso)                    // { rows, scheduledCount, complete, pagesFetched, ... } or null
 //   stripHas(iso) / scheduledCountFor(iso)
 //   defaultDate()                   // the nearest date that actually has companies on it
 //
-// TWO UPSTREAMS, ONE HONEST PAYLOAD
+// TWO ENDPOINTS, ONE MATCHED ALL-EXCHANGE PAYLOAD
 //   The per-date COUNT comes from Moneycontrol's calendar JSON API and is complete. The company
-//   LIST comes from the calendar page's server props and is the twenty largest by market cap —
-//   the page cannot be paged past, and the route its own "load more" uses is blocked to
-//   non-browser clients. See the header of worker/mc.mjs.
+//   LIST comes from the widget and pagination endpoints used by the linked public calendar. The
+//   Worker follows all twenty-row pages. Both calls use `indexId=All`, so BSE-only companies are
+//   included and `scheduledCount` describes the same population as `rows`.
 //
-//   So `scheduledCount` and `rows.length` are different numbers on a busy day, and the UI must
-//   say both. Rendering twenty rows under a bare "Companies reporting" heading would assert that
-//   twenty is all there are, on a day when a hundred and seventy report.
-//
-// WHAT THIS MODULE IS *NOT* ASKED FOR ANY MORE
-//   A date that has already happened is answered by the results feed instead — every company that
-//   filed, with its figures, already in memory. So the Earnings Hub asks this module for the
-//   company list only for dates still to come, and for a past date takes nothing but the strip.
-//   That is what `list: 'none'` is for; see `loadDate`. The forward-looking half is unchanged.
+//   This module answers scheduled results for every date. Filed results are deliberately kept in
+//   the adjacent Earnings Reported view; a past date does not change this calendar's meaning.
 //
 // THE SNAPSHOT FALLBACK IS THE WORKER'S, NOT THIS MODULE'S
 //   There is a committed capture (public/data/earnings-calendar.json) and the Worker serves from it
@@ -68,9 +61,7 @@ export function errorFor(iso) {
 /**
  * Is the date strip already carrying this date?
  *
- * A date that has already reported is rendered from the results feed, so the only thing the
- * calendar route can add for it is the strip — and the strip covers a window, not one date. Asking
- * again for a date the window already contains would spend a request to be told what is on screen.
+ * Useful to callers that only need to know whether the current window includes one date.
  */
 export function stripHas(iso) {
   return stripCache.some((d) => d.date === iso);
@@ -85,11 +76,9 @@ export function scheduledCountFor(iso) {
 /**
  * @param {object} opts
  * @param {string} [opts.from] / [opts.to]  the strip window to ask for
- * @param {'full'|'none'} [opts.list]  whether the per-date COMPANY LIST is wanted. `none` is for a
- *   date already answered by the results feed: it saves the Worker a bot-walled page fetch and up
- *   to 25 identity look-ups, and it is a genuinely different representation — hence its own store
- *   key and its own `listRequested: false` in the payload, so nothing can read the empty `rows` as
- *   "no companies".
+ * @param {'full'|'none'} [opts.list]  whether the per-date COMPANY LIST is wanted. The dashboard
+ *   always uses `full`; `none` remains a strip-only diagnostic representation with its own store
+ *   key and `listRequested: false`, so no consumer can read its empty `rows` as "no companies".
  */
 export function loadDate(iso, { from, to, list = 'full' } = {}) {
   const ck = cacheKey(iso, list);

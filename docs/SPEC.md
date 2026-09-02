@@ -337,8 +337,9 @@ because the figures it held are now columns. Live off Moneycontrol Rapid Results
 30s.
 
 A second view, **Earnings Calendar**, answers the opposite question: who is *scheduled* to report.
-A date strip carries the complete count per date; the table names the 20 largest by market cap for
-the selected date, because that is all Moneycontrol publishes — and says so under itself.
+A date strip carries the complete all-exchange count per date; the table follows every 20-row page
+published by Moneycontrol for the selected date. Past dates remain schedules here; filed results
+remain in **Earnings Reported**.
 - Auto-parsed result PDFs (revenue, PAT, margin extraction)
 - Beat/miss scoring vs Street estimates
 - Segment-wise revenue break-up

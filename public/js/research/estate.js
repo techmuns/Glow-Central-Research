@@ -47,7 +47,7 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over General Alerts: which companies carry the most material, corroborated recent evidence.' },
   { id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts', description: 'Derived timeline across earnings, con-calls, chatter, technicals, investor activity, news, announcements and insider disclosures.' },
   { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns.' },
-  { id: 'earnings-calendar', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported-date coverage and the currently loaded forward results calendar.' },
+  { id: 'earnings-calendar', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Currently loaded all-exchange scheduled-results dates and company lists.' },
   { id: 'concall', tab: 'Con-call', route: '#/research/concall', description: 'Held and scheduled earnings calls with StockScans scores, sentiment tiers and source tags.' },
   { id: 'public-chatter', tab: 'Public Chatter', route: '#/research/public-chatter', description: 'Retail mention counts and sentiment across ValuePickr, TradingQnA and Google News.' },
   { id: 'technicals', tab: 'Breakouts / Technical', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
@@ -700,22 +700,38 @@ const BUILDERS = [
   },
   {
     id: 'earnings-calendar',
-    // The calendar's reported-date coverage and freshness come from the live results feed.
-    load: () => earningsLive.load(),
-    read() {
-      const range = earningsLive.dateRange();
+    read({ plan }) {
       const strip = earningsCalendar.strip();
+      const loaded = strip.map((item) => earningsCalendar.forDate(item.date)).filter(Boolean);
+      const scheduledRows = loaded.flatMap((payload) => payload.rows || []);
+      const picked = chooseRows(scheduledRows, plan, (row) => ({
+        date: row.resultDate || null,
+        company: clipped(row.name, 130),
+        ticker: row.ticker || null,
+        industry: clipped(row.industry, 120),
+        exchange: row.exchange === 'N' ? 'NSE' : row.exchange === 'B' ? 'BSE' : row.exchange || null,
+        quarter: row.quarter || null,
+        scheduledTime: row.time || null,
+        price: round(row.ltp),
+        marketCapCr: round(row.marketCap),
+      }));
+      const asOf = loaded
+        .map((payload) => payload.meta?.fetchedAt || payload.listCapturedAt || payload.countsCapturedAt || null)
+        .filter(Boolean)
+        .sort()
+        .at(-1) || null;
       return sourcePacket(this.id, {
-        source: 'Moneycontrol results calendar + reported index',
-        asOf: earningsLive.meta()?.checkedAt || earningsLive.meta()?.fetchedAt || null,
-        rowCount: strip.length,
-        summary: {
-          reportedDateRange: range,
-          loadedScheduleDates: strip.map((item) => ({ date: item.date, scheduledCount: item.count })).slice(0, 12),
-          note: strip.length ? 'Only calendar dates already opened in this browser are listed.' : 'No forward calendar date has been opened in this browser yet.',
+        source: 'Moneycontrol Earnings Calendar — all-exchange count, widget and pagination feeds',
+        asOf,
+        rowCount: scheduledRows.length,
+        coverage: {
+          loadedDates: loaded.length,
+          completeDates: loaded.filter((payload) => payload.complete).length,
+          strip: strip.map((item) => ({ date: item.date, scheduledCount: item.count })).slice(0, 14),
+          note: strip.length ? 'Only schedule dates loaded in this browser are included; filed results are a separate Earnings Reported source.' : 'No scheduled-results date has been opened in this browser yet.',
         },
-        rows: [],
-        matchedRows: 0,
+        definition: 'Scheduled results, not filed results. Counts and rows use All exchanges; company rows follow every published pagination page.',
+        ...picked,
       });
     },
   },

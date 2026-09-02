@@ -48,11 +48,13 @@ ok('the runtime research catalog covers every visible research tab and hidden po
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
 });
 
-ok('earnings calendar evidence loads the shared live-results feed before reading its metadata', () => {
+ok('earnings calendar evidence stays a paginated all-exchange schedule, separate from filed results', () => {
   assert.match(
     estateSource,
-    /id: 'earnings-calendar',[\s\S]*?load: \(\) => earningsLive\.load\(\),[\s\S]*?read\(\) \{[\s\S]*?const range = earningsLive\.dateRange\(\);/
+    /id: 'earnings-calendar',[\s\S]*?read\(\{ plan \}\)[\s\S]*?scheduledRows[\s\S]*?All exchanges[\s\S]*?every published pagination page/
   );
+  const block = estateSource.match(/\n    id: 'earnings-calendar',\n    read[\s\S]*?\n  \},\n  \{\n    id: 'concall'/)?.[0] || '';
+  assert.doesNotMatch(block, /earningsLive\.(?:load|dateRange|reportedOn)/);
 });
 
 ok('every source loads before any source reads, so the company index is built from the whole estate', () => {
