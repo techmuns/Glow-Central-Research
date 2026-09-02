@@ -24,11 +24,23 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">â
 
 /** Columns a header is likely to be, if the source names one at all. */
 const looksLikeDate = (h) => /date|when/i.test(h);
-const looksLikeName = (h) => /name|person|insider|holder|acquirer/i.test(h);
+const looksLikeInsiderName = (h) => /person|insider|holder|acquirer/i.test(h);
+const looksLikeName = (h) => /name/i.test(h) || looksLikeInsiderName(h);
 const looksLikeSource = (h) => /^\s*(source|exchange)\s*$/i.test(h);
 const looksLikeLink = (h) => /^\s*(link|url|source[\s_-]*url|filing[\s_-]*(link|url)|document[\s_-]*(link|url))\s*$/i.test(h);
 
-const URL_FIELDS = ['link', 'url', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
+const URL_FIELDS = ['link', 'url', 'source', 'source url', 'source link', 'filing url', 'filing link', 'document url', 'document link'];
+
+const nameKeyFor = (row) => {
+  const keys = Object.keys(row?.cells || {});
+  return keys.find(looksLikeInsiderName) || keys.find(looksLikeName) || null;
+};
+
+const insiderNameFor = (row) => {
+  const key = nameKeyFor(row);
+  const value = key ? row?.cells?.[key] : null;
+  return value == null ? null : String(value).trim() || null;
+};
 
 /** Prefer a real upstream filing URL; otherwise open a public result narrowed to this insider. */
 export function insiderTradeSourceUrl(row) {
@@ -44,14 +56,14 @@ export function insiderTradeSourceUrl(row) {
   // The Muns table currently carries only a source name, not the source filing id or URL. Trendlyne
   // exposes a public insider-disclosure search by exact person/entity name; that is the narrowest
   // link that can be derived from the row without inventing an exchange document identifier.
-  const query = String(pickField(row?.cells, ['insider', 'person', 'holder', 'acquirer', 'name']) || row?.ticker || '').trim();
+  const query = String(insiderNameFor(row) || row?.ticker || '').trim();
   return query ? `https://trendlyne.com/equity/insider-trading-sast/custom/?query=${encodeURIComponent(query)}` : null;
 }
 
 function sourceCell(row) {
   const url = insiderTradeSourceUrl(row);
   if (!url) return dash('the source supplied no linkable filing or identifying name');
-  const who = String(pickField(row?.cells, ['insider', 'person', 'holder', 'acquirer', 'name']) || row?.ticker || 'this disclosure');
+  const who = String(insiderNameFor(row) || row?.ticker || 'this disclosure');
   return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-stop data-insider-source-link
              aria-label="Open source for ${escapeHtml(who)}" title="Open the matching public disclosure"
              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-base font-semibold text-indigo-600 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50 hover:text-indigo-800">â†—</a>`;
@@ -117,9 +129,7 @@ const tab = makeFilingsTab({
   nameLabel: 'Insider',
   nameMaxPx: 260,
   rowName: (r) => {
-    const cells = r.cells || {};
-    const nameKey = Object.keys(cells).find(looksLikeName);
-    return (nameKey && cells[nameKey]) || r.ticker || '(not named)';
+    return insiderNameFor(r) || r.ticker || '(not named)';
   },
   rowSub: (r) => r.ticker || '',
   searchable: (r) => `${r.ticker || ''} ${Object.values(r.cells || {}).join(' ')}`,

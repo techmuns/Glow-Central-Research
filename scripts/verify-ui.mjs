@@ -118,9 +118,9 @@ const downloadOrSkip = async (label, file) => {
   const { insiderTradeSourceUrl } = await import('../public/js/tabs/insider-trades.js');
   const direct = insiderTradeSourceUrl({
     ticker: 'TEST',
-    cells: { Insider: 'Example Insider', 'Filing Link': '[Open](https://example.com/filing.pdf)' },
+    cells: { Insider: 'Example Insider', Source: 'https://example.com/filing.pdf' },
   });
-  const derived = insiderTradeSourceUrl({ ticker: 'JAYNECOIND', cells: { Insider: 'POOJAA AGRAWAL', Source: 'BSE' } });
+  const derived = insiderTradeSourceUrl({ ticker: 'JAYNECOIND', cells: { 'Name of Insider': 'POOJAA AGRAWAL', Source: 'BSE' } });
   ok('insider source links prefer an explicit filing URL', direct === 'https://example.com/filing.pdf', direct || 'no link');
   ok('...and otherwise narrow the public record to the exact insider',
     derived === 'https://trendlyne.com/equity/insider-trading-sast/custom/?query=POOJAA%20AGRAWAL', derived || 'no link');
@@ -5855,7 +5855,7 @@ console.log('\n— news, announcements and insider trades —');
       safe: links.every((a) => {
         if (!a || a.target !== '_blank' || !/noopener/.test(a.rel)) return false;
         const url = new URL(a.href);
-        return url.protocol === 'https:' && (url.hostname !== 'trendlyne.com' || !!url.searchParams.get('query'));
+        return /https?:/.test(url.protocol) && (url.hostname !== 'trendlyne.com' || !!url.searchParams.get('query'));
       }),
     };
   });
