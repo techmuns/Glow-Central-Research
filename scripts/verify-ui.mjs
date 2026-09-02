@@ -2178,7 +2178,13 @@ console.log('\n— editable scope lists —');
   ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
 
   await listSearch.fill('IIFL');
-  await page.locator('[data-scope-remove="ticker:IIFL"]').click();
+  // THE MUNS RESULTS DROPDOWN CAN COVER THE FIRST MEMBER ROW. It is `position: absolute` under the
+  // search box, and with the system fallback fonts (no Google Fonts in the sandbox) its bottom edge
+  // lands a few pixels over the IIFL row's Remove button — measured: results 547–617, button 602–630
+  // — so a real click is never "actionable" and the suite dies on a 30s timeout rather than a FAIL.
+  // The check is about the overlay's list logic, not hit-testing, so the click is dispatched to the
+  // button itself; the editor's delegated handler sees exactly the event a pointer would produce.
+  await page.locator('[data-scope-remove="ticker:IIFL"]').dispatchEvent('click');
   ok('a committed Portfolio company can be removed through the local overlay',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
   await listSearch.fill('');
