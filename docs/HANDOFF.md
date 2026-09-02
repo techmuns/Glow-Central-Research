@@ -1020,11 +1020,13 @@ only**, with the single permission **Actions: read and write**.
 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` — **only** if the site publishes through that workflow rather than Cloudflare's Git integration | `deploy.yml` reports *skipped* on every run, which is correct when the Git integration is the publish path |
 | `SYNC_PUSH_TOKEN` (optional) | `sync-upstream.yml` — a fine-grained PAT with *Contents* and *Pull requests* read/write on this repo, so a synced `main` triggers `deploy.yml` and `verify.yml` (pushes made with the default `GITHUB_TOKEN` do not trigger other workflows) | the sync still pushes; only workflows that key off that push do not run. Irrelevant when Cloudflare's Git integration publishes |
 
-**Publishing.** Either connect this repository to the Worker in the Cloudflare dashboard (*Workers &
-Pages → glow-central-research → Settings → Build* — Git integration, branch `main`, no build
-command needed, deploy command `npx wrangler deploy`), or set the two Cloudflare secrets above so
-`deploy.yml` publishes on every push to `main`. The Sattva deployment uses the first; `deploy.yml`
-says on every run which of the two it found.
+**Publishing is Cloudflare's Git integration, verified.** The Worker is connected to this repository
+(*Workers & Pages → glow-central-research → Settings → Build*): every push to `main` deploys, and
+every pull request gets a branch preview — the merge PR of 2 Sep 2026 was built and served at a
+`*-glow-central-research.tech-441.workers.dev` preview before it was merged, with the production
+secrets attached. So `deploy.yml` is a fallback here exactly as it is in Sattva, and a `main` pushed
+by the sync workflow with the default `GITHUB_TOKEN` still deploys, because Cloudflare watches the
+branch rather than the Actions run.
 
 **The `name` must match the deployed Worker**, which is
 `glow-central-research.tech-441.workers.dev`. A name that does not match it is a quiet trap rather
