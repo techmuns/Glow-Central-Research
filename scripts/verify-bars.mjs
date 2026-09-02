@@ -195,4 +195,20 @@ ok('the checks file is written only when its answers change, so an empty pass ma
   assert.equal(saveChecks(checksPath, store, new Date('2026-09-02T21:00:00Z')), true);
 });
 
+const lateRows = ['A', 'B', 'C', 'D', 'E'].map((ticker) => ({ ticker, bar_date: '2026-09-02', pct_change_today: 6 }));
+const lateAsked = [];
+const lateFetch = async (url) => {
+  lateAsked.push(new URL(url).searchParams.get('ticker'));
+  return { ok: true, status: 200, text: async () => 'Date, Open, High, Low, Close, Volume\n2026-08-31 00:00:00+05:30 | 1 | 1 | 1 | 100.0 | 1\n2026-09-01 00:00:00+05:30 | 1 | 1 | 1 | 101.0 | 1' };
+};
+const lateSummary = await verifyMoves(lateRows, { fetchImpl: lateFetch, sleep: async () => {}, now: () => 0, log: () => {}, spacingMs: 0 });
+ok('a session the endpoint has not published yet stops the pass after a few answers, and every row says so', () => {
+  assert.deepEqual(lateAsked, ['A', 'B', 'C']);
+  assert.equal(lateSummary.date_unpublished, true);
+  assert.equal(lateSummary.unavailable, 5);
+  assert.equal(lateRows[0].move_check_reason, 'no close for 2026-09-02');
+  assert.equal(lateRows[4].move_check_reason, '2026-09-02 not published by the endpoint yet');
+  assert.equal(lateRows.every((row) => row.pct_change_today === 6 && row.move_check === 'unavailable'), true);
+});
+
 console.log('\n' + checks + ' price-bar checks passed.');
