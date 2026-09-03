@@ -25,6 +25,14 @@ name: Family book sync
 # schedule and repository_dispatch are removed so this cannot run unattended; workflow_dispatch is
 # kept only so the file stays a valid workflow. Do NOT add FAMILY_REPO_TOKEN to this repository.
 on:
+<<<<<<< HEAD
+=======
+  schedule:
+    # 06:00 IST every day (00:30 UTC), before the 07:00 IST technicals scrape reads the book. Every
+    # day, not weekdays: the book is edited whenever the family updates its workbooks, which is not
+    # a market-hours activity, and a weekend edit should not wait until Monday.
+    - cron: "30 0 * * *"
+>>>>>>> upstream/main
   workflow_dispatch:
 
 run-name: Family book sync (${{ github.event_name }})

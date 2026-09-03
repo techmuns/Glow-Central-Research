@@ -593,7 +593,7 @@ To change the book: change it **in the family repository** — the dashboard no 
 to edit. `scripts/sync-family-book.mjs` reads `techmuns/Sattva-Family`'s positions file (with
 `FAMILY_REPO_TOKEN`, or `FAMILY_BOOK_PATH=` pointing at a local clone), keeps one line per equity
 ISIN in `scripts/fixtures/family-book.json`, and re-runs the resolver; `family-book-sync.yml` does the
-same every weekday morning and on a `repository_dispatch` from that repository. The resolver matches
+same every morning and on a `repository_dispatch` from that repository. The resolver matches
 exact-then-prefix against feeds already in the repo before going out to the network (`--net` lets it
 reach Yahoo's symbol search), pins eighteen hand-checked symbols in `CONFIRMED`, pins the not-listed lines in
 `NOT_LISTED_EQUITY`, and **fails the run if two book lines resolve to one symbol** — which is how

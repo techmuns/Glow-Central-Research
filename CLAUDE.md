@@ -209,7 +209,7 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
-.github/workflows/family-book-sync.yml     06:00 IST weekdays + repository_dispatch from the family repo;
+.github/workflows/family-book-sync.yml     06:00 IST daily + repository_dispatch from the family repo;
                                            keeps the book in step with techmuns/Sattva-Family
 .github/workflows/price-move-verify.yml    hourly through the Indian day; asks the Muns market-data
                                            endpoint about every flagged move the scrape could not verify
@@ -1579,6 +1579,82 @@ counted in the pill, and written into the snapshot under `failed`. Rendering the
 report an outage as an absence of events — the same error class as a count of zero from a failing
 endpoint (see *And a count of zero is not always a count*).
 
+### THIRTY WORDS THAT MAKE A SEARCH FEED USABLE — the tracked-keyword rule
+
+`public/js/data/news-keywords.js` is the desk's own vocabulary and the only definition of it. Both
+News surfaces filter by it, and General Alerts uses it as the materiality rule for company news.
+
+**It exists because the news upstream is a SEARCH BY COMPANY NAME, and names collide.** Measured on
+the shipped capture: 11,060 stories across 559 companies, of which a company called *iDream Film*
+collects Bollywood reunion coverage and *GOCL* collects "stock on fire". Filtering by the thirty
+keywords leaves **2,889 rows — a 74% cut** — and every one of the thirty fires at least twice, so no
+entry in the vocabulary is dead weight. That is the whole feature: the upstream supplied the company
+name, and this supplies the "+ keyword" half of what the desk actually tracks.
+
+**Do NOT read "company name + keyword" as a query to send.** 559 companies × 30 keywords is 16,770
+requests against a sixty-a-minute cap — four and a half hours for one pass, on a feed the scrape
+already covers in one request per company. This is *Ask the axis the data is published on* arrived
+at from the other side: a search endpoint has no cheaper axis, so the answer is to spend nothing
+extra and classify the capture that is already paid for.
+
+Five rules, and the first is the one that could have been got wrong quietly:
+
+0. **A headline match, not a standfirst one, is what promotes a story.** The publisher chose the
+   headline; a standfirst is a paragraph that happened to contain the word — and several outlets
+   fill that field with a **related-links strip**, so one Business Today sidebar mentioning *"CEO
+   steps down"* was tagging unrelated stories about MCX and aircraft leasing as *Resignation*.
+   Nothing was wrong with the pattern; the field it read was not that story's summary. Measured:
+   3,278 stories carry a tracked keyword somewhere, 1,990 carry one in the headline. **The FILTER
+   still matches both** and the chip is muted when the match was standfirst-only — exploring a feed
+   and asserting a company needs attention are different jobs, and only the second is a claim.
+0. **Both halves, or it is not an alert.** A keyword on its own is half the desk's rule: the search
+   returns a *name* match, so a story carrying a tracked word that does **not** carry the company is
+   a story about somebody else, and promoting it puts another company's order win at the top of this
+   company's card — the exact noise the keywords were brought in to remove, re-introduced one layer
+   up. Such a row is **not dropped and keeps its tags**; it stays in the timeline at low importance
+   and the reason says which half failed. `null` still counts: an unverifiable name is not a failed
+   one. The heuristic's known limit is a **generic industry word** — a story about *Indo Tech
+   Transformers* reads as naming *Transformers & Rectifiers* — so this narrows the noise, it does
+   not end it.
+1. **A keyword is a TOPIC, never a direction.** `tabs/news.js` carries no sentiment of ours over
+   somebody else's reporting and that is untouched: *Lawsuit* is something a company can be on
+   either side of, *Approval* can be somebody else's. So every company-news event in General Alerts
+   stays **directionally neutral exactly as it was**, and what a match changes is **importance** —
+   which is the question the desk's list was written to answer. The suite asserts the direction is
+   still neutral on *Fraud* and on *Sued*, in those words.
+2. **A match is a word in a headline, not a verified event.** Every reason string says "matched the
+   tracked keyword X" and never "the company won an order".
+3. **The desk's words are reproduced; the patterns are ours and are narrower.** `label` is the term
+   as given and is what every surface prints; `test` is what matches, and a `note` says where the
+   two differ — a bare `\btrials?\b` matched 26 stories, mostly free-trial boilerplate and one
+   album release; a bare `\bfire\b` matched "Under Fire", "stock on fire" and a wrestling billing;
+   `\bquits?\b` matched "quit California". Each narrowing is asserted as a narrowing rather than
+   described.
+4. **The filter always offers "No tracked keyword".** A filter that can only narrow to what it
+   recognises can never be checked, and a pattern that is quietly too narrow looks exactly like a
+   quiet week. That option is how a miss gets found, and the suite asserts tracked + untracked is
+   the whole set.
+5. **`namesCompany` marks a row and never drops one.** It is the other half of "company name +
+   keyword" and it is a heuristic: it reads `false` for a company known by a brand its search term
+   omits (GOCL trading as Gulf Oil is the case in the shipped data), so silently excluding on it
+   would discard real coverage on a guess — measured, 332 of 3,221 matches. It is **three answers,
+   not two**: `null` where there is no search term to check against, because "we cannot tell" and
+   "it does not" are different claims. The strict reading is offered as its own labelled filter
+   option and is never applied behind the reader's back.
+
+**The Topic column took the Outlet column's place rather than being added beside it.** The outlet
+was already in every row's sub-line, so the column was a second copy of it, and the headline is
+capped at 780px precisely because two stories truncate to the same string below that. The outlet is
+still in the sub-line, still its own filter and still a column in the export.
+
+**Every filter option carries a MEASURED count**, computed from the rows in scope — the same rule
+`sourceGroups()` follows. A reader can see that *Order* is twelve rows before spending a click, and
+can see a keyword matching nothing today.
+
+**The market-wide half gets the same filter minus the strict option**, because "names the company"
+is unanswerable on rows that carry no company, and a control that silently means something else on
+one half of a tab is worse than an absent one.
+
 ### The one hand-rolled list — when a row is editorial rather than a record
 
 `js/tabs/market-news-view.js` is the single place in this dashboard that does not build its rows out
@@ -2044,7 +2120,7 @@ is the family office's listed direct-equity book — 142 companies, names and se
 the family's own repository** (`techmuns/Sattva-Family`, `src/data/sattvaData.ts`) by
 `scripts/sync-family-book.mjs`, one line per equity ISIN, and resolved to NSE symbols by
 `scripts/resolve-portfolio-companies.mjs`. It used to be a list of names typed into the resolver;
-a second copy of a book that lives somewhere else can only drift, so the sync runs on a schedule and
+a second copy of a book that lives somewhere else can only drift, so the sync runs every morning and
 on a `repository_dispatch` from that repository (`.github/workflows/family-book-sync.yml`), and
 **the identity of a line is its ISIN** — every hand-checked table in the resolver is keyed by it,
 because the custodian's names are cut at twenty characters and spelt differently across the family's
@@ -2203,6 +2279,58 @@ small sector-cluster adjustment that requires high-importance negative evidence.
 and unread feeds lose points. Every contribution is retained in `scoreBreakdown` for deterministic
 verification, but the card does not render scores or their arithmetic. The reader gets the evidence
 and next action without ranking implementation detail.
+
+### CORRELATION IS THE PRODUCT — the confluence layer
+
+`confluenceOf()` is what answers *"there's a volume breakout and this superstar investor has bought
+it"*. Everything else in `ai-alerts.js` ranks a company by its strongest single event and then adds
+a flat bonus for having several feeds — real, and **anonymous**: it says *three feeds* and never
+says which three or what their combination means. A reader cannot act on an arity.
+
+So a small fixed set of patterns is checked **by name**: accumulation, distribution, insider and
+institution agreeing, a move with a story behind it, a result and a reaction, a risk cluster, and a
+move nothing explains. Each states which feeds must agree, carries its own points, and **writes its
+sentence out of the events it matched** rather than from a template. Where a pattern fires it leads
+the card's insight and renders above the Evidence block, because the finding should be read before
+its workings.
+
+Four rules, and every one is a rule this codebase already had:
+
+1. **It adds no fact.** Every clause is quoted from an event already on the card, already linked to
+   its own source. A pattern that cannot describe itself out of its evidence does not fire.
+2. **Co-occurrence is not causation and the wording may not smuggle it in.** A filed shareholding is
+   a **quarterly** disclosure and the trade behind it may be months old, so the accumulation pattern
+   says *"a tracked investor's latest book shows buying"* and never *"bought today"*. Getting that
+   wrong would be the `deriveMoves` error — inventing a trade date — one layer up.
+3. **The legs defer to each feed's OWN published threshold.** Reading direction alone made every one
+   of those thresholds a dead letter: measured, four of eight surfaced cards led with *"Life
+   Insurance Corporation reduced by 0.62–0.81pp"* — a holder present in nearly every book, moving
+   less than the feed's own `INVESTOR_HIGH_PP` bar for mattering. Nothing was wrong with the reading
+   and the correlation was still noise. So the predicate asks for `importance === 'high'` rather
+   than inventing a second threshold beside a published one.
+4. **An absence is a finding, but only where it can be measured.** *A move nothing explains* is the
+   most useful thing this layer says, and it may say it **only** when news, announcements and
+   earnings were all read and reach the day — "nothing explains it" and "we did not look" are the
+   two answers this whole dashboard exists to keep apart. The suite asserts both directions.
+
+**The points are capped** at `CONFLUENCE_MAX`: correlation reorders the list, it does not
+manufacture urgency. And **no score is printed**, exactly as nowhere else on the card prints one.
+
+**`VOLUME_X` gave the layer something to correlate WITH.** Before it the technicals feed emitted a
+row only for a ±`MOVE_PCT` close, so a volume breakout with a flat close produced nothing at all —
+which is precisely the case worth surfacing, volume arriving before the price does. A company at 2x
+its own 20-day average volume, or with a confirmed break above its consolidation base, is now its
+own event. It is **neutral**, because volume is participation and the tape does not say whether
+heavy trading was accumulation or distribution; only a confirmed base break is called positive.
+Measured: 40 of 603 companies clear 2x and 16 clear 3x, so it surfaces a readable handful.
+
+**Company news went from `FEED_WEIGHT` 0 to 6, and the arithmetic is the reason.** It was zero
+because every story on the feed was neutral and low-importance and nothing separated a fraud
+investigation from a namesake's film release; the keyword rule supplies that separation. At 6, a
+keyword-matched story on a book company published today scores 30 + 6 + 16 + 12 = **64, exactly
+`MIN_SCORE`** — so one story surfaces a company on the day it breaks and falls below the line as it
+ages, and anything older needs a second feed to agree with it. News opens the door; it does not
+decide what is urgent.
 
 `coverage.js` is the only portfolio input. Do **not** use `portfolio.js` weights or conviction here:
 that ledger is explicitly illustrative, and an invented position weight must never decide what a
@@ -3131,6 +3259,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
+| Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
+| Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
+| Change the volume/breakout alert, or its threshold | `VOLUME_X` and the participation branch of `fromTechnicals` in `js/data/daily-alerts.js` — volume is neutral because the tape does not say which side it was |
+| Change which cross-feed patterns AI Alerts names | `CONFLUENCE` + `confluenceOf()` in `js/data/ai-alerts.js`, rendered by `confluenceMarkup()` in `js/tabs/ai-alerts.js` — read *Correlation is the product* first; a leg must key on the feed's own published threshold, not a new one |
 | Change which companies News searches | `tickersFor()` in `js/tabs/filings-tab.js` — the scope decides, and the committed snapshot is what paints. The picker is gone: read *And the third feed did not get this treatment* first |
 | Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
 | Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
