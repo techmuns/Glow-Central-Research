@@ -16,6 +16,10 @@
 
 import * as generalAlerts from './daily-alerts.js';
 import * as coverage from './coverage.js';
+// GLOW: the real book, for the SIZE of a holding. Upstream's book carries names only, so its
+// membership boost is flat; here a ₹5 Cr holding must outrank a ₹5 lakh PMS line on the same
+// evidence, and the card must say how much is held and through whom. See `bookHolding`.
+import * as bookData from './book.js';
 
 export const WINDOW_DAYS = 7;
 export const MIN_SCORE = 64;
@@ -117,6 +121,34 @@ function insightFor(card) {
  * product rules; testing only whatever today's capture happens to contain would leave branches
  * unexercised most days.
  */
+/**
+ * GLOW: what the family holds of a company, from the real book (each duplicate report counted
+ * once) — the statement values summed across the accounts that hold it, and the providers they
+ * are held through. Null when the book is not loaded or the symbol is not in it.
+ */
+export function bookHolding(ticker) {
+  if (!bookData.isLoaded()) return null;
+  const rows = bookData.bySymbol(ticker);
+  if (!rows.length) return null;
+  const valueRupees = bookData.valueOf(rows);
+  const total = bookData.meta()?.totalValue;
+  return {
+    valueRupees,
+    weightPct: total ? Math.round((valueRupees / total) * 10000) / 100 : null,
+    via: [...new Set(rows.map((row) => row.provider).filter(Boolean))],
+    accounts: rows.length,
+  };
+}
+
+/** GLOW: 0–10 points by the holding's share of the consolidated book. Thresholds, not a curve. */
+export function holdingSizePoints(weightPct) {
+  if (!Number.isFinite(weightPct)) return 0;
+  if (weightPct >= 1) return 10;
+  if (weightPct >= 0.25) return 6;
+  if (weightPct >= 0.05) return 3;
+  return 0;
+}
+
 export function rankReport(report, { holdings = coverage.holdings() } = {}) {
   const day = report?.day || generalAlerts.today();
   const firstDay = shiftDay(day, -(WINDOW_DAYS - 1));
@@ -154,6 +186,9 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
     const scoreBreakdown = [...(top?.score.parts || [])];
 
     if (holding) scoreBreakdown.push({ label: 'Company is in the real Portfolio list', points: 12 });
+    // GLOW: size-scaled, deterministic, small — it reorders holdings, it never invents urgency.
+    const held = holding ? bookHolding(ticker) : null;
+    if (held && held.weightPct != null) scoreBreakdown.push({ label: `Holding is ${held.weightPct}% of the book`, points: holdingSizePoints(held.weightPct) });
     // Corroboration changes ordering but cannot make a routine event urgent on its own. The first
     // draft gave another feed twelve points and promoted nearly every well-covered company; six
     // keeps the independent confirmation valuable without rewarding mere data availability.
@@ -168,6 +203,7 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
       company: top?.event.company || holding?.name || ticker,
       sector: holding?.sector || null,
       holding: !!holding,
+      held, // GLOW: { valueRupees, weightPct, via[] } from the real book, or null
       // Cards show the strongest evidence first. General Alerts remains the chronological record.
       events: scoredEvents.map((entry) => entry.event),
       topEvent: top?.event || events[0],
@@ -245,6 +281,9 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
 /** Collect General Alerts once and rank each partial/final report without adding any request. */
 export async function collect({ scope = 'portfolio', holdings = null, refresh = false, onPartial = null } = {}) {
   const book = holdings || coverage.holdings();
+  // GLOW: the real book carries each holding's size; load it (once, cached) so the ranking can
+  // weigh it. A failed load costs the size boost only, never the alerts.
+  await bookData.load().catch(() => null);
   const report = await generalAlerts.collect({
     scope,
     holdings: book,

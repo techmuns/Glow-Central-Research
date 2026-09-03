@@ -49,6 +49,7 @@
 // report an outage as an absence of events.
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
+import { isEnglishHeadline } from './filings-shared.js';
 
 // How many companies one Refresh press asks about before it stops and says how many remain. The
 // upstreams allow ~60 requests a minute, so this is one minute's budget: a press fetches the top 60
@@ -153,6 +154,11 @@ const dedupeArticles = (list) => {
     return true;
   });
 };
+
+// GLOW: a news row in a language the reader cannot read is not news about the holding — the search
+// matched the company's bare name somewhere else in the world. Dropped at the door, before dedupe,
+// so the snapshot, the live walk and every consumer (the tab, General Alerts, Ask Research) agree.
+const englishOnly = (rows) => rows.filter((r) => isEnglishHeadline(r?.title, r?.source));
 
 export function createFeed(kind) {
   let state = fresh();
@@ -654,7 +660,7 @@ export function createFeed(kind) {
       // On the initial seed the device's copy has already been placed and is newer; on a refresh a
       // newer capture wins unless this session confirmed the company AFTER the capture was made.
       if (state.rows.has(t) && !(newer && snapshotWins(t))) continue;
-      state.rows.set(t, kind === 'news' ? dedupeArticles(list) : list);
+      state.rows.set(t, kind === 'news' ? dedupeArticles(englishOnly(list)) : list);
       state.fromSnapshot.add(t);
       if (newer) {
         state.confirmedHere.delete(t);
@@ -693,7 +699,7 @@ export function createFeed(kind) {
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
   function rowsIn(body) {
     const list = Array.isArray(body[ROWS_KEY[kind]]) ? body[ROWS_KEY[kind]] : [];
-    return kind === 'news' ? dedupeArticles(list) : list;
+    return kind === 'news' ? dedupeArticles(englishOnly(list)) : list;
   }
 
   async function walk(queue, { force = false } = {}) {

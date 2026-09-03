@@ -49,6 +49,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchNews, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
 import { mergeLastGoodFilings } from './lib/filings-snapshot.mjs';
+import { isEnglishHeadline } from '../public/js/data/filings-shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -215,7 +216,8 @@ async function run(kind, list) {
         // a row left carrying only that is the news API saying it found nothing — not an article.
         const published = rows.map(({ raw, ...rest }) => rest);
         const carries = (r) => r && Object.entries(r).some(([k, v]) => k !== 'query' && v !== null && v !== undefined && v !== '');
-        const usable = published.filter(carries);
+        // GLOW: a headline in a language the reader cannot read is not news about the holding.
+        const usable = published.filter(carries).filter((r) => kind !== 'news' || isEnglishHeadline(r.title, r.source));
         if (usable.length) byTicker[c.ticker] = usable;
         else empty.push(c.ticker);
         for (const h of res.headers || []) headers.add(h);

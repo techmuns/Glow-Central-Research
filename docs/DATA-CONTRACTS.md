@@ -3024,6 +3024,15 @@ walks **the book first** and commits the result, so those rows are in `news.json
 conditional GET. Measured on the shipped capture — 123 book tickers, 1,217 articles, no failures. So
 News loads like the other two feeds and the walk stays behind Refresh.
 
+**GLOW: `byTicker` rows are English-only.** The search matches a company's bare name anywhere in
+the world, so the capture carried Japanese, Hindi, Indonesian, Spanish, German and Turkish rows —
+203 of 11,868 on the 3 Sep 2026 capture, under 89 companies, none about the company.
+`isEnglishHeadline(title, source)` in `public/js/data/filings-shared.js` is applied by
+`scripts/scrape-filings.mjs` at capture (a company left with no English row goes to `empty`) and
+again by the feed on read, so an older file is cleaned on the way in. The test is documented beside
+the function; it never drops a row that carries an English function word. Insider trades are not
+filtered — their columns are the source's own headings, not prose.
+
 **On-open freshness re-reads the FILE; it never performs the forty-company walk.**
 `js/data/capture-watchdog.js` compares the capture timestamps with source-specific windows,
 dispatches only the workflow that is behind, and calls `refreshSnapshot()` when the new deployment
@@ -3745,6 +3754,10 @@ The score begins with the strongest event and then adds smaller company-level co
 
 - event importance, source materiality, recency and explicit Positive / Negative direction;
 - membership in `coverage.js`'s real Portfolio list (not the illustrative Analytics ledger);
+- **Glow only:** the holding's share of the real book (`public/data/book.json`, each duplicate
+  report counted once) — 0 / 3 / 6 / 10 points at 0.05% / 0.25% / 1% of the consolidated value,
+  via `bookHolding()` and `holdingSizePoints()`; the card carries `held: { valueRupees, weightPct,
+  via[], accounts }` and prints it as *Held ₹… · …% of the book · via …*;
 - independent feed corroboration, repeated high-importance events and directional conflict;
 - a small negative-sector-cluster adjustment where multiple real portfolio companies carry
   high-importance negative evidence (routine small activity cannot create the cluster);
