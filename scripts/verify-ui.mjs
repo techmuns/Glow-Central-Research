@@ -3680,7 +3680,7 @@ if (!chatterState.ok) {
   });
   ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
   ok('...and labels the overlap in short, customer-facing language',
-    scoped.text.includes(`Portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
+    scoped.text.includes(`Portfolio · ${scoped.covered} of ${BOOK_COUNT} mentioned · ${scoped.window}`));
   ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
     `${scoped.uncovered} rows in both scopes`);
 
@@ -3758,7 +3758,7 @@ const book = await page.evaluate(async () => {
   };
 });
 // GLOW: the count is the served file's, not a number typed here — the book is regenerated daily.
-ok('the book carries every line from the statement', book.count === servedBook.count && book.count > 100, `${book.count} lines`);
+ok('the book carries every line from the statement', book.count === BOOK_COUNT && book.count > 100, `${book.count} lines`);
 ok('...each with a ticker or a stated reason it has none', book.unaccounted.length === 0, book.unaccounted.slice(0, 3).join(', ') || 'all accounted for');
 ok('...and no two companies collapse onto one symbol', book.dupes.length === 0, book.dupes.join(', ') || `${book.meta.tracked} distinct tickers`);
 ok('...and every line has a name', book.blankNames === 0);
