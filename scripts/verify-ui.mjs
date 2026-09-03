@@ -5752,13 +5752,6 @@ console.log('\n— news, announcements and insider trades —');
     nsePort && nsePort.unresolvedInUniverse && !nsePort.unresolvedInPortfolio,
     `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
 
-  // BACK TO THE MARKET-WIDE LIST. The NSE block above navigates away, and the checks below are
-  // about the market-news view's own search box — without this they ran against whatever the last
-  // `go()` left mounted and failed with "no search box", which reads as a missing control rather
-  // than a missing navigation. A check that can be answered by the wrong page is not a check.
-  await go('/#/research/news?scope=universe', 3500);
-  await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), { timeout: 20000 }).catch(() => {});
-
   // Search narrows the list without touching the head, and the count reports the ARRAY.
   //
   // NAVIGATE BACK FIRST — this check owns its own precondition rather than inheriting the page the
