@@ -146,7 +146,7 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
-.github/workflows/family-book-sync.yml     06:00 IST weekdays + repository_dispatch from the family repo;
+.github/workflows/family-book-sync.yml     06:00 IST daily + repository_dispatch from the family repo;
                                            keeps the book in step with techmuns/Sattva-Family
 .github/workflows/price-move-verify.yml    hourly through the Indian day; asks the Muns market-data
                                            endpoint about every flagged move the scrape could not verify
@@ -1632,7 +1632,7 @@ is the family office's listed direct-equity book — 142 companies, names and se
 the family's own repository** (`techmuns/Sattva-Family`, `src/data/sattvaData.ts`) by
 `scripts/sync-family-book.mjs`, one line per equity ISIN, and resolved to NSE symbols by
 `scripts/resolve-portfolio-companies.mjs`. It used to be a list of names typed into the resolver;
-a second copy of a book that lives somewhere else can only drift, so the sync runs on a schedule and
+a second copy of a book that lives somewhere else can only drift, so the sync runs every morning and
 on a `repository_dispatch` from that repository (`.github/workflows/family-book-sync.yml`), and
 **the identity of a line is its ISIN** — every hand-checked table in the resolver is keyed by it,
 because the custodian's names are cut at twenty characters and spelt differently across the family's

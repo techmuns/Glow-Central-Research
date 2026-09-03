@@ -546,7 +546,7 @@ Three things it refuses to do:
 It is byte-stable when nothing moved — `fetchedAt` alone never makes a commit — and prints which
 ISINs were added and removed since the committed fixture.
 
-**Refresh cadence** — `.github/workflows/family-book-sync.yml`: 06:00 IST weekdays, by hand, and on
+**Refresh cadence** — `.github/workflows/family-book-sync.yml`: 06:00 IST every day, by hand, and on
 `repository_dispatch` with event type `family-book-updated`, which is what lets the family repository
 poke this one the moment its book changes. GitHub's cron is best-effort; the dispatch is the path
 that keeps the two genuinely in sync. From the family repository's own workflow, one step:

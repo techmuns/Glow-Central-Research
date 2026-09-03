@@ -20,8 +20,10 @@ name: Family book sync
 
 on:
   schedule:
-    # 06:00 IST weekdays (00:30 UTC), before the 07:00 IST technicals scrape reads the book.
-    - cron: "30 0 * * 1-5"
+    # 06:00 IST every day (00:30 UTC), before the 07:00 IST technicals scrape reads the book. Every
+    # day, not weekdays: the book is edited whenever the family updates its workbooks, which is not
+    # a market-hours activity, and a weekend edit should not wait until Monday.
+    - cron: "30 0 * * *"
   workflow_dispatch:
   repository_dispatch:
     types: [family-book-updated]
