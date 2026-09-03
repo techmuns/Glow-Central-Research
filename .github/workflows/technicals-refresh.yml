@@ -152,7 +152,13 @@ jobs:
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
           [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
-          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors; do
+          # GLOW DIVERGENCE: price-move-checks.json is written by the technicals scrape's move check
+          # (scripts/lib/muns-market-data.mjs) and is meant to be committed — it is every answer the
+          # market-data endpoint has ever given, read before any request. Upstream leaves it
+          # unstaged, and an unstaged change is what makes `git rebase` below refuse to run, so the
+          # retry never worked: measured, the 3 Sep 2026 dispatch scraped for 17 minutes, main moved,
+          # and the push died on "cannot rebase: You have unstaged changes". Port to Sattva.
+          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors price-move-checks; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done
           if git diff --cached --quiet; then
@@ -169,6 +175,10 @@ jobs:
             fi
             echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
             git fetch origin main
+            # GLOW DIVERGENCE: everything this job means to commit is in the commit above; anything
+            # still unstaged is a by-product a script wrote and nobody listed, and it must not be
+            # allowed to kill the retry (see the note on the add list). Discard it before rebasing.
+            git checkout -- . && git clean -fdq
             git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
             sleep $((attempt * 2))
           done
