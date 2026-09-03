@@ -29,6 +29,24 @@ import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 import { exportRows } from '../ui/export.js';
 import * as marketNews from '../data/market-news.js';
+import { classifyStory, topicFilterOptions, matchesTopic, topicLabel } from '../data/news-keywords.js';
+
+// The same thirty keywords the company half of this tab filters by, over the same reading. Cached
+// per story object for the same reason: the reader types, and every keystroke re-filters 600 rows.
+//
+// THE ONE DIFFERENCE IS WHAT A MATCH MEANS HERE. These stories carry no company, so "company name +
+// keyword" has only its second half — this narrows the market feed to a subject and cannot say the
+// subject is yours. That is why the alerts layer tags these rows and does not promote them: see the
+// market-news collector in js/data/daily-alerts.js.
+const readings = new WeakMap();
+function readingFor(row) {
+  let reading = readings.get(row);
+  if (!reading) {
+    reading = classifyStory(row);
+    readings.set(row, reading);
+  }
+  return reading;
+}
 
 let unsub = null;
 let disposers = [];
@@ -41,7 +59,7 @@ let lastResult = null;
 let failure = null;
 // The reader's own filters. Module state, not node state: every repaint rebuilds the list, so a
 // value held on the input would be discarded the moment a capture landed.
-let listView = { q: '', section: 'all', publisher: 'all' };
+let listView = { q: '', section: 'all', publisher: 'all', topic: 'all' };
 let fillStop = null;
 // Whether the provenance modal — which holds the Fetch control — is on screen, so a fetch's
 // progress can be re-rendered into it rather than reported to a panel nobody is looking at.
@@ -182,9 +200,11 @@ function visibleRows(rows) {
   const q = (listView.q || '').trim().toLowerCase();
   const section = listView.section;
   const publisher = listView.publisher;
+  const topic = listView.topic;
   return rows.filter((r) => {
     if (publisher && publisher !== 'all' && r.publisher !== publisher) return false;
     if (section && section !== 'all' && r.section !== section) return false;
+    if (topic && topic !== 'all' && !matchesTopic(readingFor(r), topic)) return false;
     if (!q) return true;
     return `${r.title || ''} ${r.summary || ''} ${r.section || ''}`.toLowerCase().includes(q);
   });
@@ -261,6 +281,24 @@ function cardHtml(r) {
     </a>`;
 }
 
+/**
+ * The Topic options, counted against the WHOLE capture rather than the filtered rows.
+ *
+ * Same rule as the section list immediately below: a dropdown that loses its own options as you use
+ * it cannot be used to get back. Counting the filtered set would also make every option read zero
+ * the moment one of them was chosen.
+ *
+ * THE STRICT OPTION IS DROPPED HERE, and that is the point rather than an omission: "tracked keyword
+ * AND names the company" is unanswerable on rows that carry no company, so offering it would be a
+ * control that silently means something else on this half of the tab.
+ */
+function topicOptions() {
+  const all = marketNews.rows();
+  const cache = all.map(readingFor);
+  const counted = (value) => cache.filter((reading) => matchesTopic(reading, value)).length;
+  return topicFilterOptions(counted).filter((o) => o.value !== 'targeted');
+}
+
 function listHtml(rows) {
   const shown = rows.slice(0, FIRST_PAINT);
   const pending = Math.max(0, rows.length - shown.length);
@@ -300,6 +338,12 @@ function listHtml(rows) {
                  </select>`
               : ''
           }
+          <select data-news-topic aria-label="Topic"
+            class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            ${topicOptions()
+              .map((o) => `<option value="${escapeHtml(o.value)}"${listView.topic === o.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`)
+              .join('')}
+          </select>
         </div>
         <div class="flex items-center gap-3">
           <span class="whitespace-nowrap text-sm text-slate-500"><strong class="text-slate-800">${escapeHtml(formatNumber(rows.length))}</strong> of ${escapeHtml(formatNumber(marketNews.rows().length))} stories</span>
@@ -414,12 +458,16 @@ async function exportVisible(visible, m) {
               `${publisherTally() || 'no publisher recorded'}. ` +
               `A BLANK TIME MEANS THAT PUBLISHER GAVE NONE. It is never the time this dashboard saw the story. ` +
               `${m.withPublishedAt} of ${m.count} stories carry their publisher's time. ` +
-              `SECTION IS OURS, NOT THEIRS: it records which of a publisher's feeds a story came from, not a tag they applied to it.`
+              `SECTION IS OURS, NOT THEIRS: it records which of a publisher's feeds a story came from, not a tag they applied to it. ` +
+              `TRACKED TOPICS ARE OURS TOO: a keyword reading of what a story is about, never a direction and never a score. ` +
+              `These stories carry no company, so a topic names a subject and cannot say it is one of yours. ` +
+              `Topic filter applied to this sheet: ${topicLabel(listView.topic)}.`
             : istTime(r.publishedAt) || '',
       },
       { header: 'Publisher', key: 'pub', width: 20, get: (r) => (r.__banner ? '' : publisherLabel(r.publisher)) },
       { header: 'Headline', key: 'h', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
       { header: 'Section', key: 's', width: 20, get: (r) => (r.__banner ? '' : sectionLabel(r.section)) },
+      { header: 'Tracked topics', key: 'k', width: 30, get: (r) => (r.__banner ? '' : readingFor(r).labels.join(', ')) },
       { header: 'Standfirst (publisher)', key: 'p', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
       { header: 'Premium', key: 'x', width: 10, get: (r) => (r.__banner ? '' : r.premium ? 'yes' : '') },
       { header: 'URL', key: 'u', width: 70, get: (r) => (r.__banner ? '' : r.url || '') },
@@ -748,6 +796,14 @@ function wireList(root) {
     relist(root);
   });
 
+  const topic = root.querySelector('[data-news-topic]');
+  if (topic) {
+    const onTopic = () => {
+      listView.topic = topic.value;
+      relist(root);
+    };
+    topic.addEventListener('change', onTopic);
+  }
   const select = root.querySelector('[data-news-section]');
   select?.addEventListener('change', () => {
     listView.section = select.value;
@@ -797,7 +853,8 @@ function wireList(root) {
 }
 
 const DESCRIPTION =
-  'Every story in the market-wide feeds of several publishers — not filtered to the companies in scope. Each row names who published it; headlines and standfirsts are theirs, and the article stays where it is published.';
+  'Every story in the market-wide feeds of several publishers — not filtered to the companies in scope. Each row names who published it; headlines and standfirsts are theirs, and the article stays where it is published. ' +
+  'Topic narrows it to the thirty keywords this desk tracks newsflow by; these rows carry no company, so a topic names a subject rather than an exposure.';
 
 /**
  * OPENING THIS TAB ON A STALE CAPTURE FETCHES ONE. A DELIBERATE REVERSAL, SO HERE IS THE REASONING.
@@ -888,5 +945,5 @@ export function destroy() {
   modalOpen = false;
   // The filters are the reader's, and leaving the tab discards them deliberately: coming back to a
   // list silently narrowed by a search typed ten minutes ago reads as a feed that lost stories.
-  listView = { q: '', section: 'all' };
+  listView = { q: '', section: 'all', topic: 'all' };
 }
