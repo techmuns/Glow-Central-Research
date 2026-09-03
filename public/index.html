@@ -757,12 +757,30 @@
       .is-static { --beacon-dot-color: #3b82f6; }
       .is-ondemand { --beacon-dot-color: var(--brand-500); }
       .is-mock { --beacon-dot-color: var(--caution); }
+      .is-unreadable { --beacon-dot-color: var(--negative); }
       .is-pending { --beacon-dot-color: #94a3b8; }
       .is-live .beacon-row-status, .is-live.beacon-legend-item { color: #047857; }
       .is-static .beacon-row-status, .is-static.beacon-legend-item { color: #1d4ed8; }
       .is-ondemand .beacon-row-status, .is-ondemand.beacon-legend-item { color: var(--brand-600); }
       .is-mock .beacon-row-status, .is-mock.beacon-legend-item { color: #b45309; }
+      .is-unreadable .beacon-row-status, .is-unreadable.beacon-legend-item { color: #be123c; }
       .is-pending .beacon-row-status, .is-pending.beacon-legend-item { color: #94a3b8; }
+
+      /* An editable family's control, in its own heading. Only Twitter / X has one. */
+      .beacon-group-action {
+        margin-left: auto;
+        border: 0;
+        border-radius: 9999px;
+        background: #eef2ff;
+        padding: 0.1rem 0.45rem;
+        color: var(--brand-600);
+        font-size: 0.5625rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 140ms ease;
+      }
+      .beacon-group-action:hover { background: #e0e7ff; }
+      .beacon-group-action:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 1px; }
       /* Live rows breathe on a stagger so the column reads as many independent feeds rather than
          one blinking block. Box-shadow only — no layout, no paint outside the row. */
       .beacon-row.is-live .beacon-dot { animation: beacon-dot-pulse 2.6s ease-in-out infinite; }

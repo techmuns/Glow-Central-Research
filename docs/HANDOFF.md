@@ -230,6 +230,7 @@ public/js/
     visual.js              avatars, tiers, status pills, signal dots, legend
     sources.js             the source registry — the honest status of every feed
     source-beacon.js       the lower-left "Data flowing in" beacon over that registry (§4b)
+    twitter-sources.js     "Edit Twitter Sources" — the X accounts whose posts join News
     notifications.js       the lower-right live alert stack (§4b)
     export.js              exceljs-from-CDN "Export Excel"
     shell.js               header, tab bar, sub-view picker, the WORKSPACES registry

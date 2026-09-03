@@ -41,6 +41,8 @@ import { formatRelativeTime } from '../core/format.js';
 import * as live from '../core/live.js';
 import { state } from '../core/state.js';
 import { sourceGroups } from './sources.js';
+import { openTwitterSources } from './twitter-sources.js';
+import * as twitterHandles from '../core/twitter-handles.js';
 
 const ROOT_ID = 'source-beacon-root';
 const PANEL_ID = 'source-beacon-panel';
@@ -53,14 +55,20 @@ const STATUS = {
   live: { label: 'Live', short: 'live feeds', cls: 'is-live' },
   static: { label: 'Real · manual', short: 'refreshed by hand', cls: 'is-static' },
   ondemand: { label: 'On demand', short: 'run on request', cls: 'is-ondemand' },
+  // A source this browser monitors that nothing has read yet — an X account added a minute ago.
+  // Amber, never emerald: green here means data is arriving, and none is until a run has reached it.
+  adding: { label: 'Adding…', short: 'being added', cls: 'is-mock' },
+  // The collector's own answer about an account, carried through rather than paraphrased.
+  unreadable: { label: 'Not found', short: 'could not be read', cls: 'is-unreadable' },
   mock: { label: 'Mock data', short: 'placeholder', cls: 'is-mock' },
   pending: { label: 'Not yet built', short: 'not built', cls: 'is-pending' },
 };
-const ORDER = ['live', 'static', 'ondemand', 'mock', 'pending'];
+const ORDER = ['live', 'static', 'ondemand', 'adding', 'unreadable', 'mock', 'pending'];
 
 let rootEl = null;
 let open = false;
 let clock = null;
+let offHandles = null;
 
 /** Reads the registry — never a cached copy of it — and reduces it to what this widget draws. */
 function readEstate() {
@@ -203,12 +211,18 @@ function listHtml(estate) {
   return estate.groups
     .map((g, gi) => {
       const rows = g.items.map((item) => rowHtml(item, i++)).join('');
+      // A family the registry marks editable gets its control in its own heading, which is where a
+      // reader looking at that list is already looking. Only Twitter/X has one today.
+      const action = g.action
+        ? `<button type="button" class="beacon-group-action" data-beacon-action="${escapeHtml(g.action.id)}">${escapeHtml(g.action.label)}</button>`
+        : '';
       return `
         <li class="beacon-group" data-family="${gi}">
           <div class="beacon-group-head">
             <span class="beacon-group-icon" aria-hidden="true">${escapeHtml(g.icon || '•')}</span>
             <span class="beacon-group-title">${escapeHtml(g.title)}</span>
             <span class="beacon-group-count">${g.items.length}</span>
+            ${action}
           </div>
           <div class="beacon-group-tabs">${escapeHtml(g.tabs || '')}</div>
           <ul class="beacon-rows">${rows}</ul>
@@ -272,6 +286,10 @@ function launcherHtml(estate) {
 function onDocClick(e) {
   if (!open || !rootEl) return;
   if (rootEl.contains(e.target)) return;
+  // A click inside an overlay this popover opened — the Twitter Sources modal — is not an outside
+  // click. Closing here would tear down the list the reader is editing, from underneath the dialog
+  // that is editing it.
+  if (e.target?.closest?.('#modal-overlay, #drill-panel, #workspace-overlay')) return;
   close();
 }
 
@@ -322,6 +340,12 @@ function paintPanel() {
   const panel = host.querySelector(`#${PANEL_ID}`);
   if (panel) {
     wireFamilyHighlight(panel);
+    panel.querySelector('[data-beacon-action="edit-twitter"]')?.addEventListener('click', (e) => {
+      // Not a close: the modal is z-60 and this popover is z-30, so it lands on top and the list
+      // beneath it repaints as handles are added — which is the point of leaving it open.
+      e.stopPropagation();
+      openTwitterSources();
+    });
     panel.focus({ preventScroll: true });
   }
 }
@@ -348,6 +372,11 @@ export function openBeacon() {
   }, 15000);
 
   document.addEventListener('click', onDocClick, true);
+  // Adding or removing an X account changes this panel's rows and every count in its header, and
+  // that happens in a modal on top of it. Repaint on the change rather than on a timer.
+  offHandles = twitterHandles.onChange(() => {
+    if (open) paintPanel();
+  });
 }
 
 export function close() {
@@ -360,6 +389,8 @@ export function close() {
   if (host) host.innerHTML = '';
   clearInterval(clock);
   clock = null;
+  offHandles?.();
+  offHandles = null;
   document.removeEventListener('click', onDocClick, true);
 }
 

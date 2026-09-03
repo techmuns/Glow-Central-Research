@@ -278,6 +278,12 @@ the tabs it serves, with what it feeds, its refresh cadence, a link, and an hone
 passive status labels do not open it in a popup. Adding a data source means updating
 `docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
+X/Twitter accounts appear in that registry as their own family, one row per monitored account with
+the type **Twitter / X**, generated from `js/core/twitter-handles.js` rather than written down. The
+family carries an **Edit Twitter Sources** control that opens `js/ui/twitter-sources.js` — add a
+handle, see what is monitored, remove one, and nothing else. Their posts join the existing News list
+rather than getting a view of their own; see `docs/DATA-CONTRACTS.md`.
+
 `public/js/ui/source-beacon.js` renders that registry as the **source beacon** in the lower-left
 corner: a small launcher opening a popover with every source as one vertical column beside a
 diagram of them converging on a single Sattva square, one wire per source family. It is a view of

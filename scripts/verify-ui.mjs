@@ -1487,8 +1487,17 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  // CASE-INSENSITIVELY, because the table's own search is. `TECHNOCRAF` seeds the box and the
+  // table correctly keeps Technocraft Ventures (that ticker) AND Technocraft Industries (TIIL),
+  // whose NAME matches — searching a screener matches the name as well as the symbol, which is the
+  // point of it. A case-sensitive `includes` called that second row a miss and failed a check on a
+  // table that was behaving exactly as designed. What the parameter promises is that the box is
+  // seeded with the ticker and that every row on screen genuinely matches it, not that the ticker
+  // is printed on all of them.
+  const seedLower = String(seedTicker || '').toLowerCase();
   ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 &&
+      seededRows.every((row) => row.toLowerCase().includes(seedLower)),
     `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
 
   // ---------------------------------------------------------------------------------------
@@ -6143,6 +6152,361 @@ console.log('\n— news, announcements and insider trades —');
 // come", so removing it from the UI loses nothing that was written down. Asserted across every
 // tab rather than the one it was noticed on: a card removed from six of seven files is the shape
 // this kind of change fails in.
+// ---------------------------------------------------------------------------------------
+// 12d. The lower-left source beacon
+//
+// It is a shop window for the whole estate, so what has to hold is that it cannot LIE about the
+// estate: every count derived from the registry rather than typed, the green pill worded as a count
+// of wired feeds rather than a bare "Live", only live rows left unlabelled, and one wire per source
+// family so the picture cannot drift from the list. Plus that it stays a popover — the header's
+// Sources button is still gone, and these check the replacement did not quietly reinstate it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— source beacon —');
+{
+  await go('/#/research/breakouts/technical-scanner?scope=universe', 2600);
+  const launcher = await evalSafe(() => {
+    const el = document.querySelector('[data-beacon-toggle]');
+    const r = el?.getBoundingClientRect();
+    return el ? { text: el.innerText.replace(/\s+/g, ' ').trim(), left: Math.round(r.left), bottom: Math.round(window.innerHeight - r.bottom), inHeader: !!el.closest('header') } : null;
+  });
+  ok('the beacon launcher sits in the lower-left, outside the header',
+    !!launcher && launcher.left < 40 && launcher.bottom < 40 && !launcher.inHeader,
+    launcher ? `left ${launcher.left}, bottom ${launcher.bottom}` : 'no launcher');
+  ok('...and it counts wired feeds rather than claiming a bare "Live"',
+    !!launcher && /\d+ live feeds/.test(launcher.text) && !/^\s*Live\s*$/.test(launcher.text), launcher?.text || '');
+
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(450);
+  const panel = await evalSafe(async () => {
+    const { sourceGroups } = await import('/js/ui/sources.js');
+    const groups = sourceGroups();
+    const items = groups.flatMap((g) => g.items);
+    const p = document.getElementById('source-beacon-panel');
+    if (!p) return null;
+    return {
+      rows: p.querySelectorAll('.beacon-row').length,
+      families: p.querySelectorAll('.beacon-group').length,
+      wires: p.querySelectorAll('.beacon-flow-line').length,
+      icons: [...p.querySelectorAll('.beacon-flow-icon')].map((n) => n.textContent),
+      pill: p.querySelector('.beacon-live-pill')?.innerText.replace(/\s+/g, ' ').trim() || '',
+      fresh: p.querySelector('[data-beacon-fresh]')?.textContent || '',
+      // A status word on a row: only the exceptions carry one.
+      labelled: [...p.querySelectorAll('.beacon-row')].filter((r) => (r.querySelector('.beacon-row-status')?.offsetParent) !== null).length,
+      liveRows: p.querySelectorAll('.beacon-row.is-live').length,
+      scrolls: (p.querySelector('.beacon-list')?.scrollHeight || 0) > (p.querySelector('.beacon-list')?.clientHeight || 0),
+      expected: { items: items.length, live: items.filter((i) => i.status === 'live').length, families: groups.length, icons: groups.map((g) => g.icon) },
+      // The core must sit ON the point every wire converges to, or the picture is of wires
+      // arriving somewhere the dashboard is not.
+      aligned: (() => {
+        const svg = p.querySelector('.beacon-flow-svg');
+        const core = p.querySelector('.beacon-core');
+        if (!svg || !core) return null;
+        const s = svg.getBoundingClientRect();
+        const c = core.getBoundingClientRect();
+        const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+        const scale = s.width / vb[2];
+        return Math.abs(s.x + 96 * scale - (c.x + c.width / 2)) < 3 && Math.abs(s.y + (vb[3] / 2) * scale - (c.y + c.height / 2)) < 3;
+      })(),
+    };
+  });
+  ok('the panel lists every source in the registry', !!panel && panel.rows === panel.expected.items,
+    panel ? `${panel.rows} rows of ${panel.expected.items} registered` : 'no panel');
+  ok('...as one long vertical column that scrolls', !!panel && panel.scrolls);
+  ok('...and its live count is read from the registry, not typed',
+    !!panel && panel.pill === `${panel.expected.live} live feeds` && panel.liveRows === panel.expected.live,
+    panel ? `${panel.pill} vs ${panel.expected.live} live in the registry` : '');
+  // ONLY THE EXCEPTIONS ARE LABELLED, which is what makes mock and manual legible at a glance.
+  ok('...with a status word on every row that is NOT live, and none on the ones that are',
+    !!panel && panel.labelled === panel.expected.items - panel.expected.live,
+    panel ? `${panel.labelled} labelled, ${panel.expected.items - panel.expected.live} not live` : '');
+  ok('...and a freshness line that is a separate, dated claim from the pill',
+    !!panel && /(Last confirmed|committed captures|Waiting for)/.test(panel.fresh), panel?.fresh || '');
+  // ONE WIRE PER FAMILY. A fixed decorative count would be a picture making a claim of its own.
+  ok('the diagram draws one wire per source family, carrying that family\'s own icon',
+    !!panel && panel.wires === panel.expected.families && panel.icons.join('') === panel.expected.icons.join(''),
+    panel ? `${panel.wires} wires for ${panel.expected.families} families` : '');
+  ok('...converging on the Sattva square itself', panel?.aligned === true);
+
+  // Hovering a family lights its own wire and dims the rest — the pairing that makes the diagram
+  // answer "which sources are these" rather than only decorate the panel.
+  await page.locator('.beacon-group[data-family="2"] .beacon-group-head').hover();
+  await page.waitForTimeout(300);
+  const paired = await evalSafe(() => ({
+    hot: [...document.querySelectorAll('.beacon-flow-line.is-hot')].map((n) => n.dataset.family),
+    dimmed: document.querySelector('.beacon-flow-stage')?.classList.contains('is-focused'),
+  }));
+  ok('hovering a family lights its wire and dims the others',
+    !!paired && paired.hot.length === 1 && paired.hot[0] === '2' && paired.dimmed, paired ? paired.hot.join(',') : '');
+
+  // A POPOVER, NOT AN OVERLAY: it must not have reinstated the Sources button, and it must not sit
+  // on top of anything the reader opened deliberately.
+  const chrome = await evalSafe(() => {
+    const h = document.querySelector('header');
+    const z = (sel) => Number(getComputedStyle(document.querySelector(sel)).zIndex) || 0;
+    return {
+      inHeader: h.querySelectorAll('[data-beacon-toggle], #sources-btn').length,
+      headerPills: h.querySelectorAll('[data-status-pill]').length,
+      beaconZ: z('.beacon-root'),
+      modalZ: z('#modal-overlay'),
+      workspaceZ: z('#workspace-overlay'),
+    };
+  });
+  ok('the header still carries no Sources button and one status pill',
+    !!chrome && chrome.inHeader === 0 && chrome.headerPills === 1, chrome ? `${chrome.inHeader} in header, ${chrome.headerPills} pill(s)` : '');
+  ok('...and the beacon sits below every overlay',
+    !!chrome && chrome.beaconZ < chrome.modalZ && chrome.beaconZ < chrome.workspaceZ,
+    chrome ? `beacon ${chrome.beaconZ} < workspace ${chrome.workspaceZ} < modal ${chrome.modalZ}` : '');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  const closed = await evalSafe(() => ({
+    gone: !document.getElementById('source-beacon-panel'),
+    focused: document.activeElement?.classList.contains('beacon-launcher'),
+    expanded: document.querySelector('[data-beacon-toggle]')?.getAttribute('aria-expanded'),
+  }));
+  ok('Escape closes it and gives the launcher its focus back',
+    !!closed && closed.gone && closed.focused && closed.expanded === 'false',
+    closed ? `gone ${closed.gone}, focus ${closed.focused}` : '');
+  // Torn down rather than hidden, so nothing animates behind a dismissed panel.
+  ok('...and the panel is torn down rather than hidden', closed?.gone === true);
+
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(300);
+  await page.mouse.click(1100, 300);
+  await page.waitForTimeout(300);
+  ok('a click outside closes it too', await page.evaluate(() => !document.getElementById('source-beacon-panel')));
+
+  // No sideways page scroll at the narrowest width the layout checks use.
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.waitForTimeout(400);
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(400);
+  const narrow = await evalSafe(() => {
+    const r = document.getElementById('source-beacon-panel')?.getBoundingClientRect();
+    return r ? { right: Math.round(r.right), win: window.innerWidth, doc: document.documentElement.scrollWidth } : null;
+  });
+  ok('the panel fits a 390px viewport without widening the page',
+    !!narrow && narrow.right <= narrow.win && narrow.doc <= narrow.win,
+    narrow ? `right ${narrow.right} of ${narrow.win}, document ${narrow.doc}` : '');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(300);
+}
+
+// ---------------------------------------------------------------------------------------
+// 12e. X/Twitter posts as another source in the News feed
+//
+// The whole feature is: a reader keeps a list of accounts, and their posts appear in the existing
+// News list marked Twitter / X. So the checks are about it being ONE list rather than two — the
+// same sort, the same search, the same filter, the same export — plus the three states the Twitter
+// Sources screen may claim and the one it may not.
+//
+// The fixture's handles and words are FICTIONAL, deliberately. CLAUDE.md forbids attributing
+// invented words to a real person or account, and a test fixture is not an exception: a screenshot
+// of a passing run travels without the word "fixture" on it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— twitter / x as a news source —');
+{
+  const now = Date.now();
+  const iso = (mins) => new Date(now - mins * 60000).toISOString();
+  const CAPTURE = {
+    capturedAt: iso(5),
+    handles: ['sattva_desk', 'sattva_wire', 'sattva_gone'],
+    posts: [
+      { tweet_id: '901', handle: 'sattva_desk', display_name: 'Sattva Desk', text: 'Fixture post one.', created_at: iso(9), url: 'https://x.com/sattva_desk/status/901', image: null },
+      { tweet_id: '902', handle: 'sattva_desk', display_name: 'Sattva Desk', text: 'Fixture post two.', created_at: iso(45), url: 'https://x.com/sattva_desk/status/902', image: null },
+      { tweet_id: '903', handle: 'sattva_wire', display_name: 'Sattva Wire', text: 'Fixture post three.', created_at: iso(200), url: 'https://x.com/sattva_wire/status/903', image: null },
+    ],
+    failed: [{ handle: 'sattva_gone', reason: 'account not found' }],
+  };
+  const HANDLES = { handles: [{ handle: 'sattva_desk' }, { handle: 'sattva_wire' }, { handle: 'sattva_gone' }] };
+  await page.route('**/twitter-posts.json*', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { etag: '"tw-posts-fixture"' }, body: JSON.stringify(CAPTURE) }));
+  await page.route('**/twitter-handles.json*', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { etag: '"tw-handles-fixture"' }, body: JSON.stringify(HANDLES) }));
+  // The dispatch is stubbed rather than allowed through: a suite that started real Action runs on
+  // every push is the failure the Deep Dive rules exist to prevent.
+  const dispatched = [];
+  await page.route('**/api/twitter/**', (r) => {
+    dispatched.push(`${r.request().method()} ${new URL(r.request().url()).search}`);
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, dispatched: true }) });
+  });
+  await page.evaluate(() => localStorage.removeItem('sattva:twitter-handles:v1'));
+
+  // ---- normalisation, before any of it reaches a screen -------------------------------------
+  //
+  // Pure and asserted directly, because the interesting cases are the ones a fixture will not
+  // happen to contain: a 16-character handle, a link to somebody else's site, a bare domain.
+  const norm = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    const cases = ['@Reuters', 'Reuters', 'https://x.com/Reuters', 'https://x.com/Reuters?s=20', 'twitter.com/Reuters/', 'x.com/Reuters', '  @Reuters  '];
+    const bad = ['', 'bad-handle', 'sattva_test_desk', 'https://example.com/Reuters', '@@', 'a'.repeat(16)];
+    return {
+      good: cases.map((c) => h.normaliseHandle(c).handle),
+      bad: bad.map((c) => !!h.normaliseHandle(c).error),
+    };
+  });
+  ok('every spelling of a handle normalises to the same one',
+    !!norm && norm.good.every((v) => v === 'Reuters'), norm ? norm.good.join(', ') : 'not evaluated');
+  ok('...and anything that is not a handle is refused with a reason',
+    !!norm && norm.bad.every(Boolean), norm ? `${norm.bad.filter(Boolean).length} of ${norm.bad.length} refused` : 'not evaluated');
+
+  await go('/#/research/news?scope=universe', 3200);
+  await page.waitForFunction(() => !document.querySelector('[data-mcnews-list][data-rows-pending]'), null, { timeout: 20000 }).catch(() => {});
+
+  const feed = await evalSafe(() => {
+    const cards = [...document.querySelectorAll('[data-news-key]')];
+    const postAt = cards.map((c, i) => (/Twitter \/ X/.test(c.innerText) ? i : -1)).filter((i) => i >= 0);
+    const first = cards[postAt[0]];
+    return {
+      total: cards.length,
+      posts: postAt.length,
+      postAt,
+      text: first?.innerText.replace(/\s+/g, ' ').trim() || '',
+      href: first?.getAttribute('href') || null,
+      sources: [...(document.querySelector('[data-news-source]')?.options || [])].map((o) => o.text),
+      keys: cards.map((c) => c.getAttribute('data-news-key')),
+    };
+  });
+  ok('posts appear in the existing News list, not a list of their own',
+    !!feed && feed.posts === 3 && feed.total > 3, feed ? `${feed.posts} post(s) among ${feed.total} stories` : 'no feed');
+  ok('...carrying the account name, the handle, the text, a time and the source',
+    !!feed && /Sattva Desk/.test(feed.text) && /@sattva_desk/.test(feed.text) && /Fixture post one/.test(feed.text) &&
+      /\d{2}:\d{2}/.test(feed.text) && /Twitter \/ X/.test(feed.text), feed ? feed.text.slice(0, 120) : '');
+  ok('...linking to the original post', feed?.href === 'https://x.com/sattva_desk/status/901', feed?.href || 'no link');
+  // INTERLEAVED, NOT APPENDED. Two feeds concatenated would put every post at one end of the list,
+  // which is a separate Twitter section wearing the same chrome.
+  ok('...interleaved into the one chronological order rather than appended',
+    !!feed && feed.postAt.length === 3 && feed.postAt[2] > feed.postAt[0] && new Set(feed.postAt).size === 3 &&
+      feed.postAt.some((i, n) => n > 0 && i - feed.postAt[n - 1] > 1),
+    feed ? `at ${feed.postAt.join(', ')} of ${feed.total}` : '');
+  // Every row key unique — the rule that broke the News table once already. Compared, not counted.
+  ok('...with a key per row that is derived from content and unique',
+    !!feed && new Set(feed.keys).size === feed.keys.length, feed ? `${feed.keys.length - new Set(feed.keys).size} duplicate key(s)` : '');
+  ok('the source filter offers publishers and Twitter / X in one control',
+    !!feed && feed.sources.join(' | ') === 'All sources | News publishers | Twitter / X', feed ? feed.sources.join(' | ') : 'no control');
+
+  await page.selectOption('[data-news-source]', 'twitter');
+  await page.waitForTimeout(400);
+  const onlyTw = await evalSafe(() => {
+    const c = [...document.querySelectorAll('[data-news-key]')];
+    return { n: c.length, all: c.length > 0 && c.every((x) => /Twitter \/ X/.test(x.innerText)) };
+  });
+  ok('...and narrowing to Twitter / X leaves only posts', !!onlyTw && onlyTw.n === 3 && onlyTw.all, onlyTw ? `${onlyTw.n} row(s)` : '');
+  await page.selectOption('[data-news-source]', 'publishers');
+  await page.waitForTimeout(400);
+  const onlyPub = await evalSafe(() => {
+    const c = [...document.querySelectorAll('[data-news-key]')];
+    return { n: c.length, none: !c.some((x) => /Twitter \/ X/.test(x.innerText)) };
+  });
+  ok('...and narrowing to publishers leaves none — the existing feed, untouched',
+    !!onlyPub && onlyPub.n > 0 && onlyPub.none, onlyPub ? `${onlyPub.n} publisher row(s)` : '');
+  await page.selectOption('[data-news-source]', 'all');
+  await page.waitForTimeout(300);
+
+  await page.fill('[data-news-search]', 'sattva_wire');
+  await page.waitForTimeout(400);
+  const searched = await evalSafe(() => [...document.querySelectorAll('[data-news-key]')].map((c) => c.innerText.replace(/\s+/g, ' ').slice(0, 40)));
+  ok('the existing search reaches the handle as well as the text',
+    Array.isArray(searched) && searched.length === 1 && /@sattva_wire/.test(searched[0]), searched ? searched.join(' | ') : '');
+  await page.fill('[data-news-search]', '');
+  await page.waitForTimeout(300);
+
+  // ---- the Sources beacon, and the editor it opens -------------------------------------------
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(450);
+  const family = await evalSafe(() => {
+    const g = [...document.querySelectorAll('.beacon-group')].find((x) => /Twitter/.test(x.querySelector('.beacon-group-title')?.textContent || ''));
+    return g ? { title: g.querySelector('.beacon-group-title').textContent.trim(), rows: [...g.querySelectorAll('.beacon-row')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()), action: g.querySelector('[data-beacon-action]')?.textContent.trim() || null } : null;
+  });
+  ok('the source list names Twitter / X as a source type of its own',
+    family?.title === 'Twitter / X' && family.rows.length === 3, family ? `${family.rows.length} row(s)` : 'no family');
+  ok('...one row per monitored account', !!family && family.rows.filter((r) => /^@sattva_/.test(r)).length === 3, family ? family.rows.join(' | ') : '');
+  ok('...and an Edit Twitter Sources control beside it', family?.action === 'Edit Twitter Sources', family?.action || 'absent');
+
+  await page.locator('[data-beacon-action="edit-twitter"]').click();
+  await page.waitForTimeout(450);
+  const editor = await evalSafe(() => ({
+    open: !!document.querySelector('[data-twitter-sources]'),
+    rows: [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.closest('li').innerText.replace(/\s+/g, ' ').trim()),
+  }));
+  ok('the editor opens with every monitored account', !!editor?.open && editor.rows.length === 3, editor ? `${editor.rows.length} row(s)` : 'not open');
+  // ACTIVE, ADDING AND NOT FOUND ARE THREE DIFFERENT CLAIMS. The middle one is the honest answer
+  // for an account nothing has read yet, and it may never be dressed up as the first.
+  ok('...an account a run has read reads Active', !!editor && /@sattva_desk.*ACTIVE/i.test(editor.rows.find((r) => /sattva_desk/.test(r)) || ''), editor?.rows[0] || '');
+  ok('...and one the collector could not read says so, with its reason',
+    !!editor && /account not found/i.test(editor.rows.find((r) => /sattva_gone/.test(r)) || ''), editor?.rows.find((r) => /sattva_gone/.test(r)) || '');
+
+  const addOne = async (value) => {
+    await page.fill('[data-tw-input]', value);
+    await page.locator('[data-tw-add] button[type=submit]').click();
+    await page.waitForTimeout(260);
+    return page.locator('[data-tw-notice]').innerText();
+  };
+  const added = await addOne('@sattva_news');
+  ok('adding a handle puts it on the list at once', /sattva_news added/i.test(added), added.slice(0, 90));
+  const dupUrl = await addOne('https://x.com/sattva_news');
+  const dupBare = await addOne('sattva_news');
+  ok('...and the same account by URL or bare name is refused rather than duplicated',
+    /already on the list/i.test(dupUrl) && /already on the list/i.test(dupBare), `${dupUrl.slice(0, 40)} / ${dupBare.slice(0, 40)}`);
+  const list = await evalSafe(() => [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.getAttribute('data-tw-remove')));
+  ok('...leaving one row for it', Array.isArray(list) && list.filter((h) => h === 'sattva_news').length === 1, (list || []).join(', '));
+  const pending = await evalSafe(() => (document.querySelectorAll('[data-tw-remove]').length ? [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.closest('li').innerText.replace(/\s+/g, ' ')).find((t) => /sattva_news/.test(t)) : null));
+  ok('...reading Adding, never Active, until a run has read it', /adding/i.test(pending || ''), pending || 'no row');
+  ok('...and the collection it asked for names that handle and nothing else',
+    dispatched.length === 1 && /handle=sattva_news/.test(dispatched[0]) && /^POST/.test(dispatched[0]), dispatched.join(' | ') || 'no dispatch');
+
+  const badHandle = await addOne('bad-handle');
+  ok('a value that is not a handle is refused in words, not swallowed', /1[–-]15 letters/.test(badHandle), badHandle.slice(0, 80));
+
+  await page.locator('[data-tw-remove="sattva_desk"]').click();
+  await page.waitForTimeout(400);
+  const afterRemove = await evalSafe(async () => {
+    const tw = await import('/js/data/twitter-news.js');
+    return { list: [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.getAttribute('data-tw-remove')), rows: tw.rows().length };
+  });
+  ok('removing an account takes its posts out of the feed immediately',
+    !!afterRemove && !afterRemove.list.includes('sattva_desk') && afterRemove.rows === 1,
+    afterRemove ? `${afterRemove.rows} post(s) left` : '');
+  const afterReadd = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    const tw = await import('/js/data/twitter-news.js');
+    h.add('https://x.com/sattva_desk?s=20');
+    return { entry: h.all().find((e) => e.key === 'sattva_desk'), rows: tw.rows().length };
+  });
+  ok('...and re-adding it brings them back, with no fetch at all',
+    afterReadd?.entry?.status === 'active' && afterReadd.rows === 3, afterReadd ? `${afterReadd.rows} post(s)` : '');
+
+  await page.evaluate(() => document.querySelector('[data-twitter-sources] [data-modal-close]')?.click());
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // A RELOAD MUST NOT LOSE THE LIST. It is the reader's own, and it lives on the device.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  const survived = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    await h.load();
+    return h.all().map((e) => `${e.handle}:${e.status}`);
+  });
+  ok('the configured accounts survive a reload',
+    Array.isArray(survived) && survived.includes('sattva_news:adding') && survived.some((v) => v.startsWith('sattva_desk')),
+    (survived || []).join(', '));
+
+  // The capture is deduplicated by the post id, so the same post twice is one row.
+  const dedupe = await evalSafe(async () => {
+    const tw = await import('/js/data/twitter-news.js');
+    const ids = tw.rows().map((r) => r.id);
+    return { n: ids.length, unique: new Set(ids).size, prefixed: ids.every((i) => i.startsWith('tw:')) };
+  });
+  ok('a post is identified by its own id, namespaced so it cannot collide with a publisher story',
+    !!dedupe && dedupe.n === dedupe.unique && dedupe.prefixed, dedupe ? `${dedupe.unique} unique of ${dedupe.n}` : '');
+
+  await page.evaluate(() => localStorage.removeItem('sattva:twitter-handles:v1'));
+  await page.unroute('**/twitter-posts.json*');
+  await page.unroute('**/twitter-handles.json*');
+  await page.unroute('**/api/twitter/**');
+}
+
 // ---------------------------------------------------------------------------------------
 console.log('\n— sub-view picker and the removed roadmap card —');
 {

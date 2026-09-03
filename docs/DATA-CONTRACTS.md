@@ -2504,6 +2504,104 @@ staleness — polling faster cannot surface a story sooner, only spend requests 
 capture. The paint that first loads a capture announces **nothing**: everything in it predates the
 reader's arrival, and replaying it would make every later alert worth less.
 
+### X/Twitter posts — another source in the same News list
+
+**`public/data/twitter-posts.json` and `public/data/twitter-handles.json`** — committed captures,
+written by `scripts/scrape-twitter.py` on `.github/workflows/twitter-refresh.yml` (every 30
+minutes, plus a `workflow_dispatch` the dashboard sends when a reader adds an account).
+
+```jsonc
+// twitter-handles.json — the accounts the collector reads. The UI reads it back to tell an
+// account it is actually collecting from one this browser has merely been told about.
+{
+  "updatedAt": "2026-09-03T12:30:00Z",
+  "handles": [{ "handle": "Reuters", "addedAt": "2026-09-03T12:29:00Z" }]
+}
+
+// twitter-posts.json — capped at TWITTER_KEEP (600) posts, newest first.
+{
+  "capturedAt": "2026-09-03T12:30:00Z",   // when X was last read
+  "handles": ["Reuters"],                  // what the run covered
+  "posts": [
+    {
+      "tweet_id": "1234567890",            // THE deduplication key, upstream's own
+      "handle": "Reuters",
+      "display_name": "Reuters",
+      "text": "…",                         // the post, verbatim
+      "created_at": "2026-09-03T12:12:00Z",
+      "url": "https://x.com/Reuters/status/1234567890",
+      "image": null,                       // first photo, or null — video is not linked
+      "source_url": "https://x.com/Reuters"
+    }
+  ],
+  // A handle that could not be read. ABSENT from `posts`, never written as an account with none.
+  "failed": [{ "handle": "wrongname", "reason": "account not found" }]
+}
+```
+
+**It is not a second news system.** `js/data/twitter-news.js` converts each post into the article
+shape `market-news.json` already produces — `id`, `title`, `summary`, `url`, `image`,
+`publishedAt`, `section` — and the Universe half of the News tab merges the two arrays. One list,
+one sort, one search, one export, one card renderer with a single branch on `kind === 'twitter'`.
+The publisher feed is untouched: with no handles monitored, nothing about that tab differs.
+
+Five things it deliberately does not do, and each is a rule this codebase already holds:
+
+1. **Nothing is scored, ranked, summarised, sentiment-tagged or mapped to a company.** A post is
+   somebody's own words and is reproduced; `title` is the post's text unedited, because a tweet has
+   no headline and writing one would put this dashboard's words on somebody's post. `line-clamp`
+   shortens what is DRAWN, so search and export still see every word.
+2. **Posts carry no ticker, so they are not filtered by one.** They appear under Universe scope
+   alongside the market-wide publisher feed and are absent from the narrowed scopes, for exactly
+   the reason market-wide news is: filtering rows that have no company BY company would report
+   *"your companies are not in the news"* when nothing on the row says whose it is.
+3. **Deduplication is by the tweet id, in the scraper and in the browser, and `id` is namespaced
+   `tw:<tweet_id>`** so it cannot collide with a Moneycontrol article id in the merged list. The
+   capture is capped, so a new post pushes the oldest off the end and the LENGTH DOES NOT MOVE —
+   "did anything arrive" is answered by comparing id sets, never by counting.
+4. **The merged sort is by time.** `market-news.js` orders by Moneycontrol's own article id, which
+   is correct within one publisher and meaningless across two; a story with no readable time keeps
+   the publisher's own relative order rather than being dated with something invented.
+5. **A removed handle's posts vanish at once**, because the browser filters the capture by the list
+   that is monitored right now. The capture is only rewritten when the collector next runs, and a
+   control that appeared not to work until then would be worse than no control.
+
+**The handle list has two halves, like the Portfolio scope's.** The committed file is what the
+collector reads; a reader's own edits are a device-local overlay in
+`localStorage['sattva:twitter-handles:v1']`, so adding an account takes effect on screen at once and
+survives a reload. **That makes `Adding…` and `Active` different claims**: an account this browser
+monitors is `adding` until a collection run's own capture names it, and it may never be dressed up
+as `active` before then — the same distinction as a cached paint that has not been confirmed.
+`Account not found` is the collector's answer from `failed[]`, not a guess made in the browser.
+
+**Normalisation is the whole of the input validation, and it is strict.** `@Reuters`, `Reuters`,
+`x.com/Reuters` and `https://x.com/Reuters?s=20` all become `Reuters`; anything that is not 1–15
+characters of `[A-Za-z0-9_]` — X's own rule — is refused with a reason. The identical rule is
+enforced in three places that cannot be allowed to disagree: `js/core/twitter-handles.js`,
+`worker/index.js` (because the value reaches a `workflow_dispatch` input and from there a runner's
+shell) and `scripts/scrape-twitter.py`. A link to any other host is refused rather than having its
+last path segment taken as a handle.
+
+**`POST /api/twitter/refresh?source=button&handle=<h>`** starts a collection, through the same
+`worker/github-actions.mjs` client and the same duplicate-run guard as the market-news Fetch
+button; **`GET /api/twitter/run`** watches it, free. POST-only, so a prefetcher cannot trip it. Its
+failures are never shown as the handle's failures: a deployment with no Worker or no
+`GH_DISPATCH_TOKEN` cannot start a run, and that is a fact about the deployment — the account stays
+on the list reading `Adding…`, which is exactly what is true.
+
+**Setting it up on a deployment.** `twscrape` drives X as a signed-in user, so it needs at least one
+account: add a repository secret named **`X_ACCOUNTS`** (*Settings → Secrets and variables →
+Actions*), one per line as `username:password:email:email_password`. With none configured the job
+exits **3**, writes nothing and posts a warning rather than failing — no capture is damaged and the
+dashboard goes on saying the accounts are being added. Exit **2** means every account failed while a
+good capture exists, so the file is left alone. Exit **1** still means a real fault.
+
+**`scripts/scrape-twitter.py` is the one Python script in this repository**, and the rule it breaks
+is narrow: the retrieval library asked for is Python, it runs on a GitHub runner only, and nothing
+in `public/`, the Worker or the Node scripts depends on it. What it produces is an ordinary
+committed capture. `TWITTER_LIMIT` (20) bounds the posts read per account per run; `TWITTER_KEEP`
+(600) is the capture's ceiling and is a bytes limit, not an editorial one.
+
 ### Corporate announcements are read by DATE, from BSE — a different shape entirely
 
 **`corp-announcements.json` no longer comes from the Muns filings API and must not go back to it.**

@@ -49,7 +49,7 @@ function editorHtml(scope) {
       </div>
 
       <div class="px-6 py-5">
-        <div class="relative">
+        <div>
           <label for="scope-company-search" class="sr-only">Search company name or ticker</label>
           <div class="flex items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-300">
             <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -59,7 +59,19 @@ function editorHtml(scope) {
               placeholder="Search company name or ticker…"
               class="min-w-0 flex-1 bg-transparent py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400" />
           </div>
-          <div data-scope-search-results class="absolute left-0 right-0 z-20 mt-1 hidden max-h-72 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200"></div>
+          <!-- IN FLOW, NOT FLOATING, AND THAT IS THE FIX RATHER THAN THE STYLE.
+               (No backticks in here: this comment lives inside a template literal.)
+               It used to be positioned absolute, so it hung over the member list immediately below —
+               which is the list the same keystrokes had just filtered. Typing IIFL narrowed the
+               list to IIFL Finance and then covered its Remove button by about 16px, so the
+               reader's first click was swallowed dismissing the panel and only the second one
+               removed anything. A control that needs two clicks to do what it says once is broken,
+               and the mitigation further down (collapsing the panel inside the member click
+               handler) could never fire, because the click it depends on is the one being eaten.
+               In flow, the list is pushed down instead of hidden, both halves of the answer are on
+               screen at once — what the search found, and what is already on the list — and there
+               is no overlap left to time a dismissal around. -->
+          <div data-scope-search-results class="mt-2 hidden max-h-72 overflow-y-auto rounded-2xl bg-white p-1.5 ring-1 ring-slate-200"></div>
         </div>
 
         <div data-scope-loading class="py-12 text-center text-sm text-slate-400">Reading the ${escapeHtml(scopeLabel(scope).toLowerCase())} list…</div>
@@ -229,8 +241,11 @@ export function openScopeEditor({ scope, onChanged = null } = {}) {
     const entry = current().find((item) => scopeLists.keyFor(item) === button.dataset.scopeRemove);
     if (entry) {
       remove(entry);
-      // A member-row action means the reader has moved from autocomplete to the list. Collapse the
-      // floating result panel so it cannot cover Restore default or the next member action.
+      // A member-row action means the reader has moved from autocomplete to the list, so the
+      // suggestions have served their purpose. This used to be load-bearing — the panel floated
+      // over the list and had to be dismissed — and it could not work, because the click it runs
+      // from was the one the panel was intercepting. The panel is in flow now and covers nothing;
+      // this simply tidies it away once the reader is plainly working on the list instead.
       resultBox.classList.add('hidden');
     }
   });

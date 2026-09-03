@@ -29,8 +29,13 @@ import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 import { exportRows } from '../ui/export.js';
 import * as marketNews from '../data/market-news.js';
+import * as twitterNews from '../data/twitter-news.js';
+import * as twitterHandles from '../core/twitter-handles.js';
+import { openTwitterSources } from '../ui/twitter-sources.js';
 
 let unsub = null;
+let postsUnsub = null;
+let handlesUnsub = null;
 let disposers = [];
 let ctxRef = null;
 let busy = false;
@@ -41,7 +46,7 @@ let lastResult = null;
 let failure = null;
 // The reader's own filters. Module state, not node state: every repaint rebuilds the list, so a
 // value held on the input would be discarded the moment a capture landed.
-let listView = { q: '', section: 'all' };
+let listView = { q: '', section: 'all', source: 'all' };
 let fillStop = null;
 // Whether the provenance modal — which holds the Fetch control — is on screen, so a fetch's
 // progress can be re-rendered into it rather than reported to a panel nobody is looking at.
@@ -111,14 +116,57 @@ function pill(m) {
 
 const FIRST_PAINT = 24;
 
-/** Which stories the search box and the section filter leave. */
+// ---------------------------------------------------------------------------------------
+// X/TWITTER POSTS ARE ANOTHER SOURCE IN THIS LIST, NOT A SECOND LIST.
+//
+// js/data/twitter-news.js converts each post into the article shape this feed already uses, so the
+// merge below is the whole of the integration: one array, one sort, one search, one export, one
+// card renderer with a single branch on `kind`. Nothing about the publisher feed changed.
+//
+// THE MERGED SORT IS BY TIME, NOT BY THE PUBLISHER'S ID. market-news.js orders by Moneycontrol's
+// own article id, which increases with publication and works even for the stories whose timestamp
+// was never read — correct within one publisher and meaningless across two. So the merged list
+// sorts on `publishedAt` where both sides have one, and a story with no time keeps the publisher's
+// relative order among the others rather than being dated with something we made up.
+// ---------------------------------------------------------------------------------------
+
+/** Every story in the list: the publisher feed plus the posts from monitored handles. */
+function feedRows() {
+  const publisher = marketNews.rows();
+  const posts = twitterNews.rows();
+  if (!posts.length) return publisher;
+
+  // Publisher stories keep their own order and their index becomes the tie-break, so a story with
+  // no readable time still sits where the publisher put it rather than falling to the bottom.
+  const order = new Map(publisher.map((r, i) => [r.id, i]));
+  const timeOf = (r) => {
+    const t = Date.parse(r.publishedAt || '');
+    return Number.isFinite(t) ? t : null;
+  };
+  return [...publisher, ...posts].sort((a, b) => {
+    const ta = timeOf(a);
+    const tb = timeOf(b);
+    if (ta !== null && tb !== null) return tb - ta;
+    // One side has no time. Keep the timed one first — it is the only one whose position is known.
+    if (ta !== null) return -1;
+    if (tb !== null) return 1;
+    return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
+  });
+}
+
+const isPost = (r) => r.kind === twitterNews.KIND;
+
+/** Which stories the search box, the source filter and the section filter leave. */
 function visibleRows(rows) {
   const q = (listView.q || '').trim().toLowerCase();
   const section = listView.section;
+  const source = listView.source;
   return rows.filter((r) => {
+    if (source === 'twitter' && !isPost(r)) return false;
+    if (source === 'publishers' && isPost(r)) return false;
     if (section && section !== 'all' && r.section !== section) return false;
     if (!q) return true;
-    return `${r.title || ''} ${r.summary || ''} ${r.section || ''}`.toLowerCase().includes(q);
+    return `${r.title || ''} ${r.summary || ''} ${r.section || ''} ${r.handle || ''} ${r.displayName || ''}`.toLowerCase().includes(q);
   });
 }
 
@@ -130,6 +178,46 @@ const linkable = (u) => /^https?:\/\//i.test(String(u || ''));
 
 const sectionLabel = (value) =>
   withoutPublisherName(String(value || '').replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher');
+
+/**
+ * A post's card. The same shell, the same thumbnail slot, the same meta row — the only additions
+ * are the account line a publisher story has no use for and the source chip that names X.
+ *
+ * The text is the row and is reproduced whole in the markup: `line-clamp` shortens what is DRAWN,
+ * so search and export still see every word and nothing is edited into a headline of ours.
+ */
+function postBody(r, canLink) {
+  const when = istTime(r.publishedAt);
+  const thumb = r.image
+    ? `<img src="${escapeHtml(r.image)}" alt="" loading="lazy" decoding="async"
+           class="h-full w-full object-cover" onerror="this.style.display='none'">`
+    : `<span class="flex h-full w-full items-center justify-center text-slate-400" aria-hidden="true">
+         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-6.8 7.8L23 22h-6.3l-4.9-6.4L6.2 22H3.1l7.3-8.3L2 2h6.4l4.4 5.9L18.9 2Zm-1.1 18h1.7L7.3 3.8H5.5L17.8 20Z"/></svg>
+       </span>`;
+  return `
+      <div class="h-[62px] w-[110px] flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 sm:h-[76px] sm:w-[135px]">${thumb}</div>
+      <div class="min-w-0 max-w-4xl flex-1">
+        <div class="flex flex-wrap items-baseline gap-x-1.5">
+          <span class="font-display text-sm font-bold text-slate-900">${escapeHtml(r.displayName)}</span>
+          <span class="text-xs font-medium text-slate-400">@${escapeHtml(r.handle)}</span>
+        </div>
+        <p class="mt-1 line-clamp-3 whitespace-pre-line text-[15px] leading-snug text-slate-700 ${canLink ? 'group-hover:text-indigo-700' : ''}">${escapeHtml(r.title) || '<span class="text-slate-400">(no text)</span>'}</p>
+        <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          ${
+            when
+              ? `<span class="tabular-nums">${escapeHtml(when)}</span>`
+              : '<span class="text-slate-300" title="The capture carried no post time.">time not published</span>'
+          }
+          <span class="text-slate-300">·</span>
+          <!-- NOT \`uppercase\`, unlike the premium chip beside it in the publisher card: this is a
+               product name, and "TWITTER / X" is not how it is written. -->
+          <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-slate-600">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.9 2H22l-6.8 7.8L23 22h-6.3l-4.9-6.4L6.2 22H3.1l7.3-8.3L2 2h6.4l4.4 5.9L18.9 2Zm-1.1 18h1.7L7.3 3.8H5.5L17.8 20Z"/></svg>
+            Twitter / X
+          </span>
+        </div>
+      </div>`;
+}
 
 function cardHtml(r) {
   const canLink = linkable(r.url);
@@ -153,7 +241,7 @@ function cardHtml(r) {
            class="h-full w-full object-cover" onerror="this.style.display='none'">`
     : '';
 
-  const body = `
+  const body = isPost(r) ? postBody(r, canLink) : `
       <div class="h-[62px] w-[110px] flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 sm:h-[76px] sm:w-[135px]">${thumb}</div>
       <div class="min-w-0 max-w-4xl flex-1">
         <h3 class="font-display text-[15px] font-bold leading-snug text-slate-900 ${canLink ? 'group-hover:text-indigo-700' : ''}">${escapeHtml(withoutPublisherName(r.title) || '(untitled)')}</h3>
@@ -178,8 +266,22 @@ function listHtml(rows) {
   const shown = rows.slice(0, FIRST_PAINT);
   const pending = Math.max(0, rows.length - shown.length);
   // The section list is the WHOLE feed's, not the filtered set's — a dropdown that loses its own
-  // options as you use it cannot be used to get back.
+  // options as you use it cannot be used to get back. Posts are excluded from it because their
+  // "section" is the source, which the control beside it already asks about.
   const allSections = [...new Set(marketNews.rows().map((r) => r.section).filter(Boolean))].sort();
+  // NOT OFFERED WHEN THERE IS NOTHING TO CHOOSE BETWEEN. A dropdown whose every option means the
+  // same set is a control that looks like it does something, which is worse than no control — the
+  // same reason market-wide news is absent from General Alerts' chips under a narrowed scope
+  // rather than present and permanently empty.
+  const posts = twitterNews.rows().length;
+  const sourceSelect = posts
+    ? `<select data-news-source aria-label="Source"
+         class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+         <option value="all"${listView.source === 'all' ? ' selected' : ''}>All sources</option>
+         <option value="publishers"${listView.source === 'publishers' ? ' selected' : ''}>News publishers</option>
+         <option value="twitter"${listView.source === 'twitter' ? ' selected' : ''}>Twitter / X</option>
+       </select>`
+    : '';
   return `
     <section data-mcnews-list class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100"${pending ? ` data-rows-pending="${pending}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
@@ -189,6 +291,7 @@ function listHtml(rows) {
             <input type="text" data-news-search placeholder="Search headlines..." value="${escapeHtml(listView.q || '')}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
+          ${sourceSelect}
           ${
             allSections.length > 1
               ? `<select data-news-section aria-label="Section"
@@ -200,7 +303,7 @@ function listHtml(rows) {
           }
         </div>
         <div class="flex items-center gap-3">
-          <span class="whitespace-nowrap text-sm text-slate-500"><strong class="text-slate-800">${escapeHtml(formatNumber(rows.length))}</strong> of ${escapeHtml(formatNumber(marketNews.rows().length))} stories</span>
+          <span class="whitespace-nowrap text-sm text-slate-500"><strong class="text-slate-800">${escapeHtml(formatNumber(rows.length))}</strong> of ${escapeHtml(formatNumber(feedRows().length))} stories</span>
           <button type="button" data-news-export
             class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
             <span>📊</span><span>Export Excel</span>
@@ -405,7 +508,7 @@ function provenance(m) {
 
 function paint(ctx) {
   const m = marketNews.meta();
-  const rows = marketNews.rows();
+  const rows = feedRows();
   if (fillStop) {
     fillStop();
     fillStop = null;
@@ -462,7 +565,7 @@ function relist(root) {
   const hadFocus = document.activeElement === search;
   const caret = search ? search.selectionStart : null;
 
-  const filtered = visibleRows(marketNews.rows());
+  const filtered = visibleRows(feedRows());
   old.outerHTML = listHtml(filtered);
   wireList(root);
   fillStop = fillRest(root, filtered, 0);
@@ -601,9 +704,15 @@ function wireList(root) {
     relist(root);
   });
 
+  const sourceSelect = root.querySelector('[data-news-source]');
+  sourceSelect?.addEventListener('change', () => {
+    listView.source = sourceSelect.value;
+    relist(root);
+  });
+
   // Reads the ARRAY, never the DOM — a fill still in flight must not be able to truncate a workbook.
   root.querySelector('[data-news-export]')?.addEventListener('click', () => {
-    exportVisible(visibleRows(marketNews.rows()), marketNews.meta());
+    exportVisible(visibleRows(feedRows()), marketNews.meta());
   });
 }
 
@@ -660,6 +769,15 @@ export function render(ctx) {
   // time: render() runs again on every scope and sub-view change, and a token captured in the
   // closure would be stale from the first one onwards.
   if (!unsub) unsub = marketNews.onChange(() => ctxRef && paint(ctxRef));
+  // The post capture and the handle list each move the row set, so each repaints. Registered on
+  // the same `ctxRef` guard and only once, exactly as the publisher feed's subscription is:
+  // render() runs again on every scope change and a per-render subscription would stack up.
+  if (!postsUnsub) postsUnsub = twitterNews.onChange(() => ctxRef && paint(ctxRef));
+  if (!handlesUnsub) handlesUnsub = twitterHandles.onChange(() => ctxRef && paint(ctxRef));
+
+  // Loaded in parallel with the publisher capture, and awaited by nothing: a post landing repaints
+  // through the subscription above. One small conditional GET, no request per handle.
+  if (!twitterNews.isLoaded()) twitterNews.load();
 
   if (!marketNews.isLoaded()) {
     ctx.root.innerHTML = `${sectionHead({ title: 'News', description: DESCRIPTION })}
@@ -683,6 +801,10 @@ export function destroy() {
   disposers = [];
   unsub?.();
   unsub = null;
+  postsUnsub?.();
+  postsUnsub = null;
+  handlesUnsub?.();
+  handlesUnsub = null;
   lastResult = null;
   // The watch checks `ctxRef` before every paint, so clearing it above is what stops it. The run
   // itself carries on: it is a GitHub Action, and leaving the tab does not cancel it.
@@ -691,5 +813,5 @@ export function destroy() {
   modalOpen = false;
   // The filters are the reader's, and leaving the tab discards them deliberately: coming back to a
   // list silently narrowed by a search typed ten minutes ago reads as a feed that lost stories.
-  listView = { q: '', section: 'all' };
+  listView = { q: '', section: 'all', source: 'all' };
 }

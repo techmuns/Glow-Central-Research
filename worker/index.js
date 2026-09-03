@@ -45,6 +45,7 @@ import {
   INSIDER_WORKFLOW,
   ANNOUNCEMENTS_WORKFLOW,
   DATA_WORKFLOW,
+  TWITTER_WORKFLOW,
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
@@ -158,6 +159,31 @@ export default {
     }
     if (url.pathname === '/api/market-news/run') {
       return handleNewsRunStatus(request, env, ctx);
+    }
+    // X/Twitter collection. Same shape as every other dispatch route here, with one addition: it
+    // may carry the handle that prompted it, so a newly added account is read now rather than at
+    // the next scheduled run.
+    //
+    // THE HANDLE IS VALIDATED HERE, NOT TRUSTED. It reaches a `workflow_dispatch` input and from
+    // there a runner's shell, so it is checked against X's own rule — 1-15 of [A-Za-z0-9_] — and
+    // dropped entirely if it does not match, exactly as `?source=` is an allow-list of three words
+    // rather than a string that reaches the run name. A request cannot choose the repository, the
+    // workflow or the ref either; all three are fixed on this Worker.
+    if (url.pathname === '/api/twitter/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a collection with POST.' }, 405);
+      const raw = url.searchParams.get('handle') || '';
+      const handle = /^[A-Za-z0-9_]{1,15}$/.test(raw) ? raw : null;
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: TWITTER_WORKFLOW,
+        // Keyed by handle so adding a second account is not swallowed by the first one's cooldown,
+        // while holding the button down on one account still is.
+        cacheName: `twitter-dispatch${handle ? `:${handle.toLowerCase()}` : ''}`,
+        cooldownS: TWITTER_DISPATCH_COOLDOWN_S,
+        extraInputs: handle ? { handle } : null,
+      });
+    }
+    if (url.pathname === '/api/twitter/run') {
+      return handleWorkflowRunStatus(env, ctx, { workflow: TWITTER_WORKFLOW, cacheName: 'twitter-run-status' });
     }
     if (url.pathname === '/api/company-news/refresh') {
       if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
@@ -1357,6 +1383,9 @@ const FILINGS_DISPATCH_COOLDOWN_S = 30 * 60;
 const ANNOUNCEMENTS_DISPATCH_COOLDOWN_S = 10 * 60;
 // End-of-day technicals can take most of an hour and must never overlap themselves.
 const DATA_DISPATCH_COOLDOWN_S = 60 * 60;
+// Short, because this one is usually a reader who has just added an account and is waiting to see
+// its posts. The duplicate-run guard in dispatchWorkflow is what stops a second run either way.
+const TWITTER_DISPATCH_COOLDOWN_S = 3 * 60;
 const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
 // How far back `lastAutomatic` looks. Ten runs is about a day at the schedule's own cadence.
 const RUN_WINDOW = 10;
@@ -1478,7 +1507,7 @@ async function handleNewsDispatch(request, env, ctx) {
   });
 }
 
-async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS }) {
+async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS, extraInputs = null }) {
   const cfg = githubConfig(env);
   if (cfg.error) return json(cfg.error, 200);
   const source = sourceOf(new URL(request.url));
@@ -1494,7 +1523,7 @@ async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, 
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source });
+    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source, ...(extraInputs || {}) });
     const payload = {
       ok: true,
       dispatched: out.dispatched,

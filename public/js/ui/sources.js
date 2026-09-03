@@ -21,6 +21,8 @@ import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
+import * as twitterNews from '../data/twitter-news.js';
+import * as twitterHandles from '../core/twitter-handles.js';
 import * as superInvestors from '../data/super-investors.js';
 // NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
@@ -105,6 +107,59 @@ export function deliveryNote(meta, { poll } = {}) {
       feed answers with <strong>no data at all</strong> rather than resending itself. The full payload crosses the wire only
       when something in it actually changed.
     </p>`;
+}
+
+/**
+ * One row per monitored X account, with the state the ingestion job actually established.
+ *
+ * `active` means a collection run has read the account; `adding` means this browser is monitoring
+ * it and no run has yet. Those are different claims and the second is the honest one for a handle
+ * somebody added a minute ago — the same distinction as a cached paint that has not been confirmed.
+ * `unreadable` is the job's own answer, carried through with its reason rather than paraphrased.
+ */
+function twitterSources() {
+  let list = [];
+  let failed = new Map();
+  let counts = new Map();
+  try {
+    failed = twitterNews.failedByKey();
+    counts = twitterNews.countsByHandle();
+    list = twitterHandles.all({ failed });
+  } catch {
+    list = [];
+  }
+  const cadence = 'Every 30 minutes · GitHub Actions';
+  if (!list.length) {
+    return [
+      {
+        name: 'No accounts monitored yet',
+        url: null,
+        feeds:
+          'Posts from X/Twitter accounts join the market-wide News feed as ordinary stories — same list, same search, ' +
+          'same sort, same export, marked <strong>Twitter / X</strong>. Add an account under <strong>Edit Twitter Sources</strong> and its ' +
+          'posts appear there. Nothing is scored, ranked, summarised or mapped to a company: the post is reproduced as published.',
+        cadence,
+        status: 'pending',
+        file: 'public/data/twitter-handles.json',
+      },
+    ];
+  }
+  return list.map((e) => {
+    const n = counts.get(e.key) || 0;
+    return {
+      name: `@${e.handle}`,
+      url: `https://x.com/${encodeURIComponent(e.handle)}`,
+      feeds:
+        e.status === 'not-found'
+          ? `This account could not be read${e.reason ? ` — ${escapeHtml(e.reason)}` : ''}. It stays on the list and is tried again on the next run; it is <strong>absent</strong> from the feed rather than shown as an account with nothing to say.`
+          : e.status === 'adding'
+            ? 'Monitored by this browser. Its posts join the News feed once a collection run has read the account.'
+            : `Posts join the market-wide News feed, marked <strong>Twitter / X</strong>${clause(n || null, ', <n> in the feed now')}. Reproduced as published — nothing scored, ranked or summarised.`,
+      cadence,
+      status: e.status === 'active' ? 'live' : e.status === 'adding' ? 'adding' : 'unreadable',
+      file: 'public/data/twitter-posts.json',
+    };
+  });
 }
 
 /**
@@ -452,6 +507,21 @@ export function sourceGroups() {
       ],
     },
     {
+      // THE ONE GROUP WHOSE ITEMS ARE THE READER'S OWN LIST. Every other source here is wired by
+      // this repository; these are accounts somebody chose to follow, so the group is generated
+      // from js/core/twitter-handles.js rather than written down — and it says so plainly when the
+      // list is empty rather than pretending to a feed that is not reading anything.
+      id: 'twitter',
+      title: 'Twitter / X',
+      icon: '🐦',
+      tabs: 'News',
+      // Read by ui/source-beacon.js, which renders it as the "Edit Twitter Sources" button. Kept
+      // on the group rather than hard-coded in the beacon so the registry stays the one place that
+      // knows this family is editable.
+      action: { id: 'edit-twitter', label: 'Edit Twitter Sources' },
+      items: twitterSources(),
+    },
+    {
       title: 'Portfolio',
       icon: '💼',
       tabs: 'Portfolio Analytics',
@@ -511,9 +581,23 @@ const STATUS_CHIP = {
   // nothing until the reader asks it to. It is deliberately not emerald: counting it among the
   // live feeds would claim data is flowing when none is until someone clicks.
   ondemand: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  // A source this browser is monitoring that nothing has read yet. Amber rather than emerald for
+  // the reason the whole registry exists: green means data is arriving, and none is until a
+  // collection run has actually reached the account.
+  adding: 'bg-amber-50 text-amber-700 ring-amber-200',
+  // The upstream's own answer, not a guess made here — the account could not be read.
+  unreadable: 'bg-rose-50 text-rose-700 ring-rose-200',
   pending: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
-const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data', ondemand: 'On demand', pending: 'Not yet built' };
+export const STATUS_LABEL = {
+  live: 'Live',
+  static: 'Real · manual',
+  mock: 'Mock data',
+  ondemand: 'On demand',
+  adding: 'Adding…',
+  unreadable: 'Not found',
+  pending: 'Not yet built',
+};
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
 export function sourcesModalHtml() {

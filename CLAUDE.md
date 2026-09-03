@@ -71,6 +71,8 @@ public/
       visual.js               avatars, tiers, status pills, signal dots, legend
       sources.js              data-source registry — the canonical list of every feed and its honest
                               status; read by the beacon below and by each tab's provenance surfaces
+      twitter-sources.js      "Edit Twitter Sources" — add/remove the X accounts whose posts join
+                              the News feed. Opened from the beacon's Twitter / X family
       source-beacon.js        "DATA FLOWING IN" — the lower-left beacon: one launcher, one popover,
                               every source in the registry as a vertical list beside a diagram of them
                               converging on the Sattva square. NOT the header's old Sources button;
@@ -107,6 +109,8 @@ public/
       deep-dive.js            transport for the Concall Deep Dive dashboard — a click costs a run,
                               so nothing in here fires on its own
       universe.js             screener-export -> legacy universe shape adapter
+      twitter-news.js         X/Twitter posts, converted into the EXISTING news article shape so
+                              they join the same News list — not a second feed
       filings.js              the News / Announcements / Insider feed: snapshot first, then a
                               bounded live walk for whatever it is missing
       filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
@@ -120,6 +124,9 @@ public/
                               modules; loads, resolves the question, then reads; fits to the budget
       evidence-shared.js      the ONE provider-facing packet shape, imported by worker/research.mjs too
       renderer.js             the DOM-based markdown subset model prose is rendered through
+    core/twitter-handles.js   THE X ACCOUNT LIST — normalisation, dedupe, and a device-local overlay
+                              over the committed twitter-handles.json. `adding` and `active` are
+                              different claims; see the section below
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, insider-trades
       ai-alerts.js            ranked company insight cards, strongest evidence first
@@ -145,6 +152,8 @@ scripts/
   scrape-filings.mjs          walks the universe for news and insider trades (NOT announcements)
   scrape-bse-announcements.mjs  the whole exchange's filings, read by DATE — ~20 requests
   scrape-mc-news.mjs          market-wide stocks news, captured every 20 min (curl, NOT fetch)
+  scrape-twitter.py           THE ONE PYTHON SCRIPT — posts from the monitored X accounts, via
+                              twscrape, on a runner. Read the section below before touching it
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -158,6 +167,8 @@ scripts/
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
+.github/workflows/twitter-refresh.yml      every 30 min + workflow_dispatch from the dashboard when
+                                           a reader adds an account; posts from the monitored handles
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -1672,6 +1683,50 @@ Its styles are `.beacon-*` in `public/index.html`, not Tailwind utilities: it is
 component with a diagram in it, and the animations belong beside the geometry they animate. That
 also means changing it needs no `tailwind.css` regeneration.
 
+### X/Twitter is a SOURCE in the News feed, not a feature beside it
+
+The whole of it: a reader keeps a list of X accounts, and their posts appear in the existing News
+list marked *Twitter / X*. `js/data/twitter-news.js` converts each post into the article shape
+`market-news.js` already produces, and the Universe half of the News tab merges the two arrays —
+one list, one sort, one search, one export, **one card renderer with a single branch on
+`kind === 'twitter'`**. With no accounts monitored, nothing about that tab differs from before.
+
+**Do not build a parallel news system for it, and do not give it a tab.** The moment posts need
+their own list, their own filter architecture or their own refresh control, the integration has
+been lost. `docs/DATA-CONTRACTS.md` has the shapes; the rules that matter here:
+
+1. **Nothing is scored, ranked, summarised, sentiment-tagged or mapped to a company.** A post is
+   somebody's own words, reproduced. `title` is the post's text unedited — a tweet has no headline
+   and writing one would put this dashboard's words on somebody's post. `line-clamp` shortens what
+   is DRAWN; search and export see every word.
+2. **`Adding…`, `Active` and `Account not found` are three different claims, and the second may
+   never stand in for the first.** The committed `twitter-handles.json` is what the collector
+   reads; a reader's edits are a device-local overlay over it. So an account this browser monitors
+   is `adding` until a collection run's own capture names it — the same distinction as a cached
+   paint that has not been confirmed. `Account not found` comes from the capture's `failed[]`, and
+   is the collector's answer rather than a guess made in the browser. **A dispatch that fails
+   because this deployment has no Worker or no token is never reported as the handle's failure**:
+   that is a fact about the deployment, and turning it into "account not found" would send the
+   reader to check a handle that was perfectly good.
+3. **Deduplication is by the tweet id and `id` is namespaced `tw:<id>`.** The capture is capped, so
+   a new post pushes the oldest off the end and the LENGTH DOES NOT MOVE — "did anything arrive" is
+   answered by comparing id sets, never by counting. Same rule, same trap, as the news Fetch button.
+4. **Posts carry no ticker, so they are not filtered by one** — Universe scope only, exactly as
+   market-wide news is, and for the same reason.
+5. **The handle rule is X's own — 1–15 of `[A-Za-z0-9_]` — and it is enforced in three places that
+   may not disagree**: `js/core/twitter-handles.js`, `worker/index.js` (the value reaches a
+   `workflow_dispatch` input and from there a runner's shell, so it is validated, never trusted)
+   and `scripts/scrape-twitter.py`. A link to any other host is refused rather than having its last
+   path segment taken as a handle.
+6. **A removed account's posts leave the screen at once**, because the browser filters the capture
+   by the list monitored right now rather than waiting for the next run to rewrite it.
+
+`scripts/scrape-twitter.py` is **the one Python script in this repository** and the exception is
+narrow: the retrieval library asked for (twscrape) is Python, it runs on a GitHub runner only, and
+nothing in `public/`, the Worker or the Node scripts depends on it. What it produces is an ordinary
+committed capture, like `scrape-mc-news.mjs` produces. It needs an `X_ACCOUNTS` repository secret;
+without one it exits 3, writes nothing and warns rather than failing every half hour.
+
 ---
 
 ## What "Portfolio" means — `js/data/coverage.js`
@@ -2777,6 +2832,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, sub-view picker or tab bar | `js/ui/shell.js` |
 | Add a row to the source registry | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) — the lower-left beacon picks it up with no further wiring |
+| Change what appears in the News feed from X | `js/data/twitter-news.js` (the conversion) + `feedRows()` / `postBody()` in `js/tabs/market-news-view.js` — read *X/Twitter is a SOURCE in the News feed* first; it must stay ONE list |
+| Change the X account list, or how a handle is read | `js/core/twitter-handles.js` + `js/ui/twitter-sources.js` — the 1–15 `[A-Za-z0-9_]` rule is also in `worker/index.js` and `scripts/scrape-twitter.py` and the three may not disagree |
+| Change how X posts are collected | `scripts/scrape-twitter.py` + `.github/workflows/twitter-refresh.yml` — the exit codes are the interface (0 wrote, 2 nothing readable, 3 no credential, 1 a real fault) |
+| Set up X collection on a deployment | add an **`X_ACCOUNTS`** repository secret (*Settings → Secrets and variables → Actions*), one `username:password:email:email_password` per line. The dashboard's Add Handle control additionally needs `GH_DISPATCH_TOKEN` on the Worker, and says `Adding…` rather than failing without it |
 | Change the lower-left source beacon | `js/ui/source-beacon.js` + the `.beacon-*` block in `public/index.html` — read *The source beacon* first; it may not reintroduce a header Sources button, and every count in it stays derived |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |

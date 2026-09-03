@@ -63,6 +63,10 @@ export const KEYS = {
   // Market-wide stocks news, the Universe half of the News tab. One committed capture, refreshed
   // by a scheduled Action — neither the browser nor the Worker can read the publisher directly.
   marketNews: 'market-news',
+  // X/Twitter posts from the monitored handles, which join the market-news list. Its own key
+  // rather than a slice of `marketNews`: the two are separate captures with separate ETags, and a
+  // post landing must not invalidate 600 publisher stories.
+  twitterPosts: 'twitter-posts',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still
