@@ -835,8 +835,8 @@ wherever the window is longest, which is a fact about the calendar rather than a
 
 ### The macro series store — two tabs that measure nothing (GLOW-OWNED)
 
-Macro Research and Economy & Macro are the first two tabs in the bar and they are Glow's own: a port
-of the two pages of the same names from the GlowVentures family-office cockpit
+Macro Research and Economy & Macro are the last tabs in the bar, after every Sattva tab, and they
+are Glow's own: a port of the two pages of the same names from the GlowVentures family-office cockpit
 (`techmuns/GlowVentures`, `src/pages/MacroResearch.tsx` and `Economy.tsx`), rebuilt on the screener
 kit with no chart library — `js/ui/series-chart.js` draws line, area, bar and scatter as inline SVG.
 
@@ -866,9 +866,10 @@ announced time is shown on the source's own date with no clock.
 
 **Scope does not apply to either tab and the head says so.** They are market-wide series, not
 per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
-watchlist star (`watchKey: () => null`). The landing page is still Ask Research — `landingTab()` in
-`shell.js` resolves an unknown route to `router.DEFAULT_ROUTE.tab` rather than to the first entry,
-which is what lets these two sit first in the bar without becoming the default.
+watchlist star (`watchKey: () => null`). The landing page is Ask Research, which is also first in
+the bar; `landingTab()` in `shell.js` still resolves an unknown route to `router.DEFAULT_ROUTE.tab`
+by id rather than by position, so the Glow tabs can be moved anywhere in the bar — they sat in front
+of Ask Research once, and now close it — without moving the landing page.
 
 **Never ask the store for a year it does not hold.** `fetchPoints` reads only the chunks inside the
 manifest's `first`/`last` span, and a missing chunk resolves to nothing rather than throwing — but a

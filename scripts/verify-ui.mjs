@@ -1370,18 +1370,19 @@ console.log('\n— AI alerts —');
   await page.waitForTimeout(4500);
   await page.locator('[data-research-workspace]').waitFor({ state: 'visible', timeout: 15000 });
   ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
-  // GLOW DIVERGENCE: upstream asserts Ask Research is the FIRST tab in the bar. Here the two
-  // Glow-owned macro tabs sit in front of it by request ("put it as two new tabs in the research
-  // central on top"), and the LANDING tab is still Ask Research via router.DEFAULT_ROUTE — the
-  // shell's `landingTab()` resolves it by id, never by position. So the bar order and the landing
-  // page are asserted separately, and a merge that restores the upstream line must be re-applied.
+  // GLOW DIVERGENCE: upstream asserts only that Ask Research is the FIRST tab in the bar. Here the
+  // three Glow-owned tabs (Macro Research, Economy & Macro, Family Book) CLOSE the bar, after every
+  // Sattva tab — they sat in front of Ask Research once, and were moved to the end by request — and
+  // the LANDING tab is still resolved by id via router.DEFAULT_ROUTE (the shell's `landingTab()`),
+  // never by position. So the bar order and the landing page are asserted separately, and a merge
+  // that restores the upstream line must be re-applied.
   const barOrder = (await page.locator('[data-tab-id]').allInnerTexts()).map((t) => t.trim());
-  ok('...and the tab bar puts the three Glow tabs first, then Ask Research',
-    barOrder[0] === 'Macro Research' && barOrder[1] === 'Economy & Macro' && barOrder[2] === 'Family Book' && barOrder[3] === 'Ask Research',
-    barOrder.slice(0, 4).join(' · '));
-  ok('...so the landing tab is chosen by id, not by bar position',
+  ok('...and the tab bar puts Ask Research first and the three Glow tabs last',
+    barOrder[0] === 'Ask Research' && barOrder.slice(-3).join(' · ') === 'Macro Research · Economy & Macro · Family Book',
+    `${barOrder[0]} … ${barOrder.slice(-3).join(' · ')}`);
+  ok('...so the landing tab, chosen by id, is also the first in the bar',
     (await page.locator('[data-tab-id][aria-selected="true"]').getAttribute('data-tab-id')) === 'ask-research'
-      && barOrder[0] !== 'Ask Research',
+      && barOrder[0] === 'Ask Research',
     await page.locator('[data-tab-id][aria-selected="true"]').getAttribute('data-tab-id'));
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.

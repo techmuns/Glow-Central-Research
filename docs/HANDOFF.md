@@ -20,7 +20,7 @@ Two workspaces, fifteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | Macro Research · Economy & Macro · Family Book (all three Glow-owned, first in the bar) · **Ask Research** (the landing tab) · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · **Mutual Funds** (Glow-owned) · News · Corp Announcements · Insider Trades |
+| Research Central | **Ask Research** (the landing tab, first in the bar) · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · **Mutual Funds** (Glow-owned) · News · Corp Announcements · Insider Trades · Macro Research · Economy & Macro · Family Book (all three Glow-owned, last in the bar) |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
 **This repository is Glow Central Research, a downstream of Sattva Central Research.** The code is
