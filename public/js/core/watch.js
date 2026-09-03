@@ -214,10 +214,15 @@ function announceMarketNews() {
 }
 
 export function marketNewsDetail(a) {
+  // THE BYLINE LEADS, for the same reason it leads the card on the tab: this feed carries five
+  // publishers, and an unattributed headline attributes itself to whichever masthead the reader
+  // assumes. An alert travels further than a row — it can be the only thing somebody sees of a
+  // story — so it is the last place to leave the attribution off.
   const section = a.section ? withoutPublisherName(a.section.replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher') : null;
   const lead = a.summary ? withoutPublisherName(a.summary).slice(0, 140) : null;
-  if (lead && section) return `${section} · ${lead}`;
-  return lead || (section ? `Published under ${section}` : 'Market news published');
+  const head = [a.publisher || null, section].filter(Boolean).join(' · ');
+  if (lead && head) return `${head} · ${lead}`;
+  return lead || (head ? `Published under ${head}` : 'Market news published');
 }
 
 function announceConcalls() {

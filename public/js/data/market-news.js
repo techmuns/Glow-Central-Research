@@ -66,6 +66,10 @@ function fresh() {
     message: null,
     // 'snapshot' when painted from the committed file, 'store' when this device had it already.
     origin: null,
+    // Per publisher: when each was last read and whether that read worked. Carried through so the
+    // provenance panel can say "Mint could not be read 20 minutes ago" rather than leaving the
+    // reader to infer an outage from a story count, which cannot distinguish it from a quiet day.
+    sources: [],
     // THE HEAD AND THE ARCHIVE ARE HELD APART, and `byId` above is the two of them merged.
     //
     // They have to be, because they move independently: the head is re-read every time the reader
@@ -89,13 +93,77 @@ function fresh() {
 
 const keyOf = (a) => String(a?.id || a?.url || '');
 
-/** Newest first, by the publisher's own id — which orders correctly even without a date. */
+/** A Moneycontrol id is the bare article number; every other publisher's is `<feed>:<url>`. */
+const mcId = (a) => (/^\d+$/.test(String(a?.id || '')) ? Number(a.id) : null);
+
+/**
+ * Newest first across every publisher.
+ *
+ * ONE LIST, SEVERAL PUBLISHERS, AND ONLY ONE OF THEM HAS A SORTABLE ID.
+ *   Moneycontrol's id is an article number that increases with publication, so it ordered their
+ *   list correctly even for the stories whose date the per-article budget never reached. That stops
+ *   working the moment a second publisher is in the list: `business-standard:www.…` does not compare
+ *   with `14021956`, and no ordering over the two of them together can come from an id.
+ *
+ * SO THE ORDER IS THE PUBLISHED TIME — AND `firstSeenAt` IS NOT AN ACCEPTABLE STAND-IN FOR IT.
+ *   That is the obvious fallback and it is measurably wrong here: all 303 undated stories in the
+ *   shipped capture carry one of two `firstSeenAt` values, both from a single backfill run on 29
+ *   August. Ordering by it would collapse half the archive into one instant and scramble stories
+ *   whose real order their ids still describe exactly.
+ *
+ * SO AN UNDATED MONEYCONTROL STORY IS ANCHORED TO ITS DATED NEIGHBOURS, BY ID.
+ *   An undated story takes the time of the nearest dated story above it in id order — falling back
+ *   to the nearest below, and only then to when we first saw it. The id tie-break then orders a run
+ *   of undated stories correctly among themselves, because they share their anchor's time and
+ *   differ only by id.
+ *
+ *   THE ID IS ONLY APPROXIMATELY MONOTONIC, WHICH IS WHY IT ANCHORS AND NEVER ORDERS. Measured on
+ *   the shipped capture: among the 296 stories that carry the publisher's own time, id order
+ *   disagrees with publication order **76 times** — a quarter of them — by a median of 48 minutes
+ *   and as much as 2.7 days. So the id was never the ordering it was taken for, and this list is
+ *   more faithful to the publisher than the pure id sort it replaces, not less. Where a real time
+ *   exists it decides; the id is used only to place stories that have none and to break exact ties.
+ *
+ * THIS IS AN ORDERING KEY AND IT IS NEVER A DISPLAYED TIME. The story's own `publishedAt` stays
+ * null, the card still reads "time not published", the export still leaves the cell blank, and the
+ * counts still say how many carry the publisher's time. Nothing derived here reaches the reader as
+ * though the publisher had said it.
+ */
 function sortRows(list) {
-  return [...list].sort((a, b) => {
-    const ai = a.id;
-    const bi = b.id;
-    if (ai && bi) return ai.length === bi.length ? bi.localeCompare(ai) : Number(bi) - Number(ai);
-    return String(b.publishedAt || b.firstSeenAt || '').localeCompare(String(a.publishedAt || a.firstSeenAt || ''));
+  const rows = [...list];
+  const at = new Map();
+  const time = (v) => {
+    const t = Date.parse(v || '');
+    return Number.isFinite(t) ? t : null;
+  };
+
+  const mc = rows.filter((r) => mcId(r) !== null).sort((a, b) => mcId(b) - mcId(a));
+  const anchorAbove = [];
+  let seen = null;
+  for (const r of mc) {
+    seen = time(r.publishedAt) ?? seen;
+    anchorAbove.push(seen);
+  }
+  let below = null;
+  for (let i = mc.length - 1; i >= 0; i -= 1) {
+    below = time(mc[i].publishedAt) ?? below;
+    at.set(mc[i], time(mc[i].publishedAt) ?? anchorAbove[i] ?? below ?? time(mc[i].firstSeenAt) ?? 0);
+  }
+  for (const r of rows) {
+    if (!at.has(r)) at.set(r, time(r.publishedAt) ?? time(r.firstSeenAt) ?? 0);
+  }
+
+  return rows.sort((a, b) => {
+    const d = at.get(b) - at.get(a);
+    if (d) return d;
+    // Same instant: Moneycontrol's own id where both have one — this is what keeps a run of
+    // undated stories sharing an anchor in the publisher's order rather than in Map order.
+    const am = mcId(a);
+    const bm = mcId(b);
+    if (am !== null && bm !== null) return bm - am;
+    if (am !== null) return -1;
+    if (bm !== null) return 1;
+    return String(a.id || '').localeCompare(String(b.id || ''));
   });
 }
 
@@ -136,6 +204,7 @@ function absorb(body, { fromStore = false } = {}) {
   }
 
   state.head = next;
+  state.sources = Array.isArray(body.sources) ? body.sources : [];
   state.archive = Array.isArray(body.archive) ? body.archive : [];
   // A capture written before the archive existed reports no total, and the honest fallback is what
   // we can actually count rather than a zero that would read as "no history".
@@ -354,6 +423,7 @@ export function meta() {
     // How many stories arrived in the first paint, kept apart from `count` — which grows as the
     // reader scrolls back. The provenance modal needs both to describe the capture honestly.
     headCount: state.head.size,
+    sources: state.sources,
     archive: archiveMeta(),
   };
 }

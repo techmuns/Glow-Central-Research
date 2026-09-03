@@ -39,12 +39,10 @@
 // never a hash of the title — a headline gets edited after publication and would then read as a
 // second story.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fetchNews, fetchPublishedAt, HEADERS } from '../worker/mc-news.mjs';
+import { loadEverything, commit, keyOf, isMcId, HEAD_FILE } from './lib/news-store.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -109,9 +107,6 @@ const curlFetch = async (url, opts = {}) => {
   return res;
 };
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(__dirname, '../public/data/market-news.json');
-
 const PAGES = Number(process.env.MCNEWS_PAGES || 4);
 const FULL = process.env.MCNEWS_FULL === '1';
 const DATE_LIMIT = process.env.MCNEWS_DATE_LIMIT === undefined ? 40 : Number(process.env.MCNEWS_DATE_LIMIT);
@@ -125,114 +120,7 @@ const HEAD = Number(process.env.MCNEWS_HEAD || process.env.MCNEWS_KEEP || 600);
 const RESHARD = process.env.MCNEWS_RESHARD === '1';
 const DATE_CONCURRENCY = 4;
 
-// ---------------------------------------------------------------------------------------
-// THE ARCHIVE — one shard per month, and the month is the story's, not the run's
-// ---------------------------------------------------------------------------------------
-
-const ARCHIVE_DIR = resolve(__dirname, '../public/data/market-news');
-const SHARD = /^(\d{4}-\d{2})\.json$/;
-
-/**
- * Which shard a story is filed under.
- *
- * The publisher's own date wherever they gave one. Where they did not — 303 of the 600 stories in
- * the first capture, because the listing page carries no date and the per-article fetch is budgeted
- * — it falls back to when this scraper first saw the story. That is a fact about US, so the shard
- * says so in its own provenance rather than letting a reader take every date in it as the
- * publisher's. It is only ever used to decide which file a story lives in; the story's own
- * `publishedAt` stays null and still renders as "time not published".
- */
-const monthOf = (a) => {
-  const d = String(a?.publishedAt || a?.firstSeenAt || '');
-  return /^\d{4}-\d{2}/.test(d) ? d.slice(0, 7) : null;
-};
-
-function readShard(month) {
-  const f = resolve(ARCHIVE_DIR, `${month}.json`);
-  if (!existsSync(f)) return [];
-  try {
-    const j = JSON.parse(readFileSync(f, 'utf8'));
-    return Array.isArray(j.articles) ? j.articles : [];
-  } catch {
-    // A shard that cannot be parsed is NOT treated as an empty month. Returning [] here would let
-    // this run rewrite the file with only the stories it happens to be holding, which is the
-    // discard this whole change exists to stop. Fail loudly instead.
-    throw new Error(`archive shard ${month}.json exists but could not be parsed — refusing to overwrite it`);
-  }
-}
-
-function writeShard(month, list) {
-  mkdirSync(ARCHIVE_DIR, { recursive: true });
-  const rows = [...list].sort(byNewest);
-  const dates = rows.map((a) => a.publishedAt || a.firstSeenAt).filter(Boolean).sort();
-  const payload = {
-    _provenance:
-      'One month of market-wide stocks news as Moneycontrol published it. Headlines, standfirsts and section names are theirs, ' +
-      'reproduced unchanged; the article stays on their site. A story is filed under this month by the publisher\'s own date where ' +
-      'they gave one, and otherwise by the date this dashboard first saw it — so a story with `publishedAt: null` may sit one month ' +
-      'later than it was published. Its own time is never invented: it stays null and renders as "time not published".',
-    source: 'Moneycontrol — https://www.moneycontrol.com/news/business/stocks/',
-    generator: 'scripts/scrape-mc-news.mjs',
-    month,
-    articleCount: rows.length,
-    from: dates[0] || null,
-    to: dates[dates.length - 1] || null,
-    articles: rows,
-  };
-  writeFileSync(resolve(ARCHIVE_DIR, `${month}.json`), `${JSON.stringify(payload)}\n`);
-  return payload;
-}
-
-/**
- * The manifest the browser walks to scroll past the head, newest month first.
- *
- * Read off the DIRECTORY rather than accumulated in memory, so a shard written by an earlier run —
- * or restored by hand — is listed by the next run without anything having to remember it.
- */
-function archiveManifest(headKeys = new Set()) {
-  if (!existsSync(ARCHIVE_DIR)) return [];
-  return readdirSync(ARCHIVE_DIR)
-    .map((f) => SHARD.exec(f))
-    .filter(Boolean)
-    .map(([file, month]) => {
-      const j = JSON.parse(readFileSync(resolve(ARCHIVE_DIR, file), 'utf8'));
-      const rows = Array.isArray(j.articles) ? j.articles : [];
-      // HOW MUCH OF THIS MONTH THE HEAD ALREADY CARRIES, counted here because this is the only
-      // place that holds both sets. Without it the browser cannot tell a month it already has in
-      // full from one it has never seen, and the reader's first scroll to the end would download
-      // every shard to discover it had learned nothing — 400 KB to add zero stories. The head is a
-      // window onto the newest month or two, so on a young archive that is EVERY shard.
-      const inHead = rows.reduce((n, a) => n + (headKeys.has(a.id || a.url) ? 1 : 0), 0);
-      return {
-        month,
-        file: `market-news/${file}`,
-        count: rows.length,
-        inHead,
-        from: j.from || null,
-        to: j.to || null,
-      };
-    })
-    .sort((a, b) => b.month.localeCompare(a.month));
-}
-
 const num = (n) => Number(n).toLocaleString('en-IN');
-
-function loadExisting() {
-  if (!existsSync(OUT)) return { articles: [], newestId: null };
-  try {
-    const prev = JSON.parse(readFileSync(OUT, 'utf8'));
-    return { articles: Array.isArray(prev.articles) ? prev.articles : [], newestId: prev.newestId || null };
-  } catch {
-    return { articles: [], newestId: null };
-  }
-}
-
-/** Newest first, by the publisher's own id. Falls back to the date, then to first sight. */
-const byNewest = (a, b) => {
-  if (a.id && b.id && a.id.length === b.id.length) return b.id.localeCompare(a.id);
-  if (a.id && b.id) return Number(b.id) - Number(a.id);
-  return String(b.publishedAt || b.firstSeenAt || '').localeCompare(String(a.publishedAt || a.firstSeenAt || ''));
-};
 
 async function datesFor(articles, limit) {
   if (limit <= 0 || !articles.length) return 0;
@@ -261,36 +149,34 @@ async function datesFor(articles, limit) {
 }
 
 async function main() {
-  const existing = loadExisting();
-  const known = new Map(existing.articles.map((a) => [a.id || a.url, a]));
+  // EVERY story on disk, not just the head. A scraper that merged into the head alone would write
+  // the head back as the whole capture and drop the other publishers' stories and the older months
+  // with them — the discard this whole arrangement exists to end, arrived at from another side.
+  const { head: existing, all: known } = loadEverything();
   const stopAtId = FULL ? null : existing.newestId;
 
   // RESHARD: re-file what is already committed, and ask the publisher nothing.
   //
-  // Two jobs. It is how the archive was seeded from a head that predated it — the 600 stories in
-  // that file were the only copy left and a network run was not available to produce them again —
-  // and it is the repair path for a shard deleted or damaged by hand. It cannot invent history the
-  // capture never held, so it is not a backfill; a deeper reach needs MCNEWS_FULL=1 with more pages.
+  // Two jobs. It is how the archive was seeded from a head that predated it — those stories were
+  // the only copy left and a network run was not available to produce them again — and it is the
+  // repair path for a shard deleted or damaged by hand. It cannot invent history the capture never
+  // held, so it is not a backfill; a deeper reach needs MCNEWS_FULL=1 with more pages.
   if (RESHARD) {
-    // EVERYTHING ON DISK, head AND archive — not the head alone.
-    //
-    // The head is a WINDOW, so re-filing from it would rebuild the head out of the window and throw
-    // the rest away: run it after any change that shrank the head and the archive's older months
-    // stop being reachable from the head at all. Measured the hard way — a reshard after a test at
-    // MCNEWS_HEAD=200 cut a 600-story head to 200 while all 600 sat safely in the shards beside it.
-    // The repair path is the last thing that should be able to lose data.
-    for (const m of archiveManifest()) {
-      for (const a of readShard(m.month)) {
-        const k = a.id || a.url;
-        if (!known.has(k)) known.set(k, a);
-      }
+    // A story captured before this feed carried more than one publisher has no byline. A NUMERIC id
+    // is by construction a Moneycontrol article number — nothing else in this capture has one — so
+    // the attribution is derived rather than assumed, and a story whose id is not one is left alone
+    // rather than being labelled with a guess.
+    let named = 0;
+    for (const a of known.values()) {
+      if (!a.publisher && isMcId(a.id)) { a.publisher = 'Moneycontrol'; named += 1; }
     }
     console.log(`Re-filing ${num(known.size)} committed stories (head + archive) — no request to the publisher.`);
+    if (named) console.log(`  ${num(named)} back-filled with their publisher, from the shape of their id`);
     if (!known.size) {
       console.error('Neither the head nor the archive carries a story, so there is nothing to re-file. Refusing to write.');
       process.exit(1);
     }
-    return finish({ existing, known, requests: 0, reachedKnown: false, capturedAt: existing.capturedAt || new Date().toISOString() });
+    return finish({ known, requests: 0, reachedKnown: false, capturedAt: existing.capturedAt || new Date().toISOString(), sources: [] });
   }
 
   console.log(`Moneycontrol market news — ${FULL ? `full walk, ${PAGES} pages` : `top-up, stopping at ${stopAtId || 'nothing known yet'}`}`);
@@ -310,77 +196,49 @@ async function main() {
     process.exit(1);
   }
 
-  const fresh = articles.filter((a) => !known.has(a.id || a.url));
+  const fresh = articles.filter((a) => !known.has(keyOf(a)));
   console.log(`  ${num(articles.length)} read · ${num(fresh.length)} new · ${requests} listing request(s)${reachedKnown ? ' · stopped at a known story' : ''}`);
 
   const now = new Date().toISOString();
-  for (const a of fresh) a.firstSeenAt = now;
+  for (const a of fresh) {
+    a.firstSeenAt = now;
+    // Named on every row, because this list carries several publishers now and a headline with no
+    // byline in a mixed feed silently attributes itself to whichever one the reader assumes.
+    a.publisher = 'Moneycontrol';
+  }
   const dated = await datesFor(fresh, DATE_LIMIT);
   if (fresh.length) console.log(`  ${num(dated)} of ${num(Math.min(DATE_LIMIT, fresh.length))} dated from the article page`);
 
   // Merge: a story already held keeps its firstSeenAt and any date it already had.
-  for (const a of fresh) known.set(a.id || a.url, a);
+  for (const a of fresh) known.set(keyOf(a), a);
   for (const a of articles) {
-    const held = known.get(a.id || a.url);
+    const held = known.get(keyOf(a));
     if (held && !held.publishedAt && a.publishedAt) held.publishedAt = a.publishedAt;
   }
 
-  return finish({ existing, known, requests, reachedKnown, capturedAt: now });
+  return finish({
+    known,
+    requests,
+    reachedKnown,
+    capturedAt: now,
+    sources: [{ id: 'moneycontrol', publisher: 'Moneycontrol', feeds: 1, url: 'https://www.moneycontrol.com/news/business/stocks/', capturedAt: now, ok: true, stories: fresh.length }],
+  });
 }
 
 /** Everything downstream of "which stories do we hold" — shared by a scrape and by a reshard. */
-function finish({ existing, known, requests, reachedKnown, capturedAt }) {
-  const now = capturedAt;
-  const all = [...known.values()].sort(byNewest);
+function finish({ known, requests, reachedKnown, capturedAt, sources }) {
+  const { kept, archive, archived, withDate, undatable, payload } = commit({
+    articles: [...known.values()],
+    capturedAt,
+    head: HEAD,
+    sources,
+    extra: { pagesRead: PAGES, listingRequests: requests, stoppedAtKnown: reachedKnown },
+  });
 
-  // FILE EVERY STORY BEFORE TRIMMING ANYTHING. The head below is a window onto this, not the set
-  // of stories that survive — a story leaving the head has already been written to its month.
-  const touched = new Map();
-  let undatable = 0;
-  for (const a of all) {
-    const m = monthOf(a);
-    if (!m) { undatable += 1; continue; }
-    if (!touched.has(m)) touched.set(m, new Map(readShard(m).map((x) => [x.id || x.url, x])));
-    touched.get(m).set(a.id || a.url, a);
-  }
-  for (const [month, rows] of touched) writeShard(month, [...rows.values()]);
-
-  const kept = all.slice(0, HEAD);
-  const withDate = kept.filter((a) => a.publishedAt).length;
-  const archive = archiveManifest(new Set(kept.map((a) => a.id || a.url)));
-  const archived = archive.reduce((n, s) => n + s.count, 0);
-
-  const payload = {
-    _provenance:
-      'Market-wide stocks news as Moneycontrol publish it at /news/business/stocks/. Headlines, standfirsts and section names are theirs, reproduced unchanged; ' +
-      'the article stays on their site and every row links to it. Nothing here is summarised, scored or ranked by this dashboard — the order is the publisher\'s own.',
-    source: 'Moneycontrol — https://www.moneycontrol.com/news/business/stocks/',
-    generator: 'scripts/scrape-mc-news.mjs',
-    capturedAt: now,
-    newestId: kept[0]?.id || existing.newestId || null,
-    articleCount: kept.length,
-    // Two different facts, kept apart deliberately: how many carry the PUBLISHER'S time, and how
-    // many we have only ever seen. A story with no `publishedAt` renders a dash, never a guess.
-    withPublishedAt: withDate,
-    withoutPublishedAt: kept.length - withDate,
-    keep: HEAD,
-    // WHAT THE BROWSER WALKS TO SCROLL PAST THE HEAD, newest month first. Each entry is a file
-    // under public/data/, so the client needs no directory listing and no second index request.
-    archive,
-    // Every story ever captured, across the head and the archive. This is the number the reader is
-    // scrolling through; `articleCount` is only how many arrived in the first paint.
-    archivedCount: archived,
-    pagesRead: PAGES,
-    listingRequests: requests,
-    stoppedAtKnown: reachedKnown,
-    articles: kept,
-  };
-
-  writeFileSync(OUT, `${JSON.stringify(payload)}\n`);
-  console.log(`  ${num(kept.length)} stories in the head (${num(withDate)} with the publisher's time) · newest id ${payload.newestId}`);
+  console.log(`  ${num(kept.length)} stories in the head (${num(withDate)} with the publisher's time) · newest Moneycontrol id ${payload.newestId}`);
   console.log(`  ${num(archived)} in the archive across ${archive.length} month(s): ${archive.map((a) => `${a.month} ${num(a.count)}${a.inHead === a.count ? ' (all in head)' : ''}`).join(' · ') || 'none'}`);
   if (undatable) console.log(`  ${num(undatable)} story/stories carried no date at all and stayed in the head only`);
-  console.log(`  wrote ${OUT}`);
+  console.log(`  wrote ${HEAD_FILE}`);
 }
 
 main().catch((err) => {

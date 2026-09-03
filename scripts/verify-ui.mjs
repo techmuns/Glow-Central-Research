@@ -5595,6 +5595,164 @@ console.log('\n— news, announcements and insider trades —');
     cards && (cards.undated === 0 || cards.undatedSay === cards.undated),
     `${cards?.undated} undated on screen, ${cards?.undatedSay} saying the time is not published`);
 
+  // -------------------------------------------------------------------------------------
+  // FIVE PUBLISHERS IN ONE LIST, AND HISTORY THAT DOES NOT END AT THE HEAD
+  // -------------------------------------------------------------------------------------
+  //
+  // The capture is a bounded head plus a shard per month. Two things have to hold and neither is
+  // visible from a row count: every story says who published it (an unattributed headline in a
+  // mixed feed attributes itself to whichever masthead the reader assumes), and scrolling to the
+  // end pulls the next month in rather than stopping at whatever the head happened to carry.
+
+  const bylines = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const rows = mod.rows();
+    const cardsNow = [...document.querySelectorAll('[data-news-key]')];
+    const drawnBylines = cardsNow.filter((c) => {
+      const t = c.innerText || '';
+      return rows.some((r) => r.publisher && t.includes(r.publisher));
+    }).length;
+    const pubs = [...new Set(rows.map((r) => r.publisher).filter(Boolean))];
+    return {
+      total: rows.length,
+      withPublisher: rows.filter((r) => r.publisher).length,
+      publishers: pubs,
+      drawn: cardsNow.length,
+      drawnBylines,
+      options: [...document.querySelectorAll('[data-news-publisher] option')].map((o) => o.value),
+    };
+  });
+  // A CAPTURE WITH TWO WRITERS NEEDS TWO CLOCKS, and this is the check that says so. The watchdog
+  // and the tab's auto-fetch both dispatch the workflow that reads MONEYCONTROL and nothing else,
+  // while the file's own `capturedAt` is whichever of the two jobs wrote it last. Gating on the
+  // file would let the hourly RSS run hold the timestamp fresh while Moneycontrol went unread for
+  // days — a staleness check answered by a source it cannot refresh, and silent, because every
+  // number on screen would look healthy. `freshnessOf` is pure and exported precisely so both
+  // branches can be driven here rather than waited for.
+  const freshness = await evalSafe(async () => {
+    const wd = await import('/js/data/capture-watchdog.js');
+    const old = '2020-01-01T00:00:00.000Z';
+    const now = new Date().toISOString();
+    return {
+      // RSS ran a second ago, Moneycontrol has not run since 2020: the answer must be 2020.
+      perSource: wd.freshnessOf('marketNews', { capturedAt: now, sources: { moneycontrol: { capturedAt: old }, mint: { capturedAt: now } } }),
+      stale: old,
+      // No per-source detail (an older capture, or any single-source feed): the file's own time.
+      fallback: wd.freshnessOf('marketNews', { capturedAt: now }),
+      now,
+      // A feed with no `sourceId` is unaffected and still reads the file's time.
+      other: wd.freshnessOf('announcements', { capturedAt: now, sources: { moneycontrol: { capturedAt: old } } }),
+    };
+  });
+  ok('a stalled publisher is not hidden by another publisher writing the same file',
+    freshness && freshness.perSource === freshness.stale && freshness.fallback === freshness.now && freshness.other === freshness.now,
+    `per-source ${freshness?.perSource === freshness?.stale ? 'reads the stalled source' : `WRONG (${freshness?.perSource})`}, no-detail falls back to the file, other feeds unchanged`);
+
+  ok('every market-news story names the publisher it came from',
+    bylines && bylines.total > 0 && bylines.withPublisher === bylines.total && bylines.drawnBylines === bylines.drawn,
+    `${bylines?.withPublisher}/${bylines?.total} rows attributed, ${bylines?.drawnBylines}/${bylines?.drawn} cards showing it, publishers: ${bylines?.publishers.join(', ')}`);
+  ok('...and every publisher in the feed can be filtered to',
+    bylines && bylines.publishers.every((px) => bylines.options.includes(px)),
+    `${bylines?.options.length - 1} of ${bylines?.publishers.length} publishers offered`);
+
+  // The filter narrows to exactly that publisher — compared against the array, never counted off
+  // the DOM, because a fill still in flight would make a count agree for the wrong reason.
+  const pubFilter = await evalSafe(async () => {
+    const sel = document.querySelector('[data-news-publisher]');
+    if (!sel || sel.options.length < 2) return null;
+    const mod = await import('/js/data/market-news.js');
+    const want = sel.options[1].value;
+    const expect = mod.rows().filter((r) => r.publisher === want).length;
+    sel.value = want;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+    const label = document.querySelector('[data-mcnews-list]')?.innerText.match(/([\d,]+)\s+of\s+([\d,]+)\s+stories/);
+    const drawnPubs = [...new Set([...document.querySelectorAll('[data-news-key]')].map((n) => {
+      const m = mod.rows().find((r) => String(r.id || r.url) === n.dataset.newsKey);
+      return m?.publisher;
+    }))];
+    sel.value = 'all';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 600));
+    return { want, expect, shown: label ? Number(label[1].replace(/,/g, '')) : null, drawnPubs };
+  });
+  if (pubFilter) {
+    ok('filtering to one publisher shows that publisher and no other',
+      pubFilter.expect > 0 && pubFilter.shown === pubFilter.expect && pubFilter.drawnPubs.length === 1 && pubFilter.drawnPubs[0] === pubFilter.want,
+      `${pubFilter.want}: ${pubFilter.shown} shown of ${pubFilter.expect} held, publishers drawn: ${pubFilter.drawnPubs.join(', ')}`);
+  } else {
+    skip('filtering to one publisher shows that publisher and no other', 'only one publisher in this capture');
+  }
+
+  // EVERY SHARD THE HEAD NAMES MUST EXIST. A manifest naming a month no deployment received gives
+  // the reader a failed fetch at the end of every scroll — and the workflow that stages only the
+  // head file is exactly how that happens, so it is worth asserting rather than assuming.
+  const manifest = await evalSafe(async () => {
+    const res = await fetch('data/market-news.json', { cache: 'no-cache' });
+    const body = await res.json();
+    const arc = Array.isArray(body.archive) ? body.archive : [];
+    const checks = await Promise.all(arc.map(async (a) => {
+      const r = await fetch(`data/${a.file}`, { cache: 'no-cache' });
+      if (!r.ok) return { file: a.file, ok: false, status: r.status };
+      const j = await r.json();
+      return { file: a.file, ok: true, count: Array.isArray(j.articles) ? j.articles.length : -1, said: a.count };
+    }));
+    return { months: arc.length, archivedCount: body.archivedCount, headCount: body.articleCount, checks };
+  });
+  ok('every archive month the capture names is actually served, with the count it claims',
+    manifest && manifest.months > 0 && manifest.checks.every((c) => c.ok && c.count === c.said),
+    `${manifest?.months} month(s), ${manifest?.checks.filter((c) => !c.ok).length} unreachable, ${manifest?.checks.filter((c) => c.ok && c.count !== c.said).length} miscounted`);
+  ok('...and the capture holds more stories than the head it paints first',
+    manifest && manifest.archivedCount >= manifest.headCount,
+    `${manifest?.archivedCount} captured, ${manifest?.headCount} in the head`);
+
+  // SCROLLING TO THE END PULLS THE NEXT MONTH IN. Driven through the real control — the scroll —
+  // rather than by calling loadMore(), because the gate that matters is the one wired to the reader.
+  const older = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const before = mod.rows().length;
+    const startArc = mod.archiveMeta();
+    if (startArc.exhausted) return { skipped: true };
+    const host = document.querySelector('[data-news-scroll]');
+    let guard = 0;
+    while (guard < 20) {
+      guard += 1;
+      if (host) host.scrollTop = host.scrollHeight;
+      await new Promise((r) => setTimeout(r, 450));
+      if (mod.rows().length > before) break;
+    }
+    const arc = mod.archiveMeta();
+    return {
+      before,
+      after: mod.rows().length,
+      monthsLoaded: arc.monthsLoaded,
+      oldestBefore: startArc.oldest,
+      oldestAfter: arc.oldest,
+      foot: document.querySelector('[data-news-more]')?.innerText.trim() || '',
+    };
+  });
+  if (older?.skipped) {
+    skip('scrolling to the end of the list loads older stories', 'the head already carries every month in the archive');
+  } else {
+    ok('scrolling to the end of the list loads older stories, and reaches further back',
+      older && older.after > older.before && older.monthsLoaded > 0
+        && Date.parse(older.oldestAfter) < Date.parse(older.oldestBefore),
+      `${older?.before} -> ${older?.after} stories, ${older?.monthsLoaded} month(s) pulled in, back to ${older?.oldestAfter} from ${older?.oldestBefore}`);
+    // THE FOOTER MUST AGREE WITH THE STATE IT DESCRIBES, in both directions. "That is every story"
+    // over an archive with months left is a claim nobody measured, and the reverse — offering more
+    // when there is none — sends the reader scrolling at a list that will never grow. Asserted as
+    // an equality rather than a one-way test, so neither half can drift.
+    const footState = await evalSafe(async () => {
+      const mod = await import('/js/data/market-news.js');
+      const foot = document.querySelector('[data-news-more]')?.innerText.trim() || '';
+      const arc = mod.archiveMeta();
+      return { exhausted: arc.exhausted, remaining: arc.remaining, saysEnd: /that is every story/i.test(foot), saysMore: /keep scrolling|load older/i.test(foot), foot: foot.slice(0, 90) };
+    });
+    ok('...and the footer says the archive is spent exactly when it is',
+      footState && footState.saysEnd === footState.exhausted && footState.saysMore === !footState.exhausted,
+      `${footState?.remaining} month(s) left, footer reads "${footState?.foot}"`);
+  }
+
   // Search narrows the list without touching the head, and the count reports the ARRAY.
   const filtered = await evalSafe(async () => {
     const input = document.querySelector('[data-news-search]');

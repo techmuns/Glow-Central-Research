@@ -913,12 +913,21 @@ const BUILDERS = [
       const allRows = marketNews.rows();
       const rows = scope === 'universe' ? allRows : [];
       const meta = marketNews.meta();
+      // THE PUBLISHER TRAVELS WITH THE ROW, and the source name says there are several.
+      //
+      // This feed carries five publishers. A packet labelled with one masthead whose rows carry no
+      // byline does not merely omit the attribution — it supplies a wrong one, because the model has
+      // exactly one publisher name in front of it and headlines that need attributing. It would then
+      // write that name into prose the reader is given as an answer, which is a fabricated
+      // attribution of somebody's real reporting to somebody else.
+      const publishers = [...new Set(allRows.map((r) => r.publisher).filter(Boolean))];
       return sourcePacket(this.id, {
-        source: 'Moneycontrol market-wide news capture',
+        source: `Market-wide news capture across ${publishers.length || 'several'} publishers${publishers.length ? ` (${publishers.join(', ')})` : ''}`,
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
-        coverage: { totalStories: allRows.length, note: scope === 'universe' ? 'Market-wide stories included.' : 'Market-wide stories carry no ticker; excluded from narrowed scopes rather than assigned.' },
-        ...chooseRows(rows, plan, (row) => ({ publishedAt: row.publishedAt || null, title: clipped(row.title, 150), summary: clipped(row.summary, 200), premium: row.premium ?? null }), byDateDesc('publishedAt')),
+        coverage: { totalStories: allRows.length, publishers: publishers.length || null, note: scope === 'universe' ? 'Market-wide stories included.' : 'Market-wide stories carry no ticker; excluded from narrowed scopes rather than assigned.' },
+        definition: 'Every story names its own publisher; attribute a headline only to the publisher on its row.',
+        ...chooseRows(rows, plan, (row) => ({ publishedAt: row.publishedAt || null, publisher: row.publisher || null, title: clipped(row.title, 150), summary: clipped(row.summary, 200), premium: row.premium ?? null }), byDateDesc('publishedAt')),
       });
     },
   },
