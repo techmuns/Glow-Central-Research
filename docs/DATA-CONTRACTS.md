@@ -3232,9 +3232,10 @@ Three constraints are contractual rather than stylistic:
 | `tracked` | at least one keyword matched |
 | `targeted` | `tracked` **and** `namesCompany !== false` — an unverifiable name is not a failed one |
 
-Consumers: the Topic column and filter on both News surfaces, `newsSignal()` in
-`js/data/daily-alerts.js`, the market-news collector's `keywords` tag, and the
-`news-behind-the-move` confluence pattern.
+Consumers: the Topic column and filter on both News surfaces **and on Corp Announcements**,
+`newsSignal()` and `announcementSignal()` in `js/data/daily-alerts.js`, the market-news collector's
+`keywords` tag, and the `news-behind-the-move` confluence pattern (whose sentence names topics from
+either feed).
 
 `newsSignal(row)` returns a normal signal plus `keywords` / `keywordIds` / `keywordGroups` /
 `namesCompany`. It raises **importance only** — direction is always `neutral` — and `high` requires
@@ -3251,6 +3252,20 @@ with a headline match, 1,914 with a headline match that also names the company.
 Measured on the shipped `news.json` (11,060 stories, 559 companies): 3,278 tracked (29.6%), 3,130
 targeted, and **every one of the 30 keywords matches at least once** — the vocabulary carries no dead
 entry. A keyword is a **topic**, never a direction: no story is scored positive or negative anywhere.
+
+### Announcements — `announcementSignal(row)`
+
+Returns a normal signal plus `keywords` / `keywordIds` / `keywordGroups` / `critical`.
+
+- **Direction** is unchanged: the narrow negative/positive rules over the filing's own text.
+- **Importance** is one predicate with stated inputs: `high` when a tracked keyword matched **or**
+  the directional rule matched. The keyword reading classifies the filing's subject plus BSE's
+  sub-category; there is no `inTitle` gate (a filing has no standfirst to be unreliable) and no
+  `namesCompany` question (a filing is the company's own statement).
+- **`BSE_CRITICAL_IS_MATERIAL` is `false`.** BSE's `CRITICALNEWS` flag stays on every row and in the
+  export, but does not gate importance. Measured on the retained capture: it marks 1,147 of 3,942
+  filings (29%), 1,074 of which match nothing else and 881 of which are AGM notices. High importance
+  on this feed fell from 1,271 (32%) to 446 (11%). Set the constant to `true` to restore the old rule.
 
 ## Technicals participation events — part of the `technicals` feed
 

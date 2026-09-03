@@ -700,6 +700,18 @@ const BUILDERS = [
   },
   {
     id: 'earnings-calendar',
+    // NO LOAD PHASE, DECLARED RATHER THAN OMITTED — and the difference is not cosmetic. This was
+    // simply absent, and the loop below called `builder.load()` unguarded, so this source threw
+    // `builder.load is not a function` on EVERY question ever asked and was reported to the model
+    // as unavailable. It had never once been read. The failure was invisible because a source that
+    // cannot be read is a state this registry legitimately has, so the packet looked like an
+    // upstream being down.
+    //
+    // It genuinely has nothing to load: the calendar is a PER-DATE fetch (see the on-demand rule in
+    // CLAUDE.md), so a load phase here would walk somebody else's service on every question. It
+    // reads whichever dates the Earnings Hub tab has already fetched, and says so in its coverage —
+    // that is what `description` means by "currently loaded".
+    load: null,
     read({ plan }) {
       const strip = earningsCalendar.strip();
       const loaded = strip.map((item) => earningsCalendar.forDate(item.date)).filter(Boolean);
@@ -1059,7 +1071,13 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
   await Promise.all(
     BUILDERS.map(async (builder) => {
       try {
-        await withTimeout(Promise.resolve().then(() => builder.load()), tabOf(builder.id));
+        // `load: null` is a source that declares it has nothing to fetch — see earnings-calendar.
+        // A builder that carries NEITHER a function nor that declaration is a registry bug, and it
+        // is raised as one here rather than being quietly skipped: the whole reason this went
+        // unnoticed is that "could not be read" is a legitimate state, so our own mistake wore the
+        // upstream's clothes.
+        if (builder.load === undefined) throw new Error(`Registry error: source "${builder.id}" declares neither a load() nor an explicit \`load: null\`.`);
+        if (builder.load) await withTimeout(Promise.resolve().then(() => builder.load()), tabOf(builder.id));
       } catch (error) {
         loadErrors.set(builder.id, error);
       } finally {

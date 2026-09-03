@@ -819,6 +819,71 @@ demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape
 first**, so a run cut short by the rate limit or an expiring token has covered the holdings rather
 than whatever starts with A.
 
+### A BORROWED FLAG IS NOT A MATERIALITY RULE — what the keywords replaced on announcements
+
+The tracked keywords reach Corp Announcements too, matched against the filing's own subject and
+BSE's own sub-category (*"Award of Order / Receipt of Order"*, *"Resignation of Director"*, *"Credit
+Rating"* are the exchange's words for exactly what this desk tracks). Two things about how, and the
+second is the point.
+
+**It REPLACED a gate rather than sitting beside one.** `announcementSignal()` already had a
+materiality rule and `js/data/news-keywords.js` is not allowed to become a second one over the same
+question — that is the pattern this codebase keeps having to un-write. So there is one predicate
+with stated inputs: a tracked keyword, **or** the directional rule matched. The directional rule
+keeps its own materiality, because a dividend record date and a credit-rating upgrade carry no
+tracked keyword and must not quietly stop mattering.
+
+**And BSE's own `critical` flag came out of it.** It is still reproduced on every row and in the
+export — it is theirs and a reader is owed it — but it no longer decides what General Alerts calls
+important. Measured on the retained capture: it marks **1,147 of 3,942 filings (29%)**, of which
+1,074 match nothing else, and **881 of those are AGM notices**; the rest are board-meeting
+intimations and new listings. It is a *calendar* flag. Borrowing it as our gate made **a third of
+the whole exchange** high-importance, which is the same noise the keywords were brought in to
+remove, one tab over. High importance on this feed went from **32% of filings to 11%**.
+
+`BSE_CRITICAL_IS_MATERIAL` exists so that decision is one visible, reversible constant rather than
+an expression — flipping it to `true` restores the old behaviour exactly. **Direction is untouched**:
+the narrow negative/positive rules over the filing text are unchanged, and the suite asserts a
+downgrade is still negative, a dividend still positive and an AGM still neutral.
+
+**The Topic column took the Sub-category column's place**, exactly as News' took the Outlet
+column's: `rowSub` already prints the sub-category under every subject, so the column was a second
+copy of it. The sub-category keeps its own filter and its place in the export. **The strict
+"names the company" filter option is dropped here** — a BSE filing *is* the company's own
+statement, so the question does not arise.
+
+### AN EXPLANATION WITH NO DOOR IS WORSE THAN NO EXPLANATION — where provenance is reached from
+
+`cfg.provenance` was built by all three filings tabs, `openProvenanceFactory` built a handler, and
+**nothing ever called it**. `sourcesModalHtml()` was exported and imported by nobody;
+`sourceGroups()` was named only in a comment. All of it was correct, maintained, and unreachable.
+
+That is a worse state than absent, because unreachable content **reads as documentation of a working
+feature**: the registry looked like the canonical home for provenance, and this file said so — *"the
+Sources button and its popup are gone from the chrome… canonical provenance remains in the source
+registry"* — while the registry had no way in at all. The second half of that sentence was a promise
+the app did not keep.
+
+**The fix is a door, not the old chrome back.** Both decisions that removed the chrome stand
+unchanged: the header carries no Sources button, and every status pill is a passive `<span>` that
+opens nothing. What was wrong was never that the pill stopped opening a modal — it was that nothing
+else opened one either.
+
+- **The source registry** is reached from a **footer**, one muted line under the content column, on
+  every tab. A footer is the one position that cannot compete with the table it qualifies, which was
+  the entire reason the chrome was removed; it is also where a reader already looks for provenance.
+- **Each filings tab's own provenance** is reached from one muted line **under its table**. It is
+  wired rather than pruned because it carries what no static registry can: the **measured coverage
+  for the rows on screen** — how many companies answered, how many had nothing, how many could not be
+  read. The denominator rule says that number stays REACHABLE, not that it stays on the page.
+- **`sourcesModalHtml()` is a function called on open**, which is what lets a static footer reach
+  live figures without going stale. That is the same rule that killed the old hand-typed source
+  array; see *Data sources* above.
+
+**The footer lives inside a template literal in `shell.js`, so it may contain no backticks.** The
+comment beside it says so because writing one there terminates the literal and takes the whole page
+down — which is exactly how this footer broke on its first attempt.
+
 ### ASK THE AXIS THE DATA IS PUBLISHED ON — the rule that fixed announcements
 
 The paragraph above is what these three tabs were built on, and for two of them it is still true.
@@ -2543,7 +2608,10 @@ or not a byte had been confirmed in an hour.
   is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
   server does not get to move that clock.
 - **The Sources button and its popup are gone from the chrome.** The status pill is passive.
-  Canonical provenance remains in the source registry and export disclosures.
+  Canonical provenance remains in the source registry and export disclosures — and the registry is
+  reached from the **page footer**, not from the header. See *An explanation with no door is worse
+  than no explanation*: removing the button was right, leaving the registry with no caller at all
+  was not.
 - `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
   It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
 
@@ -2789,6 +2857,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
+| Change what makes a FILING material | `announcementSignal()` + `BSE_CRITICAL_IS_MATERIAL` in `js/data/daily-alerts.js` — read *A borrowed flag is not a materiality rule* first. One predicate, stated inputs; BSE's critical flag is reproduced and is not the gate |
 | Change the volume/breakout alert, or its threshold | `VOLUME_X` and the participation branch of `fromTechnicals` in `js/data/daily-alerts.js` — volume is neutral because the tape does not say which side it was |
 | Change which cross-feed patterns AI Alerts names | `CONFLUENCE` + `confluenceOf()` in `js/data/ai-alerts.js`, rendered by `confluenceMarkup()` in `js/tabs/ai-alerts.js` — read *Correlation is the product* first; a leg must key on the feed's own published threshold, not a new one |
 | Change which companies News searches | `tickersFor()` in `js/tabs/filings-tab.js` — the scope decides, and the committed snapshot is what paints. The picker is gone: read *And the third feed did not get this treatment* first |
@@ -2860,6 +2929,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, sub-view picker or tab bar | `js/ui/shell.js` |
 | Add a row to the Sources modal | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) |
+| Change how a reader REACHES provenance | the footer in `layout()` + `wireStaticHeader()` in `js/ui/shell.js` (the registry), and `methodFooter()` + `wireMethod()` in `js/tabs/filings-tab.js` (a tab's own coverage) — read *An explanation with no door* first. The doors go BELOW the content; the header button and the active pill stay gone |
+| Add an Ask Research source that fetches nothing | give its builder an explicit `load: null` in `js/research/estate.js` — a builder with neither a `load()` nor that declaration is raised as a registry error, because an omitted one used to throw and wear the upstream's clothes |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
 | Change what raises a live alert | `js/core/watch.js` (what counts as an event) + `js/ui/notifications.js` (how it looks) — read *The header, and the alert stack* first |

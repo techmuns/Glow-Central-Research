@@ -369,11 +369,12 @@ export function sourceGroups() {
           name: 'Tracked news keywords (computed)',
           url: null,
           feeds:
-            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces and used as the materiality rule for company news in General Alerts and AI Alerts. ' +
+            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces, against each filing\'s subject and BSE\'s own sub-category on Corp Announcements, and used as the materiality rule for both feeds in General Alerts and AI Alerts. ' +
             'It exists because the news upstream is a <strong>search by company name</strong>, so the capture is a name match and names collide: on the shipped file, filtering 11,060 stories by these keywords leaves 2,889. ' +
             '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in General Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
             'Several patterns are deliberately narrower than the plain word, and each says so on its own chip: a bare <em>trial</em> matched free-trial boilerplate, a bare <em>fire</em> matched "stock on fire". ' +
-            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>.',
+            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>. ' +
+            'On announcements it also <strong>replaced</strong> a borrowed gate rather than sitting beside one: BSE\'s own critical flag marks about a third of all filings, most of them AGM notices, so it is reproduced on every row but no longer decides what General Alerts calls material — measured, high importance there fell from 32% of filings to 11%.',
           cadence: 'Recomputed on every load',
           status: 'static',
           file: 'public/js/data/news-keywords.js',

@@ -506,6 +506,26 @@ function openingState(scope) {
  * title first (what the model is told to cite) and by source id second; a name that matches no
  * registered source resolves to nothing, and the renderer leaves it as text.
  */
+/**
+ * A `[Dashboard: …]` citation names a TAB, so it opens the TAB — not one contributor's sub-view.
+ *
+ * THIS IS THE FIX FOR A LINK THAT WENT SOMEWHERE ELSE, and the failure is worth keeping because
+ * nothing about it looked broken. Four tab names are shared by two sources each — Earnings Hub,
+ * Breakouts / Technical, Super Investors and News — and this resolver used `.find()`, so the FIRST
+ * entry in the catalog silently won every time. On Breakouts that first entry is `technicals`,
+ * whose route is `…/breakouts/technical-scanner`; so a question about strong breakouts produced a
+ * correct answer, a correctly named citation, and a click that landed on the Technical Scanner. The
+ * reader then had to find the sub-view picker and switch to Strong Breakouts themselves — which is
+ * the tab's own FIRST sub-view, and therefore exactly where a bare tab route lands.
+ *
+ * So the destination is the tab's landing route, derived from the documented route shape
+ * (`#/ws/tab/subview`) by dropping the sub-view. That does two things at once: it sends the reader
+ * where the citation says, and it makes the collision harmless — every source sharing a tab now
+ * resolves to one href, so there is no longer a first-match to get wrong.
+ *
+ * The per-source links under an answer are NOT changed: those name a specific source rather than a
+ * tab, so they keep their own sub-view. See `renderResearchSources` below.
+ */
 function citeResolver(companies = []) {
   const scope = ctxRef?.scope || 'portfolio';
   const company = companies.length === 1 ? companies[0] : null;
@@ -513,8 +533,23 @@ function citeResolver(companies = []) {
     const wanted = String(name || '').trim().toLowerCase();
     const source = DASHBOARD_RESEARCH_SOURCES.find((item) => item.tab.toLowerCase() === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
     if (!source) return null;
-    return { href: dashboardHref(source.route, scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
+    return { href: dashboardHref(tabRoute(source.route), scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
   };
+}
+
+/**
+ * `#/ws/tab/subview` -> `#/ws/tab`. Anything shorter is returned untouched.
+ *
+ * The shell resolves a tab with no sub-view to that tab's FIRST sub-view, which is the same rule
+ * that makes the WORKSPACES array the landing page (see CLAUDE.md). So this lands a reader on the
+ * view the tab itself opens on, rather than on whichever sub-view one contributing source happens
+ * to belong to.
+ */
+function tabRoute(route) {
+  const [path, query = ''] = String(route || '#').split('?');
+  const segments = path.replace(/^#\/?/, '').split('/').filter(Boolean);
+  if (segments.length < 3) return route;
+  return `#/${segments.slice(0, 2).join('/')}${query ? `?${query}` : ''}`;
 }
 
 function dashboardHref(route, scope, company) {

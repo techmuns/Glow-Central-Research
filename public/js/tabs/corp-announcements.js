@@ -25,6 +25,7 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { announcements as feed } from '../data/filings.js';
+import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel, FILTER_TARGETED } from '../data/news-keywords.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
@@ -35,6 +36,29 @@ export const cleanFilingText = (value) => String(value || '')
   .replace(/<[^>]+>/g, ' ')
   .replace(/\s+/g, ' ')
   .trim();
+
+// ---------------------------------------------------------------------------------------
+// THE SAME THIRTY TRACKED KEYWORDS THE NEWS SURFACES FILTER BY.
+//
+// This is the widest feed in the dashboard — the whole exchange, ~900 filings a weekday — and until
+// now the only ways to narrow it were BSE's own category (eight values, of which "Company Update"
+// is a fifth of everything) and sub-category (67 values, mostly filing taxonomy). Neither answers
+// "which of these is an order win, a QIP, a resignation".
+//
+// WHAT IS CLASSIFIED IS THE FILING'S SUBJECT AND BSE'S SUB-CATEGORY, both of which are the
+// exchange's own description of this filing. There is no standfirst here to be unreliable, so the
+// headline-only gate the news feed needs does not apply — see `announcementSignal` in
+// js/data/daily-alerts.js. And there is no "does it name the company" question at all: a BSE filing
+// IS the company's own statement, which is why the strict filter option is dropped below.
+const readings = new WeakMap();
+function readingFor(row) {
+  let reading = readings.get(row);
+  if (!reading) {
+    reading = classifyStory({ title: cleanFilingText(row.title || row.headline), summary: row.subCategory || '' });
+    readings.set(row, reading);
+  }
+  return reading;
+}
 
 // Category is identity, not judgement, so the palette is the brand ramp rather than anything
 // semantic — an AGM notice is not "worse" than a result. `Result` and `Board Meeting` get the two
@@ -86,14 +110,51 @@ const tab = makeFilingsTab({
       sortValue: (r) => r.category || '',
     },
     {
-      label: 'Sub-category',
-      get: (r) => (r.subCategory ? `<span class="text-slate-600">${escapeHtml(r.subCategory)}</span>` : dash('BSE did not carry a sub-category for this filing')),
+      // THE TOPIC COLUMN TOOK THE SUB-CATEGORY COLUMN'S PLACE, for the reason the News tab's took
+      // the Outlet column's: `rowSub` already prints the sub-category under every subject, so the
+      // column was a second copy of it — and this table's subject line is capped at 520px, which is
+      // where two different filings start truncating to the same string. The sub-category keeps its
+      // own filter and its place in the export; what it gives up is a column that said nothing new.
+      label: 'Topic',
+      get: (r) => {
+        const reading = readingFor(r);
+        if (!reading.tracked) {
+          return `<span class="text-slate-300" title="No tracked keyword matched this filing's subject or BSE's sub-category for it. Most filings are routine — the whole exchange files roughly 900 a weekday.">untracked</span>`;
+        }
+        const CHIPS = 2;
+        const shown = reading.keywords.slice(0, CHIPS);
+        const rest = reading.keywords.length - shown.length;
+        const chip = (k) =>
+          `<span class="mr-1 inline-block whitespace-nowrap rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-100" title="${escapeHtml(
+            `${groupLabel(k.group)} · matched in the ${k.where === 'title' ? "filing's subject" : "exchange's sub-category"}${k.note ? `. ${k.note}` : ''}`
+          )}">${escapeHtml(k.label)}</span>`;
+        const more = rest
+          ? `<span class="text-[10px] font-semibold text-slate-400" title="${escapeHtml(`Also: ${reading.labels.slice(CHIPS).join(', ')}`)}">+${rest}</span>`
+          : '';
+        return shown.map(chip).join('') + more;
+      },
       html: true,
-      sortValue: (r) => r.subCategory || '',
+      sortValue: (r) => {
+        const reading = readingFor(r);
+        return reading.tracked ? `1${reading.labels[0]}` : '0';
+      },
     },
   ],
   filters: (rows) => {
-    const out = [];
+    // TOPIC LEADS, because it is the only one of the three that answers what a reader came for.
+    // Counts are MEASURED off the rows in scope, and "No tracked keyword" is always offered — a
+    // filter that can only narrow to what it recognises can never be checked against its own
+    // misses. The strict "names the company" option is dropped: a BSE filing is the company's own
+    // statement, so the question does not arise, and a control that silently means something else
+    // on one tab is worse than an absent one.
+    const cache = rows.map(readingFor);
+    const out = [
+      {
+        label: 'Topic',
+        options: topicFilterOptions((value) => cache.filter((reading) => matchesTopic(reading, value)).length).filter((o) => o.value !== FILTER_TARGETED),
+        match: (r, v) => matchesTopic(readingFor(r), v),
+      },
+    ];
     const cats = [...new Set(rows.map((r) => r.category).filter(Boolean))].sort();
     if (cats.length > 1) {
       out.push({
@@ -110,7 +171,7 @@ const tab = makeFilingsTab({
         match: (r, v) => r.subCategory === v,
       });
     }
-    return out.length ? out : null;
+    return out;
   },
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
@@ -130,12 +191,37 @@ const tab = makeFilingsTab({
            <strong>a company with no rows here filed nothing in the window</strong> — it was not skipped for want of
            request budget. Those are different statements and only the second one is honest about the old feed.</p>
 
-        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What is ours</h3>
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Topic — the one reading that is ours</h3>
+        <p class="mt-1 text-xs">The whole exchange files roughly <strong>900 announcements a weekday</strong>, and BSE's own
+           two ways of narrowing that are their filing taxonomy rather than an answer: the category has eight values, of
+           which <em>Company Update</em> is about a fifth of everything, and the sub-category has 67, mostly procedural.
+           Neither tells you which of these is an order win, a QIP or a resignation.</p>
+        <p class="mt-2 text-xs"><strong>Topic</strong> is the same thirty keywords this desk tracks newsflow by, matched
+           against the filing's own subject and BSE's own sub-category for it — both the exchange's words, not a summary of
+           ours. Every option shows how many rows it would leave, counted from the rows in scope, and
+           <strong>&ldquo;No tracked keyword&rdquo;</strong> is always offered so a pattern that is quietly too narrow can be
+           found rather than mistaken for a quiet week.</p>
+        <div class="mt-2 space-y-1.5 text-xs">
+          ${GROUPS.map(
+            (g) =>
+              `<p><span class="font-semibold text-slate-700">${escapeHtml(g.label)}</span> — ${KEYWORDS.filter((k) => k.group === g.id)
+                .map((k) => escapeHtml(k.label))
+                .join(', ')}</p>`
+          ).join('')}
+        </div>
+        <p class="mt-2 text-xs">A keyword names a <strong>topic, never a direction</strong> — <em>Lawsuit</em> is something a
+           company can be on either side of — and nothing on this table is ranked or scored. What a match does change is
+           whether <strong>General Alerts</strong> treats the filing as material, which is stated on the row there.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What else is ours</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
           <li><strong>Nothing in the subject, the category or the sub-category</strong> — all are BSE's own strings, and the
               category list is what their API accepts rather than a taxonomy of ours.</li>
-          <li><strong>No materiality judgement.</strong> Nothing here marks an announcement important or routine. BSE's own
-              critical-filing flag is reproduced where they set it and is theirs.</li>
+          <li><strong>No ranking, and no materiality judgement on this table.</strong> Nothing here is scored or sorted by
+              importance. <strong>BSE's own critical-filing flag is reproduced where they set it and is theirs</strong> — and
+              it is deliberately <em>not</em> used as this dashboard's materiality gate, because it marks roughly a third of
+              all filings and most of those are AGM notices and board-meeting intimations. It is a calendar flag; borrowing
+              it would make a third of the exchange urgent.</li>
           <li><strong>The ticker.</strong> BSE identify a filer by scrip code. Where this dashboard already holds that code
               in <code class="rounded bg-slate-100 px-1">mc-ticker-map.json</code> the row carries the confirmed NSE symbol;
               otherwise it carries BSE's own symbol, and a filer we cannot name at all keeps its row under its scrip code

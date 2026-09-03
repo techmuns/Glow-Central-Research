@@ -107,6 +107,24 @@ export const CHATTER_HIGH_CHANGE_PCT = 100;
 // whichever signal the other did not carry.
 export const VOLUME_X = 2;
 
+/**
+ * Whether BSE's own `CRITICALNEWS` flag is treated as OUR materiality gate. It is not, and the
+ * measurement is why.
+ *
+ * The flag is reproduced on every row and in the export, because it is theirs and a reader is owed
+ * it. What it cannot be is the thing that decides what General Alerts calls important: measured on
+ * the retained capture, it marks **1,147 of 3,942 filings — 29%** — and 1,074 of those carry no
+ * tracked keyword and match no directional rule. 881 of them are **AGM notices**; the rest are
+ * board-meeting intimations and new listings. It is a CALENDAR flag, not a materiality one, and
+ * borrowing it made a third of the whole exchange high-importance — which is the same noise the
+ * tracked keywords were brought in to remove, one tab over.
+ *
+ * So importance on this feed is our own stated rule (a tracked keyword, or the directional rule
+ * below), and this constant exists so the decision is visible and reversible in one place rather
+ * than buried in an expression. Flipping it to `true` restores the old behaviour exactly.
+ */
+export const BSE_CRITICAL_IS_MATERIAL = false;
+
 export const DIRECTION = { POSITIVE: 'positive', NEGATIVE: 'negative', NEUTRAL: 'neutral' };
 export const IMPORTANCE = { HIGH: 'high', LOW: 'low' };
 
@@ -165,17 +183,43 @@ export function announcementSignal(row = {}) {
   ].find(([, matched]) => matched);
   const matched = negative || positive;
   const direction = negative ? DIRECTION.NEGATIVE : positive ? DIRECTION.POSITIVE : DIRECTION.NEUTRAL;
-  const importance = row.critical === true || matched ? IMPORTANCE.HIGH : IMPORTANCE.LOW;
-  return signal(
-    direction,
-    importance,
-    matched ? `Rule-derived from the filing text: ${matched[0]}.` : 'No directional announcement rule matched; shown as neutral.',
-    row.critical === true
-      ? 'High: BSE marked this filing critical.'
-      : matched
-        ? 'High: a stated material announcement rule matched.'
-        : 'Low: BSE did not mark it critical and no material rule matched.'
-  );
+
+  // THE SAME THIRTY KEYWORDS THE NEWS SURFACES FILTER BY, over the filing's own subject and BSE's
+  // own sub-category — "Award of Order / Receipt of Order", "Resignation of Director", "Credit
+  // Rating" are the exchange's words for exactly the things this desk tracks.
+  //
+  // NO `inTitle` GATE HERE, and that is deliberate rather than an oversight. That gate exists on
+  // the news feed because several publishers fill the standfirst with a related-links strip, so a
+  // match there is not evidence about the story. A filing has no such field: the subject and the
+  // sub-category are both the exchange's own description OF THIS FILING. Nor is there a
+  // `namesCompany` question — a BSE filing IS the company's own statement, so the company is
+  // certain in a way a name-matched search result never is.
+  const reading = classifyStory({ title: row.title || row.headline, summary: row.subCategory || '' });
+
+  // ONE PREDICATE, THREE STATED INPUTS — not two rules over one question. See
+  // BSE_CRITICAL_IS_MATERIAL above for why their flag is reproduced but does not gate this.
+  // Measured: this takes high importance from 1,271 of 3,942 filings (32%) to 446 (11%).
+  const critical = row.critical === true;
+  const high = reading.tracked || !!matched || (BSE_CRITICAL_IS_MATERIAL && critical);
+  return {
+    ...signal(
+      direction,
+      high ? IMPORTANCE.HIGH : IMPORTANCE.LOW,
+      matched ? `Rule-derived from the filing text: ${matched[0]}.` : 'No directional announcement rule matched; shown as neutral.',
+      high
+        ? `High: ${[
+            reading.tracked ? `matched the tracked ${reading.labels.length === 1 ? 'keyword' : 'keywords'} ${reading.labels.join(', ')}` : null,
+            matched ? 'a stated material announcement rule matched' : null,
+          ]
+            .filter(Boolean)
+            .join('; ')}.`
+        : `Low: no tracked keyword and no material rule matched.${critical ? " BSE marked this filing critical and that marker is reproduced on the row, but it covers routine calendar filings — AGM notices and board-meeting intimations — so it is not this dashboard's materiality gate." : ''}`
+    ),
+    keywords: reading.labels,
+    keywordIds: reading.ids,
+    keywordGroups: reading.groups,
+    critical,
+  };
 }
 
 /**
@@ -331,7 +375,7 @@ export const FEEDS = [
   { id: 'concalls', label: 'Con-calls', tab: 'concall', what: "Held con-calls, using StockScans' own result and sentiment bands." },
   { id: 'chatter', label: 'Public chatter', tab: 'public-chatter', what: "The source's rolling 30-day company sentiment snapshot, dated to its capture." },
   { id: 'investors', label: 'Investor activity', tab: 'super-investors', what: 'Quarter-over-quarter disclosed holding changes from Super Investors, dated to each current investor book confirmation.' },
-  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE in the retained exchange-wide capture.' },
+  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: "Everything filed to BSE in the retained exchange-wide capture. Direction comes from a narrow rule over the filing's own text; high importance means the filing matched one of the thirty tracked keywords or that directional rule. BSE's own critical marker is reproduced on every row but does not gate importance — it covers routine AGM and board-meeting filings." },
   { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Retained insider and promoter disclosures, under their broadcast dates.' },
   { id: 'news', label: 'Company news', tab: 'news', what: 'Retained stories about a company in scope, under their published dates. High importance means the story matched one of the thirty tracked keywords the desk watches newsflow by; the reading is a TOPIC and never a direction, so every row here stays neutral.' },
   { id: 'market-news', label: 'Market news', tab: 'news', what: 'Retained market-wide stories, tagged with the same tracked keywords for filtering. They carry no company, so importance stays low — a keyword is material ABOUT a company, and there is none on these rows — and they are Universe only.' },
