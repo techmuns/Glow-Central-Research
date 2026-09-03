@@ -21,7 +21,11 @@ const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const CHROME = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 // GLOW: the Portfolio book is regenerated daily from GlowVentures, so its size is read, never typed.
-const BOOK_COUNT = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8')).count;
+const BOOK_FILE = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
+const BOOK_COUNT = BOOK_FILE.count;
+// A committed book company the scope editor can be asked to remove — the first with a symbol, not
+// a ticker typed here (upstream typed IIFL, which is the other family's holding).
+const BOOK_FIRST_TICKER = BOOK_FILE.holdings.find((h) => h.ticker)?.ticker || '';
 
 let chromium;
 try {
@@ -1580,7 +1584,8 @@ console.log('\n— AI alerts —');
   // GLOW DIVERGENCE: the `portfolio` source is the real family office book (see the family book
   // section), so the Watchlist check stars a BOOK symbol and expects the book's rows for it — the
   // same claim as upstream (totals from the starred rows only, whole-book figures omitted), on
-  // real data. A symbol held in more than one account has more than one row, deliberately.
+  // real data. The packet carries ONE row per company however many accounts hold it (the tab shows
+  // every statement line); the row says how many accounts it collapsed.
   const watchlistPortfolioAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
     const book = await import('/js/data/book.js');
@@ -1595,7 +1600,9 @@ console.log('\n— AI alerts —');
       return {
         ticker: member.symbol,
         rowCount: source.rowCount,
-        expectedRows: held.length,
+        expectedRows: 1,
+        accountsOnRow: source.rows?.[0]?.accounts,
+        expectedAccounts: held.length,
         positionCount: source.summary?.positions,
         marketValue: source.summary?.consolidatedValueRupees,
         expectedMarketValue: book.valueOf(held),
@@ -1608,9 +1615,10 @@ console.log('\n— AI alerts —');
   ok('...recomputes Watchlist portfolio totals from only the starred book rows',
     watchlistPortfolioAudit.rowCount === watchlistPortfolioAudit.expectedRows &&
       watchlistPortfolioAudit.positionCount === watchlistPortfolioAudit.expectedRows &&
+      watchlistPortfolioAudit.accountsOnRow === watchlistPortfolioAudit.expectedAccounts &&
       Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
       watchlistPortfolioAudit.carriesWholeBookFigures === false,
-    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position(s) · ₹${watchlistPortfolioAudit.marketValue}`);
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} row across ${watchlistPortfolioAudit.accountsOnRow} account(s) · ₹${watchlistPortfolioAudit.marketValue}`);
 
   await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();
@@ -2449,21 +2457,21 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
   await page.locator('[data-scope-result="0"]').click();
   ok('a Muns search result can be added to Portfolio',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '143' &&
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT + 1) &&
       await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:scope-lists:v1') || '{}').portfolio?.added?.some((e) => e.ticker === 'ALPHACO')));
   await page.locator('[data-scope-result="0"]').click();
   ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
 
-  await listSearch.fill('IIFL');
+  await listSearch.fill(BOOK_FIRST_TICKER);
   // THE MUNS RESULTS DROPDOWN CAN COVER THE FIRST MEMBER ROW. It is `position: absolute` under the
   // search box, and with the system fallback fonts (no Google Fonts in the sandbox) its bottom edge
-  // lands a few pixels over the IIFL row's Remove button — measured: results 547–617, button 602–630
+  // lands a few pixels over the first member row's Remove button — measured: results 547–617, button 602–630
   // — so a real click is never "actionable" and the suite dies on a 30s timeout rather than a FAIL.
   // The check is about the overlay's list logic, not hit-testing, so the click is dispatched to the
   // button itself; the editor's delegated handler sees exactly the event a pointer would produce.
-  await page.locator('[data-scope-remove="ticker:IIFL"]').dispatchEvent('click');
+  await page.locator(`[data-scope-remove="ticker:${BOOK_FIRST_TICKER}"]`).dispatchEvent('click');
   ok('a committed Portfolio company can be removed through the local overlay',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT - 1));
   await listSearch.fill('');
   await page.locator('[data-scope-reset]').click();
   ok('Restore default clears Portfolio edits without rewriting the source file',
