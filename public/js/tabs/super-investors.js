@@ -2,17 +2,18 @@
 //
 //   Superstar Investors  every tracked investor's book, live off Ticker Finology  → investors/live.js
 //   Institutions         funds, from shareholding filings and AMC portfolios      → investors/filed.js
-//   Fund Returns         every tracked scheme's returns and peer rank, off AmfiBeas → investors/fund-returns.js
 //
-// THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. All three sub-views own their own rendering,
+// THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. Both sub-views own their own rendering,
 // provenance and export; all that is left here is the tab contract, the lifetimes, and the
 // loading state.
 //
-// FUND RETURNS IS THE THIRD SUB-VIEW, AND IT IS A DIFFERENT KIND OF DISCLOSURE AGAIN. Institutions
-// is who holds what (filed shareholdings and AMC portfolios); Fund Returns is how every tracked
-// mutual fund and ETF performed — point-to-point returns per period and a rank within its own
-// cohort, computed by AmfiBeas from AMFI's daily NAV and reproduced here unchanged. Nothing on it
-// is a holding, so nothing on it sums, ranks or joins with the other two views.
+// FUND RETURNS HAS LEFT — IT IS THE MUTUAL FUNDS TAB NOW (js/tabs/mutual-funds.js). It sat here as
+// a third sub-view because that is where the AmfiBeas feed happened to be wired, and it never
+// belonged: this tab answers WHO HOLDS WHAT — a superstar investor's filed book, an institution's
+// shareholding, an AMC's portfolio — and a fund's RETURN is not a holding. It sums with nothing
+// here, joins to no company here, and answers none of the question the two remaining views exist
+// to answer. `#/research/super-investors/fund-returns` still resolves: the shell rewrites it to the
+// new address (MOVED_ROUTES in js/ui/shell.js) rather than dropping the reader on a different page.
 //
 // THE SYNTHETIC HALF IS GONE, AND ITS MACHINERY WITH IT. There used to be a third sub-view, Fund
 // Flows, running on `superinvestors.json` / `institutions.json` — real names against generated
@@ -29,21 +30,18 @@
 
 import { sectionHead, companySeededView } from '../ui/screener.js';
 import { renderFiled } from '../investors/filed.js';
-import { renderFundReturns } from '../investors/fund-returns.js';
 import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
 import * as refreshRegistry from '../core/refresh.js';
 import * as filed from '../data/institution-holdings.js';
-import * as fundReturns from '../data/fund-returns.js';
 
 export const meta = {
   id: 'super-investors',
   title: 'Super Investors',
-  subtitle: 'Superstar-investor and institutional holdings, quarter on quarter and month on month — and every tracked scheme’s returns and peer rank.',
+  subtitle: 'Superstar-investor and institutional holdings, quarter on quarter and month on month.',
   subviews: [
     { id: 'superstar-investors', label: 'Superstar Investors' },
     { id: 'institutions', label: 'Institutions' },
-    { id: 'fund-returns', label: 'Fund Returns' },
   ],
 };
 
@@ -84,7 +82,7 @@ export function render(ctx) {
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
-  const view = { institutions: renderInstitutions, 'fund-returns': renderFundReturnsView }[ctx.subview] || renderIndividuals;
+  const view = { institutions: renderInstitutions }[ctx.subview] || renderIndividuals;
   view(ctx);
 }
 
@@ -259,48 +257,6 @@ function paintInstitutions(ctx) {
 
   ctx.root.innerHTML = panel.html;
   panel.wire(ctx.root);
-}
-
-// ---------------------------------------------------------------------------------------
-// Fund Returns — every tracked scheme's returns and peer rank, off AmfiBeas
-// ---------------------------------------------------------------------------------------
-
-/**
- * One table: every tracked mutual fund and ETF, its point-to-point return per period and its rank
- * within its own cohort. The whole view is `js/investors/fund-returns.js`; this only owns the load
- * gate and the repaint used by that view's "Try again" control.
- *
- * `fundReturns.load()` NEVER REJECTS — every failure is a named state carried on `meta().reason` —
- * so the panel renders either the table or a named failure (with a retry), and `paint` is safe to
- * call again from the retry button.
- */
-function renderFundReturnsView(ctx) {
-  disposers.forEach((d) => d && d());
-  disposers = [];
-  const token = renderToken;
-
-  const paint = () => {
-    if (token !== renderToken || ctxRef?.subview !== 'fund-returns') return;
-    // A repaint (the failure view's retry) must release the previous paint's listeners first, or
-    // each retry stacks another on the document.
-    disposers.forEach((d) => d && d());
-    disposers = [];
-    const panel = renderFundReturns(ctx, { disposers, repaint: paint });
-    ctx.root.innerHTML = panel.html;
-    panel.wire(ctx.root);
-  };
-
-  // On any visit but a cold one the feed is already loaded and the shimmer never renders. It is
-  // awaited rather than raced: an unprimed `all()` is empty, and an empty table on screen would
-  // read as "no schemes" — exactly the failure the named panel is written to avoid.
-  if (fundReturns.isLoaded()) {
-    paint();
-    return;
-  }
-  ctx.root.innerHTML = loadingHtml();
-  fundReturns.load().then(() => {
-    if (token === renderToken) paint();
-  });
 }
 
 /** Exposed for the verification suite, which asserts the two kinds never merge. */

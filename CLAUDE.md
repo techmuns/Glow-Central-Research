@@ -48,7 +48,7 @@ That only works if the two repositories agree about who owns what:
 | **Glow** | the brand: `public/index.html` title/description/favicon, the `:root` tokens, `tailwind.config.cjs` (the champagne palette) and the stylesheet it generates | the palette is a config file, not class names — see *Design tokens* |
 | **Glow** | the deployment: `wrangler.jsonc` (Worker name, `GH_REPO`, rate-limit namespace), and the default Worker host in `scripts/scrape-filings.mjs` (`FILINGS_BASE`) and `scripts/scrape-super-investors.mjs` (`SI_BASE`) | deployment-specific values; the file headers say so, and the sync greps for all of them after every merge |
 | **Glow** | the book and the universe: everything under `public/data/` | `.gitattributes` marks them `merge=ours`; this repo's own scheduled scrapes regenerate them from its own book |
-| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — and the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs` and `public/data/book.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
+| **Glow** | Glow-only features, each in its own file: `js/tabs/mutual-funds.js` + `js/data/mf-weekly.js` + `js/data/mf-taxonomy.js` + `js/ui/mf-heatmap.js` + `scripts/import-mf-weekly.mjs` + `public/data/mf-weekly.json` (the Mutual Funds tab), `js/investors/fund-returns.js` + `js/data/fund-returns.js` (the AmfiBeas feed it renders), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — and the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs` and `public/data/book.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
 | **Sattva** | everything else — every tab, the kit, the Worker, the scrapers, the suite | this is where code is written |
 
 Four rules follow:
@@ -117,6 +117,9 @@ public/
                               empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the live alert stack, lower-right
       export.js               generic exceljs-from-CDN "Export Excel" helper
+      mf-heatmap.js           the Mutual Funds shading: a scheme's cell by where it sits among its
+                              own category, a category's by its gap to its own index. EVERY CLASS
+                              STRING WRITTEN OUT IN FULL — a composed one compiles to nothing
       components.js           chrome primitives (tab bar, toggle, search…)
       shell.js                header + tabs + sub-view picker + content host + tab registry
     concall/
@@ -124,11 +127,15 @@ public/
                               — the scan table, with no schedule or feed-status header chips
       deep-dive.js            the Deep Dive panel: trigger a run on the SEPARATE Concall Deep Dive
                               dashboard, mirror its progress, render its report (also THEIRS)
+    tabs/mutual-funds.js      THE WHOLE MUTUAL FUNDS TAB — category performance against its own
+                              benchmark off the weekly workbook, and the daily AmfiBeas scheme feed.
+                              TWO SNAPSHOTS ON DIFFERENT DATES; nothing crosses between them
     investors/
       filed.js                the REAL half of Institutions — filed shareholdings off Trendlyne
       live.js                 the WHOLE Superstar Investors view — real filed books off Finology
-      fund-returns.js         the Fund Returns sub-view — the AmfiBeas Returns & Ranking table, every
-                              scheme's period returns + same-cohort peer rank, reproduced not scored
+      fund-returns.js         the All Schemes view of the Mutual Funds tab — the AmfiBeas Returns &
+                              Ranking table, every scheme's period returns + same-cohort peer rank,
+                              reproduced not scored. NO benchmark, NO median: the payload has neither
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
@@ -180,6 +187,8 @@ scripts/
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
+  import-mf-weekly.mjs        the weekly fund workbook -> mf-weekly.json; REFUSES TO WRITE unless
+                              every published category median reconciles against the rows it parsed
   lib/xlsx-read.mjs           .xlsx reader built on node:zlib alone, no npm dependency
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
   scrape-filings.mjs          walks the TRACKED UNIVERSE (~1,900) for news and insider trades (NOT announcements)
@@ -449,6 +458,8 @@ the only consumer that changes all four, because it carries ten numeric columns:
 | `nameMaxPx` | `null` | Hard px cap on the identity column. `truncate` alone will not stop a long sub-line widening the table — a `<table>` in auto layout sizes to its widest content, so the cap on the inner block is what makes the ellipsis engage. |
 | `dense` | `false` | `px-2` instead of `px-4`, and `tracking-normal` instead of `tracking-wider` on the headers. Worth ~110px across ten columns. |
 | `wrapHeads` | `false` | Lets a heading stack onto two lines instead of forcing its column as wide as the label. On a wide numeric table **the headings, not the figures, are what overflows** — "Jun 26 Holding %" is far wider than "2.8%". Worth ~230px across thirteen columns. |
+| `showWatchFilter` | `true` | `false` drops the toolbar's *Watchlist only* filter. For a table whose rows are not companies (`watchKey: () => null`) — a fund category, a scheme, a macro series — where it can only ever answer with an empty table. Same reasoning as the star those rows already do not get; **opt-out rather than derived**, so no existing table changes. |
+| `searchPlaceholder` | `'Search company...'` | What the search box says it searches. A table of categories or schemes is not a company screener, and a control naming the wrong noun tells the reader the table holds something it does not. |
 | `showAvatar` | `true` | The gradient mark in the identity cell. It costs ~46px, and on a table wide enough that company names would otherwise truncate, the name is what the reader is scanning for. |
 | `filters` | `null` | One config, or an **array** of them. An array renders several `<select>`s that AND together — "PAT grew" and "Consolidated only" are different questions and folding both into one dropdown would make them mutually exclusive for no reason. |
 | `initialView` | `null` | Seed search / filters / watchlist-only / sort from a previous instance's `view` (which the table now returns). A tab that rebuilds on live data must pass this, or the reader's state is discarded every time a row arrives. |
@@ -759,6 +770,62 @@ resolves it from the list for every derived view, so one person is one string on
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
 
+
+### Two fund feeds on two dates — the Mutual Funds rule (GLOW-OWNED)
+
+The Mutual Funds tab reads **two** fund sources, and the whole design turns on never letting a
+figure cross between them.
+
+| | Category Performance | All Schemes |
+| --- | --- | --- |
+| source | `public/data/mf-weekly.json`, a committed weekly workbook | AmfiBeas, read live from the browser |
+| as on | its own stated date | its own, **later**, date |
+| schemes | ~620 curated direct-plan growth | ~3,400, every plan and option |
+| category median | **published by the workbook** | none — the payload has no median |
+| benchmark | **published per category** | none — AMFI's NAV snapshot has none |
+| peer rank | none | published, within its own cohort |
+
+**A 14-August index return under a 2-September fund return is a comparison nobody measured.** It is
+the same error as dating a price move by the capture rather than the session, and it is the one that
+would be easiest to commit here, because the obvious feature request is "put the benchmark on the
+All Schemes table too". There is no benchmark to put there. So the two live on separate sub-views,
+each printing its own as-on date on its own face, and the All Schemes head says in words that they
+are different snapshots and that a benchmark lives only on the other one.
+
+Everything else follows the rules this file already runs on, and three are worth naming:
+
+1. **The medians are the workbook's; recomputing them is the PARSE CHECK, not the output.**
+   `scripts/import-mf-weekly.mjs` recalculates every published median from the scheme rows it
+   parsed and **refuses to write the file** if one has moved — a dropped or double-counted row moves
+   the middle, so a median that still reconciles is a check on every row above it. All 208
+   reconcile on the shipped workbook. The number that ships is always the published one.
+2. **A category the workbook prints no index for says so, and nothing is substituted.** Smart Beta
+   is the one. The workbook also ships a master sheet of 36 indices, and borrowing one from it to
+   fill the gap would be this dashboard's judgement wearing the source's clothes — the same line the
+   con-call rules draw. Where a sheet prints several indices the **TRI** is used, because a fund's
+   NAV carries reinvested dividends and a Total Return Index is the like-for-like comparator; that
+   is a stated choice, printed in the benchmark cell's own title.
+3. **An asset class the workbook does not cover is NAMED, not drawn empty.** It publishes no debt,
+   commodities or fund-of-funds sheet. An empty "Debt" group reads as a claim about the market
+   rather than about a spreadsheet — the same rule as the book's nineteen lines with no NSE symbol.
+   The live feed does cover them, on its own date, and the note says where.
+
+**THE HEATMAP'S CLASS STRINGS MUST BE WRITTEN OUT IN FULL.** `js/ui/mf-heatmap.js` picks a cell
+background from a small set of Tailwind classes, and the stylesheet is precompiled by **scanning the
+source text** — so `` `bg-emerald-${step}` `` yields a class that exists in the DOM and in no
+stylesheet. The cell renders with no background, nothing throws, no test fails, and the heatmap is
+simply invisible. Every class is a literal in an array for that reason; adding a step means writing
+the whole class and rebuilding the stylesheet (hard rule 4).
+
+**And the shade is the only derived reading on the tab, so it explains itself on the same screen.**
+A scheme's cell is shaded by where it sits among the schemes in its own category over that period —
+a count, not a model, the same kind of reading as the peer rank on the other sub-view — and a
+category's cell by the size of its gap to its own index, in the stated `GAP_BAND_PP` bands. The
+legend beside the table says which, in words. A percentile is used rather than a distance from the
+median because the distances are not comparable between periods: a week's spread across a category
+is a fraction of a point and five years' is tens of points, so one set of percentage-point
+thresholds would paint every 1W cell neutral and every 5Y cell saturated — a heatmap brightest
+wherever the window is longest, which is a fact about the calendar rather than about the funds.
 
 ### The macro series store — two tabs that measure nothing (GLOW-OWNED)
 
@@ -1887,6 +1954,22 @@ Three rules:
 left to right as *mine, watched, everything*. Universe was the default only because it was the
 scope that needed no data loaded first, which is not a reason.
 
+**AND PORTFOLIO IS THE DEFAULT ON EVERY OPEN, NOT ONLY THE FIRST ONE.** The scope used to persist in
+`sattva:scope`, and the saved route in `sattva:lastRoute` carries a `?scope=` of its own — so one
+afternoon spent in Universe made Universe the scope the dashboard opened in for ever after, and the
+rule above only ever described a reader who had never touched the toggle. A default that any single
+click permanently overrides is not a default; it is an initial value.
+
+So the scope is **session state**: `state.scope` starts at `DEFAULT_SCOPE` on every load, the toggle
+still changes it, and every navigation still writes it into the hash. Two things that matter more
+than remembering are what that preserves. **A shared link still wins** — `initialRoute()` reads
+`location.hash` before anything saved, so `?scope=universe` from whoever sent it is honoured. **And
+a reload still holds its scope**, because the shell keeps `?scope=` in the address bar at all times,
+so reloading is a URL with a scope on it rather than a fresh open. What changes is only the case a
+reader means by *opening the dashboard*: arriving with no scope named. `getLastRoute()` strips the
+scope off the saved route for the same reason — the tab you were on is worth resuming, the scope you
+were in is the thing this rule is about.
+
 `js/data/scope.js` owns the vocabulary — `SCOPES`, `isScope`, `scopeLabel`, `scopeTickers`,
 `filterByScope`, `scopeBook` — and `core/state.js` and `core/router.js` import it rather than
 repeating the string pair. **A fourth scope is a change in that one file.**
@@ -2884,7 +2967,11 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what Ask Research says the portfolio is worth | `js/research/book-packet.js` (the packet) + `js/data/book.js` (the module) — the `portfolio` source in `estate.js` is a one-hunk wrapper; read *The family office book* first |
 | Refresh the family office book | it rides the daily GlowVentures copy; by hand: `GLOWVENTURES_DIR=/path/to/glowventures node scripts/build-book.mjs && node scripts/check-book.mjs`, commit `public/data/book.json` |
 | Change the Family Book tab | `js/tabs/family-book.js` — the whole tab is that one file |
-| Change the Fund Returns view | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html` |
+| Change the Mutual Funds tab | `js/tabs/mutual-funds.js` — the whole tab is that one file. Read *Two fund feeds on two dates* below first: the two sub-views are different snapshots and **no figure may cross between them** |
+| Change the All Schemes table | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html`. It carries **no benchmark and no median** |
+| Refresh the weekly fund workbook | drop it over `scripts/fixtures/mf-weekly.xlsx`, run `node scripts/import-mf-weekly.mjs`, commit `public/data/mf-weekly.json`. The run refuses to write unless every published median reconciles |
+| Change the fund classification hierarchy | `js/data/mf-taxonomy.js` — **one module, two consumers** (the browser and the import script), the `finology-shared.js` arrangement. A new sheet needs a `WORKBOOK_TAXONOMY` entry or the import fails |
+| Change the performance heatmap | `js/ui/mf-heatmap.js` — read the note about literal class strings first; a composed class renders as no background at all and nothing throws |
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and `scripts/scrape-filings.mjs` read it |
 | Pull the latest upstream code into this repo | run **Sync from Sattva** under Actions (it also runs daily); on a conflict it opens a PR instead of pushing — read *This dashboard is a downstream of Sattva* first |
 | Change the cross-book summary in Quarterly Changes | `quarterSummary()` in `js/data/super-investors.js` (the roll-up) + `quarterSummaryBlock()` in `js/investors/live.js` (the panels) — read *Rolling ninety books up into one screen* first; the four figures it refuses to invent are the point |
@@ -3017,6 +3104,19 @@ It covers, beyond the checklist below:
   column is full width with no left rail on any tab
 - the Portfolio / Watchlist / Universe toggle changes what every tab reports, and the vocabulary
   is in that order — widest last
+- **the dashboard opens in Portfolio scope even after a session that ended in Universe** — the saved
+  route brings the TAB back and not the scope — while an explicit `?scope=` in a shared link still
+  wins and survives a reload of it, and nothing is left persisting the scope
+- **the Mutual Funds tab keeps its two feeds apart**: they carry different as-of dates, the live one
+  has no benchmark or median of its own, and the head names both dates and says no figure crosses
+  between them. Every published median reconciles against the rows the browser parsed; a period the
+  workbook printed `--` for is absent rather than stored as a zero; a gap is null the moment either
+  side is; a category with no published index resolves to NO benchmark with a stated reason and
+  nothing is borrowed from the 36-index master sheet; the classification narrows **both** sub-views
+  and the head reports the narrowed count; the heatmap classes resolve to a real computed background
+  colour (a composed class would render as none and throw nothing); the category level does not offer
+  a reading it cannot answer; a gap column names its unit; and a saved `super-investors/fund-returns`
+  link is rewritten to the new address rather than falling through to a different page
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
 - **Ask Research keeps all fifteen evidence sources represented**, spends its budget on rows (every

@@ -20,15 +20,16 @@ Two workspaces, fifteen tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | Macro Research · Economy & Macro · Family Book (all three Glow-owned, first in the bar) · **Ask Research** (the landing tab) · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | Macro Research · Economy & Macro · Family Book (all three Glow-owned, first in the bar) · **Ask Research** (the landing tab) · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · **Mutual Funds** (Glow-owned) · News · Corp Announcements · Insider Trades |
 | Portfolio Analytics | Overview · Position By · Transaction History · Drawdown |
 
 **This repository is Glow Central Research, a downstream of Sattva Central Research.** The code is
 merged from `techmuns/Sattva-Central-Research` by `.github/workflows/sync-upstream.yml` (daily, and
 on demand); Glow owns only the brand, the deployment, the data under `public/data/` and its own
-features — the **Fund Returns** sub-view under Super Investors (AmfiBeas returns and peer ranks,
-`js/investors/fund-returns.js`) and the **~1,900-company tracked universe** the company-news and
-insider-trades walks cover (`public/data/tracked-universe.json`). Read *This dashboard is a
+features — the **Mutual Funds** tab (`js/tabs/mutual-funds.js`: a weekly workbook of category
+medians and benchmarks in `public/data/mf-weekly.json`, plus the AmfiBeas returns-and-peer-rank feed
+it renders through `js/investors/fund-returns.js`) and the **~1,900-company tracked universe** the
+company-news and insider-trades walks cover (`public/data/tracked-universe.json`). Read *This dashboard is a
 downstream of Sattva* in `CLAUDE.md` before changing anything, and §7 for what the Glow Worker
 needs configured.
 

@@ -36,9 +36,10 @@ inactive slate with hover. Order is fixed:
 6. Public Chatter
 7. Breakouts / Technical
 8. Super Investors
-9. News
-10. Corp Announcements
-11. Insider Trades
+9. Mutual Funds
+10. News
+11. Corp Announcements
+12. Insider Trades
 
 **Portfolio Analytics**
 1. Overview
@@ -129,9 +130,15 @@ own money is what your own money did, and "every listed company" is the widest p
 that. The vocabulary lives in one place, `js/data/scope.js`; `state.js` and `router.js` import it
 rather than repeating the string pair, so a fourth scope is a change in one file.
 
-- Stored as `state.scope` (`"portfolio" | "watchlist" | "universe"`), persisted to `localStorage`,
-  and carried in the URL as `?scope=`. An unrecognised value in a shared link falls back to the
-  reader's own saved scope rather than silently redefining what is on screen.
+- Held as `state.scope` (`"portfolio" | "watchlist" | "universe"`) and carried in the URL as
+  `?scope=`. **It is session state and is deliberately NOT persisted.** It used to be, and the
+  effect was that one afternoon spent in Universe made Universe the scope the dashboard opened in
+  for ever after — a default any single click permanently overrides is an initial value, not a
+  default. So **every open starts on Portfolio**, while a shared `?scope=` link still wins (the URL
+  is read before anything saved) and a reload still holds its scope (the shell keeps `?scope=` in
+  the address bar at all times, so reloading is a URL with a scope on it rather than a fresh open).
+  An unrecognised value in a shared link falls back to the session's scope rather than silently
+  redefining what is on screen.
 - Every tab module reads `ctx.scope` and must visibly reflect it — the scope chip in each
   panel header states which scope is active and how many rows it covers.
 - **Portfolio means the book**: `public/data/portfolio-companies.json`, the family office's
@@ -455,6 +462,62 @@ roadmap* card that used to close each tab has been removed from the UI:
 - AMFI + Trendlyne mutual fund flow overlay
 - Investor conviction scoring vs position size
 - Cross-investor overlap heatmap
+
+Fund *returns* are no longer here: they are the **Mutual Funds** tab. A saved
+`#/research/super-investors/fund-returns` link still resolves — the shell rewrites it to the new
+address rather than dropping the reader on a different page.
+
+### Mutual Funds — `mutual-funds` (GLOW-OWNED)
+Sub-views: **Category Performance · All Schemes**
+
+Fund performance, which is a different question from the holdings on the tab before it — a fund's
+return is not a stake in a company, sums with nothing there and joins to no company. It was a
+sub-view of Super Investors because that is where the AmfiBeas feed happened to be wired.
+
+**Category Performance** reads a weekly workbook committed to the repo: every mutual-fund category,
+the median return the workbook published for it, and the index the workbook prints beneath that
+category — both on the face of every cell, so a category return never appears without its
+benchmark. Clicking a category opens its schemes, with the category's median, its index and the
+derived gap between them pinned above the table.
+
+**All Schemes** is the daily AmfiBeas feed: every tracked scheme, its point-to-point return per
+period and its rank inside its own cohort.
+
+**The two are different snapshots on different dates and no figure crosses between them.** The
+workbook is weekly and is the only source here that publishes a category median or a benchmark; the
+AmfiBeas payload has neither. Each sub-view prints its own as-on date, and All Schemes says in words
+that a benchmark lives only on the other view. Putting the workbook's index return beside a live
+fund return would be a comparison nobody measured.
+
+**A hierarchical classification drills over both** — asset class → group → category, from
+`js/data/mf-taxonomy.js`, over the workbook's 26 sheets and the live feed's 56 classification
+strings alike. It is a reading aid over somebody else's category, not a new one: nothing is renamed
+or merged. An asset class the workbook does not publish (debt, commodities, fund of funds) is
+**named with the reason** rather than drawn as an empty group.
+
+**The heatmap shades, and the shading explains itself.** A scheme's cell is tinted by where it sits
+among the schemes in its own category over that period — a count, not a model — and a category's by
+the size of its gap to its own index. Emerald above, rose below; a legend beside the table says
+which. The figure printed is always the source's; only the background is added here.
+
+**Exactly two figures are derived**, and both say so wherever they surface: the gap (a return minus
+its category median or its benchmark, in percentage **points**, absent the moment either side is),
+and the shade. The medians and index returns are reproduced unchanged — the import refuses to write
+the file unless every published median reconciles against the scheme rows it parsed.
+
+**The benchmark is the workbook's choice and the reader may change it**, from the indices the
+workbook prints under *that* category and never from the 36-index master sheet. Where a sheet lists
+a price index and its own TRI the TRI is used — the same index measured the way a NAV is — and where
+a category is compared against a price index, that is flagged, because its gap is not on the same
+scale as a TRI gap.
+
+Scope does not apply: these are schemes, not companies. No row carries a watchlist star and the head
+says so.
+
+Still to come:
+- Rolling-period and calendar-year returns, if the workbook ever publishes them
+- Risk measures (standard deviation, Sharpe, max drawdown) — no source here carries them today
+- Debt categories on Category Performance, which need a workbook that publishes them
 
 ### Overview — `overview`
 Sub-views: **Positions · Allocation · Realised P&L**
