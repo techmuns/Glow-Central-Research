@@ -78,7 +78,7 @@ function editorHtml(scope) {
           ${scope === 'universe'
             ? 'Universe edits filter every ticker-based feed. A newly added company appears wherever that feed has data for it.'
             : scope === 'portfolio'
-              ? 'This changes the Research Central Portfolio scope; it does not rewrite the separate Portfolio Analytics ledger.'
+              ? 'This changes the Portfolio scope on this device only; it does not change the book synced from the family office repository.'
               : 'This is the same list controlled by the ☆ beside company rows.'}
         </p>
         <button type="button" data-modal-close class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Done</button>

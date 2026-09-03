@@ -40,10 +40,17 @@ const requestFor = (body) => new Request('https://dashboard.example/api/research
 const parseEvents = async (response) =>
   (await response.text()).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 
-ok('the runtime research catalog covers every visible research tab and hidden portfolio analytics', () => {
+ok('the runtime research catalog covers every visible research tab, and nothing that is not one', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
-  for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades', 'Portfolio Analytics']) {
+  for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades']) {
     assert.equal(tabs.has(title), true, title);
+  }
+  // The mock ledger was the fifteenth source and cited itself as "Portfolio Analytics", linking
+  // into a hidden workspace with no way back. Both are deleted: an evidence source must be a tab
+  // the reader can actually open, and no source may route outside Research Central.
+  assert.equal(tabs.has('Portfolio Analytics'), false);
+  for (const source of DASHBOARD_RESEARCH_SOURCES) {
+    assert.match(source.route, /^#\/research\//, source.id);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
 });

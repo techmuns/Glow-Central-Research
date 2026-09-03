@@ -7,11 +7,12 @@
 //   uncovered()        the lines no NSE-keyed feed can ever carry, each with its reason
 //   meta()             counts, as-of date and provenance for the "N of 142" notes
 //
-// THIS IS NOT THE LEDGER. `portfolio.json` holds twelve positions with quantities and costs, and
-// it drives Portfolio Analytics — the FIFO replay reconciles against it, so it cannot be widened
-// without breaking an identity the suite asserts numerically. This file is the other thing: the
-// list of companies the family holds, used to answer "is this one of mine?" in the research tabs.
-// Two different questions, two different files, deliberately.
+// THIS IS THE ONLY PORTFOLIO INFORMATION THIS DASHBOARD HOLDS: names and sectors, synced from the
+// family's own repository. No quantity, no cost, no valuation, no P&L. There used to be a second
+// file — `portfolio.json`, an ILLUSTRATIVE twelve-position ledger with invented quantities and
+// costs — feeding a Portfolio Analytics workspace and an Ask Research evidence source. It is
+// deleted (see js/ui/shell.js), so "Portfolio" now means exactly one thing here: this book, used
+// to answer "is this one of mine?" in the research tabs.
 //
 // EVERY LINE IS KEPT, INCLUDING THE ONES NO FEED COVERS.
 //   Nineteen of the 142 have no NSE symbol: unlisted private holdings, warrant lines, the Vedanta

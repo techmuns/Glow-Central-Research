@@ -6,8 +6,6 @@ name: Data refresh
 #
 #   scrape-technicals.mjs        ~400 calendar days of OHLCV for the NSE 500 from Yahoo, plus
 #                                NSE bhavcopy delivery %, recomputed into every indicator.
-#   scrape-portfolio-history.mjs 3 years of daily closes for the portfolio's tickers and the
-#                                Nifty 500 — the equity curve the Drawdown view is built from.
 #   scrape-earnings.mjs          the Moneycontrol results snapshot + the scID -> NSE ticker map.
 #   scrape-result-returns.mjs    the close on each result date, the base of "Return since result".
 #   scrape-calendar.mjs          the results calendar — who is SCHEDULED to report, and when.
@@ -31,8 +29,8 @@ name: Data refresh
 # ordinary client, so this runner follows every page and commits a dated fallback. The UI labels a
 # fallback "Captured" with its age rather than passing it off as a live read.
 #
-# Commits technicals.json, atr-history.json, portfolio-history.json, earnings-live.json,
-# mc-ticker-map.json, result-returns.json and earnings-calendar.json back to main.
+# Commits technicals.json, atr-history.json, earnings-live.json, mc-ticker-map.json,
+# result-returns.json and earnings-calendar.json back to main.
 #
 # The ATR accumulator only grows when this runs, so a missed day is a missed data point for
 # the ATR-trend half of the ATR Stability rule — the rule degrades to scoring on the absolute
@@ -80,15 +78,6 @@ jobs:
           # check then runs unauthenticated and records a refusal rather than failing the run.
           MUNS_TOKEN: ${{ secrets.MUNS_TOKEN }}
 
-      # The portfolio equity curve is built from real daily closes, so it refreshes on the
-      # same schedule. It is a dozen tickers rather than 535, so it adds well under a minute.
-      # `continue-on-error` because a portfolio-history failure must not throw away a
-      # successful technicals scrape — the technicals feed is the one the whole dashboard
-      # depends on, and this step's own failures are recorded inside its output file anyway.
-      - name: Run portfolio history scraper
-        continue-on-error: true
-        run: node scripts/scrape-portfolio-history.mjs
-
       # The results snapshot + ticker map. The map is incremental: it only resolves companies it
       # has never seen, so a normal run costs a handful of requests rather than 1,300.
       - name: Run earnings snapshot + ticker map
@@ -135,7 +124,6 @@ jobs:
           path: |
             public/data/technicals.json
             public/data/atr-history.json
-            public/data/portfolio-history.json
             public/data/earnings-live.json
             public/data/mc-ticker-map.json
             public/data/result-returns.json
@@ -151,7 +139,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/data/technicals.json
           [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
-          [ -f public/data/portfolio-history.json ] && git add public/data/portfolio-history.json || true
           for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done

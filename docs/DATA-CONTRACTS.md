@@ -21,13 +21,11 @@ the interface, and change the doc and the producer together.
 
 | `ctx.data` key | File |
 | --- | --- |
-| `portfolio` | `public/data/portfolio.json` |
 | `portfolioCompanies` | `public/data/portfolio-companies.json` |
 | `universe` | `public/data/universe.json` |
 | `earnings` | `public/data/mock/earnings.json` |
 | `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `filedHoldings` | `public/data/institution-holdings.json` |
-| `transactions` | `public/data/mock/transactions.json` |
 
 `universe.json` is loaded twice over: the raw screener rows stay on `ctx.data.universeRaw`, and
 `ctx.data.universe` carries the adapted `{ ticker, name, marketCap, sector, industry }` shape the
@@ -46,7 +44,6 @@ and the device store*.
 | --- | --- | --- |
 | `technicals.json`, `atr-history.json`, `technicals-source.json` | `js/data/technicals.js` (Breakouts, global search) | ~800KB |
 | `chatter-valuepickr.json`, `chatter-telegram.json` | `js/data/chatter.js` (Public Chatter) | ~160KB |
-| `portfolio-history.json` | `js/data/portfolio.js` (Portfolio Analytics) | ~285KB |
 | `earnings-live.json`, `mc-ticker-map.json`, `result-returns.json` | `js/data/earnings-live.js` (Earnings Hub) | ~1.2MB |
 
 The three Super Investors files load at bootstrap and seed `js/data/investors.js` through
@@ -54,20 +51,19 @@ The three Super Investors files load at bootstrap and seed `js/data/investors.js
 
 > **Mock vs real.** Everything under `public/data/mock/` is placeholder data so the shell has
 > something to render. Outside `mock/`: `technicals.json`, `atr-history.json`,
-> `portfolio-history.json`, `earnings-live.json`, `mc-ticker-map.json` and `result-returns.json`
-> are **live** (scraped on a schedule, and the Earnings Hub is live per-request on top of that),
-> `universe.json` is a **real**
-> NSE-500 screener export refreshed by hand, and `portfolio.json` is user config whose `qty` and
-> `avgPrice` are *derived* from the ledger rather than typed in.
+> `earnings-live.json`, `mc-ticker-map.json` and `result-returns.json` are **live** (scraped on a
+> schedule, and the Earnings Hub is live per-request on top of that), `universe.json` is a **real**
+> NSE-500 screener export refreshed by hand, and `portfolio-companies.json` is **real** — the
+> family office's own book, synced from `techmuns/Sattva-Family`.
 >
-> **Portfolio Analytics is the one workspace that mixes the two inside a single number.** The
-> ledger is synthetic — which trades were made, and when. Every price in it is real: execution
-> prices are actual Yahoo closes on real trading days, positions are marked to market from the
-> live technicals feed, and the equity curve is built from `portfolio-history.json`. A pill in
-> every sub-view's section head states both halves — *Illustrative ledger · live marks* — because a
-> flat "mock data" badge would understate the numbers and a "live" badge would overstate them, and
-> the modal behind it carries the detail. It replaced a four-line amber ribbon that was the loudest
-> thing on the workspace; the claim stayed on screen and the paragraph moved one click away.
+> **THERE IS NO LEDGER ANY MORE, AND THAT IS THE POINT.** `portfolio.json` (twelve positions with
+> quantities and costs), `mock/transactions.json` (the synthetic trade ledger) and
+> `portfolio-history.json` (290KB of equity-curve closes) fed a Portfolio Analytics workspace that
+> mixed mock and real inside single numbers — a market value, an XIRR, a max drawdown. It carried an
+> honest *Illustrative ledger · live marks* pill on every sub-view, and it is still deleted: a pill
+> does not survive a screenshot, and an invented ₹30.7L market value under this dashboard's chrome
+> reads as the family's money. The only portfolio data here is the book — names and sectors. See
+> *Portfolio means a list of names* in `CLAUDE.md`; the files are in git history at `d3bba30`.
 
 ---
 
@@ -442,19 +438,18 @@ Con-call, Breakouts, Public Chatter, Institutions and Superstar Investors all as
 one of ours?"* and this file is the answer. Loaded at bootstrap onto `ctx.data.portfolioCompanies`
 and primed into `js/data/coverage.js`.
 
-**It is NOT the ledger, and the two must not be merged.** `portfolio.json` holds twelve positions
-with quantities and costs and drives Portfolio Analytics, where a FIFO replay reconciles against it
-and `verify-ui.mjs` asserts two identities numerically. Widening that file to 142 lines would break
-both identities and invent quantities nobody supplied. The statement this file came from was given
-as names only — value and weight were explicitly out of scope — so it carries names only. Two
-different questions, two files:
+**IT CARRIES NAMES AND SECTORS, AND IT MUST NEVER BE WIDENED.** The statement this file came from
+was given as names only — value and weight were explicitly out of scope — so a quantity, a cost or a
+valuation added here would be invented rather than supplied. There used to be a second file,
+`portfolio.json`, holding twelve positions with quantities and costs for a Portfolio Analytics
+workspace; both are deleted, so this is now the whole of what "portfolio" means in this dashboard.
 
-| | `portfolio-companies.json` | `portfolio.json` |
-| --- | --- | --- |
-| Answers | *is this company one of ours?* | *how much of it do we own, at what cost?* |
-| Lines | 142 | 12 |
-| Fields | name, ticker, sector | + qty, avgPrice, conviction tier |
-| Drives | the Portfolio scope on the research tabs | Portfolio Analytics, the FIFO replay, the equity curve |
+| | `portfolio-companies.json` |
+| --- | --- |
+| Answers | *is this company one of ours?* |
+| Lines | 142 (19 with no NSE symbol, each with a stated reason) |
+| Fields | name, ticker, sector — and nothing else |
+| Drives | the Portfolio scope on every research tab |
 
 ```jsonc
 {
@@ -591,116 +586,20 @@ resolver is re-run by the same job.
 
 ---
 
-## `public/data/portfolio.json`
+## `public/data/portfolio.json` and `public/data/portfolio-history.json` — DELETED
 
-The tracked holdings. Root is an **object**, not an array.
+Both are gone, with `public/data/mock/transactions.json`, `js/data/portfolio.js`,
+`js/portfolio/*`, `scripts/gen-mock-transactions.mjs` and `scripts/scrape-portfolio-history.mjs`.
 
-**`qty` and `avgPrice` are DERIVED, not typed in.** They are written by
-`scripts/gen-mock-transactions.mjs` from a FIFO replay of the ledger, which is what makes
-`sum(open lots) === qty` hold by construction rather than by luck. Editing them by hand puts the
-position table and the ledger into disagreement, and `scripts/verify-ui.mjs` fails when they
-disagree. The holdings *list* — tickers, names, sectors, conviction tiers — is user config and is
-preserved across regeneration.
+`portfolio.json` was the tracked-holdings config — twelve positions whose `qty` and `avgPrice` were
+derived from a FIFO replay of the mock ledger. `portfolio-history.json` was three years of real
+daily closes (~290KB) behind the equity curve, the two drawdown series and the Nifty 500
+comparison. Together with the ledger they were the Portfolio Analytics workspace, which is deleted:
+see *Portfolio means a list of names* in `CLAUDE.md` for why, and `d3bba30` in git history for the
+code. Nothing in the dashboard fetches any of them, and `scripts/verify-ui.mjs` asserts that each
+one 404s on the served site so a stale import cannot quietly bring the feature back.
 
-There is deliberately **no `lastPrice` and no `high52w`**. Those were placeholders; positions are
-now marked to market from `technicals.json` (`cmp` and `high_52w`). A position missing from that
-feed is marked at cost, flagged `priced: false`, tagged "at cost" in the UI and excluded from the
-equity curve — never marked at zero, which would invent a −100% position.
-
-```jsonc
-{
-  "_provenance": "…",
-  "asOf": "2026-08-06",
-  "basis": "FIFO, charges folded into cost",
-  "holdings": [
-    {
-      "ticker": "HDFCBANK",
-      "name": "HDFC Bank Ltd",
-      "qty": 300,
-      "avgPrice": 892.77,
-      "sector": "Financials",
-      "convictionTier": "Core"
-    }
-  ]
-}
-```
-
-| Field | Type | Unit / values | Notes |
-| --- | --- | --- | --- |
-| `asOf` | string | `YYYY-MM-DD` | Date of the last ledger row. |
-| `basis` | string | — | Cost-basis convention, stated so an importer cannot assume weighted-average. |
-| `holdings[].ticker` | string | NSE symbol | Join key. |
-| `holdings[].name` | string | — | Full company name. |
-| `holdings[].qty` | number | shares | **Derived.** Sum of open FIFO lots. |
-| `holdings[].avgPrice` | number | ₹ per share | **Derived.** FIFO cost of open lots ÷ quantity, buy-side charges included. |
-| `holdings[].sector` | string | — | User config; falls back to the technicals feed. |
-| `holdings[].convictionTier` | string | `Core` \| `High Conviction` \| `Tracking` | User config. An input, not a score. |
-
-**Refresh cadence** — holdings list user-edited; `qty` / `avgPrice` regenerated with the ledger.
-**Real source** — the user, or a broker import.
-**Consumed by** — `js/data/portfolio.js` (which primes from `app.js`), every tab's Portfolio scope filter.
-
----
-
-## `public/data/portfolio-history.json` — LIVE
-
-**Three years of real daily closes.** Written by `scripts/scrape-portfolio-history.mjs`, refreshed
-weekdays 07:00 IST alongside the technicals scrape, and consumed by `js/data/portfolio.js` to build
-the equity curve, the drawdown series and the benchmark comparison.
-
-This file is real because the alternative is the worst thing in the dashboard to fake: a max
-drawdown from an invented price series looks exactly like a measured one, and unlike a mock revenue
-figure nothing contradicts it.
-
-```jsonc
-{
-  "_provenance": "REAL DATA. Daily closing prices from Yahoo Finance …",
-  "generated_at": "2026-08-11T…Z",
-  "source": "Yahoo Finance",
-  "years": 3,
-  "from": "2023-08-11",
-  "to": "2026-08-10",
-  "trading_days": 741,
-  "ticker_count": 12,
-  "requested_count": 13,
-  "failure_count": 1,
-  "failures": [
-    { "ticker": "TATAMOTORS", "symbol": "TATAMOTORS.NS", "reason": "ticker not found",
-      "inUniverse": false, "kind": "holding" }
-  ],
-  "benchmark": { "symbol": "^CRSLDX", "name": "Nifty 500",
-                 "points": [{ "d": "2023-08-11", "c": 19428.05 }] },
-  "series": { "HDFCBANK": [{ "d": "2023-08-11", "c": 812.4 }] }
-}
-```
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `series[ticker][]` | `{ d, c }` | ISO date and closing price in ₹. Oldest first. |
-| `benchmark.points[]` | `{ d, c }` | Nifty 500 (`^CRSLDX`) on the same calendar. |
-| `failures[]` | array | **Load-bearing.** Every ticker Yahoo would not serve, with the reason. The UI names these positions as excluded from the curve and carries them at running cost; it never silently shortens the curve. |
-| `trading_days` | number | Union of all dates across every series. |
-
-**Two things about this file that are easy to get wrong:**
-
-1. **Yahoo's `close` is back-adjusted** for splits and bonuses. Historical prices are restated in
-   today's share terms. So a ledger may carry a corporate-action row **only** for an action the
-   series was adjusted for; an invented split on a real ticker doubles the quantity while the price
-   series stays put, and the curve jumps 100% on a day nothing happened. See
-   `scripts/gen-mock-transactions.mjs`, which puts both synthetic actions on the one holding with no
-   price series at all.
-2. Where an action row *does* exist, `dailyPositions()` in `js/portfolio/lots.js` returns
-   `valuationQtyByDate` — the holding expressed in **current share terms** — and the curve values
-   against that. Against a back-adjusted series the two corrections cancel exactly.
-
-**Refresh cadence** — weekdays 07:00 IST, `.github/workflows/technicals-refresh.yml`.
-**Real source** — Yahoo Finance Chart v8 (`query1.finance.yahoo.com`), via `scripts/lib/yahoo.mjs`.
-**Consumed by** — `js/data/portfolio.js` → Drawdown (all three sub-views) and Overview's benchmark line.
-**Bootstrap note** — the scraper derives its ticker list from `portfolio.json` + the ledger. A ticker
-about to enter the ledger is not in it yet, so `EXTRA_TICKERS=ASIANPAINT node scripts/scrape-portfolio-history.mjs`
-breaks that one-time deadlock.
-
----
+**The only portfolio file left is `portfolio-companies.json`** — the book, above.
 
 ## `public/data/universe.json`
 
@@ -2987,81 +2886,19 @@ dashboard through the technicals scrape (`chg_fii_hold`, `chg_dii_hold`) and are
 The removed view is in git history at `HEAD~1`.
 
 
-## `public/data/mock/transactions.json` — MOCK ledger, REAL prices
+## `public/data/mock/transactions.json` — DELETED
 
-The buy/sell/dividend/corporate-action ledger. Root is an **array**, 113 rows across three
-financial years. Regenerate with `node scripts/gen-mock-transactions.mjs` (seeded — the output is
-byte-identical, so a diff means a real change).
+The synthetic buy/sell/dividend/corporate-action ledger: 113 rows across three financial years,
+seeded, with **real Yahoo closes as execution prices** so the equity curve never stepped at a
+trade. It fed `js/portfolio/lots.js`'s FIFO replay, which produced the open lots, the realised rows
+with per-lot holding periods and tax terms, and the two reconciliation identities the suite used to
+assert numerically.
 
-**What is synthetic and what is not.** Which trades were made and when is invented. Every
-execution price is a real Yahoo close for that ticker on that trading day (from
-`portfolio-history.json`) plus a few basis points of slippage, and every trade date is snapped to a
-real trading day. That is deliberate: a buy recorded at a price the stock never traded at would make
-the equity curve step at the trade date — a visible artefact in a risk chart. Charges use the real
-Indian delivery-equity rate card.
-
-```jsonc
-[
-  { "id": "t-016", "date": "2024-03-19", "ticker": "CDSL",
-    "name": "Central Depository Services Ltd", "type": "Buy",
-    "qty": 40, "price": 840.77, "value": 33630.80, "charges": 39.88 },
-
-  { "id": "t-052", "date": "2024-08-06", "ticker": "TATAMOTORS", "name": "Tata Motors Ltd",
-    "type": "Bonus", "qty": 110, "price": 0, "value": 0, "charges": 0, "ratio": 2 }
-]
-```
-
-| Field | Type | Unit / values | Notes |
-| --- | --- | --- | --- |
-| `id` | string | `t-NNN` | Stable, and assigned in date order. |
-| `date` | string | `YYYY-MM-DD` | A real trading day. |
-| `ticker` / `name` | string | — | |
-| `type` | string | `Buy` \| `Sell` \| `Dividend` \| `Bonus` \| `Split` | |
-| `qty` | number | shares | Always positive. On a `Bonus`/`Split` it is the shares *added*, for display; the engine reads `ratio`. |
-| `price` | number | ₹ per share | Execution price. On a `Dividend` it is the per-share amount. Zero on corporate actions. |
-| `value` | number | ₹ | `qty × price`, excluding charges. |
-| `charges` | number | ₹ | STT + exchange + GST + SEBI + stamp (buys) + DP (sells). **Folded into the cost basis on a buy** and **deducted from proceeds on a sell**, apportioned across the lots consumed. |
-| `ratio` | number | multiplier | `Bonus`/`Split` only. `2` = a 1:1 bonus or a 1:2 split. |
-
-**How the ledger is consumed.** `js/portfolio/lots.js` replays it once per page load:
-
-- Buys open a lot at `(qty × price + charges) / qty`.
-- Sells consume the **oldest open lots first**, emitting one realised row per lot matched, each
-  carrying its own `buyDate`, `heldDays` and `term` (`long` above 365 days).
-- Dividends are **income**, tracked separately and never folded into the basis — doing so would
-  disguise income as a cheaper purchase.
-- Bonuses and splits **adjust the open lots in place**: quantity multiplied, cost per share divided,
-  total cost unchanged, acquisition date preserved. Creating a zero-price "buy" for bonus shares
-  would reset the holding-period clock and misclassify a later sale as short term.
-- A sell larger than the holding, or an unrecognised type, lands in `book.errors[]` — never dropped.
-
-**The two identities**, asserted numerically in `scripts/verify-ui.mjs`:
-`sum(open lot quantities) === position quantity`, and
-`realised + unrealised + dividends === total P&L` — per position, not merely in aggregate.
-
-**CSV round trip.** Transaction History → Import / Export exports and re-imports the exact column
-set `id,date,ticker,name,type,qty,price,value,charges,ratio`. Import parses in the browser, previews
-what it parsed, names every rejected row with its line number and reason, and trial-replays before
-offering to apply. **An applied import lives until reload** — this is a static site with no server to
-write the file — and the UI says so rather than letting the work vanish silently.
-
-**Refresh cadence** — event-driven, per trade.
-**Real source** — broker contract notes (Zerodha / Groww / ICICI Direct import).
-**Consumed by** — `js/data/portfolio.js`, `js/portfolio/lots.js`, all four Portfolio Analytics tabs.
-
----
-
-### Wiring the real ledger
-
-1. Replace `public/data/mock/transactions.json` with the real rows, same shape.
-2. Regenerate `portfolio.json`'s `qty`/`avgPrice` from a FIFO replay (or run the generator with the
-   real ledger in place, which does both).
-3. Run `node scripts/scrape-portfolio-history.mjs` so the curve covers every ticker the new ledger
-   touches; anything Yahoo will not serve lands in `failures[]` and the UI names it.
-4. Update the two `mock` rows in `js/ui/sources.js` to `static` or `live`.
-5. Replace the ledger clause in `provenancePill()` / `provenanceModalHtml()` in
-   `js/portfolio/chrome.js` — one function each, and all four sub-views read them.
-6. Re-run `node scripts/verify-ui.mjs`; the reconciliation identities must still hold.
+It is deleted with the rest of Portfolio Analytics — see *Portfolio means a list of names* in
+`CLAUDE.md`. **There is no "wiring the real ledger" path here any more**, deliberately: a real
+ledger is a different product decision from restoring a mock one, and the code to build on is in
+git history at `d3bba30` (the engine, the charges-in-the-basis and dividends-as-income rules, and
+the back-adjustment trap that governs corporate actions against a split-adjusted price series).
 
 ---
 
@@ -3091,8 +2928,8 @@ company; `removed` records the excluded default entry (including its upper-case 
 the name lets the name-only super-investor feed honour the exclusion too. Adding a default company
 again clears its exclusion, and **Restore default** clears both arrays for that scope. Watchlist is
 not duplicated here: its editor calls the existing `sattva:watchlist` store, so stars and the
-header editor cannot disagree. All edits are device-local, and Portfolio edits affect research
-scope only — they do not invent quantities or costs in the Portfolio Analytics ledger.
+header editor cannot disagree. All edits are device-local, and a Portfolio edit affects research
+scope and denominators only — there are no quantities or costs anywhere for it to touch.
 
 The browser calls `GET /api/stock-search?q=` after two characters. The Worker sends the exact Muns
 body `{ query, user_index: 124 }`, keeps `MUNS_TOKEN` out of the browser, and normalises the

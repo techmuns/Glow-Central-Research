@@ -9,7 +9,6 @@ import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
-import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
 // Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
@@ -36,21 +35,20 @@ import { startHostCapture } from './core/host-capture.js';
 //   and each consumer awaits the module that owns it. Every one of those modules already had its
 //   own idempotent `load()`; priming them from here is an optimisation, not the mechanism.
 const CRITICAL_SOURCES = {
-  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols. This is
-  // what the Portfolio/Universe toggle filters the research tabs by. It is NOT the ledger:
-  // portfolio.json is, and the two are different questions. See js/data/coverage.js.
+  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols, synced
+  // from techmuns/Sattva-Family. This is what the scope toggle filters the research tabs by, and
+  // it is the ONLY portfolio information this dashboard holds: names and sectors, no quantities,
+  // no costs, no valuations. See js/data/coverage.js.
   portfolioCompanies: 'data/portfolio-companies.json',
 };
 
 const DEFERRED_SOURCES = {
-  portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   earnings: 'data/mock/earnings.json',
   earningsCalendar: 'data/mock/earnings-calendar.json',
   // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
   // read by exactly one sub-view.
   filedHoldings: 'data/institution-holdings.json',
-  transactions: 'data/mock/transactions.json',
 };
 
 async function fetchAll(sources) {
@@ -104,11 +102,10 @@ function loadDeferred(data) {
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
 
-      // Portfolio Analytics: the holdings config and the ledger are both small and already fetched
-      // here, so the module is seeded rather than refetching. It pulls the two heavy inputs itself
-      // when the workspace mounts — the live technicals feed (the mark) and portfolio-history.json
-      // (the equity curve) — because eight of the nine tabs never need them.
-      primePortfolio(data.portfolio, data.transactions);
+      // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
+      // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,
+      // which no reader could reach by clicking. Both the workspace and those files are gone; the
+      // only portfolio input left is the BOOK above, and it is the one thing the shell blocks on.
       return data;
     })
     .catch((err) => {
