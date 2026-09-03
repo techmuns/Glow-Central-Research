@@ -6017,13 +6017,6 @@ console.log('\n— news, announcements and insider trades —');
     nsePort && nsePort.unresolvedInUniverse && !nsePort.unresolvedInPortfolio,
     `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
 
-  // BACK TO THE NEWS TAB FIRST. The NSE block above navigates to its own route, and this check is
-  // about the market-news list's search box — which is not mounted there, so it read "no search
-  // box" and failed a check about a control that was fine on the page it lives on. A check that
-  // asserts against a tab must be on that tab.
-  await go('/#/research/news?scope=universe', 2200);
-  await page.waitForFunction(() => !document.querySelector('[data-mcnews-list][data-rows-pending]'), null, { timeout: 20000 }).catch(() => {});
-
   // Search narrows the list without touching the head, and the count reports the ARRAY.
   //
   // NAVIGATE BACK FIRST — this check owns its own precondition rather than inheriting the page the
