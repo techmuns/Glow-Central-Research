@@ -143,7 +143,10 @@ export function makeFilingsTab(cfg) {
     }
     disposers.forEach((d) => d && d());
     disposers = [];
-    const seeded = companySeededView(ctx, routeCompany, view);
+    // `exact: true` — these three tabs render the company multi-select, so a `?company=` deep link
+    // becomes a removable CHIP rather than text in the search box: it narrows to that company and
+    // nothing else, and the chip is what says so on screen. See companySeededView in ui/screener.js.
+    const seeded = companySeededView(ctx, routeCompany, view, { exact: true });
     routeCompany = seeded.company;
     view = seeded.view;
 
