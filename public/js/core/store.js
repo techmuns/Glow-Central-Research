@@ -35,6 +35,12 @@ const DB_VERSION = 1;
 const STORE = 'payloads';
 
 // Everything the store holds, so a version bump or a manual clear has one list to walk.
+// The window each filings feed asks for by default, mirrored from WINDOW_DAYS in
+// js/data/filings.js. It lives here so `filingRow` can keep the bare key for the ordinary case and
+// only suffix a widened one — importing the feed from the store would be a cycle, and the two
+// numbers moving apart costs one cold fetch rather than a wrong answer.
+const DEFAULT_FILING_WINDOW = { news: 30, announcements: 365, insider: 365 };
+
 export const KEYS = {
   earnings: (subType) => `earnings:${subType}`,
   concalls: 'concalls',
@@ -62,7 +68,15 @@ export const KEYS = {
   // News, announcements and insider trades. One entry per committed snapshot and one per company
   // walked live, so a quarter landing for one company cannot invalidate the other six hundred.
   filings: (kind) => `filings:${kind}`,
-  filingRow: (kind, ticker) => `filings:${kind}:${ticker}`,
+  // THE WINDOW IS PART OF THE KEY, because it is part of the question. These routes take `from`
+  // and `to`, so the reader's history range decides what a request asks for — and a thirty-day
+  // answer served back for a one-year request would be a store hit, no network, and eleven months
+  // missing with nothing on screen able to say so. The default window keeps the bare key, so the
+  // common path still reads entries written before ranges existed.
+  filingRow: (kind, ticker, windowDays = null) =>
+    windowDays && windowDays !== DEFAULT_FILING_WINDOW[kind]
+      ? `filings:${kind}:${ticker}:${windowDays}d`
+      : `filings:${kind}:${ticker}`,
   // Market-wide stocks news, the Universe half of the News tab. One committed capture, refreshed
   // by a scheduled Action — neither the browser nor the Worker can read the publisher directly.
   marketNews: 'market-news',

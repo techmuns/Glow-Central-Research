@@ -7073,6 +7073,147 @@ console.log('\n— news, announcements and insider trades —');
     }
   }
 
+  // -------------------------------------------------------------------------------------
+  // THE HISTORY WINDOW — 3M / 6M / 1Y and a custom pair, on all three filings tabs
+  //
+  // The reader's job on these tabs is "browse the last three / six / twelve months of what
+  // happened in my stocks", and until this control existed each tab showed exactly one window: the
+  // one its capture happened to hold. The checks below are the four ways a date filter goes wrong,
+  // and every one of them is a control that looks like it is working:
+  //
+  //   1. IT NARROWS BY DEFAULT. A range control that opens on "1 month" silently removes rows
+  //      nobody asked to hide — measured before the default was changed: Insider Trades went from
+  //      3,548 rows to 408 on a first paint, with no filter the reader had set. So the default is
+  //      "everything held" and the first paint must be unchanged by the control's existence.
+  //   2. IT LIES ABOUT ITS REACH. Corporate announcements are trimmed to a size ceiling
+  //      (ANN_KEEP_DAYS, ~3 days — a month of the whole exchange is ~16 MB every visitor
+  //      downloads), so "1 year" there is a short list under a twelve-month label, which a reader
+  //      takes as "almost nothing happened all year". The control has to say what it holds.
+  //   3. IT DROPS ROWS WITHOUT SAYING SO. A table that shrinks by 3,458 rows reads as a feed that
+  //      lost them unless the count is on screen.
+  //   4. IT ONLY FILTERS. These routes take `from`/`to`, so a window is a parameter on the request
+  //      as well as on the display — but widening it must never START a walk, which would be the
+  //      page-load walk this whole tab is built to avoid.
+  {
+    const RANGE_TABS = [
+      { tab: 'insider-trades', scope: 'universe', feed: 'insider' },
+      { tab: 'news', scope: 'portfolio', feed: 'news' },
+      { tab: 'corp-announcements', scope: 'universe', feed: 'announcements' },
+    ];
+    const rowsShown = async () => {
+      const t = await page.locator('[data-row-count]').first().textContent().catch(() => '');
+      return Number(String(t || '').replace(/,/g, '').match(/\d+/)?.[0] ?? -1);
+    };
+
+    for (const { tab, scope, feed } of RANGE_TABS) {
+      await go(`/#/research/${tab}?scope=${scope}`, 3500);
+      const held = await evalSafe(async (k) => {
+        const f = (await import('/js/data/filings.js'))[k];
+        const { heldSpan } = await import('/js/data/date-range.js');
+        return { ...heldSpan(f.rows()), rowCount: f.meta().rowCount, coversUniverse: f.meta().coversUniverse };
+      }, feed);
+
+      if (!held.rowCount) {
+        skip(`${tab} offers 3M / 6M / 1Y history windows`, 'no committed snapshot on this origin yet');
+        continue;
+      }
+
+      const presets = await page.locator('[data-range-preset]').allTextContents();
+      ok(`${tab} offers 3M / 6M / 1Y history windows and a custom range`,
+        ['7D', '1M', '3M', '6M', '1Y', 'All'].every((p) => presets.includes(p)) &&
+          (await page.locator('[data-range-custom-toggle]').count()) === 1,
+        presets.join(' '));
+
+      // 1. THE CONTROL IS ADDITIVE ON A FIRST PAINT — asserted as an identity between the first
+      // paint and an explicit "All", never by counting the feed's rows and comparing. Both of the
+      // obvious counts cross a boundary the control has nothing to do with: `heldSpan` counts only
+      // DATED rows (insider holds 22 whose source published none, and "All" rightly still shows
+      // them), and the feed's total is unscoped (news paints 2,449 of 11,867 under Portfolio). The
+      // question is only whether the control removed anything nobody asked it to.
+      const defaultRows = await rowsShown();
+      const active = (await page.locator('[data-range-preset][aria-pressed="true"]').textContent().catch(() => '')) || '';
+      await page.locator('[data-range-preset="7d"]').click();
+      await page.waitForTimeout(700);
+      const weekFirst = await rowsShown();
+      await page.locator('[data-range-preset="all"]').click();
+      await page.waitForTimeout(700);
+      ok(`...and opens on everything held rather than hiding rows nobody filtered`,
+        active.trim() === 'All' && defaultRows === (await rowsShown()) && weekFirst <= defaultRows,
+        `active ${active.trim()}, first paint ${defaultRows} = All ${await rowsShown()}, 7D ${weekFirst}`);
+
+      // 2. A WINDOW WIDER THAN THE CAPTURE SAYS SO, ON THE FACE OF THE CONTROL.
+      await page.locator('[data-range-preset="1y"]').click();
+      await page.waitForTimeout(900);
+      const yearBack = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+      const reachNote = (await page.locator('[data-range-control] [class*="amber"]').first().textContent().catch(() => '')) || '';
+      const capturePartial = !!held.first && held.first > yearBack;
+      ok(`...and names how far back it actually holds when a window outruns the capture`,
+        capturePartial ? reachNote.includes(held.first) : reachNote.trim() === '',
+        capturePartial ? `holds from ${held.first}, note "${reachNote.trim()}"` : `full year held from ${held.first}, no note`);
+      // Only a per-company feed can be walked further back. Offering that on the date-indexed
+      // announcements capture would send the reader after filings that are not behind a request.
+      if (capturePartial) {
+        ok(`...and offers to fetch further back only where a request could`,
+          reachNote.includes('Refresh to go further') === !held.coversUniverse,
+          `coversUniverse ${held.coversUniverse}: "${reachNote.trim()}"`);
+      }
+      ok(`...and puts the window in the URL so the view is shareable`,
+        page.url().includes('range=1y'), page.url().split('#')[1] || '');
+
+      // 3. A NARROWED WINDOW ACCOUNTS FOR THE ROWS IT IS HOLDING BACK.
+      await page.locator('[data-range-preset="7d"]').click();
+      await page.waitForTimeout(900);
+      const weekRows = await rowsShown();
+      const hiddenNote = await hostText();
+      ok(`...and a narrowed window never drops rows silently`,
+        weekRows === held.count || /hidden/.test(hiddenNote),
+        weekRows === held.count ? 'nothing outside the window' : `${held.count - weekRows} fewer rows, note present`);
+
+      // 4. A CUSTOM PAIR IS A REAL RANGE, AND A REVERSED ONE IS READ THE WAY IT WAS MEANT.
+      await page.locator('[data-range-custom-toggle]').click();
+      await page.waitForTimeout(300);
+      ok(`...and the custom pair opens two date inputs`,
+        (await page.locator('[data-range-from]').count()) === 1 && (await page.locator('[data-range-to]').count()) === 1);
+    }
+
+    // WIDENING THE WINDOW MAY NOT START A WALK. The range decides what the NEXT refresh asks for;
+    // a control that dispatched sixty per-company requests because somebody clicked "1 year" would
+    // be the page-load walk again in a different hat — the exact thing these tabs are built around.
+    const walkOnPick = [];
+    const countWalk = (r) => { if (/\/api\/(news|announcements|insider-trades)/.test(r.url())) walkOnPick.push(r.url()); };
+    await go('/#/research/news?scope=portfolio', 3500);
+    page.on('request', countWalk);
+    for (const id of ['1y', '6m', '3m']) {
+      await page.locator(`[data-range-preset="${id}"]`).click();
+      await page.waitForTimeout(600);
+    }
+    page.off('request', countWalk);
+    ok('widening the history window sends no request of its own', walkOnPick.length === 0, `${walkOnPick.length} request(s)`);
+
+    // ...BUT IT DOES CHANGE WHAT A REFRESH WOULD ASK FOR, which is the half that makes this more
+    // than a filter. Asserted on the feed rather than by driving a walk, because a walk needs the
+    // Worker; the request window is the value `loadOne` builds `from=` out of.
+    // A THROWAWAY FEED, not the module-level one: the clicks above have already widened that to a
+    // year, so `before` would be 365 and the widening half of this could not fail. A check that
+    // cannot fail is not a check.
+    const askWindow = await evalSafe(async () => {
+      const { createFeed } = await import('/js/data/filings.js');
+      const probe = createFeed('news');
+      const before = probe.meta().requestWindowDays;
+      probe.setWindow(365);
+      const after = probe.meta().requestWindowDays;
+      probe.setWindow(7);
+      return { before, after, narrowed: probe.meta().requestWindowDays };
+    });
+    ok('...and the selected window is what the next walk will ask the upstream for',
+      askWindow.before === 30 && askWindow.after === 365, `${askWindow.before}d → ${askWindow.after}d`);
+    // Narrowing must not shrink the request: `loadOne` REPLACES a company's rows, so a reader who
+    // spent sixty requests on a year and then flipped to 7 days would have that year overwritten
+    // by a week — requests paid for and thrown away, and the wide view showing less than before.
+    ok('...and narrowing the display never shrinks what has already been paid for',
+      askWindow.narrowed === 365, `${askWindow.after}d → ${askWindow.narrowed}d`);
+  }
+
   page.off('request', watchFilings);
 }
 

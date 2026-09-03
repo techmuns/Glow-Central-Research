@@ -162,6 +162,9 @@ public/
                               bounded live walk for whatever it is missing
       filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
                               worker/muns.mjs
+      date-range.js           THE HISTORY WINDOW — 7D/1M/3M/6M/1Y/All plus a from–to pair, shared by
+                              the three filings tabs. It decides what the table SHOWS and what the
+                              next walk ASKS FOR, which are two different things
     scoring/
       tech-scoring.js         16-rule / 24-point technicals model (ported verbatim)
       earnings-scoring.js     15-rule / 21-point result quality + growth model
@@ -1113,6 +1116,41 @@ That is survivable, and this is what makes it survivable:
    computed from what is painted and what the server confirmed **in this session**, so it cannot
    drift from them. Bytes this device kept from an earlier visit read *Cached*: they have a real
    `checkedAt` and they have not been checked now, and those are different claims.
+
+**THE HISTORY WINDOW IS A PARAMETER ON THE REQUEST, WHICH IS WHY IT IS NOT ONLY A FILTER.** All
+three tabs carry a range control — 7D / 1M / 3M / 6M / 1Y / everything held, plus an explicit
+from–to pair — because the reader's job here is *"browse the last three, six, twelve months of what
+happened in my stocks"*, and each tab used to show exactly one window: whichever its capture
+happened to hold. `js/data/date-range.js` is the vocabulary, the control rides in the URL as
+`?range=6m`, and the full contract is in `docs/DATA-CONTRACTS.md`. Five things about it are
+load-bearing:
+
+1. **The default is everything held**, so the control changed nothing about the first paint. A
+   month is the tempting default and it would have cut Insider Trades from 3,548 rows to 408 for
+   every reader who never touched it — a filter nobody set, hiding rows nobody asked to hide. **A
+   new control has to be additive on the first paint.**
+2. **Selecting a window sends no request.** It changes what the *next* walk asks for. A control
+   that dispatched sixty per-company requests because somebody clicked *1 year* would be the
+   page-load walk again wearing a different hat.
+3. **The request window only ever WIDENS within a session.** `loadOne` *replaces* a company's rows,
+   so a reader who spends sixty requests on a year and then flips to 7 days would have that year
+   overwritten by a week. Narrowing is a question about what to display and is never a reason to
+   fetch less.
+4. **The window is part of the device key and part of `stale()`.** Without the first, a thirty-day
+   answer is served back for a one-year request — a store hit, no network, eleven months missing
+   and nothing on screen able to say so. Without the second the widened request never fires: the
+   walk counts sixty companies down without sending one, which is the same shape as the two
+   disagreeing "still needs asking about" predicates above.
+5. **THE CONTROL STATES ITS OWN REACH, AND THE REACH IS MEASURED FROM THE ROWS.** Measured on the
+   shipped captures: insider holds **365 days**, news **30**, announcements **3** (`ANN_KEEP_DAYS`
+   is a bytes ceiling — a month of the whole exchange is ~16 MB every visitor downloads). So *1
+   year* over the announcements capture is a short list under a twelve-month label, which a reader
+   takes as *"almost nothing happened all year"* rather than *"we hold three days"*. It says **Held
+   back to `<date>`**, and offers *Refresh to go further* **only** where a per-company request could
+   fetch more — never on the date-indexed capture, whose gap is a size limit rather than an unasked
+   question. The span comes from `heldSpan()` over the rows and never from the file's own header:
+   the announcements capture declares `windowDays: 13` and then prunes to three, so its header
+   names a fortnight it does not hold — wrong by ten days in the one direction that matters.
 
 **Nothing here walks on a page load.** See *Work the reader has to ask for* above: these are the
 reference consumers of that rule, and the three measurements in it are all from these feeds.
@@ -3040,6 +3078,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
 | Change the company multi-select | `js/ui/company-select.js` (the control) + the `companyOptions` block in `js/tabs/filings-tab.js` (what it offers) — the options are the SAME scope list the walk uses, so the picker and Refresh cannot disagree about who is in scope |
+| Change the history windows those three tabs offer | `RANGES` / `DEFAULT_RANGE_ID` in `js/data/date-range.js`, then `rangeControls()` in `js/tabs/filings-tab.js` — read *The history window is a parameter on the request* first. Widening a window must never start a walk, and the default must stay "everything held" |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` — **universe scope is the default and the scheduled job now uses it**; `FILINGS_SCOPE=book` narrows to the holdings, `FILINGS_LIMIT=20` for a smoke run. It reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
 | Change which companies a filings snapshot covers | `FILINGS_SCOPE` in `.github/workflows/company-news-refresh.yml` and `.github/workflows/insider-trades-refresh.yml`. **The scope the tab offers and the scope the capture covers have to be the same scope**; `companies()` still walks the book first, so a truncated run has covered the holdings |
 | Change automatic stale-capture recovery | `public/js/data/capture-watchdog.js` + `/api/capture-status` and the fixed workflow routes in `worker/index.js`; keep the browser's 15-minute check / 30-minute retry guard and the Worker's in-flight/cooldown guard together |

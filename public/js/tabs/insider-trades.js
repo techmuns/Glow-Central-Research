@@ -193,7 +193,7 @@ const tab = makeFilingsTab({
         <p class="mt-4 text-xs text-slate-500">A dash means <em>the source left that cell empty</em> — never zero.</p>
       </div>
     </div>`,
-  onExport: async (visible, m) => {
+  onExport: async (visible, m, win) => {
     const headers = (m.headers || []).filter((h) => !looksLikeSource(h) && !looksLikeLink(h));
     await exportRows({
       filename: 'glow-insider-trades',
@@ -205,7 +205,9 @@ const tab = makeFilingsTab({
           width: 14,
           get: (r) =>
             r.__banner
-              ? `REAL DISCLOSURES, NOT OURS. Insider trades via the Muns filings API, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
+              ? `REAL DISCLOSURES, NOT OURS. Insider trades via the Muns filings API, exported ${new Date().toISOString()}. ` +
+                `THESE ROWS ARE THE HISTORY WINDOW THE READER SELECTED: ${win.describeRange(win.range)}${win.range.from ? ` (${win.range.from} to ${win.range.to})` : ''}. ` +
+                `The capture this device holds runs ${win.held.first || 'no dated rows'}${win.held.first ? ` to ${win.held.last}` : ''}, so anything earlier than that was never captured rather than absent. ` +
                 `THE COLUMNS AND THEIR HEADINGS ARE THE SOURCE'S OWN and are reproduced unrenamed — this endpoint returns a markdown table, and its shape is theirs to change. ` +
                 `NOTHING IS SUMMED OR CLASSIFIED: no total quantity, no total value, and no judgement about what a trade means. ` +
                 `${m.covered} companies covered${m.failed ? `; ${m.failed} could not be read and are ABSENT rather than shown as having no insider dealing` : ''}. ` +
