@@ -1257,8 +1257,15 @@ console.log('\n— AI alerts —');
   // Count REAL result rows. `tbody tr` includes the one empty-state row, so the old assertion
   // passed while an uppercase seeded ticker matched nothing and the product visibly said 0 shown.
   const drilledRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  // MATCH THE WAY THE SEARCH MATCHES — case-insensitively, and as a SUBSTRING, because that is what
+  // `?company=` seeds: a text search, not a ticker filter. The case-sensitive form of this passed
+  // for as long as the first card happened to be a company whose rows all shouted their ticker, and
+  // failed the day it was TARIL — on a BSE filing reading "voluntarily issued by Crisil", which
+  // contains `taril` in lower case. The search was right, the row was right, and the assertion was
+  // asking a different question from the one the product answers.
+  const seededMatch = (row) => row.toUpperCase().includes(String(firstTicker).toUpperCase());
   ok('...and seeds the complete stream to that company, with real matching rows',
-    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every((row) => row.includes(firstTicker)),
+    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every(seededMatch),
     `${seeded}; ${drilledRows.length} matching result row(s)`);
 // ---------------------------------------------------------------------------------------
 // 3e. Ask Research — dashboard-wide evidence through the streaming Muns LLM provider
@@ -1532,7 +1539,7 @@ console.log('\n— AI alerts —');
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
   ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
   ok('...and every research tab asked for is represented',
-    ['Price moves', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
+    ['Price & volume', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
@@ -2238,11 +2245,17 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-result="0"]').click();
   ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
 
+  // CLEAR THE BOX BEFORE CLICKING THE LIST BENEATH IT. The results panel opens on any query of two
+  // characters or more and is absolutely positioned over the top of the member list, so a click on
+  // the filtered row underneath is intercepted — which aborted the whole run here, taking every
+  // check after this line with it. Typing narrows the list to find the row; clearing closes the
+  // panel and leaves the row in the list, where Playwright scrolls to it. Same assertion, no race.
   await listSearch.fill('IIFL');
+  await page.locator('[data-scope-remove="ticker:IIFL"]').waitFor({ state: 'attached', timeout: 3000 });
+  await listSearch.fill('');
   await page.locator('[data-scope-remove="ticker:IIFL"]').click();
   ok('a committed Portfolio company can be removed through the local overlay',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
-  await listSearch.fill('');
   await page.locator('[data-scope-reset]').click();
   ok('Restore default clears Portfolio edits without rewriting the source file',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
@@ -3019,8 +3032,13 @@ const ddSummaryBefore = ddHits.summary;
 await go('/#/research/concall?scope=universe', 1200);
 await waitForPanel();
 await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
+// COUNT BOTH SIDES OF THE EQUALITY ON A SETTLED TABLE. `scoreTable` paints a screenful and appends
+// the rest while the browser is idle, so reading the buttons first and the rows second compares a
+// mid-fill number against a finished one: measured, 1,000 buttons against 1,237 rows, with nothing
+// wrong on the page. `rowCount()` already waits; this makes the button count wait too.
+const ddRows = await rowCount();
 const ddCells = await page.locator('[data-deep-dive]').count();
-ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
+ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === ddRows, `${ddCells} buttons, ${ddRows} rows`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
 ok('THE TABLE DISPATCHES NOTHING ON RENDER', ddHits.analyze === 0 && ddHits.report === 0, `analyze=${ddHits.analyze} report=${ddHits.report}`);
 // Their free index is read once per document load and never again — not per row, not per repaint,
@@ -6492,6 +6510,207 @@ ok('...and it is the book, which every scope filter reads synchronously', bootBl
 await go('/#/research/super-investors/institutions?scope=universe', 2500);
 await waitForPanel();
 ok('a deferred feed still reaches the view that needs it', !/No holdings file loaded/i.test(await hostText()) && (await rowCount()) > 0, `${await rowCount()} holdings`);
+
+// ---------------------------------------------------------------------------------------
+console.log('\n— 16. tracked news keywords, and the cross-feed patterns they feed —');
+// ---------------------------------------------------------------------------------------
+// THE RULES ARE ASSERTED DIRECTLY, NOT THROUGH WHATEVER TODAY'S CAPTURE HAPPENS TO HOLD. Same
+// reason `moveSeverity` and `freshnessOf` are: a marquee investor and a volume spike landing on one
+// company inside seven days is exactly the case a fixture has to supply, and a capture with no
+// fraud story in it would pass a "does Fraud filter" check by matching nothing twice.
+const keywordRules = await page.evaluate(async () => {
+  const kw = await import('/js/data/news-keywords.js');
+  const alerts = await import('/js/data/daily-alerts.js');
+  const ai = await import('/js/data/ai-alerts.js');
+  const labels = kw.KEYWORDS.map((k) => k.label);
+  const hit = (title, summary = '') => kw.matchKeywords(title, summary).map((k) => k.label);
+
+  // The named cross-feed pattern the whole layer exists for: participation on the tape and a
+  // material disclosed buyer, on one company, inside the window.
+  const ev = (o) => ({ day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ Test Ltd', feed: o.feed, feedLabel: o.feed, direction: o.dir || 'neutral', importance: o.imp || 'high', headline: o.h, keywords: o.kw || [], kind: o.kind || null });
+  const feedById = new Map(['news', 'announcements', 'earnings'].map((id) => [id, { id, status: 'ok', reachesToday: true }]));
+  const buyerEvents = [
+    ev({ feed: 'technicals', kind: 'volume', h: 'Volume 3.2x its 20-day average at the 2026-09-02 close' }),
+    ev({ feed: 'investors', dir: 'positive', imp: 'high', h: 'A Tracked Investor: newly disclosed 1.80%' }),
+  ];
+  const smallBuyer = [buyerEvents[0], ev({ feed: 'investors', dir: 'positive', imp: 'low', h: 'A Tracked Investor: increased by 0.10pp' })];
+  const lonelyMove = [ev({ feed: 'technicals', kind: 'move', dir: 'negative', h: 'Fell 6.7% at the 2026-09-02 close' })];
+
+  return {
+    count: kw.KEYWORDS.length,
+    uniqueIds: new Set(kw.KEYWORDS.map((k) => k.id)).size,
+    uniqueLabels: new Set(labels).size,
+    // The desk's own words, spelt as they were given.
+    hasDeskWords: ['Capacity Expansion', 'Receipt of Order', 'Qualified Institutional Placement', 'Corporate Governance', 'Downgrade'].every((w) => labels.includes(w)),
+    // Non-global patterns: a /g regex carries lastIndex and would match every other row.
+    anyGlobal: kw.KEYWORDS.some((k) => k.test.global),
+    // The narrowings the header claims, asserted as narrowings rather than described.
+    freeTrialIsNotATrial: !hit('Sign up for a free trial of our premium tier').includes('Trial'),
+    clinicalTrialIs: hit('Phase III trial data for its lead candidate').includes('Trial'),
+    stockOnFireIsNotAFire: !hit('GOCL stock on fire; 15% up').includes('Fire'),
+    factoryFireIs: hit('Massive fire breaks out at the packaging unit').includes('Fire'),
+    quitCaliforniaIsNotAResignation: !hit('The start-up has quit California for Texas').includes('Resignation'),
+    cfoResigns: hit('CFO resigns with immediate effect').includes('Resignation'),
+    inOrderToIsNotAnOrder: !hit('In order to comply, the board met on Tuesday').includes('Order'),
+    orderWinIs: hit('Bags Rs 135-crore order from MPPTCL').includes('Order'),
+    // A story can carry several, and the desk's overlapping order words are three separate keywords.
+    multi: hit('Receipt of order worth Rs 240 crore; orderbook now at a record').length >= 3,
+
+    // `namesCompany` is three answers, not two.
+    namesYes: kw.namesCompany({ query: 'Advait Energy Transitions', title: 'Advait Energy wins order' }) === true,
+    namesNo: kw.namesCompany({ query: 'Advait Energy Transitions', title: 'Some other company wins an order' }) === false,
+    namesUnknown: kw.namesCompany({ title: 'A headline with no search term behind it' }) === null,
+    // A term that is nothing but stopwords cannot answer the question, so it says so.
+    namesStopwordsOnly: kw.namesCompany({ query: 'India Ltd', title: 'A story about India Ltd' }) === null,
+
+    // The filter's vocabulary, including the option that makes it falsifiable.
+    optionValues: kw.topicFilterOptions().map((o) => o.value),
+    trackedMatches: kw.matchesTopic(kw.classifyStory({ title: 'Wins Rs 10 crore order', query: 'Test Co' }), 'tracked'),
+    untrackedMatches: kw.matchesTopic(kw.classifyStory({ title: 'A quiet day at the office', query: 'Test Co' }), 'untracked'),
+    // The strict reading keeps a row whose name check could not be answered — an unverifiable name
+    // is not a failed one — and drops only one that was checked and did not name the company.
+    targetedKeepsUnknown: kw.classifyStory({ title: 'Wins Rs 10 crore order' }).targeted === true,
+    targetedDropsUnnamed: kw.classifyStory({ title: 'Wins Rs 10 crore order', query: 'Advait Energy Transitions' }).targeted === false,
+
+    // The materiality rule on the news feed: topic yes, direction never.
+    trackedIsHigh: alerts.newsSignal({ title: 'Advait Energy bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'high',
+    untrackedIsLow: alerts.newsSignal({ title: 'A quiet day', query: 'Advait Energy' }).importance === 'low',
+    // BOTH HALVES OF "company name + keyword", or it is not an alert: a tracked word on a story
+    // that does not carry the company is somebody else's order win under this company's name.
+    unnamedStaysLow: alerts.newsSignal({ title: 'Some other firm bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'low',
+    unnamedKeepsItsKeywords: alerts.newsSignal({ title: 'Some other firm bags Rs 135-crore order', query: 'Advait Energy' }).keywords.includes('Order'),
+    uncheckableStillCounts: alerts.newsSignal({ title: 'Bags Rs 135-crore order' }).importance === 'high',
+    // A standfirst is not a headline. Several outlets fill it with a related-links strip, so one
+    // sidebar was tagging unrelated stories with whatever the sidebar happened to mention.
+    standfirstOnlyStaysLow:
+      alerts.newsSignal({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'low',
+    standfirstOnlyKeepsItsKeywords:
+      alerts.newsSignal({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order', query: 'Advait Energy' }).keywords.includes('Order'),
+    // ...and the filter still finds it, because exploring a feed and asserting a company needs
+    // attention are different jobs.
+    standfirstOnlyStillFilterable: kw.classifyStory({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order' }).tracked === true,
+    trackedStaysNeutral: alerts.newsSignal({ title: 'Sued over a patent', query: 'Advait Energy' }).direction === 'neutral',
+    riskWordStaysNeutral: alerts.newsSignal({ title: 'Fraud investigation opened', query: 'Advait Energy' }).direction === 'neutral',
+    reasonNamesTheKeyword: /tracked keyword/i.test(alerts.newsSignal({ title: 'Bags Rs 135-crore order', query: 'Advait Energy' }).importanceReason),
+
+    // The volume threshold is stated and exported, like every other entry rule on that page.
+    volumeX: alerts.VOLUME_X,
+
+    // The confluence layer.
+    buyerPattern: ai.confluenceOf(buyerEvents, { feedById }).map((c) => c.id),
+    buyerSentence: ai.confluenceOf(buyerEvents, { feedById })[0]?.detail || '',
+    smallBuyerPattern: ai.confluenceOf(smallBuyer, { feedById }).map((c) => c.id),
+    // An absence may only be reported when the silent feeds were actually read.
+    unexplainedWhenRead: ai.confluenceOf(lonelyMove, { feedById }).map((c) => c.id),
+    unexplainedWhenUnread: ai.confluenceOf(lonelyMove, { feedById: new Map([['news', { id: 'news', status: 'ok', reachesToday: false }]]) }).map((c) => c.id),
+    confluenceMax: ai.CONFLUENCE_MAX,
+  };
+});
+
+ok('the desk supplied thirty keywords and thirty are registered', keywordRules.count === 30 && keywordRules.uniqueIds === 30 && keywordRules.uniqueLabels === 30, `${keywordRules.count} keywords`);
+ok("...spelt in the desk's own words", keywordRules.hasDeskWords);
+ok('...and no pattern is global, which would make it match every other row', !keywordRules.anyGlobal);
+ok('a free trial is not a Trial, a clinical one is', keywordRules.freeTrialIsNotATrial && keywordRules.clinicalTrialIs);
+ok('a stock "on fire" is not a Fire, a factory one is', keywordRules.stockOnFireIsNotAFire && keywordRules.factoryFireIs);
+ok('quitting a state is not a Resignation, a CFO leaving is', keywordRules.quitCaliforniaIsNotAResignation && keywordRules.cfoResigns);
+ok('"in order to" is not an Order, bagging one is', keywordRules.inOrderToIsNotAnOrder && keywordRules.orderWinIs);
+ok('one story can carry several keywords', keywordRules.multi);
+// THREE ANSWERS, NOT TWO — the rule this codebase keeps having to re-learn.
+ok('"names the company" is yes, no, or cannot-tell', keywordRules.namesYes && keywordRules.namesNo && keywordRules.namesUnknown && keywordRules.namesStopwordsOnly);
+ok('...and the strict filter keeps a row it could not check, dropping only a checked miss', keywordRules.targetedKeepsUnknown && keywordRules.targetedDropsUnnamed);
+// A filter that can only narrow to what it recognises can never be checked against its own misses.
+ok('the Topic filter offers "No tracked keyword", so a too-narrow pattern can be found', keywordRules.optionValues.includes('untracked') && keywordRules.trackedMatches && keywordRules.untrackedMatches);
+ok('a tracked keyword raises IMPORTANCE and an untracked story stays low', keywordRules.trackedIsHigh && keywordRules.untrackedIsLow);
+// The rule is "company name + keyword", so a keyword alone is half of it.
+ok('...and a keyword on a story that does not name the company stays low, keeping its tags', keywordRules.unnamedStaysLow && keywordRules.unnamedKeepsItsKeywords);
+ok('...while a story with no search term to check against still counts', keywordRules.uncheckableStillCounts);
+ok('...and a keyword only in the standfirst stays low, but stays findable and tagged',
+  keywordRules.standfirstOnlyStaysLow && keywordRules.standfirstOnlyKeepsItsKeywords && keywordRules.standfirstOnlyStillFilterable);
+// The line this whole layer had to not cross: News carries no judgement of ours on somebody else's
+// reporting, so even "Fraud" and "Sued" leave the direction exactly where it was.
+ok('...and it never moves DIRECTION, not even on a risk word', keywordRules.trackedStaysNeutral && keywordRules.riskWordStaysNeutral);
+ok('...and the reason names the keyword rather than asserting the event', keywordRules.reasonNamesTheKeyword);
+ok('the volume threshold is stated and exported', keywordRules.volumeX === 2, `${keywordRules.volumeX}x the 20-day average`);
+ok('volume plus a disclosed buyer is reported as one named pattern', keywordRules.buyerPattern.includes('accumulation'), keywordRules.buyerPattern.join(', '));
+ok('...and its sentence is quoted from the events, naming both halves', /3\.2x/.test(keywordRules.buyerSentence) && /Tracked Investor/.test(keywordRules.buyerSentence), keywordRules.buyerSentence.slice(0, 110));
+// The correlation defers to each feed's own published threshold instead of inventing a second one.
+ok('...and a sub-threshold investor move does not trip it', !keywordRules.smallBuyerPattern.includes('accumulation'), keywordRules.smallBuyerPattern.join(', ') || 'no pattern');
+// "Nothing explains it" and "we did not look" are the two answers this dashboard exists to separate.
+ok('"a move nothing explains" is reported only when the silent feeds were read', keywordRules.unexplainedWhenRead.includes('unexplained-move') && !keywordRules.unexplainedWhenUnread.includes('unexplained-move'));
+ok('the confluence contribution is capped', keywordRules.confluenceMax === 18, `${keywordRules.confluenceMax} points`);
+
+// --- the two news surfaces, driven ---
+await go('/#/research/news?scope=portfolio', 1800);
+await waitForPanel();
+await settleTables();
+const newsHeads = await page.locator('#content-host table thead th').allInnerTexts();
+ok('company news carries a Topic column', newsHeads.some((h) => /Topic/i.test(h)), newsHeads.join(' | '));
+// The outlet was already in every row's sub-line, so the column was a second copy of it — and the
+// headline is capped at 780px precisely because two stories truncate to the same string below that.
+ok('...in place of the Outlet column, which was already in the sub-line', !newsHeads.some((h) => /^Outlet$/i.test(h)) && (await page.locator('#content-host select').count()) >= 2);
+const newsTopic = page.locator('#content-host select').first();
+const topicOptionText = await newsTopic.locator('option').allInnerTexts();
+ok('...and every Topic option carries a measured count, not a typed one', topicOptionText.filter((t) => /\(\d[\d,]*\)$/.test(t.trim())).length === topicOptionText.length, `${topicOptionText.length} options`);
+const newsAll = await rowCount();
+await newsTopic.selectOption('tracked');
+await settleTables();
+const newsTracked = await rowCount();
+await newsTopic.selectOption('untracked');
+await settleTables();
+const newsUntracked = await rowCount();
+// The partition is the check that the filter is a filter: tracked + untracked must be the whole set.
+ok('Topic narrows company news, and tracked + untracked is the whole set', newsTracked > 0 && newsTracked < newsAll && newsTracked + newsUntracked === newsAll, `${newsTracked} + ${newsUntracked} = ${newsAll}`);
+await newsTopic.selectOption('all');
+await settleTables();
+
+await go('/#/research/news?scope=universe', 2200);
+await waitForPanel();
+const mcTopic = page.locator('#content-host [data-news-topic]');
+ok('market-wide news carries the same Topic filter', (await mcTopic.count()) === 1);
+// A control that silently means something else on one half of a tab is worse than an absent one:
+// "names the company" is unanswerable on rows that carry no company.
+ok('...without the strict option, which is unanswerable on rows with no company', !(await mcTopic.locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
+const mcCountText = () => page.locator('#content-host [data-mcnews-list]').innerText();
+const mcAll = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
+await mcTopic.selectOption('tracked');
+await page.waitForTimeout(600);
+const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
+ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
+
+// --- AI Alerts renders the correlation above the evidence it came from ---
+await go('/#/research/ai-alerts?scope=universe', 5000);
+await waitForPanel(15000);
+const aiCards = await page.locator('#content-host [data-ai-card]').count();
+const confluenceBlocks = await page.locator('#content-host [data-ai-confluence]').count();
+if (!aiCards) {
+  skip('AI Alerts shows its cross-feed patterns', 'no company reached the surfaced threshold in this capture');
+} else if (!confluenceBlocks) {
+  // A real answer, not a failure: correlation is a property of the day, and the rule itself is
+  // asserted on fixtures above precisely because a capture cannot be relied on to contain one.
+  skip('AI Alerts shows its cross-feed patterns', `${aiCards} card(s), none with signals lining up today`);
+} else {
+  const order = await page.evaluate(() => {
+    const card = document.querySelector('[data-ai-card] [data-ai-confluence]')?.closest('[data-ai-card]');
+    if (!card) return null;
+    const nodes = [...card.querySelectorAll('[data-ai-confluence], [data-ai-insight]')];
+    const conf = card.querySelector('[data-ai-confluence]');
+    const evidence = [...card.querySelectorAll('div')].find((d) => d.textContent.trim().startsWith('Evidence'));
+    return {
+      insightFirst: nodes[0]?.hasAttribute('data-ai-insight') === true,
+      beforeEvidence: !!evidence && !!(conf.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      named: [...conf.querySelectorAll('[data-confluence]')].map((n) => n.getAttribute('data-confluence')),
+      text: conf.innerText.replace(/\s+/g, ' '),
+      insight: card.querySelector('[data-ai-insight]')?.innerText || '',
+    };
+  });
+  ok('AI Alerts shows its cross-feed patterns, named', confluenceBlocks > 0 && order?.named.length > 0, `${confluenceBlocks} of ${aiCards} cards · ${order?.named.join(', ')}`);
+  // The finding is read before its workings — that is the whole reason the block exists.
+  ok('...above the evidence they were derived from', order?.beforeEvidence === true);
+  // And the card's own summary leads with the correlation rather than an arity of feeds.
+  ok('...and the card leads with the correlation, not a feed count', /:/.test(order?.insight || '') && !/^Signals conflict across/.test(order?.insight || ''), (order?.insight || '').slice(0, 100));
+  // No score anywhere on the card, exactly as before this layer existed.
+  ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
+}
 
 // ---------------------------------------------------------------------------------------
 console.log('\n— console —');

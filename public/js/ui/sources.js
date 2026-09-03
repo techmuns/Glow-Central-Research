@@ -360,10 +360,23 @@ export function sourceGroups() {
           name: 'Muns news API — company news',
           url: 'https://fastapi.muns.io',
           feeds:
-            "<strong>Real, and not ours.</strong> Recent articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>No sentiment and no ranking of ours</strong> — articles keep the order the API returned them in. The company a story is filed under is our search term, not a claim by the article. <strong>The shape is unverified</strong>: no working token was available when this was wired, so the parser reads by shape and by candidate key rather than by one guessed field name.",
+            "<strong>Real, and not ours.</strong> Recent articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>No sentiment and no ranking of ours</strong> — articles keep the order the API returned them in. The company a story is filed under is our search term, not a claim by the article. <strong>Topics are ours and are the one reading this dashboard adds</strong>: thirty keywords the desk tracks newsflow by, matched against the headline and standfirst. A keyword says what a story is ABOUT and is never a direction or a score — the search supplies the company name, the keyword supplies the rest. <strong>The shape is unverified</strong>: no working token was available when this was wired, so the parser reads by shape and by candidate key rather than by one guessed field name.",
           cadence: 'Rolling 30 days · captured weekdays at 07:00 and 09:00 IST; the live routes answer the Refresh button, never a page load',
           status: 'live',
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/filings-shared.js · scripts/scrape-filings.mjs',
+        },
+        {
+          name: 'Tracked news keywords (computed)',
+          url: null,
+          feeds:
+            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces and used as the materiality rule for company news in General Alerts and AI Alerts. ' +
+            'It exists because the news upstream is a <strong>search by company name</strong>, so the capture is a name match and names collide: on the shipped file, filtering 11,060 stories by these keywords leaves 2,889. ' +
+            '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in General Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
+            'Several patterns are deliberately narrower than the plain word, and each says so on its own chip: a bare <em>trial</em> matched free-trial boilerplate, a bare <em>fire</em> matched "stock on fire". ' +
+            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>.',
+          cadence: 'Recomputed on every load',
+          status: 'static',
+          file: 'public/js/data/news-keywords.js',
         },
         {
           name: 'Market-wide stocks news feed',
