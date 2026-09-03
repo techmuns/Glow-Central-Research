@@ -149,7 +149,7 @@ const tab = makeFilingsTab({
         <p class="mt-4 text-xs text-slate-500">A dash means <em>the filing did not carry it</em> — never zero.</p>
       </div>
     </div>`,
-  onExport: async (visible, m) => {
+  onExport: async (visible, m, win) => {
     await exportRows({
       filename: 'glow-corp-announcements',
       sheetName: 'Announcements',
@@ -161,7 +161,9 @@ const tab = makeFilingsTab({
           get: (r) =>
             r.__banner
               ? `REAL FILINGS, NOT OURS. Corporate announcements as filed with BSE, read from their date-indexed feed ` +
-                `(AnnSubCategoryGetData), covering ${m.windowDays} day(s) to ${new Date().toISOString().slice(0, 10)}, exported ${new Date().toISOString()}. ` +
+                `(AnnSubCategoryGetData), exported ${new Date().toISOString()}. ` +
+                `THESE ROWS ARE THE HISTORY WINDOW THE READER SELECTED: ${win.describeRange(win.range)}${win.range.from ? ` (${win.range.from} to ${win.range.to})` : ''}. ` +
+                `The capture this device holds runs ${win.held.first || 'no dated rows'}${win.held.first ? ` to ${win.held.last}` : ''} — this feed is trimmed to a size ceiling, so earlier filings are NOT held here and are not a claim that nothing was filed. ` +
                 `SUBJECTS, CATEGORIES AND SUB-CATEGORIES ARE BSE'S OWN WORDS — nothing here judges an announcement material or routine, and no document is summarised. ` +
                 `READ BY DATE, NOT BY COMPANY: every listed company is covered, so a company absent from this file filed nothing in the window rather than having been skipped. ` +
                 `${m.covered} companies filed something${m.unnamedRows ? `; ${m.unnamedRows} rows are filed under a BSE scrip code because this dashboard has no symbol for the filer` : ''}. ` +

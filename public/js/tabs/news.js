@@ -120,7 +120,7 @@ const tab = makeFilingsTab({
            date we guessed.</p>
       </div>
     </div>`,
-  onExport: async (visible, m) => {
+  onExport: async (visible, m, win) => {
     await exportRows({
       filename: 'glow-news',
       sheetName: 'News',
@@ -131,7 +131,9 @@ const tab = makeFilingsTab({
           width: 14,
           get: (r) =>
             r.__banner
-              ? `REAL DATA, NOT OURS. Company news via the Muns news API, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
+              ? `REAL DATA, NOT OURS. Company news via the Muns news API, exported ${new Date().toISOString()}. ` +
+                `THESE ROWS ARE THE HISTORY WINDOW THE READER SELECTED: ${win.describeRange(win.range)}${win.range.from ? ` (${win.range.from} to ${win.range.to})` : ''}. ` +
+                `The capture this device holds runs ${win.held.first || 'no dated rows'}${win.held.first ? ` to ${win.held.last}` : ''}, so anything earlier than that was never captured rather than absent. ` +
                 `HEADLINES, OUTLETS AND DATES ARE THE PUBLISHERS' — reproduced unchanged, never summarised into our words, and carrying no sentiment or ranking of ours. ` +
                 `The company each story is filed under is OUR search term, not a claim by the article: a story about several companies appears under whichever was asked about. ` +
                 `${m.covered} companies covered${m.failed ? `; ${m.failed} could not be read and are ABSENT rather than shown as having no news` : ''}. ` +

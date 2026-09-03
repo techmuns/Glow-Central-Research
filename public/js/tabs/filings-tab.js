@@ -30,6 +30,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as trackedUniverse from '../data/tracked-universe.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
+import { RANGES, parseRange, rangeParam, applyRange, heldSpan, reachOf, describeRange, iso } from '../data/date-range.js';
 
 const REASONS = {
   'no-route': {
@@ -87,6 +88,13 @@ export function makeFilingsTab(cfg) {
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
   let labelReset = null;
+  // The history window the reader is browsing. Lives in the URL, so it is shareable and survives a
+  // reload; `render()` re-reads it on every route change.
+  let range = parseRange(null);
+  // Whether the custom from/to inputs are open. Not in the URL: a custom range in the URL opens
+  // them by itself, and a reader who opened the pair and typed nothing has expressed no view worth
+  // putting in a link.
+  let customOpen = false;
 
   /**
    * The companies to ask about, as `{ ticker, name }`.
@@ -138,6 +146,17 @@ export function makeFilingsTab(cfg) {
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
     view = seeded.view;
+
+    // THE RANGE COMES OUT OF THE URL, so a filtered view is a link somebody can send. `parseRange`
+    // falls back rather than throwing, because a stale bookmark carrying a range this build no
+    // longer offers must open the tab, not break it.
+    range = parseRange(ctx.params?.range);
+    customOpen = customOpen || range.custom;
+    // AND IT DRIVES WHAT THE WALK ASKS FOR, which is what makes this more than a filter. These
+    // routes take `from`/`to`, so selecting a year means a Refresh fetches a year rather than
+    // painting a year-shaped label over thirty days of capture. `setWindow` only ever widens
+    // within a session — see the note on it — so narrowing here can never shrink what is fetched.
+    if (range.days) cfg.feed.setWindow(range.days);
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -221,7 +240,20 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
-    const rows = filterByScope(all, ctx.scope, coverage.holdings());
+    // WHAT THE CAPTURE HOLDS IS MEASURED OVER THE WHOLE FEED, not over the scoped subset, and the
+    // difference decides whether the reach note below is true. A scoped list can be short because
+    // those particular companies were quiet, which says nothing at all about how far back the
+    // capture reaches — so reading the span off the scoped rows would print "we only hold back to
+    // June" at a reader whose three watched companies simply had a quiet spring.
+    const held = heldSpan(all);
+    const reach = reachOf(range, held);
+
+    const inScope = filterByScope(all, ctx.scope, coverage.holdings());
+    // The window narrows what is DISPLAYED. `excluded` and `undated` are kept rather than dropped
+    // so the control can account for the rows it is holding back — a table that silently shrank by
+    // eleven hundred rows reads as a feed that lost them.
+    const windowed = applyRange(inScope, range);
+    const rows = windowed.rows;
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -255,9 +287,14 @@ export function makeFilingsTab(cfg) {
           title: cfg.title,
           description: cfg.subtitle,
           meta: pill(m, ctx.scope, []),
+          // THE RANGE CONTROL SURVIVES THE FAILURE STATE, for the same reason the company picker
+          // had to: a control that selects what failed must outlive the failure, or a reader whose
+          // one-year request could not be read has no way to ask for anything else.
+          controls: rangeControls(range, { first: null, last: null, count: 0 }, reachOf(range, null), m, customOpen),
         })}
         ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
       wireRefresh(ctx.root);
+      wireRange(ctx.root, ctx);
       return;
     }
 
@@ -374,7 +411,11 @@ export function makeFilingsTab(cfg) {
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
       exportName: `sattva-${cfg.id}`,
-      onExport: (visible) => cfg.onExport(visible, m),
+      // A WORKBOOK LEAVES THE PAGE WITHOUT THE CONTROL ON IT, so the window travels in the banner.
+      // Nobody opening the file later can see which six months these rows are, and a sheet of
+      // filings with no window on it is the one artefact where that cannot be recovered — the same
+      // reason every mock and third-party disclosure here is stamped into row 1.
+      onExport: (visible) => cfg.onExport(visible, m, { range, describeRange, held }),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
@@ -382,13 +423,16 @@ export function makeFilingsTab(cfg) {
       // A FUNCTION, because the reader can narrow to a handful of companies without the table being
       // rebuilt, and "nothing for your holdings" is the wrong sentence the moment they have. Picked
       // companies are named by count so the message describes what was actually asked.
+      // THE WINDOW NAMED IN EVERY BRANCH IS THE READER'S, not the capture's constant. Printing the
+      // feed's own 30 or 365 under a six-month selection would answer a question nobody asked, and
+      // would read as a contradiction of the history control sitting directly above it.
       emptyMessage: (v) =>
         v?.companies?.length
-          ? `No ${cfg.noun} in the last ${m.windowDays} days for the ${v.companies.length === 1 ? 'company' : `${formatNumber(v.companies.length)} companies`} you picked.`
+          ? `No ${cfg.noun} in ${describeRange(range)} for the ${v.companies.length === 1 ? 'company' : `${formatNumber(v.companies.length)} companies`} you picked.`
           : m.outstanding
             ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
             : scopePossessive(ctx.scope)
-              ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
+              ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in ${describeRange(range)}.`
               : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
@@ -407,12 +451,16 @@ export function makeFilingsTab(cfg) {
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
-        // moves when you use it reads as a different page.
+        // moves when you use it reads as a different page. The range control is the reason that
+        // matters here: it is pressed repeatedly, and a set of buttons that shifted sideways each
+        // time the row count changed the pill's width would be unusable.
+        controls: rangeControls(range, held, reach, m, customOpen, windowed),
       })}
       ${busyStrip(m)}
       ${table.html}`;
 
     disposers.push(table.wire(ctx.root));
+    wireRange(ctx.root, ctx);
     // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
     // heading — how old the capture is, how many companies were searched, what they answered —
     // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
@@ -450,6 +498,68 @@ export function makeFilingsTab(cfg) {
 
   const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
 
+  /**
+   * The range control: six presets, a custom pair, and nothing that fetches on its own.
+   *
+   * IT REPAINTS RATHER THAN RE-MOUNTING. `ctx.setParams` re-runs the shell's mount, which would
+   * discard the table's own view — the reader's search text, their sort, their column filter — on
+   * every press of a button that has nothing to do with any of them. `setParamsQuiet` writes the
+   * URL and saves the route without re-mounting, and this repaints itself, which is the same shape
+   * `openWorkspace` uses for its tab strip.
+   *
+   * AND IT SENDS NO REQUEST. Widening the range widens what the NEXT walk will ask for; it does not
+   * start one. That is the on-demand rule these three tabs are built on — a control that quietly
+   * dispatched sixty per-company requests because the reader clicked "1 year" would be the
+   * page-load walk again, wearing a different hat. The Refresh button remains the only thing that
+   * spends requests, and the reach note says when pressing it would buy anything.
+   */
+  function wireRange(root, ctx) {
+    const host = root.querySelector('[data-range-control]');
+    if (!host) return;
+
+    const commit = (next) => {
+      range = next;
+      const params = { ...(ctx.params || {}) };
+      params.range = rangeParam(next);
+      if (next.days) cfg.feed.setWindow(next.days);
+      ctx.setParamsQuiet(params);
+      paint(ctx);
+    };
+
+    const onClick = (e) => {
+      const preset = e.target.closest('[data-range-preset]');
+      if (preset) {
+        const picked = parseRange(preset.getAttribute('data-range-preset'));
+        customOpen = false;
+        commit(picked);
+        return;
+      }
+      if (e.target.closest('[data-range-custom-toggle]')) {
+        customOpen = !customOpen;
+        paint(ctx);
+        // Put the caret where the reader is going next. Repainting replaced the node the click
+        // landed on, so this has to look the input up again rather than hold a reference.
+        root.querySelector('[data-range-from]')?.focus();
+      }
+    };
+    host.addEventListener('click', onClick);
+    disposers.push(() => host.removeEventListener('click', onClick));
+
+    // A PARTIAL PAIR IS NOT A RANGE, so nothing is committed until both dates are readable. The
+    // alternative — treating a half-typed `2026-0` as a bound — repaints the table on every
+    // keystroke and shows the reader a sequence of wrong answers on the way to the right one.
+    const onChange = () => {
+      const from = host.querySelector('[data-range-from]')?.value || '';
+      const to = host.querySelector('[data-range-to]')?.value || '';
+      if (!from || !to) return;
+      commit(parseRange(`${from}..${to}`));
+    };
+    for (const el of host.querySelectorAll('[data-range-from], [data-range-to]')) {
+      el.addEventListener('change', onChange);
+      disposers.push(() => el.removeEventListener('change', onChange));
+    }
+  }
+
   function wireRefresh(root) {
     const btn = root.querySelector('[data-filings-refresh]');
     if (!btn) return;
@@ -474,6 +584,10 @@ export function makeFilingsTab(cfg) {
     refreshLabel = 'Check for new';
     view = null;
     routeCompany = null;
+    // The URL is the range's home, and render() re-reads it on the way back in. Resetting the
+    // module copy stops a stale one painting for the frame before that happens.
+    range = parseRange(null);
+    customOpen = false;
   }
 
   return { meta, render, destroy };
@@ -483,6 +597,126 @@ export function makeFilingsTab(cfg) {
 // Shared furniture
 // ---------------------------------------------------------------------------------------
 
+
+/**
+ * The history window, as a row of presets plus an optional custom pair.
+ *
+ * WHY THIS IS A CONTROL ROW AND NOT A COLUMN FILTER. `scoreTable`'s `filters` are questions about
+ * a row — which outlet, which category — and they only ever narrow what is already on screen. The
+ * window is a question about the FEED: it decides what the walk asks the upstream for, so it
+ * belongs with the tab's framing rather than in the table's toolbar. It is also the control a
+ * reader browsing "what happened in my stocks over six months" reaches for first, and burying it
+ * among the column selects would put it behind the thing it governs.
+ *
+ * AND THE CONTROL STATES ITS OWN REACH, which is the part that makes it honest rather than merely
+ * useful. Measured on the shipped captures: insider trades holds a full 365 days, company news
+ * holds 30, and corporate announcements holds 3 — the announcements scrape prunes to `ANN_KEEP_DAYS`
+ * because a month of the whole exchange is ~22,000 rows and roughly 16 MB that every visitor
+ * downloads. So "1 year" over the announcements capture is a short list under a twelve-month
+ * label, and a reader reads that as "almost nothing happened all year" rather than "we hold three
+ * days". Naming the gap on the face of the control is the same rule as "never claim nothing is
+ * new" on the Refresh strip: the honest statement is about US, and the reader decides what to do
+ * with it.
+ */
+function rangeControls(range, held, reach, m, customOpen, windowed = null) {
+  const active = (id) => (range.custom ? id === 'custom' : range.id === id);
+  const btn = (id, label, title) => `
+    <button type="button" data-range-preset="${escapeHtml(id)}" title="${escapeHtml(title)}"
+      aria-pressed="${active(id) ? 'true' : 'false'}"
+      class="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+        active(id)
+          ? 'bg-indigo-600 text-white shadow-sm'
+          : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200'
+      }">${escapeHtml(label)}</button>`;
+
+  const today = iso(Date.now());
+  const custom = customOpen
+    ? `<span class="inline-flex items-center gap-1.5">
+         <input type="date" data-range-from aria-label="From date" max="${escapeHtml(today)}"
+           value="${escapeHtml(range.custom ? range.from : '')}"
+           class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs tabular-nums text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+         <span class="text-xs text-slate-400">to</span>
+         <input type="date" data-range-to aria-label="To date" max="${escapeHtml(today)}"
+           value="${escapeHtml(range.custom ? range.to : today)}"
+           class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs tabular-nums text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+       </span>`
+    : '';
+
+  return `
+    <div data-range-control class="flex flex-wrap items-center gap-1.5">
+      <span class="mr-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">History</span>
+      ${RANGES.map((r) => btn(r.id, r.short, `Show ${r.days ? `the last ${r.label}` : 'everything held'}`)).join('')}
+      <button type="button" data-range-custom-toggle
+        aria-pressed="${customOpen ? 'true' : 'false'}"
+        title="Pick an exact from and to date"
+        class="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+          range.custom
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200'
+        }">Custom</button>
+      ${custom}
+      ${reachNote(range, held, reach, m)}
+      ${heldBackNote(windowed)}
+    </div>`;
+}
+
+/**
+ * The one sentence that stops a window label being a false statement.
+ *
+ * It renders ONLY when the capture cannot reach as far back as the reader just asked, which is the
+ * codebase's standing trade: the claim stays on the face, the explanation moves behind a click, and
+ * a caveat that has nothing to qualify does not appear at all. A `full` reach says nothing, because
+ * there the label is simply true.
+ *
+ * `unknown` is its own answer and not a shrug: with nothing dated in hand there is no evidence for
+ * a reach claim in either direction, and asserting coverage on no evidence is the failure this
+ * whole note exists to prevent.
+ */
+function reachNote(range, held, reach, m) {
+  if (!reach || reach.kind === 'full') return '';
+  const amber = 'inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200';
+
+  if (reach.kind === 'unknown') {
+    return `<span class="${amber}" title="Nothing dated has landed for this feed yet, so how far back it reaches cannot be stated either way.">
+      Reach unknown</span>`;
+  }
+
+  // A DATE-INDEXED CAPTURE AND A PER-COMPANY WALK ARE SHORT FOR DIFFERENT REASONS, and only one of
+  // them can be fixed by pressing Refresh. Announcements are read from the exchange by date and
+  // trimmed to a size ceiling, so the missing months are not sitting behind a request — saying
+  // "refresh to search further back" there would send the reader after something that is not there.
+  const canWalkBack = !m.coversUniverse;
+  const why = m.coversUniverse
+    ? `This feed is captured from the exchange by date and kept to a size limit, so the earlier filings are not held here.`
+    : `Refresh re-reads the companies in scope over this window, so pressing it fetches the earlier ${escapeHtml(m.kind === 'news' ? 'articles' : 'filings')}.`;
+
+  return `<span class="${amber}"
+      title="${escapeHtml(`You asked for ${describeRange(range)}. The capture on this device only reaches back to ${held.first}, which is ${reach.shortfallDays} day${reach.shortfallDays === 1 ? '' : 's'} short of it. ${why}`)}">
+      Held back to ${escapeHtml(held.first || '—')}${canWalkBack ? ' · Refresh to go further' : ''}</span>`;
+}
+
+/**
+ * How many rows this window is holding back, so a shrinking table accounts for itself.
+ *
+ * A TABLE THAT SILENTLY LOST ELEVEN HUNDRED ROWS READS AS A FEED THAT LOST THEM. The count is the
+ * reader's own selection working, and saying so is what separates it from a fetch that failed.
+ * Undated rows are counted apart because they are a different fact: the publisher did not supply a
+ * date, so they are in no window at all rather than outside this one — the same reason nothing here
+ * ever stamps a missing date with today's.
+ */
+function heldBackNote(windowed) {
+  if (!windowed) return '';
+  const { excluded = 0, undated = 0 } = windowed;
+  if (!excluded && !undated) return '';
+  const bits = [];
+  if (excluded) bits.push(`${formatNumber(excluded)} outside this window`);
+  if (undated) bits.push(`${formatNumber(undated)} with no date published`);
+  return `<span class="text-[11px] text-slate-400" title="${escapeHtml(
+    undated
+      ? 'A row whose source published no date is in no window at all. It is never stamped with today, and never swept into whichever range happens to be selected.'
+      : 'These rows are held by this feed and fall outside the selected dates.'
+  )}">${escapeHtml(bits.join(' · '))} hidden</span>`;
+}
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">

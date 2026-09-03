@@ -187,6 +187,20 @@ export function createFeed(kind) {
       // check". A device-cached company has a real confirmation time and has not been checked, and
       // only the second of those may be allowed to spell "Live".
       confirmedHere: new Set(),
+      // ticker -> how many days back the answer we hold for it was ASKED for.
+      //
+      // A COMPANY IS STALE WHEN THE WINDOW WIDENS, not only when the clock runs out. The reader
+      // picking "1 year" changes the question, so a company answered thirty days ago about thirty
+      // days is no longer an answer to it. Without this the widened request never fires: `stale()`
+      // says the rows are fresh, the walk skips every company, and the control reads as broken
+      // while the feed is behaving exactly as written. Same failure shape as the two disagreeing
+      // "still needs asking about" predicates this feed already had — one definition, and it has
+      // to include the window.
+      confirmedWindow: new Map(),
+      // How far back the LIVE WALK asks. Set by the tab from the reader's range control; the
+      // feed's own constant until then. It is not the same as `snapshotWindowDays`, which is what
+      // the committed capture happens to hold.
+      requestWindowDays: WINDOW_DAYS[kind],
       snapshotCount: 0,
       // Set only by a snapshot that declares it. A date-indexed capture asks the exchange what was
       // filed rather than asking each company, so every company is covered and an empty result for
@@ -278,6 +292,10 @@ export function createFeed(kind) {
       // A date-indexed snapshot knows its own window; only fall back to the constant when nothing
       // has declared one, so the coverage text cannot claim a year it does not hold.
       windowDays: state.snapshotWindowDays ?? WINDOW_DAYS[kind],
+      // HOW FAR BACK THE WALK NOW ASKS, which the reader's range control moves and which is a
+      // different fact from what the committed capture happens to hold. The tab needs both: one
+      // says what a Refresh would go and get, the other says what is on screen without one.
+      requestWindowDays: state.requestWindowDays,
       // WHAT THIS SESSION HAS NOT LOOKED AT, which is a statement about us and not a claim about
       // the upstream. These routes answer per company and have no index, so "is there anything
       // new?" cannot be answered without asking — the honest thing to print is how many companies
@@ -315,7 +333,14 @@ export function createFeed(kind) {
    */
   const stale = (t) => {
     const at = state.confirmedAt.get(t);
-    return at == null || Date.now() - at > REVALIDATE_AFTER_MS[kind];
+    if (at == null) return true;
+    // ASKED ABOUT A NARROWER WINDOW IS NOT ASKED. The answer in hand covers the days it was
+    // requested for and says nothing about the days before them, so a reader widening the range
+    // has to cost a real request for every company — otherwise the walk counts down through sixty
+    // companies without sending one, which is precisely the bug the single `stale()` definition
+    // was written to close.
+    if ((state.confirmedWindow.get(t) || 0) < state.requestWindowDays) return true;
+    return Date.now() - at > REVALIDATE_AFTER_MS[kind];
   };
 
   // The news search asks about the COMPANY, not the symbol — see the header. A ticker whose name
@@ -391,6 +416,25 @@ export function createFeed(kind) {
     }
     state.wanted = wanted;
     return wanted;
+  }
+
+  /**
+   * How far back the live walk should ask, in days. The tab sets it from the reader's range control.
+   *
+   * IT ONLY EVER WIDENS WITHIN A SESSION, and that is a data-safety rule rather than an
+   * optimisation. `loadOne` REPLACES a company's rows with whatever the response carried, so a
+   * reader who selects a year, spends sixty requests fetching it, then flips back to 7 days and
+   * presses Refresh would have a year of rows overwritten by a week of them — sixty requests of
+   * somebody else's service paid for and thrown away, with the wider selection then showing less
+   * than it did before. Narrowing is a question about what to DISPLAY; it is never a reason to go
+   * and fetch less. So the walk asks for the widest window this session has been asked for, and
+   * the range control filters what came back.
+   */
+  function setWindow(days) {
+    const n = Number(days);
+    if (!Number.isFinite(n) || n <= 0) return state.requestWindowDays;
+    state.requestWindowDays = Math.max(state.requestWindowDays, Math.round(n));
+    return state.requestWindowDays;
   }
 
   function load(items = [], { walkWanted = false } = {}) {
@@ -514,7 +558,7 @@ export function createFeed(kind) {
     if (!tickers.length) return;
     let entries;
     try {
-      entries = await readEntries(tickers.map((t) => KEYS.filingRow(kind, t)));
+      entries = await readEntries(tickers.map((t) => KEYS.filingRow(kind, t, state.requestWindowDays)));
     } catch {
       return;
     }
@@ -524,7 +568,7 @@ export function createFeed(kind) {
     // file was captured, which is the normal case for anything the reader has refreshed.
     const capturedAt = Date.parse(state.capturedAt || '') || 0;
     for (const t of tickers) {
-      const hit = entries.get(KEYS.filingRow(kind, t));
+      const hit = entries.get(KEYS.filingRow(kind, t, state.requestWindowDays));
       const body = hit?.value;
       if (!body || body.ok === false) continue;
       const savedAt = hit.savedAt || 0;
@@ -536,7 +580,13 @@ export function createFeed(kind) {
       if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
       // `savedAt` is when the SERVER's bytes were written here, so it is a real confirmation time
       // rather than this tab vouching for itself.
-      if (savedAt) state.confirmedAt.set(t, savedAt);
+      if (savedAt) {
+        state.confirmedAt.set(t, savedAt);
+        // These bytes came from the key for the window being asked for, so that is the window they
+        // answer. Recording it is what stops `stale()` re-walking a company the device already
+        // holds a wide-enough answer for.
+        state.confirmedWindow.set(t, state.requestWindowDays);
+      }
     }
     state.snapshotCount = state.fromSnapshot.size;
   }
@@ -669,13 +719,23 @@ export function createFeed(kind) {
     if (!force && !stale(t)) return state.rows.get(t) || [];
     state.asked.add(t);
 
-    const range = `from=${daysAgo(WINDOW_DAYS[kind])}&to=${iso(Date.now())}`;
+    // THE WINDOW IS A PARAMETER ON THE REQUEST, WHICH IS WHY THE CONTROL CAN DO MORE THAN FILTER.
+    // These routes take `from`/`to`, so a reader who selects a year and presses Refresh gets a
+    // year of rows for the companies in scope rather than a year-shaped label over thirty days of
+    // capture. Narrowing the window does NOT narrow the request — the widest thing the reader has
+    // asked for this session is what is fetched, so flipping back to 7 days does not throw away
+    // rows that were paid for.
+    const windowDays = state.requestWindowDays;
+    const range = `from=${daysAgo(windowDays)}&to=${iso(Date.now())}`;
     const path = ROUTE[kind](kind === 'news' ? queryFor(t) : t, range);
     let res;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
     try {
-      res = await conditionalJson(path, { key: KEYS.filingRow(kind, t), optional: true, signal: abort.signal });
+      // THE DEVICE KEY CARRIES THE WINDOW, or a thirty-day answer would be served straight back
+      // for a one-year request — a 200 from the store, no network, and eleven months missing with
+      // nothing on screen to say so. Two different questions may not share one cache entry.
+      res = await conditionalJson(path, { key: KEYS.filingRow(kind, t, windowDays), optional: true, signal: abort.signal });
     } catch {
       res = null;
     } finally {
@@ -709,6 +769,7 @@ export function createFeed(kind) {
     state.fromSnapshot.delete(t);
     state.failures.delete(t);
     state.confirmedAt.set(t, res?.checkedAt || Date.now());
+    state.confirmedWindow.set(t, windowDays);
     state.confirmedHere.add(t);
     if (!state.capturedAt && body.fetchedAt) state.checkedAt = Date.parse(body.fetchedAt) || state.checkedAt;
     return list;
@@ -717,6 +778,7 @@ export function createFeed(kind) {
   return {
     seed,
     setWanted,
+    setWindow,
     load,
     loadOne,
     refresh,

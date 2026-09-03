@@ -3010,6 +3010,68 @@ distinguish "asked, and there were none in this window" from "we could not read 
 reached", the strip counts them separately, and they must never be conflated — the same error class
 as a count of zero from a failing endpoint.
 
+### THE HISTORY WINDOW IS A PARAMETER ON THE REQUEST, NOT ONLY A FILTER ON THE TABLE
+
+News, Corporate Announcements and Insider Trades each carry a **history control** — 7D / 1M / 3M /
+6M / 1Y / everything held, plus an explicit from–to pair. `js/data/date-range.js` is the whole
+vocabulary; `js/tabs/filings-tab.js` renders it once for all three tabs, and it rides in the URL as
+`?range=6m` or `?range=2026-01-01..2026-03-31`, so a window is a link somebody can send.
+
+It is two mechanisms wearing one control, and keeping them apart is what makes it honest:
+
+| | What it does | Cost |
+| --- | --- | --- |
+| **narrowing the display** | filters the rows already in hand | nothing |
+| **widening the request** | `feed.setWindow(days)` — `loadOne` builds `from=` out of it, so the **next** Refresh asks the upstream for that window | one request per company, when the reader presses Refresh |
+
+Five rules, and each closes a way this goes wrong quietly:
+
+1. **The default is everything held**, so adding the control changed nothing about the first paint.
+   A month is the tempting default and it would have cut Insider Trades from 3,548 rows to 408 for
+   every reader who never touched it — a filter nobody set, hiding rows nobody asked to hide.
+2. **Selecting a window never sends a request.** It changes what the *next* walk asks for. A
+   control that dispatched sixty per-company requests because somebody clicked *1 year* would be
+   the page-load walk again in a different hat — see *Work the reader has to ask for* in `CLAUDE.md`.
+3. **The request window only ever WIDENS within a session.** `loadOne` *replaces* a company's rows
+   with whatever came back, so a reader who spends sixty requests on a year and then flips to 7
+   days would have that year overwritten by a week — requests paid for and thrown away, with the
+   wide view then showing less than it did before. Narrowing is a question about what to display
+   and is never a reason to fetch less.
+4. **The device key carries the window** (`KEYS.filingRow(kind, ticker, windowDays)`), and `stale()`
+   treats a company answered under a *narrower* window as needing asking again. Without the first,
+   a thirty-day answer is served straight back for a one-year request — a store hit, no network,
+   eleven months missing and nothing on screen able to say so. Without the second the widened
+   request never fires at all: the walk counts sixty companies down without sending one, which is
+   the same shape as the two disagreeing "still needs asking about" predicates below.
+5. **The control states its own reach, on its face.** Measured on the shipped captures:
+
+   | Feed | Held | A "1 year" selection is |
+   | --- | --- | --- |
+   | `insider-trades.json` | **365 days** (2025-09-02 → 2026-09-01) | fully answered |
+   | `news.json` | **30 days** (2026-08-04 → 2026-09-03) | 30 days, and Refresh can fetch the rest |
+   | `corp-announcements.json` | **3 days** (`ANN_KEEP_DAYS`) | 3 days, and no request can widen it |
+
+   So a year-shaped label over a three-day capture reads as *"almost nothing happened all year"*
+   rather than *"we hold three days"*. When the window outruns the capture the control says
+   **"Held back to `<date>`"**, and it offers *"Refresh to go further"* **only** where a per-company
+   request could actually fetch more — never on the date-indexed announcements capture, whose
+   missing months are a size ceiling rather than an unasked question (a month of the whole exchange
+   is ~22,000 rows and roughly 16 MB every visitor downloads).
+
+**The reach is measured from the ROWS, never read off the capture's header.** The announcements
+file declares `windowDays: 13` and then prunes to `keepDays: 3` for size, so its own header names a
+fortnight it does not hold — wrong by ten days in the one direction that matters, claiming coverage
+that is not there. `heldSpan()` takes the oldest and newest dates actually present, which cannot
+overstate.
+
+**Rows the window holds back are counted on screen, and undated rows are counted separately.** A
+table that silently shrank by 3,458 rows reads as a feed that lost them. A row whose publisher
+supplied no date is in **no** window rather than outside this one — it is never stamped with today
+and never swept into whichever range happens to be selected, the same rule as everywhere else here.
+
+**The window travels in the export banner**, because a workbook leaves the page without the control
+on it and nobody opening the file later can recover which six months the rows are.
+
 **One definition of "still needs asking about", used by the queue and by the request.** There were
 two and they disagreed: `load()` queued every company whose rows were older than the feed's window,
 and `loadOne()` then returned early for any company that had rows at all. So the walk counted down
