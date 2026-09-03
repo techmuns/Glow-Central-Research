@@ -148,7 +148,7 @@ Awaited` row is excluded from moves and is never misreported as an exit.
 | Feed | File | Notes |
 | --- | --- | --- |
 | The coverage universe | `public/data/universe.json` | The actual NSE-500 Screener export, 535 companies. Names, tickers, sectors and market caps everywhere else in the app come from here. |
-| **The book** — what the Portfolio toggle means | `public/data/portfolio-companies.json` | The family office's listed direct-equity book, **read from `techmuns/Sattva-Family`** (`src/data/sattvaData.ts`) by `scripts/sync-family-book.mjs` — **142 companies, one per equity ISIN, names and sectors only** — and resolved to NSE symbols by `scripts/resolve-portfolio-companies.mjs`. `family-book-sync.yml` keeps it in step (needs `FAMILY_REPO_TOKEN`). This is what every research tab's Portfolio scope filters by. It is **not** the ledger — see §5a. |
+| **The book** — what the Portfolio toggle means | `public/data/portfolio-companies.json` | **GLOW:** every company the family holds directly as listed equity, one line per NSE symbol, **written from techmuns/GlowVentures by `scripts/build-book.mjs`** beside `book.json` in the daily GlowVentures sync — names and sectors only, non-equity classes counted as `excluded`, a line with no symbol kept with its reason. The upstream `family-book-sync.yml` (Sattva-Family) is dispatch-only here and needs no secret. This is what every research tab's Portfolio scope filters by. It is **not** the ledger — see §5a. |
 
 ### Real, but produced only when the reader asks for it
 

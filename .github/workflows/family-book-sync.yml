@@ -18,13 +18,14 @@ name: Family book sync
 # book changes instead of waiting for the next morning. GitHub's scheduler is best-effort, so the
 # dispatch is the path that keeps the two genuinely in sync; the cron is the safety net.
 
+# GLOW DIVERGENCE — NOT SCHEDULED HERE, AND NOT TO BE. This job reads techmuns/Sattva-Family, which is
+# the SATTVA family's book: only 20 of its 123 tickers are in this family's holdings. Glow's Portfolio
+# book comes from techmuns/GlowVentures, written by scripts/build-book.mjs inside the daily
+# "GlowVentures sync" (series-refresh.yml) — see CLAUDE.md, "What Portfolio means". The upstream
+# schedule and repository_dispatch are removed so this cannot run unattended; workflow_dispatch is
+# kept only so the file stays a valid workflow. Do NOT add FAMILY_REPO_TOKEN to this repository.
 on:
-  schedule:
-    # 06:00 IST weekdays (00:30 UTC), before the 07:00 IST technicals scrape reads the book.
-    - cron: "30 0 * * 1-5"
   workflow_dispatch:
-  repository_dispatch:
-    types: [family-book-updated]
 
 run-name: Family book sync (${{ github.event_name }})
 

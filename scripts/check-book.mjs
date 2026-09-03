@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FILE = process.argv[2] || join(ROOT, 'public/data/book.json');
+const COMPANIES = process.env.BOOK_COMPANIES_OUT || join(ROOT, 'public/data/portfolio-companies.json');
 const PRIVATE = new Set(['AIF', 'Unlisted', 'Structured Product']);
 const r2 = (v) => Math.round(v * 100) / 100;
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -59,6 +60,28 @@ if (isNum(summary.positionsCount) && summary.positionsCount !== positions.length
 const inBook = new Set(positions.map((p) => p.securityKey));
 for (const p of book.ringFenced || []) if (inBook.has(p.securityKey)) problems.push(`ring-fenced ${p.securityKey} is also inside positions`);
 
+// THE PORTFOLIO BOOK written beside it: every ticker in it is a counted equity position, no two
+// lines share a symbol, every line has a symbol or a reason, and the counts add up.
+try {
+  const c = JSON.parse(readFileSync(COMPANIES, 'utf8'));
+  const hs = Array.isArray(c.holdings) ? c.holdings : (problems.push('portfolio-companies.json: holdings is not an array'), []);
+  const tickers = hs.map((h) => h.ticker).filter(Boolean);
+  if (new Set(tickers).size !== tickers.length) problems.push('portfolio-companies.json: two lines share one NSE symbol');
+  for (const h of hs) {
+    if (!h.name) problems.push(`portfolio-companies.json: a line has no name (${h.ticker || h.bookName || '?'})`);
+    if (!h.ticker && !h.reason) problems.push(`portfolio-companies.json: ${h.name} has no symbol and no reason`);
+  }
+  const equitySymbols = new Set(positions.filter((p) => p.assetClass === 'Equity' && p.symbol).map((p) => String(p.symbol).toUpperCase()));
+  for (const t of tickers) if (!equitySymbols.has(t) && !hs.find((h) => h.ticker === t && /company-index/.test(h.matchedBy || ''))) problems.push(`portfolio-companies.json: ${t} is not an equity symbol in book.json`);
+  for (const sym of equitySymbols) if (!tickers.includes(sym)) problems.push(`portfolio-companies.json: equity symbol ${sym} from book.json is missing`);
+  if (c.count !== hs.length) problems.push(`portfolio-companies.json: count ${c.count} ≠ ${hs.length} lines`);
+  if ((c.resolved || 0) + (c.unlisted || 0) + (c.bseOnly || 0) + (c.unresolved || 0) !== c.count) problems.push('portfolio-companies.json: resolved + unlisted + bseOnly + unresolved ≠ count');
+  if (!/GlowVentures/.test(c.source || '')) problems.push(`portfolio-companies.json: source is "${c.source}", not GlowVentures — was scripts/sync-family-book.mjs run here? It reads the SATTVA family's book`);
+  if (c.asOf !== book.asOf) problems.push(`portfolio-companies.json: asOf ${c.asOf} ≠ book.json asOf ${book.asOf}`);
+} catch (err) {
+  problems.push(`portfolio-companies.json could not be read: ${err.message}`);
+}
+
 if (problems.length) {
   console.error(`book.json does NOT reconcile — ${problems.length} problem(s):`);
   for (const line of problems) console.error(`  • ${line}`);
@@ -70,3 +93,7 @@ console.log(
     `₹${(total / 1e7).toFixed(2)} Cr = summary.totalValue · listed ₹${(listed / 1e7).toFixed(2)} Cr · private ₹${(priv / 1e7).toFixed(2)} Cr · ` +
     `${(book.ringFenced || []).length} ring-fenced outside · as of ${book.asOf}`
 );
+{
+  const c = JSON.parse(readFileSync(COMPANIES, 'utf8'));
+  console.log(`portfolio-companies.json reconciles: ${c.count} lines, ${c.resolved} with an NSE symbol, ${c.unresolved} unresolved, ${c.unlisted} not listed equity · ${c.source} · as of ${c.asOf}`);
+}

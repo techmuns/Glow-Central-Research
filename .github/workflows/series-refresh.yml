@@ -58,7 +58,10 @@ jobs:
           echo "SRC_SHA=$src_sha" >> "$GITHUB_ENV"
           echo "Copied $(find public/data/series -type f | wc -l) series files from techmuns/GlowVentures@$src_sha"
 
-      # THE BOOK, from the same checkout — same source, same day, same commit. `check-book.mjs`
+      # THE BOOK AND THE PORTFOLIO SCOPE'S LIST, from the same checkout — same source, same day, same
+      # commit. build-book.mjs writes public/data/portfolio-companies.json (what the Portfolio toggle
+      # filters by) beside book.json; the upstream family-book-sync.yml is NOT scheduled here because
+      # it reads the Sattva family's book. `check-book.mjs`
       # exits non-zero when the consolidated sum (each duplicate counted once) is not the upstream
       # headline, when a dedupe group has one member, or when the ring-fenced holding is inside
       # the positions; the job then fails here and the commit step never runs.
@@ -73,7 +76,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/data/series public/data/book.json
+          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
