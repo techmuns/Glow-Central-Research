@@ -319,7 +319,11 @@ It forwards each upstream NDJSON text chunk immediately, while the answer cites 
 claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
 route is same-origin, size-bounded and rate-limited. Conversation history stays in device
 `localStorage`; the provider has no web-search contract, so the workspace makes no web-research
-claim or control. Every source retains status, coverage and provenance inside a 13,000-character
+claim or control. An answer in flight is not tied to the tab being on screen: leaving Ask Research
+lets it finish, saves it to the conversation and announces it in the alert stack, while a scope or
+scope-membership change still cancels it so an answer cannot land under a scope it was not built
+for. Unsent drafts persist; a question interrupted by a reload is returned to the composer and never
+re-sent automatically. Every source retains status, coverage and provenance inside a 13,000-character
 evidence budget measured on what the model receives; the skeleton may take at most 60% of it, and
 the rest is spent on rows — the companies the question names first, from every source that carries
 them — so the request stays within the local model's 8K-token context. UI-only routes and the

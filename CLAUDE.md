@@ -123,6 +123,7 @@ public/
       filings-tab.js          the shared body of the last three — one renderer, three column sets
     portfolio/                overview, position-by, transactions, drawdown
   data/                       technicals.json, atr-history.json, portfolio-history.json,
+                              market-news.json + market-news/<YYYY-MM>.json (head + archive),
                               earnings-live.json, mc-ticker-map.json, result-returns.json,
                               earnings-calendar.json, universe.json, portfolio.json,
                               portfolio-companies.json, mock/*.json
@@ -139,7 +140,11 @@ scripts/
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
   scrape-filings.mjs          walks the universe for news and insider trades (NOT announcements)
   scrape-bse-announcements.mjs  the whole exchange's filings, read by DATE — ~20 requests
-  scrape-mc-news.mjs          market-wide stocks news, captured every 20 min (curl, NOT fetch)
+  scrape-mc-news.mjs          Moneycontrol's market-wide stocks news (curl, NOT fetch)
+  scrape-rss-news.mjs         Business Standard, Mint, Economic Times, Investing.com — their own
+                              RSS, merged into the SAME capture (curl: two of the four 403 on fetch)
+  lib/news-store.mjs          THE MARKET-NEWS CAPTURE ON DISK — a bounded head plus a shard per
+                              month. Both news scrapers write through it and both MERGE
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -153,6 +158,9 @@ scripts/
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
+.github/workflows/rss-news-refresh.yml     hourly; the four RSS publishers. Shares the
+                                           `market-news-capture` concurrency group with
+                                           market-news-refresh.yml — both merge into one file
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -166,6 +174,9 @@ worker/muns.mjs               the AUTHENTICATED news / insider clients — same 
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
+worker/rss-news.mjs           the four RSS publishers behind the same tab — parser + feed list,
+                              pure and offline-testable. Mint and Economic Times 403 a Worker
+                              exactly as Moneycontrol does, so this is Action-only too
 worker/github-actions.mjs     the AUTHENTICATED workflow_dispatch client — holds env.GH_DISPATCH_TOKEN,
                               never the browser. Lets the news button START the scrape it cannot do
 wrangler.jsonc
@@ -1191,6 +1202,21 @@ HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports
 `latestnews.xml` — and every one is abandoned: the newest item in each is from **April 2024**, and
 `MCtopnews.xml`'s is from **2016**. A 200 with valid XML and plausible `pubDate`s is not a live feed.
 
+**AND THE LESSON IS THE CHECK, NOT THE VERDICT — four other publishers' RSS passed it.** Read as
+"RSS is dead" that finding would have cost this tab four live sources. What it actually says is
+**a 200 with valid XML is not evidence a feed is live, so read the newest item's date** — and
+Business Standard, Mint, Economic Times and Investing.com were each checked that way before being
+wired, every one carrying an item from the same hour the check ran. They are in `FEEDS` in
+`worker/rss-news.mjs`; do the same before adding a fifth, and drop one whose newest item goes stale,
+because a publisher abandoning a feed does not take it down — they stop writing to it, and nothing
+in the response says so.
+
+**They are Action-only for the same reason Moneycontrol is, and the measurement is what says so.**
+With node's `fetch` — the Worker's reader — Business Standard and Investing.com answer 200 while
+**Mint and Economic Times answer 403 with a 24-byte body**, byte-for-byte what `www.moneycontrol.com`
+returns, while `curl` with a browser user-agent gets all of them at 200. Two working upstreams are
+not a reason to add a Worker route the other two would 403 through.
+
 **And the third feed did not get this treatment, because it cannot.** News is a *search* endpoint —
 there is no "everything published today" request to make, only "what has been written about this
 company". No axis to switch to.
@@ -2042,6 +2068,32 @@ The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
 `MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced
 its value with a Muns token. Remove that migration opt-in after installing `MUNS_LLM_TOKEN`.
 
+**AN ANSWER IN FLIGHT OUTLIVES THE TAB IT WAS ASKED FROM.** `destroy()` used to abort every running
+generation, so pressing Send and then looking at another tab — the obvious thing to do while fifteen
+sources are read and an answer is written — cancelled it. The abort path puts the question back in
+the composer and takes the user message out of the transcript, so what the reader came back to was
+their own question sitting unsent and nothing else: the work looked like it had never happened.
+
+A generation is module state, not DOM state, and every paint in this tab is already guarded on
+`ctxRef`, so it needs no mount to finish: it keeps running, writes the answer into the session and
+the device, and announces itself in the alert stack (kind `research`) when it lands while the reader
+is elsewhere — keeping it running silently would be a feature nobody can see. What still cancels one
+is a change to the EVIDENCE UNIVERSE, which is why each generation records the scope it was built
+under: an answer assembled from the book must never land in a workspace labelled Watchlist. **Those
+watchers therefore live at module level, not in `wire()`** — its subscriptions die with the mount, so
+a watchlist edit made from the header while Ask Research was off screen used to invalidate nothing at
+all. The suite drives this the way a reader does, with a **same-document hash navigation**: `go()`
+reloads the document, which genuinely does end the request, and would pass the check for the wrong
+reason.
+
+**A typed-but-unsent question is the reader's work too**, so `draft` is persisted with the
+conversation and flushed when the tab unmounts. The one thing that cannot survive is a page reload
+mid-answer — the stream dies with the page — and since the question is pushed into the transcript
+before the answer starts, that would leave a user message with nothing under it, reading as though
+the assistant ignored it. Re-asking costs a real model run, so it is never re-sent automatically:
+`normaliseSession` gives the dangling question back to the composer, exactly as an abort does, and
+the phase line says why it is there.
+
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through
@@ -2861,10 +2913,13 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the volume/breakout alert, or its threshold | `VOLUME_X` and the participation branch of `fromTechnicals` in `js/data/daily-alerts.js` — volume is neutral because the tape does not say which side it was |
 | Change which cross-feed patterns AI Alerts names | `CONFLUENCE` + `confluenceOf()` in `js/data/ai-alerts.js`, rendered by `confluenceMarkup()` in `js/tabs/ai-alerts.js` — read *Correlation is the product* first; a leg must key on the feed's own published threshold, not a new one |
 | Change which companies News searches | `tickersFor()` in `js/tabs/filings-tab.js` — the scope decides, and the committed snapshot is what paints. The picker is gone: read *And the third feed did not get this treatment* first |
-| Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
-| Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
+| Change the market-news feed | `worker/mc-news.mjs` + `worker/rss-news.mjs` (parsers) + the two scrapers + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; Moneycontrol, Mint and Economic Times all 403 it with the same 24-byte body |
+| Add a news publisher | one entry in `FEEDS` in `worker/rss-news.mjs`, then a row in `js/ui/sources.js` and `docs/DATA-CONTRACTS.md`. **Check the newest item's date first** — Moneycontrol's own RSS answers 200 with well-formed XML whose newest item is from April 2024 |
+| Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) and `node scripts/scrape-rss-news.mjs` (`RSS_ONLY=mint,…` to narrow) |
+| Change how much news history is kept, or repair the archive | `scripts/lib/news-store.mjs` — `MCNEWS_HEAD` is the FIRST-PAINT size only, never a limit on history; `MCNEWS_RESHARD=1 node scripts/scrape-mc-news.mjs` re-files everything on disk without asking any publisher for anything |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
 | Set up the news Fetch button on a deployment | add a Secret named **`GH_DISPATCH_TOKEN`** in the **Cloudflare dashboard** (*Workers & Pages → this Worker → Settings → Variables and Secrets*) — a fine-grained GitHub token on this repo alone with **Actions: read and write**, nothing more. That is the route on this deployment, which publishes via Cloudflare's Git integration rather than `deploy.yml`. `npx wrangler secret put GH_DISPATCH_TOKEN` does the same from a terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
+| Change what the news list orders by, or how far back it scrolls | `sortRows()` + `loadMore()` in `js/data/market-news.js` and the footer in `js/tabs/market-news-view.js` — read *The one hand-rolled list* first. `firstSeenAt` is never an ordering key |
 | Change when the news scrape runs | **`triggers.crons` in `wrangler.jsonc` + `scheduled()` in `worker/index.js`** — that is what actually drives the cadence. The `schedule:` block in `.github/workflows/market-news-refresh.yml` is a fallback and is measurably not firing on this repo; read *And in the end GitHub's scheduler had to be taken off the critical path* first |
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
@@ -2902,6 +2957,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
+| Change what cancels an in-flight answer, or what survives leaving the tab | `abortGenerations` / `watchEvidenceInvalidation` / `destroy` in `js/tabs/ask-research.js` — read *An answer in flight outlives the tab* first; `destroy()` must not abort, and the invalidation watchers must stay at module level |
 | Change where a `[Dashboard: …]` citation links, or make a tab honour `?company=` | `citeResolver()` in `js/tabs/ask-research.js` + `companySeededView()` in `js/ui/screener.js`; the tab's own render seeds its `initialView` from it |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, `load` before `read`, and the packet must stay below the Worker bound **and still carry rows**; read *The budget is measured on what the model receives* first |
 | Change what the model receives, or the evidence budget | `js/research/evidence-shared.js` (the provider shape — the Worker imports it too) + `RESEARCH_EVIDENCE_CHAR_BUDGET` / `ROW_RESERVE_SHARE` in `estate.js` — measure with `providerEvidenceChars`, never `JSON.stringify(packet).length` |
@@ -3002,6 +3058,10 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
+- **an answer survives leaving Ask Research**: a same-document navigation away mid-answer really
+  unmounts the tab, the answer still arrives and is saved, it announces itself in the alert stack,
+  and it is in the conversation when the reader returns with the composer clear — and an unsent
+  draft survives both a tab change and a reload
 - **Ask Research keeps all fifteen evidence sources represented**, spends its budget on rows (every
   ready source with rows in scope lands at least one, nothing trimmed to make room), resolves a
   company named in lower case to its ticker and leads every carrying source with it, streams the

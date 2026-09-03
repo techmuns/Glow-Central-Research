@@ -2259,33 +2259,109 @@ Nothing is renamed. Nothing is summed — a quantity written `1,20,000 (pledged)
 
 ### Market news: the Universe half of the News tab
 
-**`market-news.json` is a CAPTURE, not a live route, and that is forced rather than chosen.**
-`www.moneycontrol.com` refuses automated readers by TLS fingerprint: `curl` with a browser
-user-agent gets **200 and 598 KB**, node's `fetch` gets **403 with a 24-byte body** on every header
-set tried, and a **Cloudflare Worker gets 403 as well**. There is no proxy route to build. A
-scheduled Action on a normal runner reads the page with `curl` and commits what it finds.
+**FIVE PUBLISHERS, ONE LIST, AND EVERY ROW SAYS WHOSE REPORTING IT IS.** Moneycontrol's listing page
+plus Business Standard, Mint, Economic Times and Investing.com read from their own RSS. An
+unattributed headline in a mixed feed attributes itself to whichever masthead the reader assumes, so
+the byline leads every card, the export carries a Publisher column, and the provenance panel names
+each publisher with when it was last read and whether that read worked.
+
+**IT IS A CAPTURE, NOT A LIVE ROUTE, AND THAT IS FORCED RATHER THAN CHOSEN.** Three of the five
+refuse a server by TLS fingerprint rather than by headers. Measured with node's `fetch` — which is
+what a Cloudflare Worker uses — against `curl` with a browser user-agent:
+
+| publisher | curl | node `fetch` / Worker |
+| --- | --- | --- |
+| Business Standard | 200 | **200**, 190 KB, 98 items |
+| Investing.com | 200 | **200**, 4.8 KB, 10 items |
+| Mint | 200 | **403, 24-byte body** |
+| Economic Times | 200 | **403, 24-byte body** |
+| Moneycontrol (listing page) | 200, 598 KB | **403, 24-byte body** |
+
+That 24-byte 403 is byte-for-byte identical across the three, so no header set fixes it and there is
+no proxy route to build. A scheduled Action on a normal runner reads all five with `curl`.
+
+**RSS IS A TRAP ONLY IF YOU DO NOT CHECK.** `moneycontrol.com/rss/*.xml` answer 200 with well-formed
+`<item>` blocks whose newest entry is from **April 2024** — which is why that publisher is read from
+its listing page. The rule is not "RSS is dead", it is **a 200 with valid XML is not evidence a feed
+is live, so read the newest item's date**. All twelve feeds in `worker/rss-news.mjs` were checked
+that way on 2026-09-03 at 17:07 IST and every one carried an item from that same day. Re-run that
+check before adding a feed, and drop one whose newest item has gone stale.
+
+**NOTHING IS EVER DISCARDED — the capture is a bounded HEAD plus a shard per MONTH.** It used to be
+one file trimmed to 600 stories, so every run deleted whatever had fallen past the six-hundredth:
+about thirteen days of history, gone for good, and unrecoverable because a publisher's own feed only
+reaches back so far. On screen that was a scroll that stopped, and "600 of 600 stories" is every
+story we *held*, not every story there was. The cap was a ceiling on bytes pointed at the wrong file.
 
 ```
-public/data/market-news.json          written by scripts/scrape-mc-news.mjs
+public/data/market-news.json          the HEAD — the only file a visitor downloads on arrival
 {
-  "source": "Moneycontrol — https://www.moneycontrol.com/news/business/stocks/",
-  "capturedAt": "2026-08-28T…Z",   // when the Action last READ Moneycontrol
-  "newestId": "14017856",          // their article id — the merge key and the sort key
-  "articleCount": 600, "keep": 600,
-  "withPublishedAt": 156,          // carry the PUBLISHER'S time
-  "withoutPublishedAt": 444,       // the card reads "time not published" — never `firstSeenAt`
-  "listingRequests": 25, "stoppedAtKnown": false,
+  "capturedAt": "2026-09-03T…Z",   // when ANY publisher was last read
+  "sources": [ {                   // per publisher, so an outage is never inferred from a count
+    "id": "mint", "publisher": "Mint", "feeds": 3, "feedsOk": 3,
+    "capturedAt": "2026-09-03T…Z", "ok": true, "stories": 105
+    // "reason": "blocked"         // present only when a read failed
+  } ],
+  "newestId": "14021956",          // the newest MONEYCONTROL id — what their top-up walk stops at.
+                                   // Not the newest story overall, which is usually somebody else's
+                                   // and would stop that walk immediately.
+  "articleCount": 600, "keep": 600,   // the head
+  "archivedCount": 1033,              // head + archive: what the reader is scrolling through
+  "archive": [ {                      // newest month first; the browser walks this to scroll back
+    "month": "2026-08", "file": "market-news/2026-08.json",
+    "count": 491,                     // stories in that shard
+    "inHead": 65,                     // how many the head already carries — see below
+    "from": "2026-08-21T…Z", "to": "2026-08-31T…Z"
+  } ],
+  "withPublishedAt": 573,          // carry their PUBLISHER'S time
+  "withoutPublishedAt": 27,        // the card reads "time not published" — never `firstSeenAt`
+  "listingRequests": 25, "stoppedAtKnown": false,   // Moneycontrol walk only
   "articles": [ {
-    "id": "14017856",
-    "url": "https://www.moneycontrol.com/news/business/markets/…-14017856.html",
+    "id": "14021956",              // Moneycontrol: their bare article number
+                                   // everyone else: "<feed-id>:<url without scheme>"
+    "url": "https://www.moneycontrol.com/news/business/markets/…-14021956.html",
     "title": "…",  "summary": "…",  "image": "…",
-    "section": "markets",           // from their URL path, not invented
-    "premium": false,               // their crown marker, reproduced
-    "publishedAt": "2026-08-28T22:27:59.000Z",  // or null
-    "firstSeenAt": "2026-08-28T…Z"  // when THIS SCRAPER saw it. A fact about us.
+    "publisher": "Moneycontrol",   // named on every row; the byline leads the card
+    "section": "markets",          // OURS, not theirs — which of a publisher's feed URLs it
+                                   // arrived on, never a tag they applied to the story
+    "premium": false,              // their crown marker, reproduced
+    "publishedAt": "2026-09-03T11:16:15.000Z",  // or null
+    "firstSeenAt": "2026-09-03T…Z" // when THIS SCRAPER saw it. A fact about us.
   } ]
 }
+
+public/data/market-news/<YYYY-MM>.json   the ARCHIVE — every story ever captured for that month
+{ "month": "2026-08", "articleCount": 491, "from": …, "to": …, "articles": [ … ] }
 ```
+
+**`inHead` is what stops a pointless download.** It is how much of a month the head already carries,
+counted by the writer because that is the only place holding both sets. Without it the browser
+cannot tell a month it already has in full from one it has never seen, so a reader's first scroll to
+the end would fetch every shard to learn nothing — and on a young archive the head is a window onto
+every month there is, making that 400 KB for zero stories. A shard where `inHead === count` is
+skipped. A capture written before this field existed reports `undefined`, which is not equal to
+`count`, so it is fetched: the safe direction.
+
+**A story is filed under a month by the publisher's date where they gave one, and otherwise by when
+this dashboard first saw it.** That fallback decides which FILE a story lives in and nothing else —
+its own `publishedAt` stays null and still renders as *time not published*. Each shard says so in
+its own `_provenance`.
+
+**Both scrapers merge; neither replaces.** `scrape-mc-news.mjs` and `scrape-rss-news.mjs` write
+through `scripts/lib/news-store.mjs`, which reads the head *and* every shard before writing. A
+scraper that merged into the head alone would write the head back as the whole capture and delete
+the other publishers' stories along with the older months. The two workflows share the
+`market-news-capture` concurrency group so they queue rather than race.
+
+**Ordering is by publication time, not by id.** Moneycontrol's article id was the sort key while
+they were the only publisher, and it does not compare with `business-standard:www.…`. It was also
+never as reliable as it looked: measured on the shipped capture, among the 296 stories carrying
+their own time, **id order disagrees with publication order 76 times** — a quarter — by a median of
+48 minutes and as much as 2.7 days. So a real time decides where a story sits, and the id is used
+only to anchor an undated Moneycontrol story to its dated neighbours and to break exact ties.
+`firstSeenAt` is **not** used for ordering: all 303 undated stories in the first capture carry one of
+two values from a single backfill run, so ordering by it would collapse half the archive into one
+instant.
 
 **Two times, never one.** `capturedAt` is when Moneycontrol was read; `meta().checkedAt` in
 `js/data/market-news.js` is when this browser last confirmed it holds the newest capture. A 304
@@ -2301,9 +2377,24 @@ their article id is in every URL and increases with publication.
 A normal run is one or two page reads. `MCNEWS_FULL=1` walks regardless, for the first fill.
 
 ```bash
-node scripts/scrape-mc-news.mjs                                  # top-up
-MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # deep fill
+node scripts/scrape-mc-news.mjs                                  # Moneycontrol top-up
+MCNEWS_FULL=1 MCNEWS_PAGES=25 node scripts/scrape-mc-news.mjs    # Moneycontrol deep fill
+MCNEWS_RESHARD=1 node scripts/scrape-mc-news.mjs                 # re-file what is committed; no request
+node scripts/scrape-rss-news.mjs                                 # all four RSS publishers
+RSS_ONLY=mint,economic-times node scripts/scrape-rss-news.mjs    # just these
 ```
+
+**`MCNEWS_RESHARD=1` reads the head *and* every shard**, not the head alone. The head is a window,
+so re-filing from it would rebuild the head out of the window and drop the rest — measured the hard
+way when a reshard after a test at `MCNEWS_HEAD=200` cut a 600-story head to 200 while all 600 sat
+safely in the shards beside it. The repair path is the last thing that should be able to lose data.
+
+**Adding a publisher** is one entry in `FEEDS` in `worker/rss-news.mjs` — check its newest item is
+recent first — plus a row in `js/ui/sources.js` and this file. Nothing else is special-cased by
+publisher; the parser reads by shape, because Business Standard sends `<link>` bare, Mint wraps every
+field including `<pubDate>` in CDATA, and Economic Times leaves a trailing space inside the CDATA.
+All three are valid RSS, and a parser written against whichever one was opened first fails silently
+on the other two by returning null and rendering a story with no date.
 ### Keeping captures fresh — scheduled first, demand-driven recovery second
 
 **A schedule alone is not treated as proof of freshness.** The measured scheduler behaviour is:

@@ -42,6 +42,7 @@ import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as portfolio from '../data/portfolio.js';
 import { providerEvidenceChars } from './evidence-shared.js';
+import { withoutPublisherName } from '../core/source-copy.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over General Alerts: which companies carry the most material, corroborated recent evidence.' },
@@ -925,12 +926,24 @@ const BUILDERS = [
       const allRows = marketNews.rows();
       const rows = scope === 'universe' ? allRows : [];
       const meta = marketNews.meta();
+      // THE PUBLISHER TRAVELS WITH THE ROW, and the source name says there are several.
+      //
+      // This feed carries five publishers. A packet labelled with one masthead whose rows carry no
+      // byline does not merely omit the attribution — it supplies a wrong one, because the model has
+      // exactly one publisher name in front of it and headlines that need attributing. It would then
+      // write that name into prose the reader is given as an answer, which is a fabricated
+      // attribution of somebody's real reporting to somebody else.
+      // Through the same naming policy the screen uses — the model's answer is customer-facing
+      // prose, so it is the last place a brand the owner withholds should reappear.
+      const named = (v) => withoutPublisherName(String(v || '')).replace(/^the publisher\b/i, 'The publisher');
+      const publishers = [...new Set(allRows.map((r) => named(r.publisher)).filter(Boolean))];
       return sourcePacket(this.id, {
-        source: 'Moneycontrol market-wide news capture',
+        source: `Market-wide news capture across ${publishers.length || 'several'} publishers${publishers.length ? ` (${publishers.join(', ')})` : ''}`,
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
-        coverage: { totalStories: allRows.length, note: scope === 'universe' ? 'Market-wide stories included.' : 'Market-wide stories carry no ticker; excluded from narrowed scopes rather than assigned.' },
-        ...chooseRows(rows, plan, (row) => ({ publishedAt: row.publishedAt || null, title: clipped(row.title, 150), summary: clipped(row.summary, 200), premium: row.premium ?? null }), byDateDesc('publishedAt')),
+        coverage: { totalStories: allRows.length, publishers: publishers.length || null, note: scope === 'universe' ? 'Market-wide stories included.' : 'Market-wide stories carry no ticker; excluded from narrowed scopes rather than assigned.' },
+        definition: 'Every story names its own publisher; attribute a headline only to the publisher on its row.',
+        ...chooseRows(rows, plan, (row) => ({ publishedAt: row.publishedAt || null, publisher: named(row.publisher) || null, title: clipped(row.title, 150), summary: clipped(row.summary, 200), premium: row.premium ?? null }), byDateDesc('publishedAt')),
       });
     },
   },

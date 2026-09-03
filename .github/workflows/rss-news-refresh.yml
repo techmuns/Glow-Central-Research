@@ -1,0 +1,117 @@
+name: RSS news refresh
+
+# Business Standard, Mint, Economic Times and Investing.com, read from their own RSS feeds and
+# merged into the same market-news capture the Moneycontrol walk writes.
+#
+# WHY AN ACTION AND NOT A WORKER ROUTE — half of these publishers refuse a server outright.
+#   Measured with node's fetch, which is what a Cloudflare Worker uses:
+#     Business Standard   HTTP 200, 190 KB, 98 items
+#     Investing.com       HTTP 200, 4.8 KB, 10 items
+#     Mint                HTTP 403, 24-byte body
+#     Economic Times      HTTP 403, 24-byte body
+#   curl with a browser user-agent gets all four at 200. That 24-byte 403 is byte-for-byte what
+#   www.moneycontrol.com returns, so it is TLS/HTTP2 fingerprinting again and no header set fixes
+#   it. A normal runner with curl is the only reader that works for all four.
+#
+# RSS LOOKS LIKE A TRAP HERE AND IS NOT — BECAUSE IT WAS CHECKED.
+#   moneycontrol.com/rss/*.xml still answer 200 with well-formed items whose newest entry is from
+#   April 2024, which is why that feed is read from the listing page instead. The lesson was never
+#   "RSS is dead", it was that a 200 with valid XML is not evidence a feed is live. All twelve feeds
+#   below were checked the same way on 2026-09-03 and every one carried an item from that same day.
+#   Re-run that check before adding a feed, and drop one whose newest item goes stale.
+#
+# A DEAD FEED COSTS ONLY ITSELF. Each is read independently and a failure is recorded against its
+# own publisher rather than failing the run — twelve feeds behind one exit code would let a single
+# refusal throw away eleven good reads. The run fails only when EVERY feed failed, which is a fact
+# about us or the network rather than about a publisher.
+
+on:
+  schedule:
+    # Hourly, deliberately not denser. GitHub's scheduler is best-effort and sheds the densest crons
+    # first — measured on the market-news job at 12 fired runs against 124 scheduled — so asking for
+    # more here would mean getting less of everything. These publishers also do NOT refuse the
+    # runner outside Indian hours the way the Moneycontrol listing page does, so there is no window
+    # to work around and one schedule covers the day.
+    - cron: "20 * * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated publisher ids (business-standard, mint, economic-times, investing). Blank = all."
+        required: false
+        default: ""
+      source:
+        description: "Who asked for this run — cron, auto, button, or manual"
+        required: false
+        default: "manual"
+
+run-name: RSS news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+# SHARED WITH `market-news-refresh.yml`. Both jobs merge into the same head file and the same
+# monthly shards, so running them together would have each read the capture, added its own
+# publishers and written back — and whichever finished second would silently drop the other's
+# stories. `cancel-in-progress: false` makes this a queue rather than a race.
+concurrency:
+  group: market-news-capture
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # No secret of any kind — every one of these feeds is public. The scraper shells out to curl,
+      # which is on every runner, because node's fetch cannot read two of the four hosts.
+      #
+      # EXIT 2 MEANS EVERY FEED FAILED, which is a fact about the network or about us rather than
+      # about any publisher — and the committed capture is untouched and still correct. It is a
+      # warning rather than a failed build, for the same reason the Moneycontrol job treats a 403
+      # that way: a notification that fires for somebody else's bad afternoon is a notification
+      # nobody reads. Exit 1 (a parser that broke, a real bug) still fails the run loudly.
+      - name: Capture RSS news
+        id: capture
+        env:
+          RSS_ONLY: ${{ github.event.inputs.only || '' }}
+        run: |
+          set +e
+          node scripts/scrape-rss-news.mjs
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "2" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Every RSS feed failed::No publisher answered. The committed capture is unchanged."
+            exit 0
+          fi
+          exit $code
+
+      - name: Commit the capture
+        if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The head AND the archive directory: a head naming shard months that were never committed
+          # would give the reader a failed fetch at the end of every scroll.
+          git add public/data/market-news.json public/data/market-news
+          if git diff --cached --quiet; then
+            echo "No new stories."
+            exit 0
+          fi
+          git commit -m "RSS news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
