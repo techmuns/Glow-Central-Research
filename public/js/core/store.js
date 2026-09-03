@@ -67,6 +67,8 @@ export const KEYS = {
   // three months holds three entries, and a story landing in the current month must not invalidate
   // the two below it — the same reasoning as the per-investor and per-company keys above.
   marketNewsMonth: (month) => `market-news:${month}`,
+  // NSE's live announcements feed — one committed blob, refreshed live off /api/nse-announcements.
+  nseFilings: 'nse-filings',
   // X/Twitter posts from the monitored handles, which join the market-news list. Its own key
   // rather than a slice of `marketNews`: the two are separate captures with separate ETags, and a
   // post landing must not invalidate 600 publisher stories.

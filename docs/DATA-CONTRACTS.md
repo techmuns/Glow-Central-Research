@@ -2395,6 +2395,60 @@ publisher; the parser reads by shape, because Business Standard sends `<link>` b
 field including `<pubDate>` in CDATA, and Economic Times leaves a trailing space inside the CDATA.
 All three are valid RSS, and a parser written against whichever one was opened first fails silently
 on the other two by returning null and rendering a story with no date.
+### NSE live announcements: the one exchange feed that narrows to your companies
+
+**THE ANSWER TO "WHAT DID MY COMPANIES JUST FILE", LIVE.** The publisher news feeds are market-wide
+and carry no company, so they cannot be scoped. NSE publishes an announcements RSS
+(`nsearchives.nseindia.com/content/RSS/Online_announcements.xml`) that is rebuilt every few minutes,
+and every item names the filing company — so each row is resolved to an NSE symbol and the scope
+toggle shows just Portfolio, just Watchlist, or the whole exchange.
+
+**THE BROWSER CANNOT READ IT (CORS `null`), so it is proxied through our Worker.** Unlike
+Moneycontrol, NSE does not TLS-fingerprint the reader: node's `fetch` and a Cloudflare Worker read it
+reliably (5/5 measured) **with a full desktop user-agent** — a weak or blank one gets a 430-byte
+Akamai "Access Denied". So `GET /api/nse-announcements` fetches, resolves and returns JSON, edge-cached
+90s with a content ETag; the browser polls it. `public/data/nse-announcements.json` is the committed
+floor beneath it (first paint, static origins, and the Worker's own fallback when NSE refuses).
+
+**THE FILENAME PREFIX IS NOT A RELIABLE SYMBOL — resolve by NAME.** Every item links to a PDF whose
+name usually starts with the filer's symbol, but measured on a live pull only **31%** of prefixes were
+a symbol this dashboard knows: the rest are truncations (`LAXMI` for LAXDENTAL), a different entity's
+code (`SAIIM` on a Bank of Maharashtra filing), or an XBRL filename with no clean prefix. So the
+company name in `<title>` is the identity, resolved against the universe (`worker/nse-ann.mjs`'s
+`buildResolver` — book names first, then mc-ticker-map full names, then technicals), and the prefix is
+a last resort only when it equals a symbol already known. Measured: **~55% of items resolve**, and
+**37 of 123 book companies** had a filing on the day tested — the unresolved remainder are SMEs
+outside our ~2,400-name universe and show only under Universe.
+
+```
+public/data/nse-announcements.json          written by scripts/scrape-nse-announcements.mjs
+{
+  "capturedAt": "2026-09-03T…Z",
+  "count": 1737, "resolved": 787, "unresolved": 950,
+  "rows": [ {
+    "company": "NLC India Limited",      // NSE's own <title> — the identity
+    "url": "https://nsearchives.nseindia.com/corporate/NLCINDIA_…pdf",  // or null
+    "subject": "General Updates",        // the SUBJECT after "|SUBJECT:" — NSE's own, verbatim
+    "description": "NLC India Limited has informed the Exchange about …",
+    "publishedAt": "2026-09-03T15:59:59.000Z",  // NSE's IST stamp, read as IST
+    "symbolHint": "NLCINDIA",            // filename prefix — a candidate, not trusted
+    "ticker": "NLCINDIA",                // OUR resolution, or null
+    "resolvedBy": "name"                 // "name" | "filename" | null
+  } ]
+}
+```
+
+**A row with no URL is kept, not dropped.** 214 of 1,728 items on a measured pull were exchange
+surveillance notices ("Significant movement in price has been observed in <company>") filed with an
+empty `<link/>`. Those are real announcements about the company — the rows a reader most wants on
+their holdings — so they render without an "open filing" action rather than vanishing, the same way
+the market-news list keeps a story whose URL it cannot use.
+
+**A row with `ticker: null` shows only under Universe**, never under a narrowed scope, because nothing
+on it says whose it is — the honesty rule every feed here follows. The `worker/nse-ann.mjs` parser and
+resolver are pure and shared by the Worker route and the scraper, so the live feed and the snapshot can
+never disagree about shape or about how a name becomes a ticker.
+
 ### Keeping captures fresh — scheduled first, demand-driven recovery second
 
 **A schedule alone is not treated as proof of freshness.** The measured scheduler behaviour is:

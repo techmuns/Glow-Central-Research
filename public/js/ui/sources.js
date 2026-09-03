@@ -21,6 +21,7 @@ import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
+import * as nseFeed from '../data/nse-filings.js';
 import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
 import * as superInvestors from '../data/super-investors.js';
@@ -455,6 +456,16 @@ export function sourceGroups() {
             `Refreshed weekdays at 20:00 IST, after filing stops for the day.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().rowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().covered), ' <n> companies filed something.')}`,
           status: 'live',
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · .github/workflows/announcements-refresh.yml',
+        },
+        {
+          name: 'NSE — live exchange announcements',
+          url: 'https://www.nseindia.com/companies-listing/corporate-filings-announcements',
+          feeds:
+            "<strong>Real filings, live, and narrowed to your companies.</strong> NSE rebuilds an announcements RSS every few minutes and every item names the filer, so unlike the market-wide publisher feeds this one can be scoped: each row is resolved to an NSE symbol and the Portfolio / Watchlist toggle shows just your holdings. <strong>The company name is the identity</strong> — the filename prefix looks like a symbol but was measured only 31% reliable (truncations, a different entity's code, XBRL names with no clean prefix), so it is a last resort behind a name match. <strong>The browser cannot read NSE directly</strong> (it answers <code class=\"rounded bg-slate-100 px-1\">access-control-allow-origin: null</code>), so this is proxied through our Worker with a 90-second edge cache; a committed snapshot is the floor beneath it for a first visit or a static origin. <strong>A filing whose company is outside the universe we can name keeps no symbol</strong> and shows only under Universe — never under a narrowed scope, because nothing on it says whose it is. Exchange surveillance notices (&ldquo;significant movement in price&rdquo;) carry no document and say so rather than being dropped. Nothing here is scored, ranked or judged.",
+          cadence:
+            `Live off the exchange, edge-cached; a committed snapshot is refreshed on a schedule.${clause(num(() => nseFeed.meta().count), ' <n> announcements held.')}${clause(num(() => nseFeed.meta().resolved), ' <n> resolved to a symbol.')}`,
+          status: 'live',
+          file: 'worker/nse-ann.mjs · public/js/data/nse-filings.js · scripts/scrape-nse-announcements.mjs · .github/workflows/nse-announcements-refresh.yml',
         },
         {
           name: 'Muns filings API — insider trades',
