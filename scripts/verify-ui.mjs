@@ -3028,6 +3028,11 @@ const ddSummaryBefore = ddHits.summary;
 await go('/#/research/concall?scope=universe', 1200);
 await waitForPanel();
 await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
+// WAIT FOR THE FILL, DON'T RACE IT. scoreTable paints a screenful and streams the rest, so
+// counting buttons and counting rows a moment apart samples two different states of the same
+// table: 960 buttons against 961 rows, and nothing wrong with either. `data-rows-pending` is the
+// signal the kit publishes for exactly this, and the rule is to wait on it rather than sleep.
+await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 20000 }).catch(() => {});
 const ddCells = await page.locator('[data-deep-dive]').count();
 ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
@@ -6374,9 +6379,37 @@ console.log('\n— twitter / x as a news source —');
   ok('...linking to the original post', feed?.href === 'https://x.com/sattva_desk/status/901', feed?.href || 'no link');
   // INTERLEAVED, NOT APPENDED. Two feeds concatenated would put every post at one end of the list,
   // which is a separate Twitter section wearing the same chrome.
-  ok('...interleaved into the one chronological order rather than appended',
-    !!feed && feed.postAt.length === 3 && feed.postAt[2] > feed.postAt[0] && new Set(feed.postAt).size === 3 &&
-      feed.postAt.some((i, n) => n > 0 && i - feed.postAt[n - 1] > 1),
+  //
+  // ASSERTED AS "THE MERGED ORDER IS CHRONOLOGICAL", not as "a publisher story sits between two
+  // posts". The second is a property of whatever capture happens to be committed — on a run where
+  // every fixture post was newer than every story, all three landed at 0, 1, 2, which is CORRECT
+  // placement and read as a failure. So the check reads each painted row's own timestamp from the
+  // modules that own it and asserts the sequence never goes backwards; a concatenated list fails
+  // that the moment a post is older than a story above it.
+  const chrono = await evalSafe(async () => {
+    const [market, tw] = await Promise.all([import('/js/data/market-news.js'), import('/js/data/twitter-news.js')]);
+    const at = new Map();
+    for (const r of [...market.rows(), ...tw.rows()]) {
+      const t = Date.parse(r.publishedAt || '');
+      if (Number.isFinite(t)) at.set(String(r.id), t);
+    }
+    const painted = [...document.querySelectorAll('[data-news-key]')].map((c) => c.getAttribute('data-news-key'));
+    const times = painted.map((k) => at.get(k)).filter((t) => Number.isFinite(t));
+    const posts = painted.filter((k) => String(k).startsWith('tw:'));
+    return {
+      timed: times.length,
+      descending: times.every((t, i) => i === 0 || times[i - 1] >= t),
+      firstBreak: times.findIndex((t, i) => i > 0 && times[i - 1] < t),
+      // A post must have at least one dated story on the other side of it, or "merged" is
+      // untestable on this capture — but which side is the capture's business, not ours.
+      hasNeighbour: posts.length > 0 && times.length > posts.length,
+    };
+  });
+  ok('...merged into the one chronological order rather than appended',
+    !!chrono && chrono.descending && chrono.hasNeighbour && chrono.timed > 3,
+    chrono ? `${chrono.timed} dated rows, first out of order at ${chrono.firstBreak}` : '');
+  ok('...and every post is placed by its own time, not pinned to one end',
+    !!feed && feed.postAt.length === 3 && new Set(feed.postAt).size === 3 && feed.postAt[2] < feed.total - 1,
     feed ? `at ${feed.postAt.join(', ')} of ${feed.total}` : '');
   // Every row key unique — the rule that broke the News table once already. Compared, not counted.
   ok('...with a key per row that is derived from content and unique',
