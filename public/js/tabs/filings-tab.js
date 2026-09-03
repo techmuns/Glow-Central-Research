@@ -25,7 +25,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope, scopePossessive } from '../data/scope.js';
+import { filterByScope, scopePossessive, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as trackedUniverse from '../data/tracked-universe.js';
 import * as scopeLists from '../core/scope-lists.js';
@@ -79,6 +79,10 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let routeCompany = null;
   let ctxRef = null;
+  // The scope the company selection was made in. A selection is a list of companies IN A SCOPE, so
+  // carrying it across the toggle would narrow the watchlist by book tickers and show nothing —
+  // a control the reader cannot see the state of, filtering a view they did not filter.
+  let lastScope = null;
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -125,6 +129,10 @@ export function makeFilingsTab(cfg) {
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+    if (ctx.scope !== lastScope) {
+      lastScope = ctx.scope;
+      if (view) view = { ...view, companies: [] };
+    }
     disposers.forEach((d) => d && d());
     disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
@@ -278,6 +286,42 @@ export function makeFilingsTab(cfg) {
       rowKeys.set(r, n === 1 ? base : `${base}#${n}`);
     }
 
+    // ---- THE COMPANIES THIS TABLE CAN BE NARROWED TO ------------------------------------
+    //
+    // The reader's question on all three of these tabs is "show me these companies", and until now
+    // the only way to ask it was to type a name into a free-text box — one company at a time, with
+    // no list of what could be asked for and no help with the spelling. The search box is now a
+    // multi-select over the scope's own company list, which is the SAME list the walk uses, so the
+    // picker and the Refresh button cannot disagree about who is in scope.
+    //
+    // A COMPANY WITH NOTHING IN THIS CAPTURE STILL LISTS. It is in scope and can be asked about, and
+    // it shows a dash rather than a zero — "no rows in this capture" and "never asked" are different
+    // claims, and the one place that distinction is drawn is the coverage line behind the status
+    // chip. Rows whose company is not in the scope list are appended so the picker can always name
+    // everything on screen: a date-indexed announcements capture legitimately carries companies the
+    // tracked universe does not.
+    const rowCount = new Map();
+    const rowName = new Map();
+    for (const r of rows) {
+      const t = String(r.ticker || '').toUpperCase();
+      if (!t) continue;
+      rowCount.set(t, (rowCount.get(t) || 0) + 1);
+      if (!rowName.has(t) && r.company) rowName.set(t, r.company);
+    }
+    const seenOption = new Set();
+    const companyOptions = [];
+    for (const c of scoped) {
+      const t = String(c.ticker || '').toUpperCase();
+      if (!t || seenOption.has(t)) continue;
+      seenOption.add(t);
+      companyOptions.push({ ticker: t, name: c.name || rowName.get(t) || t, count: rowCount.get(t) || 0 });
+    }
+    for (const [t, n] of rowCount) {
+      if (seenOption.has(t)) continue;
+      seenOption.add(t);
+      companyOptions.push({ ticker: t, name: rowName.get(t) || t, count: n });
+    }
+
     const table = scoreTable({
       rows,
       key: (r) => rowKeys.get(r) || '',
@@ -298,6 +342,18 @@ export function makeFilingsTab(cfg) {
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
+      // THE SEARCH BOX IS THE PICKER. See ui/company-select.js — typing still filters rows by text,
+      // so nothing the box did before is lost; what is added is the list of companies it can be
+      // narrowed to and a chip for each one chosen.
+      companyOptions,
+      companyOf: (r) => r.ticker || null,
+      companyScopeNoun: scopeLabel(ctx.scope),
+      countNoun: cfg.noun,
+      companyPlaceholder: `Pick companies or search ${cfg.noun}…`,
+      companyHint:
+        ctx.scope === 'universe'
+          ? ''
+          : `Switch the scope toggle to Universe to reach any company beyond ${scopePossessive(ctx.scope) || 'this list'}.`,
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: { key: 'Date', dir: 'desc' },
       initialView: view,
@@ -323,11 +379,17 @@ export function makeFilingsTab(cfg) {
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
       // strip above says the same thing; this stops the table contradicting it at a glance.
-      emptyMessage: m.outstanding
-        ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
-        : scopePossessive(ctx.scope)
-          ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
-          : `No ${cfg.noun} matches your filters.`,
+      // A FUNCTION, because the reader can narrow to a handful of companies without the table being
+      // rebuilt, and "nothing for your holdings" is the wrong sentence the moment they have. Picked
+      // companies are named by count so the message describes what was actually asked.
+      emptyMessage: (v) =>
+        v?.companies?.length
+          ? `No ${cfg.noun} in the last ${m.windowDays} days for the ${v.companies.length === 1 ? 'company' : `${formatNumber(v.companies.length)} companies`} you picked.`
+          : m.outstanding
+            ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
+            : scopePossessive(ctx.scope)
+              ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
+              : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
 

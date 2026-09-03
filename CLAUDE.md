@@ -379,6 +379,13 @@ Conventions:
   **The picker's menu is `position: absolute` below its card, so its wrapper must never carry
   `overflow-hidden`** — that clips the menu into invisibility while every click handler goes on
   working, which is a control that looks broken and tests as fine.
+  **A menu inside `scoreTable` cannot avoid that wrapper, so it is portaled to `<body>` instead.**
+  The table's section carries `overflow-hidden` (it is what clips the table's rounded corners), and
+  `position: fixed` does not escape it either: `.fade-in` ends on `transform: translateY(0)` under
+  `fill-mode: both`, and a retained transform makes that element the containing block for fixed
+  descendants — which puts the overflow-hidden section back between the menu and its containing
+  block. Appending to `<body>` takes every ancestor out of the question; the control removes its own
+  portal on dispose *and* on wire, because these tabs repaint without running the old disposer.
 - Long-running lists get `.scrollbar-thin`; panels that mount fresh get `.fade-in`.
 
 ---
@@ -403,6 +410,7 @@ Conventions:
 | `openModal(html, { size })` | centred modal (singleton). `size`: `default` \| `wide` \| `magazine`. |
 | `table.updateRows(keys)` | rebuild named rows **in place** after their data changed, leaving the row set — and so the reader's search, filters, watchlist and sort — untouched. For data landing on a mounted table: a live quote arriving over an EOD column is the reference case, and the watchlist star is the second. Not the same as a repaint: `repaint`'s fast path *moves* existing `<tr>` nodes, so invalidating the markup cache alone changes nothing on screen. |
 | `rankedList(config)` | a compact ranked panel — heading, note, up to `limit` rows of `{ name, sub, value, tone, badge }`. The small sibling of `topCards`, for a page that needs several small rankings side by side rather than one hero grid. **`key` is required** where more than one is rendered, or `wire()` binds the first panel's handler to every panel's rows — a click that works and opens the wrong thing. |
+| `companyOptions` on `scoreTable` | **turns the search box into a company multi-select** (`js/ui/company-select.js`). Pass `[{ ticker, name, count }]` — the tab's own scope list, not something derived from the rows, so a company in scope with nothing in this capture still lists, with a dash rather than a zero. Typing still searches the rows, so a table that adopts it loses nothing; clicking a suggestion adds a chip and narrows to those companies. Its menu is portaled to `<body>` because the table's own section carries `overflow-hidden` — see below. |
 | `sectionHead`, `pendingPanel` | title block and the honest "no data yet" panel. `sectionHead` takes **`meta`** (right of the title) and **`controls`** (a left-aligned row of its own beneath it) — see below. |
 
 **There is no roadmap card.** A dashed *"Wiring roadmap · Not built. Listed so the gap is visible
@@ -2990,6 +2998,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change when the news scrape runs | **`triggers.crons` in `wrangler.jsonc` + `scheduled()` in `worker/index.js`** — that is what actually drives the cadence. The `schedule:` block in `.github/workflows/market-news-refresh.yml` is a fallback and is measurably not firing on this repo; read *And in the end GitHub's scheduler had to be taken off the critical path* first |
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
+| Change the company multi-select | `js/ui/company-select.js` (the control) + the `companyOptions` block in `js/tabs/filings-tab.js` (what it offers) — the options are the SAME scope list the walk uses, so the picker and Refresh cannot disagree about who is in scope |
 | Refresh the news / insider snapshots | `node scripts/scrape-filings.mjs` — **universe scope is the default and the scheduled job now uses it**; `FILINGS_SCOPE=book` narrows to the holdings, `FILINGS_LIMIT=20` for a smoke run. It reads **our own Worker**, so it needs no token; `MUNS_TOKEN=…` switches it back to the upstream |
 | Change which companies a filings snapshot covers | `FILINGS_SCOPE` in `.github/workflows/company-news-refresh.yml` and `.github/workflows/insider-trades-refresh.yml`. **The scope the tab offers and the scope the capture covers have to be the same scope**; `companies()` still walks the book first, so a truncated run has covered the holdings |
 | Change automatic stale-capture recovery | `public/js/data/capture-watchdog.js` + `/api/capture-status` and the fixed workflow routes in `worker/index.js`; keep the browser's 15-minute check / 30-minute retry guard and the Worker's in-flight/cooldown guard together |
