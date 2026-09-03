@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-03T03:47:15.064Z",
+  "capturedAt": "2026-09-03T07:05:25.861Z",
   "from": "2026-08-31",
   "to": "2026-09-24",
   "pageSize": 20,
@@ -129,7 +129,7 @@
     {
       "date": "2026-08-31",
       "displayDate": "31 Aug",
-      "count": 5
+      "count": 4
     }
   ],
   "byDate": {
@@ -143,9 +143,9 @@
           "displayDate": "8 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 31.84,
-          "changePct": -0.5,
-          "marketCap": 192.31,
+          "ltp": 32.1,
+          "changePct": 0.82,
+          "marketCap": 193.88,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/household-personal-products/marutiinteriorproducts/MIP02"
         }
@@ -166,16 +166,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 134.38,
-          "changePct": 0.42,
-          "marketCap": 9777.19,
+          "ltp": 136.74,
+          "changePct": 2.18,
+          "marketCap": 9948.9,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/online-services/shiprocket/SL26",
           "ticker": "SHIPROCKET",
           "fullName": "Shiprocket",
           "industry": "Online Services",
           "shares": 727577587,
-          "mktCapAtBuild": 9777.19
+          "mktCapAtBuild": 9948.9
         },
         {
           "scId": "BLE",
@@ -185,16 +185,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 446.2,
-          "changePct": 0.21,
-          "marketCap": 1887.54,
+          "ltp": 451.8,
+          "changePct": 1.47,
+          "marketCap": 1911.23,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-castings-forgings/beharilalengineering/BLE",
           "ticker": "BLEL",
           "fullName": "Behari Lal Engg",
           "industry": "Metals - Castings/Forgings",
           "shares": 42302482,
-          "mktCapAtBuild": 1887.54
+          "mktCapAtBuild": 1911.23
         },
         {
           "scId": "SF26",
@@ -205,7 +205,7 @@
           "quarter": "NA",
           "time": null,
           "ltp": 6.68,
-          "changePct": 4.87,
+          "changePct": null,
           "marketCap": 2.53,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-investments/sspnfinance/SF10"
@@ -227,16 +227,16 @@
           "displayDate": "5 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1124.2,
-          "changePct": 1.48,
-          "marketCap": 12955.28,
+          "ltp": 1120.3,
+          "changePct": 1.13,
+          "marketCap": 12910.34,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/medical-equipment-supplies-accessories/molbiodiagnostics/MDL02",
           "ticker": "MOLBIO",
           "fullName": "Molbio Diagnost",
           "industry": "Medical Equipment/Supplies/Accessories",
           "shares": 115239996,
-          "mktCapAtBuild": 12955.28
+          "mktCapAtBuild": 12910.34
         }
       ],
       "scheduledCount": 1,
@@ -255,16 +255,16 @@
           "displayDate": "4 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1519.8,
-          "changePct": -0.15,
-          "marketCap": 31087.21,
+          "ltp": 1584.1,
+          "changePct": 4.07,
+          "marketCap": 32402.46,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries-auto-truck-motorcycle-parts/dhoottransmission/DTL02",
           "ticker": "DHOOTTRANS",
           "fullName": "Dhoot Transmiss",
           "industry": "Auto Ancillaries - Auto, Truck & Motorcycle Parts",
           "shares": 204548057,
-          "mktCapAtBuild": 31087.21
+          "mktCapAtBuild": 32402.46
         }
       ],
       "scheduledCount": 1,
@@ -283,16 +283,16 @@
           "displayDate": "2 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 375,
-          "changePct": -0.29,
-          "marketCap": 1485.23,
+          "ltp": 373.2,
+          "changePct": -0.77,
+          "marketCap": 1478.1,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/technocraftventures/TVL",
           "ticker": "TECHNOCRAF",
           "fullName": "Technocraft Ven",
           "industry": "Construction - Infrastructure",
           "shares": 39606200,
-          "mktCapAtBuild": 1488
+          "mktCapAtBuild": 1489.59
         },
         {
           "scId": "VIVAN54173",
@@ -302,9 +302,9 @@
           "displayDate": "2 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1.84,
-          "changePct": null,
-          "marketCap": 23.7,
+          "ltp": 1.86,
+          "changePct": 1.09,
+          "marketCap": 23.96,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/vivantaindustrieslimited/VIVAN54173"
         }
@@ -348,9 +348,9 @@
           "displayDate": "31 Aug",
           "quarter": "NA",
           "time": null,
-          "ltp": 251.95,
-          "changePct": -0.04,
-          "marketCap": 19396.2,
+          "ltp": 256.29,
+          "changePct": 1.69,
+          "marketCap": 19730.32,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
           "ticker": "MILKYMIST",
@@ -367,9 +367,9 @@
           "displayDate": "31 Aug",
           "quarter": "NA",
           "time": null,
-          "ltp": 160.1,
-          "changePct": 1.53,
-          "marketCap": 7052.99,
+          "ltp": 154.73,
+          "changePct": -1.87,
+          "marketCap": 6816.42,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
           "ticker": "LEAPIND",
@@ -386,30 +386,16 @@
           "displayDate": "31 Aug",
           "quarter": "Q4-2026",
           "time": null,
-          "ltp": 18.34,
-          "changePct": 4.74,
-          "marketCap": 245.33,
+          "ltp": 17.49,
+          "changePct": -0.11,
+          "marketCap": 233.96,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
           "ticker": "SETCO",
           "fullName": "Setco Auto",
           "industry": "Auto Ancillaries - Clutches",
           "shares": 133767275,
-          "mktCapAtBuild": 245.33
-        },
-        {
-          "scId": "DPL03",
-          "name": "Dachepalli Publishers",
-          "shortName": null,
-          "resultDate": "2026-08-31",
-          "displayDate": "31 Aug",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 78,
-          "changePct": null,
-          "marketCap": 116.81,
-          "exchange": "B",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/dachepallipublishers/DPL03"
+          "mktCapAtBuild": 233.96
         },
         {
           "scId": "CC24",
@@ -431,7 +417,7 @@
           "mktCapAtBuild": 115.94
         }
       ],
-      "scheduledCount": 5,
+      "scheduledCount": 4,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
