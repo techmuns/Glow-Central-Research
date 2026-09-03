@@ -3428,6 +3428,48 @@ if (!chatterState.ok) {
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+
+  // A GENERAL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
+  // event carries no source URL, so daily-alerts.js falls back to the tab WITH the company and an
+  // `open=mentions` flag; this asserts the receiving end honours it. Driven through the URL the row
+  // click builds (deterministic) rather than through the alerts tab, which needs every feed's egress
+  // to render a chatter row at all.
+  const deepTicker = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    return (c.companies() || [])[0]?.ticker || null;
+  });
+  if (deepTicker) {
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}&open=mentions`, 900);
+    await page.waitForTimeout(600);
+    const deep = await evalSafe((t) => {
+      const dialog = document.querySelector('[data-chatter-mentions-dialog]');
+      const c = document.querySelector('#content-host input')?.value || '';
+      return { popup: !!dialog, slug: dialog?.getAttribute('data-chatter-slug') || null, seeded: c.toUpperCase().includes(t) };
+    }, deepTicker);
+    ok('a chatter deep-link opens that company\'s mentions popup and seeds the search',
+      deep && deep.popup && deep.seeded, `popup ${deep?.popup}, search seeded ${deep?.seeded}, slug ${deep?.slug}`);
+    // Close it, then a repaint (scope toggle) must NOT reopen it — the guard against a live tick or a
+    // scope change re-triggering the popup on every paint.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await go(`/#/research/public-chatter?scope=watchlist&company=${encodeURIComponent(deepTicker)}&open=mentions`, 700);
+    await page.waitForTimeout(400);
+    const reopened = await evalSafe(() => !!document.querySelector('[data-chatter-mentions-dialog]'));
+    ok('...and a scope toggle on the same deep-link does not reopen it', !reopened, `reopened=${reopened}`);
+    // `?company=` alone seeds the search but must NOT open the popup — only `open=mentions` does.
+    await go('/#/research/ask-research?scope=universe', 500);
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}`, 800);
+    await page.waitForTimeout(400);
+    const seedOnly = await evalSafe((t) => ({
+      popup: !!document.querySelector('[data-chatter-mentions-dialog]'),
+      seeded: (document.querySelector('#content-host input')?.value || '').toUpperCase().includes(t),
+    }), deepTicker);
+    ok('company= alone seeds the search without opening the popup', seedOnly && !seedOnly.popup && seedOnly.seeded,
+      `popup ${seedOnly?.popup}, seeded ${seedOnly?.seeded}`);
+    await go('/#/research/public-chatter?scope=universe', 800);
+  } else {
+    skip('a chatter deep-link opens that company\'s mentions popup', 'no resolved chatter company in this run');
+  }
   await page.locator('[data-chatter-live]').click();
   await page.waitForTimeout(200);
   ok('the Public Chatter Live label opens no explainer popup',
