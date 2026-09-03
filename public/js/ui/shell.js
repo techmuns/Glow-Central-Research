@@ -14,6 +14,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
 import { mountHostTicker } from './host-ticker.js';
+import * as sourceBeacon from './source-beacon.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
 import * as askResearch from '../tabs/ask-research.js';
@@ -61,6 +62,12 @@ export function mount(root) {
   contentHost = $('#content-host', root);
 
   wireStaticHeader(root);
+
+  // "Data flowing in", lower-left. Page-level chrome with the same lifetime as the alert stack:
+  // mounted once, outside `#app`, so a route change never tears it down. It reads the source
+  // registry only when it is opened — nothing here loads a feed. See ui/source-beacon.js for why
+  // it is here rather than back in the header the Sources button was removed from.
+  sourceBeacon.mount();
 
   // Always-on poller so the header pill re-renders on a cadence even when nothing else is
   // polling. `synthetic: true` keeps it out of `getLastDataTick()` — it asks no server anything,

@@ -278,6 +278,14 @@ the tabs it serves, with what it feeds, its refresh cadence, a link, and an hone
 passive status labels do not open it in a popup. Adding a data source means updating
 `docs/DATA-CONTRACTS.md`, `js/app.js` and `sources.js` together.
 
+`public/js/ui/source-beacon.js` renders that registry as the **source beacon** in the lower-left
+corner: a small launcher opening a popover with every source as one vertical column beside a
+diagram of them converging on a single Sattva square, one wire per source family. It is a view of
+the registry and adds nothing to it — a new entry in `sources.js` appears there with no further
+wiring. It does not reintroduce the header Sources button, whose removal stands; every count in it
+is derived from the registry on each open, and its green pill counts wired feeds rather than
+asserting that any one figure was confirmed just now.
+
 ---
 
 ## 6. Live update engine (`public/js/core/live.js`)

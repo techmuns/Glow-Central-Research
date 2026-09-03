@@ -228,7 +228,8 @@ public/js/
     screener.js            THE KIT: statStrip · topCards · scoreTable · openDrill · openWorkspace
                            · openModal · sectionHead · pendingPanel · trapFocus
     visual.js              avatars, tiers, status pills, signal dots, legend
-    sources.js             the Sources-modal registry — the honest status of every feed
+    sources.js             the source registry — the honest status of every feed
+    source-beacon.js       the lower-left "Data flowing in" beacon over that registry (§4b)
     notifications.js       the lower-right live alert stack (§4b)
     export.js              exceljs-from-CDN "Export Excel"
     shell.js               header, tab bar, sub-view picker, the WORKSPACES registry
@@ -430,6 +431,16 @@ whether or not a byte of data had been confirmed in an hour.
   A spinner that simply vanishes leaves the reader unsure anything was checked.
 - **The global search is gone with the box.** Nothing else used it; a company is reached from its
   tab's own table. If it comes back, `buildSearchOptions()` is in git history at `9c8c911..`.
+
+**The source beacon** (`js/ui/source-beacon.js`) sits in the opposite corner, lower-left: a small
+launcher that opens a popover listing every source in the registry as one vertical column, beside a
+diagram of them converging on a single Sattva square — one wire per source family, carrying that
+family's icon, and hovering a family in the list lights its wire. It is **not** the header's old
+Sources button returning; that removal stands and the suite still asserts it. This answers a
+different question (the whole estate, rather than one figure's provenance), in a different place,
+for a reader who went looking. Every count in it is read from `sourceGroups()` on each open, the
+green pill is worded as a COUNT of wired feeds rather than a bare "Live", and only live rows go
+unlabelled — mock, manual, on-demand and not-built each carry their word.
 
 **Alerts** (`js/ui/notifications.js`, fed by `js/core/watch.js`) appear in the lower-right when a
 company files a result or a con-call gains its analysis. Both feeds already tracked exactly that in

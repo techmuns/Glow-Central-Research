@@ -69,7 +69,12 @@ public/
     ui/
       screener.js             THE SCREENER KIT — build tabs from this
       visual.js               avatars, tiers, status pills, signal dots, legend
-      sources.js              data-source registry, opened from the header status pill
+      sources.js              data-source registry — the canonical list of every feed and its honest
+                              status; read by the beacon below and by each tab's provenance surfaces
+      source-beacon.js        "DATA FLOWING IN" — the lower-left beacon: one launcher, one popover,
+                              every source in the registry as a vertical list beside a diagram of them
+                              converging on the Sattva square. NOT the header's old Sources button;
+                              see the section below
       host-ticker.js          the company the HOST has selected, as one header chip. Absent, not
                               empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the live alert stack, lower-right
@@ -1623,6 +1628,50 @@ The same applies anywhere else prose meets data. The Transaction History financi
 its options typed out too, so a trade in a later year had no filter to find it; they are derived
 from the ledger now.
 
+### The source beacon — `js/ui/source-beacon.js`
+
+The registry above has one reader-facing surface: a small launcher in the **lower-left corner**
+that opens a popover listing every source, as one long vertical column, beside a diagram of those
+sources converging on a single Sattva square. It exists because the most impressive true fact
+about this dashboard is invisible from any one tab — that thirty-odd separate upstreams, on four
+different mechanisms, feed eleven screens.
+
+**It is not the header's Sources button coming back.** That button was removed deliberately and
+stays removed: the chrome is one passive status pill and a Refresh, and provenance for a NUMBER
+belongs beside that number — the owning tab's status label, its drill panel, its export banner.
+None of that changed. This asks a different question (what is the whole estate?), in a different
+place (out of the reading column entirely), and only for someone who went looking. `verify-ui.mjs`
+still asserts the header carries no Sources button and that the status pill opens nothing.
+
+Four rules, and the first two are the ones that keep it honest:
+
+1. **No figure in it is typed.** Every count — sources, live feeds, families, tabs, the per-status
+   legend — comes from `sourceGroups()`, called on each open and never hoisted. Same rule, same
+   reason, as the registry itself.
+2. **Green is a claim, so it is worded as a count.** The pill reads *"<n> live feeds"*, which is a
+   statement about how many sources are WIRED to a self-refreshing feed — exactly what
+   `status: 'live'` means in the registry, and a property of the plumbing. It is never a bare
+   *Live*, which would read as *confirmed seconds ago* about data nobody checked. The freshness
+   claim is separate, dated, and comes from `live.getLastDataTick()`; before any poller has ticked
+   it says which committed captures it painted from rather than borrowing the page-load time.
+   **Only live rows are green and only live rows go unlabelled** — mock, manual, on-demand and
+   not-built each carry their word, because those are the four a reader must not mistake.
+3. **The diagram may not invent a number either.** There is one wire per source GROUP, carrying
+   that group's own icon, so the picture cannot drift from the registry; hovering a family in the
+   list lights its wire and dims the rest, which is what makes the diagram answer a question
+   rather than decorate one.
+4. **It is a popover, not an overlay, and it animates only while open.** No backdrop, the page
+   stays live behind it, so `trapFocus()` — which asserts `aria-modal="true"` — would describe
+   something this is not; Escape, an outside click and focus restoration are implemented directly.
+   z-30 puts it under every overlay, as the alert stack is. The panel's markup is torn down on
+   close so the wires and the ~30 status dots cost nothing dismissed, every animation is
+   transform/opacity, and `prefers-reduced-motion` stops the CSS ones — the SVG motes are SMIL,
+   which CSS cannot reach, so those are dropped in JS instead.
+
+Its styles are `.beacon-*` in `public/index.html`, not Tailwind utilities: it is one self-contained
+component with a diagram in it, and the animations belong beside the geometry they animate. That
+also means changing it needs no `tailwind.css` regeneration.
+
 ---
 
 ## What "Portfolio" means — `js/data/coverage.js`
@@ -2727,7 +2776,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, sub-view picker or tab bar | `js/ui/shell.js` |
-| Add a row to the Sources modal | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) |
+| Add a row to the source registry | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) — the lower-left beacon picks it up with no further wiring |
+| Change the lower-left source beacon | `js/ui/source-beacon.js` + the `.beacon-*` block in `public/index.html` — read *The source beacon* first; it may not reintroduce a header Sources button, and every count in it stays derived |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
 | Change what raises a live alert | `js/core/watch.js` (what counts as an event) + `js/ui/notifications.js` (how it looks) — read *The header, and the alert stack* first |
