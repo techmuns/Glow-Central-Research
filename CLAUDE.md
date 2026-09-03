@@ -1503,6 +1503,24 @@ which is a different fact and one the coverage note still counts: **searched-and
 and could-not-be-read are three different answers** and none of them is an article. `keepRow` on the
 shared renderer is where a tab says what a row of its own has to carry.
 
+**GLOW: AND A HEADLINE THE READER CANNOT READ IS NOT NEWS ABOUT THE HOLDING.** The search matches
+a company's bare name, and a short name matches the world: *KSB* brought a Japanese broadcaster
+(KSB瀬戸内海放送) and an Indonesian daily, *HFCL* Hindi wire copy, *BOSCHLTD* nine Spanish stories
+about a Miss Universe contestant called Bosch. Measured on the shipped capture: **203 of 11,868 rows
+under 89 companies**, none of them about the company. `isEnglishHeadline()` in
+`js/data/filings-shared.js` refuses a row on non-Latin script (two or more letters — a stray symbol
+does not decide it), on a *lower-case* function word of another Latin-script language (`dengan`,
+`der`, `les`, `de`, `el` — lower case, so *Dan Bilzerian*, *Los Angeles* and *Die Hard* keep their
+rows), on two or more letters English does not use (ı ğ ş ñ ã ø), or on two words of Indonesian
+headline vocabulary for the title-case headlines that language writes with no function word in them.
+**An English function word wins over all of those** — the list is function words and English
+inflections, deliberately not the loanwords (*bank*, *digital*, *online*) any language's headline
+may carry, so a foreign headline cannot pass on one of them. The feed applies it at the door
+(`englishOnly` in `filings.js`, before dedupe, so the tab, General Alerts and Ask Research agree)
+and the scrape applies it at capture, so the committed file and the live walk agree too. A headline
+that passes may still be unreadable; one that fails is never a loss. It is a Glow rule because it
+was a Glow reader's screen; it is a candidate to port to Sattva unchanged.
+
 **AND A COMPANY THAT ANSWERED "NOTHING" HAS TO BE WRITTEN DOWN, OR IT READS AS ONE YOU NEVER
 ASKED.** The scrape wrote only companies that had something — `if (rows.length) byTicker[t] = …` —
 so a company with no trades vanished from the file entirely, indistinguishable from one the run
@@ -2190,6 +2208,18 @@ and next action without ranking implementation detail.
 that ledger is explicitly illustrative, and an invented position weight must never decide what a
 real reader is told is urgent. Tickerless market-wide news stays in General Alerts; it cannot be
 honestly assigned to a company. Single-source neutral news stays below the surfaced threshold.
+
+**GLOW: the real book supplies the SIZE of a holding, and the card says how much is held.** Upstream's
+book carries names only, so its membership boost is flat — twelve points for being in the list —
+and a ₹5 lakh PMS line ranked level with a ₹5 crore direct holding on the same evidence.
+`bookHolding(ticker)` in `js/data/ai-alerts.js` reads `js/data/book.js` (each duplicate report
+counted once) and `holdingSizePoints()` adds 0 / 3 / 6 / 10 points at 0.05% / 0.25% / 1% of the
+consolidated book: thresholds, deterministic, retained in `scoreBreakdown` like every other
+contribution, and small enough to reorder holdings without ever making a routine event urgent. The
+card prints *Held ₹48.8 L · 0.07% of the book · via Marcellus, Motilal Oswal PMS* from the same
+figures, so a reader knows at a glance whether an alert is about a position that matters. This is
+the one place the real book's *values* reach a research tab; `coverage.js` still decides
+membership, and the illustrative Analytics ledger is still not consulted.
 
 Cards show the strongest three events first, a templated insight and review action, source links,
 and a link to General Alerts with the existing table search seeded for the ticker. `rankReport()` is

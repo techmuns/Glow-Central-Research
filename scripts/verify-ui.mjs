@@ -127,6 +127,32 @@ const downloadOrSkip = async (label, file) => {
     ticker: 'TEST',
     cells: { Insider: 'Example Insider', Source: 'https://example.com/filing.pdf' },
   });
+  // GLOW: a headline the reader cannot read is dropped at the feed's door — non-Latin script, or a
+  // lower-case function word from another Latin-script language with no English one beside it.
+  const { isEnglishHeadline } = await import('../public/js/data/filings-shared.js');
+  const foreign = [
+    ['高知県の天気予報【3日 午前11時発表】（RKC高知放送） - Yahoo!ニュース', 'Yahoo!ニュース'],
+    ['एचएफसीएल को 2,329 करोड़ रुपये का ऑप्टिकल फाइबर केबल का ऑर्डर', 'The Print'],
+    ['Warga Waspada Bisnis dengan Janji Untung Besar - SUARANTB.co', 'Suarantb'],
+    ['Pemkab Sumbawa Proses Sertifikat Tanah Senayan-Tampir - SUARANTB.com', 'Suarantb'],
+    ["Trabzonspor'dan Fatih Tekke açıklaması! KAP'a bildirildi", 'Sporx'],
+    ['Fenerbahçe yeni transferini açıkladı', 'Sporx'],
+    ['Nuevos perfiles de consumidor dividen el mercado mexicano', 'Marketing4eCommerce'],
+    ['Die Welt der Casinos ohne OASIS: Wie unterscheiden sich Anbieter bei S', 'Technokrate'],
+  ];
+  const english = [
+    ['Nuvama Wealth shares in focus after SC sets aside ₹900 crore-plus order - CNBC TV18', 'CNBCTV18'],
+    ['Rep. Randy Fine beats Dan Bilzerian, who said he wants to kill', 'JTA'],
+    ['Los Angeles-based fund buys stake in Infosys', 'Reuters'],
+    ['Tata Motors Q1 results: PAT down 30%', 'ET'],
+    ['Irumudi Movie Review -', 'Gulte'],
+    ["Indie Films Opening Aug. 28: Dark Comedy 'Buddy', Thriller 'Colony'", 'Deadline'],
+    ['Ørsted profit beats forecasts', 'Reuters'],
+    ['Tanah Merah MRT station reopens', 'Straits Times'],
+    ['Die Hard director dies at 80', 'Variety'],
+  ];
+  ok('a non-English headline is refused by the feed', foreign.every(([t, src]) => isEnglishHeadline(t, src) === false), foreign.filter(([t, src]) => isEnglishHeadline(t, src)).map(([t]) => t.slice(0, 30)).join(' | ') || `all ${foreign.length} refused`);
+  ok('...and an English one with a foreign-looking proper noun is kept', english.every(([t, src]) => isEnglishHeadline(t, src) === true), english.filter(([t, src]) => !isEnglishHeadline(t, src)).map(([t]) => t.slice(0, 30)).join(' | ') || `all ${english.length} kept`);
   const derived = insiderTradeSourceUrl({ ticker: 'JAYNECOIND', cells: { 'Name of Insider': 'POOJAA AGRAWAL', Source: 'BSE' } });
   ok('insider source links prefer an explicit filing URL', direct === 'https://example.com/filing.pdf', direct || 'no link');
   ok('...and otherwise narrow the public record to the exact insider',
@@ -1614,6 +1640,9 @@ console.log('\n— AI alerts —');
     new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
       renderedCards.every((card, i) => !i || renderedCards[i - 1].score >= card.score),
     renderedCards.map((card) => `${card.ticker}:${card.score}`).join(', '));
+  // GLOW: a card for a holding says how much is held and through whom, from the real book.
+  const heldLines = await page.locator('[data-ai-card] [data-ai-held]').allInnerTexts();
+  ok('every AI card for a holding prints how much is held', heldLines.length === aiCount && heldLines.every((t) => /^Held ₹/.test(t)), `${heldLines.length} of ${aiCount} cards · ${heldLines[0] || ''}`);
   ok('AI Alerts removes the priority banner and ranking breakdown',
     (await page.locator('[data-ai-alert-summary]').count()) === 0 &&
       renderedCards.every((card) => card.why === 0 && !card.scoreShown));

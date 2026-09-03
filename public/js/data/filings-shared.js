@@ -275,6 +275,48 @@ export function normaliseAnnouncement(r, ticker = null) {
 }
 
 /** One news article. Same rules as above; `query` records what was asked, not what was returned. */
+/**
+ * GLOW: IS THIS HEADLINE ENGLISH? The news search matches a company's bare name, and a short name
+ * matches the world: "KSB" brought a Japanese broadcaster (KSB瀬戸内海放送) and an Indonesian
+ * outlet, "HFCL" brought Hindi wire copy, "FCONSUMER" a Mexican marketing site. None of it is
+ * readable here and none of it is about the holding. Measured on the shipped capture: 155 of
+ * 11,868 rows under 79 companies. Four tests, in order, and the first to decide wins:
+ *   1. the title or the outlet carries letters from a NON-LATIN script (Devanagari, kana, Han,
+ *      Hangul, Arabic, Cyrillic, Thai…) — two or more, so a stray symbol does not decide it → no;
+ *   2. the title carries an ENGLISH function word or a word of English financial news → yes.
+ *      This is the safety valve for everything below: the list is function words and English
+ *      inflections, deliberately NOT the international loanwords (bank, digital, online, update)
+ *      that a headline in any language may carry, so a foreign headline cannot pass on those;
+ *   3. a LOWER-CASE function word from a Latin-script language that is not English (dengan, dan,
+ *      untuk, und, der, les, para, de, el…). Lower case matters: "Dan Bilzerian", "Los Angeles"
+ *      and "Die Hard" are proper nouns and keep their rows; a headline is sentence case in every
+ *      one of these languages, so its function words are lower case wherever they are not first;
+ *   4. two or more LETTERS ENGLISH DOES NOT USE (ı ğ ş ç ñ ã ß ø å, accented vowels — Turkish,
+ *      Vietnamese, Polish, Czech), or two or more words from a short list of Indonesian / Malay
+ *      headline vocabulary that has no English homograph (pemkab, bupati, sertifikat, tanah…),
+ *      for the title-case headlines those languages write, in which no function word appears.
+ * A headline that passes may still be unreadable; a headline that fails is never a loss. The
+ * scrape applies the same test at capture, so the committed snapshot and the live walk agree.
+ */
+const NON_LATIN_LETTER = /[\p{L}--\p{Script=Latin}]/gv; // g: count every such letter, not the first
+const NON_ENGLISH_LATIN_LETTER = /[\p{Script=Latin}--[A-Za-z]]/gv; // é ü ı ğ ş ñ ã ç ø å ß ł ř…
+const ENGLISH_WORDS = /\b(the|and|of|to|in|for|on|with|at|by|from|as|is|are|was|were|be|been|its|it|this|that|these|those|after|before|over|under|amid|says|said|will|would|could|should|can|may|might|has|have|had|up|down|out|new|shares|share|stock|stocks|profit|loss|order|orders|results|result|per|cent|crore|lakh|q[1-4]|buy|sell|sees|see|why|how|what|who|when|where|which|top|best|today|week|year|years|month|months|day|days|market|markets|india|indian|rs|ltd|limited|inc|company|companies|firm|fund|funds|net|revenue|sales|growth|deal|report|reports|announces|launches|plans|set|sets|not|no|vs|or|but|about|into|than|more|most|less|first|last|next|big|high|low|record|strong|weak|investors|investor|analyst|analysts|brokerage|nse|bse|sensex|nifty|ceo|chairman|board|shareholders|dividend|bonus|split|ipo|listing|trade|trading|quarter|fy\d{2,4})\b/i;
+// Lower-case only, and never adjacent to another letter (so "Trabzonspor'dan" counts and "dance" does not).
+const FOREIGN_WORDS = /(?<![A-Za-z])(dan|yang|untuk|dengan|dari|akan|dalam|pada|tidak|adalah|oleh|juga|telah|bisa|ini|itu|ada|sebagai|karena|hingga|setelah|sudah|masih|lebih|kini|saat|agar|bagi|serta|atau|tapi|namun|jadi|und|der|die|das|mit|für|nicht|auf|ist|eine|ein|zum|zur|von|nach|über|bei|wird|sind|hat|vor|aus|im|am|um|zu|den|dem|wie|noch|auch|nur|oder|aber|les|des|une|pour|dans|avec|est|sur|le|la|du|au|aux|et|à|qui|que|los|las|una|para|con|por|del|como|más|de|el|en|al|se|su|sus|es|uma|não|do|da|dos|das|na|em|ao|é|het|een|van|voor|met|niet|te|bij|ook|wordt|naar|uit|aan|dat|zijn|worden|door|tegen|della|delle|dei|degli|nel|nella|sul|sulla|che|gli|alla|dal|ve|bir|için|ile|olarak|bu|ne|var|yok|oldu|olan|sonra|kadar|ang|mga|ng|sa|katika|kwa)(?![A-Za-z])/;
+// Case-insensitive, because these headlines are written in title case; two distinct hits decide.
+const INDONESIAN_WORDS = /\b(pemkab|pemprov|pemkot|bupati|gubernur|kabupaten|kecamatan|kelurahan|walikota|polres|polda|polsek|kapolres|kapolda|menteri|kementerian|presiden|wakil|dprd|polri|warga|masyarakat|pemerintah|pemerintahan|kerajaan|negeri|proses|sertifikat|tanah|harga|saham|rupiah|ringgit|ribu|juta|miliar|triliun|diusulkan|asuransi|perikanan|bisnis|perniagaan|syarikat|waspada|pengolah|pemasar|untung|janji|kerja|pekerja|sekolah|siswa|mahasiswa|rumah|sakit|jalan|kota|desa|provinsi|pulau|bandara|pelabuhan|tersangka|korban|kecelakaan|banjir|gempa|kebakaran|hujan|cuaca|prakiraan|dukung|dukungan|tingkatkan|peningkatan|pembangunan|pengembangan|layanan|pelayanan|terkait|resmi|segera|hari|tahun|bulan|orang|dapat|besar)\b/gi;
+const countOf = (text, re) => (String(text || '').match(re) || []).length;
+export function isEnglishHeadline(title, source = '') {
+  const text = String(title || '');
+  if (!text.trim()) return true; // nothing to judge; the row is judged on other grounds
+  if (countOf(text, NON_LATIN_LETTER) + countOf(source, NON_LATIN_LETTER) >= 2) return false;
+  if (ENGLISH_WORDS.test(text)) return true;
+  if (FOREIGN_WORDS.test(text)) return false;
+  if (countOf(text, NON_ENGLISH_LATIN_LETTER) >= 2) return false;
+  const indonesian = new Set((text.match(INDONESIAN_WORDS) || []).map((w) => w.toLowerCase()));
+  return indonesian.size < 2;
+}
+
 export function normaliseArticle(r, query = null) {
   // The outlet is NESTED: the live payload carries `profile: { name, url }` and no flat publisher
   // field at all, so a top-level lookup finds nothing and every row reads as sourceless.

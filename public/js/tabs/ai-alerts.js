@@ -13,6 +13,9 @@ import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
 import * as coverage from '../data/coverage.js';
 
+// GLOW: the held value on a card, in crore or lakh as its size warrants.
+const formatHeld = (rupees) => (rupees >= 1e7 ? `₹${formatNumber(rupees / 1e7, { decimals: 2 })} Cr` : `₹${formatNumber(rupees / 1e5, { decimals: 1 })} L`);
+
 export const meta = {
   id: 'ai-alerts',
   title: 'AI Alerts',
@@ -191,6 +194,7 @@ function cardMarkup(card, scope) {
               <span class="text-xs font-bold text-indigo-600">${escapeHtml(card.ticker)}</span>
               ${card.sector ? `<span class="text-xs text-slate-400">${escapeHtml(card.sector)}</span>` : ''}
               ${card.holding ? pill({ label: 'In portfolio', tone: 'accent' }) : ''}
+              ${card.held ? `<span class="text-xs text-slate-500" data-ai-held title="The statements' marks for this company, summed across the accounts that hold it; each duplicate report counted once">Held ${escapeHtml(formatHeld(card.held.valueRupees))}${card.held.weightPct != null ? ` · ${escapeHtml(String(card.held.weightPct))}% of the book` : ''}${card.held.via?.length ? ` · via ${escapeHtml(card.held.via.join(', '))}` : ''}</span>` : ''}
             </div>
             <p data-ai-insight class="mt-2 max-w-5xl text-sm font-medium leading-relaxed text-slate-700">${escapeHtml(card.insight)}</p>
           </div>
