@@ -166,8 +166,13 @@ const trackedNews = (e) => e.feed === 'news' && (e.keywords || []).length > 0;
 const materialFiling = (e) => e.feed === 'announcements' && e.importance === 'high';
 const resultEvent = (e) => e.feed === 'earnings' || e.feed === 'concalls';
 
-/** The tracked keywords on a card's news rows, deduplicated, for a sentence that names them. */
-const newsTopics = (events) => [...new Set(events.flatMap((e) => (e.feed === 'news' ? e.keywords || [] : [])))];
+/**
+ * The tracked keywords on a card's news AND announcement rows, deduplicated, for a sentence that
+ * names them. Both feeds classify against the same thirty-word vocabulary, so a filing's topic is
+ * as nameable as a story's — and on the announcements feed it is the company's own statement of it.
+ */
+const newsTopics = (events) =>
+  [...new Set(events.flatMap((e) => (e.feed === 'news' || e.feed === 'announcements' ? e.keywords || [] : [])))];
 
 /**
  * The patterns, in the order they are reported. `detect` returns the sentence it matched on, or

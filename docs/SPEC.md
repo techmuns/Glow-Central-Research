@@ -44,7 +44,8 @@ inactive slate with hover. Order is fixed:
 8. Super Investors
 9. News
 10. Corp Announcements
-11. Insider Trades
+11. NSE Filings
+12. Insider Trades
 
 ### (c) Sub-view — one dropdown, at every width
 
@@ -62,7 +63,7 @@ spans the full 1400px on every tab.
 | Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
 | Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
-| News · Corp Announcements · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
+| News · Corp Announcements · NSE Filings · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
 
 Only Breakouts and Super Investors have sub-views; every other tab hides the picker entirely.
 
@@ -302,7 +303,7 @@ live.onGlobalTick(cb);    // header Live pill
 
 ### Ask Research — `ask-research` (server-configured, single view)
 A two-column conversation workspace and the default landing tab. Every question builds a bounded
-runtime packet through the canonical data modules behind the other ten Research Central tabs.
+runtime packet through the canonical data modules behind the other Research Central tabs.
 **Every source is a tab the reader can open** — the mock ledger used to be the fifteenth and cited
 itself as *Portfolio Analytics*, linking into a hidden workspace with no way back; both are
 deleted, and `verify-research.mjs` now requires every source's route to start `#/research/`.
@@ -317,7 +318,11 @@ It forwards each upstream NDJSON text chunk immediately, while the answer cites 
 claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
 route is same-origin, size-bounded and rate-limited. Conversation history stays in device
 `localStorage`; the provider has no web-search contract, so the workspace makes no web-research
-claim or control. Every source retains status, coverage and provenance inside a 13,000-character
+claim or control. An answer in flight is not tied to the tab being on screen: leaving Ask Research
+lets it finish, saves it to the conversation and announces it in the alert stack, while a scope or
+scope-membership change still cancels it so an answer cannot land under a scope it was not built
+for. Unsent drafts persist; a question interrupted by a reload is returned to the composer and never
+re-sent automatically. Every source retains status, coverage and provenance inside a 13,000-character
 evidence budget measured on what the model receives; the skeleton may take at most 60% of it, and
 the rest is spent on rows — the companies the question names first, from every source that carries
 them — so the request stays within the local model's 8K-token context. UI-only routes and the
@@ -466,16 +471,13 @@ roadmap* card that used to close each tab has been removed from the UI:
 | 6 | Public Chatter + Super Investors | Chatter: forum threads with claim extraction, Telegram groups with a transparent 0–3 pump-risk heuristic, and a cross-source Trending view joined to the **real** technicals feed with a chatter-vs-price quadrant. Investors: investor-first cards, a four-view per-investor workspace, a mandate view for funds, FII/DII and MF category flow charts, and an overlap heatmap. Both data sets are **synthetic** — and the investor names are **real people**, so their positions carry an attribution ribbon on every surface and the data set holds numbers only, never a quote or rationale. ✅ |
 | 7 | Portfolio Analytics + polish and QA | Built, then **deleted** — see prompt 9. A FIFO lot engine over an illustrative ledger, live marks, an equity curve over 735 real closes, XIRR and TWR, four sub-views and a CSV import, plus the QA pass that remains: error states, a11y focus traps, `scope="col"` on every header and the assertion suite in `scripts/verify-ui.mjs`. The ledger was synthetic and every price in it real; that mixture is why the workspace is gone. In git history at `d3bba30`. ✅ |
 
+| 8b | Tracked keywords on Corp Announcements | The same vocabulary on the widest feed in the dashboard, matched against the filing's subject and BSE's own sub-category. Topic column and filter (replacing the Sub-category column, which duplicated the sub-line). It **replaced** `announcementSignal()`'s borrowed materiality gate rather than sitting beside it: BSE's `critical` flag marks 29% of filings, 881 of them AGM notices, so it is reproduced on the row and no longer decides importance — which fell from 32% of filings to 11%. Direction untouched. ✅ |
 | 8 | Tracked news keywords + cross-feed correlation | The desk's thirty keywords as one shared vocabulary (`public/js/data/news-keywords.js`), driving a counted Topic filter and column on both News surfaces, the materiality rule for company news in General Alerts, and a participation event (volume ≥ `VOLUME_X`, or a confirmed base break) on the technicals feed. AI Alerts gains `confluenceOf()` — seven **named** cross-feed patterns that say *"volume 3.2x its average, and a tracked investor's latest book shows buying"* instead of *"three feeds"*. A keyword is a **topic and never a direction**, so no story anywhere gains a sentiment of ours. Measured: 11,060 captured stories → 3,278 tracked. ✅ |
-| 9 | Portfolio means a list of names | **Portfolio Analytics deleted.** Four modules, the FIFO engine, `js/data/portfolio.js`, the illustrative ledger, the mock transactions and 290KB of equity-curve history are gone, and the Ask Research evidence registry drops from fifteen sources to fourteen. It was `hidden: true` — routable but not clickable — and an Ask Research citation linked straight into it, so a reader landed on a screen of invented money with nothing on the page that led back and no address bar inside the host iframe. The only portfolio information left is the synced book of 142 company names. The rules that survive: *a surface that is not offered must not be reachable*, *an evidence source must be a tab the reader can open*, and *prefer deletion to labelling* — for the third time. ✅ |
+| 9 | Provenance reachable again | The filings tabs' provenance and the source registry were both built and had no caller — correct, maintained and unreachable, which reads as documentation of a working feature. Each now has a door placed **after** the content it qualifies: a footer line for the registry, one muted line under each filings table for that tab's measured coverage. The chrome that was deliberately removed stays removed — no Sources button in the header, every status pill still a passive `<span>` that opens nothing. Also fixes two defects found alongside: `earnings-calendar` had no `load()` and threw on every Ask Research question, so that source had never once been read; and a `[Dashboard: …]` citation resolved by first-match across four shared tab names, sending a question about strong breakouts to the Technical Scanner. ✅ |
+| 10 | Portfolio means a list of names | **Portfolio Analytics deleted.** Four modules, the FIFO engine, `js/data/portfolio.js`, the illustrative ledger, the mock transactions and 290KB of equity-curve history are gone, and the Ask Research evidence registry drops from fifteen sources to fourteen. It was `hidden: true` — routable but not clickable — and an Ask Research citation linked straight into it, so a reader landed on a screen of invented money with nothing on the page that led back and no address bar inside the host iframe. The only portfolio information left is the synced book of 142 company names. The rules that survive: *a surface that is not offered must not be reachable*, *an evidence source must be a tab the reader can open*, and *prefer deletion to labelling* — for the third time. ✅ |
 
 **Still to come**
 
-- **Corporate Announcements does not use the taxonomy.** Several of the thirty words — *Receipt of
-  Order*, *Corporate Governance*, *Commissioning* — are literally BSE filing phrases, so the fit is
-  obvious. It is deliberately not wired: `announcementSignal()` already states its own materiality
-  rule for that feed, and a second overlapping rule over one question is the pattern this codebase
-  keeps having to un-write. Wiring it means **replacing** that rule, not adding beside it.
 - **No keyword-targeted search.** "Company name + keyword" is answered by classifying the committed
   capture, not by sending 559 × 30 queries against a sixty-a-minute cap. If the upstream ever grows
   a topic axis, that becomes the cheaper question to ask.

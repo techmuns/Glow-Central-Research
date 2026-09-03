@@ -21,6 +21,7 @@ import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
+import * as nseFeed from '../data/nse-filings.js';
 import * as superInvestors from '../data/super-investors.js';
 // NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
@@ -369,24 +370,25 @@ export function sourceGroups() {
           name: 'Tracked news keywords (computed)',
           url: null,
           feeds:
-            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces and used as the materiality rule for company news in General Alerts and AI Alerts. ' +
+            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces, against each filing\'s subject and BSE\'s own sub-category on Corp Announcements, and used as the materiality rule for both feeds in General Alerts and AI Alerts. ' +
             'It exists because the news upstream is a <strong>search by company name</strong>, so the capture is a name match and names collide: on the shipped file, filtering 11,060 stories by these keywords leaves 2,889. ' +
             '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in General Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
             'Several patterns are deliberately narrower than the plain word, and each says so on its own chip: a bare <em>trial</em> matched free-trial boilerplate, a bare <em>fire</em> matched "stock on fire". ' +
-            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>.',
+            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>. ' +
+            'On announcements it also <strong>replaced</strong> a borrowed gate rather than sitting beside one: BSE\'s own critical flag marks about a third of all filings, most of them AGM notices, so it is reproduced on every row but no longer decides what General Alerts calls material — measured, high importance there fell from 32% of filings to 11%.',
           cadence: 'Recomputed on every load',
           status: 'static',
           file: 'public/js/data/news-keywords.js',
         },
         {
-          name: 'Market-wide stocks news feed',
+          name: 'Market-wide news — five publishers',
           url: 'https://www.moneycontrol.com/news/business/stocks/',
           feeds:
-            "<strong>Real reporting, and not ours.</strong> Every story in the market-wide publisher feed — the Universe half of the News tab. Headlines, standfirsts and section names are theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing is summarised, scored, ranked or flagged as important, and <strong>the order is the publisher's own</strong>, by their article id. <strong>It is a capture, not a live read, and that is not a choice:</strong> their site refuses automated readers by TLS fingerprint — curl with a browser user-agent gets 200 and 598 KB, node's <code class=\"rounded bg-slate-100 px-1\">fetch</code> gets 403 on every header set tried, and a Cloudflare Worker gets 403 too — so a scheduled Action reads the page and the browser reads what it committed. Their listing page carries <strong>no date at all</strong>, so a story's time comes from its own page, costs one request each and is budgeted; the rest read <em>time not published</em> and are <strong>never</strong> stamped with the moment this dashboard saw them. <strong>The stories are rendered as the publisher's own cards</strong> — their thumbnail, headline and standfirst — and the whole card links to their page.",
+            "<strong>Real reporting, and not ours.</strong> Every story in five publishers' market-wide feeds — the Universe half of the News tab. Headlines and standfirsts are theirs, reproduced unchanged; the article stays on their site, every row links to it and <strong>every row names who published it</strong>, because an unattributed headline in a mixed list attributes itself to whichever masthead the reader assumes. Nothing is summarised, scored, ranked or flagged as important, no publisher is ranked above another, and <strong>the order is by publication time</strong>. <strong>Section is ours, not theirs</strong>: each publisher offers several feed URLs, so a story's section records which of their feeds it arrived on rather than a tag they applied to it. <strong>It is a capture, not a live read, and that is not a choice:</strong> three of the five refuse a server by TLS fingerprint rather than by headers — measured with node's <code class=\"rounded bg-slate-100 px-1\">fetch</code>, two of them answer 200 while the other three answer <strong>403 with a 24-byte body</strong> — the same 24 bytes each — and curl with a browser user-agent gets all five at 200 — so a scheduled Action reads them and the browser reads what it committed. <strong>A story with no time says so</strong> and is <strong>never</strong> stamped with the moment this dashboard saw it. <strong>Nothing is ever discarded:</strong> the file the browser downloads holds the newest stories only, and everything older is kept in a shard per month that is fetched when a reader scrolls to the end of the list.",
           cadence:
-            `Captured on a schedule through the day.${clause(num(() => marketNews.meta().count), ' <n> stories in the current file.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry the publisher's own time.")}`,
+            `Captured on a schedule through the day.${clause(num(() => marketNews.meta().count), ' <n> stories loaded on this page.')}${clause(num(() => marketNews.meta().archive?.total), ' <n> in the capture, head and archive together.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry their publisher's own time.")}`,
           status: 'live',
-          file: 'worker/mc-news.mjs · scripts/scrape-mc-news.mjs · .github/workflows/market-news-refresh.yml',
+          file: 'worker/mc-news.mjs · worker/rss-news.mjs · scripts/scrape-mc-news.mjs · scripts/scrape-rss-news.mjs · scripts/lib/news-store.mjs · .github/workflows/market-news-refresh.yml · .github/workflows/rss-news-refresh.yml',
         },
         {
           name: 'BSE — corporate announcements, indexed by date',
@@ -400,6 +402,16 @@ export function sourceGroups() {
             `Refreshed weekdays at 20:00 IST, after filing stops for the day.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().rowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().covered), ' <n> companies filed something.')}`,
           status: 'live',
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · .github/workflows/announcements-refresh.yml',
+        },
+        {
+          name: 'NSE — live exchange announcements',
+          url: 'https://www.nseindia.com/companies-listing/corporate-filings-announcements',
+          feeds:
+            "<strong>Real filings, live, and narrowed to your companies.</strong> NSE rebuilds an announcements RSS every few minutes and every item names the filer, so unlike the market-wide publisher feeds this one can be scoped: each row is resolved to an NSE symbol and the Portfolio / Watchlist toggle shows just your holdings. <strong>The company name is the identity</strong> — the filename prefix looks like a symbol but was measured only 31% reliable (truncations, a different entity's code, XBRL names with no clean prefix), so it is a last resort behind a name match. <strong>The browser cannot read NSE directly</strong> (it answers <code class=\"rounded bg-slate-100 px-1\">access-control-allow-origin: null</code>), so this is proxied through our Worker with a 90-second edge cache; a committed snapshot is the floor beneath it for a first visit or a static origin. <strong>A filing whose company is outside the universe we can name keeps no symbol</strong> and shows only under Universe — never under a narrowed scope, because nothing on it says whose it is. Exchange surveillance notices (&ldquo;significant movement in price&rdquo;) carry no document and say so rather than being dropped. Nothing here is scored, ranked or judged.",
+          cadence:
+            `Live off the exchange, edge-cached; a committed snapshot is refreshed on a schedule.${clause(num(() => nseFeed.meta().count), ' <n> announcements held.')}${clause(num(() => nseFeed.meta().resolved), ' <n> resolved to a symbol.')}`,
+          status: 'live',
+          file: 'worker/nse-ann.mjs · public/js/data/nse-filings.js · scripts/scrape-nse-announcements.mjs · .github/workflows/nse-announcements-refresh.yml',
         },
         {
           name: 'Muns filings API — insider trades',

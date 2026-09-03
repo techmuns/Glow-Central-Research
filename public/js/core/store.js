@@ -63,6 +63,12 @@ export const KEYS = {
   // Market-wide stocks news, the Universe half of the News tab. One committed capture, refreshed
   // by a scheduled Action — neither the browser nor the Worker can read the publisher directly.
   marketNews: 'market-news',
+  // One entry per ARCHIVE MONTH, not one for the whole archive. A reader who has scrolled back
+  // three months holds three entries, and a story landing in the current month must not invalidate
+  // the two below it — the same reasoning as the per-investor and per-company keys above.
+  marketNewsMonth: (month) => `market-news:${month}`,
+  // NSE's live announcements feed — one committed blob, refreshed live off /api/nse-announcements.
+  nseFilings: 'nse-filings',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

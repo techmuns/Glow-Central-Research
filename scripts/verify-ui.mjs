@@ -340,6 +340,7 @@ const routes = await page.evaluate(async () => {
       'tabs/super-investors.js',
       'tabs/news.js',
       'tabs/corp-announcements.js',
+      'tabs/nse-filings.js',
       'tabs/insider-trades.js',
     ],
   };
@@ -1099,6 +1100,15 @@ console.log('\n— AI alerts —');
       });
     }
     askRequest = request.postDataJSON();
+    // Slow on purpose: the check below leaves the tab while this is still being written.
+    if (/keeps working while i look away/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'OFF_TAB_ANSWER stands on dashboard evidence.' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
     if (/stale scope test/i.test(askRequest?.question || '')) {
       await new Promise((resolve) => setTimeout(resolve, 900));
       return route.fulfill({
@@ -1437,6 +1447,64 @@ console.log('\n— AI alerts —');
     !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
     citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
 
+  // AN ANSWER THE READER WALKED AWAY FROM IS STILL THERE WHEN THEY COME BACK.
+  //
+  // `destroy()` used to abort every generation, so pressing Send and then looking at another tab —
+  // the obvious thing to do while fifteen sources are read and an answer is written — cancelled it,
+  // put the question back in the composer and took it out of the transcript. What the reader saw
+  // was their own question sitting unsent, which reads as the assistant having dropped it.
+  //
+  // Driven the way a reader does it: a SAME-DOCUMENT hash navigation. `go()` reloads the document,
+  // which genuinely does end the request, and would pass this check for the wrong reason.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Keeps working while I look away');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Opening /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 15000 });
+  const awaySession = await page.evaluate(() => {
+    location.hash = '#/research/breakouts?scope=portfolio';
+    return true;
+  });
+  await page.waitForTimeout(600);
+  ok('leaving Ask Research mid-answer really does unmount it', awaySession && !(await page.locator('[data-research-input]').count()));
+  const landedAway = await page
+    .waitForFunction(() => {
+      const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
+      return stored.some((session) => session.messages?.some((m) => m.role === 'assistant' && /OFF_TAB_ANSWER/.test(m.text)));
+    }, null, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  ok('...and the answer still arrives and is saved while another tab is on screen', landedAway);
+  // Keeping it running silently would be a feature nobody can see, so it announces itself in the
+  // alert stack — the same place a filed result does, under the tab it belongs to.
+  ok('...and says so in the alert stack rather than finishing invisibly',
+    (await page.locator('[data-notification="research"]').count()) > 0,
+    `${await page.locator('#notification-root > *').count()} alert card(s) on screen`);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  const backText = await page.locator('[data-research-transcript]').innerText();
+  ok('...and it is in the conversation when the reader returns, with the composer clear',
+    /OFF_TAB_ANSWER/.test(backText) && (await page.locator('[data-research-input]').inputValue()) === '',
+    backText.replace(/\s+/g, ' ').slice(0, 120));
+
+  // A TYPED-BUT-UNSENT QUESTION IS THE READER'S WORK TOO. It survives leaving the tab and a reload.
+  await page.locator('[data-research-input]').fill('An unsent draft that must survive');
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { location.hash = '#/research/breakouts?scope=portfolio'; });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForTimeout(900);
+  ok('an unsent draft survives leaving the tab',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  ok('...and a reload',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.evaluate(() => {
+    const input = document.querySelector('[data-research-input]');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
   // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
   // again on first paint and the result stored on the message — so a conversation from before
   // the link change opens General Alerts on the company's nineteen rows, not on all 21,000.
@@ -1506,16 +1574,25 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
-  // WHAT THIS ASSERTS IS THAT THE PARAMETER SEEDS THE SEARCH, not that the search returns exactly
-  // one company. `scoreTable` matches the name as well as the ticker, so seeding TECHNOCRAF
-  // legitimately also matches "Technocraft Industries" (TIIL) — a correct result of that search,
-  // and one the shipped data happens to contain. Requiring every row to carry the ticker made the
-  // check fail on a name twin appearing upstream, which is a fact about the feed, not a bug here.
+  // ASSERT WHAT A SEARCH PROMISES, NOT WHAT A FILTER WOULD. `?company=` seeds the search box — the
+  // documented behaviour, and visible to the reader, who can edit it — so what it returns is every
+  // row matching that TEXT, which is a superset of the company. The box matches names as well as
+  // symbols, so seeding `TECHNOCRAF` legitimately also shows Technocraft Industries, whose own
+  // symbol is something else entirely. That is a search behaving like a search, and the day the
+  // newest filing happened to be a company whose name prefixes another's, a check about deep-linking
+  // failed with nothing wrong on the page.
+  //
+  // This is the second assertion in this file to get that backwards — the other read a
+  // case-sensitive ticker against a BSE filing reading "voluntarily issued by Crisil" — so state the
+  // shape once. Two clauses, and both earn their place: every row matches the seeded SEARCH, which
+  // is what the product promises and would catch a stray unrelated row; and the seeded company is
+  // among them, which carries the original point of this check — an uppercase seeded ticker matching
+  // nothing while the product visibly said 0 shown.
+  const seededMatchesSearch = seededRows.every((row) => row.toUpperCase().includes(String(seedTicker || '').toUpperCase()));
+  const seededCompanyPresent = seededRows.some((row) => row.includes(seedTicker));
   ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 &&
-      seededRows.some((row) => row.includes(seedTicker)) &&
-      seededRows.every((row) => row.toUpperCase().includes(seedTicker.toUpperCase())),
-    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededMatchesSearch && seededCompanyPresent,
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s), company present ${seededCompanyPresent}`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
@@ -1661,9 +1738,25 @@ console.log('\n— AI alerts —');
   ok('announcement rules distinguish upgrade, default and unmatched text',
     rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
       rules.annRegulatoryOrder.direction !== 'positive');
-  ok('BSE critical and material announcement matches are High',
-    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
-      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  // THE CRITICAL EXPECTATION HERE IS INVERTED ON PURPOSE, and it is the one line of this check that
+  // changed: `annCritical` is an AGM notice BSE flagged critical, and it is now LOW. Their flag is
+  // reproduced on the row and in the export and no longer gates our importance — measured, it marks
+  // 29% of the whole exchange and 881 of those are AGM notices. See *A borrowed flag is not a
+  // materiality rule* in CLAUDE.md, and `BSE_CRITICAL_IS_MATERIAL`, which flips it back.
+  //
+  // Everything else this check asserted is unchanged and still asserted: the directional rule keeps
+  // its own materiality (an upgrade and an auditor resignation are both High on their own, without
+  // BSE's flag and — for the upgrade — without any tracked keyword), and a routine AGM is Low.
+  ok('the directional rule keeps its own materiality, and BSE\'s critical flag no longer grants it',
+    rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low' &&
+      rules.annCritical.importance === 'low',
+    `upgrade ${rules.annUpgrade.importance}, auditor ${rules.annAuditor.importance}, AGM ${rules.annGeneral.importance}, critical AGM ${rules.annCritical.importance}`);
+  // ...and the row still carries their flag's reasoning, so a reader is not left wondering why a
+  // filing the exchange marked critical is not at the top of the page.
+  ok('...and a critical filing says in words that their marker is reproduced but is not the gate',
+    /BSE marked this filing critical/.test(rules.annCritical.importanceReason) && !/BSE marked this filing critical/.test(rules.annGeneral.importanceReason),
+    rules.annCritical.importanceReason.slice(0, 90));
   ok('regulatory approval and commercial-production noun forms are Positive and High',
     rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
       rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
@@ -4877,6 +4970,19 @@ console.log('\n— header status and live alerts —');
   });
   ok('the header search box is gone', header.inputs === 0, `${header.inputs} inputs in the header`);
   ok('...and so is the Sources button', !header.sourcesBtn);
+  // THE OTHER HALF OF THAT TRADE, and the half that was missing. Removing the button was right;
+  // leaving the registry with no caller at all was not, because CLAUDE.md goes on to say canonical
+  // provenance "remains in the source registry". The door is a footer, BELOW the content, so the
+  // chrome stays gone and the claim stays reachable — see section 17.
+  const registryDoor = await evalSafe(() => {
+    const btn = document.querySelector('[data-sources-open]');
+    const main = document.getElementById('dashboard-main');
+    if (!btn || !main) return { present: false };
+    return { present: true, inHeader: !!btn.closest('header'), belowContent: !!(main.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  });
+  ok('...but the source registry is reachable, from a footer rather than the chrome',
+    registryDoor.present && !registryDoor.inHeader && registryDoor.belowContent,
+    JSON.stringify(registryDoor));
   ok('one status pill, not two competing chips', header.pills === 1 && header.updatedChip === 0, `${header.pills} pill(s), ${header.updatedChip} legacy chip(s)`);
   ok('...reading "Connected · checked <when>"', /^Connected · checked /.test(header.pillText) || /connecting/.test(header.pillText), header.pillText);
   ok('...and a refresh button beside it', header.refresh === 1);
@@ -5316,17 +5422,36 @@ console.log('\n— news, announcements and insider trades —');
     // A story whose captured URL is not http(s) is rendered without a link on purpose. None should
     // exist; if one does, this reports it rather than letting it read as a missing anchor.
     const unlinkable = nodes.filter((a) => a.hasAttribute('data-news-unlinkable')).length;
-    const offsite = nodes.filter((a) => /^https:\/\/(www\.)?moneycontrol\.com\//.test(a.getAttribute('href') || '')).length;
+    // ASSERTED AGAINST THE ROW'S OWN PUBLISHER, not against one hard-coded domain.
+    //
+    // These read `https://(www.)?moneycontrol.com/` and `https://images.moneycontrol.com/` while
+    // that was the only publisher in the feed. With five, a fixed host would fail for four of them
+    // and — worse — would pass a Mint story rendered with a Moneycontrol thumbnail, which is the
+    // actual thing worth preventing. Comparing each card against the URL and image on ITS OWN row
+    // is publisher-agnostic and strictly stronger: it catches a card wearing another story's
+    // picture, which no domain test ever could.
+    const offsite = nodes.filter((a) => {
+      const href = a.getAttribute('href') || '';
+      if (!/^https:\/\//.test(href)) return false;
+      try { return new URL(href).origin !== window.location.origin; } catch { return false; }
+    }).length;
     const newTab = nodes.filter((a) => a.getAttribute('target') === '_blank' && /noreferrer/.test(a.getAttribute('rel') || '')).length;
     const hrefMatchesFeed = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.url === a.getAttribute('href')).length;
     const thumbs = nodes.filter((a) => {
       const img = a.querySelector('img');
-      return img && /^https:\/\/images\.moneycontrol\.com\//.test(img.getAttribute('src') || '');
+      const want = byKey.get(a.getAttribute('data-news-key'))?.image;
+      return !!want && !!img && img.getAttribute('src') === want && /^https:\/\//.test(want);
     }).length;
     const withImage = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.image).length;
+    // WHITESPACE IS NORMALISED ON BOTH SIDES, and only whitespace. `innerText` collapses runs of
+    // spaces the way HTML always renders them, so 20 Mint headlines that write "brings  ₹10" with a
+    // double space read back single-spaced and failed a strict compare — the headline was
+    // reproduced exactly, the comparison just could not see it. Collapsing both sides still catches
+    // the thing this guards: a word changed, a truncation, any rewrite of somebody's headline.
+    const flat = (v) => String(v || '').replace(/\s+/g, ' ').trim();
     const headlines = nodes.filter((a) => {
       const h = a.querySelector('h3');
-      return h && h.innerText.trim() === (byKey.get(a.getAttribute('data-news-key'))?.title || '').trim();
+      return h && flat(h.innerText) === flat(byKey.get(a.getAttribute('data-news-key'))?.title);
     }).length;
     // Undated stories: the card must name the absence, and must never print firstSeenAt.
     const undatedOnScreen = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key')) && !byKey.get(a.getAttribute('data-news-key')).publishedAt);
@@ -5347,13 +5472,250 @@ console.log('\n— news, announcements and insider trades —');
     `${cards?.drawn} drawn from ${cards?.data}, ${cards?.dupes} duplicate(s), ${cards?.missing} not in the feed`);
   ok('...rendered as the publisher\'s card — thumbnail, headline, standfirst',
     cards && cards.thumbs === cards.withImage && cards.withImage > 0 && cards.headlines === cards.drawn,
-    `${cards?.thumbs}/${cards?.withImage} thumbnails off the publisher's CDN, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
+    `${cards?.thumbs}/${cards?.withImage} cards carrying their own story's thumbnail, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
   ok('...and clicking one opens THAT story on the publisher\'s site, in a new tab',
     cards && cards.unlinkable === 0 && cards.anchors === cards.drawn && cards.offsite === cards.drawn && cards.newTab === cards.drawn && cards.hrefMatchesFeed === cards.drawn,
-    `${cards?.anchors} anchors, ${cards?.offsite} to moneycontrol.com, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
+    `${cards?.anchors} anchors, ${cards?.offsite} leaving this origin, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
   ok('a story with no publisher time says so, never the time we saw it',
     cards && (cards.undated === 0 || cards.undatedSay === cards.undated),
     `${cards?.undated} undated on screen, ${cards?.undatedSay} saying the time is not published`);
+
+  // -------------------------------------------------------------------------------------
+  // FIVE PUBLISHERS IN ONE LIST, AND HISTORY THAT DOES NOT END AT THE HEAD
+  // -------------------------------------------------------------------------------------
+  //
+  // The capture is a bounded head plus a shard per month. Two things have to hold and neither is
+  // visible from a row count: every story says who published it (an unattributed headline in a
+  // mixed feed attributes itself to whichever masthead the reader assumes), and scrolling to the
+  // end pulls the next month in rather than stopping at whatever the head happened to carry.
+
+  const bylines = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const { withoutPublisherName } = await import('/js/core/source-copy.js');
+    // The row keeps the real publisher for matching; the SCREEN shows it through the naming policy,
+    // so the card is checked against the labelled form. Checking the raw value would fail for the
+    // one publisher whose brand this dashboard withholds, and pass only by accident for the rest.
+    const named = (v) => withoutPublisherName(String(v || '')).replace(/^the publisher\b/i, 'The publisher');
+    const rows = mod.rows();
+    const cardsNow = [...document.querySelectorAll('[data-news-key]')];
+    const byKey = new Map(rows.map((r) => [String(r.id || r.url), r]));
+    const drawnBylines = cardsNow.filter((c) => {
+      const r = byKey.get(c.dataset.newsKey);
+      return r?.publisher && (c.innerText || '').includes(named(r.publisher));
+    }).length;
+    const pubs = [...new Set(rows.map((r) => r.publisher).filter(Boolean))];
+    return {
+      total: rows.length,
+      withPublisher: rows.filter((r) => r.publisher).length,
+      publishers: pubs,
+      drawn: cardsNow.length,
+      drawnBylines,
+      options: [...document.querySelectorAll('[data-news-publisher] option')].map((o) => o.value),
+      // The withheld brand must not reach the screen through any of the new surfaces — byline,
+      // dropdown, footer or provenance — the same rule the Earnings view is already held to.
+      brandOnScreen: /money\s*control/i.test(document.getElementById('content-host')?.innerText || ''),
+    };
+  });
+  // A CAPTURE WITH TWO WRITERS NEEDS TWO CLOCKS, and this is the check that says so. The watchdog
+  // and the tab's auto-fetch both dispatch the workflow that reads MONEYCONTROL and nothing else,
+  // while the file's own `capturedAt` is whichever of the two jobs wrote it last. Gating on the
+  // file would let the hourly RSS run hold the timestamp fresh while Moneycontrol went unread for
+  // days — a staleness check answered by a source it cannot refresh, and silent, because every
+  // number on screen would look healthy. `freshnessOf` is pure and exported precisely so both
+  // branches can be driven here rather than waited for.
+  const freshness = await evalSafe(async () => {
+    const wd = await import('/js/data/capture-watchdog.js');
+    const old = '2020-01-01T00:00:00.000Z';
+    const now = new Date().toISOString();
+    return {
+      // RSS ran a second ago, Moneycontrol has not run since 2020: the answer must be 2020.
+      perSource: wd.freshnessOf('marketNews', { capturedAt: now, sources: { moneycontrol: { capturedAt: old }, mint: { capturedAt: now } } }),
+      stale: old,
+      // No per-source detail (an older capture, or any single-source feed): the file's own time.
+      fallback: wd.freshnessOf('marketNews', { capturedAt: now }),
+      now,
+      // A feed with no `sourceId` is unaffected and still reads the file's time.
+      other: wd.freshnessOf('announcements', { capturedAt: now, sources: { moneycontrol: { capturedAt: old } } }),
+    };
+  });
+  ok('a stalled publisher is not hidden by another publisher writing the same file',
+    freshness && freshness.perSource === freshness.stale && freshness.fallback === freshness.now && freshness.other === freshness.now,
+    `per-source ${freshness?.perSource === freshness?.stale ? 'reads the stalled source' : `WRONG (${freshness?.perSource})`}, no-detail falls back to the file, other feeds unchanged`);
+
+  ok('every market-news story names the publisher it came from',
+    bylines && bylines.total > 0 && bylines.withPublisher === bylines.total && bylines.drawnBylines === bylines.drawn,
+    `${bylines?.withPublisher}/${bylines?.total} rows attributed, ${bylines?.drawnBylines}/${bylines?.drawn} cards showing it, publishers: ${bylines?.publishers.join(', ')}`);
+  ok('...without the News view printing the upstream publisher name either',
+    bylines && bylines.brandOnScreen === false,
+    bylines?.brandOnScreen ? 'the withheld brand reached the screen' : 'not printed');
+  ok('...and every publisher in the feed can be filtered to',
+    bylines && bylines.publishers.every((px) => bylines.options.includes(px)),
+    `${bylines?.options.length - 1} of ${bylines?.publishers.length} publishers offered`);
+
+  // The filter narrows to exactly that publisher — compared against the array, never counted off
+  // the DOM, because a fill still in flight would make a count agree for the wrong reason.
+  const pubFilter = await evalSafe(async () => {
+    const sel = document.querySelector('[data-news-publisher]');
+    if (!sel || sel.options.length < 2) return null;
+    const mod = await import('/js/data/market-news.js');
+    const want = sel.options[1].value;
+    const expect = mod.rows().filter((r) => r.publisher === want).length;
+    sel.value = want;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+    const label = document.querySelector('[data-mcnews-list]')?.innerText.match(/([\d,]+)\s+of\s+([\d,]+)\s+stories/);
+    const drawnPubs = [...new Set([...document.querySelectorAll('[data-news-key]')].map((n) => {
+      const m = mod.rows().find((r) => String(r.id || r.url) === n.dataset.newsKey);
+      return m?.publisher;
+    }))];
+    sel.value = 'all';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 600));
+    return { want, expect, shown: label ? Number(label[1].replace(/,/g, '')) : null, drawnPubs };
+  });
+  if (pubFilter) {
+    ok('filtering to one publisher shows that publisher and no other',
+      pubFilter.expect > 0 && pubFilter.shown === pubFilter.expect && pubFilter.drawnPubs.length === 1 && pubFilter.drawnPubs[0] === pubFilter.want,
+      `${pubFilter.want}: ${pubFilter.shown} shown of ${pubFilter.expect} held, publishers drawn: ${pubFilter.drawnPubs.join(', ')}`);
+  } else {
+    skip('filtering to one publisher shows that publisher and no other', 'only one publisher in this capture');
+  }
+
+  // EVERY SHARD THE HEAD NAMES MUST EXIST. A manifest naming a month no deployment received gives
+  // the reader a failed fetch at the end of every scroll — and the workflow that stages only the
+  // head file is exactly how that happens, so it is worth asserting rather than assuming.
+  const manifest = await evalSafe(async () => {
+    const res = await fetch('data/market-news.json', { cache: 'no-cache' });
+    const body = await res.json();
+    const arc = Array.isArray(body.archive) ? body.archive : [];
+    const checks = await Promise.all(arc.map(async (a) => {
+      const r = await fetch(`data/${a.file}`, { cache: 'no-cache' });
+      if (!r.ok) return { file: a.file, ok: false, status: r.status };
+      const j = await r.json();
+      return { file: a.file, ok: true, count: Array.isArray(j.articles) ? j.articles.length : -1, said: a.count };
+    }));
+    return { months: arc.length, archivedCount: body.archivedCount, headCount: body.articleCount, checks };
+  });
+  ok('every archive month the capture names is actually served, with the count it claims',
+    manifest && manifest.months > 0 && manifest.checks.every((c) => c.ok && c.count === c.said),
+    `${manifest?.months} month(s), ${manifest?.checks.filter((c) => !c.ok).length} unreachable, ${manifest?.checks.filter((c) => c.ok && c.count !== c.said).length} miscounted`);
+  ok('...and the capture holds more stories than the head it paints first',
+    manifest && manifest.archivedCount >= manifest.headCount,
+    `${manifest?.archivedCount} captured, ${manifest?.headCount} in the head`);
+
+  // SCROLLING TO THE END PULLS THE NEXT MONTH IN. Driven through the real control — the scroll —
+  // rather than by calling loadMore(), because the gate that matters is the one wired to the reader.
+  const older = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const before = mod.rows().length;
+    const startArc = mod.archiveMeta();
+    if (startArc.exhausted) return { skipped: true };
+    const host = document.querySelector('[data-news-scroll]');
+    let guard = 0;
+    while (guard < 20) {
+      guard += 1;
+      if (host) host.scrollTop = host.scrollHeight;
+      await new Promise((r) => setTimeout(r, 450));
+      if (mod.rows().length > before) break;
+    }
+    const arc = mod.archiveMeta();
+    return {
+      before,
+      after: mod.rows().length,
+      monthsLoaded: arc.monthsLoaded,
+      oldestBefore: startArc.oldest,
+      oldestAfter: arc.oldest,
+      foot: document.querySelector('[data-news-more]')?.innerText.trim() || '',
+    };
+  });
+  if (older?.skipped) {
+    skip('scrolling to the end of the list loads older stories', 'the head already carries every month in the archive');
+  } else {
+    ok('scrolling to the end of the list loads older stories, and reaches further back',
+      older && older.after > older.before && older.monthsLoaded > 0
+        && Date.parse(older.oldestAfter) < Date.parse(older.oldestBefore),
+      `${older?.before} -> ${older?.after} stories, ${older?.monthsLoaded} month(s) pulled in, back to ${older?.oldestAfter} from ${older?.oldestBefore}`);
+    // THE FOOTER MUST AGREE WITH THE STATE IT DESCRIBES, in both directions. "That is every story"
+    // over an archive with months left is a claim nobody measured, and the reverse — offering more
+    // when there is none — sends the reader scrolling at a list that will never grow. Asserted as
+    // an equality rather than a one-way test, so neither half can drift.
+    const footState = await evalSafe(async () => {
+      const mod = await import('/js/data/market-news.js');
+      const foot = document.querySelector('[data-news-more]')?.innerText.trim() || '';
+      const arc = mod.archiveMeta();
+      return { exhausted: arc.exhausted, remaining: arc.remaining, saysEnd: /that is every story/i.test(foot), saysMore: /keep scrolling|load older/i.test(foot), foot: foot.slice(0, 90) };
+    });
+    ok('...and the footer says the archive is spent exactly when it is',
+      footState && footState.saysEnd === footState.exhausted && footState.saysMore === !footState.exhausted,
+      `${footState?.remaining} month(s) left, footer reads "${footState?.foot}"`);
+  }
+
+  // -------------------------------------------------------------------------------------
+  // NSE LIVE ANNOUNCEMENTS — the one exchange feed that narrows to the reader's companies
+  // -------------------------------------------------------------------------------------
+  //
+  // The load-bearing property is the scope: a filing resolved to a book company shows under
+  // Portfolio, one resolved to nothing shows only under Universe, and NOTHING with a ticker outside
+  // the book may leak into Portfolio. That is the whole reason this feed exists as its own surface
+  // rather than folding into the market-wide news it cannot be filtered like.
+  await go('/#/research/nse-filings?scope=universe', 1800);
+  const nseUni = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const rows = f.rows();
+    const resolved = rows.filter((r) => r.ticker).length;
+    const unresolved = rows.filter((r) => !r.ticker);
+    return {
+      total: rows.length,
+      resolved,
+      unresolved: unresolved.length,
+      // Every row keeps its company name even when it could not be resolved — the identity is the
+      // name, never the (unreliable) filename prefix.
+      allNamed: rows.every((r) => r.company && r.company.length > 0),
+      origin: f.meta().origin,
+      tableRows: document.querySelectorAll('#content-host tbody tr').length,
+    };
+  });
+  ok('the NSE feed loads, names every row, and resolves a real share of them to a symbol',
+    nseUni && nseUni.total > 50 && nseUni.allNamed && nseUni.resolved > 0 && nseUni.resolved < nseUni.total,
+    `${nseUni?.resolved}/${nseUni?.total} resolved, ${nseUni?.unresolved} unresolved, origin ${nseUni?.origin}`);
+
+  await go('/#/research/nse-filings?scope=portfolio', 1500);
+  const nsePort = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const cov = await import('/js/data/coverage.js');
+    const scope = await import('/js/data/scope.js');
+    const holdings = cov.holdings();
+    const wanted = scope.scopeTickers('portfolio', holdings); // the exact Set the feed narrows by
+    const all = f.rows();
+    const port = f.forScope('portfolio', holdings);
+    const leak = port.filter((r) => !r.ticker || !wanted.has(String(r.ticker).toUpperCase()));
+    // An unresolved row (ticker null) is present in Universe and absent from Portfolio — the honesty
+    // rule that a row with no company cannot be narrowed by company.
+    const unresolvedInUniverse = all.some((r) => !r.ticker);
+    const unresolvedInPortfolio = port.some((r) => !r.ticker);
+    return {
+      universe: all.length,
+      portfolio: port.length,
+      leak: leak.length,
+      companies: new Set(port.map((r) => r.ticker)).size,
+      unresolvedInUniverse,
+      unresolvedInPortfolio,
+      narrows: port.length < all.length,
+    };
+  });
+  ok('NSE Portfolio scope narrows to book companies with no leak',
+    nsePort && nsePort.narrows && nsePort.leak === 0 && nsePort.portfolio > 0,
+    `${nsePort?.portfolio} of ${nsePort?.universe} filings, ${nsePort?.companies} companies, ${nsePort?.leak} leaked`);
+  ok('...and an unresolved filing shows in Universe but never under a narrowed scope',
+    nsePort && nsePort.unresolvedInUniverse && !nsePort.unresolvedInPortfolio,
+    `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
+
+  // BACK TO THE MARKET-WIDE LIST. The NSE block above navigates away, and the checks below are
+  // about the market-news view's own search box — without this they ran against whatever the last
+  // `go()` left mounted and failed with "no search box", which reads as a missing control rather
+  // than a missing navigation. A check that can be answered by the wrong page is not a check.
+  await go('/#/research/news?scope=universe', 3500);
+  await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), { timeout: 20000 }).catch(() => {});
 
   // Search narrows the list without touching the head, and the count reports the ARRAY.
   const filtered = await evalSafe(async () => {
@@ -5444,7 +5806,13 @@ console.log('\n— news, announcements and insider trades —');
       // AND THE STORY'S OWN PICTURE. The card is the one surface a reader sees without the tab
       // open, so it carries the same thumbnail the list does — the publisher's, hot-linked, and
       // only ever from an https URL, because this is external content reaching `src`.
-      thumbs: cards.filter((c) => c.querySelector('img[src^="https://images.moneycontrol.com/"]')).length,
+      // Against the arriving stories' own images rather than one publisher's CDN — see the same
+      // change on the list above. Five publishers, five CDNs, and the assertion that matters is
+      // that the card wears the picture belonging to ITS story.
+      thumbs: cards.filter((c) => {
+        const src = c.querySelector('img')?.getAttribute('src') || '';
+        return /^https:\/\//.test(src) && arrivals.some((a) => a.image === src);
+      }).length,
       withImage: arrivals.slice(0, cards.length).filter((a) => a.image).length,
       // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
     };
@@ -5455,7 +5823,7 @@ console.log('\n— news, announcements and insider trades —');
     alerted && alerted.labelled && alerted.verbatim, alerted?.text);
   ok('...and the story\'s own thumbnail, the same one the list shows',
     alerted && alerted.withImage > 0 && alerted.thumbs === alerted.withImage,
-    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry the publisher's image`);
+    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry their own story's image`);
   const reAnnounced = await evalSafe(async () => {
     const before = document.getElementById('notification-root')?.children.length ?? 0;
     const mod = await import('/js/data/market-news.js');
@@ -6338,6 +6706,25 @@ const keywordRules = await page.evaluate(async () => {
     // The volume threshold is stated and exported, like every other entry rule on that page.
     volumeX: alerts.VOLUME_X,
 
+    // ANNOUNCEMENTS: the taxonomy REPLACED a borrowed gate rather than sitting beside one.
+    // BSE's critical flag marks about a third of all filings and most are AGM notices, so it is
+    // reproduced on the row and no longer decides what is material. Fixtures, because the retained
+    // capture is three days and cannot be relied on to contain each case.
+    criticalIsNotOurGate: alerts.BSE_CRITICAL_IS_MATERIAL === false,
+    agmStaysLow: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', category: 'AGM/EGM', subCategory: 'AGM', critical: true }).importance === 'low',
+    // ...and the row still says the flag was set, because it is theirs and a reader is owed it.
+    agmReasonNamesTheFlag: /BSE marked this filing critical/.test(alerts.announcementSignal({ title: 'Notice of 25th AGM', critical: true }).importanceReason),
+    // A tracked keyword promotes a filing, including through BSE's own sub-category wording.
+    orderFilingIsHigh: alerts.announcementSignal({ title: 'Intimation of receipt of order', subCategory: 'Award of Order / Receipt of Order', critical: false }).importance === 'high',
+    subCategoryAloneCounts: alerts.announcementSignal({ title: 'Intimation under Regulation 30', subCategory: 'Resignation of Director', critical: false }).keywords.includes('Resignation'),
+    // The directional rule keeps its own materiality — a dividend record date carries no tracked
+    // keyword and must not lose importance to this change.
+    dividendStillHigh: alerts.announcementSignal({ title: 'Record date for the purpose of payment of Dividend', critical: false }).importance === 'high',
+    // Direction on this feed is untouched by the keyword layer.
+    downgradeStillNegative: alerts.announcementSignal({ title: 'Intimation of rating downgrade' }).direction === 'negative',
+    dividendStillPositive: alerts.announcementSignal({ title: 'Record date for Final Dividend' }).direction === 'positive',
+    agmStaysNeutral: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', critical: true }).direction === 'neutral',
+
     // The confluence layer.
     buyerPattern: ai.confluenceOf(buyerEvents, { feedById }).map((c) => c.id),
     buyerSentence: ai.confluenceOf(buyerEvents, { feedById })[0]?.detail || '',
@@ -6373,6 +6760,14 @@ ok('...and a keyword only in the standfirst stays low, but stays findable and ta
 ok('...and it never moves DIRECTION, not even on a risk word', keywordRules.trackedStaysNeutral && keywordRules.riskWordStaysNeutral);
 ok('...and the reason names the keyword rather than asserting the event', keywordRules.reasonNamesTheKeyword);
 ok('the volume threshold is stated and exported', keywordRules.volumeX === 2, `${keywordRules.volumeX}x the 20-day average`);
+// A BORROWED FLAG IS NOT A MATERIALITY RULE. BSE's marks ~a third of all filings, 881 of them AGM
+// notices, so using it as the gate made a third of the exchange high-importance.
+ok("BSE's critical flag is reproduced but is not this dashboard's materiality gate", keywordRules.criticalIsNotOurGate && keywordRules.agmStaysLow && keywordRules.agmReasonNamesTheFlag);
+ok('...and a tracked keyword promotes a filing, including one only BSE\'s sub-category names', keywordRules.orderFilingIsHigh && keywordRules.subCategoryAloneCounts);
+// The keyword layer ADDED an input to one predicate; it did not replace the directional rule's own
+// materiality, or a dividend record date would have quietly stopped mattering.
+ok('...while the directional rule keeps its own materiality', keywordRules.dividendStillHigh);
+ok('...and announcement DIRECTION is untouched by the keyword layer', keywordRules.downgradeStillNegative && keywordRules.dividendStillPositive && keywordRules.agmStaysNeutral);
 ok('volume plus a disclosed buyer is reported as one named pattern', keywordRules.buyerPattern.includes('accumulation'), keywordRules.buyerPattern.join(', '));
 ok('...and its sentence is quoted from the events, naming both halves', /3\.2x/.test(keywordRules.buyerSentence) && /Tracked Investor/.test(keywordRules.buyerSentence), keywordRules.buyerSentence.slice(0, 110));
 // The correlation defers to each feed's own published threshold instead of inventing a second one.
@@ -6419,6 +6814,67 @@ await page.waitForTimeout(600);
 const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
 ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
 
+// --- Corp Announcements: the widest feed in the dashboard gets the same Topic control ---
+await go('/#/research/corp-announcements?scope=universe', 2000);
+await waitForPanel();
+await settleTables();
+const annHeads = await page.locator('#content-host table thead th').allInnerTexts();
+ok('Corp Announcements carries a Topic column', annHeads.some((h) => /Topic/i.test(h)), annHeads.join(' | '));
+// Same trade as News/Outlet: `rowSub` already prints the sub-category under every subject.
+ok('...in place of the Sub-category column, which was already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
+const annSelects = page.locator('#content-host select');
+ok('...and Topic leads, with Category and Sub-category still filterable', (await annSelects.count()) >= 3 && (await annSelects.first().locator('option').first().innerText()).includes('All topics'));
+// The strict option cannot apply: a BSE filing IS the company's own statement.
+ok('...without the strict "names the company" option, which does not arise on a filing', !(await annSelects.first().locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
+const annAll = await rowCount();
+await annSelects.first().selectOption('tracked');
+await settleTables();
+const annTracked = await rowCount();
+await annSelects.first().selectOption('untracked');
+await settleTables();
+const annUntracked = await rowCount();
+ok('Topic narrows the exchange-wide feed, and tracked + untracked is the whole set',
+  annTracked > 0 && annTracked < annAll && annTracked + annUntracked === annAll,
+  `${annTracked} + ${annUntracked} = ${annAll}`);
+await annSelects.first().selectOption('all');
+await settleTables();
+const annWidth = await page.evaluate(() => {
+  const el = document.querySelector('#content-host [data-table-scroll]');
+  return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
+});
+ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
+// THE EXPLANATION HAS TO BE REACHABLE, AND ON THESE TABS THE MODAL IS NOT.
+//
+// `cfg.provenance` is built for all three filings tabs and `openProvenance` is never called: the
+// status pill is a passive `<span>` by design (see CLAUDE.md — "the status pill is passive and
+// opens no modal"), so nothing on screen opens it. That is a pre-existing gap and not this
+// layer's to close, but it does decide where a Topic explanation may be asserted: the only
+// surfaces a reader can actually reach are the option labels and the cells' own tooltips. So
+// those are what is checked HERE. The pill itself is still passive and must stay that way; the
+// tab's provenance now has a door of its own under the table, asserted in section 17.
+const annPillOpens = await (async () => {
+  await page.locator('#content-host [data-filings-info]').first().click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return !!text;
+})();
+ok('the passive status pill still opens nothing, so the reachable surfaces are what must explain Topic', annPillOpens === false);
+const annTopicTitles = await page.evaluate(() => {
+  const host = document.querySelector('#content-host');
+  const cells = [...host.querySelectorAll('tbody tr')].map((tr) => tr.children[3]).filter(Boolean);
+  const chip = cells.map((c) => c.querySelector('[title]')).find(Boolean);
+  const untracked = cells.map((c) => c.querySelector('span[title]')).find((n) => n && /untracked/i.test(n.textContent));
+  return { chip: chip?.getAttribute('title') || '', untracked: untracked?.getAttribute('title') || '' };
+});
+// A chip has to say WHICH of the exchange's two descriptions carried the word, because the subject
+// is the company's own sentence and the sub-category is BSE's taxonomy.
+ok('a Topic chip names its family and which exchange field carried the keyword',
+  /subject|sub-category/i.test(annTopicTitles.chip) && annTopicTitles.chip.length > 20, annTopicTitles.chip.slice(0, 90));
+// And an untracked row says why it is here, rather than reading as a failed match.
+ok('...and an untracked filing explains itself rather than reading as a miss',
+  /routine|no tracked keyword/i.test(annTopicTitles.untracked), annTopicTitles.untracked.slice(0, 90));
+
 // --- AI Alerts renders the correlation above the evidence it came from ---
 await go('/#/research/ai-alerts?scope=universe', 5000);
 await waitForPanel(15000);
@@ -6452,6 +6908,75 @@ if (!aiCards) {
   ok('...and the card leads with the correlation, not a feed count', /:/.test(order?.insight || '') && !/^Signals conflict across/.test(order?.insight || ''), (order?.insight || '').slice(0, 100));
   // No score anywhere on the card, exactly as before this layer existed.
   ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
+}
+
+// ---------------------------------------------------------------------------------------
+console.log('\n— 17. provenance is reachable, without the chrome that was removed —');
+// ---------------------------------------------------------------------------------------
+// A BODY OF PROVENANCE EXISTED AND NOTHING OPENED IT. `cfg.provenance` was supplied by all three
+// filings tabs and `openProvenanceFactory` built a handler no caller ever invoked; `sourcesModalHtml`
+// was exported and imported by nothing. That is worse than absent, because unreachable content reads
+// as documentation of a working feature — and CLAUDE.md leans on both: it says the denominator has
+// to stay REACHABLE, and that canonical provenance "remains in the source registry".
+//
+// What is asserted here is the pair, because either alone is the bug: the explanation opens, AND the
+// chrome that was deliberately removed has not crept back.
+const registryModal = await (async () => {
+  await go('/#/research/ai-alerts?scope=portfolio', 4000);
+  await waitForPanel();
+  await page.locator('[data-sources-open]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return text;
+})();
+ok('the footer opens the source registry', registryModal.length > 2000, `${registryModal.length} chars`);
+// The registry is a FUNCTION called on open, which is what lets a static footer reach live figures
+// without going stale — the rule that killed the old hand-typed source array.
+ok('...and it names the upstreams it is canonical for',
+  ['Muns news API', 'BSE', 'Finology', 'Trendlyne', 'Yahoo'].every((n) => registryModal.includes(n)),
+  registryModal.replace(/\s+/g, ' ').slice(0, 90));
+// ...AND STILL WITHHOLDS THE TWO BRANDS IT IS SUPPOSED TO. Making provenance reachable must not
+// leak what the honesty rules deliberately keep off customer-facing surfaces: the con-call and
+// market-news providers are named in the code and in docs/DATA-CONTRACTS.md and NOT on screen —
+// "no brand anywhere, the disclaimer everywhere" (CLAUDE.md, *Reproducing someone else's
+// analysis*). A door to the registry is exactly where that would have slipped, so it is asserted
+// here rather than assumed. The first draft of this check asserted the opposite and caught it.
+ok('...without printing the two providers whose brands are deliberately withheld',
+  !/Moneycontrol|StockScans/i.test(registryModal) && /publisher|research provider/i.test(registryModal));
+
+for (const [route, title, scope] of [
+  ['/#/research/news?scope=portfolio', 'News', 'portfolio'],
+  ['/#/research/corp-announcements?scope=universe', 'Corp Announcements', 'universe'],
+  ['/#/research/insider-trades?scope=portfolio', 'Insider Trades', 'portfolio'],
+]) {
+  await go(route, 4000);
+  await waitForPanel();
+  await settleTables();
+  const placement = await evalSafe(() => {
+    const btn = document.querySelector('#content-host [data-filings-method]');
+    const table = document.querySelector('#content-host [data-score-table]') || document.querySelector('#content-host table');
+    if (!btn) return { present: false };
+    return {
+      present: true,
+      belowTable: !table || !!(table.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
+      pillIsSpan: (document.querySelector('#content-host [data-filings-info]') || {}).tagName === 'SPAN',
+    };
+  });
+  ok(`${title} carries a method link under its table`, placement.present && placement.belowTable, JSON.stringify(placement));
+  // The decision CLAUDE.md recorded is preserved exactly: the label stays a passive span that opens
+  // nothing. What changed is that the explanation gained a door, not that the label became one.
+  ok(`...and ${title}'s freshness label is still a passive span`, placement.pillIsSpan === true);
+  await page.locator('#content-host [data-filings-method]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(700);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  ok(`...and it opens ${title}'s own provenance`, text.length > 1200, `${text.length} chars`);
+  // THE PART NO STATIC REGISTRY CAN CARRY: the measured coverage for the rows on screen. This is the
+  // denominator CLAUDE.md says must stay reachable — "23 rows look complete until you know the book
+  // is 142" — and it is the reason this content is wired rather than pruned.
+  ok(`...carrying ${title}'s measured coverage, not just prose`, /\d/.test(text) && /(compan|filing|row)/i.test(text));
+  if (text) await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 }
 
 // ---------------------------------------------------------------------------------------

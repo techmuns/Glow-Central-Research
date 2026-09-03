@@ -229,8 +229,10 @@ export function makeFilingsTab(cfg) {
           description: cfg.subtitle,
           meta: pill(m, ctx.scope, []),
         })}
-        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
+        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}
+        ${methodFooter(cfg)}`;
       wireRefresh(ctx.root);
+      wireMethod(ctx.root, m, null, ctx.scope, []);
       return;
     }
 
@@ -329,9 +331,11 @@ export function makeFilingsTab(cfg) {
         // moves when you use it reads as a different page.
       })}
       ${busyStrip(m)}
-      ${table.html}`;
+      ${table.html}
+      ${methodFooter(cfg)}`;
 
     disposers.push(table.wire(ctx.root));
+    wireMethod(ctx.root, m, cov, ctx.scope, rows);
     // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
     // heading — how old the capture is, how many companies were searched, what they answered —
     // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
@@ -369,6 +373,14 @@ export function makeFilingsTab(cfg) {
 
   const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
 
+  function wireMethod(root, m, cov, scope, rows) {
+    const btn = root.querySelector('[data-filings-method]');
+    if (!btn) return;
+    const onClick = () => openProvenance(m, cov, scope, rows);
+    btn.addEventListener('click', onClick);
+    disposers.push(() => btn.removeEventListener('click', onClick));
+  }
+
   function wireRefresh(root) {
     const btn = root.querySelector('[data-filings-refresh]');
     if (!btn) return;
@@ -402,6 +414,29 @@ export function makeFilingsTab(cfg) {
 // Shared furniture
 // ---------------------------------------------------------------------------------------
 
+
+/**
+ * The tab's own provenance, reachable — one muted line UNDER the table.
+ *
+ * `cfg.provenance` was built by all three of these tabs and NOTHING EVER OPENED IT. The only
+ * candidate trigger was the freshness pill, which CLAUDE.md deliberately made a passive `<span>`
+ * that "must not open a provenance explainer" — so the content was written, maintained, and
+ * unreachable, which is worse than absent because it reads as documentation of a working feature.
+ *
+ * This is not that decision being undone. The pill stays passive and stays where it is; what
+ * changes is that the explanation gets a door of its own, placed AFTER the content so it cannot
+ * compete with the table for the top of the page — which was the whole reason the chrome was
+ * removed. It carries what no static registry can: the MEASURED coverage for the rows on screen —
+ * how many companies answered, how many had nothing, how many could not be read at all. CLAUDE.md's
+ * denominator rule says that number has to stay reachable, not that it has to stay on the page.
+ */
+const methodFooter = (cfg) => `
+  <div class="mt-6 border-t border-slate-100 pt-4 text-center">
+    <button type="button" data-filings-method
+      class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
+      How ${escapeHtml(cfg.title)} is collected, and what this view covers
+    </button>
+  </div>`;
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">

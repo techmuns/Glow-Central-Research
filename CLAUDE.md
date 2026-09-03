@@ -104,6 +104,8 @@ public/
       universe.js             screener-export -> legacy universe shape adapter
       filings.js              the News / Announcements / Insider feed: snapshot first, then a
                               bounded live walk for whatever it is missing
+      nse-filings.js          THE NSE LIVE ANNOUNCEMENTS FEED, scoped per company — live off our
+                              Worker proxy, committed snapshot beneath it, rows carry a resolved ticker
       filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
                               worker/muns.mjs
     scoring/
@@ -116,15 +118,17 @@ public/
       evidence-shared.js      the ONE provider-facing packet shape, imported by worker/research.mjs too
       renderer.js             the DOM-based markdown subset model prose is rendered through
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
-                              super-investors, news, corp-announcements, insider-trades
+                              super-investors, news, corp-announcements, nse-filings, insider-trades
       ai-alerts.js            ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
-  data/                       technicals.json, atr-history.json, earnings-live.json,
-                              mc-ticker-map.json, result-returns.json, earnings-calendar.json,
-                              universe.json, portfolio-companies.json (THE BOOK — names and
-                              sectors, the only portfolio data here), mock/*.json
+  data/                       technicals.json, atr-history.json,
+                              market-news.json + market-news/<YYYY-MM>.json (head + archive),
+                              earnings-live.json, mc-ticker-map.json, result-returns.json,
+                              earnings-calendar.json, universe.json,
+                              portfolio-companies.json (THE BOOK — names and sectors, the only
+                              portfolio data here), mock/*.json
 scripts/
   sync-family-book.mjs        THE BOOK'S SOURCE — reads techmuns/Sattva-Family's positions file, one
                               line per equity ISIN, into fixtures/family-book.json, then re-resolves
@@ -138,7 +142,11 @@ scripts/
   lib/company-index.mjs       company name -> NSE symbol, token-wise, collision-guarded
   scrape-filings.mjs          walks the universe for news and insider trades (NOT announcements)
   scrape-bse-announcements.mjs  the whole exchange's filings, read by DATE — ~20 requests
-  scrape-mc-news.mjs          market-wide stocks news, captured every 20 min (curl, NOT fetch)
+  scrape-mc-news.mjs          Moneycontrol's market-wide stocks news (curl, NOT fetch)
+  scrape-rss-news.mjs         Business Standard, Mint, Economic Times, Investing.com — their own
+                              RSS, merged into the SAME capture (curl: two of the four 403 on fetch)
+  lib/news-store.mjs          THE MARKET-NEWS CAPTURE ON DISK — a bounded head plus a shard per
+                              month. Both news scrapers write through it and both MERGE
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
@@ -152,6 +160,11 @@ scripts/
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
+.github/workflows/nse-announcements-refresh.yml hourly in Indian hours; the NSE snapshot fallback
+                                           (the live route /api/nse-announcements is the primary read)
+.github/workflows/rss-news-refresh.yml     hourly; the four RSS publishers. Shares the
+                                           `market-news-capture` concurrency group with
+                                           market-news-refresh.yml — both merge into one file
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -163,8 +176,13 @@ worker/stockscans.mjs         the StockScans con-call client (vocabulary lives i
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
 worker/muns.mjs               the AUTHENTICATED news / insider clients — same token
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
+worker/nse-ann.mjs            NSE's LIVE announcements RSS — parser + name->symbol resolver, pure and
+                              shared with the scraper. Browser can't read NSE (CORS null); Worker can
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
+worker/rss-news.mjs           the four RSS publishers behind the same tab — parser + feed list,
+                              pure and offline-testable. Mint and Economic Times 403 a Worker
+                              exactly as Moneycontrol does, so this is Action-only too
 worker/github-actions.mjs     the AUTHENTICATED workflow_dispatch client — holds env.GH_DISPATCH_TOKEN,
                               never the browser. Lets the news button START the scrape it cannot do
 wrangler.jsonc
@@ -223,7 +241,7 @@ handler rather than closing over the one that happened to be current at subscrib
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
 
-**There is one workspace and no switcher.** Research Central's eleven tabs are the whole nav.
+**There is one workspace and no switcher.** Research Central's tabs are the whole nav.
 Portfolio Analytics was the second and is deleted — it was `hidden: true` for a while, routable
 but not clickable, and that is exactly what trapped a reader who followed an Ask Research citation
 into it: no switcher meant nothing on the page led back. An unknown workspace now falls through to
@@ -819,6 +837,71 @@ demand, bounded at `LIVE_LIMIT` with the shortfall printed on screen. The scrape
 first**, so a run cut short by the rate limit or an expiring token has covered the holdings rather
 than whatever starts with A.
 
+### A BORROWED FLAG IS NOT A MATERIALITY RULE — what the keywords replaced on announcements
+
+The tracked keywords reach Corp Announcements too, matched against the filing's own subject and
+BSE's own sub-category (*"Award of Order / Receipt of Order"*, *"Resignation of Director"*, *"Credit
+Rating"* are the exchange's words for exactly what this desk tracks). Two things about how, and the
+second is the point.
+
+**It REPLACED a gate rather than sitting beside one.** `announcementSignal()` already had a
+materiality rule and `js/data/news-keywords.js` is not allowed to become a second one over the same
+question — that is the pattern this codebase keeps having to un-write. So there is one predicate
+with stated inputs: a tracked keyword, **or** the directional rule matched. The directional rule
+keeps its own materiality, because a dividend record date and a credit-rating upgrade carry no
+tracked keyword and must not quietly stop mattering.
+
+**And BSE's own `critical` flag came out of it.** It is still reproduced on every row and in the
+export — it is theirs and a reader is owed it — but it no longer decides what General Alerts calls
+important. Measured on the retained capture: it marks **1,147 of 3,942 filings (29%)**, of which
+1,074 match nothing else, and **881 of those are AGM notices**; the rest are board-meeting
+intimations and new listings. It is a *calendar* flag. Borrowing it as our gate made **a third of
+the whole exchange** high-importance, which is the same noise the keywords were brought in to
+remove, one tab over. High importance on this feed went from **32% of filings to 11%**.
+
+`BSE_CRITICAL_IS_MATERIAL` exists so that decision is one visible, reversible constant rather than
+an expression — flipping it to `true` restores the old behaviour exactly. **Direction is untouched**:
+the narrow negative/positive rules over the filing text are unchanged, and the suite asserts a
+downgrade is still negative, a dividend still positive and an AGM still neutral.
+
+**The Topic column took the Sub-category column's place**, exactly as News' took the Outlet
+column's: `rowSub` already prints the sub-category under every subject, so the column was a second
+copy of it. The sub-category keeps its own filter and its place in the export. **The strict
+"names the company" filter option is dropped here** — a BSE filing *is* the company's own
+statement, so the question does not arise.
+
+### AN EXPLANATION WITH NO DOOR IS WORSE THAN NO EXPLANATION — where provenance is reached from
+
+`cfg.provenance` was built by all three filings tabs, `openProvenanceFactory` built a handler, and
+**nothing ever called it**. `sourcesModalHtml()` was exported and imported by nobody;
+`sourceGroups()` was named only in a comment. All of it was correct, maintained, and unreachable.
+
+That is a worse state than absent, because unreachable content **reads as documentation of a working
+feature**: the registry looked like the canonical home for provenance, and this file said so — *"the
+Sources button and its popup are gone from the chrome… canonical provenance remains in the source
+registry"* — while the registry had no way in at all. The second half of that sentence was a promise
+the app did not keep.
+
+**The fix is a door, not the old chrome back.** Both decisions that removed the chrome stand
+unchanged: the header carries no Sources button, and every status pill is a passive `<span>` that
+opens nothing. What was wrong was never that the pill stopped opening a modal — it was that nothing
+else opened one either.
+
+- **The source registry** is reached from a **footer**, one muted line under the content column, on
+  every tab. A footer is the one position that cannot compete with the table it qualifies, which was
+  the entire reason the chrome was removed; it is also where a reader already looks for provenance.
+- **Each filings tab's own provenance** is reached from one muted line **under its table**. It is
+  wired rather than pruned because it carries what no static registry can: the **measured coverage
+  for the rows on screen** — how many companies answered, how many had nothing, how many could not be
+  read. The denominator rule says that number stays REACHABLE, not that it stays on the page.
+- **`sourcesModalHtml()` is a function called on open**, which is what lets a static footer reach
+  live figures without going stale. That is the same rule that killed the old hand-typed source
+  array; see *Data sources* above.
+
+**The footer lives inside a template literal in `shell.js`, so it may contain no backticks.** The
+comment beside it says so because writing one there terminates the literal and takes the whole page
+down — which is exactly how this footer broke on its first attempt.
+
 ### ASK THE AXIS THE DATA IS PUBLISHED ON — the rule that fixed announcements
 
 The paragraph above is what these three tabs were built on, and for two of them it is still true.
@@ -1125,6 +1208,21 @@ never created.
 HTTP 200 and well-formed `<item>` blocks — `buzzingstocks.xml`, `marketreports.xml`,
 `latestnews.xml` — and every one is abandoned: the newest item in each is from **April 2024**, and
 `MCtopnews.xml`'s is from **2016**. A 200 with valid XML and plausible `pubDate`s is not a live feed.
+
+**AND THE LESSON IS THE CHECK, NOT THE VERDICT — four other publishers' RSS passed it.** Read as
+"RSS is dead" that finding would have cost this tab four live sources. What it actually says is
+**a 200 with valid XML is not evidence a feed is live, so read the newest item's date** — and
+Business Standard, Mint, Economic Times and Investing.com were each checked that way before being
+wired, every one carrying an item from the same hour the check ran. They are in `FEEDS` in
+`worker/rss-news.mjs`; do the same before adding a fifth, and drop one whose newest item goes stale,
+because a publisher abandoning a feed does not take it down — they stop writing to it, and nothing
+in the response says so.
+
+**They are Action-only for the same reason Moneycontrol is, and the measurement is what says so.**
+With node's `fetch` — the Worker's reader — Business Standard and Investing.com answer 200 while
+**Mint and Economic Times answer 403 with a 24-byte body**, byte-for-byte what `www.moneycontrol.com`
+returns, while `curl` with a browser user-agent gets all of them at 200. Two working upstreams are
+not a reason to add a Worker route the other two would 403 through.
 
 **And the third feed did not get this treatment, because it cannot.** News is a *search* endpoint —
 there is no "everything published today" request to make, only "what has been written about this
@@ -1972,6 +2070,32 @@ The former `ANTHROPIC_API_KEY` binding is never sent to Muns unless
 `MUNS_LLM_LEGACY_ANTHROPIC_BINDING=confirmed-muns-token` explicitly records that an operator replaced
 its value with a Muns token. Remove that migration opt-in after installing `MUNS_LLM_TOKEN`.
 
+**AN ANSWER IN FLIGHT OUTLIVES THE TAB IT WAS ASKED FROM.** `destroy()` used to abort every running
+generation, so pressing Send and then looking at another tab — the obvious thing to do while fifteen
+sources are read and an answer is written — cancelled it. The abort path puts the question back in
+the composer and takes the user message out of the transcript, so what the reader came back to was
+their own question sitting unsent and nothing else: the work looked like it had never happened.
+
+A generation is module state, not DOM state, and every paint in this tab is already guarded on
+`ctxRef`, so it needs no mount to finish: it keeps running, writes the answer into the session and
+the device, and announces itself in the alert stack (kind `research`) when it lands while the reader
+is elsewhere — keeping it running silently would be a feature nobody can see. What still cancels one
+is a change to the EVIDENCE UNIVERSE, which is why each generation records the scope it was built
+under: an answer assembled from the book must never land in a workspace labelled Watchlist. **Those
+watchers therefore live at module level, not in `wire()`** — its subscriptions die with the mount, so
+a watchlist edit made from the header while Ask Research was off screen used to invalidate nothing at
+all. The suite drives this the way a reader does, with a **same-document hash navigation**: `go()`
+reloads the document, which genuinely does end the request, and would pass the check for the wrong
+reason.
+
+**A typed-but-unsent question is the reader's work too**, so `draft` is persisted with the
+conversation and flushed when the tab unmounts. The one thing that cannot survive is a page reload
+mid-answer — the stream dies with the page — and since the question is pushed into the transcript
+before the answer starts, that would leave a user message with nothing under it, reading as though
+the assistant ignored it. Re-asking costs a real model run, so it is never re-sent automatically:
+`normaliseSession` gives the dangling question back to the composer, exactly as an abort does, and
+the phase line says why it is there.
+
 Conversation history is stored on the device, but each submitted question and bounded evidence
 packet are sent to the Muns-hosted model. The UI says both halves. Model prose is
 untrusted: render it through
@@ -2494,7 +2618,10 @@ or not a byte had been confirmed in an hour.
   is the only one. **Freshness has to be a claim about data**, so anything that does not talk to a
   server does not get to move that clock.
 - **The Sources button and its popup are gone from the chrome.** The status pill is passive.
-  Canonical provenance remains in the source registry and export disclosures.
+  Canonical provenance remains in the source registry and export disclosures — and the registry is
+  reached from the **page footer**, not from the header. See *An explanation with no door is worse
+  than no explanation*: removing the button was right, leaving the registry with no caller at all
+  was not.
 - `live.refreshAll()` ticks every **running, non-synthetic** poller and resolves when they settle.
   It deliberately does not start stopped ones: a stopped poller belongs to an unmounted tab.
 
@@ -2737,16 +2864,22 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
+| Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
+| Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
+| Change what makes a FILING material | `announcementSignal()` + `BSE_CRITICAL_IS_MATERIAL` in `js/data/daily-alerts.js` — read *A borrowed flag is not a materiality rule* first. One predicate, stated inputs; BSE's critical flag is reproduced and is not the gate |
 | Change the volume/breakout alert, or its threshold | `VOLUME_X` and the participation branch of `fromTechnicals` in `js/data/daily-alerts.js` — volume is neutral because the tape does not say which side it was |
 | Change which cross-feed patterns AI Alerts names | `CONFLUENCE` + `confluenceOf()` in `js/data/ai-alerts.js`, rendered by `confluenceMarkup()` in `js/tabs/ai-alerts.js` — read *Correlation is the product* first; a leg must key on the feed's own published threshold, not a new one |
 | Change which companies News searches | `tickersFor()` in `js/tabs/filings-tab.js` — the scope decides, and the committed snapshot is what paints. The picker is gone: read *And the third feed did not get this treatment* first |
-| Change the market-news feed | `worker/mc-news.mjs` (parser) + `scripts/scrape-mc-news.mjs` (curl) + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; it 403s |
-| Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) |
+| Change the market-news feed | `worker/mc-news.mjs` + `worker/rss-news.mjs` (parsers) + the two scrapers + `js/tabs/market-news-view.js` — read *An upstream neither the browser nor the Worker can read* first. Do **not** add a Worker route; Moneycontrol, Mint and Economic Times all 403 it with the same 24-byte body |
+| Add a news publisher | one entry in `FEEDS` in `worker/rss-news.mjs`, then a row in `js/ui/sources.js` and `docs/DATA-CONTRACTS.md`. **Check the newest item's date first** — Moneycontrol's own RSS answers 200 with well-formed XML whose newest item is from April 2024 |
+| Refresh the market-news capture | `node scripts/scrape-mc-news.mjs` (`MCNEWS_FULL=1 MCNEWS_PAGES=25` for a deep fill, `MCNEWS_DATE_LIMIT=0` to skip the per-story timestamps) and `node scripts/scrape-rss-news.mjs` (`RSS_ONLY=mint,…` to narrow) |
+| Change how much news history is kept, or repair the archive | `scripts/lib/news-store.mjs` — `MCNEWS_HEAD` is the FIRST-PAINT size only, never a limit on history; `MCNEWS_RESHARD=1 node scripts/scrape-mc-news.mjs` re-files everything on disk without asking any publisher for anything |
 | Change what the news Fetch button does | `worker/github-actions.mjs` + `handleNewsDispatch` / `handleNewsRunStatus` in `worker/index.js` + `watchScrape()` in `js/data/market-news.js` — read *So "refresh" has to mean something else* first. It is POST-only and must stay that way |
 | Set up the news Fetch button on a deployment | add a Secret named **`GH_DISPATCH_TOKEN`** in the **Cloudflare dashboard** (*Workers & Pages → this Worker → Settings → Variables and Secrets*) — a fine-grained GitHub token on this repo alone with **Actions: read and write**, nothing more. That is the route on this deployment, which publishes via Cloudflare's Git integration rather than `deploy.yml`. `npx wrangler secret put GH_DISPATCH_TOKEN` does the same from a terminal. `GH_REPO` / `GH_REF` are plain vars in `wrangler.jsonc` |
+| Change what the news list orders by, or how far back it scrolls | `sortRows()` + `loadMore()` in `js/data/market-news.js` and the footer in `js/tabs/market-news-view.js` — read *The one hand-rolled list* first. `firstSeenAt` is never an ordering key |
 | Change when the news scrape runs | **`triggers.crons` in `wrangler.jsonc` + `scheduled()` in `worker/index.js`** — that is what actually drives the cadence. The `schedule:` block in `.github/workflows/market-news-refresh.yml` is a fallback and is measurably not firing on this repo; read *And in the end GitHub's scheduler had to be taken off the critical path* first |
 | Make a committed file reach the live site | **Cloudflare's Git integration deploys on push** — that is the live path, and `.github/workflows/deploy.yml` is a fallback whose deploy job is *skipped* here for want of `CLOUDFLARE_API_TOKEN`. Its run summary says which mode is in effect on every run; do not read a green tick as "deployed" |
 | Change how those three tabs look | `js/tabs/filings-tab.js` is the shared renderer; the three modules beside it are columns and words |
@@ -2783,6 +2916,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
 | Change which tabs General Alerts reads | `FEEDS` in `js/data/daily-alerts.js` — an entry plus a collector and matching provenance/docs; nothing is special-cased by feed id |
 | Change Ask Research's workspace or conversation lifecycle | `js/tabs/ask-research.js`; history is device-local, but every submitted question and bounded evidence packet are streamed through Muns' hosted LLM router |
+| Change what cancels an in-flight answer, or what survives leaving the tab | `abortGenerations` / `watchEvidenceInvalidation` / `destroy` in `js/tabs/ask-research.js` — read *An answer in flight outlives the tab* first; `destroy()` must not abort, and the invalidation watchers must stay at module level |
 | Change where a `[Dashboard: …]` citation links, or make a tab honour `?company=` | `citeResolver()` in `js/tabs/ask-research.js` + `companySeededView()` in `js/ui/screener.js`; the tab's own render seeds its `initialView` from it |
 | Change which dashboard evidence Ask Research reads | `js/research/estate.js` — every registered source must keep a catalog/status entry even when its read fails, `load` before `read`, and the packet must stay below the Worker bound **and still carry rows**; read *The budget is measured on what the model receives* first |
 | Change what the model receives, or the evidence budget | `js/research/evidence-shared.js` (the provider shape — the Worker imports it too) + `RESEARCH_EVIDENCE_CHAR_BUDGET` / `ROW_RESERVE_SHARE` in `estate.js` — measure with `providerEvidenceChars`, never `JSON.stringify(packet).length` |
@@ -2805,6 +2939,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, sub-view picker or tab bar | `js/ui/shell.js` |
 | Add a row to the Sources modal | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) |
+| Change how a reader REACHES provenance | the footer in `layout()` + `wireStaticHeader()` in `js/ui/shell.js` (the registry), and `methodFooter()` + `wireMethod()` in `js/tabs/filings-tab.js` (a tab's own coverage) — read *An explanation with no door* first. The doors go BELOW the content; the header button and the active pill stay gone |
+| Add an Ask Research source that fetches nothing | give its builder an explicit `load: null` in `js/research/estate.js` — a builder with neither a `load()` nor that declaration is raised as a registry error, because an omitted one used to throw and wear the upstream's clothes |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
 | Change what raises a live alert | `js/core/watch.js` (what counts as an event) + `js/ui/notifications.js` (how it looks) — read *The header, and the alert stack* first |
@@ -2862,7 +2998,7 @@ and asserts the handshake from the host's side:
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 11 tabs render their panel
+- every Research Central tab renders its panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
@@ -2880,6 +3016,10 @@ It covers, beyond the checklist below:
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route
   outside `#/research/`
+- **an answer survives leaving Ask Research**: a same-document navigation away mid-answer really
+  unmounts the tab, the answer still arrives and is saved, it announces itself in the alert stack,
+  and it is in the conversation when the reader returns with the composer clear — and an unsent
+  draft survives both a tab change and a reload
 - **Ask Research keeps all fourteen evidence sources represented**, spends its budget on rows (every
   ready source with rows in scope lands at least one, nothing trimmed to make room), resolves a
   company named in lower case to its ticker and leads every carrying source with it, streams the

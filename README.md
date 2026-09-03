@@ -1,9 +1,9 @@
 # Sattva Central Research
 
-An Indian-equities research dashboard: eleven tabs — Ask Research, AI and general alerts,
-earnings, con-calls, public chatter, technical breakouts, superstar investors, news, announcements,
-insider trades — under a global **Portfolio · Watchlist · Universe** scope toggle that applies to
-every one of them.
+An Indian-equities research dashboard: twelve tabs — Ask Research, AI and general alerts,
+earnings, con-calls, public chatter, technical breakouts, superstar investors, news, corporate
+announcements, NSE filings and insider trades — under a global **Portfolio · Watchlist · Universe**
+scope toggle that applies to every one of them.
 
 **Portfolio here means a list of company names, and nothing else.** The Portfolio scope filters the
 research tabs by the family office's own direct-equity book — 142 lines, names and sectors, synced

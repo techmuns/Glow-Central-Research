@@ -16,11 +16,11 @@ committed, so serving `public/` is still the whole runtime setup.
 python3 -m http.server 8080 -d public     # that is the whole dev setup
 ```
 
-One workspace, eleven tabs:
+One workspace, twelve tabs:
 
 | Workspace | Tabs |
 | --- | --- |
-| Research Central | **Ask Research** · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · Insider Trades |
+| Research Central | **Ask Research** · AI Alerts · General Alerts · Earnings Hub · Con-call · Public Chatter · Breakouts / Technical · Super Investors · News · Corp Announcements · NSE Filings · Insider Trades |
 
 **There was a second workspace and it is deleted.** Portfolio Analytics was four modules over an
 illustrative ledger, kept `hidden: true` so old links still resolved — routable but not clickable,
@@ -65,7 +65,8 @@ This is the first thing to check before quoting any number off a screen.
 | **Quarterly results for the whole listed universe** — 1,319 companies | `GET /api/earnings` (live) + `public/data/earnings-live.json` (snapshot) | Moneycontrol Rapid Results | **Live: 30s edge cache, 30s client poll** |
 | **Every earnings call held this quarter** — 877, with StockScans' result score, sentiment tier and highlight bullets | `GET /api/concalls` (live) + `public/data/concall-scans.json` | StockScans | **Live: 30s edge cache, 30s client poll** |
 | **Retail chatter** — mentions and sentiment across ValuePickr, TradingQnA and Google News, 219 entries over a rolling 30 days | called direct from the browser, **not** proxied — see §5e | SentimentDash | **Live: twice daily upstream (01:30 / 13:30 UTC), hourly client poll** |
-| **Market-wide stocks news** — every story Moneycontrol publish to `/news/business/stocks/`, 600 held | `public/data/market-news.json` (406 KB) | Moneycontrol, read with `curl` from a GitHub runner — **neither the browser nor the Worker can fetch this host** | Every 30 min in Indian hours, hourly outside (measured — see `docs/DATA-CONTRACTS.md`), **and on demand from the tab's Fetch button** |
+| **NSE live announcements** — the exchange's own filings RSS, rebuilt every few minutes, resolved to a ticker so it can be **scoped to your Portfolio / Watchlist**. The one company-scoped live feed | `public/data/nse-announcements.json` (fallback) + live `/api/nse-announcements` | NSE, read by our **Worker** (the browser can't — CORS null); a full desktop user-agent or Akamai 430s it | Live off the exchange, edge-cached 90s; the snapshot refreshes hourly in Indian hours |
+| **Market-wide news** — five publishers in one list, every row bylined. A bounded head plus a shard per month, and **nothing is ever discarded** | `public/data/market-news.json` (head, ~430 KB) + `public/data/market-news/<YYYY-MM>.json` (archive, fetched only when a reader scrolls past the head) | Moneycontrol's listing page plus Business Standard, Mint, Economic Times and Investing.com RSS — all read with `curl` from a GitHub runner, because **three of the five answer a Worker with the same 24-byte 403** | Moneycontrol every 30 min in Indian hours and hourly outside (measured — see `docs/DATA-CONTRACTS.md`), **and on demand from the tab's Fetch button**; the RSS publishers hourly. Both jobs share one concurrency group because they merge into one file |
 | **Company news** | `public/data/news.json` | Muns company search through the Worker | 09:00 + 19:00 IST weekdays; watchdog recovery after 3h |
 | **Insider trades** | `public/data/insider-trades.json` | Muns filings through the Worker | 19:00 IST weekdays; watchdog recovery after 19:00 |
 | **Corporate announcements** | `public/data/corp-announcements.json` | BSE date index, no credential | 20:00 IST weekdays; watchdog recovery after 75m |
@@ -278,7 +279,14 @@ supplies the real 142-company membership and sector context.
 
 ## 4d. Ask Research
 
-`js/tabs/ask-research.js` owns the conversation UI and device-local library.
+`js/tabs/ask-research.js` owns the conversation UI and device-local library. **An answer keeps being
+written after the reader leaves the tab** — `destroy()` deliberately does not cancel it; it lands in
+the conversation and raises an alert-stack card when it finishes off screen. A scope change, a
+watchlist edit or a Portfolio/Universe edit still cancels it, because the evidence packet was built
+under the scope recorded on the generation, and those watchers sit at module level so they work
+while the tab is unmounted. An unsent draft is persisted with the conversation; a question
+interrupted by a page reload is handed back to the composer rather than re-sent, because a re-ask
+costs a model run.
 `js/research/estate.js` is the registry: fourteen adapters read the same modules as AI Alerts,
 General Alerts, Earnings Hub, Con-call, Public Chatter, Breakouts, both Super Investor disclosures,
 both News feeds, exchange filings and Insider Trades. **Every source is a tab the reader can open**
