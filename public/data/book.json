@@ -1,17 +1,17 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "d9b8bbe",
- "asOf": "2026-08-13",
+ "builtFrom": "58f9d46",
+ "asOf": "2026-08-29",
  "summary": {
-  "asOf": "2026-08-13",
+  "asOf": "2026-08-29",
   "listedValue": 3580403826.11,
   "privateValue": 3523475405.05,
   "totalValue": 7103879231.16,
   "positionsCount": 371,
   "entitiesCount": 6,
   "startupsCount": 0,
-  "accountsCount": 49
+  "accountsCount": 51
  },
  "owners": [
   {
@@ -277,6 +277,36 @@
    "noPositionsReason": null
   },
   {
+   "accountId": "hdfc-bank-nsdl-demat-67786137",
+   "provider": "HDFC Bank (NSDL demat)",
+   "accountNo": "67786137",
+   "ownerId": "ajay-jaisinghani",
+   "owner": "Ajay Jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "providerEngagement": "NSDL depository account at IN301549 — Free Balance",
+   "asOf": "2026-08-29",
+   "inceptionDate": null,
+   "custodian": "HDFC Bank (NSDL demat)",
+   "members": [],
+   "noPositionsReason": "this custody account values nothing: its statement of 2026-08-29 carries 1 holding(s) whose only price is the FACE VALUE the security was allotted at, which is not a mark anybody struck. The units are in the archive; multiplying by a face value would put a valuation nobody made into the book"
+  },
+  {
+   "accountId": "hdfc-bank-nsdl-demat-67786547",
+   "provider": "HDFC Bank (NSDL demat)",
+   "accountNo": "67786547",
+   "ownerId": "ajay-jaisinghani",
+   "owner": "Ajay Jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "providerEngagement": "NSDL depository account at IN301549 — Free Balance",
+   "asOf": "2026-08-29",
+   "inceptionDate": null,
+   "custodian": "HDFC Bank (NSDL demat)",
+   "members": [],
+   "noPositionsReason": "this custody account values nothing: its statement of 2026-08-29 carries 1 holding(s) whose only price is the FACE VALUE the security was allotted at, which is not a mark anybody struck. The units are in the archive; multiplying by a face value would put a valuation nobody made into the book"
+  },
+  {
    "accountId": "hdfc-mutual-fund-16180583",
    "provider": "HDFC Mutual Fund",
    "accountNo": "16180583",
@@ -439,7 +469,7 @@
    "inceptionDate": null,
    "custodian": "Motilal Oswal Financial Services (demat)",
    "members": [],
-   "noPositionsReason": "no statement for this account carries a valuation; its documents report income and distributions only. Where these units are marked, another account holds them."
+   "noPositionsReason": "no HOLDING statement for this account is in the drop — only its demat-transactions statement(s). The tape's closing balances are in the archive as quantities at 2026-07-31 and carry no rate, so nothing here can be valued. What would fill it is that account's own holding statement from its custodian"
   },
   {
    "accountId": "motilal-oswal-financial-services-demat-1201090012838316",
@@ -499,7 +529,7 @@
    "inceptionDate": null,
    "custodian": "Motilal Oswal Financial Services (demat)",
    "members": [],
-   "noPositionsReason": "this fund publishes no NAV: its statement of 2026-07-31 carries 2 holding(s) with units and the capital drawn against a commitment, and no valuation. The units and the cost are in the archive; there is nothing to mark them at, and the contributions are what was paid rather than what the stake is worth"
+   "noPositionsReason": "this custody account values nothing: its statement of 2026-07-31 carries 2 holding(s) whose only price is the FACE VALUE the security was allotted at, which is not a mark anybody struck. The units are in the archive; multiplying by a face value would put a valuation nobody made into the book"
   },
   {
    "accountId": "motilal-oswal-financial-services-demat-1201090037436848",

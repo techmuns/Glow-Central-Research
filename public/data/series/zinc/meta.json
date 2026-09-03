@@ -17,8 +17,8 @@
  "note": "The band starts at 50 because zinc genuinely traded near $180/t through the 1960s. An earlier 200 floor blocked eighteen real observations — the gate working correctly against a band that was wrong.",
  "accumulating": false,
  "first": "1960-01-01",
- "last": "2026-07-01",
- "count": 799,
- "retrievedAt": "2026-08-10T09:34:57.674Z",
- "staleSince": "2026-07-01"
+ "last": "2026-08-01",
+ "count": 800,
+ "retrievedAt": "2026-09-03T06:53:40.587Z",
+ "staleSince": null
 }

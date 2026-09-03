@@ -1,9 +1,9 @@
 {
   "_provenance": "THE PORTFOLIO BOOK — what the Portfolio toggle means on every research tab: the companies the family holds DIRECTLY as listed equity, one line per NSE symbol, read from the same GlowVentures book as book.json by scripts/build-book.mjs. Names and sectors only, no quantity, cost or value. A line with no symbol is kept with the reason; fund units, ETFs, AIFs, cash and the ring-fenced promoter holding are counted under excluded, never listed as companies.",
-  "asOf": "2026-08-13",
+  "asOf": "2026-08-29",
   "source": "techmuns/GlowVentures · src/data/glowData.ts",
   "sourceCommit": {
-    "sha": "d9b8bbe",
+    "sha": "58f9d46",
     "date": null
   },
   "count": 170,
@@ -1524,7 +1524,7 @@
       "ticker": "MANALIPETC",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:moneycontrol"
+      "matchedBy": "company-index:technicals"
     },
     {
       "isin": null,

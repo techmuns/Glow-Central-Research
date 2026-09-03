@@ -17,8 +17,8 @@
  "note": "ICE BofA US Corporate Index option-adjusted spread — a US spread, and the label says so. India has no free equivalent, and carrying this one under an unqualified 'Corporate Credit Spreads' would let a reader take a US number for their own market, which is the same substitution the industry page refuses when a global benchmark stands in for a domestic price. HISTORY IS SHORT AND THAT IS THE SOURCE'S DOING: the ICE BofA family is licensed, so FRED redistributes only a rolling ~3-year window (DGS10 from the same endpoint returns 1962 onwards, so this is not a request the harvester is getting wrong). The store accumulates from here, and any horizon longer than what is held stays absent rather than being answered from a shorter window.",
  "accumulating": false,
  "first": "2023-08-11",
- "last": "2026-08-31",
- "count": 800,
- "retrievedAt": "2026-09-02T06:50:36.493Z",
+ "last": "2026-09-01",
+ "count": 801,
+ "retrievedAt": "2026-09-03T06:53:40.587Z",
  "staleSince": null
 }

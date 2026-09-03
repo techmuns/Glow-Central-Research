@@ -17,8 +17,8 @@
  "note": "Quoted per DRY METRIC TONNE UNIT (dmtu), the World Bank's own basis — one percent of iron content per tonne. It is not the $/tonne headline the trade press quotes, and the two differ by roughly the ore grade.",
  "accumulating": false,
  "first": "1960-01-01",
- "last": "2026-07-01",
- "count": 799,
- "retrievedAt": "2026-08-10T09:33:18.721Z",
- "staleSince": "2026-07-01"
+ "last": "2026-08-01",
+ "count": 800,
+ "retrievedAt": "2026-09-03T06:53:40.587Z",
+ "staleSince": null
 }
