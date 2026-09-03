@@ -48,7 +48,7 @@ That only works if the two repositories agree about who owns what:
 | **Glow** | the brand: `public/index.html` title/description/favicon, the `:root` tokens, `tailwind.config.cjs` (the champagne palette) and the stylesheet it generates | the palette is a config file, not class names — see *Design tokens* |
 | **Glow** | the deployment: `wrangler.jsonc` (Worker name, `GH_REPO`, rate-limit namespace), and the default Worker host in `scripts/scrape-filings.mjs` (`FILINGS_BASE`) and `scripts/scrape-super-investors.mjs` (`SI_BASE`) | deployment-specific values; the file headers say so, and the sync greps for all of them after every merge |
 | **Glow** | the book and the universe: everything under `public/data/` | `.gitattributes` marks them `merge=ours`; this repo's own scheduled scrapes regenerate them from its own book |
-| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — and the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs` and `public/data/book.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block) |
+| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs`, `scripts/lib/glowdata.mjs` and `public/data/book.json` — and the family's managers: `js/investors/my-managers.js`, `js/data/managers.js`, `scripts/build-managers.mjs` and `public/data/managers.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block — and for My Managers the `// GLOW` hunks in `js/investors/live.js` and `js/tabs/super-investors.js`) |
 | **Sattva** | everything else — every tab, the kit, the Worker, the scrapers, the suite | this is where code is written |
 
 Four rules follow:
@@ -858,6 +858,47 @@ rows filed under a starred symbol, and an empty watchlist still shows the book (
 The scope toggle's *Portfolio* definition (`js/data/coverage.js`, the 142-line direct-equity
 statement) is **unchanged**: the book has 293 rows with an NSE symbol across 49 accounts, and
 redefining every research tab's Portfolio filter by it is a product decision, not a sync.
+
+### The family's managers — My Managers on Superstar Investors (GLOW-OWNED)
+
+**Under Portfolio the Superstar Investors sub-view opens on the family's OWN managers, not on ninety
+public investors it has no relationship with.** The ask was verbatim — *"what my managers are doing,
+can I see that? I'm more interested in the portfolio managers I have access to"* — and the answer is
+`public/data/managers.json`, built by `scripts/build-managers.mjs` from the same GlowVentures checkout
+that brings the book, in the same daily run: every PMS mandate, alternative fund and mutual fund
+house the family's wealth-platform statements show it invested with. `js/data/managers.js` reads it;
+`js/investors/my-managers.js` draws it in the Superstar Investors design (the same card, the same
+click-to-expand workspace, the same six ranked lists on Quarterly Changes) and is wired in with three
+`// GLOW` hunks — the section list and panel branch in `live.js`, the scope-dependent default section
+in `tabs/super-investors.js`. Under Watchlist the section is last and narrowed to the starred symbols;
+under Universe it is not offered at all, which is also what keeps the upstream suite's
+*"All Investors | Quarterly Changes | Data Table"* assertion true.
+
+Five rules, and every one is a rule this file already runs on:
+
+1. **A move is a change in QUANTITY between a mandate's two newest statements, never in value.**
+   Value moves with the price on a day the manager did nothing; the quantity on the statement is the
+   primitive. The weight of the mandate and its change are derived on the statements' own market
+   values and are headed *derived* everywhere. A new position has no prior weight and an exit no
+   current one, so neither is given a size — the same refusal as `deriveMoves`.
+2. **"No longer on the statement" is the wording, and the trades say why.** Unlike a >1% disclosure,
+   a PMS statement lists every holding, so an absence is a sale or a corporate action — and every
+   move carries the dated trades in its window (from the transaction statement, with the settlement
+   amount the statement prints) and any corporate action recorded there, so the panel can say
+   *sold 2,12,444 in 3 trades for ₹3.68 Cr* rather than guess.
+3. **Only PMS mandates enter the roll-up.** An AIF publishes no portfolio (SEBI requires none from a
+   Category II or III fund), so its card carries what the fund prints — units, returns, bridges,
+   commitments, distributions — and a fund that also files >1% stakes links to its Finology book,
+   through a hand-checked `FINOLOGY_INVESTORS` table the build verifies against the superstar
+   snapshot. A mutual fund's disclosure is a share of the fund, so the family's share of an
+   underlying is derived per row and never summed into anything.
+4. **The file reconciles or is not written.** Managed value plus the direct remainder must equal the
+   book's headline to the paisa, each `dedupeGroup` once and never across two managers; a fund with no
+   valuation carries the statement's reason and is never rendered as ₹0.
+5. **Which document is authoritative is GlowVentures' decision, mirrored.** Holdings come from the
+   appraisal, else the SEBI investor report, else the holdings statement; trades from the transaction
+   statement, else the investor report — the order `src/lib/ledger.ts` reads them in there — and a
+   row printed on two issues of a statement is counted once by the same identity.
 
 ### Two disclosures that look identical — the Institutions rule
 
@@ -2897,6 +2938,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what Ask Research says the portfolio is worth | `js/research/book-packet.js` (the packet) + `js/data/book.js` (the module) — the `portfolio` source in `estate.js` is a one-hunk wrapper; read *The family office book* first |
 | Refresh the family office book | it rides the daily GlowVentures copy; by hand: `GLOWVENTURES_DIR=/path/to/glowventures node scripts/build-book.mjs && node scripts/check-book.mjs`, commit `public/data/book.json` |
 | Change the Family Book tab | `js/tabs/family-book.js` — the whole tab is that one file |
+| Change My Managers, or what a manager's card and workspace show | `js/investors/my-managers.js` (the view) + `js/data/managers.js` (the roll-up) — read *The family's managers* first; the `// GLOW` hunks in `live.js` and `tabs/super-investors.js` only place it |
+| Refresh the family's managers, or change how a statement is read into them | `GLOWVENTURES_DIR=… node scripts/build-managers.mjs` — it rides the daily GlowVentures copy beside the book; `SAME_MANAGER` folds two provider names into one fund, `FINOLOGY_INVESTORS` is the hand-checked cross-link, and `STATEMENTS_KEPT` is a bytes ceiling |
 | Change the Fund Returns view | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html` |
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and `scripts/scrape-filings.mjs` read it |
 | Pull the latest upstream code into this repo | run **Sync from Sattva** under Actions (it also runs daily); on a conflict it opens a PR instead of pushing — read *This dashboard is a downstream of Sattva* first |

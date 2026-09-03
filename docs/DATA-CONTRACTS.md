@@ -2069,6 +2069,93 @@ Invariants, asserted by `scripts/check-book.mjs` and by the suite against the sh
 depository line, no rupee value for an account that reports income only, and no quote, rationale or
 view attributed to anyone.
 
+## `public/data/managers.json` — the family's managers (GLOW-OWNED)
+
+**Source.** techmuns/GlowVentures, three places in one checkout: `src/data/glowData.ts` (accounts,
+current positions, per-account return series, capital bridges, commitments, corporate actions and
+NAV history), `public/audit/<docKey>/document.json` (the wealth platforms' statements themselves —
+each PMS mandate's newest holdings statements and its dated trades) and `public/lookthrough/*.json`
+(the AMC's monthly SEBI portfolio disclosure per scheme, via the family's AmfiBeas store).
+**Cadence.** Daily at 03:30 UTC by `.github/workflows/series-refresh.yml`, in the same run as the
+book (needs `GLOWVENTURES_READ_TOKEN`), or by hand with `GLOWVENTURES_DIR=… node
+scripts/build-managers.mjs`. **Units.** Rupees as the statements print them; the UI converts.
+**Consumers.** `js/data/managers.js`, the My Managers section of Superstar Investors and the *Your
+managers this period* block on its Quarterly Changes (`js/investors/my-managers.js`).
+
+A "manager" is one of three things, and `kind` says which:
+
+| `kind` | One per | What is carried | What is NOT carried, and why |
+| --- | --- | --- | --- |
+| `pms` | (manager, strategy) — a discretionary PMS mandate, across the family's accounts on it | the two newest holdings statements per account, every dated trade, the fact-sheet return series, the derived moves | nothing derived from value: a move is a change in **quantity** |
+| `aif` | provider — an alternative fund the family holds units of | the unit lines as the book prints them, return series, capital bridges, commitments, distributions, NAV history; `finologySlug` where the fund also files >1% stakes | a portfolio — SEBI requires none from a Category II/III AIF, so there is nothing to look through |
+| `mf` | AMC — grouped across every scheme the family holds directly | per scheme: the AMC's equity disclosure (a share of the **fund**), the plan's NAV and AmfiBeas returns, the family's units | any total across the look-through: the family's share of an underlying is derived per row and is never summed into a book figure |
+
+```jsonc
+{
+  "_provenance": "…", "source": "…", "builtFrom": "a15f113", "asOf": "2026-08-13",
+  "summary": {
+    "bookValue", "managedValue", "managers",
+    "byKind": { "pms": { "count", "marketValue", "positions", "accounts" }, "aif": {…}, "mf": {…} },
+    "direct": { "marketValue", "positions", "accounts" },   // the family's own hands — NOT a manager; carried so the file reconciles
+    "unresolvedSchemes": [{ "securityKey", "security", "isin", "marketValue", "reason" }],
+    "excludedAccounts": [], "statementsKept": 2
+  },
+  "managers": [{
+    "id", "kind", "name", "house", "strategy", "engagement", "providerEngagement",
+    "accounts": [{ "accountId", "accountNo", "owner", "ownerId", "strategy", "asOf", "inceptionDate", "noPositionsReason" }],
+    "owners": [], "asOf",
+    "value": { "marketValue", "costBasis", "costRows", "unrealizedPnL", "pnlRows", "positions", "rows", "returnPct" },
+    "positions": [ …book rows, AIF units only… ],
+    "finologySlug": null,
+    // pms only
+    "statements": [{ "accountId", "asOf", "reportType", "docKey", "status", "warnings", "totals",
+                     "holdings": [{ "securityKey", "security", "symbol", "isin", "sector", "assetClass", "quantity",
+                                    "marketPrice", "marketValue", "totalCost", "gainLoss", "pctGainLoss",
+                                    "weightPct", "printedWeightPct" }] }],
+    "transactions": [{ "date", "side", "security", "securityKey", "symbol", "assetClass", "quantity", "unitPrice", "amount", "accountId", "owner", "source" }],
+    "tape": { "from", "to", "accountsWith", "accountsWithout", "reportTypes", "warnings" },
+    "window": { "from", "to", "pairs" }, "comparableAccounts", "singleStatementAccounts", "noStatementAccounts",
+    "cash": { "before", "now", "weightBefore", "weightNow", "totalBefore", "totalNow" },
+    "moves": [{ "securityKey", "security", "symbol", "action", "qtyBefore", "qtyNow", "deltaQty", "valueBefore", "valueNow",
+                "weightBefore", "weightNow", "deltaPp", "accounts", "trades": { "buys", "sells", "qtyBought", "qtySold", "bought", "sold", "first", "last" }, "via" }],
+    // pms and aif
+    "returns": [{ "accountId", "reportType", "source", "series": [{ "series", "isBenchmark", "mtd", "qtd", "fytd", "m1", "m3", "m6", "y1", "si", "siAnnualised", "feeBasis" }] }],
+    "bridges": [], "navHistory": { "<accountId>": [{ "date", "nav" }] }, "commitments": [], "corporateActions": [],
+    // mf only
+    "lookthrough": { "source", "funds": [{ "scheme", "amc", "classification", "holdingsAsOf", "holdingsSource", "section", "fundAumCr",
+                     "equityCount", "equity": [{ "name", "isin", "sector", "pctAum" }], "value",
+                     "plans": [{ "schemecode", "plan", "option", "isin", "amfiSchemeName", "matchedVia", "nav", "returns", "returnsAsOf", "positions", "value" }] }] }
+  }]
+}
+```
+
+Invariants, asserted by the build (it refuses to write otherwise) and by the suite against the
+shipped file:
+
+- `summary.managedValue + summary.direct.marketValue` **=** `book.json`'s `summary.totalValue`, each
+  `dedupeGroup` counted once — and a group never spans two managers.
+- a `moves[]` row is a change in **quantity**: `added` means `qtyNow > qtyBefore`, `trimmed` the
+  reverse, `new` has no `qtyBefore` and `exited` no `qtyNow`, and neither of those two carries a
+  `deltaPp`. `weightPct` / `deltaPp` are derived on the statements' own market values and are headed
+  *derived* wherever they render. `trades` is what the transaction statement settled in the window
+  and `via` the corporate action recorded in it, so an exit can say whether it was sold.
+- `amount` on a trade is the statement's own settlement figure (its `net`, then `gross`, only where
+  it printed none), and null where nothing was reported — never zero. `costBasis` is null where the
+  statement prints no cost; `value.returnPct` exists only where every counted line carries one.
+- an `aif` whose accounts all carry `noPositionsReason` has `value.marketValue === 0` and the UI
+  prints the reason, not the zero.
+- `finologySlug`, hand-checked in `FINOLOGY_INVESTORS`, names an investor `super-investors.json`
+  carries; the build fails otherwise.
+- the holdings precedence per account (`appraisal` → `investor-report` → `holdings`) and the trade
+  precedence (`transaction-statement` → `investor-report`) are the read-side order GlowVentures'
+  own `src/lib/ledger.ts` uses, and a dated row printed on two issues of a statement is counted
+  once, using its `ROW_FIELDS` identity.
+
+**Not carried, deliberately:** a third statement per account (`statementsKept: 2` — a comparison is
+two, and a third is ~65KB per mandate on a file every visitor downloads); the fund's own share
+counts in a look-through (the fund's, not the family's); any total across a look-through; anything
+a statement did not print. The file is written compact, unlike `book.json`, for the same reason.
+
 ## `GET /api/returns-ranking` — LIVE, fund returns & peer ranking (AmfiBeas)
 
 The **Institutions** sub-view (now labelled **Fund Returns**). Every tracked mutual fund and ETF,

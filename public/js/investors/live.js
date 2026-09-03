@@ -37,6 +37,9 @@ import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { scopePossessive } from '../data/scope.js';
+// GLOW-OWNED: the family's own managers — first under Portfolio, and a block of their own on
+// Quarterly Changes. See js/investors/my-managers.js; this file only places them.
+import { sectionsFor, renderManagers, managerSummaryBlock } from './my-managers.js';
 
 const SOURCE = 'Ticker Finology, captured through this dashboard’s Worker and refreshed on demand.';
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
@@ -63,15 +66,19 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
   const rows = scopedHoldings(ctx);
   const quarters = feed.quarterLabels();
   const investorList = feed.list();
-  const activeSection = SECTIONS.some((item) => item.id === section) ? section : SECTIONS[0].id;
-  const sectionTabs = tabBar({ tabs: SECTIONS, activeId: activeSection, onSelect: onSection || (() => {}) });
+  const sections = sectionsFor(ctx.scope, SECTIONS); // GLOW: My Managers sits first under Portfolio
+  const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id;
+  const sectionTabs = tabBar({ tabs: sections, activeId: activeSection, onSelect: onSection || (() => {}) });
 
   const summary = activeSection === 'quarterly-changes' ? quarterSummaryBlock(ctx, m, rows) : null;
   const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView) : null;
   if (table) onView?.(table.view);
+  const mine = activeSection === 'my-managers' ? renderManagers(ctx, { openInvestor }) : null; // GLOW
 
   const panel =
-    activeSection === 'quarterly-changes'
+    activeSection === 'my-managers'
+      ? mine.html
+      : activeSection === 'quarterly-changes'
       ? summary.html
       : activeSection === 'data-table'
         ? `
@@ -92,12 +99,13 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
       ${sectionTabs.html}
     </div>
-    <div role="tabpanel" aria-label="${escapeHtml(SECTIONS.find((item) => item.id === activeSection)?.label || '')}" data-live-panel="${escapeHtml(activeSection)}">
+    <div role="tabpanel" aria-label="${escapeHtml(sections.find((item) => item.id === activeSection)?.label || '')}" data-live-panel="${escapeHtml(activeSection)}">
       ${panel}
     </div>`;
 
   disposers.push(sectionTabs.wire(ctx.root.querySelector('[data-live-section-tabs]')));
   summary?.wire(ctx.root, disposers);
+  mine?.wire(ctx.root, disposers); // GLOW
   if (table) disposers.push(table.wire(ctx.root));
   if (activeSection === 'investors') wireCards(ctx.root);
 }
@@ -211,13 +219,18 @@ function quarterSummaryBlock(ctx, m, rows) {
     }),
   ];
 
+  // GLOW: the family's own managers, above the superstar roll-up under Portfolio and Watchlist —
+  // the managers the family pays come before ninety investors it has no relationship with.
+  const mine = managerSummaryBlock(ctx);
   const html = `
+    ${mine?.html || ''}
     <section class="mb-6" data-quarter-summary>
       ${summaryHead(q)}
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((p) => p.html).join('')}</div>
     </section>`;
 
   function wire(root, disposers) {
+    mine?.wire(root, disposers); // GLOW
     for (const panel of panels) disposers.push(panel.wire(root));
     const btn = root.querySelector('[data-summary-help]');
     if (btn) btn.addEventListener('click', () => openModal(summaryHelpBody(q), { size: 'wide' }));

@@ -6,7 +6,8 @@ name: GlowVentures sync (series store + family book)
 #     (`npm run harvest`, nightly at 02:00 UTC) and committed under `public/series/`. Copied here
 #     verbatim so both dashboards read the same figures and this repository carries no harvester
 #     of its own — one source of truth for a store that is measured, not computed, on either side.
-#   • THE FAMILY OFFICE BOOK behind the Family Book tab and Ask Research's portfolio source. That
+#   • THE FAMILY OFFICE BOOK behind the Family Book tab and Ask Research's portfolio source, AND THE
+#     FAMILY'S MANAGERS behind My Managers on the Super Investors tab (scripts/build-managers.mjs). That
 #     repository assembles it offline from the wealth platforms' PDF statements and bakes it into
 #     `src/data/glowData.ts`; `scripts/build-book.mjs` reads the generated arrays out of it and
 #     writes `public/data/book.json`, and `scripts/check-book.mjs` refuses a file whose sums do
@@ -68,12 +69,19 @@ jobs:
           GLOWVENTURES_DIR=/tmp/glowventures node scripts/build-book.mjs
           node scripts/check-book.mjs
 
+      # THE FAMILY'S MANAGERS, from the same checkout — the statements archive and the look-through
+      # beside the book. build-managers.mjs refuses to write when the managed and direct values do
+      # not add back to the book's headline, so a bad build commits nothing here either.
+      - name: Build and reconcile the family's managers
+        if: env.SRC_SHA != ''
+        run: GLOWVENTURES_DIR=/tmp/glowventures node scripts/build-managers.mjs
+
       - name: Commit the refreshed store and book to main
         if: env.SRC_SHA != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/data/series public/data/book.json
+          git add -A public/data/series public/data/book.json public/data/managers.json
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"

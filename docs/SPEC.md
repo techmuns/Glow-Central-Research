@@ -421,7 +421,30 @@ roadmap* card that used to close each tab has been removed from the UI:
 ### Super Investors — `super-investors`
 Superstar holdings and institutional ownership.
 
-**Superstar Investors has three in-page tabs.** *All Investors* opens first with only the investor
+**Under Portfolio, Superstar Investors opens on My Managers.** The family asked for it in so many
+words — *"what my managers are doing, can I see that? I'm more interested in the portfolio managers I
+have access to"* — so the first in-page tab under the Portfolio scope is the family's own managers,
+not ninety public investors it has no relationship with: every PMS mandate, alternative fund and
+mutual fund house its wealth-platform statements show it invested with, as cards grouped by kind
+(mandates, funds, fund houses) in the same design as the investor cards, each opening a workspace.
+A mandate's workspace carries its newest statement (Holdings), the change against the statement
+before it *by quantity* with the trades that produced each move (This period), the dated tape
+(Trades), the manager's own fact-sheet returns (Performance) and its accounts (Profile). An
+alternative fund carries its units, returns, bridges, commitments and distributions — and, where the
+fund also files >1% stakes with the exchanges, a link to its Finology book. A fund house carries what
+each scheme holds from the AMC's monthly disclosure, with the family's share of each underlying
+derived and labelled. Under Watchlist the section is offered last and its moves narrow to the starred
+symbols; under Universe it is not offered, because that scope means every tracked investor. The data
+is `public/data/managers.json`, copied daily from GlowVentures beside the book (see
+`docs/DATA-CONTRACTS.md`, GLOW-OWNED).
+
+**Quarterly Changes carries the family's managers first.** Under Portfolio and Watchlist a *Your
+managers this period* block — the same six ranked lists, over the mandates' statement-to-statement
+moves — sits above the superstar roll-up, and every company row opens every mandate's before/now
+quantity and weight with the trades in the window. Only PMS mandates enter it: a fund publishes no
+portfolio, and a mutual fund's disclosure is a share of the fund. Nothing is scored.
+
+**Superstar Investors has three in-page tabs of its own.** *All Investors* opens first with only the investor
 cards. *Quarterly Changes* follows with the cross-book roll-up, so a reader can see companies bought
 or sold down by more than one tracked investor, new entrants, the largest increases and reductions,
 and positions no longer disclosed without opening ninety books one at a time. *Data Table* sits

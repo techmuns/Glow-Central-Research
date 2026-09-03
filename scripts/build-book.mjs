@@ -15,44 +15,19 @@
 // IT IS IDEMPOTENT. The output is built only from the input, key order is fixed, and `builtFrom`
 // is the upstream commit — so the daily copy commits only when the book actually changed.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openGlowData } from './lib/glowdata.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_DIR = process.env.GLOWVENTURES_DIR || '/tmp/glowventures';
 const OUT = process.env.BOOK_OUT || join(ROOT, 'public/data/book.json');
 
-const src = readFileSync(join(SRC_DIR, 'src/data/glowData.ts'), 'utf8');
-
-/** A generated `export const NAME: T = <literal>;` — the literal is JSON. */
-function literal(name, open, close) {
-  const key = `export const ${name}`;
-  const at = src.indexOf(key);
-  if (at < 0) throw new Error(`glowData.ts has no ${name}`);
-  const start = src.indexOf(`= ${open}`, at) + 2;
-  let depth = 0;
-  let i = start;
-  let inStr = false;
-  for (; i < src.length; i++) {
-    const c = src[i];
-    if (inStr) {
-      if (c === '\\') i++;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') inStr = true;
-    else if (c === open) depth++;
-    else if (c === close) {
-      depth--;
-      if (depth === 0) break;
-    }
-  }
-  return JSON.parse(src.slice(start, i + 1));
-}
-const arr = (name) => literal(name, '[', ']');
-const obj = (name) => literal(name, '{', '}');
+// The generated arrays are JSON literals with a TypeScript annotation in front; the reader is
+// shared with build-managers.mjs (scripts/lib/glowdata.mjs) so the two cannot disagree about it.
+const gd = openGlowData(SRC_DIR);
+const { arr, obj } = gd;
 
 const summary = obj('BOOK_SUMMARY');
 const accounts = arr('BOOK_ACCOUNTS');
@@ -62,18 +37,13 @@ const navHistory = arr('BOOK_NAV_HISTORY');
 const realisedByClass = arr('BOOK_REALISED_BY_CLASS');
 const accountNav = obj('BOOK_ACCOUNT_NAV_HISTORY');
 const accountCashFlows = obj('BOOK_ACCOUNT_CASH_FLOWS');
-const asOfMatch = src.match(/export const BOOK_AS_OF = "([^"]+)"/);
+const bookAsOf = gd.str('BOOK_AS_OF');
 // The ring-fenced promoter holding: GlowVentures keeps it OUT of BOOK_POSITIONS and out of every
 // book-wide figure, on its own page. Carried here the same way — a separate array nothing sums —
 // so the two dashboards cannot disagree about what the consolidated total is.
-const ringFenced = src.includes('export const BOOK_POLYCAB') ? arr('BOOK_POLYCAB') : [];
+const ringFenced = gd.has('BOOK_POLYCAB') ? arr('BOOK_POLYCAB') : [];
 
-let builtFrom = null;
-try {
-  builtFrom = execSync('git rev-parse --short HEAD', { cwd: SRC_DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-} catch {
-  /* not a checkout — leave null */
-}
+const builtFrom = gd.commit();
 
 const accountById = new Map(accounts.map((a) => [a.accountId, a]));
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] === undefined ? null : o[k]]));
@@ -83,7 +53,7 @@ const out = {
     'THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.',
   source: 'techmuns/GlowVentures src/data/glowData.ts',
   builtFrom,
-  asOf: asOfMatch ? asOfMatch[1] : summary.asOf,
+  asOf: bookAsOf || summary.asOf,
   summary: pick(summary, ['asOf', 'listedValue', 'privateValue', 'totalValue', 'positionsCount', 'entitiesCount', 'startupsCount', 'accountsCount']),
   owners: owners.map((o) => ({ ownerId: o.ownerId ?? null, name: o.displayName ?? o.name ?? null })),
   accounts: accounts.map((a) => pick(a, ['accountId', 'provider', 'accountNo', 'ownerId', 'owner', 'strategy', 'engagement', 'providerEngagement', 'asOf', 'inceptionDate', 'custodian', 'members', 'noPositionsReason'])),

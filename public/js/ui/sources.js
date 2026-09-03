@@ -25,6 +25,7 @@ import * as marketNews from '../data/market-news.js';
 import * as superInvestors from '../data/super-investors.js';
 import * as macroSeries from '../data/series.js';
 import * as familyBook from '../data/book.js';
+import * as familyManagers from '../data/managers.js';
 // NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
@@ -501,7 +502,7 @@ export function sourceGroups() {
     {
       title: 'Family office',
       icon: '🏛️',
-      tabs: 'Family Book · Ask Research',
+      tabs: 'Family Book · Ask Research · Super Investors',
       items: [
         {
           name: 'The family office book — GlowVentures',
@@ -514,6 +515,18 @@ export function sourceGroups() {
           cadence: 'Copied daily at 03:30 UTC with the series store, when GLOWVENTURES_READ_TOKEN is set · by hand: GLOWVENTURES_DIR=… node scripts/build-book.mjs',
           status: 'live',
           file: 'public/data/book.json · public/js/data/book.js · public/js/tabs/family-book.js · public/js/research/book-packet.js · scripts/build-book.mjs · scripts/check-book.mjs',
+        },
+        {
+          name: 'The family’s managers — GlowVentures',
+          url: 'https://github.com/techmuns/GlowVentures',
+          feeds:
+            `<strong>Real, and not computed here.</strong> The My Managers section of Superstar Investors — first under Portfolio — and the <em>Your managers this period</em> block on Quarterly Changes: every PMS mandate, alternative fund and mutual fund house the family’s own statements show it invested with. For a PMS mandate the manager’s two newest holdings statements are compared <strong>by quantity</strong>, with the dated trades between them from its transaction statement; for an alternative fund the units, return series, capital bridge and commitments are carried as the fund prints them (an AIF publishes no portfolio); for a fund house the AMC’s monthly SEBI portfolio disclosure per scheme, read through the family’s AmfiBeas store. The weight of a mandate and its change, and the family’s share of a fund’s underlying, are the derived figures and are headed so; a null is never zero; nothing is scored.${clause(
+              num(() => familyManagers.meta()?.managers || null),
+              ' <n> managers'
+            )}${clause(num(() => familyManagers.meta()?.comparableMandates || null), ' · <n> mandates comparable across two statements')}${clause(num(() => familyManagers.meta()?.trades || null), ' · <n> trades on the statements')}${familyManagers.meta()?.asOf ? ` · statements as of ${escapeHtml(familyManagers.meta().asOf)}` : ''}${familyManagers.meta()?.builtFrom ? ` · GlowVentures@${escapeHtml(familyManagers.meta().builtFrom)}` : ''}.`,
+          cadence: 'Copied daily at 03:30 UTC with the book, when GLOWVENTURES_READ_TOKEN is set · by hand: GLOWVENTURES_DIR=… node scripts/build-managers.mjs',
+          status: 'live',
+          file: 'public/data/managers.json · public/js/data/managers.js · public/js/investors/my-managers.js · scripts/build-managers.mjs · scripts/lib/glowdata.mjs',
         },
       ],
     },

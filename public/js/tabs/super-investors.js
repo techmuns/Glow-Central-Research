@@ -35,6 +35,9 @@ import * as liveInvestors from '../data/super-investors.js';
 import * as refreshRegistry from '../core/refresh.js';
 import * as filed from '../data/institution-holdings.js';
 import * as fundReturns from '../data/fund-returns.js';
+// GLOW: My Managers is the first in-page section under Portfolio; `defaultSection` says which
+// section a visit that has not chosen one opens on. See js/investors/my-managers.js.
+import { defaultSection } from '../investors/my-managers.js';
 
 export const meta = {
   id: 'super-investors',
@@ -61,8 +64,9 @@ let liveView = null;
 let liveRouteCompany = null;
 // The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
-// leaving Super Investors resets it.
-let liveSection = 'investors';
+// leaving Super Investors resets it. `null` is "not chosen": the scope's default (GLOW —
+// `defaultSection`, My Managers under Portfolio, All Investors elsewhere) is resolved at paint time.
+let liveSection = null;
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
 let filedSection = 'institutions';
@@ -80,7 +84,7 @@ export function render(ctx) {
   liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
   // Investors so returning from Institutions opens on the documented All Investors default.
-  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = null;
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
@@ -102,7 +106,7 @@ export function destroy() {
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
-  liveSection = 'investors';
+  liveSection = null;
   filedSection = 'institutions';
 }
 
@@ -180,7 +184,7 @@ function paintIndividuals(ctx) {
   disposers = [];
   renderLive(ctx, {
     disposers,
-    section: liveSection,
+    section: liveSection || defaultSection(ctx.scope), // GLOW
     tableView: liveView,
     onView: (v) => (liveView = v),
     onSection: (section) => {

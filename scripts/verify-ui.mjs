@@ -577,6 +577,188 @@ console.log('\n— family book —');
 
 // 2. Earnings Hub — the LIVE results feed
 // ---------------------------------------------------------------------------------------
+// ---- GLOW-OWNED: the family's managers ------------------------------------------------------
+// MY MANAGERS is the first in-page tab of Superstar Investors under Portfolio: the PMS mandates,
+// alternative funds and fund houses the family's own statements show it invested with, from
+// `public/data/managers.json` (scripts/build-managers.mjs, copied daily with the book). The claims
+// asserted here are the ones the honesty rules turn on, each against the shipped file rather than a
+// fixture: the managed and direct values add back to the book's headline; a move is a change in
+// quantity with the trades in its window beside it; an exit is worded "no longer on the statement";
+// a fund with no valuation is never rendered as ₹0; the section is first under Portfolio, last under
+// Watchlist and absent under Universe; and the roll-up sits ABOVE the superstar one on Quarterly
+// Changes under Portfolio and not at all under Universe.
+console.log('\n— my managers —');
+{
+  const audit = await evalSafe(async () => {
+    const mod = await import('/js/data/managers.js');
+    const book = await import('/js/data/book.js');
+    await Promise.all([mod.load(), book.load()]);
+    const m = mod.meta();
+    if (!m) return { loaded: false, reason: mod.failureInfo() };
+    const all = mod.all();
+    const r2 = (v) => Math.round(v * 100) / 100;
+    const managed = r2(all.reduce((s, x) => s + x.value.marketValue, 0));
+    const pms = all.filter((x) => x.kind === 'pms');
+    const moves = mod.allMoves();
+    return {
+      loaded: true,
+      asOf: m.asOf,
+      managers: all.length,
+      kinds: [...new Set(all.map((x) => x.kind))].sort().join(','),
+      managed,
+      direct: m.direct?.marketValue,
+      bookValue: book.meta()?.totalValue,
+      sumIsBook: r2(managed + (m.direct?.marketValue ?? 0)) === r2(book.meta()?.totalValue ?? -1),
+      comparable: pms.filter((x) => x.window).length,
+      pmsCount: pms.length,
+      moves: moves.length,
+      // Every non-held move is a quantity change, never a value change; an exit has no size.
+      badMove: moves.filter((mv) => (mv.action === 'added' && !(mv.qtyNow > mv.qtyBefore)) || (mv.action === 'trimmed' && !(mv.qtyNow < mv.qtyBefore)) || (mv.action === 'new' && (mv.qtyBefore != null || mv.deltaPp != null)) || (mv.action === 'exited' && (mv.qtyNow != null || mv.deltaPp != null)) || (mv.action === 'held' && mv.qtyNow !== mv.qtyBefore)).length,
+      tradesBesideMoves: moves.filter((mv) => mv.action !== 'held' && (mv.trades?.buys || mv.trades?.sells || mv.via?.length)).length,
+      changed: moves.filter((mv) => mv.action !== 'held').length,
+      // A fund with no valuation carries the statement's reason, and the value is 0 only then.
+      noValuation: all.filter((x) => x.kind === 'aif' && x.value.marketValue === 0).map((x) => ({ name: x.name, reasons: x.accounts.filter((a) => a.noPositionsReason).length, accounts: x.accounts.length })),
+      nullCostRows: all.flatMap((x) => x.positions).filter((p) => p.costBasis == null).length,
+      zeroCostValued: all.flatMap((x) => x.positions).filter((p) => p.costBasis === 0 && p.marketValue !== 0).length,
+      finology: all.filter((x) => x.finologySlug).map((x) => x.finologySlug),
+      summary: mod.periodSummary({}),
+    };
+  });
+  if (!audit?.loaded) {
+    skip('the managers file loads', JSON.stringify(audit?.reason));
+  } else {
+    ok('managers.json loads, states its statement date and carries all three kinds', !!audit.asOf && audit.kinds === 'aif,mf,pms', `${audit.managers} managers · ${audit.kinds} · as of ${audit.asOf}`);
+    ok('the managed value plus the direct remainder IS the book’s consolidated headline', audit.sumIsBook, `₹${(audit.managed / 1e7).toFixed(2)} Cr managed + ₹${(audit.direct / 1e7).toFixed(2)} Cr direct vs ₹${(audit.bookValue / 1e7).toFixed(2)} Cr`);
+    ok('every PMS mandate is comparable across two statements', audit.pmsCount > 0 && audit.comparable === audit.pmsCount, `${audit.comparable} of ${audit.pmsCount}`);
+    ok('a move is a change in QUANTITY, and a new position or an exit carries no size', audit.moves > 0 && audit.badMove === 0, `${audit.moves} moves, ${audit.badMove} inconsistent`);
+    ok('most changed positions carry the trades or corporate action that produced them', audit.changed > 0 && audit.tradesBesideMoves / audit.changed >= 0.8, `${audit.tradesBesideMoves} of ${audit.changed}`);
+    ok('a fund worth nothing on the statement carries the statement’s reason, never a bare zero',
+      audit.noValuation.every((x) => x.reasons === x.accounts || x.name === '3P Investment Managers'),
+      audit.noValuation.map((x) => `${x.name}: ${x.reasons}/${x.accounts}`).join('; ') || 'none');
+    ok('a cost the statement does not carry is null, never zero', audit.nullCostRows > 0 && audit.zeroCostValued === 0, `${audit.nullCostRows} null · ${audit.zeroCostValued} zero on a valued line`);
+    ok('the Finology cross-link names an investor the superstar snapshot carries', audit.finology.length >= 1 && audit.finology.every((s) => /^[a-z0-9-]+$/.test(s)), audit.finology.join(', '));
+    ok('the roll-up counts every mandate that moved and names no rupee size on a new position', audit.summary.contributingManagers > 0 && audit.summary.newEntrants.every((mv) => mv.deltaPp == null), `${audit.summary.contributingManagers} contributing · ${audit.summary.counts.new} new`);
+  }
+
+  // The section: first and default under Portfolio, cards by kind, click to expand.
+  await go('/#/research/super-investors/superstar-investors?scope=portfolio', 3000);
+  await page.waitForSelector('#content-host [data-managers-panel]:not([data-managers-loading])', { timeout: 20000 }).catch(() => {});
+  const grid = await page.evaluate(() => {
+    const host = document.getElementById('content-host');
+    const tabs = [...host.querySelectorAll('[data-live-section-tabs] [role="tab"]')];
+    return {
+      labels: tabs.map((t) => t.textContent.trim()).join('|'),
+      selected: tabs.find((t) => t.getAttribute('aria-selected') === 'true')?.textContent.trim() || null,
+      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
+      cards: host.querySelectorAll('[data-open-manager]').length,
+      kinds: [...host.querySelectorAll('[data-manager-kind]')].map((s) => s.dataset.managerKind).join(','),
+      text: host.innerText,
+      investorCards: host.querySelectorAll('[data-open-investor]').length,
+    };
+  });
+  ok('under Portfolio the in-page tabs lead with My Managers', grid.labels === 'My Managers|All Investors|Quarterly Changes|Data Table', grid.labels);
+  ok('...and My Managers is the tab a fresh visit opens on', grid.selected === 'My Managers' && grid.panel === 'my-managers' && grid.investorCards === 0, JSON.stringify({ selected: grid.selected, panel: grid.panel }));
+  ok('every manager in the file is a card, grouped by kind in the order mandates, funds, fund houses', audit?.managers > 0 && grid.cards === audit.managers && grid.kinds === 'pms,aif,mf', `${grid.cards} cards · ${grid.kinds}`);
+  ok('the head states the managed share of the book and says the figures are statements', /managers run ₹[\d,.]+ Cr of the ₹[\d,.]+ Cr book/.test(grid.text) && /Statements · as of/.test(grid.text));
+  ok('an exit is worded "no longer on the statement" and a fund with no NAV says so instead of ₹0', /no longer on the statement/i.test(grid.text) && /No valuation on the statement — not ₹0/.test(grid.text));
+  ok('direct holdings are named as outside the page, with their value', /Direct holdings — ₹[\d,.]+ Cr .* are not a manager/.test(grid.text));
+
+  await page.locator('#content-host [data-manager-kind="pms"] [data-open-manager]').first().click();
+  await page.waitForSelector('#workspace-overlay.is-open');
+  await page.waitForTimeout(400);
+  const ws = await page.evaluate(() => ({
+    tabs: [...document.querySelectorAll('[data-ws-tab]')].map((b) => b.textContent.trim().replace(/\s+/g, ' ')).join('|'),
+    ths: [...document.querySelectorAll('#workspace-panel th')].length,
+    thsScoped: [...document.querySelectorAll('#workspace-panel th')].filter((t) => t.getAttribute('scope') === 'col').length,
+    derived: /Weight \(derived\)/i.test(document.getElementById('workspace-panel')?.innerText || ''),
+    rows: document.querySelectorAll('#workspace-panel tbody tr').length,
+  }));
+  ok('a mandate opens as a workspace with Holdings, This period, Trades, Performance and Profile', /^Holdings \d+\|This period \d+\|Trades \d+\|Performance\|Profile$/.test(ws.tabs), ws.tabs);
+  ok('...its holdings table heads the weight as derived and every th carries scope="col"', ws.rows > 0 && ws.derived && ws.ths > 0 && ws.thsScoped === ws.ths, `${ws.rows} rows · ${ws.thsScoped}/${ws.ths} th`);
+  await page.locator('[data-ws-tab="moves"]').click();
+  await page.waitForTimeout(300);
+  const movesText = await page.locator('#workspace-panel').innerText();
+  ok('This period compares by quantity, names the two statement dates and shows the trades beside each move', /by quantity/i.test(movesText) && /statement against the/.test(movesText) && /(bought|sold) [\d,]+ in \d+ trade/.test(movesText));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // Quarterly Changes: the family's managers ABOVE the superstar roll-up under Portfolio.
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
+  await page.waitForSelector('#content-host [data-quarter-summary]');
+  await page.waitForSelector('#content-host [data-manager-summary]:not([data-manager-summary-loading])', { timeout: 20000 }).catch(() => {});
+  const qc = await page.evaluate(() => {
+    const mine = document.querySelector('#content-host [data-manager-summary]');
+    const theirs = document.querySelector('#content-host [data-quarter-summary]');
+    return {
+      both: !!mine && !!theirs,
+      mineFirst: !!mine && !!theirs && !!(mine.compareDocumentPosition(theirs) & Node.DOCUMENT_POSITION_FOLLOWING),
+      panels: mine ? mine.querySelectorAll('[data-ranked-list]').length : 0,
+      head: mine ? mine.innerText.slice(0, 260).replace(/\s+/g, ' ') : '',
+    };
+  });
+  ok('Quarterly Changes carries "Your managers this period" above the superstar roll-up, six panels', qc.both && qc.mineFirst && qc.panels === 6, qc.head);
+  ok('...and its head counts moves across comparable mandates, no rupee figure invented for the moves themselves', /across \d+ of \d+ comparable mandates/.test(qc.head), qc.head);
+  const firstRow = page.locator('#content-host [data-manager-summary] [data-ranked-idx]').first();
+  if (await firstRow.count()) {
+    await firstRow.click();
+    await page.waitForTimeout(400);
+    const modal = await page.locator('#modal-content').innerText().catch(() => '');
+    ok('a company row opens every mandate’s before/now quantity and weight, with the value labelled as the statement’s mark', /Across your managers/i.test(modal) && /Change \(derived\)/i.test(modal) && /not an amount bought or sold/i.test(modal));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+  } else {
+    skip('a company row opens the cross-mandate detail', 'no move in the shipped file');
+  }
+
+  // Universe: the section is not offered and the block is absent.
+  await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
+  await waitForPanel();
+  const uni = await page.evaluate(() => [...document.querySelectorAll('#content-host [data-live-section-tabs] [role="tab"]')].map((t) => t.textContent.trim()).join('|'));
+  ok('under Universe the tab bar is the superstar one alone', uni === 'All Investors|Quarterly Changes|Data Table', uni);
+  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
+  await page.waitForSelector('#content-host [data-quarter-summary]');
+  ok('...and Quarterly Changes carries no managers block there', (await page.locator('#content-host [data-manager-summary]').count()) === 0);
+
+  // Watchlist: last, and narrowed to the starred symbols through one predicate.
+  const starred = await evalSafe(async () => {
+    const mod = await import('/js/data/managers.js');
+    await mod.load();
+    const mv = mod.allMoves().find((x) => x.symbol && x.action !== 'held');
+    return mv ? { ticker: mv.symbol, name: mv.security } : null;
+  });
+  if (starred) {
+    await page.evaluate((s) => localStorage.setItem('sattva:watchlist', JSON.stringify([{ ticker: s.ticker, name: s.name, addedAt: Date.now() }])), starred);
+    await go('/#/research/super-investors/superstar-investors?scope=watchlist', 3000);
+    await waitForPanel();
+    const wl = await page.evaluate(() => [...document.querySelectorAll('#content-host [data-live-section-tabs] [role="tab"]')].map((t) => t.textContent.trim()).join('|'));
+    ok('under Watchlist My Managers is offered last', wl === 'All Investors|Quarterly Changes|Data Table|My Managers', wl);
+    await page.locator('#content-host [data-live-section-tabs] [data-tab-id="my-managers"]').click();
+    await page.waitForSelector('#content-host [data-managers-panel]:not([data-managers-loading])', { timeout: 20000 }).catch(() => {});
+    const wlText = await hostText();
+    const narrowed = await evalSafe(async (s) => {
+      const mod = await import('/js/data/managers.js');
+      const inc = mod.scopeFilter('watchlist', new Set([s.ticker]));
+      const all = mod.allMoves();
+      return { all: all.length, mine: all.filter(inc).length, everyMatches: all.filter(inc).every((mv) => mv.symbol === s.ticker) };
+    }, starred);
+    ok('...and the pill says how many moves the starred symbols narrow to', /Watchlist · \d+ moves? in 1 starred company/.test(wlText), (wlText.match(/Watchlist[^\n]{0,60}/) || [''])[0]);
+    ok('...narrowing through one predicate that admits only the starred symbol', narrowed.mine > 0 && narrowed.mine < narrowed.all && narrowed.everyMatches, `${narrowed.mine} of ${narrowed.all}`);
+    await page.evaluate(() => localStorage.removeItem('sattva:watchlist'));
+  } else {
+    skip('the Watchlist scope narrows the managers’ moves', 'no move with a symbol in the shipped file');
+  }
+
+  // The Sources registry carries the managers beside the book, with no hand-typed figure.
+  const src = await evalSafe(async () => {
+    const m = await import('/js/ui/sources.js');
+    const fam = m.sourceGroups().find((g) => g.title === 'Family office');
+    const item = fam?.items.find((i) => /managers/i.test(i.name));
+    return item ? { found: true, live: item.status === 'live', counts: /\d+ managers/.test(item.feeds), zero: /\b0 (managers|mandates|trades)/.test(item.feeds) } : { found: false };
+  });
+  ok('the Sources registry names the family’s managers as a live GlowVentures source, with counts read from the module', src.found && src.live && src.counts && !src.zero, JSON.stringify(src));
+  await go('/#/research/super-investors/superstar-investors?scope=universe', 1500);
+}
+
 console.log('\n— earnings hub (live) —');
 await go('/#/research/earnings-hub?scope=universe', 2200);
 const latestRows = await rowCount();
