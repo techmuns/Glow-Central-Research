@@ -1,0 +1,7 @@
+{
+  "note": "Posts captured from the handles in twitter-handles.json, written by scripts/scrape-twitter.py. Empty until a run has read at least one account. A handle that could not be read is listed under failed with a reason — never as an account with no posts.",
+  "capturedAt": null,
+  "handles": [],
+  "posts": [],
+  "failed": []
+}

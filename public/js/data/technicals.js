@@ -8,7 +8,7 @@
 //
 //   await load();                 // idempotent; safe to await from every render()
 //   all()                         // scored rows, best score first
-//   forScope('portfolio')         // narrowed to portfolio.json holdings
+//   forScope('portfolio')         // narrowed to the synced book (js/data/coverage.js)
 //   byTicker('RELIANCE')          // one scored row
 //   meta()                        // generated_at, source, counts, index, breadth
 //

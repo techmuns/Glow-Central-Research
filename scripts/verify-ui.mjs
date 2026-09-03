@@ -413,9 +413,9 @@ const routes = await page.evaluate(async () => {
       'tabs/mutual-funds.js',
       'tabs/news.js',
       'tabs/corp-announcements.js',
+      'tabs/nse-filings.js',
       'tabs/insider-trades.js',
     ],
-    portfolio: ['portfolio/overview.js', 'portfolio/position-by.js', 'portfolio/transactions.js', 'portfolio/drawdown.js'],
   };
   const out = [];
   for (const [ws, files] of Object.entries(REGISTRY)) {
@@ -844,21 +844,39 @@ ok('the sub-view picker is hidden for this single-view tab', await page.evaluate
   const m = document.getElementById('subview-mount');
   return !m || m.classList.contains('hidden') || !m.innerText.trim();
 }));
-// THE WORKSPACE SWITCHER IS GONE FROM THE CHROME. Only Research Central is offered, so there was
-// nothing left to pick — and it sat beside a scope toggle whose second option is also called
-// "Portfolio", which invited a genuine double-take.
+// THE WORKSPACE SWITCHER IS GONE FROM THE CHROME, AND SO IS THE SECOND WORKSPACE.
 //
-// Portfolio Analytics is hidden, not deleted: the four modules still route, so a saved
-// #/portfolio/... link resolves to the page it names rather than silently landing somewhere else.
-// That is checked below, because it is the half of this change that can quietly rot.
+// Portfolio Analytics was kept `hidden: true` for a while so a saved #/portfolio/... link would
+// still resolve to the page it named. That protected a bookmark and built a trap: with no switcher
+// there was nothing on the page that led back, and inside the host iframe there is no address bar
+// to edit, so a reader who followed an Ask Research citation into it was stuck on a screen of
+// invented money. The whole workspace, the FIFO engine and the mock ledger are deleted; the only
+// portfolio fact this dashboard carries is the synced book of company names.
 ok('the workspace switcher is gone from the chrome', (await page.locator('#workspace-mount').count()) === 0);
 {
-  // A hidden workspace still has to route. Deleting the entry instead of hiding it would make every
-  // saved link fall through to Research Central and show the reader a page they did not ask for.
-  await go('/#/portfolio/overview/positions?scope=universe', 2200);
-  const kept = await hostText();
-  ok('...but a saved Portfolio Analytics link still resolves to that page', /position|holding|P&L|drawdown/i.test(kept) && !/hit a snag/i.test(kept), kept.slice(0, 60));
-  ok('...and the URL is not rewritten to research', page.url().includes('/portfolio/'), page.url());
+  // An old link must land on a WORKING page with the URL corrected — never on a dead route, and
+  // never on a page with no way out of it.
+  await go('/#/portfolio/overview/positions?scope=universe', 2500);
+  const landed = await hostText();
+  ok('...and an old Portfolio Analytics link lands on Research Central instead',
+    !page.url().includes('/portfolio/') && /research/.test(page.url()), page.url());
+  ok('...on a page that renders, with the tab bar back', !/hit a snag/i.test(landed) && landed.trim().length > 120,
+    landed.slice(0, 60));
+  // The deleted modules must 404 on the served site, so a stale import cannot quietly come back.
+  // These 404s are the point of the check, not a symptom — see `expectError` at the top.
+  expectError(/js\/portfolio\/|js\/data\/portfolio\.js|data\/portfolio\.json|portfolio-history\.json|mock\/transactions\.json/);
+  const gone = await page.evaluate(async () => {
+    const served = [];
+    for (const f of ['js/portfolio/overview.js', 'js/portfolio/position-by.js', 'js/portfolio/transactions.js',
+                     'js/portfolio/drawdown.js', 'js/portfolio/lots.js', 'js/portfolio/chrome.js',
+                     'js/data/portfolio.js', 'data/portfolio.json', 'data/portfolio-history.json',
+                     'data/mock/transactions.json']) {
+      const res = await fetch(f, { cache: 'no-cache' }).catch(() => null);
+      if (res && res.ok) served.push(f);
+    }
+    return served;
+  });
+  ok('...and every deleted ledger module and payload is gone from the served site', gone.length === 0, gone.join(', '));
   await go('/#/research/earnings-hub?scope=universe', 2200);
 }
 ok('...and the content spans the full width', (await page.locator('#content-host').boundingBox()).width > 1200);
@@ -1530,6 +1548,15 @@ console.log('\n— AI alerts —');
       });
     }
     askRequest = request.postDataJSON();
+    // Slow on purpose: the check below leaves the tab while this is still being written.
+    if (/keeps working while i look away/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'OFF_TAB_ANSWER stands on dashboard evidence.' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
     if (/stale scope test/i.test(askRequest?.question || '')) {
       await new Promise((resolve) => setTimeout(resolve, 900));
       return route.fulfill({
@@ -1654,6 +1681,74 @@ console.log('\n— AI alerts —');
   ok('every visible evidence row links to its traceable source',
     renderedCards.every((card) => card.linkedEvents === card.events));
 
+  // --- THE CARD IS BUILT FOR TIME-TO-INSIGHT, and each half of that is a property to assert ---
+  //
+  // The old card printed the leading pattern's technical sentence as its insight AND again, in
+  // full, inside a "Signals lining up" panel below it — one finding, twice, in the feeds' own
+  // vocabulary. What replaces it is a plain sentence, then the numbers behind it AS numbers. Both
+  // are checkable: the sentence is short and singular, and the strip is the same four cells on
+  // every card so the eye can learn its shape rather than re-reading the labels each time.
+  const aiShape = await aiCards.evaluateAll((els) => els.map((el) => ({
+    ticker: el.dataset.ticker,
+    insight: (el.querySelector('[data-ai-insight]')?.innerText || '').trim(),
+    metrics: [...el.querySelectorAll('[data-ai-metrics] [data-metric]')].map((n) => n.getAttribute('data-metric')),
+    evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
+    // The feed tag is the last cell of each row; the set of them is the breadth on screen.
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event] span:last-child')].map((n) => n.innerText.split('·')[0].trim()))],
+    sources: Number(el.querySelector('[data-metric="feeds"] .tabular-nums')?.innerText || 0),
+    confluenceLines: [...el.querySelectorAll('[data-ai-confluence] [data-confluence]')].map((n) => n.innerText.trim()),
+    archive: !!el.querySelector('[data-ai-mute]'),
+    open: !!el.querySelector('footer [data-open-general]'),
+  })));
+  ok('every card carries exactly four figures, and no cell repeats',
+    aiShape.every((card) => card.metrics.length === 4 && new Set(card.metrics).size === 4),
+    aiShape.map((card) => `${card.ticker}:${card.metrics.join('/')}`).join(' | ').slice(0, 160));
+  // A card that needs scrolling to reach its finding has not delivered one. Three evidence rows is
+  // the cap; the rest are one click away in the tab that exists to hold them.
+  ok('...at most three evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 3 && card.open));
+  // The pattern chips NAME the patterns; they no longer restate them. A chip carrying a full
+  // sentence is the duplication this redesign removed, so its length is the thing to hold down.
+  // A CHIP IS A TAG, NOT A SECOND COPY OF THE HEADLINE. "Volume with selling behind it" under
+  // "Heavy trading, and a big holder has been selling" is the duplication this redesign removed,
+  // so the chips carry the pattern's SHORT name — two or three words the eye indexes on.
+  ok('...and the pattern chips tag a pattern rather than repeating its sentence',
+    aiShape.every((card) => card.confluenceLines.every((line) => line.length > 0 && line.length <= 20)),
+    aiShape.flatMap((card) => card.confluenceLines).join(' | ').slice(0, 140) || 'no patterns today');
+  // BREADTH, NOT THREE COPIES OF ONE FEED. A card claiming four sources that spends all three of
+  // its rows on one of them answers the question it raised with a quarter of what it holds.
+  ok('...and the evidence rows show as many different sources as the card has',
+    aiShape.every((card) => card.evidenceFeeds.length === Math.min(card.evidence, card.sources)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceFeeds.join('/')} of ${card.sources}`).join(' | ').slice(0, 170));
+  ok('...and the insight is a single short sentence in ordinary English',
+    aiShape.every((card) => card.insight.length > 0 && card.insight.length <= 260),
+    `longest ${Math.max(0, ...aiShape.map((card) => card.insight.length))} chars`);
+
+  // ARCHIVING IS A PLACE, NOT A DELETION. A control that makes a card vanish with nothing on
+  // screen saying where it went is indistinguishable from losing it, so the round trip is asserted
+  // in both directions: the card leaves the list, is findable in Archived, and comes back.
+  const archiveTicker = aiShape.find((card) => card.archive)?.ticker;
+  if (!archiveTicker) {
+    skip('archiving a card moves it to the Archived view and back', 'no card offered the control');
+  } else {
+    const beforeCount = await aiCards.count();
+    await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"] [data-ai-mute]`).click();
+    await page.waitForTimeout(400);
+    const goneFromList = (await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"]`).count()) === 0;
+    await page.locator('[data-ai-filter="archived"]').click();
+    await page.waitForTimeout(400);
+    const inArchive = (await page.locator(`[data-ai-card][data-ai-archived][data-ticker="${archiveTicker}"]`).count()) === 1;
+    await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"] [data-ai-unmute]`).click();
+    await page.waitForTimeout(400);
+    const archiveEmptied = (await page.locator('[data-ai-card]').count()) === 0;
+    await page.locator('[data-ai-filter="all"]').click();
+    await page.waitForTimeout(400);
+    const restored = (await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"]`).count()) === 1;
+    ok('archiving a card moves it to the Archived view and back',
+      goneFromList && inArchive && archiveEmptied && restored && (await aiCards.count()) === beforeCount,
+      `${archiveTicker}: hidden ${goneFromList}, archived ${inArchive}, emptied ${archiveEmptied}, restored ${restored}`);
+  }
+
   const aiCardBoxes = await Promise.all([aiCards.nth(0).boundingBox(), aiCards.nth(1).boundingBox()]);
   ok('AI Alerts uses two cards side by side on desktop',
     aiCardBoxes.every(Boolean) && Math.abs(aiCardBoxes[0].y - aiCardBoxes[1].y) < 2 && aiCardBoxes[1].x > aiCardBoxes[0].x,
@@ -1736,7 +1831,9 @@ console.log('\n— AI alerts —');
   ok('evidence links prefer public records and safely fall back to owning dashboard tabs', policy.evidenceLinksSafe);
 
   const firstTicker = renderedCards[0].ticker;
-  await aiCards.first().locator('[data-open-general]').click();
+  // A card now offers the same destination twice — the "N more events" line and the Open
+  // button — so this names one rather than asserting there is only one to name.
+  await aiCards.first().locator('[data-open-general]').first().click();
   await page.waitForTimeout(5000);
   ok('a card drills into General Alerts without changing the selected scope',
     /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
@@ -1744,8 +1841,15 @@ console.log('\n— AI alerts —');
   // Count REAL result rows. `tbody tr` includes the one empty-state row, so the old assertion
   // passed while an uppercase seeded ticker matched nothing and the product visibly said 0 shown.
   const drilledRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  // MATCH THE WAY THE SEARCH MATCHES — case-insensitively, and as a SUBSTRING, because that is what
+  // `?company=` seeds: a text search, not a ticker filter. The case-sensitive form of this passed
+  // for as long as the first card happened to be a company whose rows all shouted their ticker, and
+  // failed the day it was TARIL — on a BSE filing reading "voluntarily issued by Crisil", which
+  // contains `taril` in lower case. The search was right, the row was right, and the assertion was
+  // asking a different question from the one the product answers.
+  const seededMatch = (row) => row.toUpperCase().includes(String(firstTicker).toUpperCase());
   ok('...and seeds the complete stream to that company, with real matching rows',
-    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every((row) => row.includes(firstTicker)),
+    seeded === firstTicker && drilledRows.length > 0 && drilledRows.every(seededMatch),
     `${seeded}; ${drilledRows.length} matching result row(s)`);
 // ---------------------------------------------------------------------------------------
 // 3e. Ask Research — dashboard-wide evidence through the streaming Muns LLM provider
@@ -1808,8 +1912,8 @@ console.log('\n— AI alerts —');
       tokens: packet.selection.tokens,
     };
   });
-  ok('...assembles one status-bearing packet from all fifteen dashboard sources',
-    evidenceAudit.catalog === 15 && evidenceAudit.sources === 15 && evidenceAudit.ready > 0 &&
+  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
       evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the provider-facing packet inside the local model budget',
@@ -1820,6 +1924,7 @@ console.log('\n— AI alerts —');
   ok('...reads a generic question as generic — no scope or dashboard word becomes a ranking token or a company',
     evidenceAudit.tokens.length === 0 && evidenceAudit.companies.length === 0,
     `tokens: [${evidenceAudit.tokens.join(', ')}] · companies: [${evidenceAudit.companies.map((company) => company.ticker).join(', ')}]`);
+<<<<<<< HEAD
   // A SOURCE THAT COULD NOT BE READ IS AN ENVIRONMENT FACT, NOT A PRODUCT REGRESSION.
   //
   // The chatter API is the one upstream the BROWSER calls directly — it cannot be proxied (see
@@ -1833,6 +1938,13 @@ console.log('\n— AI alerts —');
   if (evidenceAudit.chatterStatus !== 'ready') {
     skip('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
       `the chatter feed is ${evidenceAudit.chatterStatus}${evidenceAudit.chatterReason ? ` (${evidenceAudit.chatterReason})` : ''} — run scripts/stub-chatter.mjs and set CHATTER_STUB to exercise it`);
+=======
+  // The chatter feed is a DIRECT browser call to a third-party API (see "There is no /api/chatter"),
+  // so on a sandbox with no egress it is `unavailable` and contributes nothing. That is the
+  // environment, not the page — the honest answer is SKIP, exactly as the /api/ checks give.
+  if (/public-chatter:unavailable/.test(evidenceAudit.statuses.join(', '))) {
+    skip('...includes Public Chatter topics that cannot be resolved to dashboard tickers', 'the chatter API is unreachable from here');
+>>>>>>> upstream/main
   } else {
     ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
       evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
@@ -1879,6 +1991,7 @@ console.log('\n— AI alerts —');
     companyAudit.carrying?.length >= 2 && companyAudit.alertRows >= Math.min(companyAudit.alertFeeds, 2) && companyAudit.companyRowsFirst === true,
     `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} General Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
 
+<<<<<<< HEAD
   // GLOW DIVERGENCE: the `portfolio` source is the real family office book (see the family book
   // section), so the Watchlist check stars a BOOK symbol and expects the book's rows for it — the
   // same claim as upstream (totals from the starred rows only, whole-book figures omitted), on
@@ -1917,13 +2030,31 @@ console.log('\n— AI alerts —');
       Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
       watchlistPortfolioAudit.carriesWholeBookFigures === false,
     `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} row across ${watchlistPortfolioAudit.accountsOnRow} account(s) · ₹${watchlistPortfolioAudit.marketValue}`);
+=======
+  // THE MOCK LEDGER IS NOT EVIDENCE. It used to be the fifteenth source — invented quantities and
+  // costs, marked live, summarised into XIRR/TWR/drawdown and streamed to the model, which then
+  // cited "Portfolio Analytics" with a link into the hidden workspace nobody could get out of.
+  const ledgerAudit = await evalSafe(async () => {
+    const { DASHBOARD_RESEARCH_SOURCES, buildResearchEvidence } = await import('/js/research/estate.js');
+    const packet = await buildResearchEvidence({ question: 'What is my portfolio worth?', scope: 'portfolio' });
+    const money = /marketValueRupees|investedRupees|unrealisedPnl|xirrPct|twrTotalPct|averageCostRupees/;
+    return {
+      registered: DASHBOARD_RESEARCH_SOURCES.filter((source) => /portfolio analytics/i.test(source.tab) || source.id === 'portfolio').map((source) => source.id),
+      routes: DASHBOARD_RESEARCH_SOURCES.filter((source) => /#\/portfolio\//.test(source.route)).map((source) => source.id),
+      valuationKeys: money.test(JSON.stringify(packet.sources)),
+    };
+  });
+  ok('...carries no ledger source, no valuation figure and no route into the deleted workspace',
+    ledgerAudit.registered?.length === 0 && ledgerAudit.routes?.length === 0 && ledgerAudit.valuationKeys === false,
+    `${ledgerAudit.registered?.join(', ') || 'no ledger source'}${ledgerAudit.valuationKeys ? ' · valuation keys present' : ''}`);
+>>>>>>> upstream/main
 
   await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();
   await page.waitForFunction(() => /Dashboard evidence remains traceable/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
   const researchAnswer = await page.locator('[data-research-transcript]').innerText();
   ok('...submits the complete dashboard packet without claiming unsupported web research',
-    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 15 && askRequest?.evidence?.sources?.length === 15,
+    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
     `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
   ok('...renders the streamed dashboard answer without a fabricated web source',
     /dashboard research/i.test(researchAnswer) &&
@@ -1939,6 +2070,64 @@ console.log('\n— AI alerts —');
   ok('...and renders every [Dashboard: Page] citation as a link into that tab',
     !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
     citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
+
+  // AN ANSWER THE READER WALKED AWAY FROM IS STILL THERE WHEN THEY COME BACK.
+  //
+  // `destroy()` used to abort every generation, so pressing Send and then looking at another tab —
+  // the obvious thing to do while fifteen sources are read and an answer is written — cancelled it,
+  // put the question back in the composer and took it out of the transcript. What the reader saw
+  // was their own question sitting unsent, which reads as the assistant having dropped it.
+  //
+  // Driven the way a reader does it: a SAME-DOCUMENT hash navigation. `go()` reloads the document,
+  // which genuinely does end the request, and would pass this check for the wrong reason.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Keeps working while I look away');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Opening /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 15000 });
+  const awaySession = await page.evaluate(() => {
+    location.hash = '#/research/breakouts?scope=portfolio';
+    return true;
+  });
+  await page.waitForTimeout(600);
+  ok('leaving Ask Research mid-answer really does unmount it', awaySession && !(await page.locator('[data-research-input]').count()));
+  const landedAway = await page
+    .waitForFunction(() => {
+      const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
+      return stored.some((session) => session.messages?.some((m) => m.role === 'assistant' && /OFF_TAB_ANSWER/.test(m.text)));
+    }, null, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  ok('...and the answer still arrives and is saved while another tab is on screen', landedAway);
+  // Keeping it running silently would be a feature nobody can see, so it announces itself in the
+  // alert stack — the same place a filed result does, under the tab it belongs to.
+  ok('...and says so in the alert stack rather than finishing invisibly',
+    (await page.locator('[data-notification="research"]').count()) > 0,
+    `${await page.locator('#notification-root > *').count()} alert card(s) on screen`);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  const backText = await page.locator('[data-research-transcript]').innerText();
+  ok('...and it is in the conversation when the reader returns, with the composer clear',
+    /OFF_TAB_ANSWER/.test(backText) && (await page.locator('[data-research-input]').inputValue()) === '',
+    backText.replace(/\s+/g, ' ').slice(0, 120));
+
+  // A TYPED-BUT-UNSENT QUESTION IS THE READER'S WORK TOO. It survives leaving the tab and a reload.
+  await page.locator('[data-research-input]').fill('An unsent draft that must survive');
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { location.hash = '#/research/breakouts?scope=portfolio'; });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForTimeout(900);
+  ok('an unsent draft survives leaving the tab',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  ok('...and a reload',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.evaluate(() => {
+    const input = document.querySelector('[data-research-input]');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 
   // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
   // again on first paint and the result stored on the message — so a conversation from before
@@ -2022,6 +2211,7 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+<<<<<<< HEAD
   const unseededRows = await page.evaluate(async () => {
     const earnings = await import('/js/data/earnings-live.js');
     return earnings.all().length;
@@ -2075,6 +2265,27 @@ console.log('\n— AI alerts —');
   } else {
     skip('...while a tab with the company multi-select narrows to that company ALONE', 'the committed announcements capture carried no company with rows');
   }
+=======
+  // ASSERT WHAT A SEARCH PROMISES, NOT WHAT A FILTER WOULD. `?company=` seeds the search box — the
+  // documented behaviour, and visible to the reader, who can edit it — so what it returns is every
+  // row matching that TEXT, which is a superset of the company. The box matches names as well as
+  // symbols, so seeding `TECHNOCRAF` legitimately also shows Technocraft Industries, whose own
+  // symbol is something else entirely. That is a search behaving like a search, and the day the
+  // newest filing happened to be a company whose name prefixes another's, a check about deep-linking
+  // failed with nothing wrong on the page.
+  //
+  // This is the second assertion in this file to get that backwards — the other read a
+  // case-sensitive ticker against a BSE filing reading "voluntarily issued by Crisil" — so state the
+  // shape once. Two clauses, and both earn their place: every row matches the seeded SEARCH, which
+  // is what the product promises and would catch a stray unrelated row; and the seeded company is
+  // among them, which carries the original point of this check — an uppercase seeded ticker matching
+  // nothing while the product visibly said 0 shown.
+  const seededMatchesSearch = seededRows.every((row) => row.toUpperCase().includes(String(seedTicker || '').toUpperCase()));
+  const seededCompanyPresent = seededRows.some((row) => row.includes(seedTicker));
+  ok('a table tab opened with ?company= is searched for that company',
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededMatchesSearch && seededCompanyPresent,
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s), company present ${seededCompanyPresent}`);
+>>>>>>> upstream/main
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
@@ -2117,7 +2328,7 @@ console.log('\n— AI alerts —');
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
   ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
   ok('...and every research tab asked for is represented',
-    ['Price moves', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
+    ['Price & volume', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
   // A COUNT IS A FINISHED ANSWER; "has not looked" IS THE ABSENCE OF ONE. The compact chip prints a
   // WORD for the second, never a number — a `0` under a feed that has not checked today is exactly
@@ -2220,9 +2431,25 @@ console.log('\n— AI alerts —');
   ok('announcement rules distinguish upgrade, default and unmatched text',
     rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
       rules.annRegulatoryOrder.direction !== 'positive');
-  ok('BSE critical and material announcement matches are High',
-    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
-      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  // THE CRITICAL EXPECTATION HERE IS INVERTED ON PURPOSE, and it is the one line of this check that
+  // changed: `annCritical` is an AGM notice BSE flagged critical, and it is now LOW. Their flag is
+  // reproduced on the row and in the export and no longer gates our importance — measured, it marks
+  // 29% of the whole exchange and 881 of those are AGM notices. See *A borrowed flag is not a
+  // materiality rule* in CLAUDE.md, and `BSE_CRITICAL_IS_MATERIAL`, which flips it back.
+  //
+  // Everything else this check asserted is unchanged and still asserted: the directional rule keeps
+  // its own materiality (an upgrade and an auditor resignation are both High on their own, without
+  // BSE's flag and — for the upgrade — without any tracked keyword), and a routine AGM is Low.
+  ok('the directional rule keeps its own materiality, and BSE\'s critical flag no longer grants it',
+    rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low' &&
+      rules.annCritical.importance === 'low',
+    `upgrade ${rules.annUpgrade.importance}, auditor ${rules.annAuditor.importance}, AGM ${rules.annGeneral.importance}, critical AGM ${rules.annCritical.importance}`);
+  // ...and the row still carries their flag's reasoning, so a reader is not left wondering why a
+  // filing the exchange marked critical is not at the top of the page.
+  ok('...and a critical filing says in words that their marker is reproduced but is not the gate',
+    /BSE marked this filing critical/.test(rules.annCritical.importanceReason) && !/BSE marked this filing critical/.test(rules.annGeneral.importanceReason),
+    rules.annCritical.importanceReason.slice(0, 90));
   ok('regulatory approval and commercial-production noun forms are Positive and High',
     rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
       rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
@@ -2823,6 +3050,7 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-result="0"]').click();
   ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
 
+<<<<<<< HEAD
   await listSearch.fill(BOOK_FIRST_TICKER);
   // THE MUNS RESULTS DROPDOWN CAN COVER THE FIRST MEMBER ROW. It is `position: absolute` under the
   // search box, and with the system fallback fonts (no Google Fonts in the sandbox) its bottom edge
@@ -2834,6 +3062,19 @@ console.log('\n— editable scope lists —');
   ok('a committed Portfolio company can be removed through the local overlay',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT - 1));
   await listSearch.fill('');
+=======
+  // CLEAR THE BOX BEFORE CLICKING THE LIST BENEATH IT. The results panel opens on any query of two
+  // characters or more and is absolutely positioned over the top of the member list, so a click on
+  // the filtered row underneath is intercepted — which aborted the whole run here, taking every
+  // check after this line with it. Typing narrows the list to find the row; clearing closes the
+  // panel and leaves the row in the list, where Playwright scrolls to it. Same assertion, no race.
+  await listSearch.fill('IIFL');
+  await page.locator('[data-scope-remove="ticker:IIFL"]').waitFor({ state: 'attached', timeout: 3000 });
+  await listSearch.fill('');
+  await page.locator('[data-scope-remove="ticker:IIFL"]').click();
+  ok('a committed Portfolio company can be removed through the local overlay',
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
+>>>>>>> upstream/main
   await page.locator('[data-scope-reset]').click();
   ok('Restore default clears Portfolio edits without rewriting the source file',
     (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
@@ -3344,7 +3585,7 @@ const srcLive = await page.evaluate(async () => {
   const [cov, ec] = [await import('/js/data/coverage.js'), await import('/js/data/earnings-live.js')];
   return { book: cov.meta().count, uncovered: cov.meta().uncovered, reported: ec.all().length };
 });
-ok('the book count in Sources is read live, not typed', new RegExp(`\\b${srcLive.book} companies from the family office`).test(sources), `${srcLive.book} expected`);
+ok('the book count in Sources is read live, not typed', new RegExp(`\\b${srcLive.book} company lines read from the family office`).test(sources), `${srcLive.book} expected`);
 ok('...as is the count of lines with no NSE symbol', new RegExp(`\\b${srcLive.uncovered} lines carry no NSE symbol`).test(sources), `${srcLive.uncovered} expected`);
 if (srcLive.reported > 0) {
   ok('...and the reported-companies count matches the feed', sources.includes(`${srcLive.reported.toLocaleString('en-US')} in the current pull`), `${srcLive.reported} expected`);
@@ -3610,8 +3851,13 @@ const ddSummaryBefore = ddHits.summary;
 await go('/#/research/concall?scope=universe', 1200);
 await waitForPanel();
 await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
+// COUNT BOTH SIDES OF THE EQUALITY ON A SETTLED TABLE. `scoreTable` paints a screenful and appends
+// the rest while the browser is idle, so reading the buttons first and the rows second compares a
+// mid-fill number against a finished one: measured, 1,000 buttons against 1,237 rows, with nothing
+// wrong on the page. `rowCount()` already waits; this makes the button count wait too.
+const ddRows = await rowCount();
 const ddCells = await page.locator('[data-deep-dive]').count();
-ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
+ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === ddRows, `${ddCells} buttons, ${ddRows} rows`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
 ok('THE TABLE DISPATCHES NOTHING ON RENDER', ddHits.analyze === 0 && ddHits.report === 0, `analyze=${ddHits.analyze} report=${ddHits.report}`);
 // Their free index is read once per document load and never again — not per row, not per repaint,
@@ -3901,6 +4147,48 @@ if (!chatterState.ok) {
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+
+  // A GENERAL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
+  // event carries no source URL, so daily-alerts.js falls back to the tab WITH the company and an
+  // `open=mentions` flag; this asserts the receiving end honours it. Driven through the URL the row
+  // click builds (deterministic) rather than through the alerts tab, which needs every feed's egress
+  // to render a chatter row at all.
+  const deepTicker = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    return (c.companies() || [])[0]?.ticker || null;
+  });
+  if (deepTicker) {
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}&open=mentions`, 900);
+    await page.waitForTimeout(600);
+    const deep = await evalSafe((t) => {
+      const dialog = document.querySelector('[data-chatter-mentions-dialog]');
+      const c = document.querySelector('#content-host input')?.value || '';
+      return { popup: !!dialog, slug: dialog?.getAttribute('data-chatter-slug') || null, seeded: c.toUpperCase().includes(t) };
+    }, deepTicker);
+    ok('a chatter deep-link opens that company\'s mentions popup and seeds the search',
+      deep && deep.popup && deep.seeded, `popup ${deep?.popup}, search seeded ${deep?.seeded}, slug ${deep?.slug}`);
+    // Close it, then a repaint (scope toggle) must NOT reopen it — the guard against a live tick or a
+    // scope change re-triggering the popup on every paint.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await go(`/#/research/public-chatter?scope=watchlist&company=${encodeURIComponent(deepTicker)}&open=mentions`, 700);
+    await page.waitForTimeout(400);
+    const reopened = await evalSafe(() => !!document.querySelector('[data-chatter-mentions-dialog]'));
+    ok('...and a scope toggle on the same deep-link does not reopen it', !reopened, `reopened=${reopened}`);
+    // `?company=` alone seeds the search but must NOT open the popup — only `open=mentions` does.
+    await go('/#/research/ask-research?scope=universe', 500);
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}`, 800);
+    await page.waitForTimeout(400);
+    const seedOnly = await evalSafe((t) => ({
+      popup: !!document.querySelector('[data-chatter-mentions-dialog]'),
+      seeded: (document.querySelector('#content-host input')?.value || '').toUpperCase().includes(t),
+    }), deepTicker);
+    ok('company= alone seeds the search without opening the popup', seedOnly && !seedOnly.popup && seedOnly.seeded,
+      `popup ${seedOnly?.popup}, seeded ${seedOnly?.seeded}`);
+    await go('/#/research/public-chatter?scope=universe', 800);
+  } else {
+    skip('a chatter deep-link opens that company\'s mentions popup', 'no resolved chatter company in this run');
+  }
   await page.locator('[data-chatter-live]').click();
   await page.waitForTimeout(200);
   ok('the Public Chatter Live label opens no explainer popup',
@@ -4090,8 +4378,9 @@ ok('...and credits SentimentDash for the sentiment', /SentimentDash/.test(chatte
 // ---------------------------------------------------------------------------------------
 // 8b. The book — 142 company lines, and the promise that none of them is silently missing.
 //
-// "Portfolio" used to mean the twelve positions in the ledger. It now means the family's actual
-// direct-equity book, and the thing the reader was worried about is a holding quietly vanishing
+// "Portfolio" used to mean the twelve positions in a mock ledger. It now means the family's actual
+// direct-equity book — names and sectors, no quantity, no cost, no valuation — and the thing the
+// reader was worried about is a holding quietly vanishing
 // between the statement and the screen. So the checks here are about completeness and about
 // honesty when a feed cannot carry a line:
 //
@@ -4100,7 +4389,8 @@ ok('...and credits SentimentDash for the sentiment', /SentimentDash/.test(chatte
 //     Logistics are separately listed and both matched ALLCARGO);
 //   • a Portfolio-scoped table shows ONLY book companies, and never leaks a non-holding;
 //   • the scope pill prints the denominator, so 96 rows can never read as "the book is 96 long";
-//   • the ledger is untouched — Portfolio Analytics still reconciles against its own file.
+//   • the book is now the ONLY portfolio information here — the ledger and the Portfolio
+//     Analytics workspace it fed are deleted, checked at the top of this file.
 // ---------------------------------------------------------------------------------------
 console.log('\n— the book —');
 await go('/#/research/earnings-hub?scope=portfolio', 3000);
@@ -5869,293 +6159,14 @@ for (const [hash, label] of [
 }
 
 // ---------------------------------------------------------------------------------------
-// 11. Portfolio Analytics — the two reconciliation identities, asserted NUMERICALLY
-//
-// These are the checks the whole workspace rests on. They run against the live module in the
-// page, not against a fixture, so they fail if the shipped data and the shipped code disagree.
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: reconciliation —');
-await go('/#/portfolio/overview/positions?scope=universe', 1800);
-
-const recon = await page.evaluate(async () => {
-  const pf = await import('/js/data/portfolio.js');
-  const lots = await import('/js/portfolio/lots.js');
-  await pf.load();
-  const positions = pf.positions();
-  const s = pf.summary();
-  const book = pf.book();
-
-  // IDENTITY 1 — sum of open lot quantities === position quantity, per ticker.
-  const lotMismatches = positions
-    .map((p) => ({ t: p.ticker, lots: p.lots.reduce((a, l) => a + l.openQty, 0), qty: p.qty }))
-    .filter((r) => r.lots !== r.qty);
-
-  // ...and the same again against the holdings config, so the file and the replay agree too.
-  const configMismatches = pf
-    .holdingsConfig()
-    .map((h) => ({ t: h.ticker, cfg: h.qty, replay: pf.byTicker(h.ticker)?.qty ?? null }))
-    .filter((r) => r.cfg !== r.replay);
-
-  // IDENTITY 2 — realised + unrealised + dividends === total P&L, to the paisa.
-  const rebuilt = positions.reduce((a, p) => a + p.realised + p.unrealised + p.dividends, 0);
-  const residual = Math.abs(rebuilt - s.totalPnl);
-
-  // Per-position too: a portfolio total can net two opposite errors to zero.
-  const perPosition = positions
-    .map((p) => ({ t: p.ticker, d: Math.abs(p.totalPnl - (p.realised + p.unrealised + p.dividends)) }))
-    .filter((r) => r.d > 0.011);
-
-  // Every realised row's own arithmetic: pnl === proceeds - cost.
-  const badRows = book.realised.filter((r) => Math.abs(r.pnl - (r.proceeds - r.cost)) > 0.011);
-
-  // Every sold quantity is accounted for by lot matches.
-  const sells = pf.transactions().filter((t) => String(t.type).toLowerCase() === 'sell');
-  const unmatchedSells = sells.filter((t) => {
-    const matched = book.realised.filter((r) => r.sellId === t.id).reduce((a, r) => a + r.qty, 0);
-    return matched !== t.qty;
-  });
-
-  // Corporate actions preserve total cost: quantity × cost-per-share is invariant.
-  const caTickers = [...new Set(book.events.filter((e) => e.kind === 'bonus' || e.kind === 'split').map((e) => e.ticker))];
-
-  // A purpose-built fixture for the paths the shipped ledger cannot exercise on its own.
-  const fixture = lots.replay([
-    { id: 'f1', date: '2024-01-10', ticker: 'ZZZ', type: 'Buy', qty: 100, price: 200, value: 20000, charges: 0 },
-    { id: 'f2', date: '2024-06-10', ticker: 'ZZZ', type: 'Bonus', qty: 100, price: 0, value: 0, ratio: 2 },
-    { id: 'f3', date: '2025-06-10', ticker: 'ZZZ', type: 'Sell', qty: 50, price: 150, value: 7500, charges: 0 },
-    { id: 'f4', date: '2024-02-01', ticker: 'YYY', type: 'Sell', qty: 10, price: 100, value: 1000, charges: 0 },
-    { id: 'f5', date: '2024-02-02', ticker: 'XXX', type: 'Teleport', qty: 1, price: 1, value: 1 },
-  ]);
-  const zzz = fixture.byTicker.get('ZZZ');
-  const zzzRow = fixture.realised[0];
-
-  return {
-    tickerCount: positions.length,
-    lotMismatches, configMismatches, residual, perPosition,
-    badRowCount: badRows.length, unmatchedSellCount: unmatchedSells.length, sellCount: sells.length,
-    lotMatchCount: book.realised.length, replayErrors: book.errors.length,
-    caTickers,
-    caCostPreserved: caTickers.every((t) => {
-      const ev = book.events.find((e) => e.ticker === t && (e.kind === 'bonus' || e.kind === 'split'));
-      return ev && ev.qtyAfter === Math.round(ev.qtyBefore * ev.ratio);
-    }),
-    // fixture expectations
-    fxQty: zzz.qty,                       // 100 → bonus ×2 = 200 → sell 50 = 150
-    fxCost: zzz.invested,                 // total cost unchanged at 20,000 − the 50 sold
-    fxBuyDate: zzzRow?.buyDate,           // bonus shares keep the ORIGINAL acquisition date
-    fxTerm: zzzRow?.term,                 // 2024-01-10 → 2025-06-10 is long term
-    fxErrors: fixture.errors.map((e) => e.reason),
-    // summary sanity
-    xirr: s.xirr, twr: s.twr?.total, maxDD: s.maxDrawdown, coverage: pf.equityCurve()?.coverage,
-    unpriced: s.reconciliation.unpricedTickers,
-  };
-});
-
-ok('IDENTITY 1: open lots sum to position qty on every ticker', recon.lotMismatches.length === 0,
-   recon.lotMismatches.map((r) => `${r.t} ${r.lots}!=${r.qty}`).join(', ') || `${recon.tickerCount} tickers`);
-ok('...and portfolio.json agrees with the replay', recon.configMismatches.length === 0,
-   recon.configMismatches.map((r) => `${r.t} ${r.cfg}!=${r.replay}`).join(', '));
-ok('IDENTITY 2: realised + unrealised + dividends === total P&L', recon.residual < 0.011, `residual ${recon.residual}`);
-ok('...per position, not just in aggregate', recon.perPosition.length === 0,
-   recon.perPosition.map((r) => `${r.t} ${r.d}`).join(', '));
-ok('every realised row: pnl === proceeds − cost', recon.badRowCount === 0, `${recon.lotMatchCount} lot matches checked`);
-ok('every sold share is matched to a lot', recon.unmatchedSellCount === 0, `${recon.sellCount} sells`);
-ok('the ledger replays with no rejected rows', recon.replayErrors === 0, `${recon.replayErrors} errors`);
-ok('corporate actions multiply quantity exactly', recon.caCostPreserved && recon.caTickers.length > 0, recon.caTickers.join(', '));
-
-console.log('\n— portfolio: FIFO fixture —');
-ok('bonus doubles quantity (100 → 200, less 50 sold = 150)', recon.fxQty === 150, `got ${recon.fxQty}`);
-ok('bonus preserves total cost, so 150 shares cost 15,000', Math.abs(recon.fxCost - 15000) < 0.011, `got ${recon.fxCost}`);
-ok('bonus shares inherit the ORIGINAL acquisition date', recon.fxBuyDate === '2024-01-10', `got ${recon.fxBuyDate}`);
-ok('...so the gain is classified long term', recon.fxTerm === 'long', `got ${recon.fxTerm}`);
-ok('a sell with no holding is reported, not dropped', recon.fxErrors.some((r) => /exceeds/.test(r)), recon.fxErrors.join(' | '));
-ok('an unknown transaction type is reported, not dropped', recon.fxErrors.some((r) => /unknown type/.test(r)), recon.fxErrors.join(' | '));
-
-// ---------------------------------------------------------------------------------------
-// 12. Equity curve — bounds, and an INDEPENDENT recompute of max drawdown
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: equity curve —');
-const curveChecks = await page.evaluate(async () => {
-  const pf = await import('/js/data/portfolio.js');
-  await pf.load();
-  const c = pf.equityCurve();
-  const pts = c.points;
-
-  // Recomputed from scratch here, deliberately not sharing a line of code with the module.
-  let peak = -Infinity, worst = 0, worstAt = null;
-  for (const p of pts) { if (p.value > peak) peak = p.value; const d = ((p.value - peak) / peak) * 100; if (d < worst) { worst = d; worstAt = p.d; } }
-
-  return {
-    days: pts.length,
-    nonFinite: pts.filter((p) => !Number.isFinite(p.value)).length,
-    negative: pts.filter((p) => p.value < 0).length,
-    monotonicDates: pts.every((p, i) => i === 0 || p.d > pts[i - 1].d),
-    valueEqualsParts: pts.filter((p) => Math.abs(p.value - (p.holdings + p.excludedCost + p.cash)) > 0.011).length,
-    cashNeverFalls: pts.every((p, i) => i === 0 || p.cash >= pts[i - 1].cash - 0.011),
-    moduleMaxDD: c.maxDrawdown, independentMaxDD: worst,
-    moduleTrough: c.maxDrawdownTrough, independentTrough: worstAt,
-    ddInRange: c.drawdown.every((d) => d.dd <= 0.0001 && d.dd >= -100),
-    holdingsDD: c.maxHoldingsDrawdown,
-    excluded: c.excluded, coverage: c.coverage,
-    benchDays: c.benchmark?.points.length ?? 0,
-    from: c.from, to: c.to,
-  };
-});
-
-ok('curve has one point per trading day, dates strictly increasing', curveChecks.monotonicDates && curveChecks.days > 700, `${curveChecks.days} days, ${curveChecks.from} → ${curveChecks.to}`);
-ok('no non-finite or negative portfolio values', curveChecks.nonFinite === 0 && curveChecks.negative === 0);
-ok('value === holdings + excluded-at-cost + cash, every day', curveChecks.valueEqualsParts === 0, `${curveChecks.valueEqualsParts} days off`);
-ok('cash never decreases (proceeds are retained, never reinvested)', curveChecks.cashNeverFalls);
-ok('drawdown is always in (−100%, 0]', curveChecks.ddInRange);
-ok('INDEPENDENT recompute agrees on max drawdown', Math.abs(curveChecks.moduleMaxDD - curveChecks.independentMaxDD) < 0.0001,
-   `module ${curveChecks.moduleMaxDD.toFixed(4)}% vs recomputed ${curveChecks.independentMaxDD.toFixed(4)}%`);
-ok('...and on the trough date', curveChecks.moduleTrough === curveChecks.independentTrough, `${curveChecks.moduleTrough} vs ${curveChecks.independentTrough}`);
-ok('holdings-only drawdown is deeper than the total (cash dampens it)', curveChecks.holdingsDD < curveChecks.moduleMaxDD,
-   `holdings ${curveChecks.holdingsDD.toFixed(2)}% vs total ${curveChecks.moduleMaxDD.toFixed(2)}%`);
-ok('benchmark covers the same window', curveChecks.benchDays === curveChecks.days, `${curveChecks.benchDays} benchmark points`);
-ok('excluded tickers are named, and coverage is reported', curveChecks.coverage > 0 && curveChecks.coverage <= 100,
-   `${curveChecks.coverage.toFixed(1)}% priced, excludes ${curveChecks.excluded.join(', ') || 'nothing'}`);
-
-// ---------------------------------------------------------------------------------------
-// 12b. Provenance on this workspace, without the ribbon
-//
-// A four-line amber block used to head all four sub-views: two pills, a paragraph naming the
-// generator script, the mark's age, the curve's window and the excluded tickers. It was the
-// first thing anyone saw here, above the money, on every view. The Earnings Hub rule applies —
-// decluttering a page is fine, deleting its accountability is not — so what is asserted is the
-// pair: the paragraph is gone from the body, and the claim stays on the face as a passive label.
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: provenance —');
-for (const [route, label] of [
-  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
-  ['/#/portfolio/overview/allocation?scope=universe', 'allocation'],
-  ['/#/portfolio/position-by/sector?scope=universe', 'position-by'],
-  ['/#/portfolio/transactions/trades?scope=universe', 'trades'],
-  ['/#/portfolio/drawdown/curve?scope=universe', 'drawdown'],
-]) {
-  await go(route, 2000);
-  const pills = await page.locator('#content-host [data-pf-info]').count();
-  const txt = await hostText();
-  ok(`${label}: carries exactly one provenance pill`, pills === 1, `${pills} pills`);
-  ok(`${label}: ...saying the ledger is illustrative on its face`, /Illustrative ledger/i.test(txt));
-  ok(`${label}: ...and no longer spends four lines saying it`, !/Which trades were made/.test(txt));
-}
-{
-  await page.locator('#content-host [data-pf-info]').first().click();
-  await page.waitForTimeout(200);
-  ok('the portfolio provenance label opens no explainer popup',
-    (await page.locator('#content-host [data-pf-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
-      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
-}
-
-// ---------------------------------------------------------------------------------------
-// 13. The no-live-price fallback must be loud, not silent
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: no-live-price fallback —');
-{
-  const fb = await context.newPage();
-  const fbErrors = [];
-  fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
-  await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  // `domcontentloaded`, not `networkidle`, because optional external resources and long-lived
-  // requests need not settle. The explicit settle below is what this check actually needs.
-  await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
-  await fb.waitForTimeout(2200);
-  const t = await fb.locator('#content-host').innerText();
-  // The label's FACE changes in this state: a position shown at
-  // cost reports a P&L of exactly zero, and a zero meaning "no price" must not look like a zero
-  // meaning "flat". A caveat one click away would not be read in time to stop that.
-  ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
-  ok('...on the face of the pill, not only inside it', /Marks unavailable/.test(await fb.locator('[data-pf-info]').first().innerText()));
-  ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
-  // Ours only. Optional external-resource failures are filtered by `ownError` above.
-  const fbOwn = fbErrors.filter(ownError);
-  ok('...without throwing', fbOwn.length === 0, fbOwn.join(' | ') || `${fbErrors.length - fbOwn.length} CDN error(s) ignored`);
-  await fb.close();
-
-  const nh = await context.newPage();
-  await nh.route('**/data/portfolio-history.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  await nh.goto(`${BASE}/#/portfolio/drawdown/curve?scope=universe`, { waitUntil: 'domcontentloaded' });
-  await nh.waitForTimeout(2200);
-  const dt = await nh.locator('#content-host').innerText();
-  ok('a missing price history refuses to show a drawdown', /No price history, so no drawdown/.test(dt));
-  ok('...and names how to produce it', /scrape-portfolio-history/.test(dt));
-  await nh.close();
-}
-
-// ---------------------------------------------------------------------------------------
-// 14. Group-by, the CSV round trip, and the portfolio exports
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: group-by and CSV —');
-for (const [sub, label, unit] of [['sector', 'sector', 'positions'], ['conviction', 'conviction', 'positions'], ['holding-period', 'holding period', 'lots'], ['pnl-band', 'P&L band', 'positions']]) {
-  await go(`/#/portfolio/position-by/${sub}?scope=universe`, 1500);
-  const rows = await page.locator('#content-host table').first().locator('tbody tr').count();
-  const txt = await hostText();
-  ok(`group by ${label} produces groups`, rows >= 2, `${rows} groups`);
-  ok(`...counted in ${unit}`, new RegExp(unit === 'lots' ? 'lots' : 'positions', 'i').test(txt));
-}
-{
-  await go('/#/portfolio/position-by/sector?scope=universe', 1500);
-  const weights = await page.evaluate(() => [...document.querySelectorAll('#content-host table')][0].querySelectorAll('tbody tr'))
-    .then(() => page.evaluate(() => {
-      const cells = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.innerText.match(/(\d+\.\d)%/g)).filter(Boolean);
-      return cells.length;
-    }));
-  ok('every group carries a weight', weights > 0, `${weights} rows with a % figure`);
-}
-
-await go('/#/portfolio/transactions/import?scope=universe', 1600);
-{
-  const dl = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
-  await page.locator('#csv-download').click();
-  const file = await dl;
-  ok('the ledger downloads as CSV', !!file, file?.suggestedFilename() || 'no download');
-  if (file) {
-    const path = await file.path();
-    const { readFileSync } = await import('node:fs');
-    const csv = readFileSync(path, 'utf8');
-    const lines = csv.trim().split('\n');
-    ok('CSV header matches the documented columns', lines[0] === 'id,date,ticker,name,type,qty,price,value,charges,ratio', lines[0]);
-    await page.locator('#csv-file').setInputFiles(path);
-    await page.waitForTimeout(900);
-    const preview = await page.locator('#import-result').innerText();
-    ok('round-tripping the CSV parses every row back', new RegExp(`${lines.length - 1} rows parsed`).test(preview), preview.split('\n').find((l) => /parsed/.test(l)) || '');
-    ok('...with nothing rejected', !/rejected/.test(preview));
-  }
-}
-{
-  const { writeFileSync } = await import('node:fs');
-  const bad = `${process.env.TMPDIR || '/tmp'}/sattva-bad-import.csv`;
-  writeFileSync(bad, ['id,date,ticker,name,type,qty,price', 'b1,2024-13-45,INFY,Infosys,Buy,10,1500', 'b2,2024-05-06,,Infosys,Buy,10,1500', 'b3,2024-05-06,INFY,Infosys,Teleport,10,1500', 'b4,2024-05-06,INFY,Infosys,Buy,10,1500'].join('\n'));
-  await page.locator('#csv-file').setInputFiles(bad);
-  await page.waitForTimeout(900);
-  const preview = await page.locator('#import-result').innerText();
-  ok('a malformed CSV names every rejected row', /3 rejected/.test(preview), preview.split('\n').find((l) => /rejected/.test(l)) || '');
-  ok('...including an impossible calendar date', /not a valid YYYY-MM-DD/.test(preview));
-  ok('...and still applies the good row', /1 row parsed/.test(preview));
-}
-
-for (const [hash, label] of [
-  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
-  ['/#/portfolio/overview/realised?scope=universe', 'realised'],
-  ['/#/portfolio/drawdown/episodes?scope=universe', 'drawdown episodes'],
-]) {
-  await go(hash, 1600);
-  const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
-  await page.locator('#content-host button:has-text("Export")').first().click();
-  const file = await dl;
-  await downloadOrSkip(`${label} export downloads`, file);
-}
-
-// ---------------------------------------------------------------------------------------
-// 15. Accessibility — table semantics and overlay focus management
+// 11. Accessibility — table semantics and overlay focus management
 // ---------------------------------------------------------------------------------------
 console.log('\n— accessibility —');
 {
   let totalTh = 0, missing = 0;
   for (const hash of ['/#/research/earnings-hub?scope=universe', '/#/research/breakouts/technical-scanner?scope=universe',
-                      '/#/portfolio/overview/positions?scope=universe', '/#/portfolio/transactions/trades?scope=universe',
-                      '/#/portfolio/position-by/holding-period?scope=universe']) {
+                      '/#/research/super-investors/institutions?scope=universe', '/#/research/insider-trades?scope=universe',
+                      '/#/research/corp-announcements?scope=universe']) {
     await go(hash, 1300);
     const r = await page.evaluate(() => { const th = [...document.querySelectorAll('#content-host th')]; return [th.length, th.filter((t) => !t.hasAttribute('scope')).length]; });
     totalTh += r[0]; missing += r[1];
@@ -6163,7 +6174,7 @@ console.log('\n— accessibility —');
   ok('every table header carries scope="col"', missing === 0, `${totalTh} headers checked, ${missing} missing`);
 }
 {
-  await go('/#/portfolio/overview/positions?scope=universe', 1600);
+  await go('/#/research/breakouts/technical-scanner?scope=universe', 2600);
   await page.locator('#content-host tbody tr').first().click();
   await page.waitForTimeout(500);
   const st = await page.evaluate(() => { const d = document.getElementById('drill-panel'); return { role: d.getAttribute('role'), modal: d.getAttribute('aria-modal'), inside: d.contains(document.activeElement) }; });
@@ -6199,6 +6210,19 @@ console.log('\n— header status and live alerts —');
   });
   ok('the header search box is gone', header.inputs === 0, `${header.inputs} inputs in the header`);
   ok('...and so is the Sources button', !header.sourcesBtn);
+  // THE OTHER HALF OF THAT TRADE, and the half that was missing. Removing the button was right;
+  // leaving the registry with no caller at all was not, because CLAUDE.md goes on to say canonical
+  // provenance "remains in the source registry". The door is a footer, BELOW the content, so the
+  // chrome stays gone and the claim stays reachable — see section 17.
+  const registryDoor = await evalSafe(() => {
+    const btn = document.querySelector('[data-sources-open]');
+    const main = document.getElementById('dashboard-main');
+    if (!btn || !main) return { present: false };
+    return { present: true, inHeader: !!btn.closest('header'), belowContent: !!(main.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  });
+  ok('...but the source registry is reachable, from a footer rather than the chrome',
+    registryDoor.present && !registryDoor.inHeader && registryDoor.belowContent,
+    JSON.stringify(registryDoor));
   ok('one status pill, not two competing chips', header.pills === 1 && header.updatedChip === 0, `${header.pills} pill(s), ${header.updatedChip} legacy chip(s)`);
   ok('...reading "Connected · checked <when>"', /^Connected · checked /.test(header.pillText) || /connecting/.test(header.pillText), header.pillText);
   ok('...and a refresh button beside it', header.refresh === 1);
@@ -6658,17 +6682,36 @@ console.log('\n— news, announcements and insider trades —');
     // A story whose captured URL is not http(s) is rendered without a link on purpose. None should
     // exist; if one does, this reports it rather than letting it read as a missing anchor.
     const unlinkable = nodes.filter((a) => a.hasAttribute('data-news-unlinkable')).length;
-    const offsite = nodes.filter((a) => /^https:\/\/(www\.)?moneycontrol\.com\//.test(a.getAttribute('href') || '')).length;
+    // ASSERTED AGAINST THE ROW'S OWN PUBLISHER, not against one hard-coded domain.
+    //
+    // These read `https://(www.)?moneycontrol.com/` and `https://images.moneycontrol.com/` while
+    // that was the only publisher in the feed. With five, a fixed host would fail for four of them
+    // and — worse — would pass a Mint story rendered with a Moneycontrol thumbnail, which is the
+    // actual thing worth preventing. Comparing each card against the URL and image on ITS OWN row
+    // is publisher-agnostic and strictly stronger: it catches a card wearing another story's
+    // picture, which no domain test ever could.
+    const offsite = nodes.filter((a) => {
+      const href = a.getAttribute('href') || '';
+      if (!/^https:\/\//.test(href)) return false;
+      try { return new URL(href).origin !== window.location.origin; } catch { return false; }
+    }).length;
     const newTab = nodes.filter((a) => a.getAttribute('target') === '_blank' && /noreferrer/.test(a.getAttribute('rel') || '')).length;
     const hrefMatchesFeed = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.url === a.getAttribute('href')).length;
     const thumbs = nodes.filter((a) => {
       const img = a.querySelector('img');
-      return img && /^https:\/\/images\.moneycontrol\.com\//.test(img.getAttribute('src') || '');
+      const want = byKey.get(a.getAttribute('data-news-key'))?.image;
+      return !!want && !!img && img.getAttribute('src') === want && /^https:\/\//.test(want);
     }).length;
     const withImage = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.image).length;
+    // WHITESPACE IS NORMALISED ON BOTH SIDES, and only whitespace. `innerText` collapses runs of
+    // spaces the way HTML always renders them, so 20 Mint headlines that write "brings  ₹10" with a
+    // double space read back single-spaced and failed a strict compare — the headline was
+    // reproduced exactly, the comparison just could not see it. Collapsing both sides still catches
+    // the thing this guards: a word changed, a truncation, any rewrite of somebody's headline.
+    const flat = (v) => String(v || '').replace(/\s+/g, ' ').trim();
     const headlines = nodes.filter((a) => {
       const h = a.querySelector('h3');
-      return h && h.innerText.trim() === (byKey.get(a.getAttribute('data-news-key'))?.title || '').trim();
+      return h && flat(h.innerText) === flat(byKey.get(a.getAttribute('data-news-key'))?.title);
     }).length;
     // Undated stories: the card must name the absence, and must never print firstSeenAt.
     const undatedOnScreen = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key')) && !byKey.get(a.getAttribute('data-news-key')).publishedAt);
@@ -6689,15 +6732,255 @@ console.log('\n— news, announcements and insider trades —');
     `${cards?.drawn} drawn from ${cards?.data}, ${cards?.dupes} duplicate(s), ${cards?.missing} not in the feed`);
   ok('...rendered as the publisher\'s card — thumbnail, headline, standfirst',
     cards && cards.thumbs === cards.withImage && cards.withImage > 0 && cards.headlines === cards.drawn,
-    `${cards?.thumbs}/${cards?.withImage} thumbnails off the publisher's CDN, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
+    `${cards?.thumbs}/${cards?.withImage} cards carrying their own story's thumbnail, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
   ok('...and clicking one opens THAT story on the publisher\'s site, in a new tab',
     cards && cards.unlinkable === 0 && cards.anchors === cards.drawn && cards.offsite === cards.drawn && cards.newTab === cards.drawn && cards.hrefMatchesFeed === cards.drawn,
-    `${cards?.anchors} anchors, ${cards?.offsite} to moneycontrol.com, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
+    `${cards?.anchors} anchors, ${cards?.offsite} leaving this origin, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
   ok('a story with no publisher time says so, never the time we saw it',
     cards && (cards.undated === 0 || cards.undatedSay === cards.undated),
     `${cards?.undated} undated on screen, ${cards?.undatedSay} saying the time is not published`);
 
+  // -------------------------------------------------------------------------------------
+  // FIVE PUBLISHERS IN ONE LIST, AND HISTORY THAT DOES NOT END AT THE HEAD
+  // -------------------------------------------------------------------------------------
+  //
+  // The capture is a bounded head plus a shard per month. Two things have to hold and neither is
+  // visible from a row count: every story says who published it (an unattributed headline in a
+  // mixed feed attributes itself to whichever masthead the reader assumes), and scrolling to the
+  // end pulls the next month in rather than stopping at whatever the head happened to carry.
+
+  const bylines = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const { withoutPublisherName } = await import('/js/core/source-copy.js');
+    // The row keeps the real publisher for matching; the SCREEN shows it through the naming policy,
+    // so the card is checked against the labelled form. Checking the raw value would fail for the
+    // one publisher whose brand this dashboard withholds, and pass only by accident for the rest.
+    const named = (v) => withoutPublisherName(String(v || '')).replace(/^the publisher\b/i, 'The publisher');
+    const rows = mod.rows();
+    const cardsNow = [...document.querySelectorAll('[data-news-key]')];
+    const byKey = new Map(rows.map((r) => [String(r.id || r.url), r]));
+    const drawnBylines = cardsNow.filter((c) => {
+      const r = byKey.get(c.dataset.newsKey);
+      return r?.publisher && (c.innerText || '').includes(named(r.publisher));
+    }).length;
+    const pubs = [...new Set(rows.map((r) => r.publisher).filter(Boolean))];
+    return {
+      total: rows.length,
+      withPublisher: rows.filter((r) => r.publisher).length,
+      publishers: pubs,
+      drawn: cardsNow.length,
+      drawnBylines,
+      options: [...document.querySelectorAll('[data-news-publisher] option')].map((o) => o.value),
+      // The withheld brand must not reach the screen through any of the new surfaces — byline,
+      // dropdown, footer or provenance — the same rule the Earnings view is already held to.
+      brandOnScreen: /money\s*control/i.test(document.getElementById('content-host')?.innerText || ''),
+    };
+  });
+  // A CAPTURE WITH TWO WRITERS NEEDS TWO CLOCKS, and this is the check that says so. The watchdog
+  // and the tab's auto-fetch both dispatch the workflow that reads MONEYCONTROL and nothing else,
+  // while the file's own `capturedAt` is whichever of the two jobs wrote it last. Gating on the
+  // file would let the hourly RSS run hold the timestamp fresh while Moneycontrol went unread for
+  // days — a staleness check answered by a source it cannot refresh, and silent, because every
+  // number on screen would look healthy. `freshnessOf` is pure and exported precisely so both
+  // branches can be driven here rather than waited for.
+  const freshness = await evalSafe(async () => {
+    const wd = await import('/js/data/capture-watchdog.js');
+    const old = '2020-01-01T00:00:00.000Z';
+    const now = new Date().toISOString();
+    return {
+      // RSS ran a second ago, Moneycontrol has not run since 2020: the answer must be 2020.
+      perSource: wd.freshnessOf('marketNews', { capturedAt: now, sources: { moneycontrol: { capturedAt: old }, mint: { capturedAt: now } } }),
+      stale: old,
+      // No per-source detail (an older capture, or any single-source feed): the file's own time.
+      fallback: wd.freshnessOf('marketNews', { capturedAt: now }),
+      now,
+      // A feed with no `sourceId` is unaffected and still reads the file's time.
+      other: wd.freshnessOf('announcements', { capturedAt: now, sources: { moneycontrol: { capturedAt: old } } }),
+    };
+  });
+  ok('a stalled publisher is not hidden by another publisher writing the same file',
+    freshness && freshness.perSource === freshness.stale && freshness.fallback === freshness.now && freshness.other === freshness.now,
+    `per-source ${freshness?.perSource === freshness?.stale ? 'reads the stalled source' : `WRONG (${freshness?.perSource})`}, no-detail falls back to the file, other feeds unchanged`);
+
+  ok('every market-news story names the publisher it came from',
+    bylines && bylines.total > 0 && bylines.withPublisher === bylines.total && bylines.drawnBylines === bylines.drawn,
+    `${bylines?.withPublisher}/${bylines?.total} rows attributed, ${bylines?.drawnBylines}/${bylines?.drawn} cards showing it, publishers: ${bylines?.publishers.join(', ')}`);
+  ok('...without the News view printing the upstream publisher name either',
+    bylines && bylines.brandOnScreen === false,
+    bylines?.brandOnScreen ? 'the withheld brand reached the screen' : 'not printed');
+  ok('...and every publisher in the feed can be filtered to',
+    bylines && bylines.publishers.every((px) => bylines.options.includes(px)),
+    `${bylines?.options.length - 1} of ${bylines?.publishers.length} publishers offered`);
+
+  // The filter narrows to exactly that publisher — compared against the array, never counted off
+  // the DOM, because a fill still in flight would make a count agree for the wrong reason.
+  const pubFilter = await evalSafe(async () => {
+    const sel = document.querySelector('[data-news-publisher]');
+    if (!sel || sel.options.length < 2) return null;
+    const mod = await import('/js/data/market-news.js');
+    const want = sel.options[1].value;
+    const expect = mod.rows().filter((r) => r.publisher === want).length;
+    sel.value = want;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+    const label = document.querySelector('[data-mcnews-list]')?.innerText.match(/([\d,]+)\s+of\s+([\d,]+)\s+stories/);
+    const drawnPubs = [...new Set([...document.querySelectorAll('[data-news-key]')].map((n) => {
+      const m = mod.rows().find((r) => String(r.id || r.url) === n.dataset.newsKey);
+      return m?.publisher;
+    }))];
+    sel.value = 'all';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 600));
+    return { want, expect, shown: label ? Number(label[1].replace(/,/g, '')) : null, drawnPubs };
+  });
+  if (pubFilter) {
+    ok('filtering to one publisher shows that publisher and no other',
+      pubFilter.expect > 0 && pubFilter.shown === pubFilter.expect && pubFilter.drawnPubs.length === 1 && pubFilter.drawnPubs[0] === pubFilter.want,
+      `${pubFilter.want}: ${pubFilter.shown} shown of ${pubFilter.expect} held, publishers drawn: ${pubFilter.drawnPubs.join(', ')}`);
+  } else {
+    skip('filtering to one publisher shows that publisher and no other', 'only one publisher in this capture');
+  }
+
+  // EVERY SHARD THE HEAD NAMES MUST EXIST. A manifest naming a month no deployment received gives
+  // the reader a failed fetch at the end of every scroll — and the workflow that stages only the
+  // head file is exactly how that happens, so it is worth asserting rather than assuming.
+  const manifest = await evalSafe(async () => {
+    const res = await fetch('data/market-news.json', { cache: 'no-cache' });
+    const body = await res.json();
+    const arc = Array.isArray(body.archive) ? body.archive : [];
+    const checks = await Promise.all(arc.map(async (a) => {
+      const r = await fetch(`data/${a.file}`, { cache: 'no-cache' });
+      if (!r.ok) return { file: a.file, ok: false, status: r.status };
+      const j = await r.json();
+      return { file: a.file, ok: true, count: Array.isArray(j.articles) ? j.articles.length : -1, said: a.count };
+    }));
+    return { months: arc.length, archivedCount: body.archivedCount, headCount: body.articleCount, checks };
+  });
+  ok('every archive month the capture names is actually served, with the count it claims',
+    manifest && manifest.months > 0 && manifest.checks.every((c) => c.ok && c.count === c.said),
+    `${manifest?.months} month(s), ${manifest?.checks.filter((c) => !c.ok).length} unreachable, ${manifest?.checks.filter((c) => c.ok && c.count !== c.said).length} miscounted`);
+  ok('...and the capture holds more stories than the head it paints first',
+    manifest && manifest.archivedCount >= manifest.headCount,
+    `${manifest?.archivedCount} captured, ${manifest?.headCount} in the head`);
+
+  // SCROLLING TO THE END PULLS THE NEXT MONTH IN. Driven through the real control — the scroll —
+  // rather than by calling loadMore(), because the gate that matters is the one wired to the reader.
+  const older = await evalSafe(async () => {
+    const mod = await import('/js/data/market-news.js');
+    const before = mod.rows().length;
+    const startArc = mod.archiveMeta();
+    if (startArc.exhausted) return { skipped: true };
+    const host = document.querySelector('[data-news-scroll]');
+    let guard = 0;
+    while (guard < 20) {
+      guard += 1;
+      if (host) host.scrollTop = host.scrollHeight;
+      await new Promise((r) => setTimeout(r, 450));
+      if (mod.rows().length > before) break;
+    }
+    const arc = mod.archiveMeta();
+    return {
+      before,
+      after: mod.rows().length,
+      monthsLoaded: arc.monthsLoaded,
+      oldestBefore: startArc.oldest,
+      oldestAfter: arc.oldest,
+      foot: document.querySelector('[data-news-more]')?.innerText.trim() || '',
+    };
+  });
+  if (older?.skipped) {
+    skip('scrolling to the end of the list loads older stories', 'the head already carries every month in the archive');
+  } else {
+    ok('scrolling to the end of the list loads older stories, and reaches further back',
+      older && older.after > older.before && older.monthsLoaded > 0
+        && Date.parse(older.oldestAfter) < Date.parse(older.oldestBefore),
+      `${older?.before} -> ${older?.after} stories, ${older?.monthsLoaded} month(s) pulled in, back to ${older?.oldestAfter} from ${older?.oldestBefore}`);
+    // THE FOOTER MUST AGREE WITH THE STATE IT DESCRIBES, in both directions. "That is every story"
+    // over an archive with months left is a claim nobody measured, and the reverse — offering more
+    // when there is none — sends the reader scrolling at a list that will never grow. Asserted as
+    // an equality rather than a one-way test, so neither half can drift.
+    const footState = await evalSafe(async () => {
+      const mod = await import('/js/data/market-news.js');
+      const foot = document.querySelector('[data-news-more]')?.innerText.trim() || '';
+      const arc = mod.archiveMeta();
+      return { exhausted: arc.exhausted, remaining: arc.remaining, saysEnd: /that is every story/i.test(foot), saysMore: /keep scrolling|load older/i.test(foot), foot: foot.slice(0, 90) };
+    });
+    ok('...and the footer says the archive is spent exactly when it is',
+      footState && footState.saysEnd === footState.exhausted && footState.saysMore === !footState.exhausted,
+      `${footState?.remaining} month(s) left, footer reads "${footState?.foot}"`);
+  }
+
+  // -------------------------------------------------------------------------------------
+  // NSE LIVE ANNOUNCEMENTS — the one exchange feed that narrows to the reader's companies
+  // -------------------------------------------------------------------------------------
+  //
+  // The load-bearing property is the scope: a filing resolved to a book company shows under
+  // Portfolio, one resolved to nothing shows only under Universe, and NOTHING with a ticker outside
+  // the book may leak into Portfolio. That is the whole reason this feed exists as its own surface
+  // rather than folding into the market-wide news it cannot be filtered like.
+  await go('/#/research/nse-filings?scope=universe', 1800);
+  const nseUni = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const rows = f.rows();
+    const resolved = rows.filter((r) => r.ticker).length;
+    const unresolved = rows.filter((r) => !r.ticker);
+    return {
+      total: rows.length,
+      resolved,
+      unresolved: unresolved.length,
+      // Every row keeps its company name even when it could not be resolved — the identity is the
+      // name, never the (unreliable) filename prefix.
+      allNamed: rows.every((r) => r.company && r.company.length > 0),
+      origin: f.meta().origin,
+      tableRows: document.querySelectorAll('#content-host tbody tr').length,
+    };
+  });
+  ok('the NSE feed loads, names every row, and resolves a real share of them to a symbol',
+    nseUni && nseUni.total > 50 && nseUni.allNamed && nseUni.resolved > 0 && nseUni.resolved < nseUni.total,
+    `${nseUni?.resolved}/${nseUni?.total} resolved, ${nseUni?.unresolved} unresolved, origin ${nseUni?.origin}`);
+
+  await go('/#/research/nse-filings?scope=portfolio', 1500);
+  const nsePort = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const cov = await import('/js/data/coverage.js');
+    const scope = await import('/js/data/scope.js');
+    const holdings = cov.holdings();
+    const wanted = scope.scopeTickers('portfolio', holdings); // the exact Set the feed narrows by
+    const all = f.rows();
+    const port = f.forScope('portfolio', holdings);
+    const leak = port.filter((r) => !r.ticker || !wanted.has(String(r.ticker).toUpperCase()));
+    // An unresolved row (ticker null) is present in Universe and absent from Portfolio — the honesty
+    // rule that a row with no company cannot be narrowed by company.
+    const unresolvedInUniverse = all.some((r) => !r.ticker);
+    const unresolvedInPortfolio = port.some((r) => !r.ticker);
+    return {
+      universe: all.length,
+      portfolio: port.length,
+      leak: leak.length,
+      companies: new Set(port.map((r) => r.ticker)).size,
+      unresolvedInUniverse,
+      unresolvedInPortfolio,
+      narrows: port.length < all.length,
+    };
+  });
+  ok('NSE Portfolio scope narrows to book companies with no leak',
+    nsePort && nsePort.narrows && nsePort.leak === 0 && nsePort.portfolio > 0,
+    `${nsePort?.portfolio} of ${nsePort?.universe} filings, ${nsePort?.companies} companies, ${nsePort?.leak} leaked`);
+  ok('...and an unresolved filing shows in Universe but never under a narrowed scope',
+    nsePort && nsePort.unresolvedInUniverse && !nsePort.unresolvedInPortfolio,
+    `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
+
   // Search narrows the list without touching the head, and the count reports the ARRAY.
+  //
+  // NAVIGATE BACK FIRST — this check owns its own precondition rather than inheriting the page the
+  // previous block happened to leave. It used to inherit News/Universe, and the day an NSE-filings
+  // block was inserted above it the page was left on a different tab entirely, so the market-wide
+  // list was legitimately absent and this reported "no search box" about a view that was fine. A
+  // check that depends on ambient page state fails for the wrong reason the moment anyone inserts
+  // one above it.
+  await go('/#/research/news?scope=universe', 2500);
+  await waitForPanel();
+  await page.waitForSelector('#content-host [data-news-search]', { timeout: 15000 }).catch(() => {});
   const filtered = await evalSafe(async () => {
     const input = document.querySelector('[data-news-search]');
     if (!input) return null;
@@ -6786,7 +7069,13 @@ console.log('\n— news, announcements and insider trades —');
       // AND THE STORY'S OWN PICTURE. The card is the one surface a reader sees without the tab
       // open, so it carries the same thumbnail the list does — the publisher's, hot-linked, and
       // only ever from an https URL, because this is external content reaching `src`.
-      thumbs: cards.filter((c) => c.querySelector('img[src^="https://images.moneycontrol.com/"]')).length,
+      // Against the arriving stories' own images rather than one publisher's CDN — see the same
+      // change on the list above. Five publishers, five CDNs, and the assertion that matters is
+      // that the card wears the picture belonging to ITS story.
+      thumbs: cards.filter((c) => {
+        const src = c.querySelector('img')?.getAttribute('src') || '';
+        return /^https:\/\//.test(src) && arrivals.some((a) => a.image === src);
+      }).length,
       withImage: arrivals.slice(0, cards.length).filter((a) => a.image).length,
       // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
     };
@@ -6797,7 +7086,7 @@ console.log('\n— news, announcements and insider trades —');
     alerted && alerted.labelled && alerted.verbatim, alerted?.text);
   ok('...and the story\'s own thumbnail, the same one the list shows',
     alerted && alerted.withImage > 0 && alerted.thumbs === alerted.withImage,
-    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry the publisher's image`);
+    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry their own story's image`);
   const reAnnounced = await evalSafe(async () => {
     const before = document.getElementById('notification-root')?.children.length ?? 0;
     const mod = await import('/js/data/market-news.js');
@@ -7398,13 +7687,397 @@ console.log('\n— news, announcements and insider trades —');
 // tab rather than the one it was noticed on: a card removed from six of seven files is the shape
 // this kind of change fails in.
 // ---------------------------------------------------------------------------------------
+// 12d. The lower-left source beacon
+//
+// It is a shop window for the whole estate, so what has to hold is that it cannot LIE about the
+// estate: every count derived from the registry rather than typed, the green pill worded as a count
+// of wired feeds rather than a bare "Live", only live rows left unlabelled, and one wire per source
+// family so the picture cannot drift from the list. Plus that it stays a popover — the header's
+// Sources button is still gone, and these check the replacement did not quietly reinstate it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— source beacon —');
+{
+  await go('/#/research/breakouts/technical-scanner?scope=universe', 2600);
+  const launcher = await evalSafe(() => {
+    const el = document.querySelector('[data-beacon-toggle]');
+    const r = el?.getBoundingClientRect();
+    return el ? { text: el.innerText.replace(/\s+/g, ' ').trim(), left: Math.round(r.left), bottom: Math.round(window.innerHeight - r.bottom), inHeader: !!el.closest('header') } : null;
+  });
+  ok('the beacon launcher sits in the lower-left, outside the header',
+    !!launcher && launcher.left < 40 && launcher.bottom < 40 && !launcher.inHeader,
+    launcher ? `left ${launcher.left}, bottom ${launcher.bottom}` : 'no launcher');
+  ok('...and it counts wired feeds rather than claiming a bare "Live"',
+    !!launcher && /\d+ live feeds/.test(launcher.text) && !/^\s*Live\s*$/.test(launcher.text), launcher?.text || '');
+
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(450);
+  const panel = await evalSafe(async () => {
+    const { sourceGroups } = await import('/js/ui/sources.js');
+    const groups = sourceGroups();
+    const items = groups.flatMap((g) => g.items);
+    const p = document.getElementById('source-beacon-panel');
+    if (!p) return null;
+    return {
+      rows: p.querySelectorAll('.beacon-row').length,
+      families: p.querySelectorAll('.beacon-group').length,
+      wires: p.querySelectorAll('.beacon-flow-line').length,
+      icons: [...p.querySelectorAll('.beacon-flow-icon')].map((n) => n.textContent),
+      pill: p.querySelector('.beacon-live-pill')?.innerText.replace(/\s+/g, ' ').trim() || '',
+      fresh: p.querySelector('[data-beacon-fresh]')?.textContent || '',
+      // A status word on a row: only the exceptions carry one.
+      labelled: [...p.querySelectorAll('.beacon-row')].filter((r) => (r.querySelector('.beacon-row-status')?.offsetParent) !== null).length,
+      liveRows: p.querySelectorAll('.beacon-row.is-live').length,
+      scrolls: (p.querySelector('.beacon-list')?.scrollHeight || 0) > (p.querySelector('.beacon-list')?.clientHeight || 0),
+      expected: { items: items.length, live: items.filter((i) => i.status === 'live').length, families: groups.length, icons: groups.map((g) => g.icon) },
+      // The core must sit ON the point every wire converges to, or the picture is of wires
+      // arriving somewhere the dashboard is not.
+      aligned: (() => {
+        const svg = p.querySelector('.beacon-flow-svg');
+        const core = p.querySelector('.beacon-core');
+        if (!svg || !core) return null;
+        const s = svg.getBoundingClientRect();
+        const c = core.getBoundingClientRect();
+        const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+        const scale = s.width / vb[2];
+        return Math.abs(s.x + 96 * scale - (c.x + c.width / 2)) < 3 && Math.abs(s.y + (vb[3] / 2) * scale - (c.y + c.height / 2)) < 3;
+      })(),
+    };
+  });
+  ok('the panel lists every source in the registry', !!panel && panel.rows === panel.expected.items,
+    panel ? `${panel.rows} rows of ${panel.expected.items} registered` : 'no panel');
+  ok('...as one long vertical column that scrolls', !!panel && panel.scrolls);
+  ok('...and its live count is read from the registry, not typed',
+    !!panel && panel.pill === `${panel.expected.live} live feeds` && panel.liveRows === panel.expected.live,
+    panel ? `${panel.pill} vs ${panel.expected.live} live in the registry` : '');
+  // ONLY THE EXCEPTIONS ARE LABELLED, which is what makes mock and manual legible at a glance.
+  ok('...with a status word on every row that is NOT live, and none on the ones that are',
+    !!panel && panel.labelled === panel.expected.items - panel.expected.live,
+    panel ? `${panel.labelled} labelled, ${panel.expected.items - panel.expected.live} not live` : '');
+  ok('...and a freshness line that is a separate, dated claim from the pill',
+    !!panel && /(Last confirmed|committed captures|Waiting for)/.test(panel.fresh), panel?.fresh || '');
+  // ONE WIRE PER FAMILY. A fixed decorative count would be a picture making a claim of its own.
+  ok('the diagram draws one wire per source family, carrying that family\'s own icon',
+    !!panel && panel.wires === panel.expected.families && panel.icons.join('') === panel.expected.icons.join(''),
+    panel ? `${panel.wires} wires for ${panel.expected.families} families` : '');
+  ok('...converging on the Sattva square itself', panel?.aligned === true);
+
+  // Hovering a family lights its own wire and dims the rest — the pairing that makes the diagram
+  // answer "which sources are these" rather than only decorate the panel.
+  await page.locator('.beacon-group[data-family="2"] .beacon-group-head').hover();
+  await page.waitForTimeout(300);
+  const paired = await evalSafe(() => ({
+    hot: [...document.querySelectorAll('.beacon-flow-line.is-hot')].map((n) => n.dataset.family),
+    dimmed: document.querySelector('.beacon-flow-stage')?.classList.contains('is-focused'),
+  }));
+  ok('hovering a family lights its wire and dims the others',
+    !!paired && paired.hot.length === 1 && paired.hot[0] === '2' && paired.dimmed, paired ? paired.hot.join(',') : '');
+
+  // A POPOVER, NOT AN OVERLAY: it must not have reinstated the Sources button, and it must not sit
+  // on top of anything the reader opened deliberately.
+  const chrome = await evalSafe(() => {
+    const h = document.querySelector('header');
+    const z = (sel) => Number(getComputedStyle(document.querySelector(sel)).zIndex) || 0;
+    return {
+      inHeader: h.querySelectorAll('[data-beacon-toggle], #sources-btn').length,
+      headerPills: h.querySelectorAll('[data-status-pill]').length,
+      beaconZ: z('.beacon-root'),
+      modalZ: z('#modal-overlay'),
+      workspaceZ: z('#workspace-overlay'),
+    };
+  });
+  ok('the header still carries no Sources button and one status pill',
+    !!chrome && chrome.inHeader === 0 && chrome.headerPills === 1, chrome ? `${chrome.inHeader} in header, ${chrome.headerPills} pill(s)` : '');
+  ok('...and the beacon sits below every overlay',
+    !!chrome && chrome.beaconZ < chrome.modalZ && chrome.beaconZ < chrome.workspaceZ,
+    chrome ? `beacon ${chrome.beaconZ} < workspace ${chrome.workspaceZ} < modal ${chrome.modalZ}` : '');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  const closed = await evalSafe(() => ({
+    gone: !document.getElementById('source-beacon-panel'),
+    focused: document.activeElement?.classList.contains('beacon-launcher'),
+    expanded: document.querySelector('[data-beacon-toggle]')?.getAttribute('aria-expanded'),
+  }));
+  ok('Escape closes it and gives the launcher its focus back',
+    !!closed && closed.gone && closed.focused && closed.expanded === 'false',
+    closed ? `gone ${closed.gone}, focus ${closed.focused}` : '');
+  // Torn down rather than hidden, so nothing animates behind a dismissed panel.
+  ok('...and the panel is torn down rather than hidden', closed?.gone === true);
+
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(300);
+  await page.mouse.click(1100, 300);
+  await page.waitForTimeout(300);
+  ok('a click outside closes it too', await page.evaluate(() => !document.getElementById('source-beacon-panel')));
+
+  // No sideways page scroll at the narrowest width the layout checks use.
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.waitForTimeout(400);
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(400);
+  const narrow = await evalSafe(() => {
+    const r = document.getElementById('source-beacon-panel')?.getBoundingClientRect();
+    return r ? { right: Math.round(r.right), win: window.innerWidth, doc: document.documentElement.scrollWidth } : null;
+  });
+  ok('the panel fits a 390px viewport without widening the page',
+    !!narrow && narrow.right <= narrow.win && narrow.doc <= narrow.win,
+    narrow ? `right ${narrow.right} of ${narrow.win}, document ${narrow.doc}` : '');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(300);
+}
+
+// ---------------------------------------------------------------------------------------
+// 12e. X/Twitter posts as another source in the News feed
+//
+// The whole feature is: a reader keeps a list of accounts, and their posts appear in the existing
+// News list marked Twitter / X. So the checks are about it being ONE list rather than two — the
+// same sort, the same search, the same filter, the same export — plus the three states the Twitter
+// Sources screen may claim and the one it may not.
+//
+// The fixture's handles and words are FICTIONAL, deliberately. CLAUDE.md forbids attributing
+// invented words to a real person or account, and a test fixture is not an exception: a screenshot
+// of a passing run travels without the word "fixture" on it.
+// ---------------------------------------------------------------------------------------
+console.log('\n— twitter / x as a news source —');
+{
+  const now = Date.now();
+  const iso = (mins) => new Date(now - mins * 60000).toISOString();
+  const CAPTURE = {
+    capturedAt: iso(5),
+    handles: ['sattva_desk', 'sattva_wire', 'sattva_gone'],
+    posts: [
+      { tweet_id: '901', handle: 'sattva_desk', display_name: 'Sattva Desk', text: 'Fixture post one.', created_at: iso(9), url: 'https://x.com/sattva_desk/status/901', image: null },
+      { tweet_id: '902', handle: 'sattva_desk', display_name: 'Sattva Desk', text: 'Fixture post two.', created_at: iso(45), url: 'https://x.com/sattva_desk/status/902', image: null },
+      { tweet_id: '903', handle: 'sattva_wire', display_name: 'Sattva Wire', text: 'Fixture post three.', created_at: iso(200), url: 'https://x.com/sattva_wire/status/903', image: null },
+    ],
+    failed: [{ handle: 'sattva_gone', reason: 'account not found' }],
+  };
+  const HANDLES = { handles: [{ handle: 'sattva_desk' }, { handle: 'sattva_wire' }, { handle: 'sattva_gone' }] };
+  await page.route('**/twitter-posts.json*', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { etag: '"tw-posts-fixture"' }, body: JSON.stringify(CAPTURE) }));
+  await page.route('**/twitter-handles.json*', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { etag: '"tw-handles-fixture"' }, body: JSON.stringify(HANDLES) }));
+  // The dispatch is stubbed rather than allowed through: a suite that started real Action runs on
+  // every push is the failure the Deep Dive rules exist to prevent.
+  const dispatched = [];
+  await page.route('**/api/twitter/**', (r) => {
+    dispatched.push(`${r.request().method()} ${new URL(r.request().url()).search}`);
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, dispatched: true }) });
+  });
+  await page.evaluate(() => localStorage.removeItem('sattva:twitter-handles:v1'));
+
+  // ---- normalisation, before any of it reaches a screen -------------------------------------
+  //
+  // Pure and asserted directly, because the interesting cases are the ones a fixture will not
+  // happen to contain: a 16-character handle, a link to somebody else's site, a bare domain.
+  const norm = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    const cases = ['@Reuters', 'Reuters', 'https://x.com/Reuters', 'https://x.com/Reuters?s=20', 'twitter.com/Reuters/', 'x.com/Reuters', '  @Reuters  '];
+    const bad = ['', 'bad-handle', 'sattva_test_desk', 'https://example.com/Reuters', '@@', 'a'.repeat(16)];
+    return {
+      good: cases.map((c) => h.normaliseHandle(c).handle),
+      bad: bad.map((c) => !!h.normaliseHandle(c).error),
+    };
+  });
+  ok('every spelling of a handle normalises to the same one',
+    !!norm && norm.good.every((v) => v === 'Reuters'), norm ? norm.good.join(', ') : 'not evaluated');
+  ok('...and anything that is not a handle is refused with a reason',
+    !!norm && norm.bad.every(Boolean), norm ? `${norm.bad.filter(Boolean).length} of ${norm.bad.length} refused` : 'not evaluated');
+
+  await go('/#/research/news?scope=universe', 3200);
+  await page.waitForFunction(() => !document.querySelector('[data-mcnews-list][data-rows-pending]'), null, { timeout: 20000 }).catch(() => {});
+
+  const feed = await evalSafe(() => {
+    const cards = [...document.querySelectorAll('[data-news-key]')];
+    const postAt = cards.map((c, i) => (/Twitter \/ X/.test(c.innerText) ? i : -1)).filter((i) => i >= 0);
+    const first = cards[postAt[0]];
+    return {
+      total: cards.length,
+      posts: postAt.length,
+      postAt,
+      text: first?.innerText.replace(/\s+/g, ' ').trim() || '',
+      href: first?.getAttribute('href') || null,
+      sources: [...(document.querySelector('[data-news-source]')?.options || [])].map((o) => o.text),
+      keys: cards.map((c) => c.getAttribute('data-news-key')),
+    };
+  });
+  ok('posts appear in the existing News list, not a list of their own',
+    !!feed && feed.posts === 3 && feed.total > 3, feed ? `${feed.posts} post(s) among ${feed.total} stories` : 'no feed');
+  ok('...carrying the account name, the handle, the text, a time and the source',
+    !!feed && /Sattva Desk/.test(feed.text) && /@sattva_desk/.test(feed.text) && /Fixture post one/.test(feed.text) &&
+      /\d{2}:\d{2}/.test(feed.text) && /Twitter \/ X/.test(feed.text), feed ? feed.text.slice(0, 120) : '');
+  ok('...linking to the original post', feed?.href === 'https://x.com/sattva_desk/status/901', feed?.href || 'no link');
+  // INTERLEAVED, NOT APPENDED. Two feeds concatenated would put every post at one end of the list,
+  // which is a separate Twitter section wearing the same chrome.
+  //
+  // ASSERTED AS "THE MERGED ORDER IS CHRONOLOGICAL", not as "a publisher story sits between two
+  // posts". The second is a property of whatever capture happens to be committed — on a run where
+  // every fixture post was newer than every story, all three landed at 0, 1, 2, which is CORRECT
+  // placement and read as a failure. So the check reads each painted row's own timestamp from the
+  // modules that own it and asserts the sequence never goes backwards; a concatenated list fails
+  // that the moment a post is older than a story above it.
+  const chrono = await evalSafe(async () => {
+    const [market, tw] = await Promise.all([import('/js/data/market-news.js'), import('/js/data/twitter-news.js')]);
+    const at = new Map();
+    for (const r of [...market.rows(), ...tw.rows()]) {
+      const t = Date.parse(r.publishedAt || '');
+      if (Number.isFinite(t)) at.set(String(r.id), t);
+    }
+    const painted = [...document.querySelectorAll('[data-news-key]')].map((c) => c.getAttribute('data-news-key'));
+    const times = painted.map((k) => at.get(k)).filter((t) => Number.isFinite(t));
+    const posts = painted.filter((k) => String(k).startsWith('tw:'));
+    return {
+      timed: times.length,
+      descending: times.every((t, i) => i === 0 || times[i - 1] >= t),
+      firstBreak: times.findIndex((t, i) => i > 0 && times[i - 1] < t),
+      // A post must have at least one dated story on the other side of it, or "merged" is
+      // untestable on this capture — but which side is the capture's business, not ours.
+      hasNeighbour: posts.length > 0 && times.length > posts.length,
+    };
+  });
+  ok('...merged into the one chronological order rather than appended',
+    !!chrono && chrono.descending && chrono.hasNeighbour && chrono.timed > 3,
+    chrono ? `${chrono.timed} dated rows, first out of order at ${chrono.firstBreak}` : '');
+  ok('...and every post is placed by its own time, not pinned to one end',
+    !!feed && feed.postAt.length === 3 && new Set(feed.postAt).size === 3 && feed.postAt[2] < feed.total - 1,
+    feed ? `at ${feed.postAt.join(', ')} of ${feed.total}` : '');
+  // Every row key unique — the rule that broke the News table once already. Compared, not counted.
+  ok('...with a key per row that is derived from content and unique',
+    !!feed && new Set(feed.keys).size === feed.keys.length, feed ? `${feed.keys.length - new Set(feed.keys).size} duplicate key(s)` : '');
+  ok('the source filter offers publishers and Twitter / X in one control',
+    !!feed && feed.sources.join(' | ') === 'All sources | News publishers | Twitter / X', feed ? feed.sources.join(' | ') : 'no control');
+
+  await page.selectOption('[data-news-source]', 'twitter');
+  await page.waitForTimeout(400);
+  const onlyTw = await evalSafe(() => {
+    const c = [...document.querySelectorAll('[data-news-key]')];
+    return { n: c.length, all: c.length > 0 && c.every((x) => /Twitter \/ X/.test(x.innerText)) };
+  });
+  ok('...and narrowing to Twitter / X leaves only posts', !!onlyTw && onlyTw.n === 3 && onlyTw.all, onlyTw ? `${onlyTw.n} row(s)` : '');
+  await page.selectOption('[data-news-source]', 'publishers');
+  await page.waitForTimeout(400);
+  const onlyPub = await evalSafe(() => {
+    const c = [...document.querySelectorAll('[data-news-key]')];
+    return { n: c.length, none: !c.some((x) => /Twitter \/ X/.test(x.innerText)) };
+  });
+  ok('...and narrowing to publishers leaves none — the existing feed, untouched',
+    !!onlyPub && onlyPub.n > 0 && onlyPub.none, onlyPub ? `${onlyPub.n} publisher row(s)` : '');
+  await page.selectOption('[data-news-source]', 'all');
+  await page.waitForTimeout(300);
+
+  await page.fill('[data-news-search]', 'sattva_wire');
+  await page.waitForTimeout(400);
+  const searched = await evalSafe(() => [...document.querySelectorAll('[data-news-key]')].map((c) => c.innerText.replace(/\s+/g, ' ').slice(0, 40)));
+  ok('the existing search reaches the handle as well as the text',
+    Array.isArray(searched) && searched.length === 1 && /@sattva_wire/.test(searched[0]), searched ? searched.join(' | ') : '');
+  await page.fill('[data-news-search]', '');
+  await page.waitForTimeout(300);
+
+  // ---- the Sources beacon, and the editor it opens -------------------------------------------
+  await page.locator('[data-beacon-toggle]').click();
+  await page.waitForTimeout(450);
+  const family = await evalSafe(() => {
+    const g = [...document.querySelectorAll('.beacon-group')].find((x) => /Twitter/.test(x.querySelector('.beacon-group-title')?.textContent || ''));
+    return g ? { title: g.querySelector('.beacon-group-title').textContent.trim(), rows: [...g.querySelectorAll('.beacon-row')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()), action: g.querySelector('[data-beacon-action]')?.textContent.trim() || null } : null;
+  });
+  ok('the source list names Twitter / X as a source type of its own',
+    family?.title === 'Twitter / X' && family.rows.length === 3, family ? `${family.rows.length} row(s)` : 'no family');
+  ok('...one row per monitored account', !!family && family.rows.filter((r) => /^@sattva_/.test(r)).length === 3, family ? family.rows.join(' | ') : '');
+  ok('...and an Edit Twitter Sources control beside it', family?.action === 'Edit Twitter Sources', family?.action || 'absent');
+
+  await page.locator('[data-beacon-action="edit-twitter"]').click();
+  await page.waitForTimeout(450);
+  const editor = await evalSafe(() => ({
+    open: !!document.querySelector('[data-twitter-sources]'),
+    rows: [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.closest('li').innerText.replace(/\s+/g, ' ').trim()),
+  }));
+  ok('the editor opens with every monitored account', !!editor?.open && editor.rows.length === 3, editor ? `${editor.rows.length} row(s)` : 'not open');
+  // ACTIVE, ADDING AND NOT FOUND ARE THREE DIFFERENT CLAIMS. The middle one is the honest answer
+  // for an account nothing has read yet, and it may never be dressed up as the first.
+  ok('...an account a run has read reads Active', !!editor && /@sattva_desk.*ACTIVE/i.test(editor.rows.find((r) => /sattva_desk/.test(r)) || ''), editor?.rows[0] || '');
+  ok('...and one the collector could not read says so, with its reason',
+    !!editor && /account not found/i.test(editor.rows.find((r) => /sattva_gone/.test(r)) || ''), editor?.rows.find((r) => /sattva_gone/.test(r)) || '');
+
+  const addOne = async (value) => {
+    await page.fill('[data-tw-input]', value);
+    await page.locator('[data-tw-add] button[type=submit]').click();
+    await page.waitForTimeout(260);
+    return page.locator('[data-tw-notice]').innerText();
+  };
+  const added = await addOne('@sattva_news');
+  ok('adding a handle puts it on the list at once', /sattva_news added/i.test(added), added.slice(0, 90));
+  const dupUrl = await addOne('https://x.com/sattva_news');
+  const dupBare = await addOne('sattva_news');
+  ok('...and the same account by URL or bare name is refused rather than duplicated',
+    /already on the list/i.test(dupUrl) && /already on the list/i.test(dupBare), `${dupUrl.slice(0, 40)} / ${dupBare.slice(0, 40)}`);
+  const list = await evalSafe(() => [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.getAttribute('data-tw-remove')));
+  ok('...leaving one row for it', Array.isArray(list) && list.filter((h) => h === 'sattva_news').length === 1, (list || []).join(', '));
+  const pending = await evalSafe(() => (document.querySelectorAll('[data-tw-remove]').length ? [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.closest('li').innerText.replace(/\s+/g, ' ')).find((t) => /sattva_news/.test(t)) : null));
+  ok('...reading Adding, never Active, until a run has read it', /adding/i.test(pending || ''), pending || 'no row');
+  ok('...and the collection it asked for names that handle and nothing else',
+    dispatched.length === 1 && /handle=sattva_news/.test(dispatched[0]) && /^POST/.test(dispatched[0]), dispatched.join(' | ') || 'no dispatch');
+
+  const badHandle = await addOne('bad-handle');
+  ok('a value that is not a handle is refused in words, not swallowed', /1[–-]15 letters/.test(badHandle), badHandle.slice(0, 80));
+
+  await page.locator('[data-tw-remove="sattva_desk"]').click();
+  await page.waitForTimeout(400);
+  const afterRemove = await evalSafe(async () => {
+    const tw = await import('/js/data/twitter-news.js');
+    return { list: [...document.querySelectorAll('[data-tw-remove]')].map((b) => b.getAttribute('data-tw-remove')), rows: tw.rows().length };
+  });
+  ok('removing an account takes its posts out of the feed immediately',
+    !!afterRemove && !afterRemove.list.includes('sattva_desk') && afterRemove.rows === 1,
+    afterRemove ? `${afterRemove.rows} post(s) left` : '');
+  const afterReadd = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    const tw = await import('/js/data/twitter-news.js');
+    h.add('https://x.com/sattva_desk?s=20');
+    return { entry: h.all().find((e) => e.key === 'sattva_desk'), rows: tw.rows().length };
+  });
+  ok('...and re-adding it brings them back, with no fetch at all',
+    afterReadd?.entry?.status === 'active' && afterReadd.rows === 3, afterReadd ? `${afterReadd.rows} post(s)` : '');
+
+  await page.evaluate(() => document.querySelector('[data-twitter-sources] [data-modal-close]')?.click());
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // A RELOAD MUST NOT LOSE THE LIST. It is the reader's own, and it lives on the device.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  const survived = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    await h.load();
+    return h.all().map((e) => `${e.handle}:${e.status}`);
+  });
+  ok('the configured accounts survive a reload',
+    Array.isArray(survived) && survived.includes('sattva_news:adding') && survived.some((v) => v.startsWith('sattva_desk')),
+    (survived || []).join(', '));
+
+  // The capture is deduplicated by the post id, so the same post twice is one row.
+  const dedupe = await evalSafe(async () => {
+    const tw = await import('/js/data/twitter-news.js');
+    const ids = tw.rows().map((r) => r.id);
+    return { n: ids.length, unique: new Set(ids).size, prefixed: ids.every((i) => i.startsWith('tw:')) };
+  });
+  ok('a post is identified by its own id, namespaced so it cannot collide with a publisher story',
+    !!dedupe && dedupe.n === dedupe.unique && dedupe.prefixed, dedupe ? `${dedupe.unique} unique of ${dedupe.n}` : '');
+
+  await page.evaluate(() => localStorage.removeItem('sattva:twitter-handles:v1'));
+  await page.unroute('**/twitter-posts.json*');
+  await page.unroute('**/twitter-handles.json*');
+  await page.unroute('**/api/twitter/**');
+}
+
+// ---------------------------------------------------------------------------------------
 console.log('\n— sub-view picker and the removed roadmap card —');
 {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // Only two tabs have sub-views now: Breakouts (four) and Super Investors (two). Portfolio
+  // Overview was the third and is deleted along with the rest of that workspace.
   const WITH_SUBVIEWS = [
     ['/#/research/breakouts?scope=universe', 'breakouts'],
     ['/#/research/super-investors?scope=universe', 'super-investors'],
-    ['/#/portfolio/overview?scope=universe', 'portfolio overview'],
   ];
   const WITHOUT = [
     ['/#/research/earnings-hub?scope=universe', 'earnings hub'],
@@ -7626,7 +8299,6 @@ const noStore = await page.evaluate(async () => {
   const files = [
     'js/app.js',
     'js/data/technicals.js',
-    'js/data/portfolio.js',
     'js/data/earnings.js',
     'js/data/chatter-live.js',
     'js/data/earnings-live.js',
@@ -7644,9 +8316,13 @@ const noStore = await page.evaluate(async () => {
     if (!res.ok) { missing.push(f); continue; }
     if (/cache:\s*'no-store'/.test(await res.text())) out.push(f);
   }
-  return { out, missing };
+  return { out, missing, read: files.length - missing.length };
 });
+<<<<<<< HEAD
 ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${12} read`);
+=======
+ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${noStore.read} read`);
+>>>>>>> upstream/main
 ok('no static-file loader still uses cache: no-store', noStore.out.length === 0, noStore.out.join(', '));
 
 // ---------------------------------------------------------------------------------------
@@ -7750,6 +8426,371 @@ ok('...and it is the book, which every scope filter reads synchronously', bootBl
 await go('/#/research/super-investors/institutions?scope=universe', 2500);
 await waitForPanel();
 ok('a deferred feed still reaches the view that needs it', !/No holdings file loaded/i.test(await hostText()) && (await rowCount()) > 0, `${await rowCount()} holdings`);
+
+// ---------------------------------------------------------------------------------------
+console.log('\n— 16. tracked news keywords, and the cross-feed patterns they feed —');
+// ---------------------------------------------------------------------------------------
+// THE RULES ARE ASSERTED DIRECTLY, NOT THROUGH WHATEVER TODAY'S CAPTURE HAPPENS TO HOLD. Same
+// reason `moveSeverity` and `freshnessOf` are: a marquee investor and a volume spike landing on one
+// company inside seven days is exactly the case a fixture has to supply, and a capture with no
+// fraud story in it would pass a "does Fraud filter" check by matching nothing twice.
+const keywordRules = await page.evaluate(async () => {
+  const kw = await import('/js/data/news-keywords.js');
+  const alerts = await import('/js/data/daily-alerts.js');
+  const ai = await import('/js/data/ai-alerts.js');
+  const labels = kw.KEYWORDS.map((k) => k.label);
+  const hit = (title, summary = '') => kw.matchKeywords(title, summary).map((k) => k.label);
+
+  // The named cross-feed pattern the whole layer exists for: participation on the tape and a
+  // material disclosed buyer, on one company, inside the window.
+  const ev = (o) => ({ day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ Test Ltd', feed: o.feed, feedLabel: o.feed, direction: o.dir || 'neutral', importance: o.imp || 'high', headline: o.h, keywords: o.kw || [], kind: o.kind || null });
+  const feedById = new Map(['news', 'announcements', 'earnings'].map((id) => [id, { id, status: 'ok', reachesToday: true }]));
+  const buyerEvents = [
+    ev({ feed: 'technicals', kind: 'volume', h: 'Volume 3.2x its 20-day average at the 2026-09-02 close' }),
+    ev({ feed: 'investors', dir: 'positive', imp: 'high', h: 'A Tracked Investor: newly disclosed 1.80%' }),
+  ];
+  const smallBuyer = [buyerEvents[0], ev({ feed: 'investors', dir: 'positive', imp: 'low', h: 'A Tracked Investor: increased by 0.10pp' })];
+  const lonelyMove = [ev({ feed: 'technicals', kind: 'move', dir: 'negative', h: 'Fell 6.7% at the 2026-09-02 close' })];
+
+  return {
+    count: kw.KEYWORDS.length,
+    uniqueIds: new Set(kw.KEYWORDS.map((k) => k.id)).size,
+    uniqueLabels: new Set(labels).size,
+    // The desk's own words, spelt as they were given.
+    hasDeskWords: ['Capacity Expansion', 'Receipt of Order', 'Qualified Institutional Placement', 'Corporate Governance', 'Downgrade'].every((w) => labels.includes(w)),
+    // Non-global patterns: a /g regex carries lastIndex and would match every other row.
+    anyGlobal: kw.KEYWORDS.some((k) => k.test.global),
+    // The narrowings the header claims, asserted as narrowings rather than described.
+    freeTrialIsNotATrial: !hit('Sign up for a free trial of our premium tier').includes('Trial'),
+    clinicalTrialIs: hit('Phase III trial data for its lead candidate').includes('Trial'),
+    stockOnFireIsNotAFire: !hit('GOCL stock on fire; 15% up').includes('Fire'),
+    factoryFireIs: hit('Massive fire breaks out at the packaging unit').includes('Fire'),
+    quitCaliforniaIsNotAResignation: !hit('The start-up has quit California for Texas').includes('Resignation'),
+    cfoResigns: hit('CFO resigns with immediate effect').includes('Resignation'),
+    inOrderToIsNotAnOrder: !hit('In order to comply, the board met on Tuesday').includes('Order'),
+    orderWinIs: hit('Bags Rs 135-crore order from MPPTCL').includes('Order'),
+    // A story can carry several, and the desk's overlapping order words are three separate keywords.
+    multi: hit('Receipt of order worth Rs 240 crore; orderbook now at a record').length >= 3,
+
+    // `namesCompany` is three answers, not two.
+    namesYes: kw.namesCompany({ query: 'Advait Energy Transitions', title: 'Advait Energy wins order' }) === true,
+    namesNo: kw.namesCompany({ query: 'Advait Energy Transitions', title: 'Some other company wins an order' }) === false,
+    namesUnknown: kw.namesCompany({ title: 'A headline with no search term behind it' }) === null,
+    // A term that is nothing but stopwords cannot answer the question, so it says so.
+    namesStopwordsOnly: kw.namesCompany({ query: 'India Ltd', title: 'A story about India Ltd' }) === null,
+
+    // The filter's vocabulary, including the option that makes it falsifiable.
+    optionValues: kw.topicFilterOptions().map((o) => o.value),
+    trackedMatches: kw.matchesTopic(kw.classifyStory({ title: 'Wins Rs 10 crore order', query: 'Test Co' }), 'tracked'),
+    untrackedMatches: kw.matchesTopic(kw.classifyStory({ title: 'A quiet day at the office', query: 'Test Co' }), 'untracked'),
+    // The strict reading keeps a row whose name check could not be answered — an unverifiable name
+    // is not a failed one — and drops only one that was checked and did not name the company.
+    targetedKeepsUnknown: kw.classifyStory({ title: 'Wins Rs 10 crore order' }).targeted === true,
+    targetedDropsUnnamed: kw.classifyStory({ title: 'Wins Rs 10 crore order', query: 'Advait Energy Transitions' }).targeted === false,
+
+    // The materiality rule on the news feed: topic yes, direction never.
+    trackedIsHigh: alerts.newsSignal({ title: 'Advait Energy bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'high',
+    untrackedIsLow: alerts.newsSignal({ title: 'A quiet day', query: 'Advait Energy' }).importance === 'low',
+    // BOTH HALVES OF "company name + keyword", or it is not an alert: a tracked word on a story
+    // that does not carry the company is somebody else's order win under this company's name.
+    unnamedStaysLow: alerts.newsSignal({ title: 'Some other firm bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'low',
+    unnamedKeepsItsKeywords: alerts.newsSignal({ title: 'Some other firm bags Rs 135-crore order', query: 'Advait Energy' }).keywords.includes('Order'),
+    uncheckableStillCounts: alerts.newsSignal({ title: 'Bags Rs 135-crore order' }).importance === 'high',
+    // A standfirst is not a headline. Several outlets fill it with a related-links strip, so one
+    // sidebar was tagging unrelated stories with whatever the sidebar happened to mention.
+    standfirstOnlyStaysLow:
+      alerts.newsSignal({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order', query: 'Advait Energy' }).importance === 'low',
+    standfirstOnlyKeepsItsKeywords:
+      alerts.newsSignal({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order', query: 'Advait Energy' }).keywords.includes('Order'),
+    // ...and the filter still finds it, because exploring a feed and asserting a company needs
+    // attention are different jobs.
+    standfirstOnlyStillFilterable: kw.classifyStory({ title: 'Advait Energy share price live updates', summary: 'Elsewhere: another firm bags Rs 135-crore order' }).tracked === true,
+    trackedStaysNeutral: alerts.newsSignal({ title: 'Sued over a patent', query: 'Advait Energy' }).direction === 'neutral',
+    riskWordStaysNeutral: alerts.newsSignal({ title: 'Fraud investigation opened', query: 'Advait Energy' }).direction === 'neutral',
+    reasonNamesTheKeyword: /tracked keyword/i.test(alerts.newsSignal({ title: 'Bags Rs 135-crore order', query: 'Advait Energy' }).importanceReason),
+
+    // The volume threshold is stated and exported, like every other entry rule on that page.
+    volumeX: alerts.VOLUME_X,
+
+    // ANNOUNCEMENTS: the taxonomy REPLACED a borrowed gate rather than sitting beside one.
+    // BSE's critical flag marks about a third of all filings and most are AGM notices, so it is
+    // reproduced on the row and no longer decides what is material. Fixtures, because the retained
+    // capture is three days and cannot be relied on to contain each case.
+    criticalIsNotOurGate: alerts.BSE_CRITICAL_IS_MATERIAL === false,
+    agmStaysLow: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', category: 'AGM/EGM', subCategory: 'AGM', critical: true }).importance === 'low',
+    // ...and the row still says the flag was set, because it is theirs and a reader is owed it.
+    agmReasonNamesTheFlag: /BSE marked this filing critical/.test(alerts.announcementSignal({ title: 'Notice of 25th AGM', critical: true }).importanceReason),
+    // A tracked keyword promotes a filing, including through BSE's own sub-category wording.
+    orderFilingIsHigh: alerts.announcementSignal({ title: 'Intimation of receipt of order', subCategory: 'Award of Order / Receipt of Order', critical: false }).importance === 'high',
+    subCategoryAloneCounts: alerts.announcementSignal({ title: 'Intimation under Regulation 30', subCategory: 'Resignation of Director', critical: false }).keywords.includes('Resignation'),
+    // The directional rule keeps its own materiality — a dividend record date carries no tracked
+    // keyword and must not lose importance to this change.
+    dividendStillHigh: alerts.announcementSignal({ title: 'Record date for the purpose of payment of Dividend', critical: false }).importance === 'high',
+    // Direction on this feed is untouched by the keyword layer.
+    downgradeStillNegative: alerts.announcementSignal({ title: 'Intimation of rating downgrade' }).direction === 'negative',
+    dividendStillPositive: alerts.announcementSignal({ title: 'Record date for Final Dividend' }).direction === 'positive',
+    agmStaysNeutral: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', critical: true }).direction === 'neutral',
+
+    // The confluence layer.
+    buyerPattern: ai.confluenceOf(buyerEvents, { feedById }).map((c) => c.id),
+    buyerSentence: ai.confluenceOf(buyerEvents, { feedById })[0]?.detail || '',
+    smallBuyerPattern: ai.confluenceOf(smallBuyer, { feedById }).map((c) => c.id),
+    // An absence may only be reported when the silent feeds were actually read.
+    unexplainedWhenRead: ai.confluenceOf(lonelyMove, { feedById }).map((c) => c.id),
+    unexplainedWhenUnread: ai.confluenceOf(lonelyMove, { feedById: new Map([['news', { id: 'news', status: 'ok', reachesToday: false }]]) }).map((c) => c.id),
+    confluenceMax: ai.CONFLUENCE_MAX,
+  };
+});
+
+ok('the desk supplied thirty keywords and thirty are registered', keywordRules.count === 30 && keywordRules.uniqueIds === 30 && keywordRules.uniqueLabels === 30, `${keywordRules.count} keywords`);
+ok("...spelt in the desk's own words", keywordRules.hasDeskWords);
+ok('...and no pattern is global, which would make it match every other row', !keywordRules.anyGlobal);
+ok('a free trial is not a Trial, a clinical one is', keywordRules.freeTrialIsNotATrial && keywordRules.clinicalTrialIs);
+ok('a stock "on fire" is not a Fire, a factory one is', keywordRules.stockOnFireIsNotAFire && keywordRules.factoryFireIs);
+ok('quitting a state is not a Resignation, a CFO leaving is', keywordRules.quitCaliforniaIsNotAResignation && keywordRules.cfoResigns);
+ok('"in order to" is not an Order, bagging one is', keywordRules.inOrderToIsNotAnOrder && keywordRules.orderWinIs);
+ok('one story can carry several keywords', keywordRules.multi);
+// THREE ANSWERS, NOT TWO — the rule this codebase keeps having to re-learn.
+ok('"names the company" is yes, no, or cannot-tell', keywordRules.namesYes && keywordRules.namesNo && keywordRules.namesUnknown && keywordRules.namesStopwordsOnly);
+ok('...and the strict filter keeps a row it could not check, dropping only a checked miss', keywordRules.targetedKeepsUnknown && keywordRules.targetedDropsUnnamed);
+// A filter that can only narrow to what it recognises can never be checked against its own misses.
+ok('the Topic filter offers "No tracked keyword", so a too-narrow pattern can be found', keywordRules.optionValues.includes('untracked') && keywordRules.trackedMatches && keywordRules.untrackedMatches);
+ok('a tracked keyword raises IMPORTANCE and an untracked story stays low', keywordRules.trackedIsHigh && keywordRules.untrackedIsLow);
+// The rule is "company name + keyword", so a keyword alone is half of it.
+ok('...and a keyword on a story that does not name the company stays low, keeping its tags', keywordRules.unnamedStaysLow && keywordRules.unnamedKeepsItsKeywords);
+ok('...while a story with no search term to check against still counts', keywordRules.uncheckableStillCounts);
+ok('...and a keyword only in the standfirst stays low, but stays findable and tagged',
+  keywordRules.standfirstOnlyStaysLow && keywordRules.standfirstOnlyKeepsItsKeywords && keywordRules.standfirstOnlyStillFilterable);
+// The line this whole layer had to not cross: News carries no judgement of ours on somebody else's
+// reporting, so even "Fraud" and "Sued" leave the direction exactly where it was.
+ok('...and it never moves DIRECTION, not even on a risk word', keywordRules.trackedStaysNeutral && keywordRules.riskWordStaysNeutral);
+ok('...and the reason names the keyword rather than asserting the event', keywordRules.reasonNamesTheKeyword);
+ok('the volume threshold is stated and exported', keywordRules.volumeX === 2, `${keywordRules.volumeX}x the 20-day average`);
+// A BORROWED FLAG IS NOT A MATERIALITY RULE. BSE's marks ~a third of all filings, 881 of them AGM
+// notices, so using it as the gate made a third of the exchange high-importance.
+ok("BSE's critical flag is reproduced but is not this dashboard's materiality gate", keywordRules.criticalIsNotOurGate && keywordRules.agmStaysLow && keywordRules.agmReasonNamesTheFlag);
+ok('...and a tracked keyword promotes a filing, including one only BSE\'s sub-category names', keywordRules.orderFilingIsHigh && keywordRules.subCategoryAloneCounts);
+// The keyword layer ADDED an input to one predicate; it did not replace the directional rule's own
+// materiality, or a dividend record date would have quietly stopped mattering.
+ok('...while the directional rule keeps its own materiality', keywordRules.dividendStillHigh);
+ok('...and announcement DIRECTION is untouched by the keyword layer', keywordRules.downgradeStillNegative && keywordRules.dividendStillPositive && keywordRules.agmStaysNeutral);
+ok('volume plus a disclosed buyer is reported as one named pattern', keywordRules.buyerPattern.includes('accumulation'), keywordRules.buyerPattern.join(', '));
+ok('...and its sentence is quoted from the events, naming both halves', /3\.2x/.test(keywordRules.buyerSentence) && /Tracked Investor/.test(keywordRules.buyerSentence), keywordRules.buyerSentence.slice(0, 110));
+// The correlation defers to each feed's own published threshold instead of inventing a second one.
+ok('...and a sub-threshold investor move does not trip it', !keywordRules.smallBuyerPattern.includes('accumulation'), keywordRules.smallBuyerPattern.join(', ') || 'no pattern');
+// "Nothing explains it" and "we did not look" are the two answers this dashboard exists to separate.
+ok('"a move nothing explains" is reported only when the silent feeds were read', keywordRules.unexplainedWhenRead.includes('unexplained-move') && !keywordRules.unexplainedWhenUnread.includes('unexplained-move'));
+ok('the confluence contribution is capped', keywordRules.confluenceMax === 18, `${keywordRules.confluenceMax} points`);
+
+// --- the two news surfaces, driven ---
+await go('/#/research/news?scope=portfolio', 1800);
+await waitForPanel();
+await settleTables();
+const newsHeads = await page.locator('#content-host table thead th').allInnerTexts();
+ok('company news carries a Topic column', newsHeads.some((h) => /Topic/i.test(h)), newsHeads.join(' | '));
+// The outlet was already in every row's sub-line, so the column was a second copy of it — and the
+// headline is capped at 780px precisely because two stories truncate to the same string below that.
+ok('...in place of the Outlet column, which was already in the sub-line', !newsHeads.some((h) => /^Outlet$/i.test(h)) && (await page.locator('#content-host select').count()) >= 2);
+const newsTopic = page.locator('#content-host select').first();
+const topicOptionText = await newsTopic.locator('option').allInnerTexts();
+ok('...and every Topic option carries a measured count, not a typed one', topicOptionText.filter((t) => /\(\d[\d,]*\)$/.test(t.trim())).length === topicOptionText.length, `${topicOptionText.length} options`);
+const newsAll = await rowCount();
+await newsTopic.selectOption('tracked');
+await settleTables();
+const newsTracked = await rowCount();
+await newsTopic.selectOption('untracked');
+await settleTables();
+const newsUntracked = await rowCount();
+// The partition is the check that the filter is a filter: tracked + untracked must be the whole set.
+ok('Topic narrows company news, and tracked + untracked is the whole set', newsTracked > 0 && newsTracked < newsAll && newsTracked + newsUntracked === newsAll, `${newsTracked} + ${newsUntracked} = ${newsAll}`);
+await newsTopic.selectOption('all');
+await settleTables();
+
+await go('/#/research/news?scope=universe', 2200);
+await waitForPanel();
+const mcTopic = page.locator('#content-host [data-news-topic]');
+ok('market-wide news carries the same Topic filter', (await mcTopic.count()) === 1);
+// A control that silently means something else on one half of a tab is worse than an absent one:
+// "names the company" is unanswerable on rows that carry no company.
+ok('...without the strict option, which is unanswerable on rows with no company', !(await mcTopic.locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
+const mcCountText = () => page.locator('#content-host [data-mcnews-list]').innerText();
+const mcAll = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
+await mcTopic.selectOption('tracked');
+await page.waitForTimeout(600);
+const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
+ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
+
+// --- Corp Announcements: the widest feed in the dashboard gets the same Topic control ---
+await go('/#/research/corp-announcements?scope=universe', 2000);
+await waitForPanel();
+await settleTables();
+const annHeads = await page.locator('#content-host table thead th').allInnerTexts();
+ok('Corp Announcements carries a Topic column', annHeads.some((h) => /Topic/i.test(h)), annHeads.join(' | '));
+// Same trade as News/Outlet: `rowSub` already prints the sub-category under every subject.
+ok('...in place of the Sub-category column, which was already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
+const annSelects = page.locator('#content-host select');
+ok('...and Topic leads, with Category and Sub-category still filterable', (await annSelects.count()) >= 3 && (await annSelects.first().locator('option').first().innerText()).includes('All topics'));
+// The strict option cannot apply: a BSE filing IS the company's own statement.
+ok('...without the strict "names the company" option, which does not arise on a filing', !(await annSelects.first().locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
+const annAll = await rowCount();
+await annSelects.first().selectOption('tracked');
+await settleTables();
+const annTracked = await rowCount();
+await annSelects.first().selectOption('untracked');
+await settleTables();
+const annUntracked = await rowCount();
+ok('Topic narrows the exchange-wide feed, and tracked + untracked is the whole set',
+  annTracked > 0 && annTracked < annAll && annTracked + annUntracked === annAll,
+  `${annTracked} + ${annUntracked} = ${annAll}`);
+await annSelects.first().selectOption('all');
+await settleTables();
+const annWidth = await page.evaluate(() => {
+  const el = document.querySelector('#content-host [data-table-scroll]');
+  return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
+});
+ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
+// THE EXPLANATION HAS TO BE REACHABLE, AND ON THESE TABS THE MODAL IS NOT.
+//
+// `cfg.provenance` is built for all three filings tabs and `openProvenance` is never called: the
+// status pill is a passive `<span>` by design (see CLAUDE.md — "the status pill is passive and
+// opens no modal"), so nothing on screen opens it. That is a pre-existing gap and not this
+// layer's to close, but it does decide where a Topic explanation may be asserted: the only
+// surfaces a reader can actually reach are the option labels and the cells' own tooltips. So
+// those are what is checked HERE. The pill itself is still passive and must stay that way; the
+// tab's provenance now has a door of its own under the table, asserted in section 17.
+const annPillOpens = await (async () => {
+  await page.locator('#content-host [data-filings-info]').first().click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return !!text;
+})();
+ok('the passive status pill still opens nothing, so the reachable surfaces are what must explain Topic', annPillOpens === false);
+const annTopicTitles = await page.evaluate(() => {
+  const host = document.querySelector('#content-host');
+  const cells = [...host.querySelectorAll('tbody tr')].map((tr) => tr.children[3]).filter(Boolean);
+  const chip = cells.map((c) => c.querySelector('[title]')).find(Boolean);
+  const untracked = cells.map((c) => c.querySelector('span[title]')).find((n) => n && /untracked/i.test(n.textContent));
+  return { chip: chip?.getAttribute('title') || '', untracked: untracked?.getAttribute('title') || '' };
+});
+// A chip has to say WHICH of the exchange's two descriptions carried the word, because the subject
+// is the company's own sentence and the sub-category is BSE's taxonomy.
+ok('a Topic chip names its family and which exchange field carried the keyword',
+  /subject|sub-category/i.test(annTopicTitles.chip) && annTopicTitles.chip.length > 20, annTopicTitles.chip.slice(0, 90));
+// And an untracked row says why it is here, rather than reading as a failed match.
+ok('...and an untracked filing explains itself rather than reading as a miss',
+  /routine|no tracked keyword/i.test(annTopicTitles.untracked), annTopicTitles.untracked.slice(0, 90));
+
+// --- AI Alerts renders the correlation above the evidence it came from ---
+await go('/#/research/ai-alerts?scope=universe', 5000);
+await waitForPanel(15000);
+const aiCards = await page.locator('#content-host [data-ai-card]').count();
+const confluenceBlocks = await page.locator('#content-host [data-ai-confluence]').count();
+if (!aiCards) {
+  skip('AI Alerts shows its cross-feed patterns', 'no company reached the surfaced threshold in this capture');
+} else if (!confluenceBlocks) {
+  // A real answer, not a failure: correlation is a property of the day, and the rule itself is
+  // asserted on fixtures above precisely because a capture cannot be relied on to contain one.
+  skip('AI Alerts shows its cross-feed patterns', `${aiCards} card(s), none with signals lining up today`);
+} else {
+  const order = await page.evaluate(() => {
+    const card = document.querySelector('[data-ai-card] [data-ai-confluence]')?.closest('[data-ai-card]');
+    if (!card) return null;
+    const nodes = [...card.querySelectorAll('[data-ai-confluence], [data-ai-insight]')];
+    const conf = card.querySelector('[data-ai-confluence]');
+    const evidence = card.querySelector('[data-ai-evidence]');
+    return {
+      insightFirst: nodes[0]?.hasAttribute('data-ai-insight') === true,
+      beforeEvidence: !!evidence && !!(conf.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      named: [...conf.querySelectorAll('[data-confluence]')].map((n) => n.getAttribute('data-confluence')),
+      text: conf.innerText.replace(/\s+/g, ' '),
+      insight: card.querySelector('[data-ai-insight]')?.innerText || '',
+    };
+  });
+  ok('AI Alerts shows its cross-feed patterns, named', confluenceBlocks > 0 && order?.named.length > 0, `${confluenceBlocks} of ${aiCards} cards · ${order?.named.join(', ')}`);
+  // The finding is read before its workings — that is the whole reason the block exists.
+  ok('...above the evidence they were derived from', order?.beforeEvidence === true);
+  // And the card's own summary leads with the correlation rather than an arity of feeds — in
+  // ORDINARY ENGLISH. The old assertion looked for a colon, because the insight used to be
+  // `${label}: ${detail}` — the pattern's own technical sentence, reprinted verbatim inside the
+  // block below it. Punctuation is not the property worth asserting; what matters is that the
+  // first thing read is the finding, said plainly, and that it is not the feed-count fallback.
+  ok('...and the card leads with the correlation, not a feed count',
+    /^(Heavy trading|An insider and|Unusual trading|Results are out|Bad news showing up|A big move with)/.test(order?.insight || '') &&
+      !/^(Signals conflict across|Bad signs on|Good signs on|Sources disagree)/.test(order?.insight || ''),
+    (order?.insight || '').slice(0, 100));
+  // No score anywhere on the card, exactly as before this layer existed.
+  ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
+}
+
+// ---------------------------------------------------------------------------------------
+console.log('\n— 17. provenance is reachable, without the chrome that was removed —');
+// ---------------------------------------------------------------------------------------
+// A BODY OF PROVENANCE EXISTED AND NOTHING OPENED IT. `cfg.provenance` was supplied by all three
+// filings tabs and `openProvenanceFactory` built a handler no caller ever invoked; `sourcesModalHtml`
+// was exported and imported by nothing. That is worse than absent, because unreachable content reads
+// as documentation of a working feature — and CLAUDE.md leans on both: it says the denominator has
+// to stay REACHABLE, and that canonical provenance "remains in the source registry".
+//
+// What is asserted here is the pair, because either alone is the bug: the explanation opens, AND the
+// chrome that was deliberately removed has not crept back.
+const registryModal = await (async () => {
+  await go('/#/research/ai-alerts?scope=portfolio', 4000);
+  await waitForPanel();
+  await page.locator('[data-sources-open]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return text;
+})();
+ok('the footer opens the source registry', registryModal.length > 2000, `${registryModal.length} chars`);
+// The registry is a FUNCTION called on open, which is what lets a static footer reach live figures
+// without going stale — the rule that killed the old hand-typed source array.
+ok('...and it names the upstreams it is canonical for',
+  ['Muns news API', 'BSE', 'Finology', 'Trendlyne', 'Yahoo'].every((n) => registryModal.includes(n)),
+  registryModal.replace(/\s+/g, ' ').slice(0, 90));
+// ...AND STILL WITHHOLDS THE TWO BRANDS IT IS SUPPOSED TO. Making provenance reachable must not
+// leak what the honesty rules deliberately keep off customer-facing surfaces: the con-call and
+// market-news providers are named in the code and in docs/DATA-CONTRACTS.md and NOT on screen —
+// "no brand anywhere, the disclaimer everywhere" (CLAUDE.md, *Reproducing someone else's
+// analysis*). A door to the registry is exactly where that would have slipped, so it is asserted
+// here rather than assumed. The first draft of this check asserted the opposite and caught it.
+ok('...without printing the two providers whose brands are deliberately withheld',
+  !/Moneycontrol|StockScans/i.test(registryModal) && /publisher|research provider/i.test(registryModal));
+
+for (const [route, title, scope] of [
+  ['/#/research/news?scope=portfolio', 'News', 'portfolio'],
+  ['/#/research/corp-announcements?scope=universe', 'Corp Announcements', 'universe'],
+  ['/#/research/insider-trades?scope=portfolio', 'Insider Trades', 'portfolio'],
+]) {
+  await go(route, 4000);
+  await waitForPanel();
+  await settleTables();
+  const placement = await evalSafe(() => {
+    const btn = document.querySelector('#content-host [data-filings-method]');
+    const table = document.querySelector('#content-host [data-score-table]') || document.querySelector('#content-host table');
+    if (!btn) return { present: false };
+    return {
+      present: true,
+      belowTable: !table || !!(table.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
+      pillIsSpan: (document.querySelector('#content-host [data-filings-info]') || {}).tagName === 'SPAN',
+    };
+  });
+  ok(`${title} carries a method link under its table`, placement.present && placement.belowTable, JSON.stringify(placement));
+  // The decision CLAUDE.md recorded is preserved exactly: the label stays a passive span that opens
+  // nothing. What changed is that the explanation gained a door, not that the label became one.
+  ok(`...and ${title}'s freshness label is still a passive span`, placement.pillIsSpan === true);
+  await page.locator('#content-host [data-filings-method]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(700);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  ok(`...and it opens ${title}'s own provenance`, text.length > 1200, `${text.length} chars`);
+  // THE PART NO STATIC REGISTRY CAN CARRY: the measured coverage for the rows on screen. This is the
+  // denominator CLAUDE.md says must stay reachable — "23 rows look complete until you know the book
+  // is 142" — and it is the reason this content is wired rather than pruned.
+  ok(`...carrying ${title}'s measured coverage, not just prose`, /\d/.test(text) && /(compan|filing|row)/i.test(text));
+  if (text) await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+}
 
 // ---------------------------------------------------------------------------------------
 console.log('\n— console —');

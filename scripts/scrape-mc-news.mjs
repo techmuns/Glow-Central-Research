@@ -4,9 +4,24 @@
 //   node scripts/scrape-mc-news.mjs                    top-up: walk until a known story appears
 //   MCNEWS_PAGES=25 MCNEWS_FULL=1 node scripts/…       the one-off deep backfill
 //   MCNEWS_DATE_LIMIT=0 node scripts/…                 skip the per-article date fetch
-//   MCNEWS_KEEP=600 node scripts/…                     how many stories the file keeps
+//   MCNEWS_HEAD=600 node scripts/…                     how many stories the HEAD file carries
+//   MCNEWS_RESHARD=1 node scripts/…                    re-file what is committed; ask the publisher nothing
 //
-// Writes public/data/market-news.json.
+// Writes public/data/market-news.json (the head) and public/data/market-news/<YYYY-MM>.json
+// (the archive, one shard per month).
+//
+// NOTHING IS EVER DISCARDED, WHICH IS THE POINT OF THE TWO FILES.
+//   This script used to end with `all.slice(0, KEEP)` and write only that, so every run deleted
+//   whatever had fallen past the six-hundredth story — about thirteen days of history, gone for
+//   good, and unrecoverable because the publisher's listing only goes back so far. The reader saw
+//   it as a scroll that stopped: "600 of 600 stories" is every story we HELD, not every story
+//   there was, and the two are indistinguishable from the screen.
+//
+//   The cap was a ceiling on BYTES, and it was the right instinct pointed at the wrong file: the
+//   head is what every visitor downloads on arrival, so it stays bounded. The archive is fetched
+//   one month at a time and only by a reader who scrolled to the end of the head, so it costs
+//   nothing until somebody actually wants it. A bounded first paint and unbounded history are
+//   not in tension once they are separate files.
 //
 // A TOP-UP RUN STOPS AT THE FIRST STORY IT ALREADY HAS. The listing is in publication order, so
 // once a known id appears there is nothing newer below it — a normal run is one or two page reads
@@ -24,12 +39,10 @@
 // never a hash of the title — a headline gets edited after publication and would then read as a
 // second story.
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fetchNews, fetchPublishedAt, HEADERS } from '../worker/mc-news.mjs';
+import { loadEverything, commit, keyOf, isMcId, HEAD_FILE } from './lib/news-store.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -94,35 +107,20 @@ const curlFetch = async (url, opts = {}) => {
   return res;
 };
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(__dirname, '../public/data/market-news.json');
-
 const PAGES = Number(process.env.MCNEWS_PAGES || 4);
 const FULL = process.env.MCNEWS_FULL === '1';
 const DATE_LIMIT = process.env.MCNEWS_DATE_LIMIT === undefined ? 40 : Number(process.env.MCNEWS_DATE_LIMIT);
-// A ceiling on bytes, not on relevance. ~600 stories is roughly 400 KB, which every visitor
-// downloads once and then revalidates with a 304.
-const KEEP = Number(process.env.MCNEWS_KEEP || 600);
+// HOW BIG THE HEAD IS — a ceiling on the bytes of the FIRST PAINT, and nothing else.
+//
+// Every visitor downloads this file on arrival and then revalidates it with a 304, so it stays
+// bounded: ~600 stories is roughly 400 KB. What it is NOT any more is a ceiling on how much history
+// exists — anything past it goes to the archive rather than to the bin. `MCNEWS_KEEP` is still
+// honoured so an existing workflow or runbook keeps working.
+const HEAD = Number(process.env.MCNEWS_HEAD || process.env.MCNEWS_KEEP || 600);
+const RESHARD = process.env.MCNEWS_RESHARD === '1';
 const DATE_CONCURRENCY = 4;
 
 const num = (n) => Number(n).toLocaleString('en-IN');
-
-function loadExisting() {
-  if (!existsSync(OUT)) return { articles: [], newestId: null };
-  try {
-    const prev = JSON.parse(readFileSync(OUT, 'utf8'));
-    return { articles: Array.isArray(prev.articles) ? prev.articles : [], newestId: prev.newestId || null };
-  } catch {
-    return { articles: [], newestId: null };
-  }
-}
-
-/** Newest first, by the publisher's own id. Falls back to the date, then to first sight. */
-const byNewest = (a, b) => {
-  if (a.id && b.id && a.id.length === b.id.length) return b.id.localeCompare(a.id);
-  if (a.id && b.id) return Number(b.id) - Number(a.id);
-  return String(b.publishedAt || b.firstSeenAt || '').localeCompare(String(a.publishedAt || a.firstSeenAt || ''));
-};
 
 async function datesFor(articles, limit) {
   if (limit <= 0 || !articles.length) return 0;
@@ -151,9 +149,35 @@ async function datesFor(articles, limit) {
 }
 
 async function main() {
-  const existing = loadExisting();
-  const known = new Map(existing.articles.map((a) => [a.id || a.url, a]));
+  // EVERY story on disk, not just the head. A scraper that merged into the head alone would write
+  // the head back as the whole capture and drop the other publishers' stories and the older months
+  // with them — the discard this whole arrangement exists to end, arrived at from another side.
+  const { head: existing, all: known } = loadEverything();
   const stopAtId = FULL ? null : existing.newestId;
+
+  // RESHARD: re-file what is already committed, and ask the publisher nothing.
+  //
+  // Two jobs. It is how the archive was seeded from a head that predated it — those stories were
+  // the only copy left and a network run was not available to produce them again — and it is the
+  // repair path for a shard deleted or damaged by hand. It cannot invent history the capture never
+  // held, so it is not a backfill; a deeper reach needs MCNEWS_FULL=1 with more pages.
+  if (RESHARD) {
+    // A story captured before this feed carried more than one publisher has no byline. A NUMERIC id
+    // is by construction a Moneycontrol article number — nothing else in this capture has one — so
+    // the attribution is derived rather than assumed, and a story whose id is not one is left alone
+    // rather than being labelled with a guess.
+    let named = 0;
+    for (const a of known.values()) {
+      if (!a.publisher && isMcId(a.id)) { a.publisher = 'Moneycontrol'; named += 1; }
+    }
+    console.log(`Re-filing ${num(known.size)} committed stories (head + archive) — no request to the publisher.`);
+    if (named) console.log(`  ${num(named)} back-filled with their publisher, from the shape of their id`);
+    if (!known.size) {
+      console.error('Neither the head nor the archive carries a story, so there is nothing to re-file. Refusing to write.');
+      process.exit(1);
+    }
+    return finish({ known, requests: 0, reachedKnown: false, capturedAt: existing.capturedAt || new Date().toISOString(), sources: [] });
+  }
 
   console.log(`Moneycontrol market news — ${FULL ? `full walk, ${PAGES} pages` : `top-up, stopping at ${stopAtId || 'nothing known yet'}`}`);
 
@@ -172,48 +196,49 @@ async function main() {
     process.exit(1);
   }
 
-  const fresh = articles.filter((a) => !known.has(a.id || a.url));
+  const fresh = articles.filter((a) => !known.has(keyOf(a)));
   console.log(`  ${num(articles.length)} read · ${num(fresh.length)} new · ${requests} listing request(s)${reachedKnown ? ' · stopped at a known story' : ''}`);
 
   const now = new Date().toISOString();
-  for (const a of fresh) a.firstSeenAt = now;
+  for (const a of fresh) {
+    a.firstSeenAt = now;
+    // Named on every row, because this list carries several publishers now and a headline with no
+    // byline in a mixed feed silently attributes itself to whichever one the reader assumes.
+    a.publisher = 'Moneycontrol';
+  }
   const dated = await datesFor(fresh, DATE_LIMIT);
   if (fresh.length) console.log(`  ${num(dated)} of ${num(Math.min(DATE_LIMIT, fresh.length))} dated from the article page`);
 
   // Merge: a story already held keeps its firstSeenAt and any date it already had.
-  for (const a of fresh) known.set(a.id || a.url, a);
+  for (const a of fresh) known.set(keyOf(a), a);
   for (const a of articles) {
-    const held = known.get(a.id || a.url);
+    const held = known.get(keyOf(a));
     if (held && !held.publishedAt && a.publishedAt) held.publishedAt = a.publishedAt;
   }
 
-  const all = [...known.values()].sort(byNewest);
-  const kept = all.slice(0, KEEP);
-  const withDate = kept.filter((a) => a.publishedAt).length;
-
-  const payload = {
-    _provenance:
-      'Market-wide stocks news as Moneycontrol publish it at /news/business/stocks/. Headlines, standfirsts and section names are theirs, reproduced unchanged; ' +
-      'the article stays on their site and every row links to it. Nothing here is summarised, scored or ranked by this dashboard — the order is the publisher\'s own.',
-    source: 'Moneycontrol — https://www.moneycontrol.com/news/business/stocks/',
-    generator: 'scripts/scrape-mc-news.mjs',
+  return finish({
+    known,
+    requests,
+    reachedKnown,
     capturedAt: now,
-    newestId: kept[0]?.id || existing.newestId || null,
-    articleCount: kept.length,
-    // Two different facts, kept apart deliberately: how many carry the PUBLISHER'S time, and how
-    // many we have only ever seen. A story with no `publishedAt` renders a dash, never a guess.
-    withPublishedAt: withDate,
-    withoutPublishedAt: kept.length - withDate,
-    keep: KEEP,
-    pagesRead: PAGES,
-    listingRequests: requests,
-    stoppedAtKnown: reachedKnown,
-    articles: kept,
-  };
+    sources: [{ id: 'moneycontrol', publisher: 'Moneycontrol', feeds: 1, url: 'https://www.moneycontrol.com/news/business/stocks/', capturedAt: now, ok: true, stories: fresh.length }],
+  });
+}
 
-  writeFileSync(OUT, `${JSON.stringify(payload)}\n`);
-  console.log(`  ${num(kept.length)} stories kept (${num(withDate)} with the publisher's time) · newest id ${payload.newestId}`);
-  console.log(`  wrote ${OUT}`);
+/** Everything downstream of "which stories do we hold" — shared by a scrape and by a reshard. */
+function finish({ known, requests, reachedKnown, capturedAt, sources }) {
+  const { kept, archive, archived, withDate, undatable, payload } = commit({
+    articles: [...known.values()],
+    capturedAt,
+    head: HEAD,
+    sources,
+    extra: { pagesRead: PAGES, listingRequests: requests, stoppedAtKnown: reachedKnown },
+  });
+
+  console.log(`  ${num(kept.length)} stories in the head (${num(withDate)} with the publisher's time) · newest Moneycontrol id ${payload.newestId}`);
+  console.log(`  ${num(archived)} in the archive across ${archive.length} month(s): ${archive.map((a) => `${a.month} ${num(a.count)}${a.inHead === a.count ? ' (all in head)' : ''}`).join(' · ') || 'none'}`);
+  if (undatable) console.log(`  ${num(undatable)} story/stories carried no date at all and stayed in the head only`);
+  console.log(`  wrote ${HEAD_FILE}`);
 }
 
 main().catch((err) => {

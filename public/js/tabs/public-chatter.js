@@ -43,6 +43,12 @@ let paintDisposers = [];
 let tableViews = { covered: null, other: null };
 let chatterSection = 'coverage';
 let mentionRequestToken = 0;
+// A company deep-link from a General Alerts chatter row: `?company=TICKER&open=mentions`. Tracked at
+// module level so a live repaint (chatter.onChange) does not re-open the popup on every tick, and a
+// scope toggle — which re-renders with the same params — does not re-open it either. Both reset on
+// destroy so a fresh navigation always honours the link again.
+let routeCompany = null;
+let openedFor = null;
 
 const SECTIONS = [
   { id: 'coverage', label: 'Coverage' },
@@ -56,6 +62,20 @@ const SECTIONS = [
 export function render(ctx) {
   const token = ++renderToken;
   cleanup();
+
+  // A COMPANY DEEP-LINK, USUALLY FROM A GENERAL ALERTS CHATTER ROW. Seed the covered table's search
+  // to that company and switch to the Coverage section (a resolved ticker always lives there), so
+  // the row is in view behind the popup. `cleanup()` above has just reset `tableViews`, so this must
+  // come after it. Only a NEW company reseeds — a scope toggle repaints with the same param and must
+  // leave whatever the reader has since typed alone, exactly as companySeededView does elsewhere.
+  const requestedCompany = String(ctx?.params?.company || '').trim().toUpperCase();
+  const wantMentions = ctx?.params?.open === 'mentions';
+  if (requestedCompany && requestedCompany !== routeCompany) {
+    chatterSection = 'coverage';
+    tableViews = { covered: { q: requestedCompany }, other: tableViews.other };
+  }
+  routeCompany = requestedCompany || null;
+
   ctx.root.innerHTML = loadingHtml();
 
   // PAINT ON THE CHATTER FEED ALONE. This used to await the technicals feed as well, which the tab
@@ -68,6 +88,18 @@ export function render(ctx) {
     .then(() => {
       if (token !== renderToken) return;
       paint(ctx);
+      // OPEN THE MENTIONS POPUP THE ALERT ASKED FOR — once per deep-link. The chatter alert's whole
+      // content is this popup, not the row, so a click that only landed on the tab left the reader
+      // to find the company and click again. Guarded on `openedFor` so a live repaint or a scope
+      // toggle does not reopen it, and searched off the full covered set (not the scoped view) so it
+      // still opens for a holding even if the current scope would have filtered the row away.
+      if (wantMentions && requestedCompany && requestedCompany !== openedFor) {
+        const entry = (chatter.companies() || []).find((e) => String(e.ticker || '').toUpperCase() === requestedCompany);
+        if (entry) {
+          openMentions(entry);
+          openedFor = requestedCompany;
+        }
+      }
       disposers.push(chatter.startLive(ctx.live));
       disposers.push(
         chatter.onChange(() => {
@@ -82,6 +114,10 @@ export function destroy() {
   renderToken++;
   cleanup();
   chatterSection = 'coverage';
+  // Forget the deep-link so returning to the same company from another chatter alert re-seeds and
+  // re-opens rather than being silently ignored as "unchanged".
+  routeCompany = null;
+  openedFor = null;
 }
 
 function cleanup() {
@@ -463,7 +499,11 @@ function buildCoveredTable(rows) {
     key: (r) => r.ticker,
     name: (r) => r.name,
     sub: (r) => `${r.ticker}${r.matchedName && r.matchedName !== r.name ? ` · ${r.matchedName}` : ''}`,
-    searchable: true,
+    // A FUNCTION, not `true`. `scoreTable` calls `searchable(row)` to build the haystack (screener.js),
+    // so a bare `true` threw "searchable is not a function" the moment a query was applied — which
+    // never happened while nothing pre-seeded the search, and started happening the instant a
+    // General Alerts chatter deep-link arrived with the company already typed in.
+    searchable: (r) => `${r.name} ${r.ticker} ${r.matchedName || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     initialSort: { key: 'Mentions', dir: 'desc' },
@@ -544,7 +584,9 @@ function buildOtherTable(rows) {
     watchKey: () => null,
     name: (r) => r.name,
     sub: (r) => r.slug,
-    searchable: true,
+    // A function, not `true` — see the covered table above; `scoreTable` calls it to build the
+    // search haystack, so a bare `true` throws the moment anyone types in this box.
+    searchable: (r) => `${r.name || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     showAvatar: false,

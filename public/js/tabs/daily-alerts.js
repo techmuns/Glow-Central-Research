@@ -619,7 +619,18 @@ function eventsTable(ctx, events, day) {
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }
-      if (e.tab) location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
+      // FALL BACK TO THE TAB, ON THE COMPANY — not just the tab. A row with no source URL (public
+      // chatter, price/volume moves) used to land on the owning tab's whole list, leaving the reader
+      // to search for the company they had just clicked. `?company=` seeds that tab's own search
+      // (every table tab honours it via companySeededView), and for chatter — whose real content is
+      // the per-company mentions popup, not the row — `open=mentions` asks the tab to open it
+      // straight away, which is the thing the row is actually about.
+      if (e.tab) {
+        const params = [`scope=${ctx.scope}`];
+        if (e.ticker) params.push(`company=${encodeURIComponent(e.ticker)}`);
+        if (e.feed === 'chatter' && e.ticker) params.push('open=mentions');
+        location.hash = `#/research/${e.tab}?${params.join('&')}`;
+      }
     },
     searchable: (e) => `${e.day || ''} ${e.time || ''} ${e.company} ${e.ticker || ''} ${e.direction || ''} ${e.importance || ''} ${e.headline} ${e.detail || ''} ${e.signalReason || ''} ${e.importanceReason || ''} ${e.feedLabel}`,
     filters: [
