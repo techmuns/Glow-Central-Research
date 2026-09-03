@@ -122,7 +122,7 @@ public/
       earnings-scoring.js     15-rule / 21-point result quality + growth model
       rule-meta.js            per-rule provenance, keyed META[tabId][ruleKey]
     research/
-      estate.js               ASK RESEARCH'S EVIDENCE REGISTRY — fifteen adapters over the tabs' own
+      estate.js               ASK RESEARCH'S EVIDENCE REGISTRY — fourteen adapters over the tabs' own
                               modules; loads, resolves the question, then reads; fits to the budget
       evidence-shared.js      the ONE provider-facing packet shape, imported by worker/research.mjs too
       renderer.js             the DOM-based markdown subset model prose is rendered through
@@ -135,12 +135,12 @@ public/
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
-    portfolio/                overview, position-by, transactions, drawdown
-  data/                       technicals.json, atr-history.json, portfolio-history.json,
+  data/                       technicals.json, atr-history.json,
                               market-news.json + market-news/<YYYY-MM>.json (head + archive),
                               earnings-live.json, mc-ticker-map.json, result-returns.json,
-                              earnings-calendar.json, universe.json, portfolio.json,
-                              portfolio-companies.json, mock/*.json
+                              earnings-calendar.json, universe.json,
+                              portfolio-companies.json (THE BOOK — names and sectors, the only
+                              portfolio data here), mock/*.json
 scripts/
   sync-family-book.mjs        THE BOOK'S SOURCE — reads techmuns/Sattva-Family's positions file, one
                               line per equity ISIN, into fixtures/family-book.json, then re-resolves
@@ -211,8 +211,8 @@ docs/HANDOFF.md               live-vs-mock inventory, architecture map, deploy, 
 
 ## Module interface contract
 
-Every file in `js/tabs/` and `js/portfolio/` exports exactly this. The shell is generic and
-knows nothing about any individual tab beyond this contract.
+Every file in `js/tabs/` exports exactly this. The shell is generic and knows nothing about any
+individual tab beyond this contract.
 
 ```js
 export const meta = {
@@ -257,12 +257,13 @@ handler rather than closing over the one that happened to be current at subscrib
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
 
-**There is no workspace switcher.** Research Central's tabs are the whole nav. Portfolio
-Analytics still exists — four modules, four routes — but its `WORKSPACES` entry is marked
-`hidden: true`, so it is reachable by URL and not by clicking. Hidden rather than deleted on
-purpose: dropping the entry would make every saved `#/portfolio/…` link fall through to Research
-Central and show the reader a different page from the one they bookmarked. Bringing it back is
-deleting one flag and re-adding a control that calls `goWorkspace()`.
+**There is one workspace and no switcher.** Research Central's tabs are the whole nav.
+Portfolio Analytics was the second and is deleted — it was `hidden: true` for a while, routable
+but not clickable, and that is exactly what trapped a reader who followed an Ask Research citation
+into it: no switcher meant nothing on the page led back. An unknown workspace now falls through to
+`WORKSPACES[0]` and `router.replaceRoute` corrects the URL, so an old `#/portfolio/…` link lands on
+a working page. **Never add a route the chrome cannot navigate away from** — see *Portfolio means a
+list of names* below.
 
 ---
 
@@ -1915,13 +1916,14 @@ on a `repository_dispatch` from that repository (`.github/workflows/family-book-
 because the custodian's names are cut at twenty characters and spelt differently across the family's
 seventeen entities. `coverage.js` primes it at bootstrap and
 exposes `holdings() / tracked() / uncovered() / has(ticker) / meta() / coverageNote()`. **Every
-`forScope()` in every research tab reads it. Nothing reads `ctx.data.portfolio.holdings` for that
-purpose any more** — that path is the ledger's, and it lists twelve positions.
+`forScope()` in every research tab reads it, and it is the ONLY portfolio input this dashboard
+has.**
 
-Do not merge the two files. `portfolio.json` carries quantities and costs, the FIFO replay
-reconciles against it, and `verify-ui.mjs` asserts two identities numerically; widening it to 142
-lines would break both and invent quantities nobody supplied. The statement gave names only —
-value and weight were explicitly out of scope. See the table in `docs/DATA-CONTRACTS.md`.
+**It carries names and sectors, and it must never be widened.** The statement gave names only —
+value and weight were explicitly out of scope — so a quantity, a cost or a valuation added to this
+file would be invented. There used to be a second file, `portfolio.json`, an illustrative ledger
+behind a Portfolio Analytics workspace; both are deleted. See *Portfolio means a list of names*
+below and the table in `docs/DATA-CONTRACTS.md`.
 
 The pencil beside the header scope toggle edits a **device-local overlay**, not either committed
 file. Portfolio and Universe additions/exclusions live in `sattva:scope-lists:v1`; Watchlist edits
@@ -1999,14 +2001,7 @@ a hundred and forty-two. But they mean different things and `scopeSummary` words
 - **a watchlist entry came FROM a feed**, so its gap is only ever *this particular feed does not
   carry it*, which is a smaller and more temporary claim.
 
-### Two places the scope means something else, and they are left alone deliberately
-
-**Portfolio Analytics' scope axis is not a company filter.** Its four modules read
-`js/data/portfolio.js`'s `forScope`, where `portfolio` means *open positions* and anything else
-means *open plus fully exited* — a different question from "whose companies", asked of a
-twelve-position ledger. Watchlist there behaves as Universe. Adding a third meaning would put a
-company filter over the FIFO replay and risk the two numeric identities the suite asserts, for a
-workspace that is `hidden: true` and reachable only by URL.
+### Two feeds where the scope means something else, and they are left alone deliberately
 
 **Two feeds carry rows with no company on them at all**, and those rows are not filtered by one:
 Public Chatter's unresolved half, and market-wide news. Filtering rows that have no ticker BY
@@ -2122,7 +2117,8 @@ the same module as its owning tab and always returns a catalog/status entry, eve
 cannot be read. Row samples are question-ranked and bounded, while coverage, units, periods, as-of
 metadata and live/snapshot/mock provenance remain attached. Adding or removing a dashboard source
 means changing this registry and the focused Ask Research checks together; a source may fail, but it
-may not disappear. Fifteen sources are registered: the dashboard's own AI Alerts ranking is one of
+may not disappear. Fourteen sources are registered — one per research tab a reader can open, and
+never a route outside `#/research/`: the dashboard's own AI Alerts ranking is one of
 them, so "which companies have the strongest evidence across tabs" is answered by the same
 deterministic model the tab shows rather than by whichever company topped each feed's default order.
 
@@ -2169,7 +2165,7 @@ browser immediately. That provider contract has no web-search option, so the UI 
 claim one. The browser preserves every source's status, coverage and provenance, then shares the
 remaining provider-facing budget (`RESEARCH_EVIDENCE_CHAR_BUDGET`, 13,000 characters — about 3,900
 tokens of JSON, sized for the local model's 8K-token context beside the instruction, the bounded
-history and a 768-token answer; the fifteen-source skeleton measures ~7,100 on the shipped data, so
+history and a 768-token answer; the fourteen-source skeleton measures ~6,700 on the shipped data, so
 roughly twenty rows fit) across question-ranked rows. UI-only routes and the duplicate catalog
 stay in the browser rather than being repeated in the model prompt, and they are not charged against
 the budget.
@@ -2381,90 +2377,46 @@ like that. Same rule, and the same failure, as the news Fetch button.
 
 ---
 
-## Portfolio Analytics — the FIFO engine and the two identities
+## PORTFOLIO MEANS A LIST OF NAMES — and Portfolio Analytics is deleted
 
-`js/portfolio/lots.js` replays the ledger once per page load; `js/data/portfolio.js` joins the
-result to the live technicals feed and to `portfolio-history.json`. The four sub-views read that
-cached result — **never rescore or replay on a sub-view or scope change.**
+**The only portfolio information this dashboard holds is `public/data/portfolio-companies.json`:**
+142 company lines, names and sectors, synced from the family office's own repository. No quantity,
+no cost, no valuation, no P&L, no equity curve, anywhere. See *What "Portfolio" means* above.
 
-**Two identities must hold exactly**, and `scripts/verify-ui.mjs` asserts both numerically against
-the shipped data, not against a fixture:
+There used to be a second thing. **Portfolio Analytics** was four modules over an **illustrative
+ledger** — twelve positions with invented quantities and costs, marked to market with real prices —
+a FIFO replay engine, an equity curve over 735 real trading days, XIRR, TWR and two drawdown
+figures. It was honest about itself: an amber *Illustrative ledger · live marks* pill on every
+sub-view, an export banner, a drill note. It is gone, and how it went is the rule worth keeping.
 
-1. `sum(open lot quantities) === position quantity`, per ticker — and `portfolio.json` agrees.
-2. `realised + unrealised + dividends === total P&L`, **per position**, not merely in aggregate.
+**1. Hiding a surface is not retiring it, and hiding it is what built the trap.** The workspace was
+marked `hidden: true` so a saved `#/portfolio/...` link would still resolve to the page it named
+rather than falling through to Research Central. That reasoning protected a bookmark and created
+something worse: with no workspace switcher in the chrome there was **nothing on the page that led
+back**, and inside the Munshot host iframe there is no address bar to edit. A reader who arrived was
+stuck on a screen of made-up money with no exit. *A route with no way out of it is not a hidden
+feature, it is a trap* — so a surface that is not offered must not be reachable either, and an old
+link should land on a working page with the URL corrected.
 
-If either drifts, the position table and the ledger are telling different stories about the same
-money. The Overview shows the measured residual rather than claiming correctness in prose.
+**2. Something always finds an unoffered route.** Ask Research's evidence registry listed the
+workspace as its fifteenth source and cited it as `[Dashboard: Portfolio Analytics]`, linking
+straight in. So the ledger's invented quantities, costs, market values, XIRR, TWR and drawdown were
+being **streamed to the model** and shown to the reader as dashboard evidence, and the citation was
+the door into the trap. An evidence source must be a tab the reader can actually open — asserted in
+`scripts/verify-research.mjs`, which requires every source's route to start `#/research/`.
 
-Four rules that are easy to break:
+**3. Prefer deletion to labelling, for the third time.** This is the same resolution the four
+synthetic con-call views got and the Fund Flows sub-view got: *never put a live number and a
+synthetic one in the same product, and prefer removing the synthetic one to labelling it.* A pill
+cannot survive a screenshot, and a mock ₹30.7L market value under this dashboard's chrome reads as
+the family's money to anyone who did not read the pill.
 
-- **Charges belong in the basis.** Buy-side charges are folded into cost per share; sell-side
-  charges reduce proceeds, apportioned across the lots consumed.
-- **Dividends are income, never a discount on the purchase.** Folding them into the basis would
-  disguise income as a cheaper entry.
-- **Corporate actions adjust lots in place** — quantity multiplied, cost per share divided, total
-  cost unchanged, **acquisition date preserved**. A zero-price "buy" for bonus shares would reset
-  the holding-period clock and misclassify a later sale as short term.
-- **Missing input is not zero.** A sell larger than the holding, or an unknown type, goes to
-  `book.errors[]`. A position with no live price is marked *at cost*, tagged "at cost", and excluded
-  from the equity curve — marking it at zero would invent a −100% position.
-
-### The back-adjustment trap — read before touching prices or corporate actions
-
-**Yahoo's `close` is back-adjusted for splits and bonuses**: a 2024 price is restated in today's
-share terms. Two consequences, and getting either wrong bends the equity curve on a day nothing
-happened, in the one chart where an artefact reads as risk.
-
-1. A ledger may carry a corporate-action row **only for an action the price series was adjusted
-   for**. An invented split on a real ticker doubles the quantity while the series stays put, and
-   the curve jumps 100%. This is why both synthetic actions in the mock ledger sit on the one
-   holding with no price series at all.
-2. Where an action row does exist, `dailyPositions()` returns `valuationQtyByDate` — the holding in
-   **current share terms** — and the curve values against that. The two corrections cancel exactly.
-
-Check the series before trusting a recollection about a corporate action. A draft of the generator
-mirrored a "real" CDSL bonus that is not in this window; the data said so and the double-count was
-caught before it shipped.
-
-### Two return figures and two drawdowns, deliberately
-
-The raw curve rises from ~₹92k to ~₹42.6L, and most of that is money paid in. So **XIRR** is
-money-weighted (what the investor earned) and **TWR** is time-weighted (what the strategy returned,
-contributions stripped out) — TWR is the only one comparable to an index, and the only one shown
-against the Nifty 500. Never label the curve's start-to-end move a return.
-
-Likewise: the headline drawdown is the total portfolio (retained cash dampens it, correctly), and a
-second holdings-only figure answers "how far did the stocks fall". Both are labelled; neither is
-presented as *the* drawdown.
-
-### The split provenance, and why it is a pill rather than a ribbon
-
-Portfolio Analytics is the one workspace where mock and real meet inside a single number: the
-ledger is invented, every price in it is real. A flat "mock data" ribbon understates it and a
-"live" badge overstates it.
-
-That used to be a four-line amber block at the top of all four sub-views — two pills, a paragraph
-naming the generator script, the mark's age, the curve's window and the excluded tickers. Correct,
-and the loudest thing on the page: the first object anyone saw on this workspace, above the money,
-every single view. A caveat that big stops reading as a note about one input and starts reading as
-a warning about the page.
-
-So it went the way the Earnings Hub's ribbon went. `provenancePill(meta)` + `wireProvenancePill()`
-in `js/portfolio/chrome.js` put it in the section head, and the modal behind it carries every word
-that used to be in the block. `headMeta(meta, scopeHtml)` is the one function that lays the head's
-right-hand side out, so the pill and the scope summary are in the same order and the same place on
-all four sub-views.
-
-Three things that make the trade honest rather than a deletion:
-
-1. **The claim stays on the face of the pill.** It reads *Illustrative ledger · live marks*, in
-   amber, on every sub-view. What moved behind a click is the explanation, never the claim.
-2. **The failure state gets the face instead.** With no mark the pill turns rose and reads *Marks
-   unavailable · shown at cost*, because every P&L on screen is then exactly zero for want of a
-   price. That is a thing to know before you read the numbers, not after.
-3. **The other four markers are untouched** — the freshness card, the per-row "at cost" tag, the
-   drill note, and row 1 of every exported sheet. `exportBanner()` matters most: a workbook leaves
-   the page without its chrome, and it is the one artefact nobody can see a pill on.
+The four modules, `js/portfolio/lots.js`, `js/data/portfolio.js`, `portfolio.json`,
+`mock/transactions.json`, `portfolio-history.json` and the two scripts behind them are in git
+history at **d3bba30** — the whole FIFO engine, its two numeric identities and the back-adjustment
+rules with it. If a **real** ledger is ever wired, that is where it comes back from, and the rules
+that governed it (charges in the basis, dividends as income, corporate actions adjusting lots in
+place, a missing mark carried at cost rather than zero) come back with it.
 
 **Prefer a passive status label whenever a caveat is competing with the content it qualifies.**
 The label must state the material condition on its face and must not open a provenance explainer.
@@ -3063,14 +3015,13 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how a growth figure is classified | `classifyChange()` in `worker/mc.mjs` — read the sign-change rules above first |
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
-| Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
 | Add or remove a company from the book | **In the family repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`; the sync brings it here. Then `node scripts/sync-family-book.mjs` (`FAMILY_REPO_TOKEN=…`, or `FAMILY_BOOK_PATH=` a local clone) and commit `scripts/fixtures/family-book.json` + `public/data/portfolio-companies.json`. A new ISIN gets its reader-facing name in `DISPLAY_NAMES` in `scripts/resolve-portfolio-companies.mjs`; a line no feed can place goes in `CONFIRMED` / `BSE_ONLY` / `NOT_LISTED_EQUITY` there, keyed by ISIN |
 | Set up the automatic book sync on a deployment | add a Secret named **`FAMILY_REPO_TOKEN`** to this repository (*Settings → Secrets and variables → Actions*): a fine-grained token on `techmuns/Sattva-Family` alone with **Contents: read**. Optionally have that repository POST `repository_dispatch` (`family-book-updated`) here on push — the snippet is in `docs/DATA-CONTRACTS.md` |
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
-| Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
+| Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first. It is the only portfolio data here: names and sectors, never a quantity or a value |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
-| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book rather than illustrative Analytics weights, and test `rankReport()` directly |
+| Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |
@@ -3083,11 +3034,6 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how a question names a company | `queryPlan()` + `STOP_WORDS` / `WORD_TICKERS` in `js/research/estate.js` — pure, fixture-tested in `scripts/verify-research.mjs` |
 | Change Ask Research's provider, prompt, web-search contract or limits | `worker/research.mjs` + `wrangler.jsonc` — the key stays server-side; the route stays same-origin, bounded and rate-limited |
 | Change which tab the dashboard opens on | the order of `WORKSPACES[0].tabs` in `js/ui/shell.js` — the array **is** the default; `DEFAULT_ROUTE` in `router.js` should agree |
-| Change FIFO lot matching or corporate actions | `js/portfolio/lots.js` — read the two identities above first |
-| Change how positions are marked or the curve is built | `js/data/portfolio.js` |
-| Change the portfolio provenance pill | `provenancePill()` / `headMeta()` in `js/portfolio/chrome.js` — one function, four sub-views |
-| Regenerate the mock ledger | `node scripts/gen-mock-transactions.mjs` — seeded; also rewrites `portfolio.json`'s derived fields |
-| Wire the real ledger | `docs/DATA-CONTRACTS.md` → "Wiring the real ledger" (6 steps) |
 | Hand the project over | `docs/HANDOFF.md` |
 | Regenerate the mock earnings set | `node scripts/gen-mock-earnings.mjs` — seeded, so output is stable |
 | Wire the real earnings feed | `docs/DATA-CONTRACTS.md` → "Wiring the real feed" (3 files) |
@@ -3100,7 +3046,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which requests carry the reader's token | `authHeaders()` / `isMunshotApi()` in `js/core/host-context.js` — it is an allow-list and the default is no header. A third-party origin must never be added to it |
 | Change what the Worker does with a forwarded token | `withCallerToken()` in `worker/muns.mjs` + the one call in `worker/index.js` — a configured `MUNS_TOKEN` always wins, and these routes share a URL-keyed edge cache |
 | Add a server route | the API block in `worker/index.js` — return through `withTag` + `revalidate` so it is conditional like the rest |
-| Add/change a tab or sub-view | the module in `js/tabs/` or `js/portfolio/`, then `WORKSPACES` in `js/ui/shell.js` |
+| Add/change a tab or sub-view | the module in `js/tabs/`, then `WORKSPACES` in `js/ui/shell.js` |
 | Change avatar / tier / status-pill styling | `js/ui/visual.js` |
 | Change the header, sub-view picker or tab bar | `js/ui/shell.js` |
 | Add a row to the source registry | `js/ui/sources.js` (and `docs/DATA-CONTRACTS.md`) — both doors to it, the footer link and the lower-left beacon, pick it up with no further wiring |
@@ -3168,7 +3114,7 @@ and asserts the handshake from the host's side:
 It covers, beyond the checklist below:
 
 - shell renders with **zero console errors**
-- all 15 tabs across both workspaces render their panel
+- every Research Central tab renders its panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
   (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
@@ -3182,11 +3128,15 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
+- **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
+  Research Central with the URL corrected and the tab bar back, every deleted ledger module and
+  payload 404s on the served site, and no Ask Research source carries a ledger figure or a route
+  outside `#/research/`
 - **an answer survives leaving Ask Research**: a same-document navigation away mid-answer really
   unmounts the tab, the answer still arrives and is saved, it announces itself in the alert stack,
   and it is in the conversation when the reader returns with the composer clear — and an unsent
   draft survives both a tab change and a reload
-- **Ask Research keeps all fifteen evidence sources represented**, spends its budget on rows (every
+- **Ask Research keeps all fourteen evidence sources represented**, spends its budget on rows (every
   ready source with rows in scope lands at least one, nothing trimmed to make room), resolves a
   company named in lower case to its ticker and leads every carrying source with it, streams the
   dashboard answer,
@@ -3225,9 +3175,6 @@ It covers, beyond the checklist below:
   filter, and after a reload — and the glyph agrees with what is stored
 - **a sub-view's controls do not move when you change sub-view**: measured on both Earnings Hub
   views, same `x`, aligned to the title, below it rather than beside it
-- Portfolio Analytics carries **one provenance pill per sub-view** saying the ledger is
-  illustrative, the four-line ribbon is gone from the body, and the pill's modal still names the
-  generator script, the real prices and what the equity curve excludes
 - every con-call row's summary link is built on the **document** route, never the company route
   that needs a period we do not have — the shape every link 404'd with
 - the con-call panel and drill say the analysis is a third party's and **never print the
@@ -3254,11 +3201,6 @@ It covers, beyond the checklist below:
   reason it has none, no two lines collapse onto one symbol, the counts add up, every Portfolio-
   scoped row on Earnings Hub / Con-call / Breakouts resolves to a book ticker, and each of those
   pills prints the denominator
-- **the two portfolio identities**, computed against the shipped data: open lots sum to position
-  quantity on every ticker, and realised + unrealised + dividends equals total P&L per position
-- **max drawdown recomputed independently** of the module that produces it, agreeing to 4dp on both
-  the depth and the trough date
-- the no-live-price and no-price-history fallbacks say what is missing rather than showing zeros
 - **a landing costs no per-company request**: with a committed snapshot present, mounting a filings
   tab sends **zero** `/api/` requests, registers itself with the Refresh button instead, says how
   current the data is and how many companies have not been checked — and never claims nothing is new

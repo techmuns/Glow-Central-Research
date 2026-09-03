@@ -343,7 +343,6 @@ const routes = await page.evaluate(async () => {
       'tabs/nse-filings.js',
       'tabs/insider-trades.js',
     ],
-    portfolio: ['portfolio/overview.js', 'portfolio/position-by.js', 'portfolio/transactions.js', 'portfolio/drawdown.js'],
   };
   const out = [];
   for (const [ws, files] of Object.entries(REGISTRY)) {
@@ -397,21 +396,39 @@ ok('the sub-view picker is hidden for this single-view tab', await page.evaluate
   const m = document.getElementById('subview-mount');
   return !m || m.classList.contains('hidden') || !m.innerText.trim();
 }));
-// THE WORKSPACE SWITCHER IS GONE FROM THE CHROME. Only Research Central is offered, so there was
-// nothing left to pick — and it sat beside a scope toggle whose second option is also called
-// "Portfolio", which invited a genuine double-take.
+// THE WORKSPACE SWITCHER IS GONE FROM THE CHROME, AND SO IS THE SECOND WORKSPACE.
 //
-// Portfolio Analytics is hidden, not deleted: the four modules still route, so a saved
-// #/portfolio/... link resolves to the page it names rather than silently landing somewhere else.
-// That is checked below, because it is the half of this change that can quietly rot.
+// Portfolio Analytics was kept `hidden: true` for a while so a saved #/portfolio/... link would
+// still resolve to the page it named. That protected a bookmark and built a trap: with no switcher
+// there was nothing on the page that led back, and inside the host iframe there is no address bar
+// to edit, so a reader who followed an Ask Research citation into it was stuck on a screen of
+// invented money. The whole workspace, the FIFO engine and the mock ledger are deleted; the only
+// portfolio fact this dashboard carries is the synced book of company names.
 ok('the workspace switcher is gone from the chrome', (await page.locator('#workspace-mount').count()) === 0);
 {
-  // A hidden workspace still has to route. Deleting the entry instead of hiding it would make every
-  // saved link fall through to Research Central and show the reader a page they did not ask for.
-  await go('/#/portfolio/overview/positions?scope=universe', 2200);
-  const kept = await hostText();
-  ok('...but a saved Portfolio Analytics link still resolves to that page', /position|holding|P&L|drawdown/i.test(kept) && !/hit a snag/i.test(kept), kept.slice(0, 60));
-  ok('...and the URL is not rewritten to research', page.url().includes('/portfolio/'), page.url());
+  // An old link must land on a WORKING page with the URL corrected — never on a dead route, and
+  // never on a page with no way out of it.
+  await go('/#/portfolio/overview/positions?scope=universe', 2500);
+  const landed = await hostText();
+  ok('...and an old Portfolio Analytics link lands on Research Central instead',
+    !page.url().includes('/portfolio/') && /research/.test(page.url()), page.url());
+  ok('...on a page that renders, with the tab bar back', !/hit a snag/i.test(landed) && landed.trim().length > 120,
+    landed.slice(0, 60));
+  // The deleted modules must 404 on the served site, so a stale import cannot quietly come back.
+  // These 404s are the point of the check, not a symptom — see `expectError` at the top.
+  expectError(/js\/portfolio\/|js\/data\/portfolio\.js|data\/portfolio\.json|portfolio-history\.json|mock\/transactions\.json/);
+  const gone = await page.evaluate(async () => {
+    const served = [];
+    for (const f of ['js/portfolio/overview.js', 'js/portfolio/position-by.js', 'js/portfolio/transactions.js',
+                     'js/portfolio/drawdown.js', 'js/portfolio/lots.js', 'js/portfolio/chrome.js',
+                     'js/data/portfolio.js', 'data/portfolio.json', 'data/portfolio-history.json',
+                     'data/mock/transactions.json']) {
+      const res = await fetch(f, { cache: 'no-cache' }).catch(() => null);
+      if (res && res.ok) served.push(f);
+    }
+    return served;
+  });
+  ok('...and every deleted ledger module and payload is gone from the served site', gone.length === 0, gone.join(', '));
   await go('/#/research/earnings-hub?scope=universe', 2200);
 }
 ok('...and the content spans the full width', (await page.locator('#content-host').boundingBox()).width > 1200);
@@ -1328,8 +1345,8 @@ console.log('\n— AI alerts —');
       tokens: packet.selection.tokens,
     };
   });
-  ok('...assembles one status-bearing packet from all fifteen dashboard sources',
-    evidenceAudit.catalog === 15 && evidenceAudit.sources === 15 && evidenceAudit.ready > 0 &&
+  ok('...assembles one status-bearing packet from all fourteen dashboard sources',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
       evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the provider-facing packet inside the local model budget',
@@ -1340,8 +1357,15 @@ console.log('\n— AI alerts —');
   ok('...reads a generic question as generic — no scope or dashboard word becomes a ranking token or a company',
     evidenceAudit.tokens.length === 0 && evidenceAudit.companies.length === 0,
     `tokens: [${evidenceAudit.tokens.join(', ')}] · companies: [${evidenceAudit.companies.map((company) => company.ticker).join(', ')}]`);
-  ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
-    evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+  // The chatter feed is a DIRECT browser call to a third-party API (see "There is no /api/chatter"),
+  // so on a sandbox with no egress it is `unavailable` and contributes nothing. That is the
+  // environment, not the page — the honest answer is SKIP, exactly as the /api/ checks give.
+  if (/public-chatter:unavailable/.test(evidenceAudit.statuses.join(', '))) {
+    skip('...includes Public Chatter topics that cannot be resolved to dashboard tickers', 'the chatter API is unreachable from here');
+  } else {
+    ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+      evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+  }
 
   // A QUESTION THAT NAMES A COMPANY GETS THAT COMPANY, FROM EVERY SOURCE THAT CARRIES IT. Measured
   // against the shipped data rather than a fixture: the book company with events in the most
@@ -1384,41 +1408,29 @@ console.log('\n— AI alerts —');
     companyAudit.carrying?.length >= 2 && companyAudit.alertRows >= Math.min(companyAudit.alertFeeds, 2) && companyAudit.companyRowsFirst === true,
     `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} General Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
 
-  const watchlistPortfolioAudit = await evalSafe(async () => {
-    const { buildResearchEvidence } = await import('/js/research/estate.js');
-    const portfolio = await import('/js/data/portfolio.js');
-    const watchlist = await import('/js/core/watchlist.js');
-    await portfolio.load();
-    const member = portfolio.forScope('portfolio')[0];
-    watchlist.add(member.ticker, member.name);
-    try {
-      const packet = await buildResearchEvidence({ question: `Summarise ${member.ticker}`, scope: 'watchlist' });
-      const source = packet.sources.find((item) => item.id === 'portfolio');
-      return {
-        ticker: member.ticker,
-        rowCount: source.rowCount,
-        positionCount: source.summary?.positions,
-        marketValue: source.summary?.marketValueRupees,
-        expectedMarketValue: member.marketValue,
-        carriesWholeBookReturn: source.summary?.xirrPct != null || source.summary?.twrTotalPct != null || source.summary?.maxDrawdownPct != null,
-      };
-    } finally {
-      watchlist.remove(member.ticker);
-    }
+  // THE MOCK LEDGER IS NOT EVIDENCE. It used to be the fifteenth source — invented quantities and
+  // costs, marked live, summarised into XIRR/TWR/drawdown and streamed to the model, which then
+  // cited "Portfolio Analytics" with a link into the hidden workspace nobody could get out of.
+  const ledgerAudit = await evalSafe(async () => {
+    const { DASHBOARD_RESEARCH_SOURCES, buildResearchEvidence } = await import('/js/research/estate.js');
+    const packet = await buildResearchEvidence({ question: 'What is my portfolio worth?', scope: 'portfolio' });
+    const money = /marketValueRupees|investedRupees|unrealisedPnl|xirrPct|twrTotalPct|averageCostRupees/;
+    return {
+      registered: DASHBOARD_RESEARCH_SOURCES.filter((source) => /portfolio analytics/i.test(source.tab) || source.id === 'portfolio').map((source) => source.id),
+      routes: DASHBOARD_RESEARCH_SOURCES.filter((source) => /#\/portfolio\//.test(source.route)).map((source) => source.id),
+      valuationKeys: money.test(JSON.stringify(packet.sources)),
+    };
   });
-  ok('...recomputes Watchlist portfolio totals from only the filtered ticker rows',
-    watchlistPortfolioAudit.rowCount === 1 &&
-      watchlistPortfolioAudit.positionCount === 1 &&
-      Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
-      watchlistPortfolioAudit.carriesWholeBookReturn === false,
-    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position · ₹${watchlistPortfolioAudit.marketValue}`);
+  ok('...carries no ledger source, no valuation figure and no route into the deleted workspace',
+    ledgerAudit.registered?.length === 0 && ledgerAudit.routes?.length === 0 && ledgerAudit.valuationKeys === false,
+    `${ledgerAudit.registered?.join(', ') || 'no ledger source'}${ledgerAudit.valuationKeys ? ' · valuation keys present' : ''}`);
 
   await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();
   await page.waitForFunction(() => /Dashboard evidence remains traceable/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
   const researchAnswer = await page.locator('[data-research-transcript]').innerText();
   ok('...submits the complete dashboard packet without claiming unsupported web research',
-    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 15 && askRequest?.evidence?.sources?.length === 15,
+    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
     `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
   ok('...renders the streamed dashboard answer without a fabricated web source',
     /dashboard research/i.test(researchAnswer) &&
@@ -2866,7 +2878,7 @@ const srcLive = await page.evaluate(async () => {
   const [cov, ec] = [await import('/js/data/coverage.js'), await import('/js/data/earnings-live.js')];
   return { book: cov.meta().count, uncovered: cov.meta().uncovered, reported: ec.all().length };
 });
-ok('the book count in Sources is read live, not typed', new RegExp(`\\b${srcLive.book} companies from the family office`).test(sources), `${srcLive.book} expected`);
+ok('the book count in Sources is read live, not typed', new RegExp(`\\b${srcLive.book} company lines read from the family office`).test(sources), `${srcLive.book} expected`);
 ok('...as is the count of lines with no NSE symbol', new RegExp(`\\b${srcLive.uncovered} lines carry no NSE symbol`).test(sources), `${srcLive.uncovered} expected`);
 if (srcLive.reported > 0) {
   ok('...and the reported-companies count matches the feed', sources.includes(`${srcLive.reported.toLocaleString('en-US')} in the current pull`), `${srcLive.reported} expected`);
@@ -3659,8 +3671,9 @@ ok('...and credits SentimentDash for the sentiment', /SentimentDash/.test(chatte
 // ---------------------------------------------------------------------------------------
 // 8b. The book — 142 company lines, and the promise that none of them is silently missing.
 //
-// "Portfolio" used to mean the twelve positions in the ledger. It now means the family's actual
-// direct-equity book, and the thing the reader was worried about is a holding quietly vanishing
+// "Portfolio" used to mean the twelve positions in a mock ledger. It now means the family's actual
+// direct-equity book — names and sectors, no quantity, no cost, no valuation — and the thing the
+// reader was worried about is a holding quietly vanishing
 // between the statement and the screen. So the checks here are about completeness and about
 // honesty when a feed cannot carry a line:
 //
@@ -3669,7 +3682,8 @@ ok('...and credits SentimentDash for the sentiment', /SentimentDash/.test(chatte
 //     Logistics are separately listed and both matched ALLCARGO);
 //   • a Portfolio-scoped table shows ONLY book companies, and never leaks a non-holding;
 //   • the scope pill prints the denominator, so 96 rows can never read as "the book is 96 long";
-//   • the ledger is untouched — Portfolio Analytics still reconciles against its own file.
+//   • the book is now the ONLY portfolio information here — the ledger and the Portfolio
+//     Analytics workspace it fed are deleted, checked at the top of this file.
 // ---------------------------------------------------------------------------------------
 console.log('\n— the book —');
 await go('/#/research/earnings-hub?scope=portfolio', 3000);
@@ -4947,293 +4961,14 @@ for (const [hash, label] of [
 }
 
 // ---------------------------------------------------------------------------------------
-// 11. Portfolio Analytics — the two reconciliation identities, asserted NUMERICALLY
-//
-// These are the checks the whole workspace rests on. They run against the live module in the
-// page, not against a fixture, so they fail if the shipped data and the shipped code disagree.
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: reconciliation —');
-await go('/#/portfolio/overview/positions?scope=universe', 1800);
-
-const recon = await page.evaluate(async () => {
-  const pf = await import('/js/data/portfolio.js');
-  const lots = await import('/js/portfolio/lots.js');
-  await pf.load();
-  const positions = pf.positions();
-  const s = pf.summary();
-  const book = pf.book();
-
-  // IDENTITY 1 — sum of open lot quantities === position quantity, per ticker.
-  const lotMismatches = positions
-    .map((p) => ({ t: p.ticker, lots: p.lots.reduce((a, l) => a + l.openQty, 0), qty: p.qty }))
-    .filter((r) => r.lots !== r.qty);
-
-  // ...and the same again against the holdings config, so the file and the replay agree too.
-  const configMismatches = pf
-    .holdingsConfig()
-    .map((h) => ({ t: h.ticker, cfg: h.qty, replay: pf.byTicker(h.ticker)?.qty ?? null }))
-    .filter((r) => r.cfg !== r.replay);
-
-  // IDENTITY 2 — realised + unrealised + dividends === total P&L, to the paisa.
-  const rebuilt = positions.reduce((a, p) => a + p.realised + p.unrealised + p.dividends, 0);
-  const residual = Math.abs(rebuilt - s.totalPnl);
-
-  // Per-position too: a portfolio total can net two opposite errors to zero.
-  const perPosition = positions
-    .map((p) => ({ t: p.ticker, d: Math.abs(p.totalPnl - (p.realised + p.unrealised + p.dividends)) }))
-    .filter((r) => r.d > 0.011);
-
-  // Every realised row's own arithmetic: pnl === proceeds - cost.
-  const badRows = book.realised.filter((r) => Math.abs(r.pnl - (r.proceeds - r.cost)) > 0.011);
-
-  // Every sold quantity is accounted for by lot matches.
-  const sells = pf.transactions().filter((t) => String(t.type).toLowerCase() === 'sell');
-  const unmatchedSells = sells.filter((t) => {
-    const matched = book.realised.filter((r) => r.sellId === t.id).reduce((a, r) => a + r.qty, 0);
-    return matched !== t.qty;
-  });
-
-  // Corporate actions preserve total cost: quantity × cost-per-share is invariant.
-  const caTickers = [...new Set(book.events.filter((e) => e.kind === 'bonus' || e.kind === 'split').map((e) => e.ticker))];
-
-  // A purpose-built fixture for the paths the shipped ledger cannot exercise on its own.
-  const fixture = lots.replay([
-    { id: 'f1', date: '2024-01-10', ticker: 'ZZZ', type: 'Buy', qty: 100, price: 200, value: 20000, charges: 0 },
-    { id: 'f2', date: '2024-06-10', ticker: 'ZZZ', type: 'Bonus', qty: 100, price: 0, value: 0, ratio: 2 },
-    { id: 'f3', date: '2025-06-10', ticker: 'ZZZ', type: 'Sell', qty: 50, price: 150, value: 7500, charges: 0 },
-    { id: 'f4', date: '2024-02-01', ticker: 'YYY', type: 'Sell', qty: 10, price: 100, value: 1000, charges: 0 },
-    { id: 'f5', date: '2024-02-02', ticker: 'XXX', type: 'Teleport', qty: 1, price: 1, value: 1 },
-  ]);
-  const zzz = fixture.byTicker.get('ZZZ');
-  const zzzRow = fixture.realised[0];
-
-  return {
-    tickerCount: positions.length,
-    lotMismatches, configMismatches, residual, perPosition,
-    badRowCount: badRows.length, unmatchedSellCount: unmatchedSells.length, sellCount: sells.length,
-    lotMatchCount: book.realised.length, replayErrors: book.errors.length,
-    caTickers,
-    caCostPreserved: caTickers.every((t) => {
-      const ev = book.events.find((e) => e.ticker === t && (e.kind === 'bonus' || e.kind === 'split'));
-      return ev && ev.qtyAfter === Math.round(ev.qtyBefore * ev.ratio);
-    }),
-    // fixture expectations
-    fxQty: zzz.qty,                       // 100 → bonus ×2 = 200 → sell 50 = 150
-    fxCost: zzz.invested,                 // total cost unchanged at 20,000 − the 50 sold
-    fxBuyDate: zzzRow?.buyDate,           // bonus shares keep the ORIGINAL acquisition date
-    fxTerm: zzzRow?.term,                 // 2024-01-10 → 2025-06-10 is long term
-    fxErrors: fixture.errors.map((e) => e.reason),
-    // summary sanity
-    xirr: s.xirr, twr: s.twr?.total, maxDD: s.maxDrawdown, coverage: pf.equityCurve()?.coverage,
-    unpriced: s.reconciliation.unpricedTickers,
-  };
-});
-
-ok('IDENTITY 1: open lots sum to position qty on every ticker', recon.lotMismatches.length === 0,
-   recon.lotMismatches.map((r) => `${r.t} ${r.lots}!=${r.qty}`).join(', ') || `${recon.tickerCount} tickers`);
-ok('...and portfolio.json agrees with the replay', recon.configMismatches.length === 0,
-   recon.configMismatches.map((r) => `${r.t} ${r.cfg}!=${r.replay}`).join(', '));
-ok('IDENTITY 2: realised + unrealised + dividends === total P&L', recon.residual < 0.011, `residual ${recon.residual}`);
-ok('...per position, not just in aggregate', recon.perPosition.length === 0,
-   recon.perPosition.map((r) => `${r.t} ${r.d}`).join(', '));
-ok('every realised row: pnl === proceeds − cost', recon.badRowCount === 0, `${recon.lotMatchCount} lot matches checked`);
-ok('every sold share is matched to a lot', recon.unmatchedSellCount === 0, `${recon.sellCount} sells`);
-ok('the ledger replays with no rejected rows', recon.replayErrors === 0, `${recon.replayErrors} errors`);
-ok('corporate actions multiply quantity exactly', recon.caCostPreserved && recon.caTickers.length > 0, recon.caTickers.join(', '));
-
-console.log('\n— portfolio: FIFO fixture —');
-ok('bonus doubles quantity (100 → 200, less 50 sold = 150)', recon.fxQty === 150, `got ${recon.fxQty}`);
-ok('bonus preserves total cost, so 150 shares cost 15,000', Math.abs(recon.fxCost - 15000) < 0.011, `got ${recon.fxCost}`);
-ok('bonus shares inherit the ORIGINAL acquisition date', recon.fxBuyDate === '2024-01-10', `got ${recon.fxBuyDate}`);
-ok('...so the gain is classified long term', recon.fxTerm === 'long', `got ${recon.fxTerm}`);
-ok('a sell with no holding is reported, not dropped', recon.fxErrors.some((r) => /exceeds/.test(r)), recon.fxErrors.join(' | '));
-ok('an unknown transaction type is reported, not dropped', recon.fxErrors.some((r) => /unknown type/.test(r)), recon.fxErrors.join(' | '));
-
-// ---------------------------------------------------------------------------------------
-// 12. Equity curve — bounds, and an INDEPENDENT recompute of max drawdown
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: equity curve —');
-const curveChecks = await page.evaluate(async () => {
-  const pf = await import('/js/data/portfolio.js');
-  await pf.load();
-  const c = pf.equityCurve();
-  const pts = c.points;
-
-  // Recomputed from scratch here, deliberately not sharing a line of code with the module.
-  let peak = -Infinity, worst = 0, worstAt = null;
-  for (const p of pts) { if (p.value > peak) peak = p.value; const d = ((p.value - peak) / peak) * 100; if (d < worst) { worst = d; worstAt = p.d; } }
-
-  return {
-    days: pts.length,
-    nonFinite: pts.filter((p) => !Number.isFinite(p.value)).length,
-    negative: pts.filter((p) => p.value < 0).length,
-    monotonicDates: pts.every((p, i) => i === 0 || p.d > pts[i - 1].d),
-    valueEqualsParts: pts.filter((p) => Math.abs(p.value - (p.holdings + p.excludedCost + p.cash)) > 0.011).length,
-    cashNeverFalls: pts.every((p, i) => i === 0 || p.cash >= pts[i - 1].cash - 0.011),
-    moduleMaxDD: c.maxDrawdown, independentMaxDD: worst,
-    moduleTrough: c.maxDrawdownTrough, independentTrough: worstAt,
-    ddInRange: c.drawdown.every((d) => d.dd <= 0.0001 && d.dd >= -100),
-    holdingsDD: c.maxHoldingsDrawdown,
-    excluded: c.excluded, coverage: c.coverage,
-    benchDays: c.benchmark?.points.length ?? 0,
-    from: c.from, to: c.to,
-  };
-});
-
-ok('curve has one point per trading day, dates strictly increasing', curveChecks.monotonicDates && curveChecks.days > 700, `${curveChecks.days} days, ${curveChecks.from} → ${curveChecks.to}`);
-ok('no non-finite or negative portfolio values', curveChecks.nonFinite === 0 && curveChecks.negative === 0);
-ok('value === holdings + excluded-at-cost + cash, every day', curveChecks.valueEqualsParts === 0, `${curveChecks.valueEqualsParts} days off`);
-ok('cash never decreases (proceeds are retained, never reinvested)', curveChecks.cashNeverFalls);
-ok('drawdown is always in (−100%, 0]', curveChecks.ddInRange);
-ok('INDEPENDENT recompute agrees on max drawdown', Math.abs(curveChecks.moduleMaxDD - curveChecks.independentMaxDD) < 0.0001,
-   `module ${curveChecks.moduleMaxDD.toFixed(4)}% vs recomputed ${curveChecks.independentMaxDD.toFixed(4)}%`);
-ok('...and on the trough date', curveChecks.moduleTrough === curveChecks.independentTrough, `${curveChecks.moduleTrough} vs ${curveChecks.independentTrough}`);
-ok('holdings-only drawdown is deeper than the total (cash dampens it)', curveChecks.holdingsDD < curveChecks.moduleMaxDD,
-   `holdings ${curveChecks.holdingsDD.toFixed(2)}% vs total ${curveChecks.moduleMaxDD.toFixed(2)}%`);
-ok('benchmark covers the same window', curveChecks.benchDays === curveChecks.days, `${curveChecks.benchDays} benchmark points`);
-ok('excluded tickers are named, and coverage is reported', curveChecks.coverage > 0 && curveChecks.coverage <= 100,
-   `${curveChecks.coverage.toFixed(1)}% priced, excludes ${curveChecks.excluded.join(', ') || 'nothing'}`);
-
-// ---------------------------------------------------------------------------------------
-// 12b. Provenance on this workspace, without the ribbon
-//
-// A four-line amber block used to head all four sub-views: two pills, a paragraph naming the
-// generator script, the mark's age, the curve's window and the excluded tickers. It was the
-// first thing anyone saw here, above the money, on every view. The Earnings Hub rule applies —
-// decluttering a page is fine, deleting its accountability is not — so what is asserted is the
-// pair: the paragraph is gone from the body, and the claim stays on the face as a passive label.
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: provenance —');
-for (const [route, label] of [
-  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
-  ['/#/portfolio/overview/allocation?scope=universe', 'allocation'],
-  ['/#/portfolio/position-by/sector?scope=universe', 'position-by'],
-  ['/#/portfolio/transactions/trades?scope=universe', 'trades'],
-  ['/#/portfolio/drawdown/curve?scope=universe', 'drawdown'],
-]) {
-  await go(route, 2000);
-  const pills = await page.locator('#content-host [data-pf-info]').count();
-  const txt = await hostText();
-  ok(`${label}: carries exactly one provenance pill`, pills === 1, `${pills} pills`);
-  ok(`${label}: ...saying the ledger is illustrative on its face`, /Illustrative ledger/i.test(txt));
-  ok(`${label}: ...and no longer spends four lines saying it`, !/Which trades were made/.test(txt));
-}
-{
-  await page.locator('#content-host [data-pf-info]').first().click();
-  await page.waitForTimeout(200);
-  ok('the portfolio provenance label opens no explainer popup',
-    (await page.locator('#content-host [data-pf-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
-      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
-}
-
-// ---------------------------------------------------------------------------------------
-// 13. The no-live-price fallback must be loud, not silent
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: no-live-price fallback —');
-{
-  const fb = await context.newPage();
-  const fbErrors = [];
-  fb.on('pageerror', (e) => fbErrors.push(String(e.message)));
-  await fb.route('**/data/technicals.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  // `domcontentloaded`, not `networkidle`, because optional external resources and long-lived
-  // requests need not settle. The explicit settle below is what this check actually needs.
-  await fb.goto(`${BASE}/#/portfolio/overview/positions?scope=universe`, { waitUntil: 'domcontentloaded' });
-  await fb.waitForTimeout(2200);
-  const t = await fb.locator('#content-host').innerText();
-  // The label's FACE changes in this state: a position shown at
-  // cost reports a P&L of exactly zero, and a zero meaning "no price" must not look like a zero
-  // meaning "flat". A caveat one click away would not be read in time to stop that.
-  ok('a missing mark says so rather than showing zeros', /Marks unavailable/.test(t));
-  ok('...on the face of the pill, not only inside it', /Marks unavailable/.test(await fb.locator('[data-pf-info]').first().innerText()));
-  ok('...and every row is tagged "at cost"', /AT COST/i.test(t));
-  // Ours only. Optional external-resource failures are filtered by `ownError` above.
-  const fbOwn = fbErrors.filter(ownError);
-  ok('...without throwing', fbOwn.length === 0, fbOwn.join(' | ') || `${fbErrors.length - fbOwn.length} CDN error(s) ignored`);
-  await fb.close();
-
-  const nh = await context.newPage();
-  await nh.route('**/data/portfolio-history.json', (r) => r.fulfill({ status: 404, body: 'gone' }));
-  await nh.goto(`${BASE}/#/portfolio/drawdown/curve?scope=universe`, { waitUntil: 'domcontentloaded' });
-  await nh.waitForTimeout(2200);
-  const dt = await nh.locator('#content-host').innerText();
-  ok('a missing price history refuses to show a drawdown', /No price history, so no drawdown/.test(dt));
-  ok('...and names how to produce it', /scrape-portfolio-history/.test(dt));
-  await nh.close();
-}
-
-// ---------------------------------------------------------------------------------------
-// 14. Group-by, the CSV round trip, and the portfolio exports
-// ---------------------------------------------------------------------------------------
-console.log('\n— portfolio: group-by and CSV —');
-for (const [sub, label, unit] of [['sector', 'sector', 'positions'], ['conviction', 'conviction', 'positions'], ['holding-period', 'holding period', 'lots'], ['pnl-band', 'P&L band', 'positions']]) {
-  await go(`/#/portfolio/position-by/${sub}?scope=universe`, 1500);
-  const rows = await page.locator('#content-host table').first().locator('tbody tr').count();
-  const txt = await hostText();
-  ok(`group by ${label} produces groups`, rows >= 2, `${rows} groups`);
-  ok(`...counted in ${unit}`, new RegExp(unit === 'lots' ? 'lots' : 'positions', 'i').test(txt));
-}
-{
-  await go('/#/portfolio/position-by/sector?scope=universe', 1500);
-  const weights = await page.evaluate(() => [...document.querySelectorAll('#content-host table')][0].querySelectorAll('tbody tr'))
-    .then(() => page.evaluate(() => {
-      const cells = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.innerText.match(/(\d+\.\d)%/g)).filter(Boolean);
-      return cells.length;
-    }));
-  ok('every group carries a weight', weights > 0, `${weights} rows with a % figure`);
-}
-
-await go('/#/portfolio/transactions/import?scope=universe', 1600);
-{
-  const dl = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
-  await page.locator('#csv-download').click();
-  const file = await dl;
-  ok('the ledger downloads as CSV', !!file, file?.suggestedFilename() || 'no download');
-  if (file) {
-    const path = await file.path();
-    const { readFileSync } = await import('node:fs');
-    const csv = readFileSync(path, 'utf8');
-    const lines = csv.trim().split('\n');
-    ok('CSV header matches the documented columns', lines[0] === 'id,date,ticker,name,type,qty,price,value,charges,ratio', lines[0]);
-    await page.locator('#csv-file').setInputFiles(path);
-    await page.waitForTimeout(900);
-    const preview = await page.locator('#import-result').innerText();
-    ok('round-tripping the CSV parses every row back', new RegExp(`${lines.length - 1} rows parsed`).test(preview), preview.split('\n').find((l) => /parsed/.test(l)) || '');
-    ok('...with nothing rejected', !/rejected/.test(preview));
-  }
-}
-{
-  const { writeFileSync } = await import('node:fs');
-  const bad = `${process.env.TMPDIR || '/tmp'}/sattva-bad-import.csv`;
-  writeFileSync(bad, ['id,date,ticker,name,type,qty,price', 'b1,2024-13-45,INFY,Infosys,Buy,10,1500', 'b2,2024-05-06,,Infosys,Buy,10,1500', 'b3,2024-05-06,INFY,Infosys,Teleport,10,1500', 'b4,2024-05-06,INFY,Infosys,Buy,10,1500'].join('\n'));
-  await page.locator('#csv-file').setInputFiles(bad);
-  await page.waitForTimeout(900);
-  const preview = await page.locator('#import-result').innerText();
-  ok('a malformed CSV names every rejected row', /3 rejected/.test(preview), preview.split('\n').find((l) => /rejected/.test(l)) || '');
-  ok('...including an impossible calendar date', /not a valid YYYY-MM-DD/.test(preview));
-  ok('...and still applies the good row', /1 row parsed/.test(preview));
-}
-
-for (const [hash, label] of [
-  ['/#/portfolio/overview/positions?scope=universe', 'positions'],
-  ['/#/portfolio/overview/realised?scope=universe', 'realised'],
-  ['/#/portfolio/drawdown/episodes?scope=universe', 'drawdown episodes'],
-]) {
-  await go(hash, 1600);
-  const dl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
-  await page.locator('#content-host button:has-text("Export")').first().click();
-  const file = await dl;
-  await downloadOrSkip(`${label} export downloads`, file);
-}
-
-// ---------------------------------------------------------------------------------------
-// 15. Accessibility — table semantics and overlay focus management
+// 11. Accessibility — table semantics and overlay focus management
 // ---------------------------------------------------------------------------------------
 console.log('\n— accessibility —');
 {
   let totalTh = 0, missing = 0;
   for (const hash of ['/#/research/earnings-hub?scope=universe', '/#/research/breakouts/technical-scanner?scope=universe',
-                      '/#/portfolio/overview/positions?scope=universe', '/#/portfolio/transactions/trades?scope=universe',
-                      '/#/portfolio/position-by/holding-period?scope=universe']) {
+                      '/#/research/super-investors/institutions?scope=universe', '/#/research/insider-trades?scope=universe',
+                      '/#/research/corp-announcements?scope=universe']) {
     await go(hash, 1300);
     const r = await page.evaluate(() => { const th = [...document.querySelectorAll('#content-host th')]; return [th.length, th.filter((t) => !t.hasAttribute('scope')).length]; });
     totalTh += r[0]; missing += r[1];
@@ -5241,7 +4976,7 @@ console.log('\n— accessibility —');
   ok('every table header carries scope="col"', missing === 0, `${totalTh} headers checked, ${missing} missing`);
 }
 {
-  await go('/#/portfolio/overview/positions?scope=universe', 1600);
+  await go('/#/research/breakouts/technical-scanner?scope=universe', 2600);
   await page.locator('#content-host tbody tr').first().click();
   await page.waitForTimeout(500);
   const st = await page.evaluate(() => { const d = document.getElementById('drill-panel'); return { role: d.getAttribute('role'), modal: d.getAttribute('aria-modal'), inside: d.contains(document.activeElement) }; });
@@ -6968,10 +6703,11 @@ console.log('\n— twitter / x as a news source —');
 console.log('\n— sub-view picker and the removed roadmap card —');
 {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // Only two tabs have sub-views now: Breakouts (four) and Super Investors (two). Portfolio
+  // Overview was the third and is deleted along with the rest of that workspace.
   const WITH_SUBVIEWS = [
     ['/#/research/breakouts?scope=universe', 'breakouts'],
     ['/#/research/super-investors?scope=universe', 'super-investors'],
-    ['/#/portfolio/overview?scope=universe', 'portfolio overview'],
   ];
   const WITHOUT = [
     ['/#/research/earnings-hub?scope=universe', 'earnings hub'],
@@ -7191,7 +6927,6 @@ const noStore = await page.evaluate(async () => {
   const files = [
     'js/app.js',
     'js/data/technicals.js',
-    'js/data/portfolio.js',
     'js/data/earnings.js',
     'js/data/chatter-live.js',
     'js/data/earnings-live.js',
@@ -7207,9 +6942,9 @@ const noStore = await page.evaluate(async () => {
     if (!res.ok) { missing.push(f); continue; }
     if (/cache:\s*'no-store'/.test(await res.text())) out.push(f);
   }
-  return { out, missing };
+  return { out, missing, read: files.length - missing.length };
 });
-ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${10} read`);
+ok('every loader this check names still exists', noStore.missing.length === 0, noStore.missing.join(', ') || `${noStore.read} read`);
 ok('no static-file loader still uses cache: no-store', noStore.out.length === 0, noStore.out.join(', '));
 
 // ---------------------------------------------------------------------------------------

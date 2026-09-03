@@ -40,7 +40,6 @@ import * as investors from '../data/super-investors.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
-import * as portfolio from '../data/portfolio.js';
 import { providerEvidenceChars } from './evidence-shared.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 
@@ -59,7 +58,6 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'market-news', tab: 'News', route: '#/research/news', description: 'Market-wide Moneycontrol stories; intentionally not company-scopeable.' },
   { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE filings in the exchange-wide retained capture.' },
   { id: 'insider-trades', tab: 'Insider Trades', route: '#/research/insider-trades', description: 'Insider and promoter disclosures in the upstream\'s own vocabulary.' },
-  { id: 'portfolio', tab: 'Portfolio Analytics', route: '#/portfolio/overview/positions', description: 'FIFO positions, marked values, returns and drawdown from the hidden but routable portfolio workspace.' },
 ];
 
 const SOURCE_BY_ID = new Map(DASHBOARD_RESEARCH_SOURCES.map((source) => [source.id, source]));
@@ -169,7 +167,6 @@ function companyIndex(deferred) {
   if (technicals.isLoaded()) for (const s of technicals.all()) add(s.company?.ticker, s.company?.name);
   if (concalls.isLoaded()) for (const r of concalls.all()) add(r.ticker, r.name);
   if (institutions.isLoaded()) for (const fund of institutions.all()) for (const h of fund.holdings || []) add(h.ticker, h.name);
-  if (portfolio.isLoaded()) for (const p of portfolio.positions()) add(p.ticker, p.name);
   return [...byTicker.values()].map((entry) => ({ ...entry, aliases: [...entry.aliases] }));
 }
 
@@ -585,97 +582,6 @@ function institutionRow(fund, holding) {
   };
 }
 
-function portfolioRow(row) {
-  return {
-    ticker: row.ticker,
-    company: clipped(row.name, 60),
-    sector: row.sector || null,
-    conviction: row.convictionTier || null,
-    quantity: row.qty,
-    averageCostRupees: round(row.avgPrice),
-    lastPriceRupees: round(row.lastPrice),
-    livePriced: !!row.priced,
-    investedRupees: round(row.invested),
-    marketValueRupees: round(row.marketValue),
-    weightPct: round(row.weight),
-    unrealisedPnlRupees: round(row.unrealised),
-    unrealisedPnlPct: round(row.unrealisedPct),
-    realisedPnlRupees: round(row.realised),
-    totalPnlRupees: round(row.totalPnl),
-  };
-}
-
-/** One shape for the whole-book summary and the Watchlist recomputation, rounded and unit-named. */
-function portfolioSummaryPacket(s) {
-  if (!s) return null;
-  return {
-    investedRupees: round(s.invested),
-    marketValueRupees: round(s.marketValue),
-    unrealisedRupees: round(s.unrealised),
-    unrealisedPct: round(s.unrealisedPct),
-    realisedRupees: round(s.realised),
-    dividendsRupees: round(s.dividends),
-    totalPnlRupees: round(s.totalPnl),
-    totalPnlPct: round(s.totalPnlPct),
-    positions: s.positionCount ?? null,
-    closed: s.closedCount ?? null,
-    winners: s.winnerCount ?? null,
-    losers: s.loserCount ?? null,
-    unpricedAtCost: s.reconciliation?.unpricedTickers || [],
-    xirrPct: round(s.xirr),
-    twrTotalPct: round(s.twr?.total),
-    twrAnnualisedPct: round(s.twr?.annualised),
-    benchmarkReturnPct: round(s.benchmarkReturn),
-    maxDrawdownPct: round(s.maxDrawdown),
-    maxHoldingsDrawdownPct: round(s.maxHoldingsDrawdown),
-    // Only worth a line when it is not clean: the Overview shows the measured residual rather than
-    // claiming correctness in prose, and so does this.
-    reconciliationResidual: s.reconciliation && (round(s.reconciliation.residual) !== 0 || s.reconciliation.lotsBalance === false) ? round(s.reconciliation.residual) : null,
-  };
-}
-
-function portfolioScopeSummary(rows) {
-  const open = rows.filter((row) => row.qty > 0);
-  const total = (set, key) => round(set.reduce((sum, row) => sum + (Number(row[key]) || 0), 0));
-  const invested = total(open, 'invested');
-  const marketValue = total(open, 'marketValue');
-  const unrealised = total(open, 'unrealised');
-  const realised = total(rows, 'realised');
-  const dividends = total(rows, 'dividends');
-  const charges = total(rows, 'charges');
-  const totalPnl = round(unrealised + realised + dividends);
-  const unpriced = open.filter((row) => !row.priced);
-  return {
-    invested,
-    marketValue,
-    unrealised,
-    unrealisedPct: invested ? round((unrealised / invested) * 100) : 0,
-    realised,
-    realisedShort: total(rows, 'realisedShort'),
-    realisedLong: total(rows, 'realisedLong'),
-    dividends,
-    charges,
-    totalPnl,
-    totalPnlPct: invested ? round((totalPnl / invested) * 100) : 0,
-    positionCount: open.length,
-    closedCount: rows.filter((row) => row.isClosed).length,
-    winnerCount: open.filter((row) => row.priced && row.unrealised > 0).length,
-    loserCount: open.filter((row) => row.priced && row.unrealised < 0).length,
-    unpricedCount: unpriced.length,
-    lotCount: open.reduce((sum, row) => sum + (row.lots?.length || 0), 0),
-    reconciliation: {
-      realised,
-      unrealised,
-      dividends,
-      totalPnl,
-      residual: round(totalPnl - (realised + unrealised + dividends)),
-      lotsBalance: rows.every((row) => (row.lots || []).reduce((sum, lot) => sum + (lot.openQty || 0), 0) === row.qty),
-      unpricedCount: unpriced.length,
-      unpricedTickers: unpriced.map((row) => row.ticker),
-    },
-  };
-}
-
 const byDateDesc = (key) => (a, b) => String(b[key] || '').localeCompare(String(a[key] || ''));
 const byDateTimeDesc = (a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`);
 
@@ -976,27 +882,6 @@ const BUILDERS = [
         coverage: { coveredCompanies: meta.covered, failedCompanies: meta.failed, windowDays: meta.windowDays },
         definition: 'Transaction wording is the upstream\'s; no dashboard sentiment or materiality score is attached.',
         ...chooseRows(rows, plan, insiderRow, byDateDesc('date')),
-      });
-    },
-  },
-  {
-    id: 'portfolio',
-    load: () => portfolio.load(),
-    read({ scope, plan }) {
-      const wanted = scope === 'watchlist' ? watchlist.tickers() : null;
-      const base = portfolio.forScope(scope);
-      const rows = wanted ? base.filter((row) => wanted.has(row.ticker)) : base;
-      const meta = portfolio.meta() || {};
-      const summary = scope === 'watchlist' ? portfolioScopeSummary(rows) : portfolio.summary();
-      return sourcePacket(this.id, {
-        source: `Portfolio ledger + ${meta.priceSource || 'technical marks'} + ${meta.historySource || 'price history'}`,
-        asOf: meta.asOf || meta.pricedAt || null,
-        rowCount: rows.length,
-        coverage: { tradingDays: meta.tradingDays, curveCoveragePct: scope === 'watchlist' ? null : round(meta.coverage) },
-        summary: portfolioSummaryPacket(summary),
-        definition: `Ledger is MOCK; execution prices and history are real closes; marks from the technicals feed. Unpriced positions are carried at cost, not zero.${scope === 'watchlist' ? ' Watchlist totals are recomputed from its ticker rows only; XIRR, TWR, benchmark and drawdown are omitted.' : ''}`,
-        dataQuality: 'mixed real and mock, explicitly separated',
-        ...chooseRows(rows, plan, portfolioRow, (a, b) => (b.marketValueRupees ?? 0) - (a.marketValueRupees ?? 0)),
       });
     },
   },

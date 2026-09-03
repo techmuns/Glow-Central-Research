@@ -1,6 +1,6 @@
 # Sattva Central Research — Product Spec
 
-An Indian-equities research and portfolio analytics dashboard. Static runtime, no bundler,
+An Indian-equities research dashboard. Static runtime, no bundler,
 no framework, no npm dependencies for the app itself. Tailwind is precompiled into a committed
 same-origin stylesheet, so deployment still serves `public/` directly. Hosted as a Cloudflare
 Worker that serves those assets and the live `/api/*` routes.
@@ -12,15 +12,21 @@ Worker that serves those assets and the live `/api/*` routes.
 Three levels, so nothing important is ever more than two clicks away and the user never has
 to scroll to find a section.
 
-### (a) Workspace — no switcher in the chrome
+### (a) Workspace — one, and no switcher
 
-Only Research Central is offered, so there is nothing to pick; the control is gone from the
-header. Portfolio Analytics still routes by URL (`WORKSPACES` marks it `hidden: true`).
+Research Central is the only workspace, so there is nothing to pick and the control is gone from
+the header.
 
 | Workspace | id | Default |
 | --- | --- | --- |
 | Research Central | `research` | ✅ |
-| Portfolio Analytics | `portfolio` | |
+
+**Portfolio Analytics is deleted.** It was four modules over an illustrative ledger, kept
+`hidden: true` — routable but not clickable — which is precisely what trapped a reader who
+followed an Ask Research citation into it: with no switcher, nothing on the page led back, and
+inside the host iframe there is no address bar. An unknown workspace now falls through to Research
+Central and the URL is corrected. **Portfolio here means the book of company names and nothing
+else.** The modules and the mock ledger are in git history at `d3bba30`.
 
 ### (b) Section — top tabs
 
@@ -38,13 +44,8 @@ inactive slate with hover. Order is fixed:
 8. Super Investors
 9. News
 10. Corp Announcements
-11. Insider Trades
-
-**Portfolio Analytics**
-1. Overview
-2. Position By
-3. Transaction History
-4. Drawdown
+11. NSE Filings
+12. Insider Trades
 
 ### (c) Sub-view — one dropdown, at every width
 
@@ -62,14 +63,9 @@ spans the full 1400px on every tab.
 | Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
 | Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation · Earnings Surprise |
 | Super Investors | Superstar Investors · Institutions |
-| News · Corp Announcements · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
-| Overview | Positions · Allocation |
-| Position By | Sector · Market Cap · Conviction |
-| Transaction History | All · Buys · Sells |
-| Drawdown | Portfolio · Per Position |
+| News · Corp Announcements · NSE Filings · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
 
-Portfolio Analytics' four tabs are built and still route by URL, but the workspace switcher has been
-removed from the chrome, so Research Central's tabs are the whole navigation for now.
+Only Breakouts and Super Investors have sub-views; every other tab hides the picker entirely.
 
 **Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
@@ -121,7 +117,7 @@ analysis says so rather than showing a score of nil.
 ## 2. Global scope toggle — Portfolio · Watchlist · Universe
 
 A segmented control in the header (right side, before the Live pill). It is **global**: it
-applies to every tab in both workspaces.
+applies to every tab.
 
 **Three scopes, in priority order, widest last.** That order reads left to right as *mine, watched,
 everything*, and **Portfolio is the default** — the first question on opening a dashboard about your
@@ -136,14 +132,14 @@ rather than repeating the string pair, so a fourth scope is a change in one file
   panel header states which scope is active and how many rows it covers.
 - **Portfolio means the book**: `public/data/portfolio-companies.json`, the family office's
   142-company listed direct-equity book, synced from `techmuns/Sattva-Family` one line per equity
-  ISIN and read through `js/data/coverage.js`. The universe is
-  `public/data/universe.json`. `portfolio.json` is the *ledger* — twelve positions with quantities
-  and costs — and drives Portfolio Analytics only; the scope filter does not read it.
+  ISIN and read through `js/data/coverage.js`. Names and sectors only — **no quantity, no cost, no
+  valuation**, and this is the only portfolio data the dashboard holds. The universe is
+  `public/data/universe.json`.
 - The pencil beside the segmented control edits whichever scope is active. Portfolio and Universe
   keep device-local additions and exclusions over those committed defaults; Watchlist edits the
   same company list as the stars in the tables. The search box calls the Worker, which adds the
-  Muns credential server-side and returns Indian company names and NSE tickers. Editing the
-  Portfolio scope never adds a quantity or cost to the separate Portfolio Analytics ledger.
+  Muns credential server-side and returns Indian company names and NSE tickers. A Portfolio-scope
+  edit changes research filters and denominators only; there is no ledger for it to touch.
 - **The chip states the denominator, because no feed covers the whole book** — *"Portfolio · 96 of
   142 reported"*. Nineteen lines carry no NSE symbol (unlisted, warrants, the Vedanta demerger
   entities, BSE-only, unresolved); they are kept with a stated reason and shown as held-but-not-
@@ -321,8 +317,11 @@ live.onGlobalTick(cb);    // header Live pill
 
 ### Ask Research — `ask-research` (server-configured, single view)
 A two-column conversation workspace and the default landing tab. Every question builds a bounded
-runtime packet through the canonical data modules behind the other nine Research Central tabs plus
-the hidden Portfolio Analytics workspace. Every registered source contributes its status, coverage,
+runtime packet through the canonical data modules behind the other Research Central tabs.
+**Every source is a tab the reader can open** — the mock ledger used to be the fifteenth and cited
+itself as *Portfolio Analytics*, linking into a hidden workspace with no way back; both are
+deleted, and `verify-research.mjs` now requires every source's route to start `#/research/`.
+Every registered source contributes its status, coverage,
 as-of metadata and provenance; question-matched rows are included within the Worker request bound,
 so one slow or unavailable feed is reported rather than silently omitted.
 
@@ -342,7 +341,7 @@ evidence budget measured on what the model receives; the skeleton may take at mo
 the rest is spent on rows — the companies the question names first, from every source that carries
 them — so the request stays within the local model's 8K-token context. UI-only routes and the
 duplicate catalog are omitted from the model prompt, but remain in the browser for source chips.
-The dashboard's own AI Alerts ranking is one of the fifteen sources, so a question about the
+The dashboard's own AI Alerts ranking is one of the fourteen sources, so a question about the
 strongest evidence across tabs is answered by the same deterministic model the tab shows.
 
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
@@ -472,39 +471,6 @@ roadmap* card that used to close each tab has been removed from the UI:
 - Investor conviction scoring vs position size
 - Cross-investor overlap heatmap
 
-### Overview — `overview`
-Sub-views: **Positions · Allocation · Realised P&L**
-- Live mark-to-market from the technicals feed; a position missing from it is marked *at cost*, tagged, and excluded from the curve — never marked at zero
-- FIFO cost basis with charges folded in, and the open-lot table in every position drill
-- A reconciliation strip showing the measured residual of both identities, not a claim that they hold
-- Realised P&L as one row per FIFO lot match, each with its own buy date, holding period and short/long term
-- Allocation by sector and conviction, plus a top-5 concentration bar
-- *Not built:* broker import, target weights and drift alerts, tax-lot harvesting, intraday marks
-
-### Position By — `position-by`
-Sub-views: **By Sector · By Conviction · By Holding Period · By P&L Band**
-- One grouping engine, four keys; each cut carries the aggregate that cut is actually about
-- Holding period groups **lots, not positions** — a position built over three years sits in several bands at once, and the tax term follows the lot consumed
-- Stacked weight bar, per-group drill, and an expandable ungrouped table showing the working
-- *Not built:* market-cap/factor buckets, target-vs-actual weights, group-level benchmarking
-
-### Transaction History — `transactions`
-Sub-views: **Trades · Dividends & Actions · Import / Export**
-- Every sell expands to the lots it consumed, with charges apportioned across them
-- Dividends tracked as income, never folded into the cost basis
-- Bonus/split adjust lots in place — quantity multiplied, cost per share divided, acquisition date preserved
-- CSV import parses in-browser, previews, trial-replays, and names every rejected row with its line and reason; an applied import is **session-only** and says so, because a static site has no server to write the file
-- *Not built:* contract-note parsing, server-side persistence, duplicate detection
-
-### Drawdown — `drawdown`
-Sub-views: **Equity Curve · Underwater Plot · Drawdown Episodes**
-- Curve from real closes, with the cash line separated and the y-axis anchored at zero
-- **Two** drawdowns — total portfolio and holdings-only — because retained cash dampens one and not the other
-- **XIRR and TWR**, labelled money-weighted and time-weighted; only TWR is shown against the Nifty 500
-- Every peak-to-trough episode with decline and recovery durations; an open drawdown reports "ongoing" rather than being closed at the last day
-- Coverage is stated: excluded tickers are named, never silently dropped
-- *Not built:* rolling volatility/Sharpe, per-position drawdown contribution, custom windowing
-
 ---
 
 ## 8. Roadmap
@@ -517,11 +483,12 @@ Sub-views: **Equity Curve · Underwater Plot · Drawdown Episodes**
 | 4 | Earnings Hub | 15-rule / 21-point Result Quality & Growth model, three sub-views (Latest Results, Result Scans, Quality & Growth), 8 built-in scans + a custom scan builder, drill panel with 8-quarter series and per-rule provenance, two-sheet Excel export. Earnings data is **synthetic but real-shaped** — generated by `scripts/gen-mock-earnings.mjs` and labelled as illustrative on every surface; wiring the real filings feed is a three-file change documented in `docs/DATA-CONTRACTS.md`. ✅ |
 | 5 | Con-call + Deep Dive | Runtime keyword engine (scans transcript text in the browser — no stored counts), a full keyword-set editor persisted to localStorage, a 5s live-call ticker, a companies × keywords matrix with quarter-on-quarter deltas, catalyst tracking, and the six-view Deep Dive in a new full-screen `openWorkspace` overlay. Transcripts are **synthetic but real-shaped** — and unlike the earnings set, every person and brokerage named in them is fictional. ✅ |
 | 6 | Public Chatter + Super Investors | Chatter: forum threads with claim extraction, Telegram groups with a transparent 0–3 pump-risk heuristic, and a cross-source Trending view joined to the **real** technicals feed with a chatter-vs-price quadrant. Investors: investor-first cards, a four-view per-investor workspace, a mandate view for funds, FII/DII and MF category flow charts, and an overlap heatmap. Both data sets are **synthetic** — and the investor names are **real people**, so their positions carry an attribution ribbon on every surface and the data set holds numbers only, never a quote or rationale. ✅ |
-| 7 | Portfolio Analytics + polish and QA | A FIFO lot engine (`js/portfolio/lots.js`) replaying the ledger into open lots and realised rows with per-lot holding periods and tax terms; positions marked to market from the **live** technicals feed; an equity curve, two drawdown series and a Nifty 500 comparison built from **735 trading days of real Yahoo closes** (`scripts/scrape-portfolio-history.mjs`); XIRR *and* time-weighted return, because only one of them is comparable to an index; four sub-views over four cuts each; CSV import with preview-and-reject; and a QA pass covering error states, a11y focus traps, `scope="col"` on every header, and ~190 assertions in `scripts/verify-ui.mjs` including both reconciliation identities and an independent max-drawdown recompute. The ledger is **synthetic**; every price in it is real. ✅ |
+| 7 | Portfolio Analytics + polish and QA | Built, then **deleted** — see prompt 9. A FIFO lot engine over an illustrative ledger, live marks, an equity curve over 735 real closes, XIRR and TWR, four sub-views and a CSV import, plus the QA pass that remains: error states, a11y focus traps, `scope="col"` on every header and the assertion suite in `scripts/verify-ui.mjs`. The ledger was synthetic and every price in it real; that mixture is why the workspace is gone. In git history at `d3bba30`. ✅ |
 
 | 8b | Tracked keywords on Corp Announcements | The same vocabulary on the widest feed in the dashboard, matched against the filing's subject and BSE's own sub-category. Topic column and filter (replacing the Sub-category column, which duplicated the sub-line). It **replaced** `announcementSignal()`'s borrowed materiality gate rather than sitting beside it: BSE's `critical` flag marks 29% of filings, 881 of them AGM notices, so it is reproduced on the row and no longer decides importance — which fell from 32% of filings to 11%. Direction untouched. ✅ |
 | 8 | Tracked news keywords + cross-feed correlation | The desk's thirty keywords as one shared vocabulary (`public/js/data/news-keywords.js`), driving a counted Topic filter and column on both News surfaces, the materiality rule for company news in General Alerts, and a participation event (volume ≥ `VOLUME_X`, or a confirmed base break) on the technicals feed. AI Alerts gains `confluenceOf()` — seven **named** cross-feed patterns that say *"volume 3.2x its average, and a tracked investor's latest book shows buying"* instead of *"three feeds"*. A keyword is a **topic and never a direction**, so no story anywhere gains a sentiment of ours. Measured: 11,060 captured stories → 3,278 tracked. ✅ |
 | 9 | Provenance reachable again | The filings tabs' provenance and the source registry were both built and had no caller — correct, maintained and unreachable, which reads as documentation of a working feature. Each now has a door placed **after** the content it qualifies: a footer line for the registry, one muted line under each filings table for that tab's measured coverage. The chrome that was deliberately removed stays removed — no Sources button in the header, every status pill still a passive `<span>` that opens nothing. Also fixes two defects found alongside: `earnings-calendar` had no `load()` and threw on every Ask Research question, so that source had never once been read; and a `[Dashboard: …]` citation resolved by first-match across four shared tab names, sending a question about strong breakouts to the Technical Scanner. ✅ |
+| 10 | Portfolio means a list of names | **Portfolio Analytics deleted.** Four modules, the FIFO engine, `js/data/portfolio.js`, the illustrative ledger, the mock transactions and 290KB of equity-curve history are gone, and the Ask Research evidence registry drops from fifteen sources to fourteen. It was `hidden: true` — routable but not clickable — and an Ask Research citation linked straight into it, so a reader landed on a screen of invented money with nothing on the page that led back and no address bar inside the host iframe. The only portfolio information left is the synced book of 142 company names. The rules that survive: *a surface that is not offered must not be reachable*, *an evidence source must be a tab the reader can open*, and *prefer deletion to labelling* — for the third time. ✅ |
 
 **Still to come**
 

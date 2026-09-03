@@ -29,29 +29,32 @@ import * as news from '../tabs/news.js';
 import * as corpAnnouncements from '../tabs/corp-announcements.js';
 import * as nseFilings from '../tabs/nse-filings.js';
 import * as insiderTrades from '../tabs/insider-trades.js';
-import * as overview from '../portfolio/overview.js';
-import * as positionBy from '../portfolio/position-by.js';
-import * as transactions from '../portfolio/transactions.js';
-import * as drawdown from '../portfolio/drawdown.js';
 
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
 //
-// PORTFOLIO ANALYTICS IS BUILT BUT NOT OFFERED. It is `hidden`, which keeps its four tabs routable
-// — a saved `#/portfolio/overview` link still resolves and renders — while removing the switcher
-// that was the only way to reach it by clicking. That is the whole change: nothing was deleted, so
-// bringing it back is deleting one flag.
+// PORTFOLIO ANALYTICS IS GONE, AND HIDING IT WAS THE MISTAKE THAT PRECEDED DELETING IT.
 //
-// Hidden rather than removed from the array on purpose. Dropping the entry would make every
-// `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
-// page from the one they bookmarked, and would break the four modules' route contract for no gain.
+// It was four modules over an ILLUSTRATIVE ledger — invented quantities, invented costs, real
+// prices — and it was kept `hidden: true` so that a saved `#/portfolio/...` link would still
+// resolve to the page it named rather than falling through to Research Central. That reasoning
+// protected a bookmark and created a trap: with no workspace switcher in the chrome there was
+// nothing on the page that led back, and inside the Munshot host there is no address bar to edit,
+// so a reader who arrived — from an Ask Research citation, which listed the workspace as an
+// evidence source and linked straight into it — was stuck on a screen of made-up money.
+//
+// The only portfolio fact this dashboard carries now is the BOOK: the 142 company names synced
+// from the family repository, which is what the Portfolio scope filters by. See js/data/coverage.js.
+// An unknown workspace falls through to Research Central below, so an old `#/portfolio/...` link
+// lands on a working page and the URL is corrected — that is the intended behaviour, not a
+// regression to guard against. The four modules, the FIFO engine and the mock ledger are in git
+// history at d3bba30 if a REAL ledger is ever wired.
 //
 // ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
   { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, nseFilings, insiderTrades] },
-  { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
 let contentHost = null;
@@ -463,13 +466,6 @@ function mountTab(root, tabModule, resolved) {
  * preserved. Whatever brings Portfolio Analytics back calls this rather than reinventing it.
  */
 // eslint-disable-next-line no-unused-vars
-function goWorkspace(id) {
-  const ws = WORKSPACES.find((w) => w.id === id);
-  if (!ws) return;
-  const firstTab = ws.tabs[0];
-  router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews?.[0]?.id ?? null, scope: state.scope });
-}
-
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
   const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];

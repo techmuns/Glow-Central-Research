@@ -547,51 +547,23 @@ export function sourceGroups() {
       items: twitterSources(),
     },
     {
-      title: 'Portfolio',
+      title: 'Portfolio scope',
       icon: '💼',
-      tabs: 'Portfolio Analytics',
+      tabs: 'Every research tab',
       items: [
         {
           name: 'Direct-equity statement — the book',
           url: null,
           feeds:
-            `What the Portfolio toggle means on every research tab.${clause(book?.count, ' <n> companies')} from the family office statement, ` +
-            `resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. Names and sectors only — no quantity, ` +
-            `no cost, no value.${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
+            `What the Portfolio toggle means on every research tab, and <strong>the only portfolio information this ` +
+            `dashboard holds</strong>.${clause(book?.count, ' <n> company lines')} read from the family office's own repository ` +
+            `(techmuns/Sattva-Family) by scripts/sync-family-book.mjs and resolved to NSE symbols by ` +
+            `scripts/resolve-portfolio-companies.mjs. <strong>Names and sectors only — no quantity, no cost, no value, ` +
+            `no valuation.</strong>${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
             `BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.`,
-          cadence: 'When the statement changes · re-run the resolver and commit the diff',
+          cadence: 'Daily 06:00 IST, and on a repository_dispatch from the family repository',
           status: 'static',
           file: 'public/data/portfolio-companies.json',
-        },
-        {
-          name: 'Holdings (user-maintained)',
-          url: null,
-          feeds:
-            'The holdings list — tickers, names, sectors, conviction tiers. Quantity and average cost are NOT edited here: ' +
-            'they are derived from a FIFO replay of the ledger below, so the position table and the ledger cannot disagree.',
-          cadence: 'User-edited; qty/avgPrice regenerated with the ledger',
-          status: 'mock',
-          file: 'public/data/portfolio.json',
-        },
-        {
-          name: 'Broker contract notes',
-          url: null,
-          feeds:
-            'The buy/sell/dividend/corporate-action ledger behind the book. Which trades were made and when is synthetic; ' +
-            'every execution price in it is a real Yahoo close on a real trading day. CSV import parses in-browser and lasts until reload.',
-          cadence: 'Event-driven, per trade · regenerate with scripts/gen-mock-transactions.mjs',
-          status: 'mock',
-          file: 'public/data/mock/transactions.json',
-        },
-        {
-          name: 'Yahoo Finance — daily closes, 3 years',
-          url: 'https://query1.finance.yahoo.com/v8/finance/chart/',
-          feeds:
-            'The equity curve and every drawdown figure. Daily closes for each ticker the ledger touches plus the Nifty 500 ' +
-            '(^CRSLDX) benchmark. Tickers Yahoo will not serve are recorded in failures[] and named in the UI, never dropped.',
-          cadence: 'Weekdays 07:00 IST via GitHub Actions, alongside the technicals refresh',
-          status: 'live',
-          file: 'public/data/portfolio-history.json',
         },
       ],
     },

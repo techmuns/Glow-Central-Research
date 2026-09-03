@@ -569,8 +569,7 @@ if (DRY) {
 const payload = {
   _provenance:
     `The family office's listed direct-equity book, one line per equity ISIN, read from ${fixture.source || 'the family repository'} by scripts/sync-family-book.mjs and resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. ` +
-    'This is the COVERAGE list that the Portfolio scope filters every research tab by — it is not a ledger: no quantity, no cost, no value. ' +
-    'public/data/portfolio.json remains the Portfolio Analytics ledger and is a different thing. ' +
+    'This is the COVERAGE list that the Portfolio scope filters every research tab by, and the only portfolio information the dashboard holds — it is not a ledger: no quantity, no cost, no value, no valuation. ' +
     'A line with ticker: null is still a real holding; it either is not an NSE-listed equity or could not be resolved, and the UI shows it as held-but-not-covered rather than dropping it.',
   asOf: fixture.asOf || null,
   source: fixture.source || 'family office direct-equity statement',
