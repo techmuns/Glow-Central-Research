@@ -20,6 +20,12 @@ import { readFileSync } from 'node:fs';
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const CHROME = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// GLOW: the Portfolio book is regenerated daily from GlowVentures, so its size is read, never typed.
+const BOOK_FILE = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
+const BOOK_COUNT = BOOK_FILE.count;
+// A committed book company the scope editor can be asked to remove — the first with a symbol, not
+// a ticker typed here (upstream typed IIFL, which is the other family's holding).
+const BOOK_FIRST_TICKER = BOOK_FILE.holdings.find((h) => h.ticker)?.ticker || '';
 
 let chromium;
 try {
@@ -1578,7 +1584,8 @@ console.log('\n— AI alerts —');
   // GLOW DIVERGENCE: the `portfolio` source is the real family office book (see the family book
   // section), so the Watchlist check stars a BOOK symbol and expects the book's rows for it — the
   // same claim as upstream (totals from the starred rows only, whole-book figures omitted), on
-  // real data. A symbol held in more than one account has more than one row, deliberately.
+  // real data. The packet carries ONE row per company however many accounts hold it (the tab shows
+  // every statement line); the row says how many accounts it collapsed.
   const watchlistPortfolioAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
     const book = await import('/js/data/book.js');
@@ -1593,7 +1600,9 @@ console.log('\n— AI alerts —');
       return {
         ticker: member.symbol,
         rowCount: source.rowCount,
-        expectedRows: held.length,
+        expectedRows: 1,
+        accountsOnRow: source.rows?.[0]?.accounts,
+        expectedAccounts: held.length,
         positionCount: source.summary?.positions,
         marketValue: source.summary?.consolidatedValueRupees,
         expectedMarketValue: book.valueOf(held),
@@ -1606,9 +1615,10 @@ console.log('\n— AI alerts —');
   ok('...recomputes Watchlist portfolio totals from only the starred book rows',
     watchlistPortfolioAudit.rowCount === watchlistPortfolioAudit.expectedRows &&
       watchlistPortfolioAudit.positionCount === watchlistPortfolioAudit.expectedRows &&
+      watchlistPortfolioAudit.accountsOnRow === watchlistPortfolioAudit.expectedAccounts &&
       Math.abs(watchlistPortfolioAudit.marketValue - watchlistPortfolioAudit.expectedMarketValue) < 0.02 &&
       watchlistPortfolioAudit.carriesWholeBookFigures === false,
-    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} position(s) · ₹${watchlistPortfolioAudit.marketValue}`);
+    `${watchlistPortfolioAudit.ticker}: ${watchlistPortfolioAudit.positionCount} row across ${watchlistPortfolioAudit.accountsOnRow} account(s) · ₹${watchlistPortfolioAudit.marketValue}`);
 
   await page.locator('[data-research-input]').fill('Summarise the dashboard evidence.');
   await page.locator('[data-research-send]').click();
@@ -2440,32 +2450,32 @@ console.log('\n— editable scope lists —');
   ok('the scope control has an editor for the active list', (await page.locator('[data-scope-edit]').count()) === 1);
   await page.locator('[data-scope-edit]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 4000 });
-  ok('Portfolio opens with the committed 142-company default', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+  ok('Portfolio opens with the committed book as its default', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
 
   const listSearch = page.locator('[data-scope-search]');
   await listSearch.fill('ALPHA');
   await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
   await page.locator('[data-scope-result="0"]').click();
   ok('a Muns search result can be added to Portfolio',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '143' &&
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT + 1) &&
       await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:scope-lists:v1') || '{}').portfolio?.added?.some((e) => e.ticker === 'ALPHACO')));
   await page.locator('[data-scope-result="0"]').click();
-  ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+  ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
 
-  await listSearch.fill('IIFL');
+  await listSearch.fill(BOOK_FIRST_TICKER);
   // THE MUNS RESULTS DROPDOWN CAN COVER THE FIRST MEMBER ROW. It is `position: absolute` under the
   // search box, and with the system fallback fonts (no Google Fonts in the sandbox) its bottom edge
-  // lands a few pixels over the IIFL row's Remove button — measured: results 547–617, button 602–630
+  // lands a few pixels over the first member row's Remove button — measured: results 547–617, button 602–630
   // — so a real click is never "actionable" and the suite dies on a 30s timeout rather than a FAIL.
   // The check is about the overlay's list logic, not hit-testing, so the click is dispatched to the
   // button itself; the editor's delegated handler sees exactly the event a pointer would produce.
-  await page.locator('[data-scope-remove="ticker:IIFL"]').dispatchEvent('click');
+  await page.locator(`[data-scope-remove="ticker:${BOOK_FIRST_TICKER}"]`).dispatchEvent('click');
   ok('a committed Portfolio company can be removed through the local overlay',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT - 1));
   await listSearch.fill('');
   await page.locator('[data-scope-reset]').click();
   ok('Restore default clears Portfolio edits without rewriting the source file',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === String(BOOK_COUNT));
   await page.getByRole('button', { name: 'Done' }).click();
 
   await go('/#/research/daily-alerts?scope=watchlist', 900);
@@ -3670,7 +3680,7 @@ if (!chatterState.ok) {
   });
   ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
   ok('...and labels the overlap in short, customer-facing language',
-    scoped.text.includes(`Portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
+    scoped.text.includes(`Portfolio · ${scoped.covered} of ${BOOK_COUNT} mentioned · ${scoped.window}`));
   ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
     `${scoped.uncovered} rows in both scopes`);
 
@@ -3747,34 +3757,41 @@ const book = await page.evaluate(async () => {
     blankNames: holdings.filter((h) => !h.name).length,
   };
 });
-ok('the book carries every line from the statement', book.count === 142, `${book.count} lines`);
+// GLOW: the count is the served file's, not a number typed here — the book is regenerated daily.
+ok('the book carries every line from the statement', book.count === BOOK_COUNT && book.count > 100, `${book.count} lines`);
 ok('...each with a ticker or a stated reason it has none', book.unaccounted.length === 0, book.unaccounted.slice(0, 3).join(', ') || 'all accounted for');
 ok('...and no two companies collapse onto one symbol', book.dupes.length === 0, book.dupes.join(', ') || `${book.meta.tracked} distinct tickers`);
 ok('...and every line has a name', book.blankNames === 0);
 ok('the counts add up', book.meta.tracked + book.meta.uncovered === book.count, `${book.meta.tracked} tracked + ${book.meta.uncovered} uncovered = ${book.count}`);
 
-// The book is no longer typed in here: scripts/sync-family-book.mjs reads it from the family
-// office's own repository (techmuns/Sattva-Family) into scripts/fixtures/family-book.json, one line
-// per listed equity ISIN, and the resolver turns that into the served file. So the identity of a
-// line is its ISIN, and the served book must be exactly the fixture's set — a line that vanished
-// between the two would be a holding silently dropped, which is the failure this whole section
-// exists to catch. The names are compared too: the custodian's wording travels as `bookName`, the
-// display name is what the reader recognises, and neither may be blank.
-const familyBook = JSON.parse(readFileSync(new URL('./fixtures/family-book.json', import.meta.url), 'utf8'));
+// GLOW DIVERGENCE: upstream reads the book from techmuns/Sattva-Family through a fixture of equity
+// ISINs and asserts the served file is exactly that fixture's set. Here the book is the family's OWN
+// — techmuns/GlowVentures, whose statements carry NSE symbols and mostly no ISINs — written by
+// scripts/build-book.mjs beside book.json. So the identity of a line is its symbol, and the served
+// book must be exactly the set of equity symbols in book.json (each duplicate report counted once):
+// a symbol that vanished between the two would be a holding silently dropped, which is the failure
+// this section exists to catch. The Sattva-Family fixture in scripts/fixtures/ is upstream's and is
+// compared to nothing here.
 const servedBook = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
-const isinOk = (s) => /^INE[A-Z0-9]{9}$/.test(s || '');
-const fixtureIsins = familyBook.lines.map((l) => l.isin);
-const servedIsins = servedBook.holdings.map((h) => h.isin);
-ok('the fixture read from the family repository is one line per equity ISIN',
-  familyBook.count === familyBook.lines.length && fixtureIsins.every(isinOk) && new Set(fixtureIsins).size === fixtureIsins.length,
-  `${familyBook.count} lines, as of ${familyBook.asOf}`);
-ok('...and carries no quantity, cost or value', familyBook.lines.every((l) => ['isin', 'name', 'sector'].every((k) => k in l) && Object.keys(l).length === 3));
-ok('every served line carries its ISIN, once', servedIsins.every(isinOk) && new Set(servedIsins).size === servedIsins.length);
-ok('the served book is exactly the fixture\'s set of ISINs',
-  servedIsins.length === fixtureIsins.length && servedIsins.every((i) => fixtureIsins.includes(i)),
-  `${servedIsins.filter((i) => !fixtureIsins.includes(i)).length} served but not in the fixture, ${fixtureIsins.filter((i) => !servedIsins.includes(i)).length} in the fixture but not served`);
+const familyBookJson = JSON.parse(readFileSync(new URL('../public/data/book.json', import.meta.url), 'utf8'));
+const seenGroups = new Set();
+const equitySymbols = new Set();
+for (const p of familyBookJson.positions) {
+  if (p.dedupeGroup) { if (seenGroups.has(p.dedupeGroup)) continue; seenGroups.add(p.dedupeGroup); }
+  if (p.assetClass === 'Equity' && p.symbol) equitySymbols.add(String(p.symbol).toUpperCase());
+}
+const servedTickers = servedBook.holdings.map((h) => h.ticker).filter(Boolean);
+ok('the served book carries every equity symbol in the family book, once',
+  [...equitySymbols].every((t) => servedTickers.includes(t)) && new Set(servedTickers).size === servedTickers.length,
+  `${equitySymbols.size} equity symbols in book.json · ${servedTickers.length} tickers served · ${[...equitySymbols].filter((t) => !servedTickers.includes(t)).length} missing`);
+ok('...and every served symbol is one the family holds, or a name resolved from a line that carried none',
+  servedTickers.every((t) => equitySymbols.has(t) || servedBook.holdings.some((h) => h.ticker === t && /company-index/.test(h.matchedBy || ''))));
 ok('...keeps the custodian\'s own wording beside the display name', servedBook.holdings.every((h) => typeof h.bookName === 'string' && h.bookName && h.name));
-ok('...and names its source and as-of date', /Sattva-Family/.test(servedBook.source) && servedBook.asOf === familyBook.asOf, `${servedBook.source} · ${servedBook.asOf}`);
+ok('...carries no quantity, cost or value', servedBook.holdings.every((h) => !('quantity' in h) && !('marketValue' in h) && !('costBasis' in h)));
+ok('...and names its source and as-of date', /GlowVentures/.test(servedBook.source) && servedBook.asOf === familyBookJson.asOf, `${servedBook.source} · ${servedBook.asOf}`);
+ok('...with fund units, AIFs and cash counted as excluded rather than listed as companies',
+  servedBook.excluded && Object.keys(servedBook.excluded).length >= 2 && !servedBook.holdings.some((h) => /Mutual Fund|AIF|Cash/.test(h.sector || '')),
+  Object.entries(servedBook.excluded || {}).map(([k, v]) => `${k} ${v}`).join(', '));
 
 // No leakage: a Portfolio-scoped table must contain only companies from the book.
 for (const [hash, label, wait] of [
@@ -3793,7 +3810,7 @@ for (const [hash, label, wait] of [
   });
   ok(`${label}: every scoped row is a book company`, leak.rows === 0 || leak.matched > 0, `${leak.matched} of ${leak.rows} rows resolved to a book ticker`);
   const pill = await page.locator('#content-host [title*="book holds"]').first().innerText().catch(() => '');
-  ok(`  ...and the pill states the denominator`, /of 142/.test(pill), pill || 'no scope pill found');
+  ok(`  ...and the pill states the denominator`, new RegExp(`of ${servedBook.count}\\b`).test(pill), pill || 'no scope pill found');
 }
 
 // The technicals feed used to BE the Nifty 500, because the scrape read an NSE-500 screener export
