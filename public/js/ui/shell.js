@@ -46,13 +46,15 @@ import * as drawdown from '../portfolio/drawdown.js';
 // `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
 // page from the one they bookmarked, and would break the four modules' route contract for no gain.
 //
-// THE LANDING TAB IS `router.DEFAULT_ROUTE.tab` (Ask Research), NOT THE FIRST ENTRY. It used to be
-// the first entry, and that was load-bearing; Glow puts its two macro tabs first in the bar
-// (Macro Research, Economy & Macro — GLOW-OWNED, see CLAUDE.md) without wanting them to become the
-// landing page, so `landingTab()` below resolves an unknown or absent tab to the router's default
-// and falls back to the first entry only if that id is missing.
+// THE LANDING TAB IS `router.DEFAULT_ROUTE.tab` (Ask Research), RESOLVED BY ID, NOT BY POSITION.
+// Upstream lands on the first entry, and that was load-bearing. Glow's three own tabs (Macro
+// Research, Economy & Macro, Family Book — GLOW-OWNED, see CLAUDE.md) once sat in front of Ask
+// Research; they now close the bar, after every Sattva tab, so the array and the router's default
+// agree again — but `landingTab()` below still resolves an unknown or absent tab by id and falls
+// back to the first entry only if that id is missing, so the Glow tabs can be moved anywhere in
+// the bar without moving the landing page.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [macroResearch, economyMacro, familyBook, askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades, macroResearch, economyMacro, familyBook] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
