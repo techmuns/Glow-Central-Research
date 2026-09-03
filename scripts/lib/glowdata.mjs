@@ -9,9 +9,9 @@
 //   export const BOOK_AS_OF = "2026-08-13";
 //
 // So the reader below is a bracket matcher and JSON.parse, nothing more — no TypeScript, no npm
-// dependency, exactly as CLAUDE.md's hard rule 2 requires of everything under scripts/. It is
-// shared by build-book.mjs (the book) and build-managers.mjs (the family's managers) so the two
-// files can never disagree about how the upstream is read.
+// dependency, exactly as CLAUDE.md's hard rule 2 requires of everything under scripts/. It is the
+// same matcher build-book.mjs carries inline (that script also reads the raw text for the Portfolio
+// book, so it keeps its own copy); build-managers.mjs reads through this one.
 
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';

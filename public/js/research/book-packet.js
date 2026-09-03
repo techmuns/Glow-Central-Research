@@ -48,6 +48,55 @@ function eodMark(row) {
   return { close: cmp, closeDate: t.bar_date || null, valueRupees: round(row.quantity * cmp) };
 }
 
+/**
+ * ONE ROW PER COMPANY, NOT ONE PER ACCOUNT. The tab shows every statement line — a symbol held in
+ * four accounts is four rows there, deliberately. The model is better served by the consolidated
+ * holding: "how much Bajaj Auto do we hold" is one number, and four near-identical rows crowd the
+ * budgeted packet so that other sources' rows about the same company are refused (measured: the
+ * General Alerts source landed one row where it had room for two). Rows are collapsed by symbol;
+ * a line with no symbol stays its own row. Sums follow the null rule — a cost or P&L is summed only
+ * when every collapsed line carries one, and is null otherwise, never a partial figure passed off
+ * as the whole.
+ */
+export function collapseBySymbol(rows) {
+  const bySymbol = new Map();
+  const out = [];
+  for (const row of rows) {
+    if (!row.symbol) {
+      out.push({ ...row, accounts: 1, owners: row.owner ? [row.owner] : [] });
+      continue;
+    }
+    const key = String(row.symbol).toUpperCase();
+    if (!bySymbol.has(key)) {
+      const first = { ...row, symbol: key, accounts: 0, owners: [], providers: [], _lines: [] };
+      bySymbol.set(key, first);
+      out.push(first);
+    }
+    const acc = bySymbol.get(key);
+    acc.accounts += 1;
+    if (row.owner && !acc.owners.includes(row.owner)) acc.owners.push(row.owner);
+    if (row.provider && !acc.providers.includes(row.provider)) acc.providers.push(row.provider);
+    acc._lines.push(row);
+  }
+  for (const acc of bySymbol.values()) {
+    const lines = acc._lines;
+    const sum = (key) => (lines.every((l) => Number.isFinite(l[key])) ? round(lines.reduce((s, l) => s + l[key], 0)) : null);
+    acc.quantity = sum('quantity');
+    acc.marketValue = sum('marketValue');
+    acc.costBasis = sum('costBasis');
+    acc.unrealizedPnL = sum('unrealizedPnL');
+    // The aggregate return on cost, only where every line's cost is known — otherwise null.
+    acc.returnPct = acc.costBasis ? round(((acc.marketValue - acc.costBasis) / acc.costBasis) * 100) : null;
+    acc.accountAsOf = lines.map((l) => l.accountAsOf).filter(Boolean).sort().at(-1) || null;
+    acc.security = lines.map((l) => l.security).sort((a, b) => (/[a-z]/.test(b) ? 1 : 0) - (/[a-z]/.test(a) ? 1 : 0) || b.length - a.length)[0];
+    acc.sector = lines.map((l) => (l.sector && l.sector !== 'Unclassified' ? l.sector : null)).find(Boolean) || lines[0].sector || null;
+    acc.isin = lines.map((l) => l.isin).find(Boolean) || null;
+    acc.alsoReportedUnder = null;
+    delete acc._lines;
+  }
+  return out;
+}
+
 function bookRow(row) {
   const mark = eodMark(row);
   return {
@@ -55,8 +104,8 @@ function bookRow(row) {
     company: clipped(row.security, 60),
     assetClass: row.assetClass || null,
     sector: row.sector && row.sector !== 'Unclassified' ? row.sector : row.providerSector || null,
-    owner: row.owner || null,
-    provider: row.provider || null,
+    owners: row.owners?.length ? row.owners.join(', ') : row.owner || null,
+    accounts: row.accounts ?? 1,
     quantity: row.quantity ?? null,
     statementValueRupees: round(row.marketValue),
     weightPct: book.weightPct(row),
@@ -87,9 +136,10 @@ function classSplitCrore(rows) {
  */
 export function bookEvidence({ scope, tickers = null }) {
   const m = book.meta();
-  const rows = book.forScope(scope, tickers);
+  const lines = book.forScope(scope, tickers);
+  const rows = collapseBySymbol(lines);
   const isWatchlist = scope === 'watchlist';
-  const value = book.valueOf(rows);
+  const value = book.valueOf(lines);
   const ring = book.ringFenced();
   const ringNames = ring.map((row) => row.symbol || row.security).join(', ');
 
@@ -100,12 +150,13 @@ export function bookEvidence({ scope, tickers = null }) {
         listedValueCrore: isWatchlist ? null : crore(m.listedValue),
         privateValueCrore: isWatchlist ? null : crore(m.privateValue),
         positions: rows.length,
+        statementLines: lines.length,
         withNseSymbol: rows.filter((row) => row.symbol).length,
-        accounts: isWatchlist ? new Set(rows.map((row) => row.accountId)).size : m.accounts,
-        owners: isWatchlist ? new Set(rows.map((row) => row.ownerId)).size : m.owners,
-        byAssetClassCrore: classSplitCrore(rows),
+        accounts: isWatchlist ? new Set(lines.map((row) => row.accountId)).size : m.accounts,
+        owners: isWatchlist ? new Set(lines.map((row) => row.ownerId)).size : m.owners,
+        byAssetClassCrore: classSplitCrore(lines),
         duplicateReportsCollapsedRupees: isWatchlist ? null : m.doubleCounted,
-        withoutCostBasis: rows.filter((row) => row.costBasis == null).length,
+        withoutCostBasis: lines.filter((row) => row.costBasis == null).length,
         ringFencedOutsideTotal: ring.length ? `${ringNames} ₹${crore(book.valueOf(ring))} Cr` : null,
         statementsAsOf: m.asOf,
         syncedFrom: m.builtFrom ? `GlowVentures@${m.builtFrom}` : 'GlowVentures',
@@ -126,7 +177,7 @@ export function bookEvidence({ scope, tickers = null }) {
       summary,
       // ≤ 240 characters, or boundedMetadata clips it: the null rule and the derived label must survive.
       definition:
-        'REAL statement marks on each account’s report date, each duplicate report counted once; null cost/P&L is never zero; ' +
+        'REAL statement marks, one row per company (accounts = how many statements hold it), each duplicate report counted once; null cost/P&L is never zero; ' +
         'eodMarkRupees is derived (quantity × EOD close, listed symbols only); the ring-fenced promoter holding is outside the total.' +
         (isWatchlist ? ' Watchlist figures come from the starred rows only.' : ''),
       dataQuality: 'real statement marks, consolidated once, with nulls preserved',

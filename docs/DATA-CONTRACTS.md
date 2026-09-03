@@ -431,6 +431,20 @@ morning's EOD percentage next to an intraday price would render two measurements
 
 ## `public/data/portfolio-companies.json` — REAL, the book the Portfolio scope means
 
+> **GLOW: written by `scripts/build-book.mjs` from techmuns/GlowVentures, not by `sync-family-book.mjs`
+> from techmuns/Sattva-Family.** The section below is upstream's and describes the Sattva family's
+> pipeline. Here the file has the same shape and the same readers, with these differences: `source`
+> is `techmuns/GlowVentures · src/data/glowData.ts`; `asOf` is `book.json`'s; `sourceCommit.date` is
+> null; there is no `syncedAt` (the file is idempotent, so the daily sync commits only when a holding
+> moved); the identity of a line is its NSE `ticker` and `isin` is null where the statement carried
+> none; `holdings[].matchedBy` is `glowventures:symbol`, `company-index:<feed>` or
+> `company-index:checked by hand`; `excluded` counts the non-equity classes (`AIF`, `Cash`,
+> `Mutual Fund`, `ETF`, `Ring-fenced`) that are not companies; `bseOnly` is always 0. `count` is read,
+> never typed — see CLAUDE.md, *What "Portfolio" means*. `scripts/check-book.mjs` asserts the
+> invariants (every equity symbol in `book.json` is served once, every line has a symbol or a reason,
+> the counts add up, the source is GlowVentures).
+
+
 Every listed company the family office holds directly, resolved to NSE symbols. **The book is read
 from the family office's own repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`, the
 positions file generated from the custody workbooks — by `scripts/sync-family-book.mjs`, one line

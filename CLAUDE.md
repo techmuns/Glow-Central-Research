@@ -48,7 +48,7 @@ That only works if the two repositories agree about who owns what:
 | **Glow** | the brand: `public/index.html` title/description/favicon, the `:root` tokens, `tailwind.config.cjs` (the champagne palette) and the stylesheet it generates | the palette is a config file, not class names — see *Design tokens* |
 | **Glow** | the deployment: `wrangler.jsonc` (Worker name, `GH_REPO`, rate-limit namespace), and the default Worker host in `scripts/scrape-filings.mjs` (`FILINGS_BASE`) and `scripts/scrape-super-investors.mjs` (`SI_BASE`) | deployment-specific values; the file headers say so, and the sync greps for all of them after every merge |
 | **Glow** | the book and the universe: everything under `public/data/` | `.gitattributes` marks them `merge=ours`; this repo's own scheduled scrapes regenerate them from its own book |
-| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs`, `scripts/lib/glowdata.mjs` and `public/data/book.json` — and the family's managers: `js/investors/my-managers.js`, `js/data/managers.js`, `scripts/build-managers.mjs` and `public/data/managers.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block — and for My Managers the `// GLOW` hunks in `js/investors/live.js` and `js/tabs/super-investors.js`) |
+| **Glow** | Glow-only features, each in its own file: `js/investors/fund-returns.js` + `js/data/fund-returns.js` (Fund Returns), `js/data/tracked-universe.js` + `scripts/import-tracked-universe.mjs` (the ~1,900-company filings universe), the two macro tabs — `js/tabs/macro-research.js`, `js/tabs/economy-macro.js`, `js/data/series.js`, `js/data/econ-calendar.js`, `js/ui/series-chart.js`, `worker/econ-calendar.mjs`, `public/data/series/` and `.github/workflows/series-refresh.yml` — and the real family office book: `js/tabs/family-book.js`, `js/data/book.js`, `js/research/book-packet.js`, `scripts/build-book.mjs`, `scripts/check-book.mjs`, `public/data/book.json` and `public/data/portfolio-companies.json` (the Portfolio scope's list, rebuilt from GlowVentures daily) — and the family's managers: `js/investors/my-managers.js`, `js/data/managers.js`, `scripts/build-managers.mjs`, `scripts/lib/glowdata.mjs` and `public/data/managers.json` | a file upstream does not have cannot conflict; only the few lines that wire it in can (the tab list in `shell.js`, one route in `worker/index.js`, one Sources group, one suite block — and for My Managers the `// GLOW` hunks in `js/investors/live.js` and `js/tabs/super-investors.js`) |
 | **Sattva** | everything else — every tab, the kit, the Worker, the scrapers, the suite | this is where code is written |
 
 Four rules follow:
@@ -768,8 +768,8 @@ match would quietly fail the day they reword it.
 
 ### The macro series store — two tabs that measure nothing (GLOW-OWNED)
 
-Macro Research and Economy & Macro are the first two tabs in the bar and they are Glow's own: a port
-of the two pages of the same names from the GlowVentures family-office cockpit
+Macro Research and Economy & Macro are the last tabs in the bar, after every Sattva tab, and they
+are Glow's own: a port of the two pages of the same names from the GlowVentures family-office cockpit
 (`techmuns/GlowVentures`, `src/pages/MacroResearch.tsx` and `Economy.tsx`), rebuilt on the screener
 kit with no chart library — `js/ui/series-chart.js` draws line, area, bar and scatter as inline SVG.
 
@@ -799,9 +799,10 @@ announced time is shown on the source's own date with no clock.
 
 **Scope does not apply to either tab and the head says so.** They are market-wide series, not
 per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
-watchlist star (`watchKey: () => null`). The landing page is still Ask Research — `landingTab()` in
-`shell.js` resolves an unknown route to `router.DEFAULT_ROUTE.tab` rather than to the first entry,
-which is what lets these two sit first in the bar without becoming the default.
+watchlist star (`watchKey: () => null`). The landing page is Ask Research, which is also first in
+the bar; `landingTab()` in `shell.js` still resolves an unknown route to `router.DEFAULT_ROUTE.tab`
+by id rather than by position, so the Glow tabs can be moved anywhere in the bar — they sat in front
+of Ask Research once, and now close it — without moving the landing page.
 
 **Never ask the store for a year it does not hold.** `fetchPoints` reads only the chunks inside the
 manifest's `first`/`last` span, and a missing chunk resolves to nothing rather than throwing — but a
@@ -1886,6 +1887,27 @@ from the ledger now.
 
 ## What "Portfolio" means — `js/data/coverage.js`
 
+**GLOW: THE BOOK IS THE FAMILY'S OWN, FROM techmuns/GlowVentures — NOT techmuns/Sattva-Family.** The
+paragraphs below arrived from upstream and describe how *Sattva* keeps its Portfolio list in step with
+the Sattva family's repository (`scripts/sync-family-book.mjs`, `scripts/fixtures/family-book.json`,
+`.github/workflows/family-book-sync.yml`). That is a different family: only 20 of its 123 tickers are
+in this one's holdings. Here `public/data/portfolio-companies.json` is written by
+`scripts/build-book.mjs` from the same GlowVentures positions as `book.json` — every company held
+DIRECTLY as listed equity, one line per NSE symbol, each duplicate report counted once, fund units /
+ETFs / AIFs / cash / the ring-fenced holding counted under `excluded` — inside the daily *GlowVentures
+sync* (`series-refresh.yml`), and `scripts/check-book.mjs` refuses a file whose source is not
+GlowVentures or whose symbols do not match the book. Consequences: the identity of a line is its
+**NSE symbol** (the custodians print a symbol and mostly no ISIN; the ISIN travels beside it where the
+statement had one); a name the statement carries with no symbol is resolved through
+`scripts/lib/company-index.mjs` or the hand-checked `CONFIRMED` table in `build-book.mjs`, and stays
+in the file with a `reason` otherwise; the upstream `family-book-sync.yml` is **dispatch-only here
+and must never be scheduled or given `FAMILY_REPO_TOKEN`**; `sync-family-book.mjs` and the
+fixture-driven resolver are upstream's and are not run here. The suite's book section is marked as a
+Glow divergence for the same reason: it compares the served file with `book.json`'s equity symbols,
+not with the Sattva-Family fixture. **The size of the book is never typed** — the suite reads the
+file's `count` — because the daily rebuild moves it.
+
+
 **The scope toggle filters by the book, not by the ledger.** `public/data/portfolio-companies.json`
 is the family office's listed direct-equity book — 142 companies, names and sectors only — **read from
 the family's own repository** (`techmuns/Sattva-Family`, `src/data/sattvaData.ts`) by
@@ -2958,7 +2980,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
+| Add or remove a company from the book | **GLOW: in techmuns/GlowVentures** — the statements there are the book; the daily *GlowVentures sync* rebuilds `public/data/portfolio-companies.json` and `book.json` together. By hand: `GLOWVENTURES_DIR=… node scripts/build-book.mjs && node scripts/check-book.mjs`. A line the feeds cannot name goes in `CONFIRMED` in `scripts/build-book.mjs`, keyed by the custodian's wording. (Upstream's row follows; it describes Sattva's repository and does not apply here.) |
 | Add or remove a company from the book | **In the family repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`; the sync brings it here. Then `node scripts/sync-family-book.mjs` (`FAMILY_REPO_TOKEN=…`, or `FAMILY_BOOK_PATH=` a local clone) and commit `scripts/fixtures/family-book.json` + `public/data/portfolio-companies.json`. A new ISIN gets its reader-facing name in `DISPLAY_NAMES` in `scripts/resolve-portfolio-companies.mjs`; a line no feed can place goes in `CONFIRMED` / `BSE_ONLY` / `NOT_LISTED_EQUITY` there, keyed by ISIN |
+| Set up the automatic book sync on a deployment | **GLOW: nothing beyond `GLOWVENTURES_READ_TOKEN`** — the book rides the daily GlowVentures sync. Do **not** add `FAMILY_REPO_TOKEN` here: the upstream job it feeds reads the Sattva family's book and is dispatch-only in this repository. (Upstream's row follows.) |
 | Set up the automatic book sync on a deployment | add a Secret named **`FAMILY_REPO_TOKEN`** to this repository (*Settings → Secrets and variables → Actions*): a fine-grained token on `techmuns/Sattva-Family` alone with **Contents: read**. Optionally have that repository POST `repository_dispatch` (`family-book-updated`) here on push — the snippet is in `docs/DATA-CONTRACTS.md` |
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
