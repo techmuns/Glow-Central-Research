@@ -26,6 +26,7 @@ import * as concall from '../tabs/concall.js';
 import * as publicChatter from '../tabs/public-chatter.js';
 import * as breakouts from '../tabs/breakouts.js';
 import * as superInvestors from '../tabs/super-investors.js';
+import * as mutualFunds from '../tabs/mutual-funds.js';
 import * as news from '../tabs/news.js';
 import * as corpAnnouncements from '../tabs/corp-announcements.js';
 import * as insiderTrades from '../tabs/insider-trades.js';
@@ -54,12 +55,31 @@ import * as drawdown from '../portfolio/drawdown.js';
 // back to the first entry only if that id is missing, so the Glow tabs can be moved anywhere in
 // the bar without moving the landing page.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, insiderTrades, macroResearch, economyMacro, familyBook] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, mutualFunds, news, corpAnnouncements, insiderTrades, macroResearch, economyMacro, familyBook] },
   { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
 ];
 
 /** The tab a workspace opens on: the router's default when the workspace carries it, else its first entry. */
 const landingTab = (ws) => ws.tabs.find((t) => t.meta.id === router.DEFAULT_ROUTE.tab) || ws.tabs[0];
+
+// A ROUTE THAT MOVED STILL RESOLVES TO WHAT IT MEANT.
+//
+// Fund Returns was the third sub-view of Super Investors and is now the All Schemes view of the
+// Mutual Funds tab. Without this, `#/research/super-investors/fund-returns` would fall through the
+// unknown-sub-view branch below onto Superstar Investors — the reader's own bookmark quietly
+// showing them a different page, which is the exact failure the `hidden: true` Portfolio Analytics
+// entry exists to avoid. One line here keeps every saved link and every shared link landing on the
+// view it named.
+//
+// Keyed `tab/subview`, and it rewrites the URL rather than rendering the new view under the old
+// address, so the reader's next bookmark is the current one.
+const MOVED_ROUTES = {
+  'super-investors/fund-returns': { tab: 'mutual-funds', subview: 'all-schemes' },
+};
+
+function movedRoute(raw) {
+  return MOVED_ROUTES[`${raw.tab}/${raw.subview}`] || null;
+}
 
 let contentHost = null;
 let currentTabModule = null;
@@ -202,6 +222,13 @@ function wireStaticHeader(root) {
 
 function handleRoute(root, rawRoute) {
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
+  // A route that moved is rewritten before anything else reads it, so the tab, the sub-view picker
+  // and the saved route all agree on the view's current address rather than its old one.
+  const moved = movedRoute(rawRoute);
+  if (moved && ws.tabs.some((t) => t.meta.id === moved.tab)) {
+    router.navigate({ workspace: ws.id, ...moved, scope: rawRoute.scope || state.scope, params: rawRoute.params || {} }, { replace: true });
+    rawRoute = { ...rawRoute, ...moved };
+  }
   const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || landingTab(ws);
   const subviews = tabModule.meta.subviews || [];
   const subviewValid = subviews.some((s) => s.id === rawRoute.subview);

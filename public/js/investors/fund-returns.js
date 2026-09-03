@@ -34,9 +34,13 @@ import * as fundReturns from '../data/fund-returns.js';
  * arms the "Try again" button, so a mis-configured or briefly-down upstream is recoverable without
  * leaving the tab.
  */
-export function renderFundReturns(ctx, { disposers = [], repaint = null } = {}) {
+export function renderFundReturns(ctx, { disposers = [], repaint = null, rows = null, headHtml = '', view = null, onView = null } = {}) {
   const m = fundReturns.meta();
-  const funds = fundReturns.all();
+  // `rows` lets the OWNING TAB narrow the set — the Mutual Funds tab's asset-class / group chips
+  // sit above this panel and hand down what they selected. Null means the whole feed, which is what
+  // every other caller wants. The narrowed set is what the table, the count and the export all read,
+  // so no number on screen can describe a wider set than the rows beneath it.
+  const funds = rows || fundReturns.all();
 
   // A FAILED READ IS NEVER AN EMPTY TABLE. `meta().reason` is set on every failure and `funds` is
   // then []; render the named state rather than "no funds", which would read as an empty universe.
@@ -45,7 +49,7 @@ export function renderFundReturns(ctx, { disposers = [], repaint = null } = {}) 
   }
 
   const visiblePeriods = periodsWithData(funds, m.periods);
-  const table = buildTable(funds, m, visiblePeriods);
+  const table = buildTable(funds, m, visiblePeriods, view);
 
   // ONE TABLE AND NOTHING ELSE, the way the filed view and the Earnings Hub are built. No stat strip,
   // no ranking grid: this is a listing the reader scans and sorts. The provenance is one click away
@@ -56,6 +60,8 @@ export function renderFundReturns(ctx, { disposers = [], repaint = null } = {}) 
       title: 'Fund Returns & Ranking',
       description: descriptionFor(m),
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}</div>`,
+      // Trusted markup from the owning tab — the classification chips, where there are any.
+      controls: headHtml,
     })}
     ${table.html}
   `;
@@ -65,6 +71,9 @@ export function renderFundReturns(ctx, { disposers = [], repaint = null } = {}) 
     wire(root) {
       const off = table.wire(root);
       if (off) disposers.push(off);
+      // The reader's own search / filter / sort, handed back so a repaint (a chip press) can seed
+      // the next instance with it rather than discarding what they had set up.
+      onView?.(table.view);
       root.querySelector('[data-fund-returns-info]')?.addEventListener('click', () => openProvenance(m));
     },
   };
@@ -92,12 +101,26 @@ function periodsWithData(funds, periods) {
 // The table
 // ---------------------------------------------------------------------------------------
 
-function buildTable(funds, m, visiblePeriods) {
+function buildTable(funds, m, visiblePeriods, view = null) {
   return scoreTable({
     rows: funds,
     // The scheme code is the stable, content-derived id — never a row index (see the perf notes in
     // CLAUDE.md: a positional key breaks the repaint fast path the moment the row set changes).
     key: (r) => r.schemecode,
+    // A MUTUAL-FUND SCHEME IS NOT A COMPANY, so it gets no star.
+    //
+    // Without this, `watchKey` defaults to `key` — the AmfiBeas scheme code, a bare number like
+    // "119551" — and the watchlist store rejects it against its symbol pattern. The star then
+    // repainted HOLLOW on every click: the state was correct (nothing was stored, because a scheme
+    // code is not a ticker) and only the control the reader had just pressed disagreed with it,
+    // which is the exact failure `staleKeys` exists to close, arrived at from the other side. The
+    // rule is already written down for this case — "a row with no company gets NO STAR, not a dead
+    // one" — and it applies to all ~3,400 rows here. The Watchlist FILTER goes with it: the kit
+    // drops that control when no row on a table is watchable.
+    watchKey: () => null,
+    // The filter goes with the star, for the same reason: narrowing ~3,400 SCHEMES by the reader's
+    // watched COMPANIES can only ever produce an empty table.
+    showWatchFilter: false,
     name: (r) => r.fundName,
     nameLabel: 'Scheme',
     sub: (r) => identitySub(r),
@@ -110,8 +133,10 @@ function buildTable(funds, m, visiblePeriods) {
     nameMaxPx: 300,
     stickyHead: 'max(320px, calc(100vh - 300px))',
     searchable: (r) => `${r.fundName} ${r.classification || ''} ${r.plan} ${r.option}`,
+    searchPlaceholder: 'Search scheme or classification...',
     // Alphabetical by name, exactly as the source lists them.
     initialSort: { key: 'name', dir: 'asc' },
+    initialView: view,
     columns: columnsFor(visiblePeriods),
     filters: filtersFor(funds),
     exportName: `glow-fund-returns-${todayStamp()}`,

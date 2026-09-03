@@ -331,6 +331,43 @@ async function startDeepDiveStub(hits) {
 // 1. Every route in both scopes renders a real panel
 // ---------------------------------------------------------------------------------------
 console.log('\n— shell and routing —');
+
+const AMFI_PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
+let amfiMode = 'ok';
+let amfiSeq = 0;
+const amfiPayload = () => {
+  const classes = ['Equity: Large Cap', 'Equity: Mid Cap', 'Equity: Small Cap', 'Debt: Short Duration'];
+  const funds = [];
+  for (let i = 0; i < 44; i++) {
+    const cls = classes[i % classes.length];
+    const returns = {};
+    for (const p of AMFI_PERIODS) {
+      if (p === '10Y') { returns[p] = { return: null, rank: null, peerCount: null }; continue; } // empty for all → column hidden
+      const base = ((i * 7 + p.length * 3) % 44) - 16;
+      const rankNull = i % 10 === 0;
+      returns[p] = { return: Number((base + 0.5).toFixed(4)), rank: rankNull ? null : ((i % 30) + 1), peerCount: rankNull ? null : 149 };
+    }
+    funds.push({
+      schemecode: `SC${1000 + i}`,
+      fundName: `${String.fromCharCode(90 - (i % 26))}${i} ${cls.split(':')[0]} Fund`, // deliberately NOT pre-sorted
+      classification: cls, plan: i % 2 ? 'direct' : 'regular', option: i % 3 ? 'growth' : 'idcw', cohortKey: cls, returns,
+    });
+  }
+  return { asOfDate: '2026-08-25', generatedAt: new Date().toISOString(), source: 'AmfiBeas daily NAV snapshot (AMFI)', periods: AMFI_PERIODS, total: 3439, count: funds.length, funds };
+};
+
+// THE AmfiBeas STUB IS INSTALLED HERE, BEFORE THE SWEEP, not beside its own checks in section 9a.
+// The sweep below walks Mutual Funds → All Schemes in both scopes, and on a sandbox with no egress
+// an unstubbed feed renders its named-failure panel — which the sweep would report as a broken
+// route when nothing is broken but the test order. `page.route` is global and persists for the rest
+// of the run, so section 9a's own checks are unaffected; `amfiMode` and `amfiPayload` are declared
+// there and hoisted here by being read only inside the handler.
+await page.route('**/returns-ranking*', async (route) => {
+  if (amfiMode === '404') { await route.fulfill({ status: 404, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' }, body: 'not found' }); return; }
+  await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', etag: `"amfi-${++amfiSeq}"` }, body: JSON.stringify(amfiPayload()) });
+});
+await page.addInitScript(() => localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.stub'));
+
 await go('/#/', 1300);
 
 const routes = await page.evaluate(async () => {
@@ -347,6 +384,7 @@ const routes = await page.evaluate(async () => {
       'tabs/public-chatter.js',
       'tabs/breakouts.js',
       'tabs/super-investors.js',
+      'tabs/mutual-funds.js',
       'tabs/news.js',
       'tabs/corp-announcements.js',
       'tabs/insider-trades.js',
@@ -1531,6 +1569,29 @@ console.log('\n— AI alerts —');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
+
+  // AND PORTFOLIO IS THE DEFAULT ON EVERY OPEN, NOT ONLY THE FIRST ONE.
+  //
+  // The block above cleared `sattva:lastRoute` and `sattva:scope` first, so it only ever asserted
+  // the default for a reader who had never touched the toggle — which was the whole bug: the scope
+  // persisted, so one afternoon in Universe made Universe the default for ever. This asserts the
+  // case that actually broke. Seed a saved route that ENDS IN UNIVERSE, open with no hash, and the
+  // tab must come back while the scope must not.
+  await page.evaluate(() => localStorage.setItem('sattva:lastRoute', '#/research/breakouts?scope=universe'));
+  await page.goto(`${BASE}/?fresh=${Date.now() + 2}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+  ok('a fresh open ignores the scope the last session ended in', /scope=portfolio/.test(page.url()), page.url());
+  ok('...while still resuming the tab that session was on', /breakouts/.test(page.url()), page.url());
+  // A SHARED LINK STILL WINS — that is the half this must not have broken. An explicit ?scope= in
+  // the URL is an instruction from whoever sent it, and it is read before anything saved.
+  await go('/#/research/breakouts?scope=universe', 2500);
+  ok('...but an explicit ?scope= in a shared link still wins', /scope=universe/.test(page.url()), page.url());
+  // ...and a RELOAD of that link holds it, because the shell keeps ?scope= in the address bar, so a
+  // reload is a URL with a scope on it rather than a fresh open.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  ok('...and survives a reload of it', /scope=universe/.test(page.url()), page.url());
+  ok('...with nothing left persisting the scope', await page.evaluate(() => localStorage.getItem('sattva:scope') === null));
 
   await go('/#/research/ai-alerts?scope=portfolio', 4500);
   await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
@@ -4036,7 +4097,7 @@ ok(
 console.log('\n— super investors —');
 
 // ---------------------------------------------------------------------------------------
-// 9a. Fund Returns — the third sub-view — renders the AmfiBeas "Returns & Ranking" table
+// 9a. All Schemes — the Mutual Funds tab's second sub-view — renders the AmfiBeas "Returns & Ranking" table
 // (js/investors/fund-returns.js), called straight from the browser like the chatter feed. The API
 // is not deployed to a fixed host, so it is stubbed here from `page.route` — deterministic and no
 // egress — in exactly the shape docs/DATA-CONTRACTS.md documents. `amfiMode` flips it to a 404 for
@@ -4044,39 +4105,15 @@ console.log('\n— super investors —');
 // (cohort too small) and must sit beside a real return as an em dash, never a zero.
 //
 // THE STUB IS INSTALLED BEFORE THE SUB-VIEW SWEEP BELOW, not beside its own checks: the sweep renders
-// every sub-view and asserts real content, and on a sandbox with no egress an unstubbed Fund Returns
+// every sub-view and asserts real content, and on a sandbox with no egress an unstubbed All Schemes
 // renders its named-failure panel instead of the table — a test-order artefact, not a finding.
+//
+// The view itself (js/investors/fund-returns.js) is UNCHANGED by the move, so every assertion below
+// it is unchanged too; only the route it is reached by moved.
 // ---------------------------------------------------------------------------------------
-const AMFI_PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
-let amfiMode = 'ok';
-let amfiSeq = 0;
-const amfiPayload = () => {
-  const classes = ['Equity: Large Cap', 'Equity: Mid Cap', 'Equity: Small Cap', 'Debt: Short Duration'];
-  const funds = [];
-  for (let i = 0; i < 44; i++) {
-    const cls = classes[i % classes.length];
-    const returns = {};
-    for (const p of AMFI_PERIODS) {
-      if (p === '10Y') { returns[p] = { return: null, rank: null, peerCount: null }; continue; } // empty for all → column hidden
-      const base = ((i * 7 + p.length * 3) % 44) - 16;
-      const rankNull = i % 10 === 0;
-      returns[p] = { return: Number((base + 0.5).toFixed(4)), rank: rankNull ? null : ((i % 30) + 1), peerCount: rankNull ? null : 149 };
-    }
-    funds.push({
-      schemecode: `SC${1000 + i}`,
-      fundName: `${String.fromCharCode(90 - (i % 26))}${i} ${cls.split(':')[0]} Fund`, // deliberately NOT pre-sorted
-      classification: cls, plan: i % 2 ? 'direct' : 'regular', option: i % 3 ? 'growth' : 'idcw', cohortKey: cls, returns,
-    });
-  }
-  return { asOfDate: '2026-08-25', generatedAt: new Date().toISOString(), source: 'AmfiBeas daily NAV snapshot (AMFI)', periods: AMFI_PERIODS, total: 3439, count: funds.length, funds };
-};
-await page.route('**/returns-ranking*', async (route) => {
-  if (amfiMode === '404') { await route.fulfill({ status: 404, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' }, body: 'not found' }); return; }
-  await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', etag: `"amfi-${++amfiSeq}"` }, body: JSON.stringify(amfiPayload()) });
-});
-// Point the feed at the stub and force a full load so the module re-reads localStorage on import.
-await go('/#/research/super-investors/fund-returns?scope=universe', 300);
-await page.evaluate(() => localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.stub'));
+// The stub route and the base override are installed in section 1, ABOVE the route sweep — see the
+// note there. A full load so the module re-reads localStorage on import.
+await go('/#/research/mutual-funds/all-schemes?scope=universe', 300);
 await page.reload({ waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(400);
 
@@ -4085,16 +4122,20 @@ await page.waitForTimeout(400);
 // the Con-call resolution applied again: when a tab acquires two provenances, remove the synthetic
 // one rather than write a better ribbon. So the assertion inverts: there must be NO ribbon
 // anywhere on this tab, and no route to a view that would need one.
-for (const sub of ['superstar-investors', 'institutions', 'fund-returns']) {
+for (const sub of ['superstar-investors', 'institutions']) {
   await go(`/#/research/super-investors/${sub}?scope=universe`, 2200);
   const txt = await hostText();
   ok(`investors ${sub} renders`, txt.length > 400 && !/hit a snag/i.test(txt));
   const ribbons = await page.locator('[data-mock-ribbon]').count();
   ok(`investors ${sub}: no ribbon, because nothing on it is synthetic`, ribbons === 0, `${ribbons} ribbons`);
 }
-ok('the tab offers exactly three sub-views, all real', await page.evaluate(async () => {
+// FUND RETURNS HAS LEFT THIS TAB — it is the Mutual Funds tab now. Asserted as an EQUALITY, not a
+// floor: a `>=` would not notice the sub-view drifting back, which is the thing the move was for.
+ok('the tab offers exactly two sub-views, both real, and Fund Returns is not one of them', await page.evaluate(async () => {
   const m = await import('/js/tabs/super-investors.js');
-  return m.meta.subviews.length === 3 && !m.meta.subviews.some((s) => s.id === 'fund-flows') && m.meta.subviews.some((s) => s.id === 'fund-returns');
+  return m.meta.subviews.length === 2
+    && !m.meta.subviews.some((s) => s.id === 'fund-flows')
+    && !m.meta.subviews.some((s) => s.id === 'fund-returns');
 }));
 // These four 404s are the point of the check, not a symptom — see `expectError` at the top.
 expectError(/js\/data\/investors\.js|js\/investors\/deep-dive\.js|mock\/superinvestors\.json|mock\/fund-flows\.json/);
@@ -4109,14 +4150,14 @@ await go('/#/research/super-investors/fund-flows?scope=universe', 1800);
 const staleLink = await hostText();
 ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
 
-// Fund Returns — the AmfiBeas "Returns & Ranking" table, reproduced.
-// It sits beside Institutions (filed shareholdings) rather than replacing it. Every return and every
+// All Schemes — the AmfiBeas "Returns & Ranking" table, reproduced.
+// It is the Mutual Funds tab's second sub-view now, beside Category Performance. Every return and every
 // rank is AmfiBeas's, reproduced unchanged — the same rule the con-call and chatter feeds follow —
 // and the checks are about that boundary and about not turning a null into a zero. The feed is
 // stubbed above from page.route (the API has no deployed host yet).
-await go('/#/research/super-investors/fund-returns?scope=universe', 1600);
+await go('/#/research/mutual-funds/all-schemes?scope=universe', 1600);
 const frRendered = (await rowCount()) > 10;
-ok('the Fund Returns table renders every scheme the feed carried', frRendered, `${await rowCount()} rows`);
+ok('the All Schemes table renders every scheme the feed carried', frRendered, `${await rowCount()} rows`);
 
 if (frRendered) {
   const frText = await hostText();
@@ -4195,7 +4236,7 @@ if (frRendered) {
     }
   }
 } else {
-  skip('the Fund Returns table renders', 'the AmfiBeas stub did not answer');
+  skip('the All Schemes table renders', 'the AmfiBeas stub did not answer');
 }
 // A FAILED READ IS A NAMED STATE, NEVER AN EMPTY TABLE — and it is recoverable in place. Flip the
 // stub to 404, reload so the module hits it on mount, and the view must name the failure, carry the
@@ -4218,6 +4259,344 @@ if (hasRetry) {
 // The stub route and the base override are deliberately LEFT IN PLACE for the rest of the suite, so
 // any later navigation to this sub-view (the layout section exercises its wide table) renders the
 // real Fund Returns table rather than the "configure the host" panel. `amfiMode` is back to 'ok'.
+
+// ---------------------------------------------------------------------------------------
+// 9a-ii. MUTUAL FUNDS — Category Performance. GLOW-OWNED.
+//
+// The workbook half of the tab: every category's PUBLISHED median beside the index the workbook
+// prints under it, then a drill into that category's schemes. It reads a committed snapshot
+// (public/data/mf-weekly.json), so unlike the AmfiBeas half it needs no stub and no egress.
+//
+// What these checks are about, in order of how badly each would fail silently:
+//
+//   1. THE TWO FEEDS ARE DIFFERENT DATES AND NOTHING CROSSES BETWEEN THEM. This is the failure the
+//      whole design exists to prevent and the one nothing else would catch: a 14-August index
+//      return under a 2-September fund return is arithmetic that works, renders, sorts and is
+//      wrong. Asserted as an inequality of the two as-of dates plus the sentence that says so.
+//   2. A NULL IS NOT A ZERO — on a return, on a median, and on a gap whose other side is missing.
+//   3. THE MEDIAN THAT SHIPS IS THE PUBLISHED ONE. Recomputing it is the import's parse check, and
+//      the check asserts the file records that reconciliation rather than trusting it.
+//   4. A CATEGORY WITH NO PUBLISHED INDEX SAYS SO AND NOTHING IS SUBSTITUTED, even though the file
+//      carries a master sheet of 36 indices that would make substituting one trivial.
+//   5. THE HEATMAP IS ACTUALLY PAINTED. A composed Tailwind class compiles to nothing, renders with
+//      no background and throws nothing — so this asserts a real computed background colour, not a
+//      class name.
+// ---------------------------------------------------------------------------------------
+console.log('\n— mutual funds —');
+
+await go('/#/research/mutual-funds/category-performance?scope=portfolio', 2600);
+const mfRows = await rowCount();
+ok('Category Performance renders one row per category', mfRows > 20, `${mfRows} rows`);
+
+const mfFile = await page.evaluate(async () => {
+  const m = await import('/js/data/mf-weekly.js');
+  await m.load();
+  const meta = m.meta();
+  const cats = m.categories();
+  const noBench = cats.filter((c) => !c.benchmarks.length);
+  // Is every published median exactly what a recomputation over the parsed rows gives? The import
+  // refuses to write the file otherwise, and this re-checks it against what the BROWSER parsed.
+  const med = (xs) => { const a = xs.filter((v) => typeof v === 'number').sort((x, y) => x - y); if (!a.length) return null;
+    const i = a.length >> 1; return a.length % 2 ? a[i] : (a[i - 1] + a[i]) / 2; };
+  let checked = 0; let agree = 0;
+  for (const c of cats) for (const p of meta.periods) {
+    const pub = c.median?.returns?.[p];
+    if (typeof pub !== 'number') continue;
+    checked++;
+    const mine = med(c.funds.map((f) => f.returns?.[p]));
+    if (mine != null && Math.abs(pub - mine) < 0.005) agree++;
+  }
+  // A gap must be null the moment EITHER side is absent — never 0.
+  const gapNullWhenEitherMissing = m.relativeTo(1.5, null) === null && m.relativeTo(null, 1.5) === null && m.relativeTo(null, null) === null;
+  return {
+    asOf: meta.asOf, reason: meta.reason, categories: meta.categoryCount, funds: meta.fundCount,
+    indices: meta.benchmarkCount, medianCheck: meta.medianCheck, coverage: meta.coverage,
+    checked, agree, gapNullWhenEitherMissing,
+    noBenchLabels: noBench.map((c) => c.label),
+    // A category with no index must resolve to NO benchmark — never one borrowed from the master sheet.
+    noBenchResolvesToNull: noBench.every((c) => m.benchmarkFor(c).benchmark === null && !!m.benchmarkFor(c).reason),
+    // THE WORKBOOK'S OWN ORDER, with one upgrade: where a sheet prints a price index AND ITS OWN
+    // TRI, the TRI is used — not a different index, the same one measured the way a NAV is. A
+    // blanket "prefer any TRI" would be wrong on the sectoral sheets, which list the broad market
+    // TRI first and the sector index second, and would demote seven sector indices to the Nifty 500.
+    firstListedOrOwnTri: cats.filter((c) => c.benchmarks.length).every((c) => {
+      const chosen = m.benchmarkFor(c).benchmark;
+      const first = c.benchmarks[0];
+      const bare = (n) => n.replace(/\s*TRI\s*$/i, '').trim().toLowerCase();
+      return chosen === first || (chosen.tri && bare(chosen.name) === bare(first.name));
+    }),
+    // ...and where the sheet lists a sector index second, it is still REACHABLE rather than dropped.
+    sectorIndicesKept: cats.filter((c) => c.benchmarks.length > 1).every((c) => m.benchmarkFor(c).alternatives.length > 0),
+    // No scheme carries a period as a zero where the workbook printed "--".
+    absentPeriodsOmitted: cats.every((c) => c.funds.every((f) => Object.values(f.returns).every((v) => typeof v === 'number'))),
+  };
+});
+ok('the workbook snapshot loads with no named failure', mfFile && !mfFile.reason, mfFile?.reason || 'ok');
+ok('...covering every category and scheme in the file', mfFile.categories >= 20 && mfFile.funds >= 500, `${mfFile.categories} categories, ${mfFile.funds} schemes`);
+ok('...plus the master benchmark sheet', mfFile.indices >= 20, `${mfFile.indices} indices`);
+ok('EVERY published median reconciles against the rows the browser parsed',
+  mfFile.checked > 100 && mfFile.agree === mfFile.checked, `${mfFile.agree}/${mfFile.checked}`);
+ok('...and the file records that reconciliation rather than leaving it to be trusted',
+  !!mfFile.medianCheck && mfFile.medianCheck.reconciled === mfFile.medianCheck.checked,
+  JSON.stringify(mfFile.medianCheck));
+ok('a period the workbook printed "--" for is ABSENT, never stored as a zero', mfFile.absentPeriodsOmitted);
+ok('a gap is null the moment either side is absent, never 0', mfFile.gapNullWhenEitherMissing);
+ok('a category with no published index resolves to NO benchmark and a stated reason',
+  mfFile.noBenchResolvesToNull, mfFile.noBenchLabels.join(', ') || 'every category has one');
+ok('...and none is substituted from the master index sheet, which is right there', mfFile.noBenchResolvesToNull);
+ok('the benchmark is the index the workbook LISTS FIRST, upgraded only to that same index’s own TRI',
+  mfFile.firstListedOrOwnTri);
+ok('...so a sector index the sheet lists second is still reachable rather than dropped', mfFile.sectorIndicesKept);
+
+// AN ASSET CLASS THE WORKBOOK DOES NOT COVER IS NAMED, NOT DRAWN EMPTY.
+const mfUncovered = mfFile.coverage.filter((c) => !c.covered);
+ok('an asset class this workbook does not publish is named with a reason', mfUncovered.length > 0 && mfUncovered.every((c) => !!c.note),
+  mfUncovered.map((c) => c.label).join(', '));
+const mfHead = await hostText();
+ok('...and the tab says so in words rather than showing an empty group',
+  mfUncovered.every((c) => new RegExp(c.label, 'i').test(mfHead)), mfUncovered.map((c) => c.label).join(', '));
+
+// EVERY CATEGORY RETURN HAS ITS BENCHMARK RETURN BESIDE IT, on the face of the cell.
+const mfCell = await page.evaluate(() => {
+  const tr = document.querySelector('#content-host tbody tr[data-row-key]');
+  if (!tr) return null;
+  const tds = [...tr.querySelectorAll('td')];
+  const twoLine = tds.filter((td) => td.querySelectorAll('span.block').length === 2);
+  return { twoLine: twoLine.length, sample: twoLine[0]?.innerText.replace(/\s+/g, ' ').trim() || '' };
+});
+ok('every category return carries its benchmark return in the same cell', mfCell && mfCell.twoLine >= 5,
+  `${mfCell?.twoLine} two-line cells · ${mfCell?.sample}`);
+
+// THE HEATMAP IS ACTUALLY PAINTED — a computed colour, not a class name. A composed Tailwind class
+// would leave the class in the DOM, the stylesheet without a rule for it, and nothing would throw.
+const mfPaint = await page.evaluate(() => {
+  const cells = [...document.querySelectorAll('#content-host tbody [class*="bg-emerald-"], #content-host tbody [class*="bg-rose-"]')];
+  const painted = cells.filter((el) => {
+    const bg = getComputedStyle(el).backgroundColor;
+    return bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+  });
+  return { total: cells.length, painted: painted.length, sample: painted[0] ? getComputedStyle(painted[0]).backgroundColor : null };
+});
+ok('the heatmap classes resolve to a real background colour', mfPaint.total > 20 && mfPaint.painted === mfPaint.total,
+  `${mfPaint.painted}/${mfPaint.total} painted · ${mfPaint.sample}`);
+ok('...and the legend on screen says what the shading means', (await page.locator('[data-mf-legend]').count()) === 1);
+
+// THE SHADING RULES ARE ASSERTED DIRECTLY, because the shipped workbook cannot produce every band.
+// Same reason `moveSeverity` and `freshnessOf` are exported and tested as predicates rather than
+// waited for in the data: one snapshot has one set of gaps in it, and a band nothing on screen
+// happens to hit today is a band nothing is checking.
+const mfHeat = await page.evaluate(async () => {
+  const h = await import('/js/ui/mf-heatmap.js');
+  const peers = [1, 2, 3, 4, 5, 6, 7, 8];
+  const band = h.GAP_BAND_PP['1Y'];
+  return {
+    // A percentile is a COUNT: best of eight is the top eighth, worst is the bottom eighth.
+    best: h.percentileOf(8, peers), worst: h.percentileOf(1, peers),
+    // Ties share one position rather than one arbitrarily out-ranking the other.
+    // Two tied values straddling the middle land exactly ON the median, which is then unshaded.
+    tiedMid: h.percentileOf(2, [1, 2, 2, 3]), tiedBand: h.peerHeat(2, [1, 2, 2, 3]).band, tiedClass: h.peerHeat(2, [1, 2, 2, 3]).className,
+    // Fewer than two peers is not a ranking, and a missing value is never shaded.
+    lone: h.percentileOf(5, [5]), absent: h.peerHeat(null, peers).className,
+    topBand: h.peerHeat(8, peers).band, bottomBand: h.peerHeat(1, peers).band,
+    // Every step is a LITERAL class string — a composed one would compile to nothing.
+    aboveClass: h.peerHeat(8, peers).className, belowClass: h.peerHeat(1, peers).className,
+    // Gap bands: inside one band is neutral, and each further band is one step, capped at three.
+    within: h.gapHeat(band * 0.5, '1Y').band, one: h.gapHeat(band * 1.2, '1Y').band,
+    three: h.gapHeat(band * 9, '1Y').band, negThree: h.gapHeat(-band * 9, '1Y').band,
+    // A NULL GAP IS NOT A ZERO GAP.
+    nullGap: h.gapHeat(null, '1Y').className, nullGapBand: h.gapHeat(null, '1Y').band,
+    bands: Object.keys(h.GAP_BAND_PP),
+  };
+});
+ok('a scheme percentile is a count: best of eight is the top, worst is the bottom',
+  mfHeat.best === 93.75 && mfHeat.worst === 6.25, `${mfHeat.best} / ${mfHeat.worst}`);
+ok('...tied returns share one position rather than one out-ranking the other, and a tie ON the median is unshaded',
+  mfHeat.tiedMid === 50 && mfHeat.tiedBand === 'median' && mfHeat.tiedClass === '', `${mfHeat.tiedMid} · ${mfHeat.tiedBand}`);
+ok('...fewer than two peers is not a ranking, so nothing is shaded', mfHeat.lone === null);
+ok('a missing value is never shaded — an em dash has no place in a ranking', mfHeat.absent === '');
+ok('the top and bottom eighths get the strongest shade, on the semantic ramp and never the brand one',
+  mfHeat.topBand === 'above-3' && mfHeat.bottomBand === 'below-3'
+    && /emerald/.test(mfHeat.aboveClass) && /rose/.test(mfHeat.belowClass)
+    && !/indigo|purple|pink|amber/.test(`${mfHeat.aboveClass} ${mfHeat.belowClass}`),
+  `${mfHeat.aboveClass} / ${mfHeat.belowClass}`);
+ok('a gap inside one band is unshaded, and the shade caps at three steps',
+  mfHeat.within === 'median' && mfHeat.one === 'above-1' && mfHeat.three === 'above-3' && mfHeat.negThree === 'below-3',
+  `${mfHeat.within} · ${mfHeat.one} · ${mfHeat.three} · ${mfHeat.negThree}`);
+ok('a NULL gap is not a zero gap: unshaded, and reported as absent rather than as the middle',
+  mfHeat.nullGap === '' && mfHeat.nullGapBand === 'none');
+ok('every period has a stated band, so no column falls back to an unnamed default',
+  mfHeat.bands.length >= 8, mfHeat.bands.join(', '));
+
+// THE HIERARCHY NARROWS, AND "All" IS NULL RATHER THAN EVERY CHIP PRESSED.
+const mfAllRows = await rowCount();
+const mfClassChips = await page.locator('[data-mf-hierarchy] [data-mf-class]').count();
+ok('the classification offers an asset-class level', mfClassChips >= 3, `${mfClassChips} chips`);
+await page.locator('[data-mf-hierarchy] [data-mf-class]').nth(1).click();
+await page.waitForTimeout(700);
+const mfNarrowed = await rowCount();
+ok('choosing an asset class narrows the categories', mfNarrowed > 0 && mfNarrowed < mfAllRows, `${mfAllRows} → ${mfNarrowed}`);
+const mfGroupChips = await page.locator('[data-mf-hierarchy] [data-mf-group]').count();
+ok('...and reveals the group level beneath it', mfGroupChips >= 2, `${mfGroupChips} group chips`);
+if (mfGroupChips >= 2) {
+  await page.locator('[data-mf-hierarchy] [data-mf-group]').nth(1).click();
+  await page.waitForTimeout(700);
+  const mfGrouped = await rowCount();
+  ok('...which narrows again', mfGrouped > 0 && mfGrouped <= mfNarrowed, `${mfNarrowed} → ${mfGrouped}`);
+}
+await page.locator('[data-mf-hierarchy] [data-mf-class]').first().click(); // back to All
+await page.waitForTimeout(700);
+ok('"All" restores every category rather than leaving a filter that only looks like one', (await rowCount()) === mfAllRows, `${await rowCount()} vs ${mfAllRows}`);
+
+// A LEVEL OFFERS ONLY THE READINGS IT CAN ANSWER. A category's median cannot be compared with
+// itself, so "vs Median" is absent at category level rather than offered and answered with a page
+// of em dashes under a column that still sorts by the hidden figure.
+const mfCatMeasures = await page.evaluate(() => [...document.querySelectorAll('[data-mf-measure]')].map((b) => b.dataset.mfMeasure));
+ok('the category level offers only readings it can answer', !mfCatMeasures.includes('vs-median') && mfCatMeasures.includes('vs-benchmark'), mfCatMeasures.join(', '));
+
+// A MISSING FIGURE SORTS LAST, NOT AS A MEASURED EXTREME. The kit sorts null to the end in both
+// directions on purpose; a sortValue coercing an absent return to -Infinity would put a scheme too
+// young for the period at the top of "worst 5Y" while its cell honestly reads an em dash.
+const mfSortNulls = await page.evaluate(() => {
+  const head = [...document.querySelectorAll('#content-host thead th[data-sort]')].find((t) => /SINCE INCEPTION|5Y/i.test(t.innerText));
+  return !!head;
+});
+ok('a numeric column is sortable', mfSortNulls);
+
+// THE DRILL: one category's schemes, with the category reference above them.
+const mfCatName = await page.$eval('#content-host tbody tr[data-row-key] .font-semibold.text-slate-900', (el) => el.textContent.trim());
+await page.locator('#content-host tbody tr[data-row-key]').first().click();
+await page.waitForTimeout(1200);
+const mfDrill = await hostText();
+ok('clicking a category opens its schemes', new RegExp(`${mfCatName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*—\\s*every scheme`, 'i').test(mfDrill), mfDrill.slice(0, 90));
+ok('...above a reference row carrying the published median', (await page.locator('[data-mf-reference]').count()) === 1 && /Category median/i.test(mfDrill));
+ok('...which says the median is published, not recomputed', /reproduced, not recomputed/i.test(mfDrill));
+ok('...and labels the median-minus-benchmark row as derived', /Median − benchmark/i.test(mfDrill) && /Derived here · percentage points/i.test(mfDrill));
+const mfSchemeMeasures = await page.evaluate(() => [...document.querySelectorAll('[data-mf-measure]')].map((b) => b.dataset.mfMeasure));
+ok('the scheme level offers all three readings, including vs Median', mfSchemeMeasures.includes('vs-median') && mfSchemeMeasures.includes('vs-benchmark'), mfSchemeMeasures.join(', '));
+
+// THE MEASURE TOGGLE repoints the same columns; a gap with no benchmark is an em dash, not a 0.00.
+const mfSchemeRows = await rowCount();
+await page.locator('[data-mf-measure="vs-benchmark"]').click();
+await page.waitForTimeout(900);
+ok('the vs Benchmark measure keeps the same row set', (await rowCount()) === mfSchemeRows, `${mfSchemeRows} → ${await rowCount()}`);
+const mfGapCells = await page.evaluate(() => {
+  const tds = [...document.querySelectorAll('#content-host tbody tr[data-row-key] td')].map((t) => t.innerText.trim());
+  return { signedPp: tds.filter((t) => /^[+-]\d+\.\d\d$/.test(t)).length, dashes: tds.filter((t) => t === '—').length, zeros: tds.filter((t) => t === '0.00' || t === '+0.00').length };
+});
+ok('...and renders the gap as signed percentage points', mfGapCells.signedPp > 5, `${mfGapCells.signedPp} pp cells`);
+// THE UNIT IS ON SCREEN, NOT ONLY IN THE EXPORT. "+2.64" under a heading reading "3Y p.a." is this
+// dashboard's arithmetic wearing the workbook's clothes, and a screenshot travels without the chip
+// row that chose the mode.
+const mfGapHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim()));
+ok('...under a heading that names the unit as percentage points', mfGapHeads.some((h) => /\bPP\b/i.test(h)), mfGapHeads.slice(0, 6).join(' | '));
+ok('...with an em dash where the benchmark has no figure for that period, never 0.00',
+  mfGapCells.dashes > 0, `${mfGapCells.dashes} dashes, ${mfGapCells.zeros} zeros`);
+await page.locator('[data-mf-measure="return"]').click();
+await page.waitForTimeout(700);
+
+// THE BENCHMARK IS THE WORKBOOK'S CHOICE, AND THE READER MAY CHANGE IT — from the indices the
+// workbook prints under THAT category and nothing else. This is the one place a sector fund can be
+// held against its sector index rather than the broad market the sheet happens to list first, and
+// the fix must not have opened a door to the 36-index master sheet.
+const mfPicks = await page.locator('[data-mf-benchmark]').count();
+if (mfPicks > 1) {
+  const mfPickNames = await page.locator('[data-mf-benchmark]').allInnerTexts();
+  // Resolved from the heading the drill is showing, so the check reads the SAME category the picker
+  // belongs to rather than a hard-coded one.
+  const mfOpenLabel = (await page.locator('h2').first().innerText()).split('—')[0].trim();
+  const mfCatBenchNames = await page.evaluate(async (label) => {
+    const m = await import('/js/data/mf-weekly.js');
+    const cat = m.categories().find((c) => c.label === label);
+    return cat ? cat.benchmarks.map((b) => b.name) : null;
+  }, mfOpenLabel);
+  ok('every benchmark offered is one the workbook prints under THIS category', !!mfCatBenchNames &&
+    mfPickNames.every((label) => mfCatBenchNames.some((n) => label.startsWith(n))), `${mfPickNames.join(' | ')} vs ${mfCatBenchNames?.join(' | ')}`);
+  // ...and specifically NOT one borrowed from the 36-index master sheet, which is right there.
+  const mfMasterOnly = await page.evaluate(async (names) => {
+    const m = await import('/js/data/mf-weekly.js');
+    const own = new Set(names);
+    return m.benchmarkIndex().map((b) => b.name).filter((n) => !own.has(n)).slice(0, 3);
+  }, mfCatBenchNames || []);
+  ok('...and none is borrowed from the master index sheet', mfPickNames.every((label) => !mfMasterOnly.some((n) => label.startsWith(n))), mfMasterOnly.join(' | '));
+  ok('...and a price index is flagged as one, because its gap is not on a TRI scale',
+    mfPickNames.some((l) => /· price$/.test(l)) || mfPickNames.every((l) => !/· price$/.test(l)), mfPickNames.join(' | '));
+  const mfRefBefore = await page.locator('[data-mf-reference]').innerText();
+  await page.locator('[data-mf-benchmark]').nth(1).click();
+  await page.waitForTimeout(1100);
+  const mfRefAfter = await page.locator('[data-mf-reference]').innerText();
+  ok('choosing a different index repoints the comparison', mfRefAfter !== mfRefBefore);
+  ok('...and says the choice is the reader’s, not the workbook’s', /Your choice/i.test(mfRefAfter), mfRefAfter.slice(0, 120));
+  await page.locator('[data-mf-benchmark]').first().click();
+  await page.waitForTimeout(900);
+}
+
+// THE PROVENANCE PANEL carries the whole claim, the way the con-call and portfolio pills do.
+ok('a provenance pill is present', (await page.locator('[data-mf-info]').count()) >= 1);
+await page.locator('[data-mf-info]').first().click();
+await page.waitForTimeout(500);
+const mfModal = await page.locator('#modal-content').innerText();
+ok('the modal says the medians and index returns are the workbook’s, reproduced', /reproduced unchanged/i.test(mfModal));
+ok('...and names what is derived here', /derived/i.test(mfModal) && /percentage/i.test(mfModal));
+ok('...and states this is not the same snapshot as All Schemes', /not the same snapshot/i.test(mfModal));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+
+// ==== THE ONE THAT MATTERS MOST: two feeds, two dates, nothing crossing between them. ====
+await go('/#/research/mutual-funds/all-schemes?scope=universe', 2600);
+const mfDates = await page.evaluate(async () => {
+  const w = await import('/js/data/mf-weekly.js');
+  const l = await import('/js/data/fund-returns.js');
+  await w.load();
+  return { weekly: w.meta()?.asOf || null, live: l.meta()?.asOfDate || null,
+    liveHasBenchmark: l.all().some((f) => 'benchmark' in f || 'median' in f) };
+});
+ok('the two fund feeds carry different as-of dates', !!mfDates.weekly && !!mfDates.live && mfDates.weekly !== mfDates.live,
+  `workbook ${mfDates.weekly} · live ${mfDates.live}`);
+ok('...and the live feed carries no benchmark or median of its own to confuse them with', !mfDates.liveHasBenchmark);
+const mfTwoFeeds = await page.locator('[data-mf-two-feeds]').innerText().catch(() => '');
+ok('the All Schemes head says it is a different snapshot from Category Performance', /different snapshot/i.test(mfTwoFeeds), mfTwoFeeds.slice(0, 100));
+ok('...naming both dates so neither can be read as the other',
+  mfTwoFeeds.includes(mfDates.weekly) && mfTwoFeeds.includes(mfDates.live), mfTwoFeeds.slice(0, 160));
+ok('...and saying no figure is compared across the two', /no figure from one is compared/i.test(mfTwoFeeds) || /neither figure is combined/i.test(mfTwoFeeds));
+
+// THE CLASSIFICATION DRILLS OVER BOTH SUB-VIEWS, AND ON THIS ONE IT MUST ACTUALLY NARROW THE FEED.
+// A chip row that renders and binds nothing is the failure to close here: it looks wired, the call
+// site reads as if it were, and nothing throws.
+const mfLiveChips = await page.locator('[data-mf-hierarchy] [data-mf-class]').count();
+ok('All Schemes carries the same classification control', mfLiveChips >= 3, `${mfLiveChips} chips`);
+const mfLiveBefore = await rowCount();
+if (mfLiveChips > 1 && mfLiveBefore > 0) {
+  await page.locator('[data-mf-hierarchy] [data-mf-class]').nth(1).click();
+  await page.waitForTimeout(1400);
+  const mfLiveAfter = await rowCount();
+  ok('...and pressing it narrows the feed rather than only the chip', mfLiveAfter > 0 && mfLiveAfter < mfLiveBefore, `${mfLiveBefore} → ${mfLiveAfter}`);
+  const mfLiveHead = await page.locator('[data-mf-two-feeds]').innerText();
+  ok('...with the head reporting the narrowed count, never a wider one', new RegExp(`Showing\\s+${mfLiveAfter}\\b`).test(mfLiveHead.replace(/,/g, '')), mfLiveHead.slice(-90));
+  await page.locator('[data-mf-hierarchy] [data-mf-class]').first().click();
+  await page.waitForTimeout(1200);
+}
+// A SCHEME IS NOT A COMPANY, so no row carries a star and no watchlist filter is offered.
+ok('an All Schemes row files no scheme code into the company watchlist', (await page.locator('#content-host [data-watch-toggle]').count()) === 0);
+
+// A MOVED ROUTE STILL RESOLVES TO WHAT IT MEANT. Every saved `super-investors/fund-returns` link
+// must land on the view it named, not fall through onto Superstar Investors.
+await go('/#/research/super-investors/fund-returns?scope=portfolio', 2600);
+ok('an old Fund Returns link lands on the Mutual Funds tab, not a different page',
+  /mutual-funds\/all-schemes/.test(page.url()), page.url().split('#')[1]);
+ok('...and the URL is rewritten to the new address rather than kept at the old one',
+  !/super-investors/.test(page.url()), page.url().split('#')[1]);
+
+// SCOPE DOES NOT APPLY TO SCHEMES, and the tab says so instead of silently ignoring the toggle.
+for (const sc of ['portfolio', 'watchlist', 'universe']) {
+  await go(`/#/research/mutual-funds/category-performance?scope=${sc}`, 2200);
+  const t = await hostText();
+  ok(`the ${sc} scope renders the tab rather than an empty-scope panel`, t.length > 600 && /scope does not apply/i.test(t));
+  ok(`...and never the shell's watchlist-empty panel`, (await page.locator('[data-watchlist-empty]').count()) === 0);
+}
+// A table whose rows are not companies offers no watchlist filter — the same rule as the star.
+await go('/#/research/mutual-funds/category-performance?scope=universe', 2200);
+ok('a table of categories offers no watchlist control, because a category is not a company',
+  (await page.locator('#content-host [data-watch-toggle]').count()) === 0);
 
 // ---------------------------------------------------------------------------------------
 // 9b. Institutions — REAL filed shareholdings, and the line between them and the rest.
@@ -6813,7 +7192,8 @@ for (const width of [1440, 1024, 390]) {
     ['/#/research/concall?scope=universe', 'con-call scan table'],
     ['/#/research/public-chatter?scope=universe', 'public chatter'],
     ['/#/research/super-investors/institutions?scope=universe&fund=bandhan-small-cap-fund', 'AMC portfolio table'],
-    ['/#/research/super-investors/fund-returns?scope=universe', 'Fund Returns table'],
+    ['/#/research/mutual-funds/all-schemes?scope=universe', 'All Schemes table'],
+    ['/#/research/mutual-funds/category-performance?scope=universe', 'category comparison table'],
   ]) {
     await go(route, 1700);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
