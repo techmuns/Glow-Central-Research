@@ -6422,11 +6422,22 @@ console.log('\n— news, announcements and insider trades —');
     // watchlist is loaded with companies the capture has never seen — that is also the real case a
     // reader hits, since a watchlist can hold anything.
     const uni = uniMod.adaptUniverse(await fetch('data/universe.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => []));
+    // ASK THE STORE WHAT IT CAN HOLD, rather than deciding here and being wrong about it.
+    //
+    // The universe export carries rows whose "ticker" is a BSE SCRIP CODE — `544467` — and the
+    // watchlist refuses those on read: a symbol must start with a letter (`SYMBOL_RE` in
+    // js/core/watchlist.js). So a picker that took the first three uncovered rows could hand the
+    // watchlist a company it would silently drop, leave the scope holding two, and then assert the
+    // walk sent three requests. The walk was right and the check was wrong — two predicates over
+    // one question, which is the shape this codebase keeps finding. `isSymbolShaped` is exported
+    // for exactly this, so there is now one predicate and the test cannot ask for the impossible.
+    const { isSymbolShaped } = await import('/js/core/watchlist.js');
     const seenT = new Set();
     const fresh = uni
       .map((u) => ({ ticker: String(u.ticker || '').toUpperCase(), name: u.name }))
       .filter((c) => {
         if (!c.ticker || !c.name || seenT.has(c.ticker) || covered.has(c.ticker)) return false;
+        if (!isSymbolShaped(c.ticker)) return false;
         seenT.add(c.ticker);
         return true;
       });
@@ -6481,6 +6492,15 @@ console.log('\n— news, announcements and insider trades —');
     skip('a Refresh walks the companies the capture has not covered', 'every company in coverage is already in the snapshot');
   } else {
     await page.evaluate((cs) => localStorage.setItem('sattva:watchlist', JSON.stringify(cs.map((c) => ({ ticker: c.ticker, name: c.name, addedAt: new Date().toISOString() })))), book.fresh);
+    // THE PREMISE OF EVERY COUNT BELOW: the watchlist actually holds what was just written to it.
+    // It refuses a ticker that is not symbol-shaped, so without this a dropped entry would show up
+    // as "the walk sent one request too few" and send somebody to debug the walk.
+    const heldByStore = await page.evaluate(async () => {
+      const wl = await import('/js/core/watchlist.js');
+      return [...wl.tickers()];
+    });
+    ok('...and the watchlist holds every company this check just asked it to',
+      heldByStore.length === picked.length, `${heldByStore.length} of ${picked.length} accepted: ${heldByStore.join(', ')}`);
     seen.news.length = 0;
     await go('/#/research/news?scope=watchlist', 4000);
     ok('a watchlist of uncaptured companies still sends nothing on load', seen.news.length === 0, `${seen.news.length} request(s)`);
