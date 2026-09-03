@@ -33,8 +33,36 @@ import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { news as feed } from '../data/filings.js';
 import * as marketNews from './market-news-view.js';
+import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel } from '../data/news-keywords.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
+
+// ---------------------------------------------------------------------------------------
+// THE TRACKED-KEYWORD LAYER — what makes this feed usable rather than merely present.
+//
+// The upstream is a SEARCH BY COMPANY NAME, so the capture is a name match and names collide: the
+// shipped file holds 11,060 stories across 559 companies, and a company called iDream Film collects
+// Bollywood coverage while GOCL collects "stock on fire". Three quarters of it is somebody else's
+// company. Filtering by the desk's thirty keywords leaves 2,889 rows.
+//
+// THE READING IS CACHED PER ROW, not recomputed per keystroke. `scoreTable` asks `match(row, value)`
+// for every row on every search and filter change, and each reading is thirty regexes over a
+// headline and a standfirst — 330,000 tests per keystroke without this. A WeakMap keyed by the row
+// object is right because the rows are stable objects owned by the feed: the entry dies with the
+// row, and a row whose text changed would be a new object.
+//
+// AND IT IS A TOPIC, NEVER A SENTIMENT. This tab's own header says it carries no ranking or
+// judgement of ours over somebody else's reporting, and that is untouched: a keyword says what a
+// story is about. See js/data/news-keywords.js.
+const readings = new WeakMap();
+function readingFor(row) {
+  let reading = readings.get(row);
+  if (!reading) {
+    reading = classifyStory(row);
+    readings.set(row, reading);
+  }
+  return reading;
+}
 
 const tab = makeFilingsTab({
   id: 'news',
@@ -68,16 +96,78 @@ const tab = makeFilingsTab({
       sortValue: (r) => r.date || '',
     },
     {
-      label: 'Outlet',
-      get: (r) => (r.source ? `<span class="text-slate-600">${escapeHtml(withoutPublisherName(r.source))}</span>` : dash('the article named no outlet')),
+      // THE TOPIC COLUMN TOOK THE OUTLET COLUMN'S PLACE RATHER THAN BEING ADDED BESIDE IT. The
+      // outlet was already printed in the identity cell's sub-line under every headline, so the
+      // column was a second copy of it — and the headline is capped at 780px here precisely because
+      // two different stories truncate to the same string below that. Spending width on a
+      // duplication to make the thing that is not duplicated fit is the wrong way round. The outlet
+      // is still in the sub-line, still its own filter, and still a column in the export.
+      label: 'Topic',
+      get: (r) => {
+        const reading = readingFor(r);
+        if (!reading.tracked) {
+          return `<span class="text-slate-300" title="No tracked keyword matched this headline or standfirst. It is in the capture because the company's own name search returned it.">untracked</span>`;
+        }
+        // The name-match caveat rides on the chip rather than removing the row: `namesCompany` is a
+        // heuristic that reads false for a company known by a brand its search term omits, so it
+        // marks a row and never drops one. See js/data/news-keywords.js.
+        const unnamed =
+          reading.namesCompany === false
+            ? `<span class="ml-1 text-[10px] font-semibold text-amber-600" title="The story does not appear to name this company. It is filed here because the company's own name search returned it — worth opening before acting on.">?</span>`
+            : '';
+        // AT MOST TWO CHIPS, AND THE REST AS A COUNT. A story can carry five keywords — "Receipt of
+        // order worth Rs 240 crore; orderbook at a record" carries three on its own — and five
+        // chips make this column wider than the headline it sits beside. Measured: uncapped, the
+        // News table ran 1390px inside a 1352px viewport at 1440, which is the horizontal scrollbar
+        // `verify-ui.mjs` exists to catch. The full list stays in the cell's tooltip, in the export
+        // and in the filter, so nothing is lost — only the width.
+        const CHIPS = 2;
+        const shown = reading.keywords.slice(0, CHIPS);
+        const rest = reading.keywords.length - shown.length;
+        // A HEADLINE MATCH AND A STANDFIRST MATCH ARE NOT THE SAME EVIDENCE, so they do not look
+        // the same. The publisher chose the headline; several outlets fill the standfirst with a
+        // related-links strip, which is how one Business Today sidebar tagged stories about MCX and
+        // aircraft leasing as Resignation. A muted chip keeps the row findable without dressing a
+        // sidebar hit as a lead. It is also the rule General Alerts promotes on — see `newsSignal`.
+        const chip = (k) =>
+          `<span class="mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ${
+            k.where === 'title' ? 'bg-indigo-50 text-indigo-700 ring-indigo-100' : 'bg-slate-50 text-slate-500 ring-slate-200'
+          }" title="${escapeHtml(
+            `${groupLabel(k.group)} · matched in the ${k.where === 'title' ? 'headline' : "standfirst only — the headline does not carry it, and some outlets fill this field with a related-links strip rather than the story's own summary"}${k.note ? `. ${k.note}` : ''}`
+          )}">${escapeHtml(k.label)}</span>`;
+        const more = rest
+          ? `<span class="text-[10px] font-semibold text-slate-400" title="${escapeHtml(`Also: ${reading.labels.slice(CHIPS).join(', ')}`)}">+${rest}</span>`
+          : '';
+        return shown.map(chip).join('') + more + unnamed;
+      },
       html: true,
-      sortValue: (r) => r.source || '',
+      // Sorts tracked rows to one end and orders them by their first keyword, so a sort on this
+      // column groups the feed by topic rather than scattering it.
+      sortValue: (r) => {
+        const reading = readingFor(r);
+        return reading.tracked ? `1${reading.labels[0]}` : '0';
+      },
     },
   ],
   filters: (rows) => {
+    // THE COUNTS ARE MEASURED, NOT TYPED. Every option carries how many of the rows currently in
+    // scope it would leave, computed from those rows — the same rule the source registry follows
+    // (`sourceGroups()` is a function so no figure can go stale). A reader can then see that
+    // "Order" is 12 rows here before spending a click on it, and can see a keyword that matches
+    // nothing today, which is how a pattern that is quietly too narrow gets noticed.
+    const readingsFor = rows.map(readingFor);
+    const counted = (value) => readingsFor.filter((reading) => matchesTopic(reading, value)).length;
+    const topic = {
+      label: 'Topic',
+      options: topicFilterOptions(counted),
+      match: (r, v) => matchesTopic(readingFor(r), v),
+    };
     const outlets = [...new Set(rows.map((r) => r.source).filter(Boolean))].sort();
-    if (outlets.length < 2) return null;
+    // AN ARRAY, so the two AND together — "Order" and "Business Standard" are different questions
+    // and folding them into one dropdown would make them mutually exclusive for no reason.
+    if (outlets.length < 2) return [topic];
     return [
+      topic,
       {
         label: 'Outlet',
         options: [{ value: 'all', label: 'All outlets' }, ...outlets.slice(0, 40).map((o) => ({ value: o, label: withoutPublisherName(o) }))],
@@ -95,13 +185,36 @@ const tab = makeFilingsTab({
            (<code class="rounded bg-slate-100 px-1">POST /tools/news-search</code>), one search per company, read through this
            dashboard's Worker because the API needs a credential the browser must never hold.</p>
 
-        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this tab asks before it searches</h3>
-        <p class="mt-1 text-xs">It is a <strong>search endpoint, not a feed</strong> — there is no request that returns
-           everything published today, only one that answers “what has been written about this company”. At roughly sixty
-           requests a minute, searching the whole universe would take ten minutes on every visit, so this tab used to walk a
-           bounded forty companies and report the rest as unread. Naming the companies spends the same budget on the ones
-           you actually want, and <strong>every company you name is searched in full</strong>. Corporate Announcements does
-           not ask, because BSE publish that one indexed by date and the whole exchange fits in a couple of dozen requests.</p>
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why a search feed needs a topic filter</h3>
+        <p class="mt-1 text-xs">The upstream is a <strong>search endpoint, not a feed</strong>: there is no request that returns
+           everything published today, only one that answers “what has been written about this company”. So every row here was
+           found by matching a <strong>company name</strong> — and names collide. A company called iDream Film collects film
+           coverage; GOCL collects “stock on fire”. Measured on this capture, roughly three stories in four are about somebody
+           else.</p>
+        <p class="mt-2 text-xs">The <strong>Topic</strong> filter is the other half of the query. Thirty keywords, listed below,
+           say what a story has to be <em>about</em>; the search already supplied the company. Every option shows how many rows
+           it would leave, counted from the rows in scope rather than typed in — including
+           <strong>“No tracked keyword”</strong>, which is there so a pattern that is quietly too narrow can be found rather
+           than mistaken for a quiet week.</p>
+
+        <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The thirty tracked keywords</h3>
+        <div class="mt-1 space-y-1.5 text-xs">
+          ${GROUPS.map(
+            (g) =>
+              `<p><span class="font-semibold text-slate-700">${escapeHtml(g.label)}</span> — ${KEYWORDS.filter((k) => k.group === g.id)
+                .map((k) => escapeHtml(k.label))
+                .join(', ')}</p>`
+          ).join('')}
+        </div>
+        <p class="mt-2 text-xs">A keyword names a <strong>topic, never a direction</strong>. “Lawsuit” is something a company can
+           be on either side of and “Approval” can be somebody else's, so nothing here is scored positive or negative — that
+           would put our judgement beside somebody else's reporting, which this tab does not do. Several patterns are
+           deliberately narrower than the plain word (a bare “trial” matched free-trial boilerplate; a bare “fire” matched
+           “stock on fire”); hover a chip to see where and why.</p>
+        <p class="mt-2 text-xs">A chip followed by an amber <strong>?</strong> means the story does not appear to name the company
+           it is filed under. It is <strong>marked and never removed</strong>: the check is a name heuristic and reads false for a
+           company known by a brand its search term omits, so it flags a row for a second look rather than deciding on your
+           behalf. <em>Tracked keyword · names the company</em> in the Topic filter is the strict reading if you want it.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What is reproduced and what is not</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
@@ -134,6 +247,8 @@ const tab = makeFilingsTab({
               ? `REAL DATA, NOT OURS. Company news via the Muns news API, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
                 `HEADLINES, OUTLETS AND DATES ARE THE PUBLISHERS' — reproduced unchanged, never summarised into our words, and carrying no sentiment or ranking of ours. ` +
                 `The company each story is filed under is OUR search term, not a claim by the article: a story about several companies appears under whichever was asked about. ` +
+                `TRACKED TOPICS ARE OURS AND ARE A SUBJECT READING, NEVER A DIRECTION — a keyword says what a story is about, so nothing in this workbook is scored positive or negative. ` +
+                `"Names the company" is a name heuristic over the search term: "no" flags a story for a second look and never means the row was filtered out; a blank means there was no search term to check. ` +
                 `${m.covered} companies covered${m.failed ? `; ${m.failed} could not be read and are ABSENT rather than shown as having no news` : ''}. ` +
                 `A blank means the article did not carry that field.`
               : r.date || '',
@@ -141,6 +256,22 @@ const tab = makeFilingsTab({
         { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
         { header: 'Headline', key: 'h', width: 70, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
         { header: 'Outlet', key: 'o', width: 24, get: (r) => (r.__banner ? '' : withoutPublisherName(r.source)) },
+        // THE WORKBOOK IS THE ONE ARTEFACT NOBODY CAN SEE A CHIP ON, so the topics travel as their
+        // own column and the banner says what they are and are not. A reader who merges two exports
+        // in Excel has nothing else to go on.
+        { header: 'Tracked topics', key: 'k', width: 30, get: (r) => (r.__banner ? '' : readingFor(r).labels.join(', ')) },
+        {
+          header: 'Names the company',
+          key: 'n',
+          width: 18,
+          get: (r) => {
+            if (r.__banner) return '';
+            const named = readingFor(r).namesCompany;
+            // Three answers, and the blank is the third: no search term to check against is not the
+            // same as a story that does not name the company.
+            return named === true ? 'yes' : named === false ? 'no' : '';
+          },
+        },
         { header: 'URL', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.url || '') },
         { header: 'Summary (publisher)', key: 's', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
       ],

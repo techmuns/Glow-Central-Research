@@ -173,6 +173,38 @@ function cardsPanel(ctx, cards, total) {
     ${total > cards.length ? `<div class="mt-5 text-center"><button type="button" data-ai-more class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300">Show ${escapeHtml(formatNumber(Math.min(PAGE_SIZE, total - cards.length)))} more</button></div>` : ''}`;
 }
 
+/**
+ * The cross-feed patterns, named, above the evidence they were derived from.
+ *
+ * THIS IS THE THING THE PAGE EXISTS TO SHOW. A list of one company's events from four feeds is a
+ * reading exercise; "volume 3.2x its average, and a tracked investor's latest book shows buying" is
+ * an answer. The block sits ABOVE Evidence so the finding is read before its workings, and each
+ * pattern's own sentence is quoted from the matched events rather than templated — see
+ * `confluenceOf` in js/data/ai-alerts.js.
+ *
+ * NO SCORE IS PRINTED HERE, exactly as nowhere else on this card prints one. The patterns carry
+ * points and those points are retained in `scoreBreakdown` for verification; a reader is owed the
+ * correlation and the evidence, not the arithmetic that ordered the list.
+ */
+function confluenceMarkup(card) {
+  const found = card.confluence || [];
+  if (!found.length) return '';
+  return `
+    <div data-ai-confluence class="mt-4 rounded-xl bg-indigo-50/60 p-3 ring-1 ring-indigo-100">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Signals lining up</div>
+      <ul class="mt-2 space-y-1.5">
+        ${found
+          .map(
+            (pattern) => `<li data-confluence="${escapeHtml(pattern.id)}" class="text-sm leading-relaxed text-slate-700">
+              <span class="font-bold text-slate-900">${escapeHtml(pattern.label)}</span>
+              <span class="text-slate-400"> · </span>${escapeHtml(pattern.detail)}
+            </li>`
+          )
+          .join('')}
+      </ul>
+    </div>`;
+}
+
 function cardMarkup(card, scope) {
   const mustSee = card.priority === 'must-see';
   const tone = mustSee
@@ -199,6 +231,8 @@ function cardMarkup(card, scope) {
           </div>
         </div>
 
+        ${confluenceMarkup(card)}
+
         <div class="mt-4">
           <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Evidence</div>
           <div class="mt-2 divide-y divide-slate-100 rounded-xl bg-slate-50/70 ring-1 ring-slate-100">
@@ -208,7 +242,7 @@ function cardMarkup(card, scope) {
         </div>
       </div>
       <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
-        <span class="text-xs text-slate-500">${escapeHtml(formatNumber(card.feedCount))} ${card.feedCount === 1 ? 'feed' : 'feeds'} · ${escapeHtml(formatNumber(card.events.length))} recent ${card.events.length === 1 ? 'event' : 'events'}${card.mixed ? ' · conflicting direction' : ''}</span>
+        <span class="text-xs text-slate-500">${escapeHtml(formatNumber(card.feedCount))} ${card.feedCount === 1 ? 'feed' : 'feeds'} · ${escapeHtml(formatNumber(card.events.length))} recent ${card.events.length === 1 ? 'event' : 'events'}${card.confluence?.length ? ` · ${escapeHtml(formatNumber(card.confluence.length))} cross-feed ${card.confluence.length === 1 ? 'pattern' : 'patterns'}` : ''}${card.mixed ? ' · conflicting direction' : ''}</span>
         <div class="flex flex-wrap items-center gap-3">
           ${topSourceUrl ? `<a href="${escapeHtml(topSourceUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-slate-600 hover:text-indigo-700">Open top source ↗</a>` : ''}
           <button type="button" data-open-general data-ticker="${escapeHtml(card.ticker)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">See all for ${escapeHtml(card.ticker)} in General Alerts →</button>

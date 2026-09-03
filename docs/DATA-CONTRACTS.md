@@ -3177,6 +3177,7 @@ The score begins with the strongest event and then adds smaller company-level co
 
 - event importance, source materiality, recency and explicit Positive / Negative direction;
 - membership in `coverage.js`'s real Portfolio list (not the illustrative Analytics ledger);
+- **named cross-feed patterns** (see below), capped in total at `CONFLUENCE_MAX` (18);
 - independent feed corroboration, repeated high-importance events and directional conflict;
 - a small negative-sector-cluster adjustment where multiple real portfolio companies carry
   high-importance negative evidence (routine small activity cannot create the cluster);
@@ -3186,6 +3187,81 @@ Every contribution is returned as `{ label, points }` in `scoreBreakdown` for de
 The derived `insight` and `action` strings are templates over those structured facts, not generated
 claims. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
 verified with fixtures independently of what happens to be in today's capture.
+
+### Cross-feed patterns — `confluenceOf(events, { feedById })`
+
+Pure and exported. Returns `[{ id, label, points, detail }]`, strongest first, for the patterns a
+company's recent events satisfy. `detail` is written out of the matched events themselves, so every
+clause traces back to a row that is already on the card and already links to its own source.
+
+| id | fires when | points |
+| --- | --- | --- |
+| `accumulation` | participation on the tape (volume or a base break) or a positive price move, **and** a high-importance investor increase / new disclosure or insider purchase | 10 |
+| `distribution` | participation or a negative price move, **and** a high-importance investor reduction / non-disclosure or insider disposal | 10 |
+| `risk-cluster` | high-importance negative readings on two or more independent feeds | 10 |
+| `insider-and-investor` | a high-importance insider trade and a high-importance investor change in the **same** direction | 8 |
+| `news-behind-the-move` | any technicals event, **and** a tracked-keyword news story or a high-importance BSE filing | 8 |
+| `results-reaction` | an earnings or con-call event, **and** any technicals event | 8 |
+| `unexplained-move` | a high-importance technicals event with **no** tracked story, material filing or result in the window — **and only when news, announcements and earnings were all read and reach the day** | 6 |
+
+Three constraints are contractual rather than stylistic:
+
+1. **Co-occurrence, never causation.** A filed shareholding is a quarterly disclosure and the trade
+   behind it may be months old, so the wording is *"a tracked investor's latest book shows buying"*
+   and never *"bought today"*.
+2. **Each leg keys on the owning feed's own published threshold** (`importance === 'high'`), not on a
+   second threshold defined here.
+3. **`unexplained-move` reports an absence**, so it is withheld whenever any feed whose silence it
+   would be reporting is stale, failed or unread.
+
+## Tracked news keywords — DERIVED, no file and no route of its own
+
+`js/data/news-keywords.js` is pure, has no dependencies and writes nothing. It exports `KEYWORDS`
+(30 entries, `{ id, label, group, test, note? }` in the desk's own order), `GROUPS`,
+`matchKeywords(title, summary)`, `namesCompany(row)`, `classifyStory(row)`, and the filter vocabulary
+`topicFilterOptions(count?)` / `matchesTopic(reading, value)` / `topicLabel(value)`.
+
+`classifyStory(row)` returns:
+
+| field | meaning |
+| --- | --- |
+| `keywords` | `[{ id, label, group, note, where }]` — `where` is `'title'` or `'summary'` |
+| `ids` / `labels` / `groups` | the same, flattened |
+| `inTitle` | at least one match was in the headline |
+| `namesCompany` | `true` / `false` / **`null` when there is no search term to check against** |
+| `tracked` | at least one keyword matched |
+| `targeted` | `tracked` **and** `namesCompany !== false` — an unverifiable name is not a failed one |
+
+Consumers: the Topic column and filter on both News surfaces, `newsSignal()` in
+`js/data/daily-alerts.js`, the market-news collector's `keywords` tag, and the
+`news-behind-the-move` confluence pattern.
+
+`newsSignal(row)` returns a normal signal plus `keywords` / `keywordIds` / `keywordGroups` /
+`namesCompany`. It raises **importance only** — direction is always `neutral` — and `high` requires
+**both halves of "company name + keyword", in the headline**:
+
+- `inTitle` must be true. A standfirst-only match stays `low`: several outlets fill that field with
+  a related-links strip rather than the story's own summary.
+- `namesCompany` must not be `false`. `null` still counts — an unverifiable name is not a failed one.
+
+A story that fails either test **keeps its tags and stays in the timeline** at low importance, and
+the reason says which test it failed. Measured on the shipped capture: 3,278 stories tracked, 1,990
+with a headline match, 1,914 with a headline match that also names the company.
+
+Measured on the shipped `news.json` (11,060 stories, 559 companies): 3,278 tracked (29.6%), 3,130
+targeted, and **every one of the 30 keywords matches at least once** — the vocabulary carries no dead
+entry. A keyword is a **topic**, never a direction: no story is scored positive or negative anywhere.
+
+## Technicals participation events — part of the `technicals` feed
+
+Alongside the ±`MOVE_PCT` price move, `fromTechnicals` emits one event per company whose
+`volume_ratio_today` reaches `VOLUME_X` (2 — today's volume against its own 20-day average) or whose
+`consolidation_breakout` reports a completed break (`breaks_out === true` with quality `strong` or
+`weak_base`). Carries `kind: 'volume' | 'breakout'`; the price-move event carries `kind: 'move'`.
+
+**Volume events are `neutral`**, because volume is participation and the tape does not say whether
+heavy trading was accumulation or distribution. Only a confirmed base break is `positive`. On the
+shipped capture, 40 of 603 companies clear 2x and 16 clear 3x.
 
 ## General Alerts history — DERIVED, no file and no route of its own
 
