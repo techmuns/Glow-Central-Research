@@ -1975,6 +1975,17 @@ console.log('\n— AI alerts —');
   // EVERY TABLE TAB HONOURS `?company=` THE SAME WAY: the first paint after the parameter appears
   // opens the table searched for that company, which is what a citation deep-links to. Asserted on
   // the Earnings Hub with a company that actually filed, so the seeded search has rows to show.
+  //
+  // GLOW DIVERGENCE: read each row's TICKER, never its rendered text. The seed fills the table's
+  // OWN search box, and that search matches a company's NAME as well as its ticker — so a ticker
+  // that is also the start of another company's name keeps that company's row too, exactly as
+  // designed. Seeding TECHNOCRAF shows Technocraft Ventures (TECHNOCRAF) and Technocraft
+  // Industries (TIIL), and asserting that every rendered row's TEXT contains the seeded ticker
+  // failed on the second one — on any day the feed's first row shares a name prefix with another
+  // company — while the seed had behaved perfectly. So assert what the seed actually promises: the
+  // box holds the ticker, the seeded company's own row is ON SCREEN (matched by ticker, which the
+  // row key is not on this tab), and the table is narrowed rather than showing the whole feed.
+  // This belongs upstream in techmuns/Sattva-Central-Research; the marker is here for the sync.
   const seedTicker = await page.evaluate(async () => {
     const earnings = await import('/js/data/earnings-live.js');
     await earnings.load();
@@ -1982,11 +1993,27 @@ console.log('\n— AI alerts —');
   });
   await go(`/#/research/earnings-hub?scope=universe&company=${encodeURIComponent(seedTicker || '')}`, 2500);
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
-  const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
-  const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  // The row count comes from the table's own "N of M shown" label, which is read off the row ARRAY
+  // rather than the DOM — so a fill still in flight cannot make a narrowed table look narrower.
+  const seededView = await evalSafe(async () => {
+    const earnings = await import('/js/data/earnings-live.js');
+    const tickerByRowKey = new Map(earnings.all().map((r) => [String(r.scId), r.ticker || null]));
+    const host = document.querySelector('#content-host');
+    const counted = host?.querySelector('[data-row-count]')?.textContent?.match(/([\d,]+)\s+of\s+([\d,]+)/) || null;
+    const num = (s) => Number(String(s).replace(/,/g, ''));
+    return {
+      search: host?.querySelector('[data-table-search]')?.value ?? null,
+      tickers: [...(host?.querySelectorAll('tbody tr[data-row-key]') || [])]
+        .map((tr) => tickerByRowKey.get(tr.getAttribute('data-row-key')) ?? null),
+      shown: counted ? num(counted[1]) : null,
+      total: counted ? num(counted[2]) : null,
+    };
+  });
+  const seededOnScreen = !!seedTicker && seededView.tickers.includes(seedTicker);
   ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
-    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
+    !!seedTicker && seededView.search === seedTicker && seededView.tickers.length > 0 && seededOnScreen
+      && seededView.shown > 0 && seededView.shown < seededView.total,
+    `${seedTicker}: search "${seededView.search}", ${seededView.shown} of ${seededView.total} shown, seeded company ${seededOnScreen ? 'on screen' : 'MISSING'}`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
