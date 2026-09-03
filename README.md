@@ -153,7 +153,7 @@ public/
     tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
     portfolio/        overview, position-by, transactions, drawdown
-  data/               portfolio-companies.json (the book), portfolio.json (the ledger),
+  data/               portfolio-companies.json (the book, synced from techmuns/Sattva-Family), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
 worker/index.js       asset serving + live read-through APIs + the Ask Research stream
 worker/research.mjs   server-only streaming Muns LLM bridge and request limits

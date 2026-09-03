@@ -176,7 +176,11 @@ public/
                               earnings-calendar.json, universe.json, portfolio.json,
                               portfolio-companies.json, mock/*.json
 scripts/
-  resolve-portfolio-companies.mjs  book names -> NSE symbols, collision-guarded
+  sync-family-book.mjs        THE BOOK'S SOURCE — reads techmuns/Sattva-Family's positions file, one
+                              line per equity ISIN, into fixtures/family-book.json, then re-resolves
+  resolve-portfolio-companies.mjs  the fixture's ISINs -> NSE symbols, collision-guarded; every
+                              hand-checked table keyed by ISIN
+  fixtures/family-book.json   the committed copy of the family repository's book: isin, name, sector
   scrape-technicals.mjs       the live pipeline (Yahoo EOD + NSE delivery %)
   gen-mock-earnings.mjs       seeded generator for the synthetic earnings set
   import-amc-portfolio.mjs    AMC monthly portfolio workbooks -> institution-holdings.json
@@ -193,6 +197,8 @@ scripts/
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
+.github/workflows/family-book-sync.yml     06:00 IST weekdays + repository_dispatch from the family repo;
+                                           keeps the book in step with techmuns/Sattva-Family
 .github/workflows/price-move-verify.yml    hourly through the Indian day; asks the Muns market-data
                                            endpoint about every flagged move the scrape could not verify
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
@@ -1840,8 +1846,15 @@ from the ledger now.
 ## What "Portfolio" means — `js/data/coverage.js`
 
 **The scope toggle filters by the book, not by the ledger.** `public/data/portfolio-companies.json`
-is the family office's direct-equity statement — 142 companies, names and sectors only, resolved to
-NSE symbols by `scripts/resolve-portfolio-companies.mjs`. `coverage.js` primes it at bootstrap and
+is the family office's listed direct-equity book — 142 companies, names and sectors only — **read from
+the family's own repository** (`techmuns/Sattva-Family`, `src/data/sattvaData.ts`) by
+`scripts/sync-family-book.mjs`, one line per equity ISIN, and resolved to NSE symbols by
+`scripts/resolve-portfolio-companies.mjs`. It used to be a list of names typed into the resolver;
+a second copy of a book that lives somewhere else can only drift, so the sync runs on a schedule and
+on a `repository_dispatch` from that repository (`.github/workflows/family-book-sync.yml`), and
+**the identity of a line is its ISIN** — every hand-checked table in the resolver is keyed by it,
+because the custodian's names are cut at twenty characters and spelt differently across the family's
+seventeen entities. `coverage.js` primes it at bootstrap and
 exposes `holdings() / tracked() / uncovered() / has(ticker) / meta() / coverageNote()`. **Every
 `forScope()` in every research tab reads it. Nothing reads `ctx.data.portfolio.holdings` for that
 purpose any more** — that path is the ledger's, and it lists twelve positions.
@@ -2902,7 +2915,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the earnings snapshot / ticker map | `node scripts/scrape-earnings.mjs` (`REFRESH_ALL=1` to re-resolve share counts) |
 | Add result-day base prices | `node scripts/scrape-result-returns.mjs` — incremental, one call per new result |
 | Refresh the portfolio price history | `scripts/scrape-portfolio-history.mjs` (`HISTORY_YEARS=5` to widen) |
-| Add or remove a company from the committed book default | `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net` for the leftovers), commit `public/data/portfolio-companies.json` |
+| Add or remove a company from the book | **In the family repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`; the sync brings it here. Then `node scripts/sync-family-book.mjs` (`FAMILY_REPO_TOKEN=…`, or `FAMILY_BOOK_PATH=` a local clone) and commit `scripts/fixtures/family-book.json` + `public/data/portfolio-companies.json`. A new ISIN gets its reader-facing name in `DISPLAY_NAMES` in `scripts/resolve-portfolio-companies.mjs`; a line no feed can place goes in `CONFIRMED` / `BSE_ONLY` / `NOT_LISTED_EQUITY` there, keyed by ISIN |
+| Set up the automatic book sync on a deployment | add a Secret named **`FAMILY_REPO_TOKEN`** to this repository (*Settings → Secrets and variables → Actions*): a fine-grained token on `techmuns/Sattva-Family` alone with **Contents: read**. Optionally have that repository POST `repository_dispatch` (`family-book-updated`) here on push — the snippet is in `docs/DATA-CONTRACTS.md` |
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first; it is **not** `portfolio.json` |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |

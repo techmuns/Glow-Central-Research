@@ -15,6 +15,8 @@
 // Tailwind is a committed same-origin stylesheet, so layout and visual checks still exercise the
 // shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
+import { readFileSync } from 'node:fs';
+
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const CHROME = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -3750,6 +3752,29 @@ ok('...each with a ticker or a stated reason it has none', book.unaccounted.leng
 ok('...and no two companies collapse onto one symbol', book.dupes.length === 0, book.dupes.join(', ') || `${book.meta.tracked} distinct tickers`);
 ok('...and every line has a name', book.blankNames === 0);
 ok('the counts add up', book.meta.tracked + book.meta.uncovered === book.count, `${book.meta.tracked} tracked + ${book.meta.uncovered} uncovered = ${book.count}`);
+
+// The book is no longer typed in here: scripts/sync-family-book.mjs reads it from the family
+// office's own repository (techmuns/Sattva-Family) into scripts/fixtures/family-book.json, one line
+// per listed equity ISIN, and the resolver turns that into the served file. So the identity of a
+// line is its ISIN, and the served book must be exactly the fixture's set — a line that vanished
+// between the two would be a holding silently dropped, which is the failure this whole section
+// exists to catch. The names are compared too: the custodian's wording travels as `bookName`, the
+// display name is what the reader recognises, and neither may be blank.
+const familyBook = JSON.parse(readFileSync(new URL('./fixtures/family-book.json', import.meta.url), 'utf8'));
+const servedBook = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
+const isinOk = (s) => /^INE[A-Z0-9]{9}$/.test(s || '');
+const fixtureIsins = familyBook.lines.map((l) => l.isin);
+const servedIsins = servedBook.holdings.map((h) => h.isin);
+ok('the fixture read from the family repository is one line per equity ISIN',
+  familyBook.count === familyBook.lines.length && fixtureIsins.every(isinOk) && new Set(fixtureIsins).size === fixtureIsins.length,
+  `${familyBook.count} lines, as of ${familyBook.asOf}`);
+ok('...and carries no quantity, cost or value', familyBook.lines.every((l) => ['isin', 'name', 'sector'].every((k) => k in l) && Object.keys(l).length === 3));
+ok('every served line carries its ISIN, once', servedIsins.every(isinOk) && new Set(servedIsins).size === servedIsins.length);
+ok('the served book is exactly the fixture\'s set of ISINs',
+  servedIsins.length === fixtureIsins.length && servedIsins.every((i) => fixtureIsins.includes(i)),
+  `${servedIsins.filter((i) => !fixtureIsins.includes(i)).length} served but not in the fixture, ${fixtureIsins.filter((i) => !servedIsins.includes(i)).length} in the fixture but not served`);
+ok('...keeps the custodian\'s own wording beside the display name', servedBook.holdings.every((h) => typeof h.bookName === 'string' && h.bookName && h.name));
+ok('...and names its source and as-of date', /Sattva-Family/.test(servedBook.source) && servedBook.asOf === familyBook.asOf, `${servedBook.source} · ${servedBook.asOf}`);
 
 // No leakage: a Portfolio-scoped table must contain only companies from the book.
 for (const [hash, label, wait] of [
