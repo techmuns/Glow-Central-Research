@@ -8,11 +8,12 @@ import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
+import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { openScopeEditor } from './scope-editor.js';
+import { sourcesModalHtml } from './sources.js';
 import { mountHostTicker } from './host-ticker.js';
 import * as sourceBeacon from './source-beacon.js';
 
@@ -154,6 +155,25 @@ function shellTemplate() {
       <main id="dashboard-main" class="fade-in min-w-0">
         <div id="content-host"></div>
       </main>
+      <!-- THE DOOR TO THE SOURCE REGISTRY, AND THE ONLY ONE.
+           CLAUDE.md removed the header's Sources button and made every status pill passive, for a
+           good reason: those chips were competing with the tables they qualified. It also says, in
+           the same breath, that "canonical provenance remains in the source registry" — and the
+           registry had NO CALLER AT ALL, so that sentence was a promise the app did not keep.
+           sourcesModalHtml() was exported and unreachable, and sourceGroups() was named only in
+           a comment. (No backticks in here: this comment is inside a template literal — which is
+           exactly how this footer broke the page the first time it was written.)
+           A footer is what closes that without reopening what was closed. It sits AFTER the
+           content, so by construction it cannot compete with anything for the top of the page;
+           it adds nothing to the header; and it leaves every pill exactly as passive as before.
+           One muted line is also what a reader looking for provenance already expects to find at
+           the bottom of a page. -->
+      <footer class="border-t border-slate-100 pb-8 pt-5 text-center">
+        <button type="button" data-sources-open
+          class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
+          Data sources and how each feed is collected
+        </button>
+      </footer>
     </div>`;
 }
 
@@ -190,9 +210,21 @@ function wireStaticHeader(root) {
   // header rather than to whichever tab happens to be mounted.
   const offHostTicker = mountHostTicker($('#host-ticker-mount', root));
 
+  // The footer's registry link. Wired here rather than per route for the reason above: the footer
+  // is static, and a listener flushed on every route change would leave a link that silently stops
+  // working the first time the reader switches tab — the same failure the status pill's clock had.
+  //
+  // `sourcesModalHtml()` is a FUNCTION, called on open, so every figure in the modal is read from
+  // the module that owns it at the moment it is shown. That is deliberate and is why the registry
+  // may be reached from a static control without going stale — see *Data sources* in CLAUDE.md.
+  const sourcesBtn = root.querySelector('[data-sources-open]');
+  const onSources = () => openModal(sourcesModalHtml(), { size: 'wide' });
+  sourcesBtn?.addEventListener('click', onSources);
+
   headerDisposer = () => {
     offStatus?.();
     offHostTicker?.();
+    sourcesBtn?.removeEventListener('click', onSources);
   };
 }
 

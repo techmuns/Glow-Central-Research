@@ -1562,14 +1562,25 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
-  // The seeded company's own row must be there. It is deliberately NOT asserted that every visible
-  // row carries the ticker: the search box matches names as well as symbols, so seeding `TECHNOCRAF`
-  // legitimately also shows Technocraft Industries, whose own symbol is something else entirely.
-  // That is a search behaving like a search, and the day the newest filing happened to be a company
-  // whose name prefixes another's it failed a check about deep-linking.
+  // ASSERT WHAT A SEARCH PROMISES, NOT WHAT A FILTER WOULD. `?company=` seeds the search box — the
+  // documented behaviour, and visible to the reader, who can edit it — so what it returns is every
+  // row matching that TEXT, which is a superset of the company. The box matches names as well as
+  // symbols, so seeding `TECHNOCRAF` legitimately also shows Technocraft Industries, whose own
+  // symbol is something else entirely. That is a search behaving like a search, and the day the
+  // newest filing happened to be a company whose name prefixes another's, a check about deep-linking
+  // failed with nothing wrong on the page.
+  //
+  // This is the second assertion in this file to get that backwards — the other read a
+  // case-sensitive ticker against a BSE filing reading "voluntarily issued by Crisil" — so state the
+  // shape once. Two clauses, and both earn their place: every row matches the seeded SEARCH, which
+  // is what the product promises and would catch a stray unrelated row; and the seeded company is
+  // among them, which carries the original point of this check — an uppercase seeded ticker matching
+  // nothing while the product visibly said 0 shown.
+  const seededMatchesSearch = seededRows.every((row) => row.toUpperCase().includes(String(seedTicker || '').toUpperCase()));
+  const seededCompanyPresent = seededRows.some((row) => row.includes(seedTicker));
   ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.some((row) => row.includes(seedTicker)),
-    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededMatchesSearch && seededCompanyPresent,
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s), company present ${seededCompanyPresent}`);
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
@@ -1715,9 +1726,25 @@ console.log('\n— AI alerts —');
   ok('announcement rules distinguish upgrade, default and unmatched text',
     rules.annUpgrade.direction === 'positive' && rules.annDefault.direction === 'negative' && rules.annGeneral.direction === 'neutral' &&
       rules.annRegulatoryOrder.direction !== 'positive');
-  ok('BSE critical and material announcement matches are High',
-    rules.annCritical.importance === 'high' && rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
-      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low');
+  // THE CRITICAL EXPECTATION HERE IS INVERTED ON PURPOSE, and it is the one line of this check that
+  // changed: `annCritical` is an AGM notice BSE flagged critical, and it is now LOW. Their flag is
+  // reproduced on the row and in the export and no longer gates our importance — measured, it marks
+  // 29% of the whole exchange and 881 of those are AGM notices. See *A borrowed flag is not a
+  // materiality rule* in CLAUDE.md, and `BSE_CRITICAL_IS_MATERIAL`, which flips it back.
+  //
+  // Everything else this check asserted is unchanged and still asserted: the directional rule keeps
+  // its own materiality (an upgrade and an auditor resignation are both High on their own, without
+  // BSE's flag and — for the upgrade — without any tracked keyword), and a routine AGM is Low.
+  ok('the directional rule keeps its own materiality, and BSE\'s critical flag no longer grants it',
+    rules.annUpgrade.importance === 'high' && rules.annAuditor.importance === 'high' &&
+      rules.annAuditor.direction === 'negative' && rules.annGeneral.importance === 'low' &&
+      rules.annCritical.importance === 'low',
+    `upgrade ${rules.annUpgrade.importance}, auditor ${rules.annAuditor.importance}, AGM ${rules.annGeneral.importance}, critical AGM ${rules.annCritical.importance}`);
+  // ...and the row still carries their flag's reasoning, so a reader is not left wondering why a
+  // filing the exchange marked critical is not at the top of the page.
+  ok('...and a critical filing says in words that their marker is reproduced but is not the gate',
+    /BSE marked this filing critical/.test(rules.annCritical.importanceReason) && !/BSE marked this filing critical/.test(rules.annGeneral.importanceReason),
+    rules.annCritical.importanceReason.slice(0, 90));
   ok('regulatory approval and commercial-production noun forms are Positive and High',
     rules.annApprovalReceipt.direction === 'positive' && rules.annApprovalReceipt.importance === 'high' &&
       rules.annProductionCommencement.direction === 'positive' && rules.annProductionCommencement.importance === 'high' &&
@@ -3401,6 +3428,48 @@ if (!chatterState.ok) {
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
+
+  // A GENERAL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
+  // event carries no source URL, so daily-alerts.js falls back to the tab WITH the company and an
+  // `open=mentions` flag; this asserts the receiving end honours it. Driven through the URL the row
+  // click builds (deterministic) rather than through the alerts tab, which needs every feed's egress
+  // to render a chatter row at all.
+  const deepTicker = await evalSafe(async () => {
+    const c = await import('/js/data/chatter-live.js');
+    return (c.companies() || [])[0]?.ticker || null;
+  });
+  if (deepTicker) {
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}&open=mentions`, 900);
+    await page.waitForTimeout(600);
+    const deep = await evalSafe((t) => {
+      const dialog = document.querySelector('[data-chatter-mentions-dialog]');
+      const c = document.querySelector('#content-host input')?.value || '';
+      return { popup: !!dialog, slug: dialog?.getAttribute('data-chatter-slug') || null, seeded: c.toUpperCase().includes(t) };
+    }, deepTicker);
+    ok('a chatter deep-link opens that company\'s mentions popup and seeds the search',
+      deep && deep.popup && deep.seeded, `popup ${deep?.popup}, search seeded ${deep?.seeded}, slug ${deep?.slug}`);
+    // Close it, then a repaint (scope toggle) must NOT reopen it — the guard against a live tick or a
+    // scope change re-triggering the popup on every paint.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await go(`/#/research/public-chatter?scope=watchlist&company=${encodeURIComponent(deepTicker)}&open=mentions`, 700);
+    await page.waitForTimeout(400);
+    const reopened = await evalSafe(() => !!document.querySelector('[data-chatter-mentions-dialog]'));
+    ok('...and a scope toggle on the same deep-link does not reopen it', !reopened, `reopened=${reopened}`);
+    // `?company=` alone seeds the search but must NOT open the popup — only `open=mentions` does.
+    await go('/#/research/ask-research?scope=universe', 500);
+    await go(`/#/research/public-chatter?scope=universe&company=${encodeURIComponent(deepTicker)}`, 800);
+    await page.waitForTimeout(400);
+    const seedOnly = await evalSafe((t) => ({
+      popup: !!document.querySelector('[data-chatter-mentions-dialog]'),
+      seeded: (document.querySelector('#content-host input')?.value || '').toUpperCase().includes(t),
+    }), deepTicker);
+    ok('company= alone seeds the search without opening the popup', seedOnly && !seedOnly.popup && seedOnly.seeded,
+      `popup ${seedOnly?.popup}, seeded ${seedOnly?.seeded}`);
+    await go('/#/research/public-chatter?scope=universe', 800);
+  } else {
+    skip('a chatter deep-link opens that company\'s mentions popup', 'no resolved chatter company in this run');
+  }
   await page.locator('[data-chatter-live]').click();
   await page.waitForTimeout(200);
   ok('the Public Chatter Live label opens no explainer popup',
@@ -5208,6 +5277,19 @@ console.log('\n— header status and live alerts —');
   });
   ok('the header search box is gone', header.inputs === 0, `${header.inputs} inputs in the header`);
   ok('...and so is the Sources button', !header.sourcesBtn);
+  // THE OTHER HALF OF THAT TRADE, and the half that was missing. Removing the button was right;
+  // leaving the registry with no caller at all was not, because CLAUDE.md goes on to say canonical
+  // provenance "remains in the source registry". The door is a footer, BELOW the content, so the
+  // chrome stays gone and the claim stays reachable — see section 17.
+  const registryDoor = await evalSafe(() => {
+    const btn = document.querySelector('[data-sources-open]');
+    const main = document.getElementById('dashboard-main');
+    if (!btn || !main) return { present: false };
+    return { present: true, inHeader: !!btn.closest('header'), belowContent: !!(main.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  });
+  ok('...but the source registry is reachable, from a footer rather than the chrome',
+    registryDoor.present && !registryDoor.inHeader && registryDoor.belowContent,
+    JSON.stringify(registryDoor));
   ok('one status pill, not two competing chips', header.pills === 1 && header.updatedChip === 0, `${header.pills} pill(s), ${header.updatedChip} legacy chip(s)`);
   ok('...reading "Connected · checked <when>"', /^Connected · checked /.test(header.pillText) || /connecting/.test(header.pillText), header.pillText);
   ok('...and a refresh button beside it', header.refresh === 1);
@@ -5943,6 +6025,16 @@ console.log('\n— news, announcements and insider trades —');
   await page.waitForFunction(() => !document.querySelector('[data-mcnews-list][data-rows-pending]'), null, { timeout: 20000 }).catch(() => {});
 
   // Search narrows the list without touching the head, and the count reports the ARRAY.
+  //
+  // NAVIGATE BACK FIRST — this check owns its own precondition rather than inheriting the page the
+  // previous block happened to leave. It used to inherit News/Universe, and the day an NSE-filings
+  // block was inserted above it the page was left on a different tab entirely, so the market-wide
+  // list was legitimately absent and this reported "no search box" about a view that was fine. A
+  // check that depends on ambient page state fails for the wrong reason the moment anyone inserts
+  // one above it.
+  await go('/#/research/news?scope=universe', 2500);
+  await waitForPanel();
+  await page.waitForSelector('#content-host [data-news-search]', { timeout: 15000 }).catch(() => {});
   const filtered = await evalSafe(async () => {
     const input = document.querySelector('[data-news-search]');
     if (!input) return null;
@@ -7314,6 +7406,25 @@ const keywordRules = await page.evaluate(async () => {
     // The volume threshold is stated and exported, like every other entry rule on that page.
     volumeX: alerts.VOLUME_X,
 
+    // ANNOUNCEMENTS: the taxonomy REPLACED a borrowed gate rather than sitting beside one.
+    // BSE's critical flag marks about a third of all filings and most are AGM notices, so it is
+    // reproduced on the row and no longer decides what is material. Fixtures, because the retained
+    // capture is three days and cannot be relied on to contain each case.
+    criticalIsNotOurGate: alerts.BSE_CRITICAL_IS_MATERIAL === false,
+    agmStaysLow: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', category: 'AGM/EGM', subCategory: 'AGM', critical: true }).importance === 'low',
+    // ...and the row still says the flag was set, because it is theirs and a reader is owed it.
+    agmReasonNamesTheFlag: /BSE marked this filing critical/.test(alerts.announcementSignal({ title: 'Notice of 25th AGM', critical: true }).importanceReason),
+    // A tracked keyword promotes a filing, including through BSE's own sub-category wording.
+    orderFilingIsHigh: alerts.announcementSignal({ title: 'Intimation of receipt of order', subCategory: 'Award of Order / Receipt of Order', critical: false }).importance === 'high',
+    subCategoryAloneCounts: alerts.announcementSignal({ title: 'Intimation under Regulation 30', subCategory: 'Resignation of Director', critical: false }).keywords.includes('Resignation'),
+    // The directional rule keeps its own materiality — a dividend record date carries no tracked
+    // keyword and must not lose importance to this change.
+    dividendStillHigh: alerts.announcementSignal({ title: 'Record date for the purpose of payment of Dividend', critical: false }).importance === 'high',
+    // Direction on this feed is untouched by the keyword layer.
+    downgradeStillNegative: alerts.announcementSignal({ title: 'Intimation of rating downgrade' }).direction === 'negative',
+    dividendStillPositive: alerts.announcementSignal({ title: 'Record date for Final Dividend' }).direction === 'positive',
+    agmStaysNeutral: alerts.announcementSignal({ title: 'Notice of 25th Annual General Meeting', critical: true }).direction === 'neutral',
+
     // The confluence layer.
     buyerPattern: ai.confluenceOf(buyerEvents, { feedById }).map((c) => c.id),
     buyerSentence: ai.confluenceOf(buyerEvents, { feedById })[0]?.detail || '',
@@ -7349,6 +7460,14 @@ ok('...and a keyword only in the standfirst stays low, but stays findable and ta
 ok('...and it never moves DIRECTION, not even on a risk word', keywordRules.trackedStaysNeutral && keywordRules.riskWordStaysNeutral);
 ok('...and the reason names the keyword rather than asserting the event', keywordRules.reasonNamesTheKeyword);
 ok('the volume threshold is stated and exported', keywordRules.volumeX === 2, `${keywordRules.volumeX}x the 20-day average`);
+// A BORROWED FLAG IS NOT A MATERIALITY RULE. BSE's marks ~a third of all filings, 881 of them AGM
+// notices, so using it as the gate made a third of the exchange high-importance.
+ok("BSE's critical flag is reproduced but is not this dashboard's materiality gate", keywordRules.criticalIsNotOurGate && keywordRules.agmStaysLow && keywordRules.agmReasonNamesTheFlag);
+ok('...and a tracked keyword promotes a filing, including one only BSE\'s sub-category names', keywordRules.orderFilingIsHigh && keywordRules.subCategoryAloneCounts);
+// The keyword layer ADDED an input to one predicate; it did not replace the directional rule's own
+// materiality, or a dividend record date would have quietly stopped mattering.
+ok('...while the directional rule keeps its own materiality', keywordRules.dividendStillHigh);
+ok('...and announcement DIRECTION is untouched by the keyword layer', keywordRules.downgradeStillNegative && keywordRules.dividendStillPositive && keywordRules.agmStaysNeutral);
 ok('volume plus a disclosed buyer is reported as one named pattern', keywordRules.buyerPattern.includes('accumulation'), keywordRules.buyerPattern.join(', '));
 ok('...and its sentence is quoted from the events, naming both halves', /3\.2x/.test(keywordRules.buyerSentence) && /Tracked Investor/.test(keywordRules.buyerSentence), keywordRules.buyerSentence.slice(0, 110));
 // The correlation defers to each feed's own published threshold instead of inventing a second one.
@@ -7395,6 +7514,67 @@ await page.waitForTimeout(600);
 const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
 ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
 
+// --- Corp Announcements: the widest feed in the dashboard gets the same Topic control ---
+await go('/#/research/corp-announcements?scope=universe', 2000);
+await waitForPanel();
+await settleTables();
+const annHeads = await page.locator('#content-host table thead th').allInnerTexts();
+ok('Corp Announcements carries a Topic column', annHeads.some((h) => /Topic/i.test(h)), annHeads.join(' | '));
+// Same trade as News/Outlet: `rowSub` already prints the sub-category under every subject.
+ok('...in place of the Sub-category column, which was already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
+const annSelects = page.locator('#content-host select');
+ok('...and Topic leads, with Category and Sub-category still filterable', (await annSelects.count()) >= 3 && (await annSelects.first().locator('option').first().innerText()).includes('All topics'));
+// The strict option cannot apply: a BSE filing IS the company's own statement.
+ok('...without the strict "names the company" option, which does not arise on a filing', !(await annSelects.first().locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
+const annAll = await rowCount();
+await annSelects.first().selectOption('tracked');
+await settleTables();
+const annTracked = await rowCount();
+await annSelects.first().selectOption('untracked');
+await settleTables();
+const annUntracked = await rowCount();
+ok('Topic narrows the exchange-wide feed, and tracked + untracked is the whole set',
+  annTracked > 0 && annTracked < annAll && annTracked + annUntracked === annAll,
+  `${annTracked} + ${annUntracked} = ${annAll}`);
+await annSelects.first().selectOption('all');
+await settleTables();
+const annWidth = await page.evaluate(() => {
+  const el = document.querySelector('#content-host [data-table-scroll]');
+  return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
+});
+ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
+// THE EXPLANATION HAS TO BE REACHABLE, AND ON THESE TABS THE MODAL IS NOT.
+//
+// `cfg.provenance` is built for all three filings tabs and `openProvenance` is never called: the
+// status pill is a passive `<span>` by design (see CLAUDE.md — "the status pill is passive and
+// opens no modal"), so nothing on screen opens it. That is a pre-existing gap and not this
+// layer's to close, but it does decide where a Topic explanation may be asserted: the only
+// surfaces a reader can actually reach are the option labels and the cells' own tooltips. So
+// those are what is checked HERE. The pill itself is still passive and must stay that way; the
+// tab's provenance now has a door of its own under the table, asserted in section 17.
+const annPillOpens = await (async () => {
+  await page.locator('#content-host [data-filings-info]').first().click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return !!text;
+})();
+ok('the passive status pill still opens nothing, so the reachable surfaces are what must explain Topic', annPillOpens === false);
+const annTopicTitles = await page.evaluate(() => {
+  const host = document.querySelector('#content-host');
+  const cells = [...host.querySelectorAll('tbody tr')].map((tr) => tr.children[3]).filter(Boolean);
+  const chip = cells.map((c) => c.querySelector('[title]')).find(Boolean);
+  const untracked = cells.map((c) => c.querySelector('span[title]')).find((n) => n && /untracked/i.test(n.textContent));
+  return { chip: chip?.getAttribute('title') || '', untracked: untracked?.getAttribute('title') || '' };
+});
+// A chip has to say WHICH of the exchange's two descriptions carried the word, because the subject
+// is the company's own sentence and the sub-category is BSE's taxonomy.
+ok('a Topic chip names its family and which exchange field carried the keyword',
+  /subject|sub-category/i.test(annTopicTitles.chip) && annTopicTitles.chip.length > 20, annTopicTitles.chip.slice(0, 90));
+// And an untracked row says why it is here, rather than reading as a failed match.
+ok('...and an untracked filing explains itself rather than reading as a miss',
+  /routine|no tracked keyword/i.test(annTopicTitles.untracked), annTopicTitles.untracked.slice(0, 90));
+
 // --- AI Alerts renders the correlation above the evidence it came from ---
 await go('/#/research/ai-alerts?scope=universe', 5000);
 await waitForPanel(15000);
@@ -7428,6 +7608,75 @@ if (!aiCards) {
   ok('...and the card leads with the correlation, not a feed count', /:/.test(order?.insight || '') && !/^Signals conflict across/.test(order?.insight || ''), (order?.insight || '').slice(0, 100));
   // No score anywhere on the card, exactly as before this layer existed.
   ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
+}
+
+// ---------------------------------------------------------------------------------------
+console.log('\n— 17. provenance is reachable, without the chrome that was removed —');
+// ---------------------------------------------------------------------------------------
+// A BODY OF PROVENANCE EXISTED AND NOTHING OPENED IT. `cfg.provenance` was supplied by all three
+// filings tabs and `openProvenanceFactory` built a handler no caller ever invoked; `sourcesModalHtml`
+// was exported and imported by nothing. That is worse than absent, because unreachable content reads
+// as documentation of a working feature — and CLAUDE.md leans on both: it says the denominator has
+// to stay REACHABLE, and that canonical provenance "remains in the source registry".
+//
+// What is asserted here is the pair, because either alone is the bug: the explanation opens, AND the
+// chrome that was deliberately removed has not crept back.
+const registryModal = await (async () => {
+  await go('/#/research/ai-alerts?scope=portfolio', 4000);
+  await waitForPanel();
+  await page.locator('[data-sources-open]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  if (text) await page.keyboard.press('Escape');
+  return text;
+})();
+ok('the footer opens the source registry', registryModal.length > 2000, `${registryModal.length} chars`);
+// The registry is a FUNCTION called on open, which is what lets a static footer reach live figures
+// without going stale — the rule that killed the old hand-typed source array.
+ok('...and it names the upstreams it is canonical for',
+  ['Muns news API', 'BSE', 'Finology', 'Trendlyne', 'Yahoo'].every((n) => registryModal.includes(n)),
+  registryModal.replace(/\s+/g, ' ').slice(0, 90));
+// ...AND STILL WITHHOLDS THE TWO BRANDS IT IS SUPPOSED TO. Making provenance reachable must not
+// leak what the honesty rules deliberately keep off customer-facing surfaces: the con-call and
+// market-news providers are named in the code and in docs/DATA-CONTRACTS.md and NOT on screen —
+// "no brand anywhere, the disclaimer everywhere" (CLAUDE.md, *Reproducing someone else's
+// analysis*). A door to the registry is exactly where that would have slipped, so it is asserted
+// here rather than assumed. The first draft of this check asserted the opposite and caught it.
+ok('...without printing the two providers whose brands are deliberately withheld',
+  !/Moneycontrol|StockScans/i.test(registryModal) && /publisher|research provider/i.test(registryModal));
+
+for (const [route, title, scope] of [
+  ['/#/research/news?scope=portfolio', 'News', 'portfolio'],
+  ['/#/research/corp-announcements?scope=universe', 'Corp Announcements', 'universe'],
+  ['/#/research/insider-trades?scope=portfolio', 'Insider Trades', 'portfolio'],
+]) {
+  await go(route, 4000);
+  await waitForPanel();
+  await settleTables();
+  const placement = await evalSafe(() => {
+    const btn = document.querySelector('#content-host [data-filings-method]');
+    const table = document.querySelector('#content-host [data-score-table]') || document.querySelector('#content-host table');
+    if (!btn) return { present: false };
+    return {
+      present: true,
+      belowTable: !table || !!(table.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
+      pillIsSpan: (document.querySelector('#content-host [data-filings-info]') || {}).tagName === 'SPAN',
+    };
+  });
+  ok(`${title} carries a method link under its table`, placement.present && placement.belowTable, JSON.stringify(placement));
+  // The decision CLAUDE.md recorded is preserved exactly: the label stays a passive span that opens
+  // nothing. What changed is that the explanation gained a door, not that the label became one.
+  ok(`...and ${title}'s freshness label is still a passive span`, placement.pillIsSpan === true);
+  await page.locator('#content-host [data-filings-method]').click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(700);
+  const text = await page.locator('#modal-content').innerText().catch(() => '');
+  ok(`...and it opens ${title}'s own provenance`, text.length > 1200, `${text.length} chars`);
+  // THE PART NO STATIC REGISTRY CAN CARRY: the measured coverage for the rows on screen. This is the
+  // denominator CLAUDE.md says must stay reachable — "23 rows look complete until you know the book
+  // is 142" — and it is the reason this content is wired rather than pruned.
+  ok(`...carrying ${title}'s measured coverage, not just prose`, /\d/.test(text) && /(compan|filing|row)/i.test(text));
+  if (text) await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 }
 
 // ---------------------------------------------------------------------------------------
