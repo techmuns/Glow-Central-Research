@@ -32,6 +32,24 @@ import * as marketNews from '../data/market-news.js';
 import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
 import { openTwitterSources } from '../ui/twitter-sources.js';
+import { classifyStory, topicFilterOptions, matchesTopic, topicLabel } from '../data/news-keywords.js';
+
+// The same thirty keywords the company half of this tab filters by, over the same reading. Cached
+// per story object for the same reason: the reader types, and every keystroke re-filters 600 rows.
+//
+// THE ONE DIFFERENCE IS WHAT A MATCH MEANS HERE. These stories carry no company, so "company name +
+// keyword" has only its second half — this narrows the market feed to a subject and cannot say the
+// subject is yours. That is why the alerts layer tags these rows and does not promote them: see the
+// market-news collector in js/data/daily-alerts.js.
+const readings = new WeakMap();
+function readingFor(row) {
+  let reading = readings.get(row);
+  if (!reading) {
+    reading = classifyStory(row);
+    readings.set(row, reading);
+  }
+  return reading;
+}
 
 let unsub = null;
 let postsUnsub = null;
@@ -46,7 +64,7 @@ let lastResult = null;
 let failure = null;
 // The reader's own filters. Module state, not node state: every repaint rebuilds the list, so a
 // value held on the input would be discarded the moment a capture landed.
-let listView = { q: '', section: 'all', source: 'all' };
+let listView = { q: '', section: 'all', publisher: 'all', topic: 'all', source: 'all' };
 let fillStop = null;
 // Whether the provenance modal — which holds the Fetch control — is on screen, so a fetch's
 // progress can be re-rendered into it rather than reported to a panel nobody is looking at.
@@ -156,15 +174,93 @@ function feedRows() {
 
 const isPost = (r) => r.kind === twitterNews.KIND;
 
-/** Which stories the search box, the source filter and the section filter leave. */
+// How close to the bottom of the list counts as "the reader wants more", in pixels. Generous on
+// purpose: fetching a month while the last screenful is still being read is what makes the scroll
+// feel continuous rather than stop-and-wait.
+const NEAR_BOTTOM_PX = 600;
+
+// The last thing loadMore() reported, so the footer can say what happened. Module state, not node
+// state — the load repaints the list underneath it, so anything held on the footer node is gone by
+// the time there is something to say. Same reasoning as `lastResult` above.
+let lastMore = null;
+let moreInFlight = false;
+
+/**
+ * The end of the list, and the only place that says how far back the archive goes.
+ *
+ * IT NEVER SAYS "THAT IS EVERYTHING" ON THE STRENGTH OF A FAILED READ. A month that could not be
+ * fetched leaves the footer offering to try again, because reporting an outage as the end of the
+ * archive is the same error as rendering a missing value as zero — and here the reader has no way
+ * at all to tell the two apart from the screen.
+ */
+function moreFooter() {
+  const arc = marketNews.archiveMeta();
+  const back = arc.oldest ? istTime(arc.oldest) : null;
+  const base = 'flex items-center justify-center gap-3 border-t border-slate-100 px-5 py-4 text-sm';
+
+  if (moreInFlight || arc.loading) {
+    return `<div data-news-more class="${base} text-slate-500">${SPINNER}<span>Loading older stories…</span></div>`;
+  }
+  if (lastMore?.failed) {
+    return `<div data-news-more class="${base} text-slate-500">
+      <span class="text-amber-700">Older stories could not be read${lastMore.reason ? ` — ${escapeHtml(String(lastMore.reason))}` : ''}.</span>
+      <button type="button" data-news-more-btn class="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Try again</button>
+    </div>`;
+  }
+  if (!arc.exhausted) {
+    return `<div data-news-more class="${base} text-slate-500">
+      <span>Keep scrolling for older stories${arc.remaining ? ` · ${escapeHtml(formatNumber(arc.remaining))} more month${arc.remaining === 1 ? '' : 's'} in the archive` : ''}</span>
+      <button type="button" data-news-more-btn class="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Load older</button>
+    </div>`;
+  }
+  return `<div data-news-more class="${base} text-slate-400">
+    <span>That is every story captured${back ? `, back to ${escapeHtml(back)}` : ''}. History grows from here — nothing is discarded any more.</span>
+  </div>`;
+}
+
+/** Pull the next month in. Guarded so a flick of the wheel cannot start three of these at once. */
+async function requestMore(root) {
+  if (moreInFlight) return;
+  const arc = marketNews.archiveMeta();
+  if (arc.exhausted) return;
+  moreInFlight = true;
+  const foot = root?.querySelector('[data-news-more]');
+  if (foot) foot.outerHTML = moreFooter();
+  try {
+    lastMore = await marketNews.loadMore();
+  } catch (err) {
+    lastMore = { added: 0, failed: 1, reason: String(err?.message || err) };
+  } finally {
+    moreInFlight = false;
+  }
+  // A load that ADDED something emits, and the tab's own subscription repaints the list with the
+  // reader's scroll position kept. A load that added nothing emits too but changes no row, so the
+  // footer is refreshed here rather than waiting for a paint that has nothing to redraw.
+  const still = root?.querySelector('[data-news-more]');
+  if (still) still.outerHTML = moreFooter();
+}
+
+/** Which stories the search box and the four filters leave. */
 function visibleRows(rows) {
   const q = (listView.q || '').trim().toLowerCase();
   const section = listView.section;
+  const publisher = listView.publisher;
+  const topic = listView.topic;
   const source = listView.source;
   return rows.filter((r) => {
+    // The source filter is the coarsest of the four and comes first: publisher, section and topic
+    // are all readings of a PUBLISHER story, and a post carries none of them.
     if (source === 'twitter' && !isPost(r)) return false;
     if (source === 'publishers' && isPost(r)) return false;
+    if (isPost(r)) {
+      // A post has no publisher, no section and no keyword reading, so any of those narrowing to a
+      // named value excludes it — the honest answer, and not the same as pretending it matched.
+      if ((publisher && publisher !== 'all') || (section && section !== 'all') || (topic && topic !== 'all')) return false;
+      return !q || `${r.title || ''} ${r.handle || ''} ${r.displayName || ''}`.toLowerCase().includes(q);
+    }
+    if (publisher && publisher !== 'all' && r.publisher !== publisher) return false;
     if (section && section !== 'all' && r.section !== section) return false;
+    if (topic && topic !== 'all' && !matchesTopic(readingFor(r), topic)) return false;
     if (!q) return true;
     return `${r.title || ''} ${r.summary || ''} ${r.section || ''} ${r.handle || ''} ${r.displayName || ''}`.toLowerCase().includes(q);
   });
@@ -219,15 +315,34 @@ function postBody(r, canLink) {
       </div>`;
 }
 
+/**
+ * How a publisher is NAMED on screen — which is not always what the row stores.
+ *
+ * The byline itself is not optional: this feed carries five publishers, and an unattributed headline
+ * in a mixed list attributes itself to whichever masthead the reader assumes. WHICH name is printed
+ * is a different question and not an engineering one — CLAUDE.md puts the supplier's brand at the
+ * owner's discretion, and `core/source-copy.js` already records that decision for the one publisher
+ * it covers. So every display of a publisher goes through it, and the row keeps the real value for
+ * matching, filtering and export keys. Naming the other four is not a new policy: nothing has ever
+ * asked for them to be withheld, and withholding an attribution nobody asked to withhold would be
+ * the worse default of the two.
+ */
+const publisherLabel = (value) =>
+  withoutPublisherName(String(value || '')).replace(/^the publisher\b/i, 'The publisher');
+
 function cardHtml(r) {
   const canLink = linkable(r.url);
   const when = istTime(r.publishedAt);
   const section = r.section ? sectionLabel(r.section) : null;
   // A story with no publisher time says so rather than showing the moment we captured it.
   const meta = [
+    // THE BYLINE LEADS THE LINE, because this feed carries five publishers now. An unattributed
+    // headline in a mixed list attributes itself to whichever masthead the reader assumes, and the
+    // link out is not an answer — nobody reads a status bar before deciding whose reporting this is.
+    r.publisher ? `<span class="font-semibold text-slate-500">${escapeHtml(publisherLabel(r.publisher))}</span>` : '',
     when
       ? `<span class="tabular-nums">${escapeHtml(when)}</span>`
-      : `<span class="text-slate-300" title="The publisher’s listing page carries no time, and this story’s own page was not read for one. It is not the time we saw it.">time not published</span>`,
+      : `<span class="text-slate-300" title="This publisher’s feed carried no time for the story, and its own page was not read for one. It is not the time we saw it.">time not published</span>`,
     section ? `<span>${escapeHtml(section)}</span>` : '',
     r.premium ? '<span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">premium</span>' : '',
   ]
@@ -262,6 +377,24 @@ function cardHtml(r) {
     </a>`;
 }
 
+/**
+ * The Topic options, counted against the WHOLE capture rather than the filtered rows.
+ *
+ * Same rule as the section list immediately below: a dropdown that loses its own options as you use
+ * it cannot be used to get back. Counting the filtered set would also make every option read zero
+ * the moment one of them was chosen.
+ *
+ * THE STRICT OPTION IS DROPPED HERE, and that is the point rather than an omission: "tracked keyword
+ * AND names the company" is unanswerable on rows that carry no company, so offering it would be a
+ * control that silently means something else on this half of the tab.
+ */
+function topicOptions() {
+  const all = marketNews.rows();
+  const cache = all.map(readingFor);
+  const counted = (value) => cache.filter((reading) => matchesTopic(reading, value)).length;
+  return topicFilterOptions(counted).filter((o) => o.value !== 'targeted');
+}
+
 function listHtml(rows) {
   const shown = rows.slice(0, FIRST_PAINT);
   const pending = Math.max(0, rows.length - shown.length);
@@ -282,6 +415,12 @@ function listHtml(rows) {
          <option value="twitter"${listView.source === 'twitter' ? ' selected' : ''}>Twitter / X</option>
        </select>`
     : '';
+  // Publishers in the order they contribute, most stories first, so the busiest masthead is the
+  // easiest to reach. Read off the WHOLE feed rather than the filtered set, for the same reason the
+  // sections are: a dropdown that loses its own options as you use it cannot be used to get back.
+  const counts = new Map();
+  for (const r of marketNews.rows()) if (r.publisher) counts.set(r.publisher, (counts.get(r.publisher) || 0) + 1);
+  const allPublishers = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   return `
     <section data-mcnews-list class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100"${pending ? ` data-rows-pending="${pending}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
@@ -293,6 +432,15 @@ function listHtml(rows) {
           </div>
           ${sourceSelect}
           ${
+            allPublishers.length > 1
+              ? `<select data-news-publisher aria-label="Publisher"
+                   class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   <option value="all">All publishers</option>
+                   ${allPublishers.map(([px, n]) => `<option value="${escapeHtml(px)}"${listView.publisher === px ? ' selected' : ''}>${escapeHtml(publisherLabel(px))} (${escapeHtml(formatNumber(n))})</option>`).join('')}
+                 </select>`
+              : ''
+          }
+          ${
             allSections.length > 1
               ? `<select data-news-section aria-label="Section"
                    class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -301,6 +449,12 @@ function listHtml(rows) {
                  </select>`
               : ''
           }
+          <select data-news-topic aria-label="Topic"
+            class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            ${topicOptions()
+              .map((o) => `<option value="${escapeHtml(o.value)}"${listView.topic === o.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`)
+              .join('')}
+          </select>
         </div>
         <div class="flex items-center gap-3">
           <span class="whitespace-nowrap text-sm text-slate-500"><strong class="text-slate-800">${escapeHtml(formatNumber(rows.length))}</strong> of ${escapeHtml(formatNumber(feedRows().length))} stories</span>
@@ -313,6 +467,7 @@ function listHtml(rows) {
       <div data-news-scroll class="scrollbar-thin divide-y divide-slate-100 overflow-y-auto" style="max-height: max(360px, calc(100vh - 330px))">
         ${shown.map(cardHtml).join('') || '<p class="px-5 py-10 text-center text-sm text-slate-400">No story matches your search.</p>'}
       </div>
+      ${moreFooter()}
     </section>`;
 }
 
@@ -386,6 +541,16 @@ function fillRest(root, rows, wantScroll) {
   return stop;
 }
 
+/** "Mint 105, Business Standard 156, …" — for the export banner and the provenance panel. */
+function publisherTally() {
+  const counts = new Map();
+  for (const r of marketNews.rows()) if (r.publisher) counts.set(r.publisher, (counts.get(r.publisher) || 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([p, n]) => `${publisherLabel(p)} ${formatNumber(n)}`)
+    .join(', ');
+}
+
 async function exportVisible(visible, m) {
   await exportRows({
     filename: 'sattva-market-news',
@@ -397,15 +562,23 @@ async function exportVisible(visible, m) {
         width: 18,
         get: (r) =>
           r.__banner
-            ? `REAL REPORTING, NOT OURS. Market-wide stocks news from the publisher's own listing, ` +
+            ? `REAL REPORTING, NOT OURS. Market-wide news from several publishers, each read from their own feed, ` +
               `captured ${m.capturedAt || 'unknown'}, exported ${new Date().toISOString()}. ` +
-              `HEADLINES, STANDFIRSTS AND SECTIONS ARE THE PUBLISHER'S, reproduced unchanged — nothing here is summarised, scored, ranked or judged, and the order is their own. ` +
-              `A BLANK TIME MEANS THE PUBLISHER'S TIME WAS NOT READ: their listing page carries no date, so it is fetched per story and is budgeted. It is never the time this dashboard saw the story. ` +
-              `${m.withPublishedAt} of ${m.count} stories carry the publisher's time.`
+              `HEADLINES, STANDFIRSTS AND SECTIONS ARE THE PUBLISHER'S, reproduced unchanged — nothing here is summarised, scored, ranked or judged. ` +
+              `THE PUBLISHER COLUMN SAYS WHOSE REPORTING EACH ROW IS, and it is the only reliable answer once a workbook has left this page: ` +
+              `${publisherTally() || 'no publisher recorded'}. ` +
+              `A BLANK TIME MEANS THAT PUBLISHER GAVE NONE. It is never the time this dashboard saw the story. ` +
+              `${m.withPublishedAt} of ${m.count} stories carry their publisher's time. ` +
+              `SECTION IS OURS, NOT THEIRS: it records which of a publisher's feeds a story came from, not a tag they applied to it. ` +
+              `TRACKED TOPICS ARE OURS TOO: a keyword reading of what a story is about, never a direction and never a score. ` +
+              `These stories carry no company, so a topic names a subject and cannot say it is one of yours. ` +
+              `Topic filter applied to this sheet: ${topicLabel(listView.topic)}.`
             : istTime(r.publishedAt) || '',
       },
+      { header: 'Publisher', key: 'pub', width: 20, get: (r) => (r.__banner ? '' : publisherLabel(r.publisher)) },
       { header: 'Headline', key: 'h', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
       { header: 'Section', key: 's', width: 20, get: (r) => (r.__banner ? '' : sectionLabel(r.section)) },
+      { header: 'Tracked topics', key: 'k', width: 30, get: (r) => (r.__banner ? '' : readingFor(r).labels.join(', ')) },
       { header: 'Standfirst (publisher)', key: 'p', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
       { header: 'Premium', key: 'x', width: 10, get: (r) => (r.__banner ? '' : r.premium ? 'yes' : '') },
       { header: 'URL', key: 'u', width: 70, get: (r) => (r.__banner ? '' : r.url || '') },
@@ -444,12 +617,48 @@ function provenance(m) {
     </div>
 
     <div class="text-sm leading-relaxed text-slate-600">
-      <p><strong>Real reporting, and not ours.</strong> Every story in the publisher's market-wide stocks feed. Headlines, standfirsts and section names are
-         theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing here summarises,
-         scores, ranks or flags a story as important, and <strong>the order is their own</strong> — by their article id.</p>
+      <p><strong>Real reporting, and not ours.</strong> Every story in several publishers' market-wide feeds. Headlines and
+         standfirsts are theirs, reproduced unchanged; the article stays on their site, every row links to it and
+         <strong>every row names who published it</strong>. Nothing here summarises, scores, ranks or flags a story as
+         important, and no publisher is ranked above another — <strong>the order is by publication time</strong>.</p>
+
+      <p class="mt-2 text-xs"><strong>Section is ours, not theirs.</strong> Each publisher offers several feed URLs — markets,
+         companies, money — so a story's section records which of their feeds it arrived on, not a tag they applied to it.
+         It is kept in its own field and never presented as their own classification.</p>
+
+      <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Where these stories come from</h3>
+      <p class="mt-1 text-xs">${escapeHtml(publisherTally() || 'No publisher has been recorded yet.')} — counted over what is
+         loaded on this page, which grows as you scroll back.</p>
+      <ul class="mt-2 space-y-1 text-xs">
+        ${(m.sources || [])
+          .map((src) => {
+            const when = src.capturedAt ? formatRelativeTime(Date.parse(src.capturedAt)) : 'never';
+            // A publisher that REFUSED us and a publisher with nothing new are different facts, and
+            // both differ from one we have not read at all. The capture records all three rather
+            // than letting a story count stand in for any of them.
+            const tone = src.ok ? 'text-emerald-700' : 'text-amber-700';
+            const state = src.ok
+              ? `read ${when}`
+              : `could not be read ${when}${src.reason ? ` — ${src.reason}` : ''}`;
+            const partial = src.ok && src.feedsOk != null && src.feedsOk < src.feeds ? ` · ${src.feeds - src.feedsOk} of its ${src.feeds} feeds failed` : '';
+            return `<li><strong class="text-slate-700">${escapeHtml(publisherLabel(src.publisher) || src.id)}</strong>
+              <span class="${tone}">${escapeHtml(state)}</span>${escapeHtml(partial)}</li>`;
+          })
+          .join('') || '<li class="text-slate-400">This capture predates per-publisher provenance.</li>'}
+      </ul>
+      <p class="mt-2 text-xs text-slate-500">Four of the five are read from their own RSS feeds, and each was checked for a
+         <em>recent</em> newest item before being wired: a feed answering 200 with well-formed XML can still have been
+         abandoned years ago, which is exactly what the fifth publisher's own RSS turned out to be — its newest item is from
+         April 2024, so their listing page is read instead.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this is a capture rather than a live read</h3>
-      <p class="mt-1 text-xs">The publisher's site refuses automated readers by TLS fingerprint, not by headers. Measured:
+      <p class="mt-1 text-xs"><strong>Half of these publishers refuse a server outright.</strong> Measured with Node's
+         <code class="rounded bg-slate-100 px-1">fetch</code>, which is what a Cloudflare Worker uses: Business Standard
+         <strong>200</strong>, Investing.com <strong>200</strong>, Mint <strong>403 with a 24-byte body</strong>, Economic
+         Times <strong>403 with a 24-byte body</strong> — while <code class="rounded bg-slate-100 px-1">curl</code> with a
+         browser user-agent gets all four at 200. That is TLS fingerprinting rather than headers, so there is no proxy route
+         to build for them either.</p>
+      <p class="mt-1 text-xs">The same is true of the listing page this tab started with, and more emphatically. Measured:
          <code class="rounded bg-slate-100 px-1">curl</code> with a browser user-agent gets <strong>200 and 598 KB</strong>;
          Node's <code class="rounded bg-slate-100 px-1">fetch</code> gets <strong>403 with a 24-byte body</strong> on every
          header set tried, including the full browser set; and a <strong>Cloudflare Worker gets 403 as well</strong>. So there
@@ -698,6 +907,14 @@ function wireList(root) {
     relist(root);
   });
 
+  const topic = root.querySelector('[data-news-topic]');
+  if (topic) {
+    const onTopic = () => {
+      listView.topic = topic.value;
+      relist(root);
+    };
+    topic.addEventListener('change', onTopic);
+  }
   const select = root.querySelector('[data-news-section]');
   select?.addEventListener('change', () => {
     listView.section = select.value;
@@ -710,14 +927,51 @@ function wireList(root) {
     relist(root);
   });
 
+  const pub = root.querySelector('[data-news-publisher]');
+  pub?.addEventListener('change', () => {
+    listView.publisher = pub.value;
+    relist(root);
+  });
+
   // Reads the ARRAY, never the DOM — a fill still in flight must not be able to truncate a workbook.
   root.querySelector('[data-news-export]')?.addEventListener('click', () => {
     exportVisible(visibleRows(feedRows()), marketNews.meta());
   });
+
+  // DELEGATED ON THE SECTION, not bound to the button.
+  //
+  // `requestMore` rewrites the footer to report what happened, which destroys the button node — so a
+  // handler bound directly to it dies with the first use, and the one state that needs the button
+  // most (a month that could not be read, offering "Try again") is exactly the state that arrives
+  // with a dead control. The section outlives every footer rewrite, and every paint that replaces
+  // the section runs this again.
+  const section = root.querySelector('[data-mcnews-list]');
+  section?.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('[data-news-more-btn]')) requestMore(root);
+  });
+
+  // REACHING THE END OF THE LIST IS THE REQUEST FOR MORE OF IT.
+  //
+  // Gated on the fill being finished — `data-rows-pending` is the honest signal that stories are
+  // still being painted, and fetching a month while hundreds of already-held stories have not been
+  // drawn yet would spend a request to answer a question the reader has not got to. No disposer is
+  // needed: the listener is on the scroll node, and every repaint replaces that node.
+  const host = root.querySelector('[data-news-scroll]');
+  host?.addEventListener(
+    'scroll',
+    () => {
+      if (host.scrollTop + host.clientHeight < host.scrollHeight - NEAR_BOTTOM_PX) return;
+      if (root.querySelector('[data-mcnews-list][data-rows-pending]')) return;
+      if (lastMore?.failed) return; // a failed month waits for the button, not for another scroll
+      requestMore(root);
+    },
+    { passive: true },
+  );
 }
 
 const DESCRIPTION =
-  'Every story in the market-wide publisher feed — not filtered to the companies in scope. Headlines and standfirsts are theirs; the article stays where it is published.';
+  'Every story in the market-wide feeds of several publishers — not filtered to the companies in scope. Each row names who published it; headlines and standfirsts are theirs, and the article stays where it is published. ' +
+  'Topic narrows it to the thirty keywords this desk tracks newsflow by; these rows carry no company, so a topic names a subject rather than an exposure.';
 
 /**
  * OPENING THIS TAB ON A STALE CAPTURE FETCHES ONE. A DELIBERATE REVERSAL, SO HERE IS THE REASONING.
@@ -750,7 +1004,15 @@ let autoAt = 0;
 
 function maybeAutoFetch(ctx) {
   if (busy) return;
-  const at = Date.parse(marketNews.meta().capturedAt || '');
+  // MONEYCONTROL'S OWN LAST READ, NOT THE FILE'S.
+  //
+  // The button and this gate both dispatch the workflow that reads Moneycontrol and nothing else,
+  // while the file's `capturedAt` is whichever of the two jobs writing it ran last. Gating on the
+  // file would mean the hourly RSS run keeps the timestamp fresh while Moneycontrol goes unread for
+  // days and this never fires — a staleness check answered by a source it cannot refresh. Falls
+  // back to the file's own time for a capture written before per-source provenance existed.
+  const src = (marketNews.meta().sources || []).find((x) => x.id === 'moneycontrol');
+  const at = Date.parse(src?.capturedAt || marketNews.meta().capturedAt || '');
   if (!Number.isFinite(at) || Date.now() - at < AUTO_AFTER_MS) return;
   // One attempt per window per page, so a dispatch that fails cannot become a loop.
   if (Date.now() - autoAt < AUTO_AFTER_MS) return;
@@ -813,5 +1075,5 @@ export function destroy() {
   modalOpen = false;
   // The filters are the reader's, and leaving the tab discards them deliberately: coming back to a
   // list silently narrowed by a search typed ten minutes ago reads as a feed that lost stories.
-  listView = { q: '', section: 'all', source: 'all' };
+  listView = { q: '', section: 'all', publisher: 'all', topic: 'all', source: 'all' };
 }

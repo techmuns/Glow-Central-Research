@@ -333,7 +333,11 @@ It forwards each upstream NDJSON text chunk immediately, while the answer cites 
 claims by page. A Muns session token is a Worker secret; the browser never receives it, and the paid
 route is same-origin, size-bounded and rate-limited. Conversation history stays in device
 `localStorage`; the provider has no web-search contract, so the workspace makes no web-research
-claim or control. Every source retains status, coverage and provenance inside a 13,000-character
+claim or control. An answer in flight is not tied to the tab being on screen: leaving Ask Research
+lets it finish, saves it to the conversation and announces it in the alert stack, while a scope or
+scope-membership change still cancels it so an answer cannot land under a scope it was not built
+for. Unsent drafts persist; a question interrupted by a reload is returned to the composer and never
+re-sent automatically. Every source retains status, coverage and provenance inside a 13,000-character
 evidence budget measured on what the model receives; the skeleton may take at most 60% of it, and
 the rest is spent on rows — the companies the question names first, from every source that carries
 them — so the request stays within the local model's 8K-token context. UI-only routes and the
@@ -514,6 +518,23 @@ Sub-views: **Equity Curve · Underwater Plot · Drawdown Episodes**
 | 5 | Con-call + Deep Dive | Runtime keyword engine (scans transcript text in the browser — no stored counts), a full keyword-set editor persisted to localStorage, a 5s live-call ticker, a companies × keywords matrix with quarter-on-quarter deltas, catalyst tracking, and the six-view Deep Dive in a new full-screen `openWorkspace` overlay. Transcripts are **synthetic but real-shaped** — and unlike the earnings set, every person and brokerage named in them is fictional. ✅ |
 | 6 | Public Chatter + Super Investors | Chatter: forum threads with claim extraction, Telegram groups with a transparent 0–3 pump-risk heuristic, and a cross-source Trending view joined to the **real** technicals feed with a chatter-vs-price quadrant. Investors: investor-first cards, a four-view per-investor workspace, a mandate view for funds, FII/DII and MF category flow charts, and an overlap heatmap. Both data sets are **synthetic** — and the investor names are **real people**, so their positions carry an attribution ribbon on every surface and the data set holds numbers only, never a quote or rationale. ✅ |
 | 7 | Portfolio Analytics + polish and QA | A FIFO lot engine (`js/portfolio/lots.js`) replaying the ledger into open lots and realised rows with per-lot holding periods and tax terms; positions marked to market from the **live** technicals feed; an equity curve, two drawdown series and a Nifty 500 comparison built from **735 trading days of real Yahoo closes** (`scripts/scrape-portfolio-history.mjs`); XIRR *and* time-weighted return, because only one of them is comparable to an index; four sub-views over four cuts each; CSV import with preview-and-reject; and a QA pass covering error states, a11y focus traps, `scope="col"` on every header, and ~190 assertions in `scripts/verify-ui.mjs` including both reconciliation identities and an independent max-drawdown recompute. The ledger is **synthetic**; every price in it is real. ✅ |
+
+| 8 | Tracked news keywords + cross-feed correlation | The desk's thirty keywords as one shared vocabulary (`public/js/data/news-keywords.js`), driving a counted Topic filter and column on both News surfaces, the materiality rule for company news in General Alerts, and a participation event (volume ≥ `VOLUME_X`, or a confirmed base break) on the technicals feed. AI Alerts gains `confluenceOf()` — seven **named** cross-feed patterns that say *"volume 3.2x its average, and a tracked investor's latest book shows buying"* instead of *"three feeds"*. A keyword is a **topic and never a direction**, so no story anywhere gains a sentiment of ours. Measured: 11,060 captured stories → 3,278 tracked. ✅ |
+
+**Still to come**
+
+- **Corporate Announcements does not use the taxonomy.** Several of the thirty words — *Receipt of
+  Order*, *Corporate Governance*, *Commissioning* — are literally BSE filing phrases, so the fit is
+  obvious. It is deliberately not wired: `announcementSignal()` already states its own materiality
+  rule for that feed, and a second overlapping rule over one question is the pattern this codebase
+  keeps having to un-write. Wiring it means **replacing** that rule, not adding beside it.
+- **No keyword-targeted search.** "Company name + keyword" is answered by classifying the committed
+  capture, not by sending 559 × 30 queries against a sixty-a-minute cap. If the upstream ever grows
+  a topic axis, that becomes the cheaper question to ask.
+- **Patterns are tuned against one capture.** Thirty of thirty fire on the shipped file, but *Fire*
+  reaches one row and *Receipt of Order* two. Those are the two to re-measure once more history has
+  accumulated; the Topic filter's **No tracked keyword** option is what makes a too-narrow pattern
+  findable in the meantime.
 
 ---
 

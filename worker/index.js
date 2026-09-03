@@ -1630,9 +1630,22 @@ async function handleCaptureStatus(request, env, ctx) {
         const response = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
+        // WHOSE FRESHNESS THIS IS, when a capture has several contributors.
+        //
+        // The market-news file is written by two jobs — the Moneycontrol listing walk and the RSS
+        // reader — and its `capturedAt` is whichever ran last. The watchdog uses this value to
+        // decide whether to dispatch the MONEYCONTROL workflow, so reading the top-level field
+        // would let an hourly RSS run keep the timestamp fresh while Moneycontrol went unread for
+        // days, and nothing would ever notice: the one measurement that exists to catch a stalled
+        // source would be answered by a different source. So a per-source time is reported where
+        // the file carries one, and `capturedAt` stays the whole capture's for everything else.
+        const perSource = Array.isArray(body.sources)
+          ? Object.fromEntries(body.sources.map((s) => [s.id, { capturedAt: s.capturedAt || null, ok: s.ok !== false }]))
+          : null;
         captures[name] = {
           ok: true,
           capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || null,
+          ...(perSource ? { sources: perSource } : {}),
           covered: Number.isFinite(body.covered) ? body.covered : Number.isFinite(body.company_count) ? body.company_count : null,
           failed: Number.isFinite(body.failedCount) ? body.failedCount : Number.isFinite(body.failures) ? body.failures : null,
           fallback: Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0,
