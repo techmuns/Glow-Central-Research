@@ -17,6 +17,7 @@
 import { escapeHtml } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
+import { companyCombo } from './company-select.js';
 
 // ---------------------------------------------------------------------------------------
 // Overlay focus management — shared by the drill, the modal and the workspace.
@@ -438,6 +439,20 @@ export function scoreTable(config) {
     // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
     // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
     fillMode = 'idle',
+    // TURN THE SEARCH BOX INTO A COMPANY MULTI-SELECT. `[{ ticker, name, count }]` — the companies
+    // this table may be narrowed to, which is the tab's scope list rather than anything derived
+    // from the rows: a company in scope with nothing in this capture is still a company the reader
+    // may ask for, and it lists with a dash rather than being absent.
+    //
+    // It does not replace the search — the same box still filters rows by text — so a table that
+    // passes this loses nothing and gains a list of what can be asked for. See ui/company-select.js.
+    companyOptions = null,
+    // Which company a row belongs to. Defaults to `watchKey`, which is already the ticker on every
+    // table whose rows are events, and to `key` on a screener where a row IS a company.
+    companyOf = null,
+    companyScopeNoun = '',
+    companyHint = '',
+    companyPlaceholder = '',
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -447,6 +462,12 @@ export function scoreTable(config) {
     return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
   };
   const watchNameOf = (row) => String((watchName || name)(row) ?? '') || null;
+  // Which company a row is filed under, for the multi-select. Same default as the star, because
+  // the star already answers "which company is this row about" on every table whose rows are events.
+  const companyKeyOf = (row) => {
+    const raw = (companyOf || watchKey || key)(row);
+    return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
+  };
 
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
@@ -457,11 +478,21 @@ export function scoreTable(config) {
   const view = {
     q: '',
     filters: filterDefs.map((f) => f.value || 'all'),
+    // The companies the reader picked in the search box, in the order they picked them. Empty means
+    // "every company in scope" — NOT "no companies" — the same distinction `scopeTickers()` draws
+    // between a null and an empty Set, and for the same reason: collapsing the two would make an
+    // untouched control silently mean its own opposite.
+    companies: [],
     watchOnly: false,
     sort: initialSort ? { ...initialSort } : null,
   };
   if (initialView) {
     if (typeof initialView.q === 'string') view.q = initialView.q;
+    // Restored WITHOUT pruning against the option list. A tab whose options arrive in two passes
+    // (the tracked universe is deferred) would otherwise silently drop a selection made before the
+    // second pass landed, and a picked company vanishing on its own is worse than one listed under
+    // its ticker until its name arrives.
+    if (Array.isArray(initialView.companies)) view.companies = initialView.companies.map((t) => String(t).toUpperCase());
     if (typeof initialView.watchOnly === 'boolean') view.watchOnly = initialView.watchOnly;
     if (initialView.sort) view.sort = { ...initialView.sort };
     // Length-checked: a restored value only applies if the filter set still has that slot, so a
@@ -503,8 +534,13 @@ export function scoreTable(config) {
     // did not, so an AI Alert link carrying `RKFORGE` could never match a haystack containing
     // `rkforge` even though the search box visibly held the right ticker.
     const needle = String(view.q || '').trim().toLowerCase();
+    const picked = view.companies.length ? new Set(view.companies) : null;
     let out = rows.filter((row) => {
       if (needle && !haystack(row).includes(needle)) return false;
+      if (picked) {
+        const co = companyKeyOf(row);
+        if (!co || !picked.has(co)) return false;
+      }
       if (watched) {
         const wk = watchKeyOf(row);
         if (!wk || !watched.has(wk)) return false;
@@ -578,7 +614,11 @@ export function scoreTable(config) {
   // follow. See FIRST_PAINT_ROWS below for why that is not merely a nicety.
   function bodyHtml(list, from = 0, to = list.length) {
     if (!list.length) {
-      return `<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(emptyMessage)}</td></tr>`;
+      // A FUNCTION, because what "nothing here" means changes with the view and the view changes
+      // without rebuilding the table. "No articles for your holdings" is wrong the moment the
+      // reader has narrowed to two companies, and a repaint never revisits a baked-in string.
+      const msg = typeof emptyMessage === 'function' ? emptyMessage(view) : emptyMessage;
+      return `<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(msg)}</td></tr>`;
     }
     const watched = loadWatchlist();
     const end = Math.min(to, list.length);
@@ -698,6 +738,22 @@ export function scoreTable(config) {
 
   const initialList = visibleRows();
 
+  // ONE BOX, TWO JOBS. With `companyOptions` the search input becomes a company multi-select that
+  // still searches text; without it the plain input is unchanged, so every other table in the
+  // dashboard is untouched by this.
+  const combo =
+    companyOptions && companyOptions.length
+      ? companyCombo({
+          options: companyOptions,
+          selected: view.companies,
+          q: view.q,
+          noun: countNoun || 'rows',
+          scopeNoun: companyScopeNoun,
+          hint: companyHint,
+          placeholder: companyPlaceholder,
+        })
+      : null;
+
   // Installed by wire(). Until then `updateRows` is a no-op that reports nothing changed, which
   // is the truth for an unmounted table.
   let updateRows = () => 0;
@@ -706,11 +762,15 @@ export function scoreTable(config) {
     <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' ? ' data-scroll-paged' : ''}${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <div class="relative max-w-md flex-1">
+          ${
+            combo
+              ? combo.html
+              : `<div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input type="text" data-table-search placeholder="Search company..." value="${escapeHtml(view.q)}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
+          </div>`
+          }
           ${filterDefs
             .map(
               // `max-w-full` + `truncate` because A <select> IS AS WIDE AS ITS LONGEST OPTION, and
@@ -1027,10 +1087,26 @@ export function scoreTable(config) {
       if (row) onRowClick(row);
     });
 
-    searchEl.addEventListener('input', () => {
-      view.q = searchEl.value.trim().toLowerCase();
-      repaint();
-    });
+    // The combo owns its own input, because typing there filters the suggestion list as well as
+    // the rows. Without one, the plain search box behaves exactly as it always has.
+    let releaseCombo = null;
+    if (combo) {
+      releaseCombo = combo.wire(host, {
+        onQuery: (q) => {
+          view.q = q;
+          repaint();
+        },
+        onCompanies: (list) => {
+          view.companies = list;
+          repaint();
+        },
+      });
+    } else {
+      searchEl.addEventListener('input', () => {
+        view.q = searchEl.value.trim().toLowerCase();
+        repaint();
+      });
+    }
 
     filterEls.forEach((el, i) =>
       el.addEventListener('change', () => {
@@ -1063,6 +1139,7 @@ export function scoreTable(config) {
     return () => {
       stopFill();
       detachScroll();
+      releaseCombo?.();
     };
   }
 
