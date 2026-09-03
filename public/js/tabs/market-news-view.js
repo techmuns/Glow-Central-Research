@@ -199,6 +199,21 @@ const linkable = (u) => /^https?:\/\//i.test(String(u || ''));
 const sectionLabel = (value) =>
   withoutPublisherName(String(value || '').replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher');
 
+/**
+ * How a publisher is NAMED on screen — which is not always what the row stores.
+ *
+ * The byline itself is not optional: this feed carries five publishers, and an unattributed headline
+ * in a mixed list attributes itself to whichever masthead the reader assumes. WHICH name is printed
+ * is a different question and not an engineering one — CLAUDE.md puts the supplier's brand at the
+ * owner's discretion, and `core/source-copy.js` already records that decision for the one publisher
+ * it covers. So every display of a publisher goes through it, and the row keeps the real value for
+ * matching, filtering and export keys. Naming the other four is not a new policy: nothing has ever
+ * asked for them to be withheld, and withholding an attribution nobody asked to withhold would be
+ * the worse default of the two.
+ */
+const publisherLabel = (value) =>
+  withoutPublisherName(String(value || '')).replace(/^the publisher\b/i, 'The publisher');
+
 function cardHtml(r) {
   const canLink = linkable(r.url);
   const when = istTime(r.publishedAt);
@@ -208,7 +223,7 @@ function cardHtml(r) {
     // THE BYLINE LEADS THE LINE, because this feed carries five publishers now. An unattributed
     // headline in a mixed list attributes itself to whichever masthead the reader assumes, and the
     // link out is not an answer — nobody reads a status bar before deciding whose reporting this is.
-    r.publisher ? `<span class="font-semibold text-slate-500">${escapeHtml(r.publisher)}</span>` : '',
+    r.publisher ? `<span class="font-semibold text-slate-500">${escapeHtml(publisherLabel(r.publisher))}</span>` : '',
     when
       ? `<span class="tabular-nums">${escapeHtml(when)}</span>`
       : `<span class="text-slate-300" title="This publisher’s feed carried no time for the story, and its own page was not read for one. It is not the time we saw it.">time not published</span>`,
@@ -272,7 +287,7 @@ function listHtml(rows) {
               ? `<select data-news-publisher aria-label="Publisher"
                    class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    <option value="all">All publishers</option>
-                   ${allPublishers.map(([px, n]) => `<option value="${escapeHtml(px)}"${listView.publisher === px ? ' selected' : ''}>${escapeHtml(px)} (${escapeHtml(formatNumber(n))})</option>`).join('')}
+                   ${allPublishers.map(([px, n]) => `<option value="${escapeHtml(px)}"${listView.publisher === px ? ' selected' : ''}>${escapeHtml(publisherLabel(px))} (${escapeHtml(formatNumber(n))})</option>`).join('')}
                  </select>`
               : ''
           }
@@ -377,7 +392,7 @@ function publisherTally() {
   for (const r of marketNews.rows()) if (r.publisher) counts.set(r.publisher, (counts.get(r.publisher) || 0) + 1);
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([p, n]) => `${p} ${formatNumber(n)}`)
+    .map(([p, n]) => `${publisherLabel(p)} ${formatNumber(n)}`)
     .join(', ');
 }
 
@@ -402,7 +417,7 @@ async function exportVisible(visible, m) {
               `SECTION IS OURS, NOT THEIRS: it records which of a publisher's feeds a story came from, not a tag they applied to it.`
             : istTime(r.publishedAt) || '',
       },
-      { header: 'Publisher', key: 'pub', width: 20, get: (r) => (r.__banner ? '' : r.publisher || '') },
+      { header: 'Publisher', key: 'pub', width: 20, get: (r) => (r.__banner ? '' : publisherLabel(r.publisher)) },
       { header: 'Headline', key: 'h', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.title)) },
       { header: 'Section', key: 's', width: 20, get: (r) => (r.__banner ? '' : sectionLabel(r.section)) },
       { header: 'Standfirst (publisher)', key: 'p', width: 80, get: (r) => (r.__banner ? '' : withoutPublisherName(r.summary)) },
@@ -467,15 +482,15 @@ function provenance(m) {
               ? `read ${when}`
               : `could not be read ${when}${src.reason ? ` — ${src.reason}` : ''}`;
             const partial = src.ok && src.feedsOk != null && src.feedsOk < src.feeds ? ` · ${src.feeds - src.feedsOk} of its ${src.feeds} feeds failed` : '';
-            return `<li><strong class="text-slate-700">${escapeHtml(src.publisher || src.id)}</strong>
+            return `<li><strong class="text-slate-700">${escapeHtml(publisherLabel(src.publisher) || src.id)}</strong>
               <span class="${tone}">${escapeHtml(state)}</span>${escapeHtml(partial)}</li>`;
           })
           .join('') || '<li class="text-slate-400">This capture predates per-publisher provenance.</li>'}
       </ul>
-      <p class="mt-2 text-xs text-slate-500">Business Standard, Mint, Economic Times and Investing.com are read from their own
-         RSS feeds. Each was checked for a <em>recent</em> newest item before being wired: a feed answering 200 with
-         well-formed XML can still have been abandoned years ago, which is exactly what this publisher's own RSS turned out
-         to be — its newest item is from April 2024, so the listing page is read instead.</p>
+      <p class="mt-2 text-xs text-slate-500">Four of the five are read from their own RSS feeds, and each was checked for a
+         <em>recent</em> newest item before being wired: a feed answering 200 with well-formed XML can still have been
+         abandoned years ago, which is exactly what the fifth publisher's own RSS turned out to be — its newest item is from
+         April 2024, so their listing page is read instead.</p>
 
       <h3 class="font-display mt-4 text-sm font-bold text-slate-900">Why this is a capture rather than a live read</h3>
       <p class="mt-1 text-xs"><strong>Half of these publishers refuse a server outright.</strong> Measured with Node's

@@ -5556,17 +5556,36 @@ console.log('\n— news, announcements and insider trades —');
     // A story whose captured URL is not http(s) is rendered without a link on purpose. None should
     // exist; if one does, this reports it rather than letting it read as a missing anchor.
     const unlinkable = nodes.filter((a) => a.hasAttribute('data-news-unlinkable')).length;
-    const offsite = nodes.filter((a) => /^https:\/\/(www\.)?moneycontrol\.com\//.test(a.getAttribute('href') || '')).length;
+    // ASSERTED AGAINST THE ROW'S OWN PUBLISHER, not against one hard-coded domain.
+    //
+    // These read `https://(www.)?moneycontrol.com/` and `https://images.moneycontrol.com/` while
+    // that was the only publisher in the feed. With five, a fixed host would fail for four of them
+    // and — worse — would pass a Mint story rendered with a Moneycontrol thumbnail, which is the
+    // actual thing worth preventing. Comparing each card against the URL and image on ITS OWN row
+    // is publisher-agnostic and strictly stronger: it catches a card wearing another story's
+    // picture, which no domain test ever could.
+    const offsite = nodes.filter((a) => {
+      const href = a.getAttribute('href') || '';
+      if (!/^https:\/\//.test(href)) return false;
+      try { return new URL(href).origin !== window.location.origin; } catch { return false; }
+    }).length;
     const newTab = nodes.filter((a) => a.getAttribute('target') === '_blank' && /noreferrer/.test(a.getAttribute('rel') || '')).length;
     const hrefMatchesFeed = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.url === a.getAttribute('href')).length;
     const thumbs = nodes.filter((a) => {
       const img = a.querySelector('img');
-      return img && /^https:\/\/images\.moneycontrol\.com\//.test(img.getAttribute('src') || '');
+      const want = byKey.get(a.getAttribute('data-news-key'))?.image;
+      return !!want && !!img && img.getAttribute('src') === want && /^https:\/\//.test(want);
     }).length;
     const withImage = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key'))?.image).length;
+    // WHITESPACE IS NORMALISED ON BOTH SIDES, and only whitespace. `innerText` collapses runs of
+    // spaces the way HTML always renders them, so 20 Mint headlines that write "brings  ₹10" with a
+    // double space read back single-spaced and failed a strict compare — the headline was
+    // reproduced exactly, the comparison just could not see it. Collapsing both sides still catches
+    // the thing this guards: a word changed, a truncation, any rewrite of somebody's headline.
+    const flat = (v) => String(v || '').replace(/\s+/g, ' ').trim();
     const headlines = nodes.filter((a) => {
       const h = a.querySelector('h3');
-      return h && h.innerText.trim() === (byKey.get(a.getAttribute('data-news-key'))?.title || '').trim();
+      return h && flat(h.innerText) === flat(byKey.get(a.getAttribute('data-news-key'))?.title);
     }).length;
     // Undated stories: the card must name the absence, and must never print firstSeenAt.
     const undatedOnScreen = nodes.filter((a) => byKey.get(a.getAttribute('data-news-key')) && !byKey.get(a.getAttribute('data-news-key')).publishedAt);
@@ -5587,10 +5606,10 @@ console.log('\n— news, announcements and insider trades —');
     `${cards?.drawn} drawn from ${cards?.data}, ${cards?.dupes} duplicate(s), ${cards?.missing} not in the feed`);
   ok('...rendered as the publisher\'s card — thumbnail, headline, standfirst',
     cards && cards.thumbs === cards.withImage && cards.withImage > 0 && cards.headlines === cards.drawn,
-    `${cards?.thumbs}/${cards?.withImage} thumbnails off the publisher's CDN, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
+    `${cards?.thumbs}/${cards?.withImage} cards carrying their own story's thumbnail, ${cards?.headlines}/${cards?.drawn} headlines reproduced verbatim`);
   ok('...and clicking one opens THAT story on the publisher\'s site, in a new tab',
     cards && cards.unlinkable === 0 && cards.anchors === cards.drawn && cards.offsite === cards.drawn && cards.newTab === cards.drawn && cards.hrefMatchesFeed === cards.drawn,
-    `${cards?.anchors} anchors, ${cards?.offsite} to moneycontrol.com, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
+    `${cards?.anchors} anchors, ${cards?.offsite} leaving this origin, ${cards?.newTab} with target+noreferrer, ${cards?.hrefMatchesFeed} pointing at their own story, ${cards?.unlinkable} with no usable URL`);
   ok('a story with no publisher time says so, never the time we saw it',
     cards && (cards.undated === 0 || cards.undatedSay === cards.undated),
     `${cards?.undated} undated on screen, ${cards?.undatedSay} saying the time is not published`);
@@ -5606,11 +5625,17 @@ console.log('\n— news, announcements and insider trades —');
 
   const bylines = await evalSafe(async () => {
     const mod = await import('/js/data/market-news.js');
+    const { withoutPublisherName } = await import('/js/core/source-copy.js');
+    // The row keeps the real publisher for matching; the SCREEN shows it through the naming policy,
+    // so the card is checked against the labelled form. Checking the raw value would fail for the
+    // one publisher whose brand this dashboard withholds, and pass only by accident for the rest.
+    const named = (v) => withoutPublisherName(String(v || '')).replace(/^the publisher\b/i, 'The publisher');
     const rows = mod.rows();
     const cardsNow = [...document.querySelectorAll('[data-news-key]')];
+    const byKey = new Map(rows.map((r) => [String(r.id || r.url), r]));
     const drawnBylines = cardsNow.filter((c) => {
-      const t = c.innerText || '';
-      return rows.some((r) => r.publisher && t.includes(r.publisher));
+      const r = byKey.get(c.dataset.newsKey);
+      return r?.publisher && (c.innerText || '').includes(named(r.publisher));
     }).length;
     const pubs = [...new Set(rows.map((r) => r.publisher).filter(Boolean))];
     return {
@@ -5620,6 +5645,9 @@ console.log('\n— news, announcements and insider trades —');
       drawn: cardsNow.length,
       drawnBylines,
       options: [...document.querySelectorAll('[data-news-publisher] option')].map((o) => o.value),
+      // The withheld brand must not reach the screen through any of the new surfaces — byline,
+      // dropdown, footer or provenance — the same rule the Earnings view is already held to.
+      brandOnScreen: /money\s*control/i.test(document.getElementById('content-host')?.innerText || ''),
     };
   });
   // A CAPTURE WITH TWO WRITERS NEEDS TWO CLOCKS, and this is the check that says so. The watchdog
@@ -5651,6 +5679,9 @@ console.log('\n— news, announcements and insider trades —');
   ok('every market-news story names the publisher it came from',
     bylines && bylines.total > 0 && bylines.withPublisher === bylines.total && bylines.drawnBylines === bylines.drawn,
     `${bylines?.withPublisher}/${bylines?.total} rows attributed, ${bylines?.drawnBylines}/${bylines?.drawn} cards showing it, publishers: ${bylines?.publishers.join(', ')}`);
+  ok('...without the News view printing the upstream publisher name either',
+    bylines && bylines.brandOnScreen === false,
+    bylines?.brandOnScreen ? 'the withheld brand reached the screen' : 'not printed');
   ok('...and every publisher in the feed can be filtered to',
     bylines && bylines.publishers.every((px) => bylines.options.includes(px)),
     `${bylines?.options.length - 1} of ${bylines?.publishers.length} publishers offered`);
@@ -5842,7 +5873,13 @@ console.log('\n— news, announcements and insider trades —');
       // AND THE STORY'S OWN PICTURE. The card is the one surface a reader sees without the tab
       // open, so it carries the same thumbnail the list does — the publisher's, hot-linked, and
       // only ever from an https URL, because this is external content reaching `src`.
-      thumbs: cards.filter((c) => c.querySelector('img[src^="https://images.moneycontrol.com/"]')).length,
+      // Against the arriving stories' own images rather than one publisher's CDN — see the same
+      // change on the list above. Five publishers, five CDNs, and the assertion that matters is
+      // that the card wears the picture belonging to ITS story.
+      thumbs: cards.filter((c) => {
+        const src = c.querySelector('img')?.getAttribute('src') || '';
+        return /^https:\/\//.test(src) && arrivals.some((a) => a.image === src);
+      }).length,
       withImage: arrivals.slice(0, cards.length).filter((a) => a.image).length,
       // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
     };
@@ -5853,7 +5890,7 @@ console.log('\n— news, announcements and insider trades —');
     alerted && alerted.labelled && alerted.verbatim, alerted?.text);
   ok('...and the story\'s own thumbnail, the same one the list shows',
     alerted && alerted.withImage > 0 && alerted.thumbs === alerted.withImage,
-    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry the publisher's image`);
+    `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry their own story's image`);
   const reAnnounced = await evalSafe(async () => {
     const before = document.getElementById('notification-root')?.children.length ?? 0;
     const mod = await import('/js/data/market-news.js');

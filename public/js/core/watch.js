@@ -220,7 +220,7 @@ export function marketNewsDetail(a) {
   // story — so it is the last place to leave the attribution off.
   const section = a.section ? withoutPublisherName(a.section.replace(/-/g, ' ')).replace(/^the publisher\b/i, 'Publisher') : null;
   const lead = a.summary ? withoutPublisherName(a.summary).slice(0, 140) : null;
-  const head = [a.publisher || null, section].filter(Boolean).join(' · ');
+  const head = [a.publisher ? withoutPublisherName(a.publisher).replace(/^the publisher\b/i, 'The publisher') : null, section].filter(Boolean).join(' · ');
   if (lead && head) return `${head} · ${lead}`;
   return lead || (head ? `Published under ${head}` : 'Market news published');
 }
