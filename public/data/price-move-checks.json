@@ -1,7 +1,22 @@
 {
  "source": "fastapi.muns.io/market_data",
  "keep_days": 10,
- "updated_at": "2026-09-02T19:02:40.594Z",
- "count": 0,
- "checks": {}
+ "updated_at": "2026-09-03T12:45:06.130Z",
+ "count": 2,
+ "checks": {
+  "HEROMOTOCO@2026-09-02": {
+   "pct": -4.59045904590459,
+   "close": 5300,
+   "prevClose": 5555,
+   "prevDate": "2026-09-01",
+   "checkedAt": "2026-09-03T12:26:37.865Z"
+  },
+  "VINCOFE@2026-09-01": {
+   "pct": -4.8016353360592765,
+   "close": 176.85000610351562,
+   "prevClose": 185.77000427246094,
+   "prevDate": "2026-08-31",
+   "checkedAt": "2026-09-03T12:25:47.627Z"
+  }
+ }
 }
