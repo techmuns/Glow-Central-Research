@@ -5976,6 +5976,16 @@ console.log('\n— news, announcements and insider trades —');
     `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
 
   // Search narrows the list without touching the head, and the count reports the ARRAY.
+  //
+  // NAVIGATE BACK FIRST — this check owns its own precondition rather than inheriting the page the
+  // previous block happened to leave. It used to inherit News/Universe, and the day an NSE-filings
+  // block was inserted above it the page was left on a different tab entirely, so the market-wide
+  // list was legitimately absent and this reported "no search box" about a view that was fine. A
+  // check that depends on ambient page state fails for the wrong reason the moment anyone inserts
+  // one above it.
+  await go('/#/research/news?scope=universe', 2500);
+  await waitForPanel();
+  await page.waitForSelector('#content-host [data-news-search]', { timeout: 15000 }).catch(() => {});
   const filtered = await evalSafe(async () => {
     const input = document.querySelector('[data-news-search]');
     if (!input) return null;
