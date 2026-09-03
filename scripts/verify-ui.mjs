@@ -1082,6 +1082,15 @@ console.log('\n— AI alerts —');
       });
     }
     askRequest = request.postDataJSON();
+    // Slow on purpose: the check below leaves the tab while this is still being written.
+    if (/keeps working while i look away/i.test(askRequest?.question || '')) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: `${JSON.stringify({ type: 'text', text: 'OFF_TAB_ANSWER stands on dashboard evidence.' })}\n${JSON.stringify({ type: 'done' })}\n`,
+      });
+    }
     if (/stale scope test/i.test(askRequest?.question || '')) {
       await new Promise((resolve) => setTimeout(resolve, 900));
       return route.fulfill({
@@ -1425,6 +1434,64 @@ console.log('\n— AI alerts —');
     !!citation && /^#\/research\/earnings-hub\?scope=portfolio$/.test(citation.href) && citation.text === 'Earnings Hub' && citation.unresolved === 0,
     citation ? `${citation.text} → ${citation.href}` : 'no citation link rendered');
 
+  // AN ANSWER THE READER WALKED AWAY FROM IS STILL THERE WHEN THEY COME BACK.
+  //
+  // `destroy()` used to abort every generation, so pressing Send and then looking at another tab —
+  // the obvious thing to do while fifteen sources are read and an answer is written — cancelled it,
+  // put the question back in the composer and took it out of the transcript. What the reader saw
+  // was their own question sitting unsent, which reads as the assistant having dropped it.
+  //
+  // Driven the way a reader does it: a SAME-DOCUMENT hash navigation. `go()` reloads the document,
+  // which genuinely does end the request, and would pass this check for the wrong reason.
+  await page.locator('[data-research-new]').click();
+  await page.locator('[data-research-input]').fill('Keeps working while I look away');
+  await page.locator('[data-research-send]').click();
+  await page.waitForFunction(() => /Reading |Writing |Opening /.test(document.querySelector('[data-research-phase]')?.innerText || ''), null, { timeout: 15000 });
+  const awaySession = await page.evaluate(() => {
+    location.hash = '#/research/breakouts?scope=portfolio';
+    return true;
+  });
+  await page.waitForTimeout(600);
+  ok('leaving Ask Research mid-answer really does unmount it', awaySession && !(await page.locator('[data-research-input]').count()));
+  const landedAway = await page
+    .waitForFunction(() => {
+      const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
+      return stored.some((session) => session.messages?.some((m) => m.role === 'assistant' && /OFF_TAB_ANSWER/.test(m.text)));
+    }, null, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  ok('...and the answer still arrives and is saved while another tab is on screen', landedAway);
+  // Keeping it running silently would be a feature nobody can see, so it announces itself in the
+  // alert stack — the same place a filed result does, under the tab it belongs to.
+  ok('...and says so in the alert stack rather than finishing invisibly',
+    (await page.locator('[data-notification="research"]').count()) > 0,
+    `${await page.locator('#notification-root > *').count()} alert card(s) on screen`);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  const backText = await page.locator('[data-research-transcript]').innerText();
+  ok('...and it is in the conversation when the reader returns, with the composer clear',
+    /OFF_TAB_ANSWER/.test(backText) && (await page.locator('[data-research-input]').inputValue()) === '',
+    backText.replace(/\s+/g, ' ').slice(0, 120));
+
+  // A TYPED-BUT-UNSENT QUESTION IS THE READER'S WORK TOO. It survives leaving the tab and a reload.
+  await page.locator('[data-research-input]').fill('An unsent draft that must survive');
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { location.hash = '#/research/breakouts?scope=portfolio'; });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.waitForTimeout(900);
+  ok('an unsent draft survives leaving the tab',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
+  ok('...and a reload',
+    (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
+  await page.evaluate(() => {
+    const input = document.querySelector('[data-research-input]');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
   // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
   // again on first paint and the result stored on the message — so a conversation from before
   // the link change opens General Alerts on the company's nineteen rows, not on all 21,000.
@@ -1494,8 +1561,13 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
+  // The seeded company's own row must be there. It is deliberately NOT asserted that every visible
+  // row carries the ticker: the search box matches names as well as symbols, so seeding `TECHNOCRAF`
+  // legitimately also shows Technocraft Industries, whose own symbol is something else entirely.
+  // That is a search behaving like a search, and the day the newest filing happened to be a company
+  // whose name prefixes another's it failed a check about deep-linking.
   ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
+    !!seedTicker && seededSearch === seedTicker && seededRows.some((row) => row.includes(seedTicker)),
     `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
 
   // ---------------------------------------------------------------------------------------
