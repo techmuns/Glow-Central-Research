@@ -2048,6 +2048,87 @@ and unread feeds lose points. Every contribution is retained in `scoreBreakdown`
 verification, but the card does not render scores or their arithmetic. The reader gets the evidence
 and next action without ranking implementation detail.
 
+### TIME TO INSIGHT IS THE PRODUCT'S ONLY JOB — the card's reading layer
+
+Everything above decides WHAT to surface. `plainInsight()`, `cardMetrics()`, `plainHeadline()` and
+`topEvidence()` decide how fast a human can take it in, and that is a separate concern with its own
+failure mode: a card can be perfectly honest and still take twenty seconds to read, at which point a
+page whose whole promise is *here is what needs you this morning* has failed at the only thing it
+does.
+
+**The measured problem was repetition and register.** The card printed the leading pattern's full
+sentence as its insight AND again, verbatim, inside a *"Signals lining up"* panel below it, in the
+feeds' own technical wording — *"Volume 4.4x its 20-day average at the 2026-09-02 close, and a
+tracked investor's latest book shows selling — President Of India: reduced by 2.00pp."* One finding,
+said twice, in a vocabulary a reader has to decode, above three evidence rows carrying long
+timestamps, direction pills, importance pills and each rule's own reason sentence.
+
+What replaces it is: **one short sentence in ordinary English, the numbers behind it as numbers, and
+three evidence lines.** Six rules hold it up, and every one of them is a rule this codebase already
+had:
+
+1. **No new fact, and no new number.** Every phrase rewords an event already on the card; every
+   figure is read from a field the collector wrote — `volumeX`, `movePct`, `deltaPp`, `action`,
+   `investor`, added to the technicals and investor events in `daily-alerts.js` for exactly this —
+   never regexed back out of a sentence. A reworded headline must not silently become a missing
+   number.
+2. **Co-occurrence stays co-occurrence.** *"Heavy trading, and a big holder has been selling"* is
+   two measurements inside one week joined by *and*. It is deliberately not *"sold into the tape"*,
+   which reads as one causing the other and would be the invented-trade-date error the confluence
+   rules already forbid, one layer up.
+3. **Plain is not vague.** *"A big holder"* replaces *"a tracked investor's latest book"* — shorter,
+   same claim. It does **not** replace the investor's NAME, which stays in the figures and in the
+   evidence row beneath. Simplifying the register may never cost the reader a specific.
+4. **Only rewrite sentences this dashboard wrote.** `plainHeadline()` turns our own *"Volume 2.0x
+   its 20-day average at the 2026-09-02 close"* into *"Traded 2.0x its normal volume"*, and leaves a
+   BSE filing's subject, a con-call title and a publisher's headline untouched. Putting our phrasing
+   on a company's own statement is the error the filings rules exist to prevent.
+5. **A sentence may not be more specific than its evidence.** `news-behind-the-move` and
+   `results-reaction` both fire on ANY technicals reading, so neither may say *"the price moved"* —
+   it read that way over a card whose only tape event was 2.0x volume on a barely-changed close.
+   They say *"Unusual trading"*.
+6. **Tone is a claim, so the volume cell has none.** The technicals feed states in its own words
+   that volume is participation and the tape does not say whether it was buying or selling.
+   Colouring `4.4x` rose because it is large would be this dashboard asserting a direction its own
+   feed refuses to assert — a worse error than a dull cell. Day moves and book changes ARE
+   directional and are toned.
+
+Two shapes follow from the same reasoning and are asserted:
+
+- **The figures arrive in the order the sentence names them.** Every plain sentence puts the tape
+  first, but the events are in SCORE order, so a fund book outranking a volume row produced *"…has
+  been selling — Cohesion MK Best Ideas is off the register, 2.0x its normal volume"*: both facts
+  true, read backwards against the clause they belong to, costing a second pass over a card built
+  to save one. `READ_ORDER` fixes the sequence for the sentence and the strip together.
+- **Three evidence rows mean three DIFFERENT sources where the card has them.** Taking the top three
+  by score put three rows of one feed on a card whose strip announced four sources — *"Cohesion MK
+  Best Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
+  Fund: no longer disclosed"*. Every row was true and the card still showed a quarter of what it
+  held, three times, while the reader's actual next question — *what do the OTHER sources say?* — is
+  the one thing three identical lines cannot answer. `topEvidence()` takes the strongest event per
+  feed first, then fills.
+
+**`cardBadge()` names the action, not the band.** A directional disagreement reads `Reconcile`
+rather than `Must see`, because that is what changes the reader's next move; the band itself stays
+as `data-priority` and in the filter chips. And the pattern block is now a row of CHIPS naming every
+pattern, not a panel restating their sentences — it still sits above the evidence, because the
+finding is read before its workings, and it still prints no score.
+
+### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
+
+A card can be archived once it has been read. **A control that makes a card disappear with nothing
+on screen saying where it went is indistinguishable from having lost it**, so the archive is a
+fourth filter chip that always shows its count, every card in it carries `Restore`, and `Restore
+all` is one click.
+
+**And a record is tied to the evidence it was given for, not to the company.** A mute that simply
+hid a ticker would keep hiding it through tomorrow's filing, tomorrow's block deal and tomorrow's
+result — a reader would have silenced a company on Monday's evidence and stopped being told about
+Friday's, with nothing saying so. That is the same failure as rendering a missing value as zero: an
+absence produced by our own bookkeeping, presented as an absence of events. So the store records
+WHICH evidence was dismissed (the card's strongest event id); the card returns by itself the moment
+something stronger arrives, and the record lapses after the alert window it refers to.
+
 ### CORRELATION IS THE PRODUCT — the confluence layer
 
 `confluenceOf()` is what answers *"there's a volume breakout and this superstar investor has bought
@@ -2059,8 +2140,8 @@ So a small fixed set of patterns is checked **by name**: accumulation, distribut
 institution agreeing, a move with a story behind it, a result and a reaction, a risk cluster, and a
 move nothing explains. Each states which feeds must agree, carries its own points, and **writes its
 sentence out of the events it matched** rather than from a template. Where a pattern fires it leads
-the card's insight and renders above the Evidence block, because the finding should be read before
-its workings.
+the card's insight — in the plain wording above — and its name renders as a chip above the evidence,
+because the finding should be read before its workings.
 
 Four rules, and every one is a rule this codebase already had:
 
@@ -3022,6 +3103,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
+| Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
+| Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
 | Change a General Alerts threshold | the exported constants in `js/data/daily-alerts.js` — the source registry, export and tests read those constants rather than retyping them |

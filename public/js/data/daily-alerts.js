@@ -853,6 +853,13 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
       headline: `${move.investor}: ${actionText}`,
       detail: `${move.prior} → ${move.latest}${move.action === 'exited' ? ' · “No longer disclosed” does not prove a complete sale.' : ''}`,
       url: move.companySlug ? `https://ticker.finology.in/company/${encodeURIComponent(move.companySlug)}` : null,
+      // Machine-readable copies of what `actionText` already spells out. `deltaPp` stays
+      // NULL for `new` and `exited` exactly as `deriveMoves` leaves it — a first or last
+      // disclosure states a stake, never a change — so a card printing it can never invent
+      // a trade size for a position that simply appeared or disappeared.
+      action: move.action,
+      investor: move.investor,
+      deltaPp: move.action === 'added' || move.action === 'trimmed' ? move.deltaPp ?? null : null,
     };
   });
   // `meta().checkedAt` is deliberately the OLDEST confirmation behind the current set of books.
@@ -1012,6 +1019,13 @@ function fromTechnicals({ day, wanted, includeHistory }) {
             .join(' · '),
           url: c.screenerUrl || null,
           kind: brokeOut ? 'breakout' : 'volume',
+          // THE SAME NUMBERS THE SENTENCE ABOVE ALREADY STATES, in a form a reader-facing
+          // card can print without parsing prose. No new fact: `volumeX` is the ratio this
+          // row's headline names and `movePct` the close it reports beside it. AI Alerts
+          // reads these for its metric strip — regexing a headline for a figure is how a
+          // reworded sentence silently becomes a missing number.
+          volumeX: Number.isFinite(volX) ? volX : null,
+          movePct: move != null && Number.isFinite(Number(move)) ? Number(move) : null,
         });
       }
     }
@@ -1047,6 +1061,7 @@ function fromTechnicals({ day, wanted, includeHistory }) {
       // Named so the correlation layer in ai-alerts.js can tell a price move from a participation
       // reading without re-deriving either. Both come off this feed and they are different events.
       kind: 'move',
+      movePct: Number(move),
       detail: [c.cmp != null ? `Close ₹${Number(c.cmp).toFixed(2)}` : null, c.prev_bar_date ? `vs ${c.prev_bar_date}` : null, c.rsi14 != null ? `RSI ${c.rsi14}` : null, c.above_200dma === false ? 'below its 200-day average' : null].filter(Boolean).join(' · '),
       url: c.screenerUrl || null,
     });

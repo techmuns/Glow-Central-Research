@@ -3264,8 +3264,8 @@ The score begins with the strongest event and then adds smaller company-level co
 - a penalty where the source is stale, failed, incomplete or unread.
 
 Every contribution is returned as `{ label, points }` in `scoreBreakdown` for deterministic ordering and verification, but the score arithmetic is not rendered on the card.
-The derived `insight` and `action` strings are templates over those structured facts, not generated
-claims. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
+The derived `insight`, `metrics` and `badge` values are templates over those structured facts, not
+generated claims — see *The card's reading layer* below. `rankReport(report, { holdings })` is pure and exported so every product-rule branch can be
 verified with fixtures independently of what happens to be in today's capture.
 
 ### Cross-feed patterns — `confluenceOf(events, { feedById })`
@@ -3293,6 +3293,36 @@ Three constraints are contractual rather than stylistic:
    second threshold defined here.
 3. **`unexplained-move` reports an absence**, so it is withheld whenever any feed whose silence it
    would be reporting is stale, failed or unread.
+
+### The card's reading layer — `plainInsight` / `cardMetrics` / `plainHeadline` / `topEvidence`
+
+All four are pure and exported. They decide how fast the ranked result can be READ, and they add no
+fact: every phrase rewords an event already on the card and every figure is read from a field the
+collector wrote — `volumeX`, `movePct`, `deltaPp`, `action`, `investor` on the events themselves —
+never parsed back out of a sentence.
+
+| | what it returns | rule |
+| --- | --- | --- |
+| `plainInsight(card)` | the card's whole finding as one short sentence | The leading cross-feed pattern in ordinary English, then its figures. Co-occurrence stays co-occurrence: *"Heavy trading, and a big holder has been selling"*, never *"sold into the tape"*. |
+| `cardMetrics(card)` | **exactly four** `{ id, label, value, tone, title }` cells | Up to two facts the company actually has (volume ratio, day move, book change), then `Sources` and `Events`. Fewer than two facts fills from `Direction` and `Flagged high`. **Volume carries no tone**: participation has no sign, so colouring it would assert a direction the technicals feed refuses to assert. |
+| `plainHeadline(event)` | one event's claim, plainly | Only rewrites sentences this dashboard composed. A filing's subject, a con-call title and a publisher's headline are somebody else's words and are returned untouched. |
+| `topEvidence(card, 3)` | the rows the card shows | The strongest event from each **different** feed first, then the rest. A card claiming four sources may not spend all three rows on one of them. |
+
+`cardBadge(card)` names the action rather than the band: a directional disagreement reads
+`Reconcile`, because that changes what the reader does next and `Important` does not. The band
+itself stays on the card as `data-priority` and in the filter chips.
+
+### `sattva:ai-muted:v1` — the archive, device-local
+
+`js/core/ai-mute.js`. `{ "<TICKER>": { at: ISO, seen: "<event id>" } }`, written by the card's
+**Archive** button and read by the tab's Archived view.
+
+**A record is tied to the evidence it was given for, not just to the company.** A card stays
+archived while `seen` is still its strongest event, and returns by itself the moment something
+stronger arrives — otherwise a reader who archived a company on Monday's evidence would stop being
+told about Friday's, with nothing on screen saying so. Entries lapse after seven days, because
+beyond the alert window the events they refer to have left it. Nothing is ever deleted: the
+`Archived · n` chip is always on screen and `Restore` is one click.
 
 ## Tracked news keywords — DERIVED, no file and no route of its own
 

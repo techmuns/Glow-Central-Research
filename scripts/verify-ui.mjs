@@ -1194,6 +1194,74 @@ console.log('\n— AI alerts —');
   ok('every visible evidence row links to its traceable source',
     renderedCards.every((card) => card.linkedEvents === card.events));
 
+  // --- THE CARD IS BUILT FOR TIME-TO-INSIGHT, and each half of that is a property to assert ---
+  //
+  // The old card printed the leading pattern's technical sentence as its insight AND again, in
+  // full, inside a "Signals lining up" panel below it — one finding, twice, in the feeds' own
+  // vocabulary. What replaces it is a plain sentence, then the numbers behind it AS numbers. Both
+  // are checkable: the sentence is short and singular, and the strip is the same four cells on
+  // every card so the eye can learn its shape rather than re-reading the labels each time.
+  const aiShape = await aiCards.evaluateAll((els) => els.map((el) => ({
+    ticker: el.dataset.ticker,
+    insight: (el.querySelector('[data-ai-insight]')?.innerText || '').trim(),
+    metrics: [...el.querySelectorAll('[data-ai-metrics] [data-metric]')].map((n) => n.getAttribute('data-metric')),
+    evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
+    // The feed tag is the last cell of each row; the set of them is the breadth on screen.
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event] span:last-child')].map((n) => n.innerText.split('·')[0].trim()))],
+    sources: Number(el.querySelector('[data-metric="feeds"] .tabular-nums')?.innerText || 0),
+    confluenceLines: [...el.querySelectorAll('[data-ai-confluence] [data-confluence]')].map((n) => n.innerText.trim()),
+    archive: !!el.querySelector('[data-ai-mute]'),
+    open: !!el.querySelector('footer [data-open-general]'),
+  })));
+  ok('every card carries exactly four figures, and no cell repeats',
+    aiShape.every((card) => card.metrics.length === 4 && new Set(card.metrics).size === 4),
+    aiShape.map((card) => `${card.ticker}:${card.metrics.join('/')}`).join(' | ').slice(0, 160));
+  // A card that needs scrolling to reach its finding has not delivered one. Three evidence rows is
+  // the cap; the rest are one click away in the tab that exists to hold them.
+  ok('...at most three evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 3 && card.open));
+  // The pattern chips NAME the patterns; they no longer restate them. A chip carrying a full
+  // sentence is the duplication this redesign removed, so its length is the thing to hold down.
+  // A CHIP IS A TAG, NOT A SECOND COPY OF THE HEADLINE. "Volume with selling behind it" under
+  // "Heavy trading, and a big holder has been selling" is the duplication this redesign removed,
+  // so the chips carry the pattern's SHORT name — two or three words the eye indexes on.
+  ok('...and the pattern chips tag a pattern rather than repeating its sentence',
+    aiShape.every((card) => card.confluenceLines.every((line) => line.length > 0 && line.length <= 20)),
+    aiShape.flatMap((card) => card.confluenceLines).join(' | ').slice(0, 140) || 'no patterns today');
+  // BREADTH, NOT THREE COPIES OF ONE FEED. A card claiming four sources that spends all three of
+  // its rows on one of them answers the question it raised with a quarter of what it holds.
+  ok('...and the evidence rows show as many different sources as the card has',
+    aiShape.every((card) => card.evidenceFeeds.length === Math.min(card.evidence, card.sources)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceFeeds.join('/')} of ${card.sources}`).join(' | ').slice(0, 170));
+  ok('...and the insight is a single short sentence in ordinary English',
+    aiShape.every((card) => card.insight.length > 0 && card.insight.length <= 260),
+    `longest ${Math.max(0, ...aiShape.map((card) => card.insight.length))} chars`);
+
+  // ARCHIVING IS A PLACE, NOT A DELETION. A control that makes a card vanish with nothing on
+  // screen saying where it went is indistinguishable from losing it, so the round trip is asserted
+  // in both directions: the card leaves the list, is findable in Archived, and comes back.
+  const archiveTicker = aiShape.find((card) => card.archive)?.ticker;
+  if (!archiveTicker) {
+    skip('archiving a card moves it to the Archived view and back', 'no card offered the control');
+  } else {
+    const beforeCount = await aiCards.count();
+    await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"] [data-ai-mute]`).click();
+    await page.waitForTimeout(400);
+    const goneFromList = (await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"]`).count()) === 0;
+    await page.locator('[data-ai-filter="archived"]').click();
+    await page.waitForTimeout(400);
+    const inArchive = (await page.locator(`[data-ai-card][data-ai-archived][data-ticker="${archiveTicker}"]`).count()) === 1;
+    await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"] [data-ai-unmute]`).click();
+    await page.waitForTimeout(400);
+    const archiveEmptied = (await page.locator('[data-ai-card]').count()) === 0;
+    await page.locator('[data-ai-filter="all"]').click();
+    await page.waitForTimeout(400);
+    const restored = (await page.locator(`[data-ai-card][data-ticker="${archiveTicker}"]`).count()) === 1;
+    ok('archiving a card moves it to the Archived view and back',
+      goneFromList && inArchive && archiveEmptied && restored && (await aiCards.count()) === beforeCount,
+      `${archiveTicker}: hidden ${goneFromList}, archived ${inArchive}, emptied ${archiveEmptied}, restored ${restored}`);
+  }
+
   const aiCardBoxes = await Promise.all([aiCards.nth(0).boundingBox(), aiCards.nth(1).boundingBox()]);
   ok('AI Alerts uses two cards side by side on desktop',
     aiCardBoxes.every(Boolean) && Math.abs(aiCardBoxes[0].y - aiCardBoxes[1].y) < 2 && aiCardBoxes[1].x > aiCardBoxes[0].x,
@@ -1276,7 +1344,9 @@ console.log('\n— AI alerts —');
   ok('evidence links prefer public records and safely fall back to owning dashboard tabs', policy.evidenceLinksSafe);
 
   const firstTicker = renderedCards[0].ticker;
-  await aiCards.first().locator('[data-open-general]').click();
+  // A card now offers the same destination twice — the "N more events" line and the Open
+  // button — so this names one rather than asserting there is only one to name.
+  await aiCards.first().locator('[data-open-general]').first().click();
   await page.waitForTimeout(5000);
   ok('a card drills into General Alerts without changing the selected scope',
     /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
@@ -7320,7 +7390,7 @@ if (!aiCards) {
     if (!card) return null;
     const nodes = [...card.querySelectorAll('[data-ai-confluence], [data-ai-insight]')];
     const conf = card.querySelector('[data-ai-confluence]');
-    const evidence = [...card.querySelectorAll('div')].find((d) => d.textContent.trim().startsWith('Evidence'));
+    const evidence = card.querySelector('[data-ai-evidence]');
     return {
       insightFirst: nodes[0]?.hasAttribute('data-ai-insight') === true,
       beforeEvidence: !!evidence && !!(conf.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
@@ -7332,8 +7402,15 @@ if (!aiCards) {
   ok('AI Alerts shows its cross-feed patterns, named', confluenceBlocks > 0 && order?.named.length > 0, `${confluenceBlocks} of ${aiCards} cards · ${order?.named.join(', ')}`);
   // The finding is read before its workings — that is the whole reason the block exists.
   ok('...above the evidence they were derived from', order?.beforeEvidence === true);
-  // And the card's own summary leads with the correlation rather than an arity of feeds.
-  ok('...and the card leads with the correlation, not a feed count', /:/.test(order?.insight || '') && !/^Signals conflict across/.test(order?.insight || ''), (order?.insight || '').slice(0, 100));
+  // And the card's own summary leads with the correlation rather than an arity of feeds — in
+  // ORDINARY ENGLISH. The old assertion looked for a colon, because the insight used to be
+  // `${label}: ${detail}` — the pattern's own technical sentence, reprinted verbatim inside the
+  // block below it. Punctuation is not the property worth asserting; what matters is that the
+  // first thing read is the finding, said plainly, and that it is not the feed-count fallback.
+  ok('...and the card leads with the correlation, not a feed count',
+    /^(Heavy trading|An insider and|Unusual trading|Results are out|Bad news showing up|A big move with)/.test(order?.insight || '') &&
+      !/^(Signals conflict across|Bad signs on|Good signs on|Sources disagree)/.test(order?.insight || ''),
+    (order?.insight || '').slice(0, 100));
   // No score anywhere on the card, exactly as before this layer existed.
   ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
 }
