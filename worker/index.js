@@ -48,6 +48,7 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -127,6 +128,9 @@ export default {
     }
     if (url.pathname === '/api/earnings-calendar') {
       return handleCalendar(request, env, ctx);
+    }
+    if (url.pathname === '/api/nse-announcements') {
+      return handleNseAnnouncements(request, env, ctx);
     }
     if (url.pathname === '/api/concalls') {
       return handleConcalls(request, env, ctx);
@@ -747,6 +751,105 @@ const CONCALL_HEAD_TTL_S = 30;
 const CONCALL_TAIL_TTL_S = 600;
 const CONCALL_SCHEDULE_TTL_S = 120;
 const CONCALL_SNAPSHOT = '/data/concall-scans.json';
+
+// ---------------------------------------------------------------------------------------
+// NSE live announcements — the one exchange feed that can be narrowed to a reader's companies
+// ---------------------------------------------------------------------------------------
+//
+// The browser cannot read NSE (CORS `null`), so this proxies it: fetch the RSS with a full desktop
+// user-agent (a weak one is Akamai-blocked), resolve each filing's company name to a ticker, and
+// return JSON the page can narrow by scope. Edge-cached NSE_TTL_S so a thousand readers cost NSE one
+// fetch per window; a content ETag lets an unchanged poll come back a bodyless 304.
+//
+// Resolution needs the universe, so the resolver is built once from three committed files and cached
+// in module scope across requests — rebuilding it per request would parse ~700 KB of JSON every tick.
+
+const NSE_TTL_S = 90;
+const NSE_SNAPSHOT = '/data/nse-announcements.json';
+let nseResolver = null;
+
+async function nseResolverFor(env, request) {
+  if (nseResolver) return nseResolver;
+  const read = async (path) => {
+    try {
+      const r = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  };
+  const [mc, tech, book] = await Promise.all([
+    read('/data/mc-ticker-map.json'),
+    read('/data/technicals.json'),
+    read('/data/portfolio-companies.json'),
+  ]);
+  nseResolver = buildResolver({
+    book: book?.holdings || [],
+    mcMap: mc?.map || {},
+    tech: tech?.rows || tech?.companies || [],
+  });
+  return nseResolver;
+}
+
+// A weak user-agent is refused; a slow fetch is bounded and retried once, because NSE is behind the
+// same best-effort Akamai edge as the rest of the exchange.
+async function fetchNseXml() {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch(NSE_FEED_URL, { headers: NSE_HEADERS, signal: AbortSignal.timeout(15000) });
+      const body = await res.text();
+      if (!res.ok) { lastErr = new Error(`NSE HTTP ${res.status}`); continue; }
+      assertNseShape(body, { status: res.status });
+      return body;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('NSE unreachable');
+}
+
+async function loadNseSnapshot(env, request) {
+  try {
+    const r = await env.ASSETS.fetch(new Request(new URL(NSE_SNAPSHOT, request.url)));
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
+async function handleNseAnnouncements(request, env, ctx) {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+  const cache = caches.default;
+  const cacheKey = edgeKey('nse-announcements');
+  const hit = await cache.match(cacheKey);
+  if (hit) return revalidate(request, new Response(hit.body, { headers: { ...Object.fromEntries(hit.headers), 'x-sattva-cache': 'hit' } }), 'hit');
+
+  try {
+    const xml = await fetchNseXml();
+    const resolver = await nseResolverFor(env, request);
+    const rows = resolveNse(parseAnnouncements(xml), resolver);
+    const resolved = rows.filter((r) => r.ticker).length;
+    const payload = {
+      ok: true,
+      capturedAt: new Date().toISOString(),
+      count: rows.length,
+      resolved,
+      unresolved: rows.length - resolved,
+      rows,
+    };
+    const { body, tag } = withTag(payload);
+    const stored = tagged(body, tag, NSE_TTL_S, { 'x-sattva-cache': 'live' });
+    ctx?.waitUntil?.(cache.put(cacheKey, stored.clone()));
+    return revalidate(request, stored, 'miss');
+  } catch (err) {
+    // NSE is unreachable or refused us — serve the committed snapshot rather than nothing, labelled
+    // so the page can say the age is the snapshot's, not a live read. `blocked` is Akamai saying no,
+    // which is a wait-and-retry state, not a bug in anything here.
+    const snap = await loadNseSnapshot(env, request);
+    if (snap) {
+      const { body, tag } = withTag({ ...snap, ok: true, degraded: `NSE is unavailable (${err?.reason || err?.message || err}) — showing the last committed snapshot.` });
+      return revalidate(request, tagged(body, tag, 15), 'fallback');
+    }
+    return json({ ok: false, reason: err?.reason || 'unreachable', degraded: `NSE is unreachable and no snapshot is committed: ${String(err?.message || err)}`, rows: [] }, 502);
+  }
+}
 
 async function handleConcalls(request, env, ctx) {
   if (request.method !== 'GET') return json({ error: 'GET only' }, 405);

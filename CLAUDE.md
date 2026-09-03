@@ -104,6 +104,8 @@ public/
       universe.js             screener-export -> legacy universe shape adapter
       filings.js              the News / Announcements / Insider feed: snapshot first, then a
                               bounded live walk for whatever it is missing
+      nse-filings.js          THE NSE LIVE ANNOUNCEMENTS FEED, scoped per company — live off our
+                              Worker proxy, committed snapshot beneath it, rows carry a resolved ticker
       filings-shared.js       markdown-table parser + shape-tolerant normalisers, shared with
                               worker/muns.mjs
     scoring/
@@ -116,7 +118,7 @@ public/
       evidence-shared.js      the ONE provider-facing packet shape, imported by worker/research.mjs too
       renderer.js             the DOM-based markdown subset model prose is rendered through
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
-                              super-investors, news, corp-announcements, insider-trades
+                              super-investors, news, corp-announcements, nse-filings, insider-trades
       ai-alerts.js            ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
@@ -158,6 +160,8 @@ scripts/
 .github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
+.github/workflows/nse-announcements-refresh.yml hourly in Indian hours; the NSE snapshot fallback
+                                           (the live route /api/nse-announcements is the primary read)
 .github/workflows/rss-news-refresh.yml     hourly; the four RSS publishers. Shares the
                                            `market-news-capture` concurrency group with
                                            market-news-refresh.yml — both merge into one file
@@ -172,6 +176,8 @@ worker/stockscans.mjs         the StockScans con-call client (vocabulary lives i
 worker/finology.mjs           the AUTHENTICATED Finology client — holds env.MUNS_TOKEN, never the browser
 worker/muns.mjs               the AUTHENTICATED news / insider clients — same token
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
+worker/nse-ann.mjs            NSE's LIVE announcements RSS — parser + name->symbol resolver, pure and
+                              shared with the scraper. Browser can't read NSE (CORS null); Worker can
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
 worker/rss-news.mjs           the four RSS publishers behind the same tab — parser + feed list,
@@ -2906,6 +2912,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
+| Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
+| Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
