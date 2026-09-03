@@ -7107,6 +7107,17 @@ console.log('\n— news, announcements and insider trades —');
 
     for (const { tab, scope, feed } of RANGE_TABS) {
       await go(`/#/research/${tab}?scope=${scope}`, 3500);
+      // WAIT FOR THE FEED, DO NOT SKIP ON A RACE. The snapshot is several megabytes and lands a
+      // moment after the tab paints, so reading `rowCount` straight away caught News at zero and
+      // skipped six checks over a file with 11,867 rows in it — a skip that fires on timing hides
+      // the checks instead of reporting them.
+      await page
+        .waitForFunction(
+          async (k) => (await import('/js/data/filings.js'))[k].isLoaded(),
+          feed,
+          { timeout: 15000 }
+        )
+        .catch(() => {});
       const held = await evalSafe(async (k) => {
         const f = (await import('/js/data/filings.js'))[k];
         const { heldSpan } = await import('/js/data/date-range.js');
