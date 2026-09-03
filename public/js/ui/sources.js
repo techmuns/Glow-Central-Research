@@ -19,6 +19,7 @@ import * as earningsLive from '../data/earnings-live.js';
 import * as chatter from '../data/chatter-live.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as fundReturns from '../data/fund-returns.js';
+import * as mfWeekly from '../data/mf-weekly.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -124,8 +125,14 @@ export function sourceGroups() {
   const si = { count: num(() => superInvestors.meta().loadedBooks) };
   const chat = num(() => chatter.all().length);
   const chatResolved = num(() => chatter.companies().length);
-  // Read from the module the Fund Returns view reads, like every other figure here — never typed.
+  // Read from the module the All Schemes view reads, like every other figure here — never typed.
   const schemes = num(() => fundReturns.meta()?.total || fundReturns.all().length);
+  // Same rule for the weekly workbook behind Category Performance. `num()` returns null rather than
+  // 0 for a feed that has not loaded, and every clause below drops whole when its figure is null —
+  // a sentence built AROUND a number reads as broken prose the moment it does not arrive.
+  const mfCats = num(() => mfWeekly.meta()?.categoryCount);
+  const mfSchemes = num(() => mfWeekly.meta()?.fundCount);
+  const mfIndices = num(() => mfWeekly.meta()?.benchmarkCount);
   const funds = (() => {
     try {
       return institutions.isLoaded() ? institutions.all() : [];
@@ -454,17 +461,43 @@ export function sourceGroups() {
           status: 'live',
           file: 'public/data/institution-holdings.json · scripts/scrape-institution-holdings.mjs · scripts/lib/trendlyne.mjs',
         },
+      ],
+    },
+    {
+      // GLOW-OWNED: the Mutual Funds tab reads two fund feeds that are dated DIFFERENT DAYS and
+      // answer different questions, so they are listed as two sources and never as one.
+      title: 'Mutual funds',
+      icon: '\u{1F4C8}',
+      tabs: 'Mutual Funds',
+      items: [
+        {
+          name: 'Weekly fund performance workbook — category medians & benchmarks',
+          url: null,
+          feeds:
+            `<strong>Real, and not ours.</strong> The <em>Category Performance</em> sub-view is a weekly point-to-point performance workbook, one sheet per mutual-fund category: every scheme's 1W/1M/3M/6M/1Y/3Y/5Y and since-inception return, its AUM and its direct and regular expense ratios — then the sheet's own published <strong>median</strong> for the category, and the <strong>index rows</strong> it prints beneath it. <strong>The returns, the medians and the index figures are all the workbook's and are reproduced unchanged</strong>; this dashboard adds no scoring and no ranking. The import recomputes every published median from the scheme rows it parsed <em>as a parse check</em> and refuses to write the file when one disagrees — the number that ships is always the published one.${clause(
+              mfCats,
+              ' <n> categories'
+            )}${clause(mfSchemes, ', <n> schemes')}${clause(mfIndices, ' and a master sheet of <n> indices.')}
+            <strong>Exactly two figures are derived</strong>: the gap between a return and its median or its benchmark, in percentage <em>points</em> and never shown where either side is absent, and the heatmap shade, whose meaning is printed in the legend beside it. A category the workbook prints no index for says so and <strong>none is substituted</strong> from the master sheet. 3Y and 5Y are annualised; since inception spans a different length for every scheme. AUM is as at the workbook's own stated month, not the return date. <strong>It is a different snapshot from the AmfiBeas feed above</strong> — a different date and a different universe — so nothing is compared, summed or benchmarked across the two.`,
+          cadence: 'Weekly · drop the new workbook in scripts/fixtures/ and re-run the importer',
+          // `static`, not `live`: real data, committed to the repo, refreshed BY HAND. The modal
+          // counts `live` into "N of M are wired to a live feed today", and a card claiming a live
+          // feed beside its own "re-run the importer" cadence would inflate that count by one and
+          // contradict itself in the same breath. The family book is filed the same way.
+          status: 'static',
+          file: 'public/data/mf-weekly.json · scripts/import-mf-weekly.mjs · scripts/lib/xlsx-read.mjs · public/js/data/mf-weekly.js · public/js/data/mf-taxonomy.js · public/js/ui/mf-heatmap.js',
+        },
         {
           name: 'AmfiBeas — fund returns & peer ranking',
           url: null,
           feeds:
-            `<strong>Real returns, and not ours.</strong> The <em>Fund Returns</em> sub-view is every tracked mutual fund and ETF, its point-to-point return for each period — a simple return for 1M/3M/6M/1Y, a CAGR for 3Y/5Y/10Y — and its rank <strong>within its own cohort</strong>, shown <code class="rounded bg-slate-100 px-1">rank/peerCount</code>. AmfiBeas compute all of it from AMFI's daily NAV snapshot; <strong>this dashboard reproduces the returns and ranks unchanged and adds no scoring of its own</strong>. Called <strong>straight from the browser</strong> — the feed is CORS-open and read-only, so there is no credential to hold. A missing return is "no return for that period" and a missing rank is "the cohort was too small to rank": both render an em dash, never a zero. Nothing on it is a holding, so nothing joins it to the two views above.${clause(
+            `<strong>Real returns, and not ours.</strong> The <em>All Schemes</em> sub-view is every tracked mutual fund and ETF, its point-to-point return for each period — a simple return for 1M/3M/6M/1Y, a CAGR for 3Y/5Y/10Y — and its rank <strong>within its own cohort</strong>, shown <code class="rounded bg-slate-100 px-1">rank/peerCount</code>. AmfiBeas compute all of it from AMFI's daily NAV snapshot; <strong>this dashboard reproduces the returns and ranks unchanged and adds no scoring of its own</strong>. Called <strong>straight from the browser</strong> — the feed is CORS-open and read-only, so there is no credential to hold. A missing return is "no return for that period" and a missing rank is "the cohort was too small to rank": both render an em dash, never a zero. Nothing on it is a holding, so nothing joins it to the Super Investors book. <strong>It carries no benchmark and no category median</strong> — AMFI's NAV snapshot has neither — and it is a DIFFERENT DATE from the weekly workbook below, so no figure crosses between the two.${clause(
               schemes,
               ' <n> schemes in the current pull.'
             )}`,
           cadence: 'Daily · read live per visit, straight from the browser',
           status: 'live',
-          file: 'amfibeas.tech-441.workers.dev · public/js/data/fund-returns.js · public/js/investors/fund-returns.js · window.AMFIBEAS_API_BASE in index.html',
+          file: 'amfibeas.tech-441.workers.dev · public/js/data/fund-returns.js · public/js/investors/fund-returns.js · public/js/tabs/mutual-funds.js · window.AMFIBEAS_API_BASE in index.html',
         },
       ],
     },

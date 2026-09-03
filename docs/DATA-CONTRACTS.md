@@ -2083,16 +2083,145 @@ Invariants, asserted by `scripts/check-book.mjs` and by the suite against the sh
 depository line, no rupee value for an account that reports income only, and no quote, rationale or
 view attributed to anyone.
 
+## `public/data/mf-weekly.json` — the weekly fund performance workbook (GLOW-OWNED)
+
+The **Mutual Funds → Category Performance** sub-view. A weekly point-to-point performance workbook,
+**one sheet per mutual-fund category**: every scheme's returns for eight periods, its AUM and its
+direct and regular expense ratios, then the sheet's own published **median** for the category and
+the **index rows** printed beneath it — plus a separate master sheet of every index it quotes.
+
+Built by `node scripts/import-mf-weekly.mjs` from `scripts/fixtures/mf-weekly.xlsx`, read with
+`scripts/lib/xlsx-read.mjs` (no npm dependency — see CLAUDE.md hard rule 2). Read by
+`js/data/mf-weekly.js`, classified by `js/data/mf-taxonomy.js`, shaded by `js/ui/mf-heatmap.js`,
+rendered by `js/tabs/mutual-funds.js`.
+
+**IT IS A DIFFERENT SNAPSHOT FROM `/api/returns-ranking` BELOW, AND NOTHING CROSSES BETWEEN THEM.**
+
+| | `mf-weekly.json` | `/api/returns-ranking` |
+| --- | --- | --- |
+| cadence | weekly workbook, committed | daily, read live from the browser |
+| as on | its own stated date | its own, **later**, date |
+| schemes | ~620 curated direct-plan growth | ~3,400, every plan and option |
+| periods | 1W 1M 3M 6M 1Y 3Y 5Y + since inception | 1M 3M 6M 1Y 3Y 5Y 10Y |
+| category median | **published by the workbook** | none — the payload has no median |
+| benchmark | **published per category** | none — AMFI's NAV snapshot has none |
+| peer rank | none | published, within its own cohort |
+
+They are dated different days, so no figure from one is compared with, summed with, or used as a
+benchmark for the other — the same rule as *A close is a claim about a SESSION*. Each sub-view
+prints its own as-on date on its own face and the All Schemes head says the two are different
+snapshots.
+
+```jsonc
+{
+  "asOf": "2026-08-14",              // read from the sheets' own "( As on 14-08-26 )" TEXT
+  "source": "Weekly mutual fund performance workbook",
+  "sourceFile": "scripts/fixtures/mf-weekly.xlsx",
+  "periods": ["1W","1M","3M","6M","1Y","3Y","5Y","SI"],
+  "benchmarkPeriods": ["1W","1M","3M","6M","1Y","3Y","5Y"],   // an index has no inception return here
+  "assetClasses": [{ "id": "debt", "label": "Debt", "covered": false, "note": "…" }],
+  "medianCheck": { "checked": 208, "reconciled": 208 },
+  "categories": [{
+    "id": "small-cap", "sheet": "Small Cap", "label": "Small Cap",
+    "assetClass": "Equity", "group": "Market cap",
+    "asOf": "2026-08-14",
+    "serial": 46082,                 // column M of the title row. RECORDED, NEVER INTERPRETED — see below.
+    "aumLabel": "AUM ( June 26)",    // the AUM column's own month — not the return date
+    "funds": [{
+      "id": "small-cap--abakkus-small-cap-fund-dir-growth",   // content-derived, never positional
+      "scheme": "Abakkus Small Cap Fund - Dir - Growth",
+      "house": "Abakkus", "plan": "direct", "option": "growth",
+      "returns": { "1W": -0.2, "1M": 2.35, "3M": 14.04, "SI": 25.6 },  // ABSENT periods are omitted
+      "aumCr": 1494.42,
+      "expense": { "direct": 1.09, "regular": 2.43 }
+    }],
+    "median":  { "basis": "published", "returns": { "1W": 0.485, … } },
+    "benchmarks": [
+      { "id": "nifty-smallcap-250",     "name": "Nifty Smallcap 250",     "tri": false, "returns": {…} },
+      { "id": "nifty-smallcap-250-tri", "name": "Nifty Smallcap 250 TRI", "tri": true,  "returns": {…} }
+    ],
+    "primaryBenchmarkId": "nifty-smallcap-250-tri",
+    "benchmarkNote": null            // a SENTENCE where a sheet prints no index row at all
+  }],
+  "benchmarkIndex": [{ "id": "nifty-100", "name": "Nifty 100", "tri": false, "returns": {…} }]
+}
+```
+
+**Field semantics, and the rules the import and the view enforce:**
+
+- **The returns, the medians and the index returns are the workbook's, reproduced unchanged.** The
+  same rule as the con-call scores and the Trendlyne values. The view adds no scoring and no ranking.
+- **`"--"` IS NOT ZERO.** A scheme younger than the period prints `--` in the sheet; the period is
+  then **omitted from `returns`** and renders an em dash whose title says which side is missing. The
+  same for an index the workbook does not quote that far. Nothing is defaulted.
+- **The as-on date comes from the sheet's TEXT, not from the number beside it.** Every sheet's title
+  row reads `( As on 14-08-26 )` and carries a serial in column M — 46082 on twenty-five sheets and
+  46174 on one, which decode to 1 Mar 2026 and 1 Jun 2026. Whatever that column measures, it is
+  **not** the as-on date, so it travels as `serial` and is never interpreted. The import **fails**
+  if the text cannot be read, or if the sheets are not all as on one date.
+- **THE PUBLISHED MEDIANS ARE THE PARSE GUARD.** The import recomputes every published median from
+  the scheme rows it parsed and **refuses to write the file** if one disagrees by more than 0.005 —
+  a dropped or double-counted scheme moves the middle, so a median that still reconciles is a check
+  on every row above it. This is `check-book.mjs`'s reconciliation, applied here. On the shipped
+  workbook **208 of 208 reconcile**. The number that SHIPS is always the published one; the
+  recomputation is evidence, never output.
+- **Which index a category is compared with is the workbook's choice, and where it prints more than
+  one the TRI wins** — a fund's NAV carries reinvested dividends, so a Total Return Index is the
+  like-for-like comparator. The others stay visible on the category page and in the export.
+  **Smart Beta prints no index row at all**, so `benchmarks` is `[]`, `benchmarkNote` carries the
+  sentence, and **nothing is substituted** from `benchmarkIndex` — pairing a category with an index
+  the source did not pair it with would be this dashboard's judgement wearing the workbook's.
+- **A sheet with no `WORKBOOK_TAXONOMY` entry fails the run**, and so does a taxonomy entry naming a
+  sheet the workbook does not carry. A category that silently vanished from a group is the failure
+  both guards exist to prevent — the `unknownCategories` tripwire from the BSE scrape.
+- **The taxonomy is one module read from two sides.** `public/js/data/mf-taxonomy.js` is pure and is
+  imported by the import script AND by the browser, so the workbook's 26 sheets and the live feed's
+  56 `classification` strings cannot drift about what "Equity → Market cap → Small Cap" means. Same
+  arrangement as `finology-shared.js`. **Debt, Commodities and Fund of Funds are named as NOT
+  COVERED by this workbook** rather than drawn as empty groups — an empty "Debt" reads as a claim
+  about the market rather than about a spreadsheet.
+- **Exactly two figures are derived, and both say so wherever they surface.** The **gap** — a return
+  minus its category median or its benchmark, in percentage **points**, and `null` (an em dash) the
+  moment either side is absent. And the **shade**: `js/ui/mf-heatmap.js` tints a scheme's cell by
+  where it sits among the schemes in its own category over that period (a count, not a model), and a
+  category's cell by the size of its gap to its own index, in stated `GAP_BAND_PP` bands. Both are
+  explained by the legend printed beside the table.
+- **3Y and 5Y are annualised**; the shorter windows are simple point-to-point returns. **Since
+  inception spans a different length for every scheme** and is not comparable across rows, so it is
+  headed in full rather than abbreviated beside 1Y and 3Y. **AUM is as at the workbook's own stated
+  month** (`aumLabel`), not the return date, and every AUM cell's title says so.
+- **`house` is a curated list, not a pattern.** `FUND_HOUSES` in the import script, matched
+  longest-first so "Franklin Build India" cannot be swallowed by "Franklin India". A scheme matching
+  none keeps `house: null` and the run names it. The first draft split on the first "fund-ish" word
+  and produced "Bank of" beside "Bank of India" — a filter that silently split one AMC in two.
+- Every failure is a **named state on `meta().reason`** (`unreachable`, `shape`), never an empty
+  table: `categories: []` only ever travels with a reason, and the panel offers a **Try again**.
+
+**Not in `app.js`.** 400KB read by one tab, so it is a lazy load like the macro series store — the
+tab calls `weekly.load()` on mount and `revalidatedJson` revalidates it. Putting it in
+`DEFERRED_SOURCES` would download it for every reader who never opens the tab.
+
+**The output is deterministic**, so a diff means a real change — the same convention
+`import-amc-portfolio.mjs` and `build-book.mjs` follow. No build timestamp is stamped into it: the
+figures are as on the date the sheets state, that date is already in the file and on the tab's face,
+and a second one would put a diff on every re-run whether or not anything moved.
+
+**Refreshing it:** drop the new workbook over `scripts/fixtures/mf-weekly.xlsx`, run
+`node scripts/import-mf-weekly.mjs`, commit `public/data/mf-weekly.json`. `MF_FIXTURE=other.xlsx`
+points it at a different file. The run prints the as-on date, the counts, the median reconciliation
+and every category with no published index.
+
 ## `GET /api/returns-ranking` — LIVE, fund returns & peer ranking (AmfiBeas)
 
-The **Institutions** sub-view (now labelled **Fund Returns**). Every tracked mutual fund and ETF,
+The **Mutual Funds → All Schemes** sub-view. Every tracked mutual fund and ETF,
 its point-to-point return for each period, and its rank **within its own cohort**. Computed by
 **AmfiBeas** over AMFI's daily NAV snapshot; refreshed daily. Public, unauthenticated, **CORS-open**,
 so it is called **straight from the browser** — the same arrangement as SentimentDash below, and for
 the same reasons (no credential to hold; a same-account Worker proxy is refused by Cloudflare, error
 1042). **Every return and every rank is theirs, reproduced unchanged** — nothing here re-bands,
-re-ranks or recomputes. See `js/data/fund-returns.js` (transport) and `js/investors/fund-returns.js`
-(the view).
+re-ranks or recomputes. See `js/data/fund-returns.js` (transport), `js/investors/fund-returns.js`
+(the view) and `js/tabs/mutual-funds.js` (the tab it now sits on). **It carries no benchmark and no
+category median** — those live only in `mf-weekly.json` above, on a different date.
 
 **The host is set in one place.** `window.AMFIBEAS_API_BASE` in `public/index.html` names it —
 `https://amfibeas.tech-441.workers.dev`, the same `*.tech-441.workers.dev` account convention as the
@@ -3411,12 +3540,29 @@ entries *shaped like* an NSE symbol (`/^[A-Z][A-Z0-9&.\-]{0,19}$/`) and drops th
 recording that it ran under `sattva:watchlist:shape`. A dropped entry was never a company; it was
 a row.
 
-### `sattva:scope` — which of the three scopes is active
+### The active scope — SESSION STATE, deliberately not stored
 
-`"portfolio" | "watchlist" | "universe"`, defaulting to **`portfolio`**. The vocabulary lives in
-`public/js/data/scope.js` and `core/state.js` and `core/router.js` import it, so the list exists
-once. `?scope=` in the URL wins over the stored value; an unrecognised value falls back to the
-stored one rather than letting a typo redefine what is on screen.
+`"portfolio" | "watchlist" | "universe"`, starting at **`portfolio`** on **every open**. The
+vocabulary lives in `public/js/data/scope.js`, and `core/state.js` and `core/router.js` import it,
+so the list exists once.
+
+**There is no `sattva:scope` key any more, and its absence is the point.** The scope used to persist
+there, and `sattva:lastRoute` carries a `?scope=` of its own — so one afternoon spent in Universe
+made Universe the scope the dashboard opened in for ever after, and "Portfolio is the default" only
+ever described a reader who had never touched the toggle. A default that any single click
+permanently overrides is not a default; it is an initial value.
+
+So the scope now lives in `state.scope` and **in the URL**, which is what preserves the two things
+that matter more than remembering it:
+
+- **A shared link still wins.** `initialRoute()` reads `location.hash` before anything saved, so
+  `?scope=universe` from whoever sent it is honoured. An unrecognised value falls back to the
+  session's scope rather than letting a typo redefine what is on screen.
+- **A reload still holds its scope**, because the shell keeps `?scope=` in the address bar at all
+  times — reloading is a URL with a scope on it, not a fresh open.
+
+`getLastRoute()` strips `scope` off the saved route for the same reason: the tab you were on is
+worth resuming, the scope you were in is the thing this rule is about.
 
 | Scope | Filters by | Denominator the pill prints |
 | --- | --- | --- |

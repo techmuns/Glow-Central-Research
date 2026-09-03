@@ -453,6 +453,23 @@ export function scoreTable(config) {
     companyScopeNoun = '',
     companyHint = '',
     companyPlaceholder = '',
+    // What the search box says it searches. Defaults to companies, because most tables here are
+    // company screeners — but a table of categories, schemes or macro series is not, and a control
+    // that names the wrong noun tells the reader the table holds something it does not.
+    searchPlaceholder = 'Search company...',
+    // Offer the "Watchlist only" filter. DEFAULTS TO TRUE, so every existing table is unchanged.
+    //
+    // A table whose rows carry no company — `watchKey: () => null` — can only ever answer this
+    // filter with an empty result, which is the same reasoning that already gives those rows NO
+    // STAR: "a star that matched nothing for ever is worse than a control that is not offered."
+    // The filter beside them was exempted from that rule by accident, because it renders once per
+    // table rather than once per row.
+    //
+    // It is OPT-OUT rather than derived from the rows on purpose. Deriving it would silently drop
+    // the control from Superstar Investors' Data Table, Public Chatter and the two macro tabs —
+    // all of which pass `watchKey: () => null` today, and none of which asked for that change. A
+    // table that wants it gone says so; every other table keeps exactly what it has.
+    showWatchFilter = true,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -767,7 +784,7 @@ export function scoreTable(config) {
               ? combo.html
               : `<div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" data-table-search placeholder="Search company..." value="${escapeHtml(view.q)}"
+            <input type="text" data-table-search placeholder="${escapeHtml(searchPlaceholder)}" value="${escapeHtml(view.q)}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>`
           }
@@ -790,12 +807,15 @@ export function scoreTable(config) {
                  </select>`
             )
             .join('')}
-          <button type="button" data-watch-toggle title="Show only watchlisted companies"
+          ${
+            // Absent on a table that opted out — see `showWatchFilter` above.
+            showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
-          </button>
+          </button>` : ''
+          }
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
@@ -992,7 +1012,8 @@ export function scoreTable(config) {
       }
 
       countEl.textContent = countText(current);
-      watchCount.textContent = String(watchlist.size());
+      // Absent on a table that opted out of the filter; see `showWatchFilter`.
+      if (watchCount) watchCount.textContent = String(watchlist.size());
     }
 
     // Rebuild named rows in place, leaving the row SET — and so the reader's search, filters,
@@ -1115,7 +1136,8 @@ export function scoreTable(config) {
       })
     );
 
-    watchBtn.addEventListener('click', () => {
+    // Absent on a table that opted out of the filter; see `showWatchFilter`.
+    watchBtn?.addEventListener('click', () => {
       view.watchOnly = !view.watchOnly;
       rowHtmlCache.clear(); // star styling is baked into the cached markup
       watchIcon.textContent = view.watchOnly ? '★' : '☆';
