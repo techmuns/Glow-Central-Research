@@ -340,6 +340,7 @@ const routes = await page.evaluate(async () => {
       'tabs/super-investors.js',
       'tabs/news.js',
       'tabs/corp-announcements.js',
+      'tabs/nse-filings.js',
       'tabs/insider-trades.js',
     ],
     portfolio: ['portfolio/overview.js', 'portfolio/position-by.js', 'portfolio/transactions.js', 'portfolio/drawdown.js'],
@@ -5801,6 +5802,66 @@ console.log('\n— news, announcements and insider trades —');
       footState && footState.saysEnd === footState.exhausted && footState.saysMore === !footState.exhausted,
       `${footState?.remaining} month(s) left, footer reads "${footState?.foot}"`);
   }
+
+  // -------------------------------------------------------------------------------------
+  // NSE LIVE ANNOUNCEMENTS — the one exchange feed that narrows to the reader's companies
+  // -------------------------------------------------------------------------------------
+  //
+  // The load-bearing property is the scope: a filing resolved to a book company shows under
+  // Portfolio, one resolved to nothing shows only under Universe, and NOTHING with a ticker outside
+  // the book may leak into Portfolio. That is the whole reason this feed exists as its own surface
+  // rather than folding into the market-wide news it cannot be filtered like.
+  await go('/#/research/nse-filings?scope=universe', 1800);
+  const nseUni = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const rows = f.rows();
+    const resolved = rows.filter((r) => r.ticker).length;
+    const unresolved = rows.filter((r) => !r.ticker);
+    return {
+      total: rows.length,
+      resolved,
+      unresolved: unresolved.length,
+      // Every row keeps its company name even when it could not be resolved — the identity is the
+      // name, never the (unreliable) filename prefix.
+      allNamed: rows.every((r) => r.company && r.company.length > 0),
+      origin: f.meta().origin,
+      tableRows: document.querySelectorAll('#content-host tbody tr').length,
+    };
+  });
+  ok('the NSE feed loads, names every row, and resolves a real share of them to a symbol',
+    nseUni && nseUni.total > 50 && nseUni.allNamed && nseUni.resolved > 0 && nseUni.resolved < nseUni.total,
+    `${nseUni?.resolved}/${nseUni?.total} resolved, ${nseUni?.unresolved} unresolved, origin ${nseUni?.origin}`);
+
+  await go('/#/research/nse-filings?scope=portfolio', 1500);
+  const nsePort = await evalSafe(async () => {
+    const f = await import('/js/data/nse-filings.js');
+    const cov = await import('/js/data/coverage.js');
+    const scope = await import('/js/data/scope.js');
+    const holdings = cov.holdings();
+    const wanted = scope.scopeTickers('portfolio', holdings); // the exact Set the feed narrows by
+    const all = f.rows();
+    const port = f.forScope('portfolio', holdings);
+    const leak = port.filter((r) => !r.ticker || !wanted.has(String(r.ticker).toUpperCase()));
+    // An unresolved row (ticker null) is present in Universe and absent from Portfolio — the honesty
+    // rule that a row with no company cannot be narrowed by company.
+    const unresolvedInUniverse = all.some((r) => !r.ticker);
+    const unresolvedInPortfolio = port.some((r) => !r.ticker);
+    return {
+      universe: all.length,
+      portfolio: port.length,
+      leak: leak.length,
+      companies: new Set(port.map((r) => r.ticker)).size,
+      unresolvedInUniverse,
+      unresolvedInPortfolio,
+      narrows: port.length < all.length,
+    };
+  });
+  ok('NSE Portfolio scope narrows to book companies with no leak',
+    nsePort && nsePort.narrows && nsePort.leak === 0 && nsePort.portfolio > 0,
+    `${nsePort?.portfolio} of ${nsePort?.universe} filings, ${nsePort?.companies} companies, ${nsePort?.leak} leaked`);
+  ok('...and an unresolved filing shows in Universe but never under a narrowed scope',
+    nsePort && nsePort.unresolvedInUniverse && !nsePort.unresolvedInPortfolio,
+    `unresolved in universe: ${nsePort?.unresolvedInUniverse}, in portfolio: ${nsePort?.unresolvedInPortfolio}`);
 
   // Search narrows the list without touching the head, and the count reports the ARRAY.
   const filtered = await evalSafe(async () => {

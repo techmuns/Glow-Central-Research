@@ -67,6 +67,8 @@ export const KEYS = {
   // three months holds three entries, and a story landing in the current month must not invalidate
   // the two below it — the same reasoning as the per-investor and per-company keys above.
   marketNewsMonth: (month) => `market-news:${month}`,
+  // NSE's live announcements feed — one committed blob, refreshed live off /api/nse-announcements.
+  nseFilings: 'nse-filings',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still
