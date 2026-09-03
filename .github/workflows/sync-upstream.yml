@@ -176,11 +176,32 @@ jobs:
             exit 1
           fi
 
+      # MAIN MOVES WHILE THIS RUNS. The data refreshes commit to main every twenty to thirty
+      # minutes, and the first dispatched run of this job was rejected at the push because two of
+      # them landed inside its thirty seconds. So the push retries: fetch main, MERGE it in — never
+      # rebase, which would flatten the upstream merge commit and cost the shared history every
+      # later sync depends on — and try again. A data commit merges cleanly (this side never
+      # changes public/data/; the sync resolves it as ours), so a genuine conflict here means
+      # somebody changed source on main mid-run; that aborts loudly and the next run starts fresh.
       - name: Push to main
         if: steps.merge.outputs.conflict == 'false' && steps.check.outcome == 'success'
         run: |
-          git push origin HEAD:main
-          echo "### Synced and pushed to main" >> "$GITHUB_STEP_SUMMARY"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              echo "### Synced and pushed to main" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — main moved during the run; merging it in and retrying..."
+            git fetch origin main
+            if ! git merge --no-edit origin/main; then
+              git merge --abort
+              echo "::error title=Sync could not catch up with main::main changed the same lines while this sync ran. Re-run the workflow; it merges from a fresh base."
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "::error title=main kept moving::Four pushes were rejected in a row. Re-run the workflow."
+          exit 1
 
       # ---- a clean merge whose checks failed, or a conflicted merge: branch + PR -----------
       - name: Open a PR for a person to finish
