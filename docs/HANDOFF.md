@@ -149,7 +149,7 @@ Awaited` row is excluded from moves and is never misreported as an exit.
 | Feed | File | Notes |
 | --- | --- | --- |
 | The coverage universe | `public/data/universe.json` | The actual NSE-500 Screener export, 535 companies. Names, tickers, sectors and market caps everywhere else in the app come from here. |
-| **The book** — what the Portfolio toggle means | `public/data/portfolio-companies.json` | The family office's direct-equity statement as at 30 Jun 2026: **142 companies, names and sectors only**, resolved to NSE symbols by `scripts/resolve-portfolio-companies.mjs`. This is what every research tab's Portfolio scope filters by. It is **not** the ledger — see §5a. |
+| **The book** — what the Portfolio toggle means | `public/data/portfolio-companies.json` | **GLOW:** every company the family holds directly as listed equity, one line per NSE symbol, **written from techmuns/GlowVentures by `scripts/build-book.mjs`** beside `book.json` in the daily GlowVentures sync — names and sectors only, non-equity classes counted as `excluded`, a line with no symbol kept with its reason. The upstream `family-book-sync.yml` (Sattva-Family) is dispatch-only here and needs no secret. This is what every research tab's Portfolio scope filters by. It is **not** the ledger — see §5a. |
 
 ### Real, but produced only when the reader asks for it
 
@@ -586,10 +586,13 @@ the Earnings Hub when it has filed, and on Con-call when StockScans has covered 
 is theirs to close, and the denominator is how the reader can tell which kind of gap they are
 looking at.
 
-To change the book: edit `BOOK` in `scripts/resolve-portfolio-companies.mjs`, re-run it (`--net`
-lets it reach Yahoo's symbol search for anything the in-repo feeds cannot match), and commit the
-regenerated JSON. It matches exact-then-prefix against feeds already in the repo before going out to
-the network, pins ten hand-checked symbols in `CONFIRMED`, pins the not-listed lines in
+To change the book: change it **in the family repository** — the dashboard no longer carries a copy
+to edit. `scripts/sync-family-book.mjs` reads `techmuns/Sattva-Family`'s positions file (with
+`FAMILY_REPO_TOKEN`, or `FAMILY_BOOK_PATH=` pointing at a local clone), keeps one line per equity
+ISIN in `scripts/fixtures/family-book.json`, and re-runs the resolver; `family-book-sync.yml` does the
+same every weekday morning and on a `repository_dispatch` from that repository. The resolver matches
+exact-then-prefix against feeds already in the repo before going out to the network (`--net` lets it
+reach Yahoo's symbol search), pins eighteen hand-checked symbols in `CONFIRMED`, pins the not-listed lines in
 `NOT_LISTED_EQUITY`, and **fails the run if two book lines resolve to one symbol** — which is how
 *Allcargo Global* (`AGL`) and *Allcargo Logistics* (`ALLCARGO`) were caught before one inherited the
 other's rows.

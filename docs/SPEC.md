@@ -142,7 +142,8 @@ rather than repeating the string pair, so a fourth scope is a change in one file
 - Every tab module reads `ctx.scope` and must visibly reflect it — the scope chip in each
   panel header states which scope is active and how many rows it covers.
 - **Portfolio means the book**: `public/data/portfolio-companies.json`, the family office's
-  142-company direct-equity statement, read through `js/data/coverage.js`. The universe is
+  listed direct-equity book, rebuilt daily from `techmuns/GlowVentures` (upstream reads it from `techmuns/Sattva-Family`) one line per equity
+  ISIN and read through `js/data/coverage.js`. The universe is
   `public/data/universe.json`. `portfolio.json` is the *ledger* — twelve positions with quantities
   and costs — and drives Portfolio Analytics only; the scope filter does not read it.
 - The pencil beside the segmented control edits whichever scope is active. Portfolio and Universe

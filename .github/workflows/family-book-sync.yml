@@ -1,0 +1,76 @@
+name: Family book sync
+
+# THE PORTFOLIO SCOPE'S BOOK, KEPT IN STEP WITH THE FAMILY OFFICE'S OWN REPOSITORY.
+#
+# public/data/portfolio-companies.json — the list every research tab's Portfolio toggle filters by —
+# is derived from techmuns/Sattva-Family's src/data/sattvaData.ts, one line per listed equity ISIN.
+# This job reads that file, rewrites scripts/fixtures/family-book.json, re-runs the resolver and
+# commits both only when something moved, so a holding added or sold there reaches the dashboard
+# without anyone retyping a name here.
+#
+# It needs ONE secret: FAMILY_REPO_TOKEN, a fine-grained token on techmuns/Sattva-Family alone with
+# Contents: read. The family repository is private, and GITHUB_TOKEN cannot read across repositories.
+# Without it the run fails and says so — it must never quietly keep serving yesterday's book as
+# though it had checked.
+#
+# Three ways it fires: on a schedule, by hand, and by `repository_dispatch` with event type
+# `family-book-updated` — which is what lets the family repository poke this one the moment its
+# book changes instead of waiting for the next morning. GitHub's scheduler is best-effort, so the
+# dispatch is the path that keeps the two genuinely in sync; the cron is the safety net.
+
+# GLOW DIVERGENCE — NOT SCHEDULED HERE, AND NOT TO BE. This job reads techmuns/Sattva-Family, which is
+# the SATTVA family's book: only 20 of its 123 tickers are in this family's holdings. Glow's Portfolio
+# book comes from techmuns/GlowVentures, written by scripts/build-book.mjs inside the daily
+# "GlowVentures sync" (series-refresh.yml) — see CLAUDE.md, "What Portfolio means". The upstream
+# schedule and repository_dispatch are removed so this cannot run unattended; workflow_dispatch is
+# kept only so the file stays a valid workflow. Do NOT add FAMILY_REPO_TOKEN to this repository.
+on:
+  workflow_dispatch:
+
+run-name: Family book sync (${{ github.event_name }})
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Read the book from techmuns/Sattva-Family and re-resolve it
+        env:
+          FAMILY_REPO_TOKEN: ${{ secrets.FAMILY_REPO_TOKEN }}
+        run: node scripts/sync-family-book.mjs
+
+      - name: Commit the book to main if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/fixtures/family-book.json public/data/portfolio-companies.json
+          if git diff --cached --quiet; then
+            echo "The book is unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Family book sync ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
