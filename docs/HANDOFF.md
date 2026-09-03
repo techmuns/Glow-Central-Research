@@ -291,7 +291,14 @@ illustrative; `coverage.js` supplies the real 142-company membership and sector 
 
 ## 4d. Ask Research
 
-`js/tabs/ask-research.js` owns the conversation UI and device-local library.
+`js/tabs/ask-research.js` owns the conversation UI and device-local library. **An answer keeps being
+written after the reader leaves the tab** — `destroy()` deliberately does not cancel it; it lands in
+the conversation and raises an alert-stack card when it finishes off screen. A scope change, a
+watchlist edit or a Portfolio/Universe edit still cancels it, because the evidence packet was built
+under the scope recorded on the generation, and those watchers sit at module level so they work
+while the tab is unmounted. An unsent draft is persisted with the conversation; a question
+interrupted by a page reload is handed back to the composer rather than re-sent, because a re-ask
+costs a model run.
 `js/research/estate.js` is the registry: fifteen adapters read the same modules as AI Alerts,
 General Alerts, Earnings Hub, Con-call, Public Chatter, Breakouts, both Super Investor disclosures,
 both News feeds, exchange filings, Insider Trades and Portfolio Analytics. Every adapter loads first
