@@ -2557,6 +2557,37 @@ Full source detail belongs in the registry and export disclosures. Progress on w
 just asked for may still appear in the body because it is feedback rather than permanent chrome;
 failure panels keep their own retry control so recovery never depends on a hidden dialog.
 
+### The book and the prices are built by two workflows, and they must not drift
+
+`scrape-technicals.mjs` prices the NSE 500 export **plus the book** — a holding is priced because it
+is HELD, whatever index it is or is not in. That part has been right for a while. What was not right
+is that the two files are produced by **different workflows on different schedules**:
+`series-refresh.yml` rebuilds `portfolio-companies.json` from GlowVentures every morning, and
+`technicals-refresh.yml` scrapes prices on its own cron.
+
+So the morning the book grew from 142 lines to 170, **87 of them had no technicals row** for the
+rest of the day. Every research tab that reads a price silently skipped them, the coverage label
+went on saying exactly what it always had, and the only thing that noticed was one assertion in
+`verify-ui.mjs` — which is not CI and which somebody has to remember to run. It healed itself at the
+next scheduled scrape, which is the worst kind of fix: the hole is still there, and next time it
+might straddle a weekend.
+
+**The run that grows the book now fills the prices it just made missing.**
+`scripts/check-technicals-coverage.mjs` reports the gap and `TECH_FILL_GAPS=1` fills only the new
+names — a few requests rather than a 600-company re-fetch. Three rules make that safe:
+
+1. **A gap is not a break, and the exit codes say which.** `0` covered, `3` a gap (the expected
+   state the moment the book grows), `1` a missing or malformed file. A workflow that failed on a
+   gap would go red every time somebody bought a share, which is the fastest way to teach people to
+   ignore it.
+2. **A failed fill does not fail the sync.** The book is still correct and still worth committing,
+   and the next scheduled scrape fills the gap anyway. Throwing away a good book because somebody
+   else's price API was briefly unavailable is the same mistake as reporting a blocked runner as a
+   broken scraper.
+3. **A book line with no NSE symbol is not counted against coverage.** It cannot be priced —
+   unlisted, a warrant, BSE-only — and it is reported separately, so the two kinds of absence are
+   never added together. Same rule as the Portfolio scope's denominator.
+
 ### A close is a claim about a SESSION — the technicals feed's two dates
 
 The price-move alert on General Alerts read *"Fell 6.7% at the close"* for Hero MotoCorp on a day it
@@ -3091,6 +3122,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change what counts as a close, or the price-move check | `completedBars` / `dayMove` in `scripts/lib/yahoo.mjs` + `scripts/lib/muns-market-data.mjs` (`MUNS_VERIFY=0` skips the check) — read *A close is a claim about a SESSION* first; `node scripts/verify-bars.mjs` is the test |
 | Finish verifying today's flagged moves, or change how often it is tried | `node scripts/verify-price-moves.mjs` (`MUNS_TOKEN=…` for the authenticated quota, `MUNS_VERIFY_BUDGET_MS` for patience) + the cron in `.github/workflows/price-move-verify.yml`; the answers live in `public/data/price-move-checks.json` |
 | Price a company the technicals feed is missing | `TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs` — fetches only what is absent or errored and merges, so it costs one request per gap |
+| Check the price capture still reaches the book | `node scripts/check-technicals-coverage.mjs` — **exit 3 is a gap, not a break**; the GlowVentures sync runs it after every book rebuild and fills what the new book made missing, so the two cannot drift apart for a day the way they did once |
 | Change the live-quote refresh | `handleLivePrices` in `worker/index.js` + the refresh bar in `js/tabs/breakouts.js` — read *The upstream is cache-backed* in `docs/DATA-CONTRACTS.md` first. `QUOTE_TTL_S` / `QUOTE_TIMEOUT_MS` / `QUOTE_POOL` / `QUOTE_BUDGET_MS` are **one setting, not four**; re-measure before changing any of them |
 | Change the live earnings feed | `worker/mc.mjs` (client + normaliser) then `worker/index.js` (`/api/earnings`) |
 | Change the results calendar | `fetchCalendarStrip()` / `fetchCalendarDay()` in `worker/mc.mjs`, then `/api/earnings-calendar` — preserve All-exchange count/list parity, complete pagination and the Akamai capture fallback in `docs/DATA-CONTRACTS.md` |
@@ -3228,6 +3260,20 @@ node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 node scripts/verify-sdk.mjs
 ```
+
+**Start the chatter stub first, or the chatter checks skip.** The SentimentDash API is the one
+upstream the BROWSER calls directly — it cannot be proxied (Cloudflare error 1042) — so a run on a
+machine with no egress cannot read it at all:
+
+```bash
+node scripts/stub-chatter.mjs 8902 &
+CHATTER_STUB=http://127.0.0.1:8902/v1 node scripts/verify-ui.mjs
+```
+
+Without it the chatter-dependent checks report **SKIP** and say so. They used to report a hard
+FAIL, which sent a reader to debug a resolver that was working perfectly — an unreachable host is a
+fact about the machine, not about the page, and this suite already skips for exactly that reason
+everywhere else (ExcelJS, the `/api/*` routes, the super-investor upstream).
 
 `verify-sdk.mjs` is separate because it needs a different fixture: the dashboard inside an
 **iframe** with a host on the other end of the channel. It drives the **real** shipped SDK bundle —

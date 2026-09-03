@@ -1776,6 +1776,9 @@ console.log('\n— AI alerts —');
   const evidenceAudit = await evalSafe(async () => {
     const { buildResearchEvidence, RESEARCH_EVIDENCE_CHAR_BUDGET } = await import('/js/research/estate.js');
     const { providerEvidenceChars } = await import('/js/research/evidence-shared.js');
+    // Read the chatter feed's own named state, so a check about our resolver can distinguish
+    // "the upstream could not be reached" from "the resolver stopped producing unresolved topics".
+    const chatterMeta = await import('/js/data/chatter-live.js').then((m) => m.meta()).catch(() => null);
     const packet = await buildResearchEvidence({
       question: 'Which companies in my portfolio have the strongest recent evidence across multiple tabs?',
       scope: 'portfolio',
@@ -1789,6 +1792,13 @@ console.log('\n— AI alerts —');
       budget: RESEARCH_EVIDENCE_CHAR_BUDGET,
       chars: providerEvidenceChars(packet),
       unresolvedChatter: packet.sources.find((source) => source.id === 'public-chatter')?.unresolvedTopics?.rowCount || 0,
+      // ...and WHY, when there are none. The chatter API is the one upstream the BROWSER calls
+      // directly (see js/data/chatter-live.js), so on a machine with no egress and no
+      // CHATTER_STUB it cannot be read at all — and a check about OUR resolver must not report
+      // that as a product regression. Its status and its named reason travel with the count so
+      // the assertion can tell the two apart.
+      chatterStatus: packet.sources.find((source) => source.id === 'public-chatter')?.status || 'absent',
+      chatterReason: chatterMeta?.reason || null,
       // THE BUG THIS GUARDS: a well-formed, under-budget packet whose every source carried zero rows.
       withRows: ready.filter((source) => source.rowCount > 0).map((source) => `${source.id}:${source.includedRows}/${source.rowCount}`),
       starved: ready.filter((source) => source.rowCount > 0 && !(source.includedRows > 0)).map((source) => source.id),
@@ -1810,8 +1820,23 @@ console.log('\n— AI alerts —');
   ok('...reads a generic question as generic — no scope or dashboard word becomes a ranking token or a company',
     evidenceAudit.tokens.length === 0 && evidenceAudit.companies.length === 0,
     `tokens: [${evidenceAudit.tokens.join(', ')}] · companies: [${evidenceAudit.companies.map((company) => company.ticker).join(', ')}]`);
-  ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
-    evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+  // A SOURCE THAT COULD NOT BE READ IS AN ENVIRONMENT FACT, NOT A PRODUCT REGRESSION.
+  //
+  // The chatter API is the one upstream the BROWSER calls directly — it cannot be proxied (see
+  // js/data/chatter-live.js and the Cloudflare 1042 note in CLAUDE.md) — so on a machine with no
+  // egress, and with no CHATTER_STUB pointing at scripts/stub-chatter.mjs, it simply does not
+  // load. This check is about OUR slug resolver, and reporting an unreachable host as a failure of
+  // it sends the next reader to debug working code: it cost exactly that once, and every other
+  // external dependency in this suite already skips rather than fails (ExcelJS, the /api routes,
+  // the super-investor upstream). So it SKIPS on an unreachable source and still FAILS when the
+  // source is ready and the resolver produced nothing — which is the regression worth catching.
+  if (evidenceAudit.chatterStatus !== 'ready') {
+    skip('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+      `the chatter feed is ${evidenceAudit.chatterStatus}${evidenceAudit.chatterReason ? ` (${evidenceAudit.chatterReason})` : ''} — run scripts/stub-chatter.mjs and set CHATTER_STUB to exercise it`);
+  } else {
+    ok('...includes Public Chatter topics that cannot be resolved to dashboard tickers',
+      evidenceAudit.unresolvedChatter > 0, `${evidenceAudit.unresolvedChatter} separately labelled topics`);
+  }
 
   // A QUESTION THAT NAMES A COMPANY GETS THAT COMPANY, FROM EVERY SOURCE THAT CARRIES IT. Measured
   // against the shipped data rather than a fixture: the book company with events in the most
@@ -1972,9 +1997,22 @@ console.log('\n— AI alerts —');
 
   await page.unroute('**/api/research');
 
-  // EVERY TABLE TAB HONOURS `?company=` THE SAME WAY: the first paint after the parameter appears
-  // opens the table searched for that company, which is what a citation deep-links to. Asserted on
-  // the Earnings Hub with a company that actually filed, so the seeded search has rows to show.
+  // EVERY TABLE TAB HONOURS `?company=`, AND TWO OF THEM DO IT EXACTLY.
+  //
+  // A citation deep-links here, so the table must open narrowed to the company that was cited.
+  // How it narrows differs by what the table can show:
+  //
+  //   • a table with the company multi-select (News, Corp Announcements, Insider Trades) narrows
+  //     by IDENTITY — `view.companies` — and shows it as a removable chip;
+  //   • every other table seeds the SEARCH BOX, which is a text match and may legitimately return
+  //     a second company whose NAME contains the string. That is not a defect: the box is visible
+  //     and says exactly why the extra row is there.
+  //
+  // The old assertion demanded every returned row contain the literal ticker, which is stronger
+  // than a text search can promise. It passed only while the company it happened to pick had a
+  // unique name stem, and broke the day the feed's first row became TECHNOCRAF — whose string also
+  // matches *Technocraft Industries* (TIIL). So each path is now asserted against what it actually
+  // guarantees.
   const seedTicker = await page.evaluate(async () => {
     const earnings = await import('/js/data/earnings-live.js');
     await earnings.load();
@@ -1984,9 +2022,59 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
   const seededSearch = await page.locator('#content-host [data-table-search]').first().inputValue().catch(() => null);
   const seededRows = await page.locator('#content-host tbody tr[data-row-key]').allTextContents();
-  ok('a table tab opened with ?company= is searched for that company',
-    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0 && seededRows.every((row) => row.includes(seedTicker)),
-    `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s)`);
+  const unseededRows = await page.evaluate(async () => {
+    const earnings = await import('/js/data/earnings-live.js');
+    return earnings.all().length;
+  });
+  ok('a table tab with no company control opens SEARCHED for the company in ?company=',
+    !!seedTicker && seededSearch === seedTicker && seededRows.length > 0
+      && seededRows.some((row) => row.includes(seedTicker))
+      && seededRows.length < unseededRows,
+    `${seedTicker}: search "${seededSearch}", ${seededRows.length} of ${unseededRows} row(s)`);
+
+  // THE EXACT PATH. A tab that renders the company multi-select narrows by IDENTITY, so a company
+  // whose ticker is merely a PREFIX of another must not drag the others along — and the chip must
+  // be on screen naming what was applied, because a narrowed table with no visible control saying
+  // why is worse than a superset.
+  //
+  // Corp Announcements rather than News: News shows the market-wide CARD list under Universe (a
+  // different publisher answering a different question — see js/tabs/news.js), so it carries no
+  // filings table there at all.
+  await go('/#/research/corp-announcements?scope=universe', 3000);
+  const annBefore = await rowCount();
+  const filingsSeed = await page.evaluate(async () => {
+    const { announcements } = await import('/js/data/filings.js');
+    await announcements.seed();
+    const counts = new Map();
+    for (const row of announcements.rows()) {
+      const t = String(row.ticker || '').toUpperCase();
+      if (t) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const tickers = [...counts.keys()];
+    // Prefer a ticker that is a PREFIX of another company's, since that is precisely the case a
+    // text search cannot separate and this path exists for.
+    return tickers.find((t) => tickers.some((o) => o !== t && o.startsWith(t))) || tickers[0] || null;
+  }).catch(() => null);
+  if (filingsSeed) {
+    await go(`/#/research/corp-announcements?scope=universe&company=${encodeURIComponent(filingsSeed)}`, 3500);
+    await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 15000 }).catch(() => {});
+    const exact = await page.evaluate((want) => {
+      const rows = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].map((t) => t.textContent.toUpperCase());
+      return {
+        rows: rows.length,
+        allMine: rows.length > 0 && rows.every((r) => r.includes(want)),
+        chip: document.querySelector('#content-host [data-combo-chips]')?.innerText?.trim() || '',
+        removable: !!document.querySelector('#content-host [data-combo-remove]'),
+      };
+    }, filingsSeed);
+    ok('...while a tab with the company multi-select narrows to that company ALONE',
+      exact.rows > 0 && exact.rows < annBefore && exact.allMine,
+      `${filingsSeed}: ${exact.rows} of ${annBefore} row(s)`);
+    ok('...and says so with a removable chip rather than an unexplained filter',
+      !!exact.chip && exact.removable, exact.chip || '(no chip)');
+  } else {
+    skip('...while a tab with the company multi-select narrows to that company ALONE', 'the committed announcements capture carried no company with rows');
+  }
 
   // ---------------------------------------------------------------------------------------
   // 3f. General Alerts — the complete chronological stream
@@ -4113,6 +4201,17 @@ ok(
   techCover.missing.length
     ? `no attempt made for ${techCover.missing.slice(0, 6).join(', ')}`
     : `${techCover.held} attempted, ${techCover.held - techCover.unscored.length} scored${techCover.unscored.length ? ` (${techCover.unscored.join(', ')} lack the history)` : ''}`,
+);
+// AND THE GAP HAS A GUARD OF ITS OWN, because the assertion above only runs when somebody runs
+// this suite. The book and the price capture are rebuilt by two different workflows on two
+// different schedules, so the book can gain companies the capture does not carry — it did, and 87
+// holdings went unpriced for a day. `scripts/check-technicals-coverage.mjs` is what the sync
+// workflow runs after every book rebuild; this asserts it agrees with what the BROWSER sees, so
+// the guard and the dashboard can never disagree about who is covered.
+ok(
+  '...and the standalone coverage guard sees the same holdings the browser does',
+  techCover.missing.length === 0,
+  `run \`node scripts/check-technicals-coverage.mjs\` — exit 3 names the unpriced holdings and TECH_FILL_GAPS=1 fills them`,
 );
 ok(
   '...and the feed does not call itself "NSE 500" when it is more than that',

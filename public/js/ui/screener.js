@@ -1624,18 +1624,39 @@ export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
 }
 
 /**
- * Seed a table's search from `?company=` — ONCE per distinct value.
+ * Seed a table from `?company=` — ONCE per distinct value.
  *
  * `#/research/<tab>?company=IIFL` is what an Ask Research citation and an AI Alerts card link to,
  * and every table tab honours it the same way: the first paint after the parameter appears (or
- * changes) opens the table searched for that company; later paints keep whatever the reader has
+ * changes) opens the table narrowed to that company; later paints keep whatever the reader has
  * since typed. Returns the view to pass as `initialView` and the company to remember.
  *
  *   const seeded = companySeededView(ctx, routeCompany, tableView);
  *   routeCompany = seeded.company; tableView = seeded.view;
+ *
+ * A COMPANY IS AN IDENTITY, AND TEXT IS NOT ONE.
+ *
+ * This used to seed the free-text search box on every table, which is ambiguous the moment two
+ * companies share a name stem: `?company=TECHNOCRAF` — Technocraft Ventures — also matched
+ * *Technocraft Industries* (TIIL), because the search haystack carries the company NAME. A
+ * citation that named one company opened a table showing two, and nothing on screen said which one
+ * had been asked for. It is the same lesson `key(row)` and the con-call composite key already
+ * taught here: an identity expressed as a string is not an identity.
+ *
+ * So where the table can express it exactly, it does. `exact: true` seeds `view.companies`, the
+ * kit's own company filter, which narrows by `companyOf(row)` rather than by text — and it is
+ * passed only by tables that render the company multi-select, because that control shows the
+ * selection as a removable chip. Without a chip the reader would face a narrowed table with no
+ * visible control saying why, and no way to clear it, which is worse than a superset.
+ *
+ * Everywhere else the seed stays in the search box: visible, editable, and honest about being a
+ * text match. The table may show a second company whose name contains the string, and the box says
+ * exactly why it is there.
  */
-export function companySeededView(ctx, lastCompany, view) {
+export function companySeededView(ctx, lastCompany, view, { exact = false } = {}) {
   const requested = String(ctx?.params?.company || '').trim().toUpperCase();
-  if (requested && requested !== lastCompany) return { company: requested, view: { q: requested } };
+  if (requested && requested !== lastCompany) {
+    return { company: requested, view: exact ? { companies: [requested] } : { q: requested } };
+  }
   return { company: requested || null, view };
 }

@@ -79,12 +79,56 @@ jobs:
         if: env.SRC_SHA != ''
         run: GLOWVENTURES_DIR=/tmp/glowventures node scripts/build-managers.mjs
 
+      # THE BOOK AND THE PRICES MUST NOT DRIFT APART, AND THEY ARE BUILT BY DIFFERENT WORKFLOWS.
+      #
+      # `scrape-technicals.mjs` already prices the NSE 500 export PLUS the book — a holding is
+      # priced because it is HELD. But it runs on its own cron in technicals-refresh.yml, so the
+      # day the book gains companies here, the capture does not have them until that job next
+      # fires. Measured when the book was rebuilt from the family's own statements: 142 lines to
+      # 170, and 87 of them had no technicals row for the rest of the day. Every research tab that
+      # reads a price silently skipped them and nothing on screen said so; the only thing that
+      # noticed was one assertion in verify-ui.mjs, which is not CI.
+      #
+      # So the run that GROWS the book also fills the prices it just made missing. `TECH_FILL_GAPS=1`
+      # fetches only the names the committed file lacks and merges them, which is a few requests
+      # rather than a 600-company re-fetch — the script's own header explains why the merged rows
+      # are not equivalent to a full run and how the payload records that.
+      #
+      # A FAILED FILL DOES NOT FAIL THE SYNC. The book is still correct and still worth committing,
+      # and the next scheduled technicals run fills the gap anyway; failing here would throw away a
+      # good book because somebody else's price API was briefly unavailable. It warns instead, which
+      # is the same posture the Moneycontrol scrape takes for a blocked runner.
+      - name: Price any holdings the new book added
+        if: env.SRC_SHA != ''
+        run: |
+          set +e
+          node scripts/check-technicals-coverage.mjs
+          gap=$?
+          set -e
+          if [ "$gap" = "0" ]; then
+            echo "Every listed holding already has a technicals row."
+            exit 0
+          fi
+          if [ "$gap" != "3" ]; then
+            echo "::warning title=Technicals coverage could not be checked::check-technicals-coverage.mjs exited $gap — see the log. The book is unaffected and is still committed."
+            exit 0
+          fi
+          echo "The book gained holdings the price capture does not carry — filling just those."
+          if TECH_FILL_GAPS=1 node scripts/scrape-technicals.mjs; then
+            node scripts/check-technicals-coverage.mjs || \
+              echo "::warning title=Some holdings are still unpriced::The gap-fill ran but did not reach every new holding. The next scheduled technicals run will retry."
+          else
+            echo "::warning title=Price gap-fill failed::The new holdings have no technicals row yet. The book is still correct and is committed; technicals-refresh.yml will fill them on its next run."
+          fi
+
       - name: Commit the refreshed store and book to main
         if: env.SRC_SHA != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json
+          # technicals.json is staged because the step above may have filled prices for holdings
+          # this very run added. It is a no-op on the ordinary day when the book did not grow.
+          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
