@@ -111,6 +111,72 @@ function pill(m) {
 
 const FIRST_PAINT = 24;
 
+// How close to the bottom of the list counts as "the reader wants more", in pixels. Generous on
+// purpose: fetching a month while the last screenful is still being read is what makes the scroll
+// feel continuous rather than stop-and-wait.
+const NEAR_BOTTOM_PX = 600;
+
+// The last thing loadMore() reported, so the footer can say what happened. Module state, not node
+// state — the load repaints the list underneath it, so anything held on the footer node is gone by
+// the time there is something to say. Same reasoning as `lastResult` above.
+let lastMore = null;
+let moreInFlight = false;
+
+/**
+ * The end of the list, and the only place that says how far back the archive goes.
+ *
+ * IT NEVER SAYS "THAT IS EVERYTHING" ON THE STRENGTH OF A FAILED READ. A month that could not be
+ * fetched leaves the footer offering to try again, because reporting an outage as the end of the
+ * archive is the same error as rendering a missing value as zero — and here the reader has no way
+ * at all to tell the two apart from the screen.
+ */
+function moreFooter() {
+  const arc = marketNews.archiveMeta();
+  const back = arc.oldest ? istTime(arc.oldest) : null;
+  const base = 'flex items-center justify-center gap-3 border-t border-slate-100 px-5 py-4 text-sm';
+
+  if (moreInFlight || arc.loading) {
+    return `<div data-news-more class="${base} text-slate-500">${SPINNER}<span>Loading older stories…</span></div>`;
+  }
+  if (lastMore?.failed) {
+    return `<div data-news-more class="${base} text-slate-500">
+      <span class="text-amber-700">Older stories could not be read${lastMore.reason ? ` — ${escapeHtml(String(lastMore.reason))}` : ''}.</span>
+      <button type="button" data-news-more-btn class="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Try again</button>
+    </div>`;
+  }
+  if (!arc.exhausted) {
+    return `<div data-news-more class="${base} text-slate-500">
+      <span>Keep scrolling for older stories${arc.remaining ? ` · ${escapeHtml(formatNumber(arc.remaining))} more month${arc.remaining === 1 ? '' : 's'} in the archive` : ''}</span>
+      <button type="button" data-news-more-btn class="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Load older</button>
+    </div>`;
+  }
+  return `<div data-news-more class="${base} text-slate-400">
+    <span>That is every story captured${back ? `, back to ${escapeHtml(back)}` : ''}. History grows from here — nothing is discarded any more.</span>
+  </div>`;
+}
+
+/** Pull the next month in. Guarded so a flick of the wheel cannot start three of these at once. */
+async function requestMore(root) {
+  if (moreInFlight) return;
+  const arc = marketNews.archiveMeta();
+  if (arc.exhausted) return;
+  moreInFlight = true;
+  const foot = root?.querySelector('[data-news-more]');
+  if (foot) foot.outerHTML = moreFooter();
+  try {
+    lastMore = await marketNews.loadMore();
+  } catch (err) {
+    lastMore = { added: 0, failed: 1, reason: String(err?.message || err) };
+  } finally {
+    moreInFlight = false;
+  }
+  // A load that ADDED something emits, and the tab's own subscription repaints the list with the
+  // reader's scroll position kept. A load that added nothing emits too but changes no row, so the
+  // footer is refreshed here rather than waiting for a paint that has nothing to redraw.
+  const still = root?.querySelector('[data-news-more]');
+  if (still) still.outerHTML = moreFooter();
+}
+
 /** Which stories the search box and the section filter leave. */
 function visibleRows(rows) {
   const q = (listView.q || '').trim().toLowerCase();
@@ -210,6 +276,7 @@ function listHtml(rows) {
       <div data-news-scroll class="scrollbar-thin divide-y divide-slate-100 overflow-y-auto" style="max-height: max(360px, calc(100vh - 330px))">
         ${shown.map(cardHtml).join('') || '<p class="px-5 py-10 text-center text-sm text-slate-400">No story matches your search.</p>'}
       </div>
+      ${moreFooter()}
     </section>`;
 }
 
@@ -605,6 +672,26 @@ function wireList(root) {
   root.querySelector('[data-news-export]')?.addEventListener('click', () => {
     exportVisible(visibleRows(marketNews.rows()), marketNews.meta());
   });
+
+  root.querySelector('[data-news-more-btn]')?.addEventListener('click', () => requestMore(root));
+
+  // REACHING THE END OF THE LIST IS THE REQUEST FOR MORE OF IT.
+  //
+  // Gated on the fill being finished — `data-rows-pending` is the honest signal that stories are
+  // still being painted, and fetching a month while hundreds of already-held stories have not been
+  // drawn yet would spend a request to answer a question the reader has not got to. No disposer is
+  // needed: the listener is on the scroll node, and every repaint replaces that node.
+  const host = root.querySelector('[data-news-scroll]');
+  host?.addEventListener(
+    'scroll',
+    () => {
+      if (host.scrollTop + host.clientHeight < host.scrollHeight - NEAR_BOTTOM_PX) return;
+      if (root.querySelector('[data-mcnews-list][data-rows-pending]')) return;
+      if (lastMore?.failed) return; // a failed month waits for the button, not for another scroll
+      requestMore(root);
+    },
+    { passive: true },
+  );
 }
 
 const DESCRIPTION =
