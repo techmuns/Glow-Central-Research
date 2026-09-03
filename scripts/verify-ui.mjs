@@ -3522,6 +3522,12 @@ const ddSummaryBefore = ddHits.summary;
 await go('/#/research/concall?scope=universe', 1200);
 await waitForPanel();
 await page.waitForSelector('[data-deep-dive]', { timeout: 25000 }).catch(() => {});
+// GLOW DIVERGENCE: wait for the streamed fill to finish BEFORE counting the buttons. `scoreTable`
+// paints a screenful and streams the rest under requestIdleCallback, and `rowCount()` waits for
+// `data-rows-pending` to clear — but `ddCells` was counted first, so on a large feed it captured a
+// partial fill (1,040 buttons against the 1,237 rows the settled table then reported) and the check
+// failed on a product that was right. Same wait the other blocks use; port to Sattva unchanged.
+await page.waitForFunction(() => !document.querySelector('#content-host [data-rows-pending]'), null, { timeout: 30000 }).catch(() => {});
 const ddCells = await page.locator('[data-deep-dive]').count();
 ok('every scan row carries a Deep Dive button', ddCells > 200 && ddCells === (await rowCount()), `${ddCells} buttons`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
