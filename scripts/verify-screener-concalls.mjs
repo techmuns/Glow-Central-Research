@@ -21,9 +21,9 @@ const row = ({ company = 'Dhoot Transmission', key = 'DHOOTTRANS', date = '4 Sep
   <tr><th class="field-company_display"><a href="${url}"></a><a href="/company/${key}/consolidated/"><span>${company}</span></a></th>
   <td class="field-pub_date nowrap">${date}</td><td class="field-action_display"><a href="${url}">View ${kind}</a>${summary ? ` <a href="${summary}">View Summary</a>` : ''}</td></tr>`;
 const html = `<!doctype html><table id="result_list"><tbody>
-  ${row({ url: 'https://www.dhoottransmission.com/audio/call.mp3', summary: '/concalls/summary/23328860/' })}
+  ${row({ url: 'http://legacy.example.com/audio/call.mp3', summary: '/concalls/summary/23328860/' })}
   ${row({ kind: 'Presentation', url: 'https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=deck.pdf' })}
-  ${row({ company: 'Leap India', key: '544999', kind: 'Transcript', url: 'https://nsearchives.nseindia.com/corporate/leap.pdf' })}
+  ${row({ company: 'Leap India', key: '544999', kind: 'Transcript', url: 'https://media.example.com:3000/leap.pdf' })}
   </tbody></table><a href="?p=2">2</a><div>3 concalls</div>`;
 
 const parsed = parseScreenerConcallPage(html, observedAt);
@@ -46,6 +46,8 @@ test('authenticated page parser keeps every document and its fixed Screener iden
   assert.deepEqual(rows.map((item) => item.kind), ['Recording', 'Presentation', 'Transcript']);
   assert.equal(rows[0].ticker, 'DHOOTTRANS');
   assert.equal(rows[2].ticker, 'LEAPIND');
+  assert.equal(rows[0].url, 'http://legacy.example.com/audio/call.mp3', 'legacy HTTP documents remain available as inert web links');
+  assert.equal(rows[2].url, 'https://media.example.com:3000/leap.pdf', 'publisher document ports are preserved');
   assert.equal(rows[0].summaryUrl, 'https://www.screener.in/concalls/summary/23328860/');
   validateScreenerConcallCapture(capture, Date.parse(observedAt));
 });
@@ -100,6 +102,8 @@ test('incremental captures retain the complete baseline and reject malformed or 
   assert.equal(mergeScreenerConcallRows(rows, rows).length, rows.length);
   assert.throws(() => validateScreenerConcallCapture({ ...capture, rows: [...rows, rows[0]] }, Date.parse(observedAt)));
   assert.throws(() => validateScreenerConcallCapture({ ...capture, rows: rows.map((item, i) => (i ? item : { ...item, url: 'javascript:alert(1)' })) }, Date.parse(observedAt)));
+  assert.throws(() => validateScreenerConcallCapture({ ...capture, rows: rows.map((item, i) => (i ? item : { ...item, companyUrl: 'http://www.screener.in/company/DHOOTTRANS/' })) }, Date.parse(observedAt)));
+  assert.throws(() => validateScreenerConcallCapture({ ...capture, rows: rows.map((item, i) => (i ? item : { ...item, companyUrl: 'https://www.screener.in:3000/company/DHOOTTRANS/' })) }, Date.parse(observedAt)));
 });
 
 function artifactFetch({ digest = null, host = 'https://example.blob.core.windows.net/capture', event = 'schedule' } = {}) {
@@ -137,4 +141,6 @@ test('workflow is incremental every 15 minutes and audits the full history daily
   assert.doesNotMatch(workflow, /git push|contents:\s*write/);
   assert.match(collector, /page\.goto\(`\$\{SCREENER_CONCALL_URL\}\?p=\$\{number\}`/);
   assert.doesNotMatch(collector, /context\.request|get\([^)]*user-agent/i, 'history pages retain the authenticated browser fingerprint');
+  assert.match(collector, /\['navigation', 'response', 'session', 'oversized', 'shape', 'pagination'\]/);
+  assert.doesNotMatch(collector, /console\.error\([^\n]*(error|message|html|cookie)/i, 'failure logs contain only fixed stage, page and category fields');
 });
