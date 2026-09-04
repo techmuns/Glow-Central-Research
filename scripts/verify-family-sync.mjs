@@ -3,15 +3,17 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFamilyBook, assertBookChange, boundedJson } from '../public/js/data/family-book-contract.js';
+import { validateFamilyBook, validateResolvedPortfolio, assertBookChange, boundedJson, MAX_CHECK_AGE_MS } from '../public/js/data/family-book-contract.js';
 import { resolvePortfolio } from '../worker/portfolio-resolver.mjs';
 import { handleFamilyPortfolio, fetchFamilyBook, FAMILY_HOLDINGS_URL } from '../worker/family-portfolio.mjs';
 import { syncFamilyBook } from './sync-family-book.mjs';
 import * as coverage from '../public/js/data/coverage.js';
 import { loadActivePortfolio } from './lib/active-portfolio.mjs';
+import { bindFamilySyncLifecycle } from '../public/js/data/family-sync-lifecycle.js';
 
 const read = name => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url)));
 const saved = read('portfolio-companies');
+const savedPath = new URL('../public/data/portfolio-companies.json', import.meta.url);
 const sources = { scans: read('concall-scans'), mc: read('mc-ticker-map'), universe: read('universe') };
 const prior = JSON.parse(readFileSync(new URL('./fixtures/family-book.json', import.meta.url)));
 const sterlite = { isin: 'INE089C01029', name: 'Sterlite Technologies Ltd', sector: 'Unclassified' };
@@ -43,6 +45,17 @@ test('active workbook adds Sterlite as STLTECH and removes the departed holding'
   assert.equal(resolved.holdings.some(h => h.isin === prior.lines[0].isin), false);
   assert.equal(resolved.count, incoming.count);
   assert.equal(resolved.sourceWorkbook.fileKey, 'up-aug');
+});
+
+test('an unfamiliar future holding is retained and labelled uncovered, never silently omitted', async () => {
+  const book = validateFamilyBook({ ...incoming, count: incoming.count + 1,
+    lines: [...incoming.lines, { isin: 'INE000Z01019', name: 'Unmapped Test Holding', sector: 'Unclassified' }] });
+  const resolved = await resolvePortfolio(book, sources);
+  const unknown = resolved.holdings.find(h => h.isin === 'INE000Z01019');
+  assert.ok(unknown);
+  assert.equal(unknown.ticker, null);
+  assert.ok(unknown.reason);
+  validateResolvedPortfolio({ ok: true, syncStatus: 'live', ...resolved });
 });
 
 test('malformed, duplicate, empty and incomplete reads cannot replace a saved book', () => {
@@ -134,9 +147,88 @@ test('browser replaces scope, retains last good on failure, and labels recovery 
 
 test('scheduled collectors use the active portfolio and refuse silent static fallback', async () => {
   const payload = { ok: true, syncStatus: 'live', ...await resolvePortfolio(validateFamilyBook(incoming), sources) };
-  const current = await loadActivePortfolio('/unused', { live: true, fetcher: async () => Response.json(payload) });
+  const current = await loadActivePortfolio(savedPath, { live: true, fetcher: async () => Response.json(payload) });
   assert.equal(current.holdings.find(h => h.isin === sterlite.isin).ticker, 'STLTECH');
   await assert.rejects(loadActivePortfolio('/unused', { live: true, fetcher: async () => new Response('down', { status: 503 }) }));
   const offline = await loadActivePortfolio(new URL('../public/data/portfolio-companies.json', import.meta.url), { live: false, fetcher: () => { throw new Error('must not fetch'); } });
   assert.deepEqual(offline.holdings, saved.holdings);
+});
+
+test('live consumers reject replayed, malformed and built-in-only portfolios', async () => {
+  const payload = { ok: true, syncStatus: 'live', ...await resolvePortfolio(validateFamilyBook(incoming), sources) };
+  for (const patch of [
+    { syncedAt: new Date(Date.now() - MAX_CHECK_AGE_MS - 1000).toISOString() },
+    { syncedAt: new Date(Date.now() + 60000).toISOString() }, { storage: 'built-in' },
+    { asOf: '2026-02-30' }, { sourceWorkbook: null }, { resolved: -1 },
+    { holdings: [payload.holdings[0], payload.holdings[0]], count: 2 },
+    { holdings: payload.holdings.map((h, i) => i ? h : { ...h, ticker: {} }) },
+  ]) {
+    assert.throws(() => validateResolvedPortfolio({ ...payload, ...patch }));
+    await assert.rejects(loadActivePortfolio(savedPath, { live: true, fetcher: async () => Response.json({ ...payload, ...patch }) }));
+  }
+  await assert.rejects(fetchFamilyBook(token, async () => Response.json({ ...incoming, storage: 'built-in' })));
+});
+
+test('a lost shared index, older upload or large loss cannot roll back the last known book', () => {
+  for (const patch of [{ storage: 'built-in' }, { asOf: '2026-06-30' },
+    { sourceWorkbook: { ...incoming.sourceWorkbook, uploadedAt: '2026-09-01T00:00:00Z' } },
+    { lines: incoming.lines.slice(0, Math.floor(incoming.lines.length * .8)) }]) {
+    assert.throws(() => assertBookChange({ ...incoming, ...patch }, incoming));
+  }
+  assert.doesNotThrow(() => assertBookChange({ ...incoming, lines: incoming.lines.slice(1) }, incoming));
+});
+
+test('reopening months later revokes old success; old responses never refresh its date', async () => {
+  const originalFetch = globalThis.fetch, originalNow = Date.now;
+  try {
+    coverage.prime(saved);
+    const payload = { ok: true, syncStatus: 'live', ...await resolvePortfolio(validateFamilyBook(incoming), sources) };
+    globalThis.fetch = async () => Response.json(payload);
+    await coverage.refresh();
+    Date.now = () => Date.parse(payload.syncedAt) + 180 * 86400000;
+    assert.equal(coverage.meta().syncStatus, 'stale');
+    assert.match(coverage.syncLabel(), /check expired/);
+    assert.match(coverage.syncLabel(), /stated period end/);
+    assert.match(coverage.syncLabel(), /not live broker trades/);
+    await coverage.refresh();
+    assert.equal(coverage.meta().syncStatus, 'unavailable');
+    assert.equal(coverage.meta().syncedAt, payload.syncedAt);
+    globalThis.fetch = async () => Response.json({ ...payload, syncedAt: new Date(Date.now()).toISOString() });
+    await coverage.refresh();
+    assert.equal(coverage.meta().syncStatus, 'live');
+  } finally { globalThis.fetch = originalFetch; Date.now = originalNow; coverage.prime(saved); }
+});
+
+test('sleep/resume, offline/reconnect and BFCache restore recheck; pre-sleep responses cannot win', async () => {
+  const originalFetch = globalThis.fetch;
+  const win = new EventTarget(), doc = new EventTarget();
+  win.navigator = { onLine: true }; doc.hidden = false;
+  const unbind = bindFamilySyncLifecycle(win, doc);
+  try {
+    coverage.prime(saved);
+    const payload = { ok: true, syncStatus: 'live', ...await resolvePortfolio(validateFamilyBook(incoming), sources) };
+    let finishOld;
+    globalThis.fetch = () => new Promise(resolve => { finishOld = resolve; });
+    const old = coverage.refresh();
+    assert.equal(coverage.refresh(), old, 'concurrent callers share one in-flight read');
+    doc.hidden = true; doc.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(coverage.meta().syncStatus, 'snapshot');
+    globalThis.fetch = async () => Response.json(payload);
+    doc.hidden = false; doc.dispatchEvent(new Event('visibilitychange'));
+    await coverage.refresh();
+    assert.equal(coverage.has('STLTECH'), true);
+    finishOld(Response.json({ ...payload, holdings: saved.holdings, count: saved.count, resolved: saved.resolved }));
+    await old;
+    assert.equal(coverage.has('STLTECH'), true);
+    win.navigator.onLine = false; win.dispatchEvent(new Event('offline'));
+    assert.equal(coverage.meta().syncStatus, 'unavailable');
+    assert.match(coverage.syncLabel(), /Offline/);
+    win.navigator.onLine = true; win.dispatchEvent(new Event('online'));
+    await coverage.refresh();
+    assert.equal(coverage.meta().syncStatus, 'live');
+    win.dispatchEvent(new Event('pageshow'));
+    assert.equal(coverage.meta().syncStatus, 'snapshot');
+    await coverage.refresh();
+    assert.equal(coverage.meta().syncStatus, 'live');
+  } finally { unbind(); globalThis.fetch = originalFetch; coverage.prime(saved); }
 });

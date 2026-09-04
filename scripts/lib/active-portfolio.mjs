@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { boundedJson } from '../../public/js/data/family-book-contract.js';
+import { boundedJson, validateResolvedPortfolio, assertBookChange } from '../../public/js/data/family-book-contract.js';
 
 /** Scheduled collectors use the same resolved active book as the UI. Local
  * verification stays offline unless explicitly opted in. No fixture is written. */
@@ -9,9 +9,7 @@ export async function loadActivePortfolio(path, { live = process.env.FAMILY_HOLD
     signal: AbortSignal.timeout(20000), cache: 'no-store', redirect: 'error',
   });
   const body = await boundedJson(response, 2 * 1024 * 1024);
-  if (body?.ok !== true || body.syncStatus !== 'live' || !Array.isArray(body.holdings) ||
-      !body.holdings.length || body.count !== body.holdings.length || !body.sourceRevision) {
-    throw new Error('Active Family Office portfolio is unavailable; refusing to collect against an unverified book');
-  }
+  validateResolvedPortfolio(body);
+  assertBookChange(body, JSON.parse(readFileSync(path, 'utf8')));
   return body;
 }

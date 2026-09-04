@@ -12,13 +12,20 @@ only names, sectors and provenance. The response never carries quantities, value
 
 Research's `GET /api/family-portfolio` authenticates to that fixed route server-side and uses
 the same resolver as the scheduled snapshot. The browser checks it on load, once per minute
-while visible and on Refresh. A workbook replacement replaces membership: sold holdings are
+while visible, on Refresh, and after focus, reconnect or a back/forward-cache restore.
+A workbook replacement replaces membership: sold holdings are
 not unioned back in from old periods. Missing ticker mappings remain held-but-uncovered.
 
 The dashboard renders its saved list immediately and labels it as a snapshot while checking.
-A failed read preserves the last good browser cache and displays an explicit warning. The
-source workbook and last successful check are visible beside the Portfolio controls. Existing
-browser-local manual overrides remain local; the label identifies when they are present.
+A failed read preserves the last good browser cache and displays an explicit warning. A check
+expires after 90 seconds even if browser timers stopped; reads more than five seconds in the
+future are refused. A pre-sleep request cannot overwrite a resumed request. Browser, Worker and
+scheduled collectors share strict identity, count, provenance and freshness validation.
+
+The source workbook, stated period end, its age and last successful connection check are visible
+beside the Portfolio controls. A future period end is flagged as not proving today's holdings.
+Existing browser-local manual overrides remain local; an explicit warning identifies when the
+device's list may differ from Family Office. Unmapped new ISINs remain visible as uncovered.
 
 ## Activation — requires approval of both PRs and the exact production actions
 
@@ -31,7 +38,8 @@ No production credentials, runs or deployments are changed by these PRs themselv
    password, browser cookie, Muns token or broad Cloudflare/GitHub credential.
 3. Add `FAMILY_HOLDINGS_TOKEN` to Research Central's Actions secrets for the snapshot job.
 4. Deploy Research Central after approval. Its scheduled collectors now ask its live
-   names-only endpoint for holdings instead of using the old snapshot. Until the companion
+   names-only endpoint for holdings instead of using the old snapshot. A built-in-only source
+   is refused as a live sync, even on a brand-new device. Until the companion
    route/secret is available, they fail explicitly rather than silently use June's book.
 5. Compare the export's ISIN set to Family Office's active Holdings view (equities only),
    including Sterlite `INE089C01029` → `STLTECH`. Then verify the same set in Research Central
@@ -58,16 +66,42 @@ Allow Actions to create PRs. To trigger CI automatically on bot-created snapshot
 write permissions. Without it, the default `GITHUB_TOKEN` creates the PR but does not trigger
 another Actions workflow; required review/checks must still be obtained before any merge.
 
-The schema, duplicate-ISIN checks and 80% retention guard reject corrupt/empty/partial data.
+The schema, duplicate-ISIN/ticker checks and 80% retention guard reject corrupt/empty/partial data.
+The guard compares each browser's last-good book as well as the committed server snapshot.
+An older workbook/period cannot silently replace a newer known shared one. The exporter checks
+sheet row count/name against the manifest, validates holding identities and rejects an index
+change observed during its read. A missing index is not treated as an empty archive.
 A genuine reduction beyond 20% needs explicit reconciliation and a reviewed update to the
 fallback snapshot; do not bypass the guard merely to get a green run.
 
 ## Local verification
 
 `node scripts/verify-family-sync.mjs` exercises the resolver, additions/removals, auth boundary,
-failure retention and browser state with synthetic/local data. `wrangler deploy --dry-run`
+failure retention, replay/rollback rejection and six-month reopen behaviour with synthetic/local
+data. `scripts/verify-family-sync-ui.mjs` runs real Chromium/IndexedDB reload, offline, reconnect,
+BFCache and manual-override checks; it runs in PR CI alongside contract tests.
+`wrangler deploy --dry-run`
 bundles without deployment. The Family Office PR has matching producer/auth tests and a
 Pages Functions build check. No live collection jobs are executed in these tests.
 
 For an offline snapshot import, set `FAMILY_BOOK_PATH` to a names-only JSON export and run
 `node scripts/sync-family-book.mjs`. It no longer accepts a TypeScript portfolio file.
+
+## Reliability boundary — do not promise an always-current portfolio
+
+This is a workbook sync, not a broker feed. A successful check proves that the connection read
+the selected shared workbook; it does not prove that every trade has been recorded. The expected
+holdings-update cadence must be agreed before setting an overdue-workbook alarm.
+
+The current Family Office archive uses eventually consistent KV. Different locations can
+temporarily read different revisions. Row/index checks and rollback guards catch observed
+inconsistency, but cannot prove that a previously unseen revision is the globally newest one.
+Nor do they prevent concurrent writers from losing an index update, or same-row-count sheet
+replacement under an existing key. An absolute single-version guarantee needs a separately
+reviewed transactional/versioned publication design for the archive, not a cache flag. See
+[Cloudflare's KV consistency model](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
+
+Do not sign off production until the active August workbook is confirmed shared (not only
+local), its ISIN set matches on both dashboards/two clean devices, the sync secrets are configured,
+and deployment/rollback checks have been approved. No production activation or external ongoing
+health monitor has been performed by this PR.

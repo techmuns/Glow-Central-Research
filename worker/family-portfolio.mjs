@@ -1,4 +1,4 @@
-import { validateFamilyBook, assertBookChange, boundedJson } from '../public/js/data/family-book-contract.js';
+import { validateFamilyBook, assertBookChange, assertRecentCheck, validateResolvedPortfolio, boundedJson } from '../public/js/data/family-book-contract.js';
 import { resolvePortfolio } from './portfolio-resolver.mjs';
 
 export const FAMILY_HOLDINGS_URL = 'https://sattva-family.pages.dev/api/research-holdings';
@@ -11,9 +11,8 @@ export async function fetchFamilyBook(token, fetcher = fetch) {
     redirect: 'error', signal: AbortSignal.timeout(10000), cache: 'no-store',
   });
   const book = validateFamilyBook(await boundedJson(response));
-  if (Math.abs(Date.now() - Date.parse(book.checkedAt)) > 5 * 60 * 1000) {
-    throw new Error('Family Office returned an old holdings check');
-  }
+  assertRecentCheck(book.checkedAt);
+  if (book.storage !== 'shared') throw new Error('No active shared workbook; the built-in baseline is not a live portfolio');
   return book;
 }
 
@@ -33,7 +32,7 @@ export async function handleFamilyPortfolio(request, env, fetcher = fetch) {
     ]);
     assertBookChange(book, previous);
     const resolved = await resolvePortfolio(book, { scans, mc, universe });
-    return json({ ok: true, ...resolved, syncStatus: 'live' });
+    return json(validateResolvedPortfolio({ ok: true, ...resolved, syncStatus: 'live' }));
   } catch {
     // Do not turn failure into a green response containing the old static book.
     return json({ ok: false, syncStatus: 'unavailable', error: 'Family Office holdings could not be verified. Showing the last saved portfolio, which may be out of date.' }, 503);

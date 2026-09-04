@@ -13,6 +13,7 @@ import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
+import { bindFamilySyncLifecycle } from '../data/family-sync-lifecycle.js';
 import { openScopeEditor } from './scope-editor.js';
 import { sourcesModalHtml } from './sources.js';
 import { mountHostTicker } from './host-ticker.js';
@@ -71,7 +72,8 @@ export function mount(root) {
   const paintBookStatus = () => {
     const el = $('#portfolio-sync-status', root);
     el.textContent = coverage.syncLabel();
-    el.className = `mt-3 text-xs ${coverage.meta().syncStatus === 'live' ? 'text-slate-500' : 'text-amber-700'}`;
+    const m = coverage.meta();
+    el.className = `mt-3 text-xs ${m.syncStatus === 'live' && !m.manualEdits ? 'text-slate-500' : 'text-amber-700'}`;
   };
   paintBookStatus();
   coverage.onChange(({ changed }) => {
@@ -88,6 +90,9 @@ export function mount(root) {
     return result;
   } });
   live.start('family-portfolio');
+  bindFamilySyncLifecycle();
+  live.onGlobalTick(paintBookStatus); // expire the label even if only the heartbeat is running
+  scopeLists.onChange(paintBookStatus);
 
   // "Data flowing in", lower-left. Page-level chrome with the same lifetime as the alert stack:
   // mounted once, outside `#app`, so a route change never tears it down. It reads the source

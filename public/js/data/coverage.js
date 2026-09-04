@@ -23,20 +23,41 @@
 
 import * as scopeLists from '../core/scope-lists.js';
 import { readEntry, writeEntry } from '../core/store.js';
-import { boundedJson } from './family-book-contract.js';
+import { boundedJson, validateResolvedPortfolio, assertBookChange, assertRecentCheck } from './family-book-contract.js';
 
 let raw = null;
 let syncStatus = 'snapshot';
 let syncError = null;
 let pending = null;
+let controller = null;
+let generation = 0;
 const listeners = new Set();
 export const onChange = fn => { listeners.add(fn); return () => listeners.delete(fn); };
 const CACHE_KEY = 'family-portfolio:active:v1';
 
 function validPortfolio(p) {
-  return p?.ok === true && p.syncStatus === 'live' && /^[a-f0-9]{64}$/.test(p.sourceRevision || '') &&
-    Number.isFinite(Date.parse(p.syncedAt)) && Array.isArray(p.holdings) && p.holdings.length > 0 &&
-    p.count === p.holdings.length && p.holdings.every(h => /^INE[A-Z0-9]{9}$/.test(h.isin || '') && typeof h.name === 'string');
+  try { validateResolvedPortfolio(p, { fresh: false }); return true; } catch { return false; }
+}
+
+const notify = changed => {
+  // A tab repaint error must not stop the sync or leave its promise stuck.
+  for (const fn of listeners) { try { fn({ changed }); } catch (error) { console.error('Portfolio repaint failed', error); } }
+};
+
+/** Resume/offline events revoke the old success immediately, before any I/O. */
+export function invalidate(reason = null) {
+  generation++;
+  controller?.abort();
+  controller = null;
+  pending = null;
+  syncStatus = reason ? 'unavailable' : 'snapshot';
+  syncError = reason;
+  notify(false);
+}
+
+function currentStatus() {
+  if (syncStatus !== 'live') return syncStatus;
+  try { assertRecentCheck(raw?.syncedAt); return 'live'; } catch { return 'stale'; }
 }
 
 export async function restoreLastGood() {
@@ -45,7 +66,9 @@ export async function restoreLastGood() {
   // check. Never roll it back merely because an older browser cache exists.
   const currentCheck = Date.parse(raw?.syncedAt);
   if (validPortfolio(cached?.value) &&
-      (!Number.isFinite(currentCheck) || Date.parse(cached.value.syncedAt) > currentCheck)) raw = cached.value;
+      (!Number.isFinite(currentCheck) || Date.parse(cached.value.syncedAt) > currentCheck)) {
+    try { assertBookChange(cached.value, raw); raw = cached.value; } catch { /* keep the newer known source */ }
+  }
   // Restored data is a snapshot, never a successful check in this session.
   syncStatus = 'snapshot';
   syncError = null;
@@ -53,36 +76,51 @@ export async function restoreLastGood() {
 
 export function refresh() {
   if (pending) return pending;
-  pending = (async () => {
+  const startedGeneration = generation;
+  controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
+  const operation = (async () => {
     const before = JSON.stringify(raw?.holdings);
     try {
-      const response = await fetch('/api/family-portfolio', { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      const response = await fetch('/api/family-portfolio', { cache: 'no-store', signal });
       const payload = await boundedJson(response, 2 * 1024 * 1024);
-      if (!validPortfolio(payload)) throw new Error('Invalid portfolio response');
+      validateResolvedPortfolio(payload);
+      assertBookChange(payload, raw);
+      if (startedGeneration !== generation) return { cancelled: true };
       raw = payload;
       syncStatus = 'live';
       syncError = null;
       void writeEntry(CACHE_KEY, { value: payload, tag: payload.sourceRevision });
     } catch {
+      if (startedGeneration !== generation) return { cancelled: true };
       syncStatus = 'unavailable';
       syncError = 'Family Office sync unavailable — showing the last saved portfolio, which may be out of date.';
     }
     const changed = before !== JSON.stringify(raw?.holdings);
-    for (const fn of listeners) fn({ changed });
+    notify(changed);
     return { added: changed ? 1 : 0, checked: raw?.holdings?.length || 0, ...(syncError ? { error: syncError } : {}) };
-  })().finally(() => { pending = null; });
+  })().finally(() => { if (startedGeneration === generation) { pending = null; controller = null; } });
+  pending = operation;
   return pending;
 }
 
 export function syncLabel() {
-  if (syncError) return syncError;
-  if (syncStatus !== 'live') return 'Portfolio is a saved snapshot — checking Family Office…';
-  const checked = new Date(raw.syncedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const checked = raw?.syncedAt ? new Date(raw.syncedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'unknown';
+  const source = `Workbook: ${raw?.sourceWorkbook?.label || 'saved baseline'} · stated period end: ${raw?.asOf || 'unknown'} · last successful check: ${checked} IST`;
+  const periodDays = Math.floor((Date.now() - Date.parse(raw?.asOf)) / 86400000);
+  const periodAge = !Number.isFinite(periodDays) ? ' · workbook period is unknown' : periodDays < 0
+    ? ' · stated period end is in the future; it does not verify holdings as of today'
+    : ` · ${periodDays} day(s) since the stated period end; later trades need a workbook update`;
   const edits = scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length;
-  return `Family Office holdings synced · ${raw.sourceWorkbook?.label || 'active workbook'} · checked ${checked} IST${edits ? ' · this browser also has manual portfolio edits' : ''}`;
+  const overrides = edits ? ' · WARNING: this browser has manual portfolio edits; its list may differ from Family Office' : '';
+  const status = currentStatus();
+  const lead = syncError || (status === 'stale' ? 'Portfolio check expired — showing saved holdings, which may be out of date.' :
+    status !== 'live' ? 'Portfolio is a saved snapshot — checking Family Office…' : 'Family Office connection checked.');
+  return `${lead} ${source}${periodAge}${overrides} · Holdings are workbook-based, not live broker trades.`;
 }
 
 export function prime(payload) {
+  invalidate();
   if (payload && Array.isArray(payload.holdings)) raw = payload;
   return isLoaded();
 }
@@ -121,8 +159,9 @@ export function meta() {
     source: raw?.source || null,
     sourceWorkbook: raw?.sourceWorkbook || null,
     syncedAt: raw?.syncedAt || null,
-    syncStatus,
+    syncStatus: currentStatus(),
     syncError,
+    manualEdits: scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length,
     count: current.length,
     tracked: current.length - currentUncovered.length,
     uncovered: currentUncovered.length,
