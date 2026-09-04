@@ -1,5 +1,22 @@
 import assert from 'node:assert/strict';
 import { createCorporateAnnouncementsFeed, nseAnnouncement, LIVE_ID, POLL_MS } from '../public/js/data/corporate-announcements.js';
+import { createAnnouncementIdentity, filingTicker } from '../public/js/data/announcement-identity.js';
+import { buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
+import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
+
+const identityRows = [{ isin: 'INEKAMATS001', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' }];
+const identity = createAnnouncementIdentity(identityRows);
+assert.equal(filingTicker('SAHANA-SM'), 'SAHANA');
+assert.equal(identity.key({ isin: 'INEKAMATS001' }), identity.key({ scripCode: '539659', ticker: 'WRONG' }));
+assert.equal(identity.row({ scripCode: '539659', ticker: 'OLD' }).ticker, 'KAMATS');
+assert.notEqual(identity.key({ isin: 'INEOTHER001', ticker: 'KAMATS' }), identity.key({ isin: 'INEKAMATS001' }));
+assert.equal(identity.find({ company: 'Vikram Kamats Hospitality Other Ltd' }), null, 'prefix names cannot match another issuer');
+const master = buildAnnouncementIdentities([{ ISIN_NUMBER: 'INE564S01019', SCRIP_CD: '539659', scrip_id: 'KAMATS', Scrip_Name: 'Vikram Kamats Hospitality Ltd' }]);
+const issuers = createAnnouncementIdentity(master.entries);
+assert.equal(issuers.find({ isin: 'INE564S13022' }).ticker, 'KAMATS', 'warrants join their verified equity issuer only for announcements');
+assert.equal(issuers.find({ isin: 'INE0R4713012' }).ticker, 'ALPEXSOLAR');
+assert.equal(mergeAnnouncements([{ ticker: 'ALPEXSOLAR-SM', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row),
+  [{ ticker: 'ALPEXSOLAR', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row)).length, 1, 'quote aliases cannot duplicate the same announcement');
 
 const nseRow = { ticker: 'TEST', company: 'Test Company', subject: 'Board meeting', publishedAt: '2026-09-03T20:00:00Z', url: 'https://example.test/nse.pdf' };
 const mapped = nseAnnouncement(nseRow);
@@ -8,6 +25,7 @@ assert.equal(mapped.time, '01:30:00');
 assert.equal(nseAnnouncement({ ...nseRow, publishedAt: null }).date, null);
 assert.equal(nseAnnouncement({ ...nseRow, url: 'javascript:alert(1)' }).url, null);
 
+let identityFailure = false;
 let bse = [{ ticker: 'TEST', title: 'BSE filing', date: '2026-09-03', url: 'https://example.test/bse.pdf', source: 'BSE' }, { ...mapped, providers: ['Muns corporate announcements'] }];
 let nse = [nseRow], failNse = false, baseReads = 0, nseReads = 0, release;
 const archiveReady = new Promise((done) => { release = done; });
@@ -28,7 +46,11 @@ const live = {
   loadHistory: async (days, options) => { assert.equal(days, 90); assert.equal(options.updateWindow, false); },
   onChange: () => () => {},
 };
-const feed = createCorporateAnnouncementsFeed({ base, nse: live });
+const feed = createCorporateAnnouncementsFeed({ base, nse: live,
+  readIdentities: async () => {
+    if (identityFailure) throw new Error('Identity source unavailable');
+    return { value: { version: 1, capturedAt: '2026-09-04T00:00:00Z', entries: identityRows } };
+  } });
 let arrivals = 0;
 const off = feed.onChange(() => { arrivals++; });
 const loading = feed.load([]);
@@ -52,6 +74,11 @@ await feed.refresh();
 assert.equal(feed.rows().length, 4, 'source failure retains the whole stream');
 assert.equal(feed.meta().nse.error, 'Offline');
 assert.equal(feed.forTicker('test').length, 3);
+assert.equal(feed.filterByScope([{ ticker: 'KAMATS', scripCode: '539659' }], 'portfolio', [{ isin: 'INEKAMATS001', ticker: null }]).length, 1);
+identityFailure = true; await feed.refresh();
+assert.equal(feed.filterByScope([{ ticker: 'KAMATS', scripCode: '539659' }], 'portfolio', [{ isin: 'INEKAMATS001', ticker: null }]).length, 1, 'identity outages retain previously verified scope matching');
+assert.equal(feed.meta().identity.error, 'Identity source unavailable');
+assert.deepEqual(feed.forTicker(null), []);
 const calls = [];
 const engine = { register: (id, config) => calls.push([id, config.intervalMs]), start: (id) => calls.push(['start', id]), stop: (id) => calls.push(['stop', id]) };
 feed.startLive(engine); feed.stopLive(engine);

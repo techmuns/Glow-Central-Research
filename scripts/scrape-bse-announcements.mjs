@@ -33,6 +33,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
+import { BSE_MASTER_URL, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -88,7 +89,7 @@ async function buildScripIndex() {
   }
   const confirmed = byCode.size;
 
-  const url = 'https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w?Group=&Scripcode=&industry=&segment=Equity&status=Active';
+  const url = BSE_MASTER_URL;
   const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(`BSE scrip master answered HTTP ${res.status}`);
   const master = await res.json();
@@ -102,7 +103,9 @@ async function buildScripIndex() {
     byCode.set(code, { ticker: id || null, name: s?.Scrip_Name || null, source: id ? 'bse' : null });
   }
 
-  return { byCode, confirmed, masterRows: master.length };
+  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
+  const identities = buildAnnouncementIdentities(master, mc);
+  return { byCode, confirmed, masterRows: master.length, identities };
 }
 
 function loadExisting() {
@@ -122,7 +125,7 @@ function loadExisting() {
 async function main() {
   console.log(`BSE corporate announcements — ${FROM} to ${TO} (${MERGE ? 'merging into' : 'replacing'} the committed file)`);
 
-  const { byCode, confirmed, masterRows } = await buildScripIndex();
+  const { byCode, confirmed, masterRows, identities } = await buildScripIndex();
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
 
   const started = Date.now();
@@ -156,6 +159,8 @@ async function main() {
     console.error('\nCollected zero announcements across every category. Refusing to write.');
     process.exit(1);
   }
+
+  writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
 
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a

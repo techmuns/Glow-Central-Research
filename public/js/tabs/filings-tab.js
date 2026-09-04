@@ -205,7 +205,7 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
-    const rows = filterByScope(all, ctx.scope, coverage.holdings());
+    const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
     if (cfg.preserveReadingPosition) {
       const nextRows = JSON.stringify([ctx.scope, m.reason, rows]);
       // Archive/check status can change several times in one poll without changing a filing.
@@ -314,6 +314,7 @@ export function makeFilingsTab(cfg) {
       // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
       // Recompute both figures from the visible row DATA whenever search or a filter changes.
       countLabel: (visible) => {
+        if (cfg.countLabel) return cfg.countLabel(visible, { scope: ctx.scope, holdings: coverage.holdings() });
         const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
         const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
         const companyNoun =

@@ -2,6 +2,10 @@
 import { announcements } from './filings.js';
 import * as nseFilings from './nse-filings.js';
 import { announcementUrl, mergeAnnouncements } from './announcements-shared.js';
+import { createAnnouncementIdentity, filingTicker } from './announcement-identity.js';
+import { capturedJson } from './company-captures.js';
+import { filterByScope } from './scope.js';
+import * as watchlist from '../core/watchlist.js';
 
 export const LIVE_ID = 'corporate-announcements';
 export const POLL_MS = 90_000;
@@ -14,11 +18,24 @@ export function nseAnnouncement(row) {
     url: announcementUrl(row.url), source: 'NSE', sources: ['NSE'], providers: ['NSE announcements RSS'] };
 }
 
-export function createCorporateAnnouncementsFeed({ base = announcements, nse = nseFilings } = {}) {
+export function createCorporateAnnouncementsFeed({ base = announcements, nse = nseFilings,
+  readIdentities = () => capturedJson('data/announcement-identities.json') } = {}) {
   let pending = null, historyPending = null, held = [], nseError = null;
+  let identity = createAnnouncementIdentity(), identityError = null, identityRevision = null;
+  async function loadIdentities() {
+    try {
+      const { value, stale } = await readIdentities();
+      if (value?.version !== 1 || !Array.isArray(value.entries) || !Number.isFinite(Date.parse(value.capturedAt))) throw new Error('Exchange company identities could not be read.');
+      if (identityRevision !== value.capturedAt) {
+        identity = createAnnouncementIdentity(value.entries);
+        identityRevision = value.capturedAt;
+      }
+      identityError = stale ? 'Using saved exchange company identities.' : null;
+    } catch (error) { identityError = error.message; }
+  }
   const listeners = new Set();
   const rows = () => {
-    held = mergeAnnouncements(held, base.rows(), nse.retainedRows().map(nseAnnouncement));
+    held = mergeAnnouncements(held.map(identity.row), base.rows().map(identity.row), nse.retainedRows().map(nseAnnouncement).map(identity.row));
     return held;
   };
   const emit = () => listeners.forEach((fn) => fn());
@@ -37,6 +54,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       const results = await Promise.allSettled([
         initial ? base.load(items) : base.refreshSnapshot(),
         initial ? nse.load() : nse.refresh(),
+        loadIdentities(),
       ]);
       nseError = results[1].status === 'rejected' ? results[1].reason.message : null;
       emit(); // Latest announcements appear before older files finish loading.
@@ -48,11 +66,21 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
   }
   return {
     ...base, rows,
-    forTicker: (ticker) => rows().filter((row) => row.ticker === String(ticker).toUpperCase()),
+    forTicker: (ticker) => {
+      const wanted = identity.key({ ticker: filingTicker(ticker) });
+      return wanted ? rows().filter(row => identity.key(row) === wanted) : [];
+    },
+    filterByScope(list, scope, holdings) {
+      if (scope === 'universe') return filterByScope(list, scope, holdings);
+      const companies = scope === 'portfolio' ? holdings : watchlist.all();
+      const wanted = new Set(companies.map(identity.key).filter(Boolean));
+      return list.filter(row => wanted.has(identity.key(row)));
+    },
     meta() {
       const m = base.meta(), list = rows();
       return { ...m, rowCount: list.length, covered: new Set(list.map((row) => row.ticker).filter(Boolean)).size,
-        reason: list.length ? null : m.reason, nse: { ...nse.meta(), error: nseError } };
+        reason: list.length ? null : m.reason, identity: { capturedAt: identityRevision, error: identityError },
+        nse: { ...nse.meta(), error: nseError } };
     },
     load: (items) => read(true, items),
     loadArchive: loadHistory,

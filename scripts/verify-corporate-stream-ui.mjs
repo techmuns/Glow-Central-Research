@@ -14,6 +14,10 @@ let nseRows = [nseRow, { ...nseRow, ticker: null, company: 'Unresolved Company',
 let fail = false;
 const hits = new Map();
 const bodies = {
+  '/data/announcement-identities.json': { version: 1, capturedAt: at, entries: [
+    { isin: 'INE564S01019', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' },
+    { isin: 'INE094B01013', bseCode: '543766', bseSymbol: 'ASHIKAG', ticker: 'ASHIKAG', name: 'Ashika Global Securities Ltd' },
+  ] },
   '/data/corp-announcements.json': { kind: 'announcements', capturedAt: at, coversUniverse: true, windowDays: 3, byTicker: { TCS: bseRows, INFY: [filing('INFY', 1)] } },
   '/data/filing-capture/index.json': { version: 1, updatedAt: at, companies: [company('TCS')], sources: { announcements: { TCS: { rowCount: 2, lastSuccessAt: at } } }, unresolved: ['Unresolved Company'] },
   '/data/filing-capture/announcements-recent.json': { rows: [{ ...filing('TCS', 'meeting'), source: 'NSE', title: 'NSE meeting', time: '17:30:00', url: nseRow.url }] },
@@ -23,13 +27,15 @@ const bodies = {
   '/data/nse-filings/index.json': { days: [{ day: '2026-07-01', revision: 'one', count: 1 }] },
   '/data/nse-filings/2026-07-01.json': { rows: [{ ...nseRow, subject: 'Historical NSE filing', publishedAt: '2026-07-01T12:00:00Z', url: 'https://example.test/historical-nse.pdf' }] },
 };
+bodies['/data/corp-announcements.json'].byTicker.KAMATS = [{ ...filing('KAMATS', 1), scripCode: '539659' }];
+bodies['/data/corp-announcements.json'].byTicker.ASHIKAG = [{ ...filing('ASHIKAG', 1), scripCode: '543766' }];
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
 import * as tab from '/js/tabs/corp-announcements.js';
 import * as live from '/js/core/live.js';
 import * as coverage from '/js/data/coverage.js';
 import * as watchlist from '/js/core/watchlist.js';
 import {corporateAnnouncements as feed} from '/js/data/corporate-announcements.js';
-coverage.prime({holdings:[{ticker:'TCS',name:'TCS Test Company'}]}); watchlist.add('INFY','INFY Test Company');
+coverage.prime({holdings:[{ticker:'TCS',name:'TCS Test Company'}, {isin:'INE564S01019',ticker:null,name:'Vikram Kamats Hospitality'}, {isin:'INE094B01013',ticker:null,name:'Ashika Credit Capital'}]}); watchlist.add('INFY','INFY Test Company');
 window.renderScope=(scope)=>{const root=document.querySelector('#root');root.innerHTML='';tab.render({root,scope,live,data:{universe:[{ticker:'TCS'},{ticker:'INFY'}]},params:{}});};
 window.stream=feed;window.destroyStream=()=>tab.destroy();window.renderScope('portfolio');
 </script></body></html>`;
@@ -61,11 +67,15 @@ try {
   await page.goto(origin);
   await page.waitForFunction(() => window.stream?.meta().archive?.loaded && window.stream.rows().some(r => r.title === 'Historical NSE filing'));
   assert.equal(await page.locator('[data-capture-coverage], [data-announcement-lookup], [data-load-filing-history], [data-table-filter], [data-watch-toggle], [data-document-tabs]').count(), 0);
-  assert.match(await page.locator('[data-row-count]').innerText(), /^144 announcements from 1 portfolio company$/);
+  assert.match(await page.locator('[data-row-count]').innerText(), /^146 announcements · 3 companies with filings$/);
   assert.equal(await page.evaluate(() => window.stream.rows().filter(r => r.url === 'https://example.test/nse.pdf').length), 1);
   assert.equal(await page.locator('[data-scroll-paged]').count(), 1);
   console.log('PASS clean portfolio stream, source deduplication and automatic BSE/company/NSE history');
   const search = page.locator('[data-table-search]');
+  await search.fill('KAMATS');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'BSE-only holding matches by ISIN');
+  await search.fill('ASHIKAG');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'renamed company matches the old book name through ISIN');
   await search.fill('older-company');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
   await search.evaluate(el => { window.activeSearch = el; });
@@ -95,7 +105,7 @@ try {
   console.log('PASS automatic arrivals preserve the reading position and join search immediately');
   await search.fill('');
   await page.evaluate(() => window.renderScope('watchlist'));
-  assert.match(await page.locator('[data-row-count]').innerText(), /^1 announcement from 1 watchlist company$/);
+  assert.match(await page.locator('[data-row-count]').innerText(), /^1 announcement · 1 company with filings$/);
   await page.evaluate(() => window.renderScope('universe'));
   assert(await page.evaluate(() => window.stream.rows().some(r => r.company === 'Unresolved Company')));
   await search.fill('Unresolved Company'); assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
