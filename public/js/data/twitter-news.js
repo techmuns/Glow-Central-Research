@@ -131,7 +131,8 @@ async function read() {
   try {
     const res = await conditionalJson(SNAPSHOT, { key: KEYS.twitterPosts, optional: true });
     state.checkedAt = Date.now();
-    if (res?.value) return absorb(res.value, { fromStore: !!res.fromStore });
+    state.lastReadFailed = !Array.isArray(res?.value?.posts);
+    if (!state.lastReadFailed) return absorb(res.value, { fromStore: !!res.fromStore });
     if (!state.posts.length) {
       state.reason = 'no-capture';
       state.message = 'No X capture has been committed yet.';
@@ -139,6 +140,7 @@ async function read() {
     return false;
   } catch (err) {
     state.checkedAt = Date.now();
+    state.lastReadFailed = true;
     if (!state.posts.length) {
       state.reason = 'unreachable';
       state.message = String(err?.message || err);
@@ -193,6 +195,7 @@ export function countsByHandle() {
 export function meta() {
   const visible = rows();
   return {
+    lastReadFailed: !!state.lastReadFailed,
     loaded: state.loaded,
     count: visible.length,
     held: state.posts.length,

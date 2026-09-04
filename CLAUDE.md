@@ -2377,6 +2377,12 @@ label.
 
 ## General Alerts — the complete view, and the only one organised as a TIMELINE
 
+**Current pool contract:** [GENERAL-ALERTS-POOL.md](docs/GENERAL-ALERTS-POOL.md) supersedes the
+historical nine-feed, threshold-entry and mount/Refresh-only descriptions below. General Alerts
+now retains available source records, including undated records and future schedules; nineteen
+categories cover the source tabs. Scope is applied after collection, private/on-demand coverage is
+explicit, and raw observations do not implicitly change the AI priority policy.
+
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
 thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
 happened, and does any of it need me*.

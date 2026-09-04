@@ -227,7 +227,8 @@ async function read() {
     // `fromStore` means the server answered 304 and these are bytes this device already held. The
     // check still happened, so `checkedAt` moves either way — that is the point of the two fields.
     state.checkedAt = Date.now();
-    if (res?.value) {
+    state.lastReadFailed = !Array.isArray(res?.value?.articles);
+    if (!state.lastReadFailed) {
       const changed = absorb(res.value, { fromStore: !!res.fromStore });
       return changed;
     }
@@ -238,6 +239,7 @@ async function read() {
     return false;
   } catch (err) {
     state.checkedAt = Date.now();
+    state.lastReadFailed = true;
     if (!state.articles.length) {
       state.reason = 'unreachable';
       state.message = String(err?.message || err);
@@ -409,6 +411,7 @@ export const newArrivals = () => state.arrivals;
 
 export function meta() {
   return {
+    lastReadFailed: !!state.lastReadFailed,
     loaded: state.loaded,
     count: state.articles.length,
     withPublishedAt: state.withPublishedAt,
