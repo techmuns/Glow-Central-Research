@@ -1,0 +1,5 @@
+{
+  "note": "The X/Twitter accounts whose posts join the News feed. This file is what scripts/scrape-twitter.py reads; a reader's own additions live on their device until a run commits them here. See docs/DATA-CONTRACTS.md.",
+  "updatedAt": null,
+  "handles": []
+}

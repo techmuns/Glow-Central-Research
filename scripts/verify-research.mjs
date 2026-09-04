@@ -40,6 +40,7 @@ const requestFor = (body) => new Request('https://dashboard.example/api/research
 const parseEvents = async (response) =>
   (await response.text()).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 
+<<<<<<< HEAD
 // GLOW DIVERGENCE: upstream Sattva names the `portfolio` source's tab 'Portfolio Analytics' — the
 // hidden workspace over the illustrative FIFO ledger. Here that source is the REAL family office
 // book (public/data/book.json, synced daily from techmuns/GlowVentures) and its tab is the visible
@@ -49,7 +50,19 @@ const parseEvents = async (response) =>
 ok('the runtime research catalog covers every evidence-bearing research tab, the Family Book included', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
   for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades', 'Family Book']) {
+=======
+ok('the runtime research catalog covers every visible research tab, and nothing that is not one', () => {
+  const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
+  for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades']) {
+>>>>>>> upstream/main
     assert.equal(tabs.has(title), true, title);
+  }
+  // The mock ledger was the fifteenth source and cited itself as "Portfolio Analytics", linking
+  // into a hidden workspace with no way back. Both are deleted: an evidence source must be a tab
+  // the reader can actually open, and no source may route outside Research Central.
+  assert.equal(tabs.has('Portfolio Analytics'), false);
+  for (const source of DASHBOARD_RESEARCH_SOURCES) {
+    assert.match(source.route, /^#\/research\//, source.id);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
 });

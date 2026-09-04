@@ -9,8 +9,11 @@ import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
+<<<<<<< HEAD
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeBook } from './data/book.js';
+=======
+>>>>>>> upstream/main
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
@@ -38,14 +41,14 @@ import { startHostCapture } from './core/host-capture.js';
 //   and each consumer awaits the module that owns it. Every one of those modules already had its
 //   own idempotent `load()`; priming them from here is an optimisation, not the mechanism.
 const CRITICAL_SOURCES = {
-  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols. This is
-  // what the Portfolio/Universe toggle filters the research tabs by. It is NOT the ledger:
-  // portfolio.json is, and the two are different questions. See js/data/coverage.js.
+  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols, synced
+  // from techmuns/Sattva-Family. This is what the scope toggle filters the research tabs by, and
+  // it is the ONLY portfolio information this dashboard holds: names and sectors, no quantities,
+  // no costs, no valuations. See js/data/coverage.js.
   portfolioCompanies: 'data/portfolio-companies.json',
 };
 
 const DEFERRED_SOURCES = {
-  portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
   // The broad market universe the filings feeds walk — ~1,900 companies above a market-cap floor,
   // ordered by market cap. Deferred: only the filings tabs read it, and only when a walk runs, by
@@ -56,10 +59,13 @@ const DEFERRED_SOURCES = {
   // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
   // read by exactly one sub-view.
   filedHoldings: 'data/institution-holdings.json',
+<<<<<<< HEAD
   transactions: 'data/mock/transactions.json',
   // GLOW: the real family office book, synced daily from techmuns/GlowVentures. Read by the
   // Family Book tab and by Ask Research's portfolio source; 385KB, so deferred.
   book: 'data/book.json',
+=======
+>>>>>>> upstream/main
 };
 
 async function fetchAll(sources) {
@@ -113,6 +119,7 @@ function loadDeferred(data) {
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
 
+<<<<<<< HEAD
       // The filings tracking universe (Corporate Announcements, Insider Trades, company News).
       primeTrackedUniverse(data.trackedUniverse);
 
@@ -125,6 +132,12 @@ function loadDeferred(data) {
       // GLOW: the family office book. The module falls back to fetching the file itself if this
       // pass failed, so a bad deferred load costs a second request rather than an empty tab.
       primeBook(data.book);
+=======
+      // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
+      // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,
+      // which no reader could reach by clicking. Both the workspace and those files are gone; the
+      // only portfolio input left is the BOOK above, and it is the one thing the shell blocks on.
+>>>>>>> upstream/main
       return data;
     })
     .catch((err) => {
