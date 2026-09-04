@@ -440,6 +440,9 @@ export function scoreTable(config) {
     // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
     // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
     fillMode = 'idle',
+    showWatchFilter = true,
+    initialRowCount = 40,
+    initialRowKey = null,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -474,6 +477,7 @@ export function scoreTable(config) {
       });
     }
   }
+  if (!showWatchFilter) view.watchOnly = false;
 
   const totalCount = rows.length;
   const countText = (visible) => {
@@ -678,7 +682,6 @@ export function scoreTable(config) {
   // holding every visible row, and Ctrl-F, screenshots and "N of M shown" behave as they did. The
   // section carries `data-rows-pending` until the fill completes, so a test (or anything else)
   // can wait for the settled table rather than racing it.
-  const FIRST_PAINT_ROWS = 40; // comfortably more than any viewport shows
   // The old adaptive ceiling reached 800 rows. HTML insertion looked cheap, but the style/layout
   // work landed on the next frame: traces showed 40–88ms layout blocks while a table filled. Keep
   // each background batch below a screenful so loading can never monopolise an interaction frame.
@@ -699,6 +702,8 @@ export function scoreTable(config) {
         };
 
   const initialList = visibleRows();
+  const anchorIndex = initialRowKey === null ? -1 : initialList.findIndex((row) => String(key(row)) === initialRowKey);
+  const FIRST_PAINT_ROWS = Math.max(40, Math.min(initialList.length, Math.max(Number(initialRowCount) || 40, anchorIndex + 40)));
 
   // Installed by wire(). Until then `updateRows` is a no-op that reports nothing changed, which
   // is the truth for an unmounted table.
@@ -732,12 +737,12 @@ export function scoreTable(config) {
                  </select>`
             )
             .join('')}
-          <button type="button" data-watch-toggle title="Show only watchlisted companies"
+          ${showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
-          </button>
+          </button>` : ''}
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
@@ -934,7 +939,7 @@ export function scoreTable(config) {
       }
 
       countEl.textContent = countText(current);
-      watchCount.textContent = String(watchlist.size());
+      if (watchCount) watchCount.textContent = String(watchlist.size());
     }
 
     // Rebuild named rows in place, leaving the row SET — and so the reader's search, filters,
@@ -1041,7 +1046,7 @@ export function scoreTable(config) {
       })
     );
 
-    watchBtn.addEventListener('click', () => {
+    watchBtn?.addEventListener('click', () => {
       view.watchOnly = !view.watchOnly;
       rowHtmlCache.clear(); // star styling is baked into the cached markup
       watchIcon.textContent = view.watchOnly ? '★' : '☆';

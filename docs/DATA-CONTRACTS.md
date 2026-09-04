@@ -3911,3 +3911,26 @@ gate, and `/api/filings-health` exposes a read-only HTTP 503 signal for external
 
 For anything that should update without a page reload, register a poller with
 `live.register(id, { intervalMs, fetcher })` instead of adding it to `DATA_SOURCES`.
+
+
+### Continuous Corporate Announcements stream
+
+Corporate Announcements merges the BSE date capture, retained BSE archives, scheduled Muns
+BSE/NSE/DRHP company captures, earlier saved company lookups, and the existing live NSE feed.
+The selected Portfolio, Watchlist or Universe scope filters the whole stream. Matching company,
+date and document identity deduplicate through `mergeAnnouncements`; source labels survive.
+NSE publication timestamps are converted to IST without inventing dates for undated records.
+
+The tab checks for updates every 90 seconds while visible, pauses when hidden and checks again
+on return. BSE and Muns collection still follow their existing two-hour schedules; polling does
+not dispatch collection jobs or claim every exchange filing has been captured. Monthly BSE and
+company history load automatically, with bounded concurrency and revision checks that avoid
+re-downloading unchanged archive files. NSE contributes up to 90 days of retained history without
+changing the history range selected in the separate NSE Filings tab. Failed reads retain rows.
+
+The page contains its heading and one searchable, newest-first table with export. It has no
+company/date lookup form, archive-load button, capture diagnostics, extra dropdown filters or
+second Watchlist filter. The global scope control chooses the companies. Older rows render as
+the reader scrolls; counts, search and export include all loaded records. Background arrivals
+preserve the reader's search, focus and scroll position. Source coverage, capture errors and
+unresolved company details remain available through the information link below the table.

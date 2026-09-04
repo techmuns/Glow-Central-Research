@@ -6460,8 +6460,8 @@ console.log('\n— news, announcements and insider trades —');
       ok('...and opens no provenance popup',
         (await page.locator('[data-filings-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
           (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
-      ok('...and accounts for the companies in scope on its tooltip',
-        /companies appear on this feed/i.test((await page.locator('[data-filings-info]').getAttribute('title')) || ''));
+      ok('...and accounts for the companies in scope in the table count',
+        /announcements? from .*portfolio compan/i.test(await page.locator('#content-host [data-row-count]').innerText()));
       ok('...and the global Refresh control remains available', (await page.locator('[data-header-refresh]').count()) === 1);
     } else {
       skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');
@@ -7441,7 +7441,7 @@ await page.waitForTimeout(600);
 const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
 ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
 
-// --- Corp Announcements: the widest feed in the dashboard gets the same Topic control ---
+// --- Corp Announcements keeps topic labels within a clean, scoped stream ---
 await go('/#/research/corp-announcements?scope=universe', 2000);
 await waitForPanel();
 await settleTables();
@@ -7450,21 +7450,12 @@ ok('Corp Announcements carries a Topic column', annHeads.some((h) => /Topic/i.te
 // Same trade as News/Outlet: `rowSub` already prints the sub-category under every subject.
 ok('...in place of the Sub-category column, which was already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
 const annSelects = page.locator('#content-host select');
-ok('...and Topic leads, with Category and Sub-category still filterable', (await annSelects.count()) >= 3 && (await annSelects.first().locator('option').first().innerText()).includes('All topics'));
-// The strict option cannot apply: a BSE filing IS the company's own statement.
-ok('...without the strict "names the company" option, which does not arise on a filing', !(await annSelects.first().locator('option').allInnerTexts()).some((t) => /names the company/i.test(t)));
-const annAll = await rowCount();
-await annSelects.first().selectOption('tracked');
-await settleTables();
-const annTracked = await rowCount();
-await annSelects.first().selectOption('untracked');
-await settleTables();
-const annUntracked = await rowCount();
-ok('Topic narrows the exchange-wide feed, and tracked + untracked is the whole set',
-  annTracked > 0 && annTracked < annAll && annTracked + annUntracked === annAll,
-  `${annTracked} + ${annUntracked} = ${annAll}`);
-await annSelects.first().selectOption('all');
-await settleTables();
+ok('...and the feed removes secondary filters and manual capture controls',
+  (await annSelects.count()) === 0 && (await page.locator('#content-host [data-watch-toggle], #content-host [data-announcement-lookup], #content-host [data-load-filing-history], #content-host [data-capture-coverage]').count()) === 0);
+ok('...and retains search, export and incremental scrolling',
+  (await page.locator('#content-host [data-table-search]').count()) === 1 &&
+  (await page.locator('#content-host [data-export]').count()) === 1 &&
+  (await page.locator('#content-host [data-scroll-paged]').count()) === 1);
 const annWidth = await page.evaluate(() => {
   const el = document.querySelector('#content-host [data-table-scroll]');
   return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;

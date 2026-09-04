@@ -4,6 +4,7 @@ import { mergeInsiderTrades, mergeInsiderHeaders } from './insider-history.js';
 
 export function withFilingArchive(base, kind) {
   let rows = [], error = null, pending = false, loaded = false;
+  const revisions = new Map();
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => fn());
   const merge = kind === 'insider' ? mergeInsiderTrades : mergeAnnouncements;
@@ -17,7 +18,7 @@ export function withFilingArchive(base, kind) {
         headers: kind === 'insider' ? mergeInsiderHeaders(meta.headers || [], rows.flatMap((r) => Object.keys(r.cells || {}))) : meta.headers,
         archive: { loaded, pending, error, rows: rows.length } };
     },
-    async loadArchive() {
+    async loadArchive({ onlyChanged = false } = {}) {
       if (pending) return;
       pending = true; error = null; emit();
       try {
@@ -30,10 +31,13 @@ export function withFilingArchive(base, kind) {
           while (queue.length) {
             const month = queue.shift();
             if (!/^(\d{4}-(0[1-9]|1[0-2])|undated)$/.test(month)) { failures.push(month); continue; }
+            const revision = `${result.value.updatedAt || ''}:${result.value.months[month]}`;
+            if (onlyChanged && !result.stale && revisions.get(month) === revision) continue;
             try {
               const part = await capturedJson(`data/${kind}-archive/${month}.json`);
               if (!Array.isArray(part.value?.rows)) throw new Error('Unrecognized archive');
               rows = merge(rows, part.value.rows); stale ||= part.stale;
+              if (!part.stale) revisions.set(month, revision);
             } catch { failures.push(month); }
           }
         }));
@@ -44,6 +48,6 @@ export function withFilingArchive(base, kind) {
       finally { pending = false; emit(); }
     },
     onChange(fn) { listeners.add(fn); const off = base.onChange(fn); return () => { listeners.delete(fn); off(); }; },
-    invalidate() { base.invalidate(); rows = []; error = null; loaded = false; },
+    invalidate() { base.invalidate(); rows = []; error = null; loaded = false; revisions.clear(); },
   };
 }
