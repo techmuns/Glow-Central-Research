@@ -1,11 +1,12 @@
-// worker/muns.mjs — the authenticated Muns clients: news, corporate announcements, insider trades.
+// worker/muns.mjs — authenticated Muns market-data and company-document clients.
 //
 //   fetchNews({ query, country, fromDate, toDate }, env)
 //   fetchAnnouncements({ ticker, fromDate, toDate }, env)
 //   fetchInsiderTrades({ ticker, country, fromDate, toDate }, env)
+//   fetchDomesticFilings({ ticker, form }, env)
 //
-// THE TOKEN LIVES HERE AND NEVER REACHES THE BROWSER. All three endpoints want
-// `Authorization: Bearer …`, so all three are proxied, exactly as worker/finology.mjs already
+// THE TOKEN LIVES HERE AND NEVER REACHES THE BROWSER. These endpoints want
+// `Authorization: Bearer …`, so they are proxied, exactly as worker/finology.mjs already
 // proxies the super-investor API on the same host. A token shipped to the client is a token
 // published; there is no obfuscated version of that which is not that.
 //
@@ -28,7 +29,9 @@
 // guessed field name directly. Parsing goes through js/data/filings-shared.js, which reads by shape
 // and by a list of candidate keys, and carries the untouched record alongside. See its header.
 
-import { normaliseAnnouncement, normaliseArticle, normaliseInsiderTrades, collectRecords } from '../public/js/data/filings-shared.js';
+import { normaliseArticle, normaliseInsiderTrades, collectRecords } from '../public/js/data/filings-shared.js';
+import { announcementRange, normaliseCorporateAnnouncements } from '../public/js/data/announcements-shared.js';
+import { DOMESTIC_FORMS, normaliseDomesticFilings } from '../public/js/data/domestic-filings-shared.js';
 
 export const FASTAPI_BASE = 'https://fastapi.muns.io';
 export const NESTJS_BASE = 'https://devde.muns.io';
@@ -129,7 +132,7 @@ export class MunsError extends Error {
  * that rule was broken here it cost a long investigation during which the upstream was healthy and
  * answering the whole time (see "an upstream you CANNOT proxy" in CLAUDE.md).
  */
-async function request(url, { method = 'GET', body = null, token, label }) {
+async function request(url, { method = 'GET', body = null, token, label, maxBytes = null }) {
   if (!token) {
     throw new MunsError('no-token', `No API token is configured for ${label}. An operator sets it with \`npx wrangler secret put MUNS_TOKEN\`.`, { url });
   }
@@ -154,7 +157,7 @@ async function request(url, { method = 'GET', body = null, token, label }) {
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
-      clearTimeout(timer);
+      if (!maxBytes) clearTimeout(timer);
 
       if (res.status === 401 || res.status === 403) {
         throw new MunsError(
@@ -171,7 +174,25 @@ async function request(url, { method = 'GET', body = null, token, label }) {
       } else {
         // The insider-trades endpoint is documented as returning a markdown TABLE, so a non-JSON
         // body is expected there rather than a failure. Read text and let the caller decide.
-        const text = await res.text();
+        let text;
+        if (maxBytes) {
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let size = 0;
+          text = '';
+          if (reader) for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > maxBytes) {
+              await reader.cancel();
+              throw new MunsError('shape', `${label} returned too much document metadata.`, { url });
+            }
+            text += decoder.decode(value, { stream: true });
+          }
+          text += decoder.decode();
+        } else text = await res.text();
+        clearTimeout(timer);
         try {
           return { json: JSON.parse(text), text, status: res.status };
         } catch {
@@ -186,6 +207,7 @@ async function request(url, { method = 'GET', body = null, token, label }) {
           ? new MunsError('timeout', `${label} did not answer within ${Math.round(DEADLINE_MS / 1000)}s.`, { url })
           : last || new MunsError('unreachable', `${label} could not be reached: ${String(err?.message || err)}`, { url });
     }
+    clearTimeout(timer);
     if (attempt < ATTEMPTS && Date.now() < deadline) await new Promise((r) => setTimeout(r, BACKOFF_MS * 2 ** (attempt - 1)));
   }
   throw last || new MunsError('unreachable', `${label} could not be reached.`, { url });
@@ -286,24 +308,28 @@ export const compactDate = (d) => String(d || '').replace(/-/g, '').slice(0, 8);
  */
 export async function fetchAnnouncements({ ticker, fromDate, toDate }, env) {
   const t = String(ticker || '').trim().toUpperCase();
-  const from = compactDate(fromDate);
-  const to = compactDate(toDate);
+  let range;
+  try { range = announcementRange(fromDate, toDate); }
+  catch (err) { throw new MunsError('shape', err.message); }
+  const from = range.fromDate;
+  const to = range.toDate;
   const url = `${filingsBase(env)}/filings/corp/announcements/${encodeURIComponent(t)}?fromDate=${from}&toDate=${to}`;
-  if (!t || !/^\d{8}$/.test(from) || !/^\d{8}$/.test(to)) {
+  if (!/^[A-Z0-9&._-]{1,80}$/.test(t)) {
     throw new MunsError('shape', 'Announcements need a ticker and a YYYYMMDD date range.', { url });
   }
 
-  const { json, text } = await request(url, { token: tokenFor(env), label: 'The announcements API' });
+  const { json } = await request(url, { token: tokenFor(env), label: 'The announcements API', maxBytes: 4_000_000 });
   if (!json) throw new MunsError('shape', 'The announcements API answered with something that is not JSON.', { url });
 
-  const records = collectRecords(json, { groupKey: 'source' });
+  let parsed;
+  try { parsed = normaliseCorporateAnnouncements(json, t); }
+  catch (err) { throw new MunsError('shape', err.message, { url }); }
   return {
     ticker: t,
     from,
     to,
-    count: records.length,
-    announcements: records.map((r) => normaliseAnnouncement(r, t)),
-    rawSample: records.length ? null : String(text).slice(0, 400),
+    count: parsed.announcements.length,
+    ...parsed,
   };
 }
 
@@ -348,4 +374,18 @@ export async function fetchInsiderTrades({ ticker, country = 'india', fromDate =
     capped: parsed.rows.length >= 100 && !fromDate && !toDate,
     rawSample: parsed.rows.length ? null : String(text || '').slice(0, 400),
   };
+}
+
+/** Screener document links, never interpreted as financial actuals or analyst estimates. */
+export async function fetchDomesticFilings({ ticker, form = 'all' }, env) {
+  const t = String(ticker || '').trim().toUpperCase();
+  const url = `${filingsBase(env)}/filings/domestic`;
+  if (!/^[A-Z0-9&._-]{1,80}$/.test(t) || !Object.hasOwn(DOMESTIC_FORMS, form)) {
+    throw new MunsError('shape', 'Choose a valid ticker and filing type.', { url });
+  }
+  const { json } = await request(url, { method: 'POST', body: { ticker: t, form }, token: tokenFor(env), label: 'The domestic-filings API', maxBytes: 4_000_000 });
+  let parsed;
+  try { parsed = normaliseDomesticFilings(json, t, form); }
+  catch (err) { throw new MunsError('shape', err.message, { url }); }
+  return { ticker: t, form, source: 'Screener.in via Muns', count: parsed.documents.length, ...parsed };
 }
