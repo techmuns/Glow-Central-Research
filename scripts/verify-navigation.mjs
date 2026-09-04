@@ -139,7 +139,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#navigation-fixture [data-tab-scroll-controls]').hidden);
   assert(!(await fixtureControls.isVisible()));
   await page.evaluate(() => window.disposeFixture());
-  await page.locator('#navigation-fixture [data-tab-id="two"]').click();
+  // This detached fixture tests listener disposal, not hit-testing against the floating Sources beacon.
+  await page.locator('#navigation-fixture [data-tab-id="two"]').dispatchEvent('click');
   assert.deepEqual(await page.evaluate(() => window.fixtureSelections), []);
   await page.locator('#navigation-fixture').evaluate((root) => root.remove());
   pass('Shared section tabs release control space when they fit and remove listeners on disposal');
