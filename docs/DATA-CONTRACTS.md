@@ -3000,6 +3000,31 @@ Two consequences that are easy to get wrong:
 - `deriveMoves` classifies an appearance as `new` and a disappearance as `exited` but gives
   **neither a percentage-point figure**. Printing ±the whole holding would invent a trade size.
 
+### A COLUMN IS NOT A QUARTER — what `filedQuarters`, `awaiting` and `quarterlyNotes` are for
+
+Finology open a column for the **current** period as soon as the first company files into it, and
+print **"Filing Due"** against every holder who has not. So the newest column is routinely not a
+quarter anybody can be compared across, and reading it as one reported a mass liquidation that
+never happened — see *And a quarter that has not closed is not a quarter* in `CLAUDE.md` for the
+measurements and the four independent fixes.
+
+| field | on | meaning |
+| --- | --- | --- |
+| `filedQuarters` | portfolio | `quarters` minus every open period — the only columns a comparison may use. A quarter closes in **March, June, September or December**; a label parsing to any other month is the current, open period. A label that does not parse as a date at all is treated as filed. |
+| `openQuarters` | portfolio | the rest, rendered in the table and reported as `pending` by `deriveMoves`, never dropped |
+| `quarterlyNotes` | holding | the source's own non-numeric cell text, kept where they gave one (`"Filing Due"`). Empty on a normal book. Same purpose as `parseChange`'s `note` on Trendlyne. |
+| `awaiting` | move action | no filed percentage for the latest **filed** quarter, and either their note says the filing is outstanding or `valueCr > 0` says the position is still worth something. **Not a move**, never an alert, never worded as a sale. |
+
+`isMove(action)` is the one definition of what counts as a change (`new`, `exited`, `added`,
+`trimmed`). `classifyHolding(h, latest, prior)` is the one classifier — `js/investors/live.js` used
+to carry a second copy and would have gone on printing *Undisclosed* after this was fixed
+everywhere else. `filedPair(quarters)` is the one place the comparison pair is chosen.
+
+**An exit requires the source's own zero.** A missing percentage plus `valueCr > 0` is a filing
+that has not landed; a missing percentage plus `valueCr === 0` is a position that has gone. On the
+shipped capture that split is 40 against 142, and the 40 include Life Insurance Corporation
+"leaving" Reliance Communications after two identical quarters at 4.13%, still valued at ₹9.01 Cr.
+
 ### One derived figure, and it is labelled
 
 `deriveMoves()` subtracts the prior quarter's disclosed percentage from the latest, per company.

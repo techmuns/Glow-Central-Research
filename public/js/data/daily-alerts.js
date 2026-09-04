@@ -46,6 +46,10 @@ import * as earnings from './earnings-live.js';
 import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as investors from './super-investors.js';
+// ONE definition of what a filed-book change is — see `isMove` there. A negative filter here
+// (`action !== 'held'`) admitted every future state by default, which is how an outstanding
+// filing would have become a negative alert about a named investor.
+import { isMove } from './finology-shared.js';
 import { announcements, insider, news } from './filings.js';
 import { insiderTradeSourceUrl } from './filings-shared.js';
 import { classifyStory } from './news-keywords.js';
@@ -814,7 +818,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const moves = investors.allMoves().filter((move) => {
     const confirmedDay = istDay(confirmedAt(move));
     const ticker = investorTicker(move);
-    return move.action !== 'held'
+    return isMove(move.action)
       && inRequestedWindow(confirmedDay, day, includeHistory)
       && (ticker ? inScope(wanted, ticker) : scope === 'universe');
   });

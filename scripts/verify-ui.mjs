@@ -4264,6 +4264,116 @@ const siWatch = (r) => siRequests.push(r.url());
 page.on('request', siWatch);
 await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
 
+// ---------------------------------------------------------------------------------------
+// AN UNFILED QUARTER IS NOT A SALE — the rule that was got wrong, in somebody's name
+//
+// Finology open a column for the CURRENT period as soon as the first company files into it and
+// print "Filing Due" against everyone else. `deriveMoves` compared that column against the last
+// closed quarter, so a null in it became `exited`, which reaches a reader as "X is no longer
+// disclosed". Measured on the shipped capture: Madhusudan Kela's "Aug 2026" column carried a
+// figure for 1 of his 18 holdings, so FOURTEEN of his positions were reported gone — Kopran among
+// them, which his page shows at 1.72% in both March and June with August reading Filing Due.
+// Across ninety books, 362 of 1,696 derived moves were exits and most of them never happened.
+//
+// Nothing threw, no count was wrong, and the dashboard reported a mass liquidation of the Indian
+// market in named investors' names. So this is asserted on FIXTURES, at each boundary, rather than
+// on whatever today's capture happens to contain — and on the shipped data too, because the shape
+// of that capture is the thing that produced the bug.
+const filingRule = await evalSafe(async () => {
+  const f = await import('/js/data/finology-shared.js');
+  const book = (quarters, holdings) => f.normalisePortfolio({ quarters, holdings }, 'test');
+
+  // The exact shape of the bug: an open period with one early filer, over two filed quarters.
+  const openPeriod = book(['Aug 2026', 'Jun 2026', 'Mar 2026'], [
+    { company: 'Kopran Ltd.', quarterlyHoldings: { 'Aug 2026': null, 'Jun 2026': 1.72, 'Mar 2026': 1.72 }, valueCr: 19.27 },
+    { company: 'Early Filer Ltd.', quarterlyHoldings: { 'Aug 2026': 4.22, 'Jun 2026': null, 'Mar 2026': null }, valueCr: 40 },
+  ]);
+  const open = f.deriveMoves(openPeriod);
+
+  // A genuine exit: gone from a CLOSED quarter, and the source values it at nothing.
+  const realExit = f.deriveMoves(book(['Jun 2026', 'Mar 2026'], [
+    { company: 'Choice International Ltd.', quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 7.21 }, valueCr: 0 },
+  ]));
+  // Missing from a closed quarter, but the source still values it — an outstanding filing.
+  const stillValued = f.deriveMoves(book(['Jun 2026', 'Mar 2026'], [
+    { company: 'Reliance Communications Ltd.', quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 4.13 }, valueCr: 9.01 },
+  ]));
+  // And their own word wins over any reading of ours, wherever they give one.
+  const theirWord = f.deriveMoves(book(['Jun 2026', 'Mar 2026'], [
+    { company: 'Noted Ltd.', quarterlyHoldings: { 'Jun 2026': 'Filing Due', 'Mar 2026': 2.5 }, valueCr: 0 },
+  ]));
+
+  return {
+    // The comparison skips the open column entirely.
+    pair: [open.latest, open.prior],
+    pending: open.pending,
+    kopran: open.moves.find((m) => m.company.startsWith('Kopran'))?.action,
+    // A company disclosed ONLY in the open period has nothing to say about the Jun-vs-Mar pair, so
+    // it carries no move at all. Reporting it as "new" under a heading reading "Jun 2026 vs Mar
+    // 2026" would date somebody's disclosure to a quarter it did not happen in, which is the same
+    // error class as the exits this whole block exists to stop. It stays visible as the open
+    // column in the table and as `pending` here; it does not become a move in the wrong quarter.
+    earlyFilerMoves: open.moves.filter((m) => m.company.startsWith('Early')).length,
+    earlyFilerStillOnTheBook: openPeriod.holdings.some((h) => h.company.startsWith('Early') && h.quarterlyHoldings['Aug 2026'] === 4.22),
+    // `summarise` must name a filed quarter too, or every "as of" line names an empty column.
+    summaryQuarter: f.summarise(openPeriod).latestQuarter,
+    summaryCount: f.summarise(openPeriod).disclosedCount,
+    realExit: realExit.moves[0]?.action,
+    stillValued: stillValued.moves[0]?.action,
+    theirWord: theirWord.moves[0]?.action,
+    // An outstanding filing is not a move, so it can never become an alert.
+    awaitingIsNotAMove: f.isMove('awaiting') === false && f.isMove('exited') === true,
+    // One classifier, asked the same way the Data Table asks it.
+    oneClassifier: f.classifyHolding(
+      { quarterlyHoldings: { 'Jun 2026': 1.72, 'Mar 2026': 1.72 } }, ...f.filedPair(['Aug 2026', 'Jun 2026', 'Mar 2026'])
+    )?.action,
+  };
+});
+ok('an unfiled period is never the baseline a holding is compared against',
+  filingRule?.pair?.[0] === 'Jun 2026' && filingRule?.pair?.[1] === 'Mar 2026' && filingRule?.pending?.[0] === 'Aug 2026',
+  `${filingRule?.pair?.join(' vs ')} · pending ${filingRule?.pending?.join(', ')}`);
+ok('...so a holding carried unchanged through it is held, not "no longer disclosed"',
+  filingRule?.kopran === 'held', `Kopran ${filingRule?.kopran}`);
+ok('...and a disclosure made only into that period is not dated to the quarter before it',
+  filingRule?.earlyFilerMoves === 0 && filingRule?.earlyFilerStillOnTheBook === true,
+  `${filingRule?.earlyFilerMoves} move(s), still on the book: ${filingRule?.earlyFilerStillOnTheBook}`);
+ok('...and the book reports itself as of a quarter that was actually filed',
+  filingRule?.summaryQuarter === 'Jun 2026' && filingRule?.summaryCount === 1, `${filingRule?.summaryQuarter}, ${filingRule?.summaryCount} disclosed`);
+// The three states have to stay apart, and the source's own figures are what separate them.
+ok('a position the source values at nothing is a real exit; one it still values is a pending filing',
+  filingRule?.realExit === 'exited' && filingRule?.stillValued === 'awaiting',
+  `zero-valued ${filingRule?.realExit}, valued ${filingRule?.stillValued}`);
+ok('...and where the source says "Filing Due" in its own words, that wins outright',
+  filingRule?.theirWord === 'awaiting', filingRule?.theirWord);
+// A negative filter (`action !== 'held'`) admitted every future state by default, which is how an
+// outstanding filing would have been raised as a negative alert about a named investor.
+ok('...and an outstanding filing is not a move, so it cannot become an alert',
+  filingRule?.awaitingIsNotAMove === true);
+ok('one classifier answers for the drill, the table and the alert alike',
+  filingRule?.oneClassifier === 'held', filingRule?.oneClassifier);
+
+// AND ON THE SHIPPED CAPTURE, because the fixtures above cannot catch a bad committed file.
+const shippedBooks = await evalSafe(async () => {
+  const f = await import('/js/data/finology-shared.js');
+  const snap = await (await fetch('data/super-investors.json', { cache: 'no-cache' })).json();
+  let exits = 0, moves = 0, awaiting = 0, openBaseline = 0;
+  for (const [slug, raw] of Object.entries(snap.books || {})) {
+    const b = f.normalisePortfolio(raw, slug);
+    const r = f.deriveMoves(b);
+    if (!r.comparable) continue;
+    if (r.latest && !f.isFiledQuarter(r.latest)) openBaseline += 1;
+    for (const m of r.moves) { moves += 1; if (m.action === 'exited') exits += 1; if (m.action === 'awaiting') awaiting += 1; }
+  }
+  return { moves, exits, awaiting, openBaseline, share: moves ? exits / moves : 0 };
+});
+ok('no book in the shipped capture is compared against an unfiled period',
+  shippedBooks?.openBaseline === 0, `${shippedBooks?.openBaseline} book(s)`);
+// 21% of every derived move being an exit was the artefact. A real quarter's churn is a fraction
+// of that, so the share is asserted rather than the count — the count moves with every capture.
+ok('...and exits are a plausible share of the quarter rather than a mass liquidation',
+  shippedBooks?.share > 0 && shippedBooks?.share < 0.15,
+  `${shippedBooks?.exits} exits and ${shippedBooks?.awaiting} pending filings in ${shippedBooks?.moves} moves (${Math.round((shippedBooks?.share || 0) * 100)}%)`);
+
 // Unconditional: nothing that looks like a bearer credential may appear in the served client.
 const tokenLeak = await page.evaluate(async () => {
   const files = ['index.html', 'js/data/super-investors.js', 'js/data/finology-shared.js', 'js/investors/live.js', 'js/app.js'];

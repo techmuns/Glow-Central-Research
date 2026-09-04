@@ -1576,6 +1576,63 @@ And two that come from the upstream being a live scrape rather than an API over 
   This is the same class of error as `classifyChange()` and the `op_vs_pat` rule: **check every
   place a missing value could be read as a measured one.**
 
+### AND A QUARTER THAT HAS NOT CLOSED IS NOT A QUARTER — the worst bug this dashboard has shipped
+
+The rule above says a blank is not a zero. It was obeyed, and the feed still told a reader that
+**Madhusudan Kela had sold out of Kopran**, which was false, in a named real person's name.
+
+Finology open a column for the **current** period as soon as the first company files into it, and
+print *"Filing Due"* against every holder who has not. `num()` turns that into a `null`,
+`deriveMoves` compared `quarters[0]` against `quarters[1]`, and a `null` in the newest column
+became `exited` — which reaches the screen as *"X is no longer disclosed"*. Measured on the shipped
+capture: Kela's **Aug 2026** column carried a figure for **1 of his 18 holdings**, so fourteen of
+his positions were reported gone while his page showed Kopran at 1.72% in both March and June.
+Across ninety books, **362 of 1,696 derived moves (21%) were exits** and most had never happened.
+
+**Nothing threw, no count was wrong, and every honesty rule above was being followed.** The dashboard
+reported a mass liquidation of the Indian market, confidently, with sources attached.
+
+Four things close it, and they are deliberately independent:
+
+1. **A filing period that has not closed is never a comparison baseline.** `isFiledQuarter()` — an
+   Indian shareholding quarter ends in March, June, September or December and nothing else does.
+   Measured across ninety books: columns labelled with a quarter-end month are a median **87%**
+   filled, columns labelled with any other month a median **6%** and never above 33%. Those are two
+   populations, not one noisy one. `filedQuarters` is computed once in `normalisePortfolio` so every
+   consumer asks the same question, and the open column is still rendered — it is carried as
+   `pending`, not dropped.
+2. **Their own word wins where they give one.** A cell noted *Filing Due* is `awaiting`, whatever
+   the calendar says. `num()` erased that string; `cellNote()` keeps it, exactly as `parseChange`
+   keeps Trendlyne's *Filing Awaited*.
+3. **An exit needs the source's own corroboration, per row.** Finology publish a current value
+   beside every holding and it is their answer to this exact question: Kopran reads *Filing Due*
+   and **₹19.71 Cr**, while Choice International — which he really has left — reads **0.00**. So a
+   missing percentage is only called an exit when the value agrees. Of the exits surviving fix 1,
+   142 carry a zero value and 40 a real one — and those 40 include LIC "leaving" Reliance
+   Communications after two identical quarters at 4.13%, still valued at ₹9.01 Cr.
+4. **`awaiting` is not a move.** `daily-alerts.js` filtered `action !== 'held'`, which was the right
+   spelling of "something happened" while `held` was the only non-event and became silently wrong
+   the moment a fourth state existed — an outstanding filing would have been raised as a *negative*
+   alert reading *"X's holding was awaiting…"*. `isMove()` names what IS a move, in one place. Same
+   shape, same fix, as `scope !== 'portfolio'`.
+
+**A STATISTICAL GUARD WAS TRIED FIRST AND WAS WORSE.** Refusing any book where more than half the
+positions exit at once catches a bad column — and refused Dolly Khanna, whose book sits on the 1%
+disclosure threshold, so several positions dropping off in a quarter is her normal pattern, visible
+in every quarter of her history. **A threshold over a real distribution silences a real answer.** The
+value rule is the source's own statement about the same row, so it never has to guess.
+
+**AND THERE WERE TWO CLASSIFIERS.** `changeOf()` in `js/investors/live.js` held its own copy of the
+five branches over `quarters[0]` and `[1]`, so the Data Table would have gone on printing
+*Undisclosed* against a company whose drill panel and alert had both been corrected. One fix, three
+correct surfaces, one still visibly wrong. `classifyHolding()` is now the only one, and
+`filedPair()` the only place the pair is chosen.
+
+**The general rule: a column is not a period, and the newest column is not the current one.** Before
+comparing two columns of anybody's data, ask what has to be true for both to be complete — and
+where the source itself answers that question, in words or in a figure, read its answer instead of
+inferring one.
+
 ### Triggering someone else's pipeline — the Deep Dive rule
 
 The Con-call table's last column dispatches a run on a **separate** dashboard, watches it, and
@@ -3081,6 +3138,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the announcements snapshot | `node scripts/scrape-bse-announcements.mjs` — no token; `ANN_DAYS=7` to backfill, `ANN_MERGE=0` to replace |
 | Change what the Refresh button drives | `js/core/refresh.js` (the registry) + `refreshNow()` in `js/core/watch.js` — read *Work the reader has to ask for* first; a per-company feed must never be registered with `live.js` |
 | Change the super-investor feed | `worker/finology.mjs` + `public/js/data/finology-shared.js`, then `/api/super-investors` — read *An upstream that needs a credential* below first |
+| Change how a filed-book change is classified | `classifyHolding()` / `isFiledQuarter()` / `filedPair()` / `isMove()` in `js/data/finology-shared.js` — the ONLY classifier; read *A quarter that has not closed is not a quarter* first. Never re-derive a move in a view, and never call a missing percentage an exit without the source's own zero value beside it |
 | Change the Superstar Investors view | `js/investors/live.js` — the whole sub-view is that one file |
 | Change the cross-book summary in Quarterly Changes | `quarterSummary()` in `js/data/super-investors.js` (the roll-up) + `quarterSummaryBlock()` in `js/investors/live.js` (the panels) — read *Rolling ninety books up into one screen* first; the four figures it refuses to invent are the point |
 | Make the Superstar Investors view load faster | `js/data/super-investors.js` (the three passes, the quarter-aware revalidation skip, the coalesced repaint) + `investorRoute` in `worker/index.js` (the edge cache and the last-good fallback) — read *When the wait is latency, not bandwidth* first, and measure with `x-sattva-cache` rather than by eye |
