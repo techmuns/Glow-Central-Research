@@ -126,9 +126,10 @@ let family = null;
 /** Authenticated, per-question identities only. Never write these to storage or
  * mix device edits into what the active Family book says is owned. */
 export function useFamilyBook(holdings, asOf) {
-  if (!Array.isArray(holdings)) { family = null; return; }
+  if (!Array.isArray(holdings)) { family = null; notify(false); return; }
   const known = new Map(baseHoldings().map((h) => [h.isin, h]));
   family = { asOf, holdings: holdings.map((h) => ({ ...h, ticker: h.ticker || known.get(h.isin)?.ticker || null })) };
+  notify(false);
 }
 
 export function prime(payload) {

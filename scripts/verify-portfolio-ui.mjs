@@ -52,6 +52,7 @@ try {
   await page.goto('http://localhost:8080/#/research/ask-research?scope=portfolio', { waitUntil: 'domcontentloaded', timeout: 120_000 });
   const research = page;
   await research.getByText('Portfolio connected', { exact: false }).waitFor({ timeout: 90_000 });
+  assert.equal(await page.locator('#portfolio-sync-status').isVisible(), false, 'public snapshot status cannot contradict the private Research connection');
   assert.equal(await page.locator('iframe[title="Private portfolio connection"]').isVisible(), false);
   assert.equal(await page.getByRole('link', { name: 'Open with portfolio' }).count(), 0);
   await page.getByRole('button', { name: 'Start a new research conversation' }).click();
@@ -87,6 +88,7 @@ try {
 
   await child.evaluate(() => { location.hash = '#/research/ai-alerts?scope=portfolio'; });
   await research.locator('[data-ai-size-note]').filter({ hasText: 'Largest holdings first' }).waitFor({ timeout: 60_000 });
+  assert.equal(await page.locator('#portfolio-sync-status').isVisible(), false, 'authenticated sizes replace the public snapshot status');
   await child.waitForFunction(() => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete', null, { timeout: 60_000 });
   const weights = await research.locator('[data-ai-holding-size]').allTextContents();
   assert(weights.length > 0, 'actual Family book sizes reach surfaced AI cards');
