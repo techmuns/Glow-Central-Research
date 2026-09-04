@@ -65,6 +65,11 @@ export function normaliseCombinedFilings(payload, request) {
       summary: clean(pickField(record, ['desc', 'description', 'summary'])), ...identity, mapped };
     const prior = byKey.get(key);
     if (prior) {
+      // A less detailed duplicate must not erase a known date, subject or document form.
+      row.title = title || prior.title;
+      row.date = prior.date || row.date;
+      row.form = row.form || prior.form;
+      row.summary = row.summary || prior.summary;
       row.sources = [...new Set([...prior.sources, ...row.sources])];
       row.sourceTags = [...new Set([...prior.sourceTags, ...row.sourceTags])];
       row.isRead = prior.isRead === row.isRead ? row.isRead : null;

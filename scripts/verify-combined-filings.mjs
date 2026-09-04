@@ -28,6 +28,10 @@ await check('identical URLs dedupe without losing sources or fabricating conflic
   const rows = normaliseCombinedFilings([{ title: 'A', url: 'https://example.test/a', source: 'NSE', isRead: true }, { title: 'A', url: 'https://example.test/a', source: 'BSE', isRead: false }], query).rows;
   assert.equal(rows.length, 1); assert.deepEqual(rows[0].sourceTags, ['NSE', 'BSE']); assert.equal(rows[0].isRead, null);
 });
+await check('a sparse duplicate cannot erase the known subject, date or report type', () => {
+  const rows = normaliseCombinedFilings([{ title: 'Annual report', date: '2026-09-02', form: 'annual_report', url: 'https://example.test/a' }, { url: 'https://example.test/a' }], query).rows;
+  assert.equal(rows.length, 1); assert.equal(rows[0].title, 'Annual report'); assert.equal(rows[0].date, '2026-09-02'); assert.equal(rows[0].form, 'annual_report');
+});
 await check('unknown sources and dates stay unknown; spoofed source domains are not NSE', () => {
   const result = normaliseCombinedFilings([{ title: 'A', date: '2026-02-30', url: 'https://nseindia.com.evil.test/a', isRead: 'false' }], query);
   assert.equal(result.rows[0].date, null); assert.equal(result.rows[0].isRead, null); assert.deepEqual(result.rows[0].sourceTags, []);
