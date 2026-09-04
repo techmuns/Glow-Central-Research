@@ -6557,7 +6557,7 @@ console.log('\n— source beacon —');
       labelled: [...p.querySelectorAll('.beacon-row')].filter((r) => (r.querySelector('.beacon-row-status')?.offsetParent) !== null).length,
       liveRows: p.querySelectorAll('.beacon-row.is-live').length,
       scrolls: (p.querySelector('.beacon-list')?.scrollHeight || 0) > (p.querySelector('.beacon-list')?.clientHeight || 0),
-      expected: { items: items.length, live: items.filter((i) => i.status === 'live').length, families: groups.length, icons: groups.map((g) => g.icon) },
+      expected: { items: items.length, live: items.filter((i) => i.status === 'live').length, green: items.filter((i) => i.status === 'live' && (!i.readState || i.readState === 'read')).length, families: groups.length, icons: groups.map((g) => g.icon) },
       // The core must sit ON the point every wire converges to, or the picture is of wires
       // arriving somewhere the dashboard is not.
       aligned: (() => {
@@ -6576,12 +6576,12 @@ console.log('\n— source beacon —');
     panel ? `${panel.rows} rows of ${panel.expected.items} registered` : 'no panel');
   ok('...as one long vertical column that scrolls', !!panel && panel.scrolls);
   ok('...and its live count is read from the registry, not typed',
-    !!panel && panel.pill === `${panel.expected.live} live feeds` && panel.liveRows === panel.expected.live,
+    !!panel && panel.pill === `${panel.expected.live} live feeds` && panel.liveRows === panel.expected.green,
     panel ? `${panel.pill} vs ${panel.expected.live} live in the registry` : '');
   // ONLY THE EXCEPTIONS ARE LABELLED, which is what makes mock and manual legible at a glance.
-  ok('...with a status word on every row that is NOT live, and none on the ones that are',
-    !!panel && panel.labelled === panel.expected.items - panel.expected.live,
-    panel ? `${panel.labelled} labelled, ${panel.expected.items - panel.expected.live} not live` : '');
+  ok('...with a status word on every non-green row, including unconfirmed IPO reads',
+    !!panel && panel.labelled === panel.expected.items - panel.expected.green,
+    panel ? `${panel.labelled} labelled, ${panel.expected.items - panel.expected.green} not green` : '');
   ok('...and a freshness line that is a separate, dated claim from the pill',
     !!panel && /(Last confirmed|committed captures|Waiting for)/.test(panel.fresh), panel?.fresh || '');
   // ONE WIRE PER FAMILY. A fixed decorative count would be a picture making a claim of its own.

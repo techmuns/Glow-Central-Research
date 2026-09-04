@@ -44,6 +44,7 @@ import { sourceGroups } from './sources.js';
 import { openTwitterSources } from './twitter-sources.js';
 import * as twitterHandles from '../core/twitter-handles.js';
 import * as ipoFilings from '../data/ipo-filings.js';
+import { ipoSourceGroup } from './ipo-sources.js';
 
 const ROOT_ID = 'source-beacon-root';
 const PANEL_ID = 'source-beacon-panel';
@@ -374,7 +375,7 @@ function refreshIpoDetails() {
   const expanded = [...group.querySelectorAll('details[open]')].map(key);
   const focusKey = group.contains(document.activeElement) ? key(document.activeElement.closest('details')) : null;
   const template = document.createElement('template');
-  template.innerHTML = listHtml({ groups: sourceGroups().filter((g) => g.id === 'ipo-filings') });
+  template.innerHTML = listHtml({ groups: [ipoSourceGroup()] });
   group.innerHTML = template.content.firstElementChild.innerHTML;
   group.querySelectorAll('details').forEach((el) => {
     if (expanded.includes(key(el))) el.open = true;
