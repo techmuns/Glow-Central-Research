@@ -2320,6 +2320,159 @@ publisher; the parser reads by shape, because Business Standard sends `<link>` b
 field including `<pubDate>` in CDATA, and Economic Times leaves a trailing space inside the CDATA.
 All three are valid RSS, and a parser written against whichever one was opened first fails silently
 on the other two by returning null and rendering a story with no date.
+### Combined company filings and document history
+
+`POST /api/combined-filings` forwards a bounded request to
+`https://devde.muns.io/filings/combined_filings_announcements`. It supplements, rather than
+replaces, the broad BSE and live/captured NSE feeds. It does not start a universe-wide scrape,
+modify the portfolio or produce earnings figures / transcript summaries from document links.
+
+| Placement | Request / display |
+| --- | --- |
+| Corp Announcements → Company filings & reports | India, `form: ["all"]`; annual-report, earnings-report and con-call filters available |
+| NSE Filings → Company NSE filings | India, all forms; only records with an explicit NSE source or an NSE document host are shown |
+| Con-call → Filed con-call documents | India, `form: ["concalls"]`; source links, not invented transcripts |
+| Earnings Hub → Filed earnings reports | India, `form: ["earnings_report"]`; separate from reported metrics and calendar |
+
+The reader selects one company inside the current Portfolio/Watchlist/Universe scope and a date
+range no longer than 366 elapsed days. Name searches return explicit company choices; ambiguous
+names are not silently interpreted as stock tickers. Default range: the past year through today
+(IST). The server validates the ticker, calendar dates, country and Indian form allow-list, and
+strips unknown request fields. The API route also accepts USA/United States plus the documented
+optional `email` and `company_name`; the Indian-equities UI does not offer US coverage.
+
+**Privacy:** the route uses only the requesting reader's bearer token. It executes before the
+existing deployment-token fallback, never touches the edge cache, returns `private, no-store`,
+and does not persist document rows or `isRead` in IndexedDB/localStorage. Session changes and
+logout (including an explicit null session) clear visible rows and cancel in-flight requests.
+Missing/expired sessions, throttling, timeout, malformed responses and oversize responses are
+failures, never empty filing histories. Request bodies are capped at 8 KiB, responses at 4 MiB,
+and the full request has a 20-second budget. Redirects are refused so credentials cannot follow
+an upstream redirect. The browser makes no mark-read mutation: true/false/null means supplied
+read/unread/not supplied or conflicting.
+
+**Response adaptation:** the documented top-level array and grouped announcement DTO
+`{ source, data: AnnouncementDto[] }` are supported. The published filing DTO uses `filing_url`,
+`ticker`, `title`, `date`, `country`, `form`; existing announcement aliases are retained.
+Unrecognised records are counted and flagged. Identical company/document URLs deduplicate while
+retaining source labels; contradictory read flags become unknown. No missing date is set to today.
+
+**Verification status (4 Sep 2026):** the request and related DTOs were checked against the live
+`https://devde.muns.io/api-json` schema. An unauthenticated probe returned 401 and no user session
+was available locally. Local tests use clearly synthetic DTO fixtures; authenticated production
+response compatibility is not yet claimed. The Sources registry marks this integration pending
+that check. A successful sample response (without credentials) can complete the remaining adapter
+verification; never commit session tokens or real user read-state fixtures.
+
+Tests: `node scripts/verify-combined-filings.mjs` (in CI), and
+`PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-combined-filings-ui.mjs` (local-only
+headless browser regression, with optional `CHROME_PATH`).
+
+### IPO / DRHP company lookup
+
+Corp Announcements → **IPO / DRHP filings** is a separate on-demand view, next to the broad BSE
+feed and combined company documents. It accepts a ticker **or an exact company name**, without
+requiring a listed symbol or current portfolio membership. Its independence from Portfolio /
+Watchlist scope is explicit. Looking up an issuer never adds it to holdings.
+
+`POST /api/drhp-filings` accepts `{ "company": "PAYTM" }` (or an exact name) and makes the documented
+read-only `GET https://devde.muns.io/filings/drhp/{encoded company}`. Only the reader's bearer token
+is used, with private/no-store responses, no persistence, no shared cache and no deployment-token
+fallback. The request is bounded to 8 KiB, response to 4 MiB and end-to-end time to 20 seconds;
+redirects are refused. Logout, account changes, edits and leaving the view cancel pending work.
+
+The name is a single validated path segment, up to 200 characters; Unicode names, spaces and
+ordinary company punctuation are supported. Slashes, escapes, query injection and reserved
+`sync` / `sync_*` names are rejected. This matters because the published service also contains
+administrative DRHP synchronization routes, including a mutating GET. **No sync or backfill
+endpoint is invoked by this integration.**
+
+The supplied array contract has `symbol`, `company_name`, `form_type`, `filing_date`, `source`,
+and `documents[]`. Filings stay grouped; every safe nested document link is shown beneath the
+returned issuer identity. Missing symbols, dates, forms, sources and links stay explicitly unknown.
+No offer date, IPO approval, listing status or read flag is invented. Invalid records/documents
+are counted in a visible warning. Exact duplicate URLs deduplicate within a filing, not across
+distinct filings. Up to 50 filings are displayed, with a limit warning at 50 and an omitted count
+if an upstream response exceeds the documented cap. Empty results are not proof that no IPO exists;
+authentication, service and mapping failures remain visibly different from an empty array.
+
+**Verification status (4 Sep 2026):** the route and GET method are confirmed in the published
+OpenAPI schema; an unauthenticated read of the PAYTM route returned 401. The field contract above
+was provided by the user. Nested-document aliases
+(`url` / `link` / `document_url` / `filing_url`, and `title` / `name` / `document_name` /
+`document_type`) and URL strings are supported with synthetic fixtures; a successful authenticated
+response is still required to verify those nested fields. The Sources registry remains pending.
+Tests: `node scripts/verify-drhp-filings.mjs` (CI) and the existing
+`scripts/verify-combined-filings-ui.mjs` local browser harness.
+
+This known-company lookup does **not** discover all upcoming IPOs or capture X/news discussion.
+The published schema also advertises a separate `GET /filings/drhp` company directory with search,
+source and pagination parameters; that directory's response and discovery/capture behavior have
+not been integrated or verified here.
+
+### IPOs — public DRHP dashboard integration
+
+The primary **IPOs** tab is independent of Portfolio / Watchlist membership (including an empty
+scope), since unlisted issuers need not have a listed symbol. It adapts the cream/teal UI and
+published data contract from `techmuns/DRHP` at commit
+`690ffa1a8cefe895ebd4c2080acad8ec39d29392`. No capture workflow, secrets, scoring writes or production
+deploys are copied or triggered.
+
+- **Weekly Monitor:** filing events, four KPI cards, source-stage dates, sector concentration.
+  Counts use the actual weekly window: 3 DRHPs, 4 prospectuses, 4 updates, 5 dig-deeper issuers in
+  the imported 31 Aug capture. Previous counts use the same definitions, not inconsistent upstream
+  deltas. A prospectus means *Prospectus filed*, not *Listed*, without a market observation.
+- **Full Tracker:** all nine saved snapshots (30 Jun–31 Aug 2026), deduplicated filing histories,
+  NSE open/upcoming and recent listings, original financial provenance, Groww secondary records
+  and conflicts, filters, aliases, lifecycle facets, score breakdowns, local-only scoring previews,
+  filtered CSV export and browser Print/PDF. Historical market statuses retain their as-of dates;
+  absence from a newer weekly capture never deletes an issuer. Original filing histories remain
+  inspectable, including fields not promoted into the UI. Missing financial inputs are not zeros.
+- **News & X:** IPO-related stories from the existing market-news/X captures only. This does not
+  enable broad X search, change monitored handles, or start a scraper. The current X capture has no
+  successful capture date or posts; the screen says so. General EAAA earnings stories are not
+  presented as IPO news.
+- **Company documents:** the existing caller-private `/api/drhp-filings` lookup, with explicit
+  company selection, no automatic fan-out, no shared authentication. Its live authenticated
+  nested-document response verification remains pending as documented above.
+
+`GET /api/ipo-monitor` reads three fixed public repository resources: `data/latest.json`,
+`data/scoring_config.json`, and the GitHub contents listing for `data/snapshots`. Optional
+`?snapshot=YYYY-MM-DD` reads one validated snapshot file. No URL/host/path is caller-selectable;
+no caller bearer or deployment token is forwarded. Requests and JSON bodies are bounded; redirects
+are refused. Successful complete results are cached for five minutes, while partial/failure
+results are not. Cache failures do not discard a valid source response. Configuration or history
+index failures remain visible instead of being converted to a fabricated model or empty universe.
+
+Runtime verification caught a Workers compatibility difference: deployed workerd rejects
+`redirect: 'error'`. All three new filing/IPO proxies use `redirect: 'manual'` and reject every
+non-2xx response, including redirects, before parsing. Reader tokens are never forwarded to a
+redirect destination. The corrected public route was verified with real repository reads in
+local workerd; authenticated private response mapping remains a separate pending check.
+
+The browser reads the published artifact on entry/check-for-updates, **not daily new filings**:
+the reference pipeline is scheduled weekly on Monday. Data-as-of and checked-at are separate.
+Bundled copies under `public/data/ipo-monitor/` provide a labelled fallback; `index.json` records
+the exact source commit and all nine dates. Full Tracker loads history in a three-request pool,
+20 snapshots per batch, with per-request deadlines, local fallback and retryable failure counts.
+When the live GitHub index is unavailable/rate-limited, the bundled archive index retains all
+imported history alongside the live latest capture, with a visible discovery-coverage warning.
+Later refreshes retain already-loaded history; archived files are re-read in a new tab session.
+
+**EAAA coverage gap (verified 4 Sep 2026):** EAAA is absent from all nine repository captures.
+`public/data/ipo-tracked-issuers.json` is a transparent manual supplement: EAAA India Alternatives
+Limited, aliases EAAA/Edelweiss Alternatives, DRHP dated 19 Jan and addendum dated 13 Aug. Evidence:
+`https://www.eaaa.in/ipo-page/`, `https://www.eaaa.in/drhp-disclaimer/` and the SEBI DRHP notice.
+No residency confirmation was accepted and no restricted document was downloaded. No offer date,
+approval, listing, financial score or X sentiment is inferred. The resulting import has **121
+issuers**, including this supplement. It will not automatically discover every similarly omitted
+issuer; wider discovery needs an independently verified directory/capture source.
+
+Verification: `node scripts/verify-ipo-monitor.mjs` (CI); local headless browser
+`PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-ipo-monitor-ui.mjs`. Tests block external
+browser requests and cover source failures, history retention, EAAA aliases, conservative stages,
+scoring, CSV, exact-name documents, X gaps, escaping, empty watchlist and mobile containment.
+
 ### NSE live announcements: the one exchange feed that narrows to your companies
 
 **THE ANSWER TO "WHAT DID MY COMPANIES JUST FILE", LIVE.** The publisher news feeds are market-wide

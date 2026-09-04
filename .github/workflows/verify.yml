@@ -30,6 +30,12 @@ jobs:
         run: node scripts/verify-capture-watchdog.mjs
       - name: Verify NSE filing history and scoped search
         run: node scripts/verify-nse-history.mjs
+      - name: Verify caller-private combined filings
+        run: node scripts/verify-combined-filings.mjs
+      - name: Verify read-only DRHP lookup
+        run: node scripts/verify-drhp-filings.mjs
+      - name: Verify public IPO monitor and retained history
+        run: node scripts/verify-ipo-monitor.mjs
       - name: Syntax-check JavaScript
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle

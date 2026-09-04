@@ -1,0 +1,348 @@
+/* Sattva-native adaptation of techmuns/DRHP's cream/teal weekly monitor. Scoped to this tab. */
+.ipo-board {
+  --ipo-teal: #0d7265;
+  --ipo-ink: #15372f;
+  --ipo-border: #d7e4dc;
+  color: var(--ipo-ink);
+  background: #faf9f3;
+  border: 1px solid var(--ipo-border);
+  border-radius: 20px;
+  padding: 22px;
+  min-width: 0;
+  font-size: 13px;
+}
+.ipo-board h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  margin: 0 0 6px;
+}
+.ipo-board h3 {
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+.ipo-board p {
+  margin: 6px 0;
+  line-height: 1.6;
+}
+.ipo-board button,
+.ipo-board input,
+.ipo-board select {
+  font: inherit;
+}
+.ipo-board button,
+.ipo-board select,
+.ipo-board input {
+  border: 1px solid var(--ipo-border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: #fff;
+  max-width: 100%;
+}
+.ipo-board button {
+  cursor: pointer;
+}
+.ipo-board button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.ipo-board button[aria-pressed='true'],
+.ipo-board .ipo-primary {
+  background: var(--ipo-teal);
+  border-color: var(--ipo-teal);
+  color: #fff;
+}
+.ipo-board a {
+  color: #087468;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ipo-board a:hover {
+  color: #114e44;
+}
+.ipo-board button:focus-visible,
+.ipo-board a:focus-visible,
+.ipo-board input:focus-visible,
+.ipo-board select:focus-visible {
+  outline: 2px solid #80642b;
+  outline-offset: 3px;
+}
+.ipo-head,
+.ipo-modes,
+.ipo-controls,
+.ipo-actions,
+.ipo-facets {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ipo-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.ipo-modes {
+  margin: 18px 0;
+}
+.ipo-controls {
+  margin: 16px 0;
+  align-items: flex-end;
+}
+.ipo-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.ipo-controls input[type='search'] {
+  min-width: 210px;
+}
+.ipo-meta {
+  color: #596d64;
+  font-size: 12px;
+}
+.ipo-note {
+  padding: 12px 15px;
+  border-radius: 10px;
+  background: #f0f4ee;
+  margin: 12px 0;
+}
+.ipo-warning {
+  background: #fff5de;
+  color: #705517;
+}
+.ipo-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.ipo-card {
+  border: 1px solid var(--ipo-border);
+  border-left: 3px solid #8c9d70;
+  border-radius: 12px;
+  padding: 15px;
+  background: #fff;
+}
+.ipo-card strong {
+  font-size: 25px;
+  display: block;
+  color: #0c4f45;
+}
+.ipo-card small {
+  font-size: 11px;
+  color: #62736b;
+}
+.ipo-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--ipo-border);
+  border-radius: 12px;
+  background: #fff;
+  max-width: 100%;
+}
+.ipo-board table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.ipo-board th {
+  background: var(--ipo-teal);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  padding: 11px 12px;
+}
+.ipo-board td {
+  padding: 12px;
+  border-bottom: 1px solid #edf1eb;
+  vertical-align: top;
+}
+.ipo-board .ipo-table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+.ipo-board .ipo-company {
+  font-weight: 700;
+  text-align: left;
+  border: 0;
+  padding: 0;
+  background: none;
+  min-width: 175px;
+  max-width: 250px;
+  color: #143c32;
+}
+.ipo-board .ipo-chip {
+  font-size: 10px;
+  background: #edf3ed;
+  color: #315f48;
+  border-radius: 5px;
+  padding: 4px 7px;
+  display: inline-block;
+  white-space: nowrap;
+}
+.ipo-board .ipo-chip.muted {
+  color: #6a7282;
+  background: #f1f3f5;
+}
+.ipo-board .ipo-numeric {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ipo-facets {
+  margin: 14px 0;
+}
+.ipo-facets button {
+  font-size: 11px;
+}
+.ipo-detail {
+  padding: 15px 0;
+}
+.ipo-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.ipo-detail section {
+  background: #f8faf6;
+  padding: 16px;
+  border-radius: 12px;
+  min-width: 0;
+}
+.ipo-detail dl {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 1.5fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.ipo-detail dt {
+  color: #65756b;
+}
+.ipo-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ipo-board details {
+  margin: 12px 0;
+}
+.ipo-board summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ipo-board pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 380px;
+  overflow: auto;
+  font-size: 11px;
+  background: #f3f5ef;
+  padding: 10px;
+}
+.ipo-stories {
+  display: grid;
+  gap: 12px;
+  margin-top: 15px;
+}
+.ipo-story {
+  background: #fff;
+  padding: 15px;
+  border: 1px solid var(--ipo-border);
+  border-radius: 10px;
+}
+.ipo-board .ipo-score-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ipo-board .ipo-score-form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 5px;
+}
+.ipo-board .ipo-empty {
+  padding: 30px;
+  text-align: center;
+  color: #69776e;
+}
+.ipo-foot {
+  margin-top: 14px;
+  color: #62736b;
+  font-size: 11px;
+}
+.ipo-board .ipo-detail-row > td {
+  background: #fcfcf8;
+}
+.ipo-board .ipo-query {
+  flex: 1;
+  min-width: 0;
+}
+.ipo-board .ipo-query input {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .ipo-board {
+    padding: 14px;
+  }
+  .ipo-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ipo-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .ipo-board .ipo-score-form {
+    grid-template-columns: 1fr;
+  }
+  .ipo-head {
+    display: block;
+  }
+  .ipo-actions {
+    margin-top: 12px;
+  }
+  .ipo-controls label {
+    flex: 1;
+    min-width: 130px;
+  }
+  .ipo-board .ipo-controls .ipo-query {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+  .ipo-controls input[type='search'] {
+    min-width: 0;
+  }
+  .ipo-modes button {
+    flex: 1;
+  }
+  .ipo-board h2 {
+    font-size: 21px;
+  }
+}
+@media print {
+  body:has(.ipo-board) header,
+  body:has(.ipo-board) nav,
+  body:has(.ipo-board) #subview-mount,
+  .ipo-modes,
+  .ipo-controls,
+  .ipo-actions,
+  .ipo-facets {
+    display: none !important;
+  }
+  .ipo-board {
+    border: 0;
+    padding: 0;
+    background: white;
+  }
+  .ipo-table-wrap {
+    overflow: visible;
+  }
+  .ipo-board th {
+    color: black;
+    background: #e7f0e9;
+  }
+  .ipo-board .ipo-table-wrap tr {
+    break-inside: avoid;
+  }
+  .ipo-board a {
+    color: black;
+  }
+}

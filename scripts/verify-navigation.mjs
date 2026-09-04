@@ -60,8 +60,10 @@ try {
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator(active).getAttribute('data-tab-id'), 'news', 'Arrows must not load a new page');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash.includes('/corp-announcements'));
-  await page.locator(`${strip} [data-tab-id="corp-announcements"][aria-selected="true"]`).waitFor();
+  await page.waitForFunction(() => location.hash.includes('/ipos'));
+  await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
+  await page.locator('[data-ipo-board] .ipo-card').first().waitFor();
+  pass('The primary IPOs tab loads its capture even with an empty watchlist');
   await visibleInStrip(active);
   assert(await page.evaluate((selector) => window.navigationList === document.querySelector(selector), strip));
   assert(await page.locator(active).evaluate((button) => document.activeElement === button));
@@ -100,8 +102,8 @@ try {
 
   // Keep the off-screen active tab in view after browser history and viewport changes.
   await page.goBack();
-  await page.waitForFunction(() => location.hash.includes('/corp-announcements'));
-  await page.locator(`${strip} [data-tab-id="corp-announcements"][aria-selected="true"]`).waitFor();
+  await page.waitForFunction(() => location.hash.includes('/ipos'));
+  await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
   for (const width of [1440, 1100, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 850 });
     await visibleInStrip(active);
@@ -137,7 +139,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#navigation-fixture [data-tab-scroll-controls]').hidden);
   assert(!(await fixtureControls.isVisible()));
   await page.evaluate(() => window.disposeFixture());
-  await page.locator('#navigation-fixture [data-tab-id="two"]').click();
+  // This detached fixture tests listener disposal, not hit-testing against the floating Sources beacon.
+  await page.locator('#navigation-fixture [data-tab-id="two"]').dispatchEvent('click');
   assert.deepEqual(await page.evaluate(() => window.fixtureSelections), []);
   await page.locator('#navigation-fixture').evaluate((root) => root.remove());
   pass('Shared section tabs release control space when they fit and remove listeners on disposal');

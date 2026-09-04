@@ -52,6 +52,9 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+import { handleCombinedFilings } from './combined-filings.mjs';
+import { handleDrhpFilings } from './drhp-filings.mjs';
+import { handleIpoMonitor } from './ipo-monitor.mjs';
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -110,6 +113,11 @@ export default {
     if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
       return preflight();
     }
+
+    // isRead is caller-specific. This route must bypass deployment-token fallback and edge caches.
+    if (url.pathname === '/api/combined-filings') return handleCombinedFilings(request);
+    if (url.pathname === '/api/drhp-filings') return handleDrhpFilings(request);
+    if (url.pathname === '/api/ipo-monitor') return handleIpoMonitor(request);
 
     // THE READER'S OWN TOKEN, BUT ONLY WHERE THIS DEPLOYMENT HAS NONE. The dashboard runs inside
     // the Munshot host, which hands the browser the signed-in reader's session JWT; the browser

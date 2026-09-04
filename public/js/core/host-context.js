@@ -74,7 +74,8 @@ function sync() {
 
   let changed = null;
 
-  if (ctx.session) {
+  // An explicit null is logout, not an omitted update. Private document read flags must clear.
+  if (Object.prototype.hasOwnProperty.call(ctx, 'session')) {
     const next = { ...EMPTY_SESSION, ...ctx.session };
     if (next.token !== session.token || next.email !== session.email || next.orgId !== session.orgId) {
       session = next;

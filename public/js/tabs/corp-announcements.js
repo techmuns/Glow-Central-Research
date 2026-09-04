@@ -25,6 +25,7 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { announcements as feed } from '../data/filings.js';
+import { withCompanyDocuments } from '../ui/company-documents.js';
 import { announcementSources } from '../data/announcements-shared.js';
 import { announcementLookupControls } from './announcement-lookup.js';
 import { classifyStory, topicFilterOptions, matchesTopic, groupLabel, FILTER_TARGETED } from '../data/news-keywords.js';
@@ -233,5 +234,4 @@ const tab = makeFilingsTab({
 });
 
 export const meta = tab.meta;
-export const render = tab.render;
-export const destroy = tab.destroy;
+export const { render, destroy } = withCompanyDocuments(tab, { form: 'all', feedLabel: 'BSE announcements', label: 'Company filings & reports', drhp: true });

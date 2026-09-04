@@ -48,6 +48,7 @@ import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 import * as calendar from '../data/earnings-calendar.js';
 import * as coverage from '../data/coverage.js';
+import { withCompanyDocuments } from '../ui/company-documents.js';
 import { filterByScope, scopePossessive } from '../data/scope.js';
 import { renderCompanyFilings } from './company-filings.js';
 import { domesticFilingsHref } from '../data/domestic-filings-shared.js';
@@ -87,7 +88,7 @@ let routeCompany = null;
 // than swallowed, because the alternative is one comparison shown under the other's label.
 let periodError = null;
 
-export function render(ctx) {
+function renderFeed(ctx) {
   const token = ++renderToken;
   if (viewOf(ctx) === 'filings') {
     disposers.push(renderCompanyFilings(ctx, { controls: viewToggle('filings'), wireControls: wireViewToggle }));
@@ -137,7 +138,7 @@ export function render(ctx) {
     });
 }
 
-export function destroy() {
+function destroyFeed() {
   renderToken++;
   disposers.forEach((d) => d && d());
   disposers = [];
@@ -154,6 +155,8 @@ export function destroy() {
 
 /** Which half of the tab the URL is asking for. Anything unrecognised falls back to reported. */
 const viewOf = (ctx) => (['calendar', 'filings'].includes(ctx.params?.view) ? ctx.params.view : 'reported');
+
+export const { render, destroy } = withCompanyDocuments({ render: renderFeed, destroy: destroyFeed }, { form: 'earnings_report', feedLabel: 'Results & calendar', label: 'Filed earnings reports' });
 
 function loadingHtml() {
   return `
