@@ -2887,6 +2887,26 @@ committed capture. `TWITTER_LIMIT` (20) bounds the posts read per account per ru
 
 ### Corporate announcements are read by DATE, from BSE — a different shape entirely
 
+`data/announcement-identities.json` is refreshed from BSE's active equity master alongside the
+BSE announcement capture. It joins portfolio holdings to filings by ISIN and BSE scrip code, with
+the existing Moneycontrol BSE-code map supplying the preferred ticker label. Corporate-announcement
+scope matching therefore does not depend on a holding having an NSE ticker or retaining its old
+company name. Exact identifiers take precedence; similar company names are never guessed.
+
+The per-company collector gives portfolio announcement history priority after never-checked and
+failed work. Two out of three request starts are reserved for announcements and one for domestic
+reports; never-visited companies take precedence over repeats. Within announcements, portfolio
+companies precede already-visited Universe companies, which rotate by oldest attempt. It still
+uses bounded, restartable date windows, and a successful recent check does not imply that its
+one-year history is complete.
+
+NSE SME announcement requests use exchange symbols rather than Yahoo's `-SM` quote aliases:
+[ALPEXSOLAR](https://www.nseindia.com/corporate/corporate-announcements/ALPEXSOLAR/Alpex%20Solar%20Limited?ann_dt=14072026214516&segtype=SME&seqid=106697775),
+[JAYBEE](https://nsearchives.nseindia.com/corporate/JAYBEE_12082025161822_Intimation_of_Amendment_in_MOA.pdf),
+and [SAHANA](https://www.nseindia.com/get-quote/equity/SAHANA/Sahana-System-Limited).
+The two warrant ISINs in the saved Family book join their respective equity issuers for this
+company-announcement view only. This does not alter portfolio positions or quote-provider symbols.
+
 **`corp-announcements.json` remains the BSE date-indexed base capture.** Additional Muns company/date lookups are merged in the browser; they never overwrite that exchange-wide file.
 The per-company route reached 118 of 603 companies because it costs one request each against a
 ~60/minute cap. BSE publish the same filings indexed by date, so the whole exchange arrives in about

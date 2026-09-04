@@ -3,7 +3,7 @@
 // Captured history loads automatically; publication and capture gaps remain in provenance.
 
 import { escapeHtml } from '../core/dom.js';
-import { formatDate } from '../core/format.js';
+import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateAnnouncements as feed } from '../data/corporate-announcements.js';
@@ -56,6 +56,11 @@ const tab = makeFilingsTab({
   subtitle:
     'The latest company announcements from BSE, NSE and captured filings, newest first.',
   feed,
+  filterByScope: feed.filterByScope,
+  countLabel: (rows) => {
+    const companies = new Set(rows.map(r => r.isin || r.ticker || r.company).filter(Boolean)).size;
+    return `${formatNumber(rows.length)} ${rows.length === 1 ? 'announcement' : 'announcements'} · ${formatNumber(companies)} ${companies === 1 ? 'company' : 'companies'} with filings`;
+  },
   showWatchFilter: false,
   fillMode: 'scroll',
   preserveReadingPosition: true,
@@ -137,6 +142,10 @@ const tab = makeFilingsTab({
         Retained history loads automatically. Source publication and scheduled captures can lag; this is not a complete exchange archive.</p>
       <p>The Source column preserves exchange labels. Matching document, company and date overlap appears once;
         separate exchange documents remain separate rows. Original document links are included in the export.</p>
+      <p>Portfolio matching uses exchange ISINs and BSE scrip codes as well as ticker aliases, including renamed and newly listed holdings.
+        The table count describes companies with loaded filings, not the number checked or complete portfolio coverage.
+        Exchange identities checked: ${escapeHtml(m.identity?.capturedAt || 'unavailable')}.
+        ${escapeHtml(m.identity?.error || '')}</p>
       <p><strong>Topic</strong> is the desk’s keyword reading of the filing subject and sub-category.
         No PDF is summarized or scored. Missing fields remain blank.</p>
       ${m.archive?.error ? `<p>${escapeHtml(m.archive.error)}</p>` : ''}

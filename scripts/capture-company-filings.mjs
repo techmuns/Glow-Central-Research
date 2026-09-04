@@ -5,14 +5,15 @@ import { captureCompanies, captureCompanySources } from './lib/company-capture.m
 
 const dataDir = fileURLToPath(new URL('../public/data/', import.meta.url));
 const base = (process.env.FILINGS_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
-const scope = captureCompanies(dataDir);
+const scope = captureCompanies(dataDir, { announcements: true });
 const result = await captureCompanySources({
   dir: resolve(dataDir, 'filing-capture'), ...scope,
   budgetMs: Number(process.env.COMPANY_CAPTURE_BUDGET_MS || 20 * 60000),
-  request: async (kind, ticker, range) => {
+  request: async (kind, ticker, range, company) => {
     const query = kind === 'domestic' ? 'form=all' : `fromDate=${range.from.replaceAll('-', '')}&toDate=${range.to.replaceAll('-', '')}`;
     const path = kind === 'domestic' ? 'domestic-filings' : 'announcements';
-    const response = await fetch(`${base}/api/${path}/${encodeURIComponent(ticker)}?${query}`, {
+    const sourceTicker = kind === 'announcements' ? company?.announcementTicker || ticker : ticker;
+    const response = await fetch(`${base}/api/${path}/${encodeURIComponent(sourceTicker)}?${query}`, {
       headers: { accept: 'application/json' }, signal: AbortSignal.timeout(25000),
     });
     if (!response.ok) throw Object.assign(new Error(`Source proxy returned HTTP ${response.status}`), { reason: [401, 403].includes(response.status) ? 'unauthorised' : 'upstream' });

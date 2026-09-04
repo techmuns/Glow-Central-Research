@@ -73,6 +73,29 @@ try {
   writeJson(join(scratch, 'technicals.json'), { companies: [{ ticker: 'TECH' }, { ticker: 'BOOK' }] });
   assert.deepEqual(captureCompanies(scratch).companies.map((c) => c.ticker), ['BOOK', 'RAW', 'TECH']);
   assert.deepEqual(captureCompanies(scratch).unresolved, ['Unresolved']);
+  writeJson(join(scratch, 'announcement-identities.json'), { entries: [{ isin: 'INE000000001', ticker: 'BSEONLY', bseSymbol: 'BSEONLY', bseCode: '500001' }] });
+  writeJson(join(scratch, 'portfolio-companies.json'), { holdings: [{ isin: 'INE000000001', name: 'BSE-only holding' }] });
+  const mappedBook = captureCompanies(scratch, { announcements: true }).companies.find(c => c.ticker === 'BSEONLY');
+  assert.equal(mappedBook.announcementTicker, 'BSEONLY');
+  assert.equal(mappedBook.priority, true);
+  writeJson(join(scratch, 'portfolio-companies.json'), { holdings: [{ ticker: 'ALPEXSOLAR-SM', name: 'Alpex Solar' }] });
+  assert.equal(captureCompanies(scratch, { announcements: true }).companies[0].announcementTicker, 'ALPEXSOLAR');
+
+  const priorityDir = join(scratch, 'priority');
+  const recentEntry = { lastAttemptAt: recent, lastSuccessAt: recent, recentCheckedAt: recent,
+    ranges: [{ from: '2026-08-29', to: dayForTest(clock) }], rowCount: 0 };
+  function dayForTest(t) { return new Date(t).toISOString().slice(0, 10); }
+  const background = Array.from({ length: 8 }, (_, i) => ({ ticker: `U${i}` }));
+  const prioritised = [{ ticker: 'BOOK', priority: true }, ...background];
+  const savedEntries = Object.fromEntries(prioritised.map(c => [c.ticker, { ...recentEntry, lastAttemptAt: c.priority ? recent : '2026-01-01T00:00:00Z' }]));
+  writeJson(join(priorityDir, 'index.json'), { version: 1, sources: { announcements: savedEntries,
+    domestic: Object.fromEntries(prioritised.map(c => [c.ticker, { rowCount: 0, ranges: [], lastAttemptAt: '2026-01-01T00:00:00Z' }])) } });
+  const priorityCalls = [];
+  await captureCompanySources({ ...options, dir: priorityDir, companies: prioritised, maxRequests: 3,
+    request: async (kind, ticker, range, company) => { priorityCalls.push({ kind, ticker, range, company }); return { ok: true, announcements: [], documents: [] }; } });
+  assert.equal(priorityCalls[0].ticker, 'BOOK', 'portfolio history precedes repeatedly visited universe companies');
+  assert(priorityCalls[0].range.to < dayForTest(clock), 'fresh portfolio companies progress through older history');
+  assert.equal(priorityCalls[2].kind, 'domestic', 'announcement priority cannot starve the other source');
 
   const archiveDir = join(scratch, 'archive');
   const oldTrade = { ticker: 'A', date: '2020-01-01', cells: { Insider: 'Person', Shares: '10' } };

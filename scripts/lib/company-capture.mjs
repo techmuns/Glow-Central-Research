@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { mergeAnnouncements } from '../../public/js/data/announcements-shared.js';
 import { documentUrl } from '../../public/js/data/domestic-filings-shared.js';
+import { createAnnouncementIdentity, filingTicker } from '../../public/js/data/announcement-identity.js';
 
 export const day = (time) => new Date(time).toISOString().slice(0, 10);
 const shift = (date, days) => day(Date.parse(date) + days * 86400000);
@@ -59,17 +60,26 @@ export function mergeDocuments(previous, incoming) {
   return [...rows.values()];
 }
 
-export function captureCompanies(dataDir) {
+export function captureCompanies(dataDir, { announcements = false } = {}) {
   const book = readJson(join(dataDir, 'portfolio-companies.json'), {}).holdings || [];
+  const identities = announcements ? readJson(join(dataDir, 'announcement-identities.json'), {}).entries || [] : [];
+  const identityIndex = createAnnouncementIdentity(identities);
   const universe = readJson(join(dataDir, 'universe.json'), []);
   const technicals = readJson(join(dataDir, 'technicals.json'), {}).companies || [];
-  const known = [...book, ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals];
+  const announcementBook = book.map(c => {
+    const identity = identityIndex.find(c);
+    return { ...c, ticker: c.ticker || identity?.ticker || identity?.bseSymbol || null,
+      announcementTicker: identity ? filingTicker(identity.ticker || identity.bseSymbol) : filingTicker(c.ticker), priority: true };
+  });
+  const known = [...(announcements ? announcementBook : book), ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals];
   const seen = new Map();
   const unresolved = [];
   for (const c of known) {
     const ticker = String(c.ticker || /\/company\/([^/]+)/.exec(c['Screener URL'] || '')?.[1] || '').trim().toUpperCase();
     if (!/^[A-Z0-9&._-]{1,80}$/.test(ticker)) { unresolved.push(c.name || c.Company || ticker || 'Unnamed company'); continue; }
-    if (!seen.has(ticker)) seen.set(ticker, { ticker, name: c.name || c.Company || ticker });
+    const key = announcements ? filingTicker(ticker) : ticker;
+    if (!seen.has(key)) seen.set(key, { ticker, name: c.name || c.Company || ticker,
+      ...(c.announcementTicker ? { announcementTicker: c.announcementTicker } : {}), priority: !!c.priority });
   }
   return { companies: [...seen.values()], unresolved: [...new Set(unresolved)] };
 }
@@ -92,17 +102,34 @@ export async function captureCompanySources({ dir, companies, unresolved = [], r
   index.scope = 'Committed portfolio, universe and technicals; device-only additions are not registered for background capture.';
   for (const kind of ['announcements', 'domestic']) {
     const entries = index.sources[kind] ||= {};
-    for (const { ticker } of companies) {
+    for (const { ticker, priority } of companies) {
       if (!entries[ticker]) entries[ticker] = { rowCount: 0, ranges: [], registeredAt: new Date(start).toISOString() };
       else entries[ticker].registeredAt ||= index.createdAt;
+      entries[ticker].priority = !!priority;
     }
   }
   // Fair across restarts. A failure is attempted again, but does not starve companies that have
   // never been reached. Nothing is sliced out of the declared universe to meet a run's budget.
   const queue = Object.entries(index.sources).flatMap(([kind, entries]) =>
-    Object.entries(entries).filter(([ticker]) => wanted.has(ticker)).map(([ticker, entry]) => ({ kind, ticker, entry })))
+    Object.entries(entries).filter(([ticker]) => wanted.has(ticker)).map(([ticker, entry]) => ({ kind, ticker, entry,
+      company: companies.find(c => c.ticker === ticker) })))
     .filter(({ kind, entry }) => kind !== 'domestic' || !entry.lastSuccessAt || entry.error || now() - Date.parse(entry.lastSuccessAt) >= 86400000)
-    .sort((a, b) => (a.entry.lastAttemptAt || '').localeCompare(b.entry.lastAttemptAt || ''));
+    .sort((a, b) => {
+      const rank = job => !job.entry.lastAttemptAt ? 0 : job.entry.error ? 1 :
+        job.kind === 'announcements' && job.entry.priority ? 2 : job.kind === 'announcements' ? 3 : 4;
+      return rank(a) - rank(b) || (a.entry.lastAttemptAt || '').localeCompare(b.entry.lastAttemptAt || '');
+    });
+  // Reserve two of every three starts for announcements, one for domestic reports. A large
+  // announcement universe must not starve reports (or let reports consume the backfill budget).
+  const announcements = queue.filter(job => job.kind === 'announcements');
+  const domestic = queue.filter(job => job.kind === 'domestic');
+  let lane = 0;
+  const takeJob = () => {
+    const prefer = lane++ % 3 === 2 ? domestic : announcements;
+    const other = prefer === domestic ? announcements : domestic;
+    if (prefer[0]?.entry.lastAttemptAt && other[0] && !other[0].entry.lastAttemptAt) return other.shift();
+    return prefer.shift() || other.shift();
+  };
   let count = 0, stop = false, gate = Promise.resolve(), nextStart = start;
   const checkpoint = () => { index.updatedAt = new Date(now()).toISOString(); writeJson(indexPath, index); };
   const reserve = () => {
@@ -120,15 +147,14 @@ export async function captureCompanySources({ dir, companies, unresolved = [], r
   };
   checkpoint();
   await Promise.all(Array.from({ length: concurrency }, async () => {
-    while (queue.length && await reserve()) {
-      if (stop) return;
-      const job = queue.shift();
-      if (!job) return;
-      const { kind, ticker, entry } = job;
+    while (!stop) {
+      const job = takeJob();
+      if (!job || !await reserve() || stop) return;
+      const { kind, ticker, entry, company } = job;
       const range = kind === 'announcements' ? nextRange(entry, from, to, now()) : null;
       entry.lastAttemptAt = new Date(now()).toISOString();
       try {
-        const result = await request(kind, ticker, range);
+        const result = await request(kind, ticker, range, company);
         const incoming = result[kind === 'domestic' ? 'documents' : 'announcements'];
         if (result.ok !== true || !Array.isArray(incoming)) throw Object.assign(new Error(result.message || 'Unrecognized source response'), { reason: result.reason || 'shape' });
         const path = join(dir, companyPath(kind, ticker));
