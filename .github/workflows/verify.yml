@@ -16,9 +16,92 @@ jobs:
           node-version: "22"
       - name: Verify filings snapshot recovery
         run: node scripts/verify-filings-snapshot.mjs
+      - name: Verify research and portfolio evidence
+        run: node scripts/verify-research.mjs
+      - name: Verify private portfolio bridge
+        run: node scripts/verify-portfolio-bridge.mjs
+      - name: Verify additive insider trades
+        run: node scripts/verify-insider-trades.mjs
+      - name: Verify additive corporate-announcement lookups
+        run: node scripts/verify-announcement-lookups.mjs
+      - name: Verify continuous corporate announcement sources and retention
+        run: node scripts/verify-corporate-stream.mjs
+      - name: Verify domestic filings and earnings provenance
+        run: node scripts/verify-domestic-filings.mjs
+      - name: Verify automatic filing capture and archives
+        run: node scripts/verify-company-capture.mjs
+      - name: Verify live portfolio capture onboarding and source recovery
+        run: node scripts/verify-capture-onboarding.mjs
+      - name: Verify watchlist capture registration and retries
+        run: node scripts/verify-capture-registration.mjs
+      - name: Verify operational filing health
+        run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
+      - name: Verify retained NSE corporate actions and dynamic scope
+        run: node scripts/verify-corporate-actions.mjs public/data/corporate-actions.json
+      - name: Verify active Family Office holdings sync
+        run: node scripts/verify-family-sync.mjs
+      - name: Verify S Screen portfolio mirror safety
+        run: node scripts/verify-screener-watchlist.mjs
+      - name: Verify NSE filing history and scoped search
+        run: node scripts/verify-nse-history.mjs
+      - name: Verify caller-private combined filings
+        run: node scripts/verify-combined-filings.mjs
+      - name: Verify read-only DRHP lookup
+        run: node scripts/verify-drhp-filings.mjs
+      - name: Verify public IPO monitor and retained history
+        run: node scripts/verify-ipo-monitor.mjs
+      - name: Verify official IPO filing feed and source failures
+        run: node scripts/verify-ipo-filings.mjs
+      - name: Verify IPOPlatform pagination, archive integrity and repeat collection
+        run: node scripts/verify-ipo-platform.mjs
+      - name: Verify Screener concall pagination, deduplication and artifact integrity
+        run: node scripts/verify-screener-concalls.mjs
+      - name: Verify complete General Alerts pool and scope isolation
+        run: node scripts/verify-general-alerts.mjs
+      - name: Verify AI alert search and calendar dates
+        run: node scripts/verify-ai-alerts.mjs
       - name: Syntax-check JavaScript
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle
         run: npx --yes wrangler@4 deploy --dry-run
+      - name: Verify durable company registry in the local Worker runtime
+        run: node scripts/verify-capture-registry-runtime.mjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
+          node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify portfolio reload, offline, resume and cache behaviour
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-family-sync-ui.mjs
+      - name: Verify one Family portfolio across the dashboard
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-portfolio-view-ui.mjs
+      - name: Verify stable alert refresh, portfolio failures and navigation
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-ai-alerts-ui.mjs
+      - name: Verify clean corporate stream, automatic history and live scope updates
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-corporate-stream-ui.mjs
+      - name: Verify corporate actions scopes, retention and responsive table
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-corporate-actions-ui.mjs
+      - name: Verify IPO table, live refresh, Excel export and mobile layout
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+          EXCELJS_ROOT: ${{ runner.temp }}/family-browser/node_modules/exceljs
+        run: node scripts/verify-ipo-monitor-ui.mjs

@@ -17,6 +17,13 @@ const watchers = new Map();
 let checkTimer = null;
 
 const CONFIG = {
+  companyFilings: {
+    route: 'api/insider-snapshot/refresh?source=auto',
+    run: 'api/insider-snapshot/run',
+    maxAgeMs: 3 * 60 * 60 * 1000,
+    active: () => true,
+    budgetMs: 70 * 60 * 1000,
+  },
   companyNews: {
     route: 'api/company-news/refresh?source=auto',
     run: 'api/company-news/run',
@@ -25,6 +32,9 @@ const CONFIG = {
     budgetMs: 35 * 60 * 1000,
   },
   marketNews: {
+    // The workflow this dispatches reads MONEYCONTROL only, so Moneycontrol's own last-read time is
+    // what decides whether it is overdue — not the shared file's, which the RSS job also moves.
+    sourceId: 'moneycontrol',
     route: 'api/market-news/refresh?source=auto',
     run: 'api/market-news/run',
     maxAgeMs: 45 * 60 * 1000,
@@ -36,7 +46,14 @@ const CONFIG = {
     route: 'api/announcements-snapshot/refresh?source=auto',
     run: 'api/announcements-snapshot/run',
     maxAgeMs: 75 * 60 * 1000,
-    active: ({ weekday, hour }) => weekday && hour >= 9 && hour < 23,
+    active: () => true,
+    budgetMs: 20 * 60 * 1000,
+  },
+  corporateActions: {
+    route: 'api/corporate-actions-snapshot/refresh?source=auto',
+    run: 'api/corporate-actions-snapshot/run',
+    maxAgeMs: 75 * 60 * 1000,
+    active: () => true,
     budgetMs: 20 * 60 * 1000,
   },
   insider: {
@@ -105,11 +122,42 @@ export function refreshDue(name, capture, now = Date.now()) {
   const clock = istClock(now);
   if (config.due) return config.due(capture, clock);
   if (config.active && !config.active(clock)) return false;
-  const at = Date.parse(capture?.capturedAt || '');
+  const at = Date.parse(freshnessOf(name, capture) || '');
   return !Number.isFinite(at) || now - at > config.maxAgeMs;
 }
 
+/**
+ * WHICH TIMESTAMP DECIDES WHETHER A SOURCE IS OVERDUE.
+ *
+ * Normally the capture's own. But the market-news file is written by two jobs — the Moneycontrol
+ * listing walk and the hourly RSS reader — and its top-level `capturedAt` is whichever ran last.
+ * Reading that would mean an RSS run keeps the timestamp fresh while Moneycontrol goes unread for
+ * days, and the watchdog that exists to catch exactly that never fires: the measurement would be
+ * answered by a different source than the one it dispatches for. So where the status reports a
+ * per-source time, the one belonging to the workflow this config dispatches is what counts.
+ *
+ * A capture with no per-source detail falls back to the whole file's time, which is what every
+ * single-source feed here has always used and is still right for them.
+ */
+export function freshnessOf(name, capture) {
+  const owner = CONFIG[name]?.sourceId;
+  const mine = owner ? capture?.sources?.[owner]?.capturedAt : null;
+  return mine || capture?.capturedAt || null;
+}
+
 async function applyLandedCapture(name) {
+  if (name === 'corporateActions') {
+    const feed = await import('./corporate-actions.js');
+    if (feed.isLoaded()) await feed.refresh();
+    return;
+  }
+  if (name === 'companyFilings') {
+    const capture = await import('./company-captures.js');
+    await capture.loadCompanyCaptureIndex({ force: true });
+    const { announcements } = await import('./filings.js');
+    if (announcements.isLoaded()) await announcements.refreshSnapshot();
+    return;
+  }
   if (name === 'marketNews') {
     const feed = await import('./market-news.js');
     await feed.refresh();
@@ -128,7 +176,7 @@ async function watch(name, before, { now = Date.now } = {}) {
   while (now() - startedAt < config.budgetMs) {
     await new Promise((resolve) => setTimeout(resolve, WATCH_EVERY_MS));
     const status = await ask(STATUS_ROUTE);
-    const next = status?.captures?.[name]?.capturedAt || null;
+    const next = freshnessOf(name, status?.captures?.[name]);
     if (next && next !== before) {
       await applyLandedCapture(name);
       return { ok: true, outcome: 'landed', capturedAt: next };
@@ -151,6 +199,7 @@ export async function runCaptureWatchdog({ now = Date.now, watchRuns = true } = 
   if (status.ok === false || !status.captures) return { ok: false, reason: status.reason || 'unavailable', started: [] };
 
   const started = [];
+  const dispatchedRoutes = new Map();
   for (const [name, config] of Object.entries(CONFIG)) {
     const capture = status.captures[name];
     const checkedAt = now();
@@ -158,10 +207,12 @@ export async function runCaptureWatchdog({ now = Date.now, watchRuns = true } = 
     if (!refreshDue(name, capture, checkedAt) || checkedAt - lastAttempt < ATTEMPT_COOLDOWN_MS) continue;
     attempts.set(name, checkedAt);
 
-    const dispatch = await ask(config.route, { method: 'POST' });
-    started.push({ name, ...dispatch });
+    const alreadyDispatched = dispatchedRoutes.has(config.route);
+    const dispatch = alreadyDispatched ? dispatchedRoutes.get(config.route) : await ask(config.route, { method: 'POST' });
+    dispatchedRoutes.set(config.route, dispatch);
+    if (!alreadyDispatched) started.push({ name, ...dispatch });
     if (watchRuns && dispatch.ok !== false && !watchers.has(name)) {
-      const task = watch(name, capture?.capturedAt || null, { now })
+      const task = watch(name, freshnessOf(name, capture), { now })
         .catch(() => ({ ok: false, outcome: 'failed', reason: 'unreachable' }))
         .then((result) => {
           // A landed capture may legitimately become due later in a long session. Failed attempts

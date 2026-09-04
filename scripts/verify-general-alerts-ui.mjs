@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+// Isolated browser over local captures and local stand-ins. No production requests.
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
+let version = 1;
+const calls = [];
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
+<script>
+window.testContext={session:{token:'local-fixture-only',email:'fixture@example.test'}};
+window.MunshotDashboardSDK={createClient:()=>({getContext:()=>window.testContext,onMessage:(fn)=>{window.testHostMessage=fn;return()=>{};}})};
+window.SATTVA_CHATTER_URL=location.origin+'/chatter';
+</script><script type="module">
+import * as tab from '/js/tabs/daily-alerts.js';
+import * as coverage from '/js/data/coverage.js';
+import * as refresh from '/js/core/refresh.js';
+coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'}]});
+window.show=(scope='universe')=>tab.render({root:document.querySelector('#root'),params:{},scope,data:{}});
+window.dispose=()=>tab.destroy();
+document.querySelector('#refresh').onclick=()=>refresh.refreshAll();
+window.show();
+</script></body></html>`;
+const server = createServer((req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  calls.push(url.pathname);
+  const json = (value) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
+  try {
+    if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (url.pathname === '/api/earnings') { json(data('earnings-live.json')); return; }
+    if (url.pathname === '/api/concalls') { json(data('concall-scans.json')); return; }
+    if (url.pathname === '/api/super-investors') { const x = data('super-investors.json'); json({ ok: true, investors: x.investors, fetchedAt: x.capturedAt }); return; }
+    if (url.pathname === '/api/nse-announcements') { json({ capturedAt: '2026-09-04T08:00:00Z', rows: [
+      { company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T07:00:00Z', subject: 'Analyst day complete source record', description: 'Original analyst presentation', url: 'https://example.test/analyst.pdf' },
+      { company: 'Undated issuer', ticker: null, publishedAt: null, subject: 'Undated retained item', url: 'https://example.test/undated.pdf' },
+      ...(version > 1 ? [{ company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T08:00:00Z', subject: 'Newly arrived NSE record', url: 'https://example.test/new.pdf' }] : []),
+    ] }); return; }
+    if (url.pathname === '/api/ipo-monitor') {
+      const date = url.searchParams.get('snapshot');
+      json(date ? { ok: true, snapshot: data('ipo-monitor/snapshots/' + date + '.json') } : {
+        ok: true, latest: data('ipo-monitor/latest.json'), config: data('ipo-monitor/scoring_config.json'), historyAvailable: true,
+        historyDates: data('ipo-monitor/index.json').historyDates,
+      }); return;
+    }
+    if (url.pathname === '/chatter/dashboard') { json(JSON.parse(readFileSync(resolve(root, '../scripts/fixtures/chatter-dashboard.json')))); return; }
+    if (url.pathname === '/chatter/health') { json({ ok: true, ageSeconds: 0 }); return; }
+    const file = resolve(root, '.' + url.pathname);
+    if (!file.startsWith(root + sep)) throw Error('Invalid path');
+    res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'application/octet-stream');
+    res.end(readFileSync(file));
+  } catch { res.writeHead(404); res.end('{}'); }
+});
+await new Promise((done) => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = [];
+page.on('pageerror', (error) => errors.push(error.message));
+page.on('console', (message) => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
+await page.route('**/*', (route) => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+const settled = () => page.waitForFunction(() => {
+  const chips = [...document.querySelectorAll('[data-feed]')];
+  return chips.length > 15 && chips.every((c) => !c.textContent.includes('reading…'));
+}, null, { timeout: 60000 });
+try {
+  await page.goto(origin);
+  await settled();
+  console.log('Rendered complete All Alerts pool');
+  assert.equal(await page.locator('[data-feed]').count(), 19);
+  const coverageText = await page.locator('[data-alerts-coverage]').innerText();
+  assert(!/stale\s*\/\s*unknown|incomplete|on-demand|not in scope/i.test(coverageText), 'customer-facing source filters omit feed-health jargon');
+  assert.equal(await page.locator('[data-feed][title*="stale" i], [data-feed][title*="unknown" i], [data-feed][title*="incomplete" i], [data-feed][title*="on-demand" i]').count(), 0,
+    'feed-health jargon is also absent from hover text');
+  await page.locator('[data-table-search]').fill('Undated retained item');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Undated retained item'));
+  assert((await page.locator('tbody').innerText()).includes('Date not supplied'));
+  await page.locator('[data-table-search]').fill('Analyst day complete source record');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Analyst day complete source record'));
+  await page.evaluate(() => window.show('portfolio'));
+  await settled();
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'analyst day complete source record', 'search survives scope updates');
+  assert((await page.locator('tbody').innerText()).includes('STLTECH'));
+  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
+  version++;
+  await page.locator('#refresh').click();
+  await settled();
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Newly arrived NSE record'));
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'newly arrived nse record');
+  console.log('Verified undated search, scope changes and newly arrived filings');
+
+  await page.locator('[data-table-search]').fill('Session-private fixture');
+  await page.evaluate(async () => (await import('/js/data/alert-records.js')).recordDocuments('company-documents', {
+    rows: [{ key: 'session-private', ticker: 'STLTECH', title: 'Session-private fixture', date: null, url: 'https://example.test/private.pdf' }],
+  }, { ticker: 'STLTECH', name: 'Sterlite Technologies' }));
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
+  await page.evaluate(() => { window.testContext = { session: {} }; window.testHostMessage(); });
+  await page.waitForFunction(() => !document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
+  assert(await page.evaluate(() => !JSON.stringify(localStorage).includes('Session-private fixture')));
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  await page.locator('[data-table-search]').fill('');
+  await page.waitForFunction(() => {
+    const first = document.querySelector('tbody [data-event-day]');
+    return first?.getAttribute('data-event-day');
+  });
+  assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.waitForTimeout(300);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `no page overflow at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  if (process.env.GENERAL_ALERTS_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_SCREENSHOT });
+  await page.evaluate(() => window.dispose());
+  const count = calls.length;
+  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); });
+  await page.waitForTimeout(400);
+  assert.equal(calls.length, count, 'destroy removes source listeners and does not start another read');
+  assert(!calls.some((p) => /\/api\/(combined-filings|drhp-filings|super-investors\/)/.test(p)), 'no per-company fanout');
+  assert.deepEqual(errors, [], 'zero application errors');
+  console.log('PASS: 19 feed categories, source updates, private-session clearing, filters, responsive layout and cleanup.');
+} finally { await browser.close(); await new Promise((done) => server.close(done)); }
