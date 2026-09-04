@@ -6,9 +6,11 @@ announcements, NSE filings and insider trades — under a global **Portfolio · 
 scope toggle that applies to every one of them.
 
 **The public Portfolio snapshot is a list of company names, not a ledger.** The Portfolio scope filters the
-research tabs by the family office's own direct-equity book — 142 lines, names and sectors, synced
-from `techmuns/Sattva-Family`. There are no quantities, no costs and no valuations anywhere in this
-public snapshot. A Portfolio Analytics workspace over an illustrative ledger used to exist and was
+research tabs by Family Office's active shared workbook, through a protected names-only export.
+It refreshes on load, every minute while visible, and on Refresh; failed reads retain the saved
+book with an explicit warning. See [active holdings setup](docs/ACTIVE-FAMILY-HOLDINGS.md).
+There are no quantities, costs or valuations in this public snapshot.
+A Portfolio Analytics workspace over an illustrative ledger used to exist and was
 deleted; it is in git history at `d3bba30` if a real ledger is ever wired.
 
 **Full-book Ask Research** runs inside the authenticated Sattva Family `/research`

@@ -1,5 +1,8 @@
 name: Data refresh
 
+env:
+  FAMILY_HOLDINGS_LIVE: 'true'
+
 # The dashboard's committed baselines. The full capture runs at 07:00 IST. Company news, insider
 # trades and corporate announcements have separate workflows so a slow per-company walk cannot
 # race with or block end-of-day market data:
