@@ -12,7 +12,7 @@
    for the Family context to adopt that archive version. Reject replies if the
    book changes during the read. Preserve workbook date, quote timestamp, partial
    quote coverage and source failures; a recent check is not a current book date.
-4. Reuse Ask Sattva's nine query/read tools and answer verification without
+4. Reuse Ask Sattva's existing query/read tools and answer verification without
    creating a second conversation in its library. Include the resulting dated
    portfolio reading alongside the research evidence, with explicit size limits.
 5. Use the active book's ISINs for Research's portfolio filter, preserving unknown
