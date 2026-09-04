@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { loadActivePortfolio } from './lib/active-portfolio.mjs';
 // scripts/scrape-nse-announcements.mjs — commit a snapshot of NSE's live announcements feed.
 //
 //   node scripts/scrape-nse-announcements.mjs
@@ -54,7 +55,7 @@ async function main() {
   const rows = parseAnnouncements(xml);
   const mc = JSON.parse(readFileSync(DATA('mc-ticker-map.json'), 'utf8'));
   const tech = JSON.parse(readFileSync(DATA('technicals.json'), 'utf8'));
-  const book = JSON.parse(readFileSync(DATA('portfolio-companies.json'), 'utf8'));
+  const book = await loadActivePortfolio(DATA('portfolio-companies.json'));
   const resolver = buildResolver({ book: book.holdings || [], mcMap: mc.map || {}, tech: tech.rows || tech.companies || [] });
   const resolved = resolveAll(rows, resolver);
   const withTicker = resolved.filter((r) => r.ticker).length;

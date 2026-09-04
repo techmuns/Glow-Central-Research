@@ -1,5 +1,8 @@
 name: Filings coverage refresh
 
+env:
+  FAMILY_HOLDINGS_LIVE: 'true'
+
 # Insider trades, domestic documents and additional company announcements share one paced job.
 # Every pass saves company checkpoints; the next pass resumes unfinished coverage.
 # The complete insider snapshot is reused for 18 hours; partial captures remain retryable.

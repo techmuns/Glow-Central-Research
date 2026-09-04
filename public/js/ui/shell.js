@@ -12,6 +12,8 @@ import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel 
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
+import * as coverage from '../data/coverage.js';
+import { bindFamilySyncLifecycle } from '../data/family-sync-lifecycle.js';
 import { openScopeEditor } from './scope-editor.js';
 import { sourcesModalHtml } from './sources.js';
 import { mountHostTicker } from './host-ticker.js';
@@ -71,6 +73,30 @@ export function mount(root) {
   contentHost = $('#content-host', root);
 
   wireStaticHeader(root);
+  const paintBookStatus = () => {
+    const el = $('#portfolio-sync-status', root);
+    el.textContent = coverage.syncLabel();
+    const m = coverage.meta();
+    el.className = `mt-3 text-xs ${m.syncStatus === 'live' && !m.manualEdits ? 'text-slate-500' : 'text-amber-700'}`;
+  };
+  paintBookStatus();
+  coverage.onChange(({ changed }) => {
+    paintBookStatus();
+    if (changed && state.scope === 'portfolio' && !document.querySelector('[data-scope-editor]')) {
+      setTimeout(() => handleRoute(root, router.parseHash()), 0);
+    }
+  });
+  // Read-only, one names-only request per minute while visible. The existing
+  // Refresh button also ticks this poller; no production jobs are dispatched.
+  live.register('family-portfolio', { intervalMs: 60000, fetcher: async () => {
+    const result = await coverage.refresh();
+    if (result.error) throw new Error(result.error);
+    return result;
+  } });
+  live.start('family-portfolio');
+  bindFamilySyncLifecycle();
+  live.onGlobalTick(paintBookStatus); // expire the label even if only the heartbeat is running
+  scopeLists.onChange(paintBookStatus);
 
   // "Data flowing in", lower-left. Page-level chrome with the same lifetime as the alert stack:
   // mounted once, outside `#app`, so a route change never tears it down. It reads the source
@@ -147,6 +173,7 @@ function shellTemplate() {
           <div id="status-mount"></div>
         </div>
       </div>
+      <div id="portfolio-sync-status" role="status"></div>
     </header>
 
     <nav class="mx-auto max-w-[1400px] px-6" aria-label="Research navigation">

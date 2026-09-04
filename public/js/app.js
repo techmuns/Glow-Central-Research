@@ -8,7 +8,7 @@ import { revalidatedJson } from './core/store.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
-import { prime as primeCoverage } from './data/coverage.js';
+import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
 import { loadCompanyCaptureIndex } from './data/company-captures.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
 // Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
@@ -64,6 +64,7 @@ async function fetchAll(sources) {
 async function loadCritical() {
   const data = await fetchAll(CRITICAL_SOURCES);
   primeCoverage(data.portfolioCompanies);
+  await restoreLastGood();
   return data;
 }
 

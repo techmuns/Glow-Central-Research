@@ -32,6 +32,8 @@ jobs:
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
+      - name: Verify active Family Office holdings sync
+        run: node scripts/verify-family-sync.mjs
       - name: Verify NSE filing history and scoped search
         run: node scripts/verify-nse-history.mjs
       - name: Verify caller-private combined filings
@@ -50,21 +52,24 @@ jobs:
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle
         run: npx --yes wrangler@4 deploy --dry-run
-
-  ipo-browser:
+  browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Install isolated browser-test dependencies
+      - name: Install pinned browser test runtime
         run: |
-          npm install --prefix "$RUNNER_TEMP/ipo-browser" --no-audit --no-fund playwright@1.62.1 exceljs@4.4.0
-          "$RUNNER_TEMP/ipo-browser/node_modules/.bin/playwright" install --with-deps chromium
+          npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
+          node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify portfolio reload, offline, resume and cache behaviour
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-family-sync-ui.mjs
       - name: Verify IPO table, live refresh, Excel export and mobile layout
-        run: |
-          PLAYWRIGHT_ROOT="$RUNNER_TEMP/ipo-browser/node_modules/playwright" \
-          EXCELJS_ROOT="$RUNNER_TEMP/ipo-browser/node_modules/exceljs" \
-          node scripts/verify-ipo-monitor-ui.mjs
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+          EXCELJS_ROOT: ${{ runner.temp }}/family-browser/node_modules/exceljs
+        run: node scripts/verify-ipo-monitor-ui.mjs

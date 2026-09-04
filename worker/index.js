@@ -52,6 +52,7 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+import { handleFamilyPortfolio } from './family-portfolio.mjs';
 import { handleCombinedFilings } from './combined-filings.mjs';
 import { handleDrhpFilings } from './drhp-filings.mjs';
 import { handleIpoMonitor } from './ipo-monitor.mjs';
@@ -133,6 +134,9 @@ export default {
 
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
+    }
+    if (url.pathname === '/api/family-portfolio') {
+      return handleFamilyPortfolio(request, env);
     }
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request, env, ctx);
