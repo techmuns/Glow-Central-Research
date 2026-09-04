@@ -520,9 +520,18 @@ export function sourceGroups() {
           url: 'https://www.nseindia.com/companies-listing/corporate-filings-actions',
           feeds:
             '<strong>Official exchange-wide actions.</strong> NSE supplies the company, symbol, ISIN, series, purpose, face value, ex date, record date and book-closure dates. The Corporate Actions tab keeps the purpose exactly as filed and derives only a filter label for the declared action. Meeting-only AGM/EGM diary entries are excluded; mixed entries that also declare an action remain. One market-wide snapshot is filtered locally for Portfolio and Watchlist, so a newly added symbol needs no company-specific capture. Portfolio matching also uses ISIN so symbol renames retain their history.',
-          cadence: 'Captured hourly with three years of history and one year of forward calendar; checked every 90 seconds while visible. The app requests recovery after a missed scheduled run, and a failed or malformed read cannot replace the last valid snapshot.',
+          cadence: 'Captured every 15 minutes with three years of history and one year of forward calendar; checked every 90 seconds while visible. A failed or malformed NSE read cannot replace the snapshot, and Screener failure retains its last valid layer.',
           status: 'live',
           file: 'public/data/corporate-actions.json · scripts/scrape-corporate-actions.mjs · .github/workflows/corporate-actions-refresh.yml',
+        },
+        {
+          name: 'Screener — corporate action catalogues',
+          url: 'https://www.screener.in/filings/',
+          feeds:
+            '<strong>Additive action coverage and structured terms.</strong> Authenticated Screener bonus, rights, split, buyback and dividend catalogues add actions that are absent from NSE and enrich clear one-to-one NSE matches with ratios, premiums, face-value changes, buyback terms and dividend type and percentage. Both links remain on a merged row. Ambiguous matches stay separate instead of being guessed.',
+          cadence: 'Authenticated incremental capture every 15 minutes with a daily full reconciliation. The last valid Screener layer survives login, page, pagination or parser failures.',
+          status: 'live',
+          file: 'scripts/lib/screener-actions.mjs · scripts/scrape-corporate-actions.mjs · .github/workflows/corporate-actions-refresh.yml',
         },
         {
           name: 'Muns filings API — insider trades',

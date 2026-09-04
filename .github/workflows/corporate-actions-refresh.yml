@@ -1,16 +1,22 @@
 name: Corporate actions refresh
 
-# Official NSE exchange-wide action calendar. One rolling snapshot covers every portfolio and
-# watchlist symbol, including symbols added after the capture was made.
+# NSE official calendar plus authenticated Screener enrichment. Incremental checks keep the head
+# fresh; the daily full crawl reconciles backfills and corrections across the rolling window.
 on:
   schedule:
-    - cron: "27 * * * *"
+    - cron: "*/15 * * * *"
+    - cron: "13 1 * * *"
   workflow_dispatch:
     inputs:
       source:
         description: "Who asked for this run — auto, button, or manual"
         required: false
         default: "manual"
+      full:
+        description: "Reconcile the complete rolling Screener window"
+        required: false
+        type: boolean
+        default: false
 
 run-name: Corporate actions refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
 
@@ -21,7 +27,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
@@ -33,7 +39,19 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Fetch NSE corporate actions
+      - name: Install pinned browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/screener-actions-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/screener-actions-browser/node_modules/playwright/cli.js" install --with-deps chromium
+
+      - name: Merge NSE base with Screener enrichment
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-actions-browser/node_modules/playwright
+          SCREENER_FULL_REFRESH: ${{ github.event.schedule == '13 1 * * *' || inputs.full == true }}
+          DEBUG: ''
+          PWDEBUG: ''
         run: node scripts/scrape-corporate-actions.mjs
 
       - name: Verify corporate actions contract

@@ -1,8 +1,15 @@
-// Pure NSE corporate-action parsing shared by the scheduled capture and the browser.
+// Pure corporate-action parsing and cross-source merge rules shared by the scheduled capture,
+// browser and contract tests. NSE remains the official base; Screener can enrich or add rows.
 
 const MONTHS = new Map(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => [m.toLowerCase(), i + 1]));
 
 const clean = (value, max = 500) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const SCREENER_TYPES = new Set(['bonus', 'rights', 'split', 'buyback', 'dividend']);
+const SCREENER_FIELDS = [
+  'ratio', 'premium', 'oldFaceValue', 'newFaceValue', 'endDate', 'offerType', 'maxPrice',
+  'amountCrore', 'dividendType', 'percent',
+];
 
 /** NSE writes action dates as 04-Sep-2026. Invalid and missing values remain unknown. */
 export function parseNseActionDate(value) {
@@ -32,9 +39,141 @@ export function corporateActionType(subject) {
   return 'other';
 }
 
-export const corporateActionKey = (row) => [
-  row.isin || row.ticker || '', row.series || '', row.exDate || '', row.recordDate || '', row.purpose || '',
+export const corporateActionKey = (row) => row?.id || [
+  row?.isin || row?.ticker || '', row?.series || '', row?.exDate || '', row?.recordDate || '', row?.purpose || '',
 ].join('|');
+
+export const screenerActionKey = (row) => [
+  clean(row?.companyKey, 80).toUpperCase(), row?.actionType || '', row?.exDate || '',
+  row?.actionType === 'dividend' ? clean(row?.dividendType, 80).toLowerCase() : '',
+].join('|');
+
+export function screenerActionDetails(row) {
+  if (!row) return '';
+  if (row.actionType === 'bonus') return row.ratio ? `Ratio ${row.ratio}` : '';
+  if (row.actionType === 'rights') return [row.ratio && `Ratio ${row.ratio}`, row.premium && `Premium ₹${row.premium}`].filter(Boolean).join(' · ');
+  if (row.actionType === 'split') return row.oldFaceValue && row.newFaceValue ? `Face value ₹${row.oldFaceValue} → ₹${row.newFaceValue}` : '';
+  if (row.actionType === 'buyback') return [row.offerType, row.maxPrice && `Max ₹${row.maxPrice}`, row.amountCrore && `₹${row.amountCrore} Cr`].filter(Boolean).join(' · ');
+  if (row.actionType === 'dividend') return [row.dividendType, row.percent && `${row.percent}%`].filter(Boolean).join(' · ');
+  return '';
+}
+
+function screenerPurpose(row) {
+  const label = { bonus: 'Bonus', rights: 'Rights issue', split: 'Stock split', buyback: 'Buyback', dividend: 'Dividend' }[row.actionType] || 'Corporate action';
+  const details = screenerActionDetails(row);
+  return details ? `${label} · ${details}` : label;
+}
+
+function safeScreenerUrl(value, route) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ['www.screener.in', 'screener.in'].includes(url.hostname) && route.test(url.pathname);
+  } catch { return false; }
+}
+
+export function validateScreenerActionRows(rows) {
+  if (!Array.isArray(rows) || rows.length > 50000) throw new Error('Invalid Screener corporate-action rows.');
+  const ids = new Set();
+  for (const row of rows) {
+    const id = screenerActionKey(row);
+    if (!row || !clean(row.companyKey, 80) || !clean(row.company, 300) || !SCREENER_TYPES.has(row.actionType) ||
+        !DAY.test(row.exDate || '') || (row.endDate && !DAY.test(row.endDate)) ||
+        !safeScreenerUrl(row.companyUrl, /^\/company\/(?:id\/)?[^/]+\/(?:consolidated\/)?$/) ||
+        !safeScreenerUrl(row.sourceUrl, /^\/actions\/(?:bonus|right|split|buyback|dividend)\/$/) ||
+        (row.ticker && !/^[A-Z0-9&._-]{1,80}$/.test(row.ticker)) || ids.has(id)) {
+      throw new Error('Invalid or duplicate Screener corporate-action row.');
+    }
+    for (const field of SCREENER_FIELDS) if (row[field] != null && (typeof row[field] !== 'string' || row[field].length > 120)) throw new Error('Invalid Screener corporate-action field.');
+    ids.add(id);
+  }
+  return rows;
+}
+
+export function mergeScreenerActionRows(...groups) {
+  const rows = new Map();
+  for (const row of groups.flat()) {
+    if (!row) continue;
+    const id = screenerActionKey(row);
+    const old = rows.get(id);
+    if (!old || String(row.observedAt || '') >= String(old.observedAt || '')) rows.set(id, { ...old, ...row, id });
+  }
+  return [...rows.values()].sort((a, b) => b.exDate.localeCompare(a.exDate) || a.company.localeCompare(b.company) || a.actionType.localeCompare(b.actionType));
+}
+
+const matchKey = (row) => row?.ticker && row?.actionType && row?.exDate
+  ? `${String(row.ticker).toUpperCase()}|${row.actionType}|${row.exDate}`
+  : null;
+
+/**
+ * Merge only an unambiguous one-to-one ticker/type/ex-date pair. Ambiguous pairs remain separate;
+ * a source is never discarded merely because its company and date look similar.
+ */
+export function mergeCorporateActionRows(nseRows = [], screenerRows = []) {
+  const nse = [...new Map(nseRows.map((row) => [corporateActionKey(row), { ...row, sources: ['NSE'] }])).values()];
+  const screener = mergeScreenerActionRows(screenerRows);
+  const nseBuckets = new Map();
+  const screenerBuckets = new Map();
+  for (const row of nse) {
+    const key = matchKey(row);
+    if (!key) continue;
+    if (!nseBuckets.has(key)) nseBuckets.set(key, []);
+    nseBuckets.get(key).push(row);
+  }
+  for (const row of screener) {
+    const key = matchKey(row);
+    if (!key) continue;
+    if (!screenerBuckets.has(key)) screenerBuckets.set(key, []);
+    screenerBuckets.get(key).push(row);
+  }
+
+  const consumed = new Set();
+  const merged = nse.map((row) => {
+    const key = matchKey(row);
+    const matches = key ? screenerBuckets.get(key) || [] : [];
+    if ((nseBuckets.get(key) || []).length !== 1 || matches.length !== 1) return row;
+    const extra = matches[0];
+    consumed.add(screenerActionKey(extra));
+    return {
+      ...row,
+      source: 'NSE + Screener',
+      sources: ['NSE', 'Screener'],
+      screenerUrl: extra.sourceUrl,
+      screenerCompanyUrl: extra.companyUrl,
+      screener: extra,
+    };
+  });
+
+  for (const row of screener) {
+    if (consumed.has(screenerActionKey(row))) continue;
+    const id = `screener:${screenerActionKey(row)}`;
+    merged.push({
+      id,
+      ticker: row.ticker || null,
+      company: row.company,
+      isin: null,
+      series: null,
+      purpose: screenerPurpose(row),
+      purposeSource: 'Derived from Screener fields',
+      actionType: row.actionType,
+      faceValue: row.actionType === 'split' ? row.newFaceValue || null : null,
+      exDate: row.exDate,
+      recordDate: null,
+      bookClosureStart: null,
+      bookClosureEnd: null,
+      source: 'Screener',
+      sources: ['Screener'],
+      sourceUrl: row.sourceUrl,
+      screenerUrl: row.sourceUrl,
+      screenerCompanyUrl: row.companyUrl,
+      screener: row,
+    });
+  }
+  return merged.sort((a, b) => String(b.exDate || b.recordDate || '').localeCompare(String(a.exDate || a.recordDate || '')) || String(a.ticker || a.company).localeCompare(String(b.ticker || b.company)));
+}
+
+export function extractScreenerActionRows(rows = []) {
+  return mergeScreenerActionRows(rows.map((row) => row?.screener).filter(Boolean));
+}
 
 /**
  * Refuse a plausible-looking partial response before it replaces retained history.

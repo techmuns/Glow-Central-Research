@@ -577,7 +577,7 @@ function coverageSentence(m, cov) {
     const range = m.requestedFrom && m.requestedTo
       ? ` between <strong>${escapeHtml(m.requestedFrom)}</strong> and <strong>${escapeHtml(m.requestedTo)}</strong>`
       : '';
-    return ` The capture reads NSE's exchange-wide calendar${range}; ${n(cov.withRows)} of ${n(cov.inScope)}
+    return ` The capture reads the combined NSE and Screener market-wide calendars${range}; ${n(cov.withRows)} of ${n(cov.inScope)}
       ${co(cov.inScope, 'company', 'companies')} in scope have a published action in that range.`;
   }
 
