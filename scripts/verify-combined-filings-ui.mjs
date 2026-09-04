@@ -37,11 +37,13 @@ window.setTestSession=token=>{context={session:{token}};listeners.forEach(fn=>fn
 window.clearTestSession=()=>{context={session:null};listeners.forEach(fn=>fn());};
 </script><script type="module">
 import {mountCompanyDocuments} from '/js/ui/company-documents.js';
+import {mountDrhpDocuments} from '/js/ui/drhp-documents.js';
 import * as coverage from '/js/data/coverage.js';
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'}]});
 let dispose; let activeTab;
 window.showDocuments=(form='all',source=null,scope='portfolio')=>{dispose?.();dispose=mountCompanyDocuments({root:document.querySelector('#root'),scope,data:{universe:[{ticker:'STLTECH',name:'Sterlite Technologies'}]}},{form,source,label:'Company filings & reports'});};
 window.showTab=async(name)=>{dispose?.();activeTab?.destroy();activeTab=await import('/js/tabs/'+name+'.js');activeTab.render({root:document.querySelector('#root'),scope:'portfolio',data:{universe:[]},params:{},live:{register(){},start(){},stop(){},subscribe(){return ()=>{};}}});};
+window.showDrhp=()=>{dispose?.();activeTab?.destroy();activeTab=null;dispose=mountDrhpDocuments({root:document.querySelector('#root')});};
 window.showDocuments();
 </script></body></html>`;
 const server = createServer(async (req, res) => {
@@ -133,7 +135,7 @@ try {
   check('mobile layout contains the lookup controls',await page.locator('[data-doc-load]').isVisible());
   await page.setViewportSize({width:1440,height:1000});
   await page.evaluate(()=>window.setTestSession('fixture.reader-a.session'));
-  for (const [name,form] of [['corp-announcements','all'],['nse-filings','all'],['concall','concalls'],['earnings-hub','earnings_report']]) {
+  for (const [name,form] of [['nse-filings','all'],['concall','concalls'],['earnings-hub','earnings_report']]) {
     await page.evaluate(name=>window.showTab(name),name);
     await page.locator('[data-doc-mode="documents"]').click();
     await page.locator('[data-doc-company]').waitFor();
@@ -141,9 +143,12 @@ try {
     check('the actual '+name+' tab reaches its assigned document form',queries.at(-1).form[0]===form);
   }
   await page.evaluate(()=>window.showTab('corp-announcements'));
-  await page.locator('[data-doc-mode="drhp"]').click();
+  await page.locator('[data-announcement-lookup]').waitFor();
+  check('Corp Announcements opens its feed without duplicate document or IPO tabs',await page.locator('[data-document-tabs]').count()===0&&await page.locator('[data-score-table]').isVisible());
+  // The retained DRHP component is tested directly; it is no longer a Corporate Announcements view.
+  await page.evaluate(()=>window.showDrhp());
   await page.locator('[data-drhp-company]').waitFor();
-  check('Corp Announcements exposes IPO lookup without automatically requesting companies',drhpQueries.length===0);
+  check('mounting the DRHP component does not automatically request companies',drhpQueries.length===0);
   const loadDrhp=async(name=drhpCompany)=>{await page.locator('[data-drhp-company]').fill(name);await page.locator('[data-drhp-load]').click();await page.locator('[data-drhp-load]:not([disabled])').waitFor();};
   await loadDrhp();
   check('unlisted issuers use their exact name without stock-search resolution',drhpQueries.at(-1).company===drhpCompany&&drhpQueries.at(-1).method==='GET');
@@ -183,8 +188,9 @@ try {
   check('IPO desktop layout fits',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.setViewportSize({width:390,height:844});
   check('IPO controls and document cards fit a mobile viewport',await page.locator('[data-drhp-load]').isVisible()&&await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.evaluate(()=>window.showTab('nse-filings'));
   await page.locator('[data-doc-mode="documents"]').click();
-  check('switching back restores ordinary company documents and removes IPO results',await page.locator('[data-doc-company]').isVisible()&&await page.locator('[data-drhp-results]').count()===0);
+  check('leaving the DRHP component restores NSE company documents and removes IPO results',await page.locator('[data-doc-company]').isVisible()&&await page.locator('[data-drhp-results]').count()===0);
   check('the document views have no browser runtime errors',errors.length===0);
   console.log(`\n${checks} combined filings browser checks passed.`);
 } finally { await browser?.close(); await new Promise(done=>server.close(done)); }
