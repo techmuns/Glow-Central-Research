@@ -11,6 +11,7 @@ import { archiveFilings } from './lib/filing-archive.mjs';
 import {
   buildScreenerTradesSnapshot,
   hasScreenerTradeOverlap,
+  indexPriorScreenerTradeIdentities,
   normaliseScreenerTrade,
   SCREENER_TRADE_SOURCES,
 } from './lib/screener-trades.mjs';
@@ -85,18 +86,18 @@ async function extractRows(page, url) {
 }
 
 async function scrapeSource(page, source, previousMeta, previousIdentities = new Set()) {
-  page.setDefaultTimeout(30_000);
-  page.setDefaultNavigationTimeout(45_000);
   const rows = [];
   let latestDate = null;
   let oldestDate = null;
   let pagesRead = 0;
   let complete = false;
-  let sourceStage = 'page navigation';
+  let sourceStage = 'page setup';
   let currentPage = 0;
   const fallbackBoundary = previousMeta?.coverageFrom || bootstrapFrom;
 
   try {
+    page.setDefaultTimeout(30_000);
+    page.setDefaultNavigationTimeout(45_000);
     for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber++) {
       currentPage = pageNumber;
       const url = pageUrl(source, pageNumber);
@@ -172,6 +173,17 @@ async function scrapeSource(page, source, previousMeta, previousIdentities = new
 let browser;
 let stage = 'credential configuration';
 try {
+  stage = 'prior snapshot read';
+  const previous = readPrior();
+  stage = 'prior source indexing';
+  const previousSources = new Map((previous?.sources || []).map((source) => [source.id, source]));
+  stage = 'prior row flattening';
+  const previousRows = flatten(previous);
+  stage = 'prior identity indexing';
+  const previousIdentities = indexPriorScreenerTradeIdentities(previousRows);
+  console.log(`Indexed ${previousRows.length} prior rows for incremental capture.`);
+
+  stage = 'credential configuration';
   let username = process.env.SCREENER_USERNAME;
   let password = process.env.SCREENER_PASSWORD;
   if (!username || !password) throw new Error('missing credentials');
@@ -214,23 +226,24 @@ try {
   await logout.waitFor({ state: 'attached' });
   if (!hasSession) throw new Error('login not verified');
   await login.waitForTimeout(2_000);
+  // Do not reuse the form-navigation page for the long crawl. A fresh page shares the verified
+  // session cookies but has no pending login lifecycle or form listeners to interfere with the
+  // first incremental navigation.
+  stage = 'capture page startup';
+  const capturePage = await context.newPage();
+  await login.close();
 
   stage = 'four-category capture';
-  const previous = readPrior();
-  const previousSources = new Map((previous?.sources || []).map((source) => [source.id, source]));
-  const previousRows = flatten(previous);
   console.log('Authenticated session handed to the four-category capture.');
   // Keep one authenticated listing request in flight at a time. Screener is the source of truth,
   // not a high-throughput API, and concurrent page walks can trip its protective throttling.
   const captures = [];
   for (const source of SCREENER_TRADE_SOURCES) {
-    console.log(`Starting ${source.id} capture.`);
-    const previousIdentities = new Set(
-      previousRows.filter((row) => row.sourceId === source.id).map(insiderTradeIdentity),
-    );
-    captures.push(await scrapeSource(login, source, previousSources.get(source.id), previousIdentities));
+    const identities = previousIdentities.get(source.id);
+    console.log(`Starting ${source.id} capture with ${identities.size} prior event identities.`);
+    captures.push(await scrapeSource(capturePage, source, previousSources.get(source.id), identities));
   }
-  await login.close();
+  await capturePage.close();
 
   stage = 'snapshot validation';
   const snapshot = buildScreenerTradesSnapshot(previous, captures, { capturedAt });
@@ -240,6 +253,11 @@ try {
   console.log(`Captured ${snapshot.rowCount} unique trades across ${snapshot.withRows} companies and all four categories.`);
 } catch (error) {
   const errorType = ['Error', 'TypeError', 'TimeoutError'].includes(error?.name) ? error.name : 'Error';
+  if (stage.startsWith('prior ')) {
+    // This phase runs before credentials are read and operates only on the checked-in snapshot, so
+    // its exception text is safe and necessary to diagnose data/runtime compatibility failures.
+    console.error(`Prior snapshot diagnostic: ${errorType}: ${String(error?.message || 'unknown failure').slice(0, 240)}`);
+  }
   console.error(`Screener trade capture stopped during ${stage} (${errorType}). The existing snapshot was not replaced.`);
   process.exitCode = 1;
 } finally {
