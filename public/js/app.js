@@ -9,7 +9,7 @@ import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
-import { prime as primeCoverage } from './data/coverage.js';
+import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
 // Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
 // SDK client at import time, so pulling it in from the bootstrap is what guarantees the client
@@ -66,6 +66,7 @@ async function fetchAll(sources) {
 async function loadCritical() {
   const data = await fetchAll(CRITICAL_SOURCES);
   primeCoverage(data.portfolioCompanies);
+  await restoreLastGood();
   return data;
 }
 

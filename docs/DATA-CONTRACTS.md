@@ -427,16 +427,12 @@ morning's EOD percentage next to an intraday price would render two measurements
 
 ## `public/data/portfolio-companies.json` — REAL, the book the Portfolio scope means
 
-Every listed company the family office holds directly, resolved to NSE symbols. **The book is read
-from the family office's own repository** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`, the
-positions file generated from the custody workbooks — by `scripts/sync-family-book.mjs`, one line
-per equity ISIN, into `scripts/fixtures/family-book.json`; `scripts/resolve-portfolio-companies.mjs`
-turns that into this file. It used to be a list of names typed into the resolver from a statement,
-which was a second copy of a book that lives somewhere else, and a second copy can only drift.
-This is what the **Portfolio / Universe toggle filters by** on every research tab: Earnings Hub,
-Con-call, Breakouts, Public Chatter, Institutions and Superstar Investors all ask *"is this ticker
-one of ours?"* and this file is the answer. Loaded at bootstrap onto `ctx.data.portfolioCompanies`
-and primed into `js/data/coverage.js`.
+Every equity ISIN in Family Office's active shared workbook, resolved to NSE symbols.
+The live source is its protected names-only export, consumed by `/api/family-portfolio`.
+The shared resolver is `worker/portfolio-resolver.mjs`; the browser refreshes the authoritative
+book in `js/data/coverage.js` on load, every minute while visible, and on Refresh. This file
+is now a reviewed fallback snapshot, not a claim to be the latest portfolio. Failure keeps
+the last good list with a visible warning. See [setup and contract](ACTIVE-FAMILY-HOLDINGS.md).
 
 **IT CARRIES NAMES AND SECTORS, AND IT MUST NEVER BE WIDENED.** The statement this file came from
 was given as names only — value and weight were explicitly out of scope — so a quantity, a cost or a
@@ -504,55 +500,17 @@ the tabs surface them as **held but not covered**:
 · 96 of 142 reported"*. A count with no denominator is the thing to avoid: 96 rows looks complete
 until you know the book is 142.
 
-### The sync — `scripts/sync-family-book.mjs` and `scripts/fixtures/family-book.json`
+### The sync — `scripts/sync-family-book.mjs`
 
-```bash
-node scripts/sync-family-book.mjs                 # read the family repo, write the fixture, re-resolve
-FAMILY_BOOK_PATH=../sattva-family/src/data/sattvaData.ts node scripts/sync-family-book.mjs   # a local clone
-node scripts/sync-family-book.mjs --no-resolve    # the fixture only
-```
+The script reads the same protected active-holdings export as the Worker, using
+`FAMILY_HOLDINGS_TOKEN`. `FAMILY_BOOK_PATH` is a names-only JSON export for offline tests,
+not a TypeScript source file. `FAMILY_REPO_TOKEN` is no longer used. Shape, duplicate ISIN,
+empty-book and 80% retention checks run before replacing the fixture. Only identity and
+provenance fields are persisted. A content revision prevents timestamp-only commits.
 
-The family repository is private, so a fetch needs `FAMILY_REPO_TOKEN` — a fine-grained token on
-`techmuns/Sattva-Family` alone with **Contents: read** — and the script exits non-zero naming that
-secret when it has neither the token nor a local path. It reads `src/data/sattvaData.ts` through the
-GitHub contents API, parses the `SATTVA_POSITIONS` literal (333 positions across the family's
-seventeen entities), keeps **one line per `INE…` ISIN** and writes the fixture:
-
-```jsonc
-{ "source": "techmuns/Sattva-Family · src/data/sattvaData.ts", "asOf": "2026-06-30",
-  "sourceCommit": { "sha": "…", "date": "…" }, "fetchedAt": "…",
-  "positions": 333, "excluded": { "etf": 4, "liquid": 2, "other": 1 }, "count": 142,
-  "lines": [ { "isin": "INE004A01022", "name": "Protean eGov Technologies Ltd", "sector": "Information Technology" } ] }
-```
-
-Three things it refuses to do:
-
-- **Carry a value.** Their file has quantity, cost, market value and P&L on every line; none of it
-  reaches the fixture, and the suite asserts each line is exactly `{ isin, name, sector }`. The book
-  answers *is this company one of ours?* and a stale rupee figure beside a live price is the kind of
-  number this dashboard does not show.
-- **Treat fund units as companies.** `INF…` ISINs — the gold, silver and liquid ETFs — are counted
-  under `excluded` and not carried, because no research feed here is keyed by them. The ISIN prefix
-  decides, not their `assetClass`: the Liquid BeES line is filed as "Equity".
-- **Overwrite a good fixture with a bad read.** A regex that stopped matching their file would parse
-  to nothing, and an empty book would make "Portfolio" mean nothing on every tab at once. The shape
-  is asserted, and a result below 80% of the committed line count is refused.
-
-It is byte-stable when nothing moved — `fetchedAt` alone never makes a commit — and prints which
-ISINs were added and removed since the committed fixture.
-
-**Refresh cadence** — `.github/workflows/family-book-sync.yml`: 06:00 IST every day, by hand, and on
-`repository_dispatch` with event type `family-book-updated`, which is what lets the family repository
-poke this one the moment its book changes. GitHub's cron is best-effort; the dispatch is the path
-that keeps the two genuinely in sync. From the family repository's own workflow, one step:
-
-```yaml
-- run: |
-    curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-      https://api.github.com/repos/techmuns/Sattva-Central-Research/dispatches \
-      -d '{"event_type":"family-book-updated"}'
-  env: { TOKEN: "${{ secrets.RESEARCH_REPO_TOKEN }}" }   # a token on THIS repo with Contents: write
-```
+The daily/manual/dispatch workflow opens a `codex/family-book-snapshot` PR for review;
+it does not write to main or merge. The live UI and scheduled collectors do not wait for
+that fallback PR. See [activation and review requirements](ACTIVE-FAMILY-HOLDINGS.md).
 
 ### Resolution — `scripts/resolve-portfolio-companies.mjs`
 
@@ -581,7 +539,7 @@ have inherited the other's rows and the reader would have seen a holding they do
 
 **Refresh cadence** — whenever the family repository's book changes, through the sync above; the
 resolver is re-run by the same job.
-**Real source** — `techmuns/Sattva-Family`, `src/data/sattvaData.ts`, generated there from the custody workbooks.
+**Real source** — Family Office’s active shared workbook via `/api/research-holdings`.
 **Consumed by** — `js/data/coverage.js`, and through it every tab's `forScope()` and the header search.
 
 ---

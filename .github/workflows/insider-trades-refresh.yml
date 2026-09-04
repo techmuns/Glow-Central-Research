@@ -1,5 +1,8 @@
 name: Insider trades refresh
 
+env:
+  FAMILY_HOLDINGS_LIVE: 'true'
+
 # Insider dealing is a per-company source, so the complete universe is captured once and served as
 # one file. The evening schedule includes the trading day's disclosures; opening a dashboard with
 # an older capture dispatches this same job as a demand-driven safety net.

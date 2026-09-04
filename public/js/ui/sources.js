@@ -556,13 +556,13 @@ export function sourceGroups() {
           url: null,
           feeds:
             `What the Portfolio toggle means on every research tab, and <strong>the only portfolio information this ` +
-            `dashboard holds</strong>.${clause(book?.count, ' <n> company lines')} read from the family office's own repository ` +
-            `(techmuns/Sattva-Family) by scripts/sync-family-book.mjs and resolved to NSE symbols by ` +
-            `scripts/resolve-portfolio-companies.mjs. <strong>Names and sectors only — no quantity, no cost, no value, ` +
+            `dashboard holds</strong>.${clause(book?.count, ' <n> company lines')} read from Family Office's active shared workbook ` +
+            `through its protected holdings export and resolved with the same ISIN/ticker rules as the scheduled snapshot. ` +
+            `<strong>Names and sectors only — no quantity, no cost, no value, ` +
             `no valuation.</strong>${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
             `BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.`,
-          cadence: 'Daily 06:00 IST, and on a repository_dispatch from the family repository',
-          status: 'static',
+          cadence: 'On load, every minute while visible, and on Refresh; reviewed snapshot retained when unavailable',
+          status: book?.syncStatus === 'live' ? 'live' : 'static',
           file: 'public/data/portfolio-companies.json',
         },
       ],

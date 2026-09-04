@@ -49,6 +49,7 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+import { handleFamilyPortfolio } from './family-portfolio.mjs';
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -120,6 +121,9 @@ export default {
 
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
+    }
+    if (url.pathname === '/api/family-portfolio') {
+      return handleFamilyPortfolio(request, env);
     }
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request, env, ctx);

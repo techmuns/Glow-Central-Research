@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { loadActivePortfolio } from './lib/active-portfolio.mjs';
 // scripts/scrape-filings.mjs — news and insider trades for the universe.
 //
 //   node scripts/scrape-filings.mjs                              news and insider, the whole universe
@@ -126,8 +127,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * the Action's time budget — should have covered the holdings before the index. The alphabetical
  * order that fell out of the file would have covered whatever happened to start with A.
  */
-function companies() {
-  const book = JSON.parse(readFileSync(DATA('portfolio-companies.json'), 'utf8'));
+async function companies() {
+  const book = await loadActivePortfolio(DATA('portfolio-companies.json'));
   const held = (book.holdings || []).filter((h) => h.ticker).map((h) => ({ ticker: h.ticker.toUpperCase(), name: h.name, held: true }));
   if (SCOPE === 'book') return dedupe(held);
 
@@ -311,7 +312,7 @@ async function run(kind, list) {
   );
 }
 
-const list = companies();
+const list = await companies();
 console.log(`Walking ${list.length} companies (${SCOPE}) for: ${wanted.join(', ')}`);
 console.log(VIA_WORKER ? `  through ${BASE} — no token needed here; the Worker holds it\n` : '  straight at the upstream, with MUNS_TOKEN\n');
 for (const kind of wanted) await run(kind, list);

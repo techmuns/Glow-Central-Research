@@ -1,5 +1,8 @@
 name: NSE announcements refresh
 
+env:
+  FAMILY_HOLDINGS_LIVE: 'true'
+
 # NSE's live "latest announcements" feed, captured to a committed snapshot.
 #
 # WHY A SNAPSHOT WHEN THE FEED IS LIVE. The live experience is the Worker route

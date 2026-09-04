@@ -22,8 +22,61 @@
 //   the tabs surface them as held-but-not-covered.
 
 import * as scopeLists from '../core/scope-lists.js';
+import { readEntry, writeEntry } from '../core/store.js';
+import { boundedJson } from './family-book-contract.js';
 
 let raw = null;
+let syncStatus = 'snapshot';
+let syncError = null;
+let pending = null;
+const listeners = new Set();
+export const onChange = fn => { listeners.add(fn); return () => listeners.delete(fn); };
+const CACHE_KEY = 'family-portfolio:active:v1';
+
+function validPortfolio(p) {
+  return p?.ok === true && p.syncStatus === 'live' && /^[a-f0-9]{64}$/.test(p.sourceRevision || '') &&
+    Number.isFinite(Date.parse(p.syncedAt)) && Array.isArray(p.holdings) && p.holdings.length > 0 &&
+    p.count === p.holdings.length && p.holdings.every(h => /^INE[A-Z0-9]{9}$/.test(h.isin || '') && typeof h.name === 'string');
+}
+
+export async function restoreLastGood() {
+  const cached = await readEntry(CACHE_KEY);
+  if (validPortfolio(cached?.value)) raw = cached.value;
+  // Restored data is a snapshot, never a successful check in this session.
+  syncStatus = 'snapshot';
+  syncError = null;
+}
+
+export function refresh() {
+  if (pending) return pending;
+  pending = (async () => {
+    const before = JSON.stringify(raw?.holdings);
+    try {
+      const response = await fetch('/api/family-portfolio', { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      const payload = await boundedJson(response, 2 * 1024 * 1024);
+      if (!validPortfolio(payload)) throw new Error('Invalid portfolio response');
+      raw = payload;
+      syncStatus = 'live';
+      syncError = null;
+      void writeEntry(CACHE_KEY, { value: payload, tag: payload.sourceRevision });
+    } catch {
+      syncStatus = 'unavailable';
+      syncError = 'Family Office sync unavailable — showing the last saved portfolio, which may be out of date.';
+    }
+    const changed = before !== JSON.stringify(raw?.holdings);
+    for (const fn of listeners) fn({ changed });
+    return { added: changed ? 1 : 0, checked: raw?.holdings?.length || 0, ...(syncError ? { error: syncError } : {}) };
+  })().finally(() => { pending = null; });
+  return pending;
+}
+
+export function syncLabel() {
+  if (syncError) return syncError;
+  if (syncStatus !== 'live') return 'Portfolio is a saved snapshot — checking Family Office…';
+  const checked = new Date(raw.syncedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const edits = scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length;
+  return `Family Office holdings synced · ${raw.sourceWorkbook?.label || 'active workbook'} · checked ${checked} IST${edits ? ' · this browser also has manual portfolio edits' : ''}`;
+}
 
 export function prime(payload) {
   if (payload && Array.isArray(payload.holdings)) raw = payload;
@@ -62,6 +115,10 @@ export function meta() {
   return {
     asOf: raw?.asOf || null,
     source: raw?.source || null,
+    sourceWorkbook: raw?.sourceWorkbook || null,
+    syncedAt: raw?.syncedAt || null,
+    syncStatus,
+    syncError,
     count: current.length,
     tracked: current.length - currentUncovered.length,
     uncovered: currentUncovered.length,
