@@ -3,7 +3,7 @@
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
 
 import { $, escapeHtml } from '../core/dom.js';
-import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
+import { state, subscribe, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
@@ -13,6 +13,7 @@ import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
+import { startFamilySession } from '../data/family-session.js';
 import { bindFamilySyncLifecycle } from '../data/family-sync-lifecycle.js';
 import { openScopeEditor } from './scope-editor.js';
 import { sourcesModalHtml } from './sources.js';
@@ -64,6 +65,7 @@ let contentHost = null;
 let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
+let bookStatusDisposer = null;
 let topTabs = null;
 
 export function mount(root) {
@@ -72,17 +74,23 @@ export function mount(root) {
   root.innerHTML = shellTemplate();
   contentHost = $('#content-host', root);
 
+  scopeLists.migratePortfolioToWatchlist();
   wireStaticHeader(root);
   const paintBookStatus = () => {
     const el = $('#portfolio-sync-status', root);
     el.textContent = coverage.syncLabel();
     const m = coverage.meta();
+    // Ask Research has its own connection state and dated readings. A separate
+    // public-snapshot warning must not contradict its authenticated book.
+    el.hidden = state.tab === 'ask-research' || m.syncStatus === 'family-session';
     el.className = `mt-3 text-xs ${m.syncStatus === 'live' && !m.manualEdits ? 'text-slate-500' : 'text-amber-700'}`;
   };
+  bookStatusDisposer?.();
+  bookStatusDisposer = subscribe(reason => { if (reason === 'route') paintBookStatus(); });
   paintBookStatus();
   coverage.onChange(({ changed }) => {
     paintBookStatus();
-    if (changed && state.scope === 'portfolio' && !document.querySelector('[data-scope-editor]')) {
+    if (changed && state.scope === 'portfolio' && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
       setTimeout(() => handleRoute(root, router.parseHash()), 0);
     }
   });
@@ -95,6 +103,7 @@ export function mount(root) {
   } });
   live.start('family-portfolio');
   bindFamilySyncLifecycle();
+  startFamilySession();
   live.onGlobalTick(paintBookStatus); // expire the label even if only the heartbeat is running
   scopeLists.onChange(paintBookStatus);
 
@@ -314,12 +323,11 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
 
   const editMount = $('#scope-edit-mount', root);
   editMount.innerHTML = `
-    <button type="button" data-scope-edit aria-label="Edit ${escapeHtml(scopeLabel(resolved.scope))} companies"
-      title="Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}"
+    <button type="button" data-scope-edit aria-label="${resolved.scope === 'portfolio' ? 'View Portfolio' : `Edit ${escapeHtml(scopeLabel(resolved.scope))} companies`}"
+      title="${resolved.scope === 'portfolio' ? 'View holdings from Family Office' : `Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}`}"
       class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
       <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path>
-        <path d="m11.5 5.5 3 3" stroke-linecap="round"></path>
+        ${resolved.scope === 'portfolio' ? '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"></path><circle cx="10" cy="10" r="2"></circle>' : '<path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="m11.5 5.5 3 3" stroke-linecap="round"></path>'}
       </svg>
     </button>`;
   const editButton = editMount.querySelector('[data-scope-edit]');

@@ -1,8 +1,8 @@
 // data/coverage.js — WHAT THE FAMILY ACTUALLY OWNS, and what the Portfolio toggle means.
 //
 //   prime(payload)     seeded from portfolio-companies.json at bootstrap
-//   baseHoldings()     the committed book, before this device's edits
-//   holdings()         the committed book plus this device's additions/removals
+//   baseHoldings()     the latest names-only Family snapshot
+//   holdings()         the authenticated Family book, or its labelled saved snapshot
 //   tracked()          only the lines that carry an NSE ticker — what a feed can match
 //   uncovered()        the lines no NSE-keyed feed can ever carry, each with its reason
 //   meta()             counts, as-of date and provenance for the "N of 142" notes
@@ -23,7 +23,6 @@
 //   have a feed for", and nothing on screen would say so. They travel with a `reason` instead, and
 //   the tabs surface them as held-but-not-covered.
 
-import * as scopeLists from '../core/scope-lists.js';
 import { readEntry, writeEntry } from '../core/store.js';
 import { boundedJson, validateResolvedPortfolio, assertBookChange, assertRecentCheck } from './family-book-contract.js';
 
@@ -82,7 +81,7 @@ export function refresh() {
   controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
   const operation = (async () => {
-    const before = JSON.stringify(raw?.holdings);
+    const before = identitySignature(holdings());
     try {
       const response = await fetch('/api/family-portfolio', { cache: 'no-store', signal });
       const payload = await boundedJson(response, 2 * 1024 * 1024);
@@ -98,7 +97,7 @@ export function refresh() {
       syncStatus = 'unavailable';
       syncError = 'Family Office sync unavailable — showing the last saved portfolio, which may be out of date.';
     }
-    const changed = before !== JSON.stringify(raw?.holdings);
+    const changed = before !== identitySignature(holdings());
     notify(changed);
     return { added: changed ? 1 : 0, checked: raw?.holdings?.length || 0, ...(syncError ? { error: syncError } : {}) };
   })().finally(() => { if (startedGeneration === generation) { pending = null; controller = null; } });
@@ -107,28 +106,38 @@ export function refresh() {
 }
 
 export function syncLabel() {
-  if (family) return 'Using holdings supplied by the authenticated Family Office session. These private session identities are not saved to the public portfolio snapshot.';
+  if (family) return family.checking ? 'Checking Family Office for changes — showing the last verified holdings.' : 'Using holdings supplied by the authenticated Family Office session. These private session identities are not saved to the public portfolio snapshot.';
   const checked = raw?.syncedAt ? new Date(raw.syncedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'unknown';
   const source = `Workbook: ${raw?.sourceWorkbook?.label || 'saved baseline'} · stated period end: ${raw?.asOf || 'unknown'} · last successful check: ${checked} IST`;
   const periodDays = Math.floor((Date.now() - Date.parse(raw?.asOf)) / 86400000);
   const periodAge = !Number.isFinite(periodDays) ? ' · workbook period is unknown' : periodDays < 0
     ? ' · stated period end is in the future; it does not verify holdings as of today'
     : ` · ${periodDays} day(s) since the stated period end; later trades need a workbook update`;
-  const edits = scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length;
-  const overrides = edits ? ' · WARNING: this browser has manual portfolio edits; its list may differ from Family Office' : '';
   const status = currentStatus();
   const lead = syncError || (status === 'stale' ? 'Portfolio check expired — showing saved holdings, which may be out of date.' :
     status !== 'live' ? 'Portfolio is a saved snapshot — checking Family Office…' : 'Family Office connection checked.');
-  return `${lead} ${source}${periodAge}${overrides} · Holdings are workbook-based, not live broker trades.`;
+  return `${lead} ${source}${periodAge} · Holdings are workbook-based, not live broker trades.`;
 }
 let family = null;
 
-/** Authenticated, per-question identities only. Never write these to storage or
- * mix device edits into what the active Family book says is owned. */
-export function useFamilyBook(holdings, asOf) {
-  if (!Array.isArray(holdings)) { family = null; return; }
-  const known = new Map(baseHoldings().map((h) => [h.isin, h]));
-  family = { asOf, holdings: holdings.map((h) => ({ ...h, ticker: h.ticker || known.get(h.isin)?.ticker || null })) };
+const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.sector]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+
+/** One in-memory Family book for every view. Only membership/identity changes
+ * require re-filtering feeds; a quote refresh must not tear down an answer. */
+export function useFamilyBook(entries, asOf, checkedAt = null) {
+  const before = identitySignature(holdings());
+  if (!Array.isArray(entries)) family = null;
+  else {
+    const known = new Map(baseHoldings().map(h => [h.isin, h]));
+    family = { asOf, checkedAt, holdings: entries.map(h => ({ ...h, ticker: h.ticker || known.get(h.isin)?.ticker || null })) };
+  }
+  notify(before !== identitySignature(holdings()));
+}
+
+/** Keep the last verified identity set visible during revalidation. A routine
+ * check must not briefly swap the current book for an older public fallback. */
+export function invalidateFamilyBook() {
+  if (family) { family.checking = true; notify(false); }
 }
 
 export function prime(payload) {
@@ -147,8 +156,8 @@ export const isLoaded = () => !!raw;
  */
 export const baseHoldings = () => (raw ? raw.holdings : []);
 
-/** The book the reader asked to use on this device. The committed file remains the reset point. */
-export const holdings = () => family ? family.holdings : scopeLists.apply('portfolio', baseHoldings());
+/** Family Office alone controls ownership. Watchlist holds personal selections. */
+export const holdings = () => family ? family.holdings : baseHoldings();
 
 /** The subset a feed can actually match. */
 export const tracked = () => holdings().filter((h) => h.ticker);
@@ -170,18 +179,17 @@ export function meta() {
     asOf: family?.asOf || raw?.asOf || null,
     source: family ? 'Active Sattva Family book' : raw?.source || null,
     sourceWorkbook: family ? null : raw?.sourceWorkbook || null,
-    syncedAt: family ? null : raw?.syncedAt || null,
-    syncStatus: family ? 'family-session' : currentStatus(),
+    syncedAt: family ? family.checkedAt : raw?.syncedAt || null,
+    syncStatus: family ? (family.checking ? 'family-checking' : 'family-session') : currentStatus(),
     syncError,
-    manualEdits: scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length,
+    manualEdits: 0,
     count: current.length,
     tracked: current.length - currentUncovered.length,
     uncovered: currentUncovered.length,
-    // The committed source's three reason buckets are only exact before a reader edits it. Once
-    // edited, keep the honest total above and do not pretend the old split still describes it.
-    unlisted: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
-    bseOnly: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
-    unresolved: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
+    // Detailed reason buckets belong to the names-only export.
+    unlisted: family ? null : raw?.unlisted ?? 0,
+    bseOnly: family ? null : raw?.bseOnly ?? 0,
+    unresolved: family ? null : raw?.unresolved ?? 0,
   };
 }
 

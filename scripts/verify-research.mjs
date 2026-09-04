@@ -76,7 +76,7 @@ ok('Public Chatter evidence preserves failure state and separately samples unres
 ok('saved web-researched answers retain their historical provenance after the provider migration', () => {
   assert.match(askResearchSource, /webResearch: message\.webResearch === true/);
   assert.match(askResearchSource, /message\.webResearch \? 'Dashboard \+ web research' : 'Dashboard research'/);
-  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, scope: evidence\.scope, webResearch: false/);
+  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, requirePortfolio: true, scope: evidence\.scope, webResearch: false/);
 });
 
 ok('configuration accepts the dedicated or existing Muns session-token bindings', () => {

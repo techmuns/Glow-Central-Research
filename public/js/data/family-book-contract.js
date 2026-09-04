@@ -20,8 +20,9 @@ export function validateFamilyBook(body) {
   const lines = body.lines.map(l => {
     if (!/^INE[A-Z0-9]{9}$/.test(l?.isin || '') || typeof l.name !== 'string' ||
         !l.name.trim() || l.name.length > 200 || seen.has(l.isin)) throw new Error('Invalid or duplicate holding identity');
+    if (l.ticker != null && (typeof l.ticker !== 'string' || !/^[A-Z0-9&.\-]{1,30}$/.test(l.ticker))) throw new Error('Invalid Family ticker');
     seen.add(l.isin);
-    return { isin: l.isin, name: l.name.trim(), sector: typeof l.sector === 'string' ? l.sector.slice(0, 100) : 'Unclassified' };
+    return { isin: l.isin, name: l.name.trim(), sector: typeof l.sector === 'string' ? l.sector.slice(0, 100) : 'Unclassified', ...(l.ticker ? { ticker: l.ticker } : {}) };
   });
   const w = body.sourceWorkbook;
   if (!w || !/^[a-z0-9][a-z0-9-]{0,80}$/.test(w.fileKey || '') || typeof w.label !== 'string') {

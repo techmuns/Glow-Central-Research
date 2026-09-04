@@ -1,3 +1,4 @@
+import { pauseFamilySession } from '../data/family-session.js';
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
 import { authHeaders } from '../core/host-context.js';
@@ -9,8 +10,7 @@ import * as notifications from '../ui/notifications.js';
 import { scopeLabel } from '../data/scope.js';
 import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
-import { connectPortfolio, portfolioConnected, privatePortfolioContext, questionNeedsPortfolio, readPortfolio, onPortfolioInvalidation, FAMILY_RESEARCH_URL, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
-import { useFamilyBook } from '../data/coverage.js';
+import { connectPortfolio, portfolioConnected, privatePortfolioContext, readPortfolio, onPortfolioInvalidation, portfolioConnectionState, onPortfolioConnection, unlockPortfolio, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
 
 export const meta = {
   id: 'ask-research',
@@ -33,7 +33,6 @@ let configState = null;
 let configPromise = null;
 const generations = new Map();
 onPortfolioInvalidation((version) => {
-  useFamilyBook(null);
   for (const generation of generations.values()) {
     if (generation.portfolio && generation.portfolio.archiveVersion !== version) {
       generation.portfolioChanged = true;
@@ -119,7 +118,6 @@ function normaliseSession(raw) {
 }
 
 function loadSessions() {
-  if (privatePortfolioContext()) return [];
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     if (!Array.isArray(parsed)) return [];
@@ -130,9 +128,8 @@ function loadSessions() {
 }
 
 function persistSessions() {
-  // An embedded private session must neither import nor overwrite standalone
-  // history, including a typed-but-unsent draft from a previously saved session.
-  if (privatePortfolioContext()) return;
+  // Existing public history remains visible. New private conversations and
+  // continued sessions using portfolio readings stay in memory only.
   try {
     const payload = sessions
       .filter((session) => !session.private)
@@ -317,15 +314,22 @@ export function render(ctx) {
   });
 }
 
+onPortfolioConnection(() => paintPortfolioConnection());
+
 function paintPortfolioConnection() {
   const mount = ctxRef?.root.querySelector('[data-portfolio-connection]');
   if (!mount) return;
   empty(mount);
   if (portfolioConnected()) {
-    mount.textContent = 'Full portfolio via Ask Sattva · source dates checked with each question';
+    mount.textContent = 'Portfolio connected · refreshed with every question';
   } else {
-    mount.append('Full portfolio not connected · ');
-    mount.appendChild(el('a', { href: FAMILY_RESEARCH_URL, target: '_blank', rel: 'noopener noreferrer', class: 'research-cite' }, 'Open with portfolio'));
+    const status = portfolioConnectionState();
+    if (status === 'locked') {
+      mount.append('Portfolio access needs sign-in · ');
+      const unlock = el('button', { type: 'button', class: 'research-cite' }, 'Unlock portfolio');
+      unlock.onclick = unlockPortfolio;
+      mount.appendChild(unlock);
+    } else mount.textContent = status === 'connecting' ? 'Connecting your portfolio…' : 'Portfolio connection unavailable · try again shortly';
   }
 }
 
@@ -803,12 +807,12 @@ async function submitCurrent() {
   paintAll();
   persistSessions();
 
+  const resumePortfolioSync = pauseFamilySession();
   try {
-    setPhase(session, 'Checking the Family portfolio and its source dates…');
+    setPhase(session, 'Refreshing your portfolio…');
     const family = await readPortfolio(question, generation.controller.signal);
     if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
-    if (!family.holdings && questionNeedsPortfolio(question)) throw new Error('This question needs your full portfolio. Use “Open with portfolio” above; the dated Research coverage list cannot answer it safely.');
-    useFamilyBook(family.holdings, family.reading.bookAsOf);
+
     generation.portfolio = family.holdings ? family.reading : null;
     // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
     // can take ten seconds on a cold page, and a scope change during it used to leave the
@@ -821,6 +825,7 @@ async function submitCurrent() {
         question,
         scope: generation.scope,
         portfolio: family.reading,
+        portfolioPositions: { sizes: family.sizes, holdings: family.holdings },
         onProgress: ({ completed, total, source }) => {
           if (!generation.controller.signal.aborted) setPhase(session, `Reading ${source} · ${completed} of ${total}`);
         },
@@ -836,7 +841,7 @@ async function submitCurrent() {
     const response = await fetch('api/research', {
       method: 'POST',
       headers: { accept: 'application/x-ndjson', 'content-type': 'application/json', ...authHeaders('api/research') },
-      body: JSON.stringify({ question, scope: evidence.scope, webResearch: false, history, evidence }),
+      body: JSON.stringify({ question, requirePortfolio: true, scope: evidence.scope, webResearch: false, history, evidence }),
       signal: generation.controller.signal,
     });
     if (!response.ok) {
@@ -858,6 +863,7 @@ async function submitCurrent() {
     session.phase = '';
     persistSessions();
   } finally {
+    resumePortfolioSync();
     generations.delete(session.id);
     if (session.status === 'answering') session.status = 'idle';
     if (activeId === session.id && ctxRef) paintAll();

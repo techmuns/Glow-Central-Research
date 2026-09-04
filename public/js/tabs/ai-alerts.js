@@ -14,7 +14,7 @@ import * as alerts from '../data/ai-alerts.js';
 import * as coverage from '../data/coverage.js';
 import * as mute from '../core/ai-mute.js';
 import { currentDay, relativeAge, formatDay as fmtDay, latestSignal, matchesSearch } from '../ui/ai-alert-utils.js';
-import { privatePortfolioContext, readPositionSizes, onPortfolioInvalidation, onPortfolioReady, FAMILY_RESEARCH_URL } from '../research/portfolio-bridge.js';
+import { privatePortfolioContext, readPositionSizes, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState, unlockPortfolio } from '../research/portfolio-bridge.js';
 export { relativeAge } from '../ui/ai-alert-utils.js';
 
 export const meta = {
@@ -44,12 +44,14 @@ export function render(ctx) {
 
   if (!unsubs.length) {
     unsubs.push(watchCalendar());
+    unsubs.push(onPortfolioConnection((connected) => {
+      if (connected && ctxRef?.scope === 'portfolio' && !sizesLoading) void recollect(ctxRef);
+    }));
     unsubs.push(onPortfolioInvalidation((version) => {
       if (!ctxRef || ctxRef.scope !== 'portfolio') return;
       report = null;
-      coverage.useFamilyBook(null);
       // Wait until Family adopts the new book; starting another archive check here
-      // would invalidate the check that is still running in the parent.
+      // would invalidate the check that is still running in the connector.
       if (!sizesLoading) { loadToken += 1; awaitingBook = version; }
       paint(ctxRef);
     }));
@@ -118,11 +120,8 @@ async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
       try {
         positionSizes = await readPositionSizes(controller.signal);
         if (token !== loadToken || !ctxRef) return;
-        if (!positionSizes) throw new Error('Holding sizes are not connected yet. Refresh after the Family portfolio connection is available.');
-        coverage.useFamilyBook(positionSizes.holdings, positionSizes.sizes.bookAsOf);
       } catch (err) {
         if (token !== loadToken || !ctxRef) return;
-        coverage.useFamilyBook(null);
         sizeError = err?.message || 'Your active portfolio could not be read. Please refresh.';
         sizesLoading = false;
         paint(ctxRef);
@@ -180,7 +179,7 @@ function paint(ctx) {
 
 function positionStatus(ctx) {
   if (ctx.scope !== 'portfolio') return '';
-  if (sizesLoading || awaitingBook !== null) return '<p class="mb-4 text-xs text-slate-500" role="status">Reading your holding sizes from Sattva Family…</p>';
+  if (sizesLoading || awaitingBook !== null) return '<p class="mb-4 text-xs text-slate-500" role="status">Refreshing your holding sizes…</p>';
   const sizes = report?.meta?.positionSizes;
   if (sizes) {
     const prices = sizes.quotes?.notLive > 0 || sizes.quotes?.status !== 'live' ? 'Some prices use workbook marks' : 'Quote freshness varies by stock';
@@ -188,8 +187,7 @@ function positionStatus(ctx) {
       <strong class="font-semibold text-slate-700">${report.meta.sortedByHolding ? 'Largest holdings first' : 'Holding sizes unavailable · Ordered by alert priority'}</strong> · % of listed portfolio · Book ${fmtDay(sizes.bookAsOf)} · ${prices}
     </p>`;
   }
-  if (privatePortfolioContext()) return '';
-  return `<p class="mb-4 text-xs text-slate-500">Ordered by alert priority · <a href="${FAMILY_RESEARCH_URL}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700 hover:underline">Open with your portfolio</a> to sort by holding size.</p>`;
+  return `<p class="mb-4 text-xs text-slate-500">Holding sizes unavailable · Ordered by alert priority${portfolioConnectionState() === 'locked' ? ' · <button type="button" data-ai-unlock class="font-semibold text-indigo-700 hover:underline">Unlock portfolio</button>' : ''}</p>`;
 }
 
 function searchMarkup() {
@@ -521,6 +519,7 @@ function filteredCards(cards) {
 }
 
 function wire(ctx, total) {
+  ctx.root.querySelector('[data-ai-unlock]')?.addEventListener('click', unlockPortfolio);
   ctx.root.querySelector('[data-ai-empty-clear]')?.addEventListener('click', clearSearch);
   ctx.root.querySelector('[data-ai-controls]')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-ai-filter]');

@@ -13,15 +13,15 @@ There are no quantities, costs or valuations in this public snapshot.
 A Portfolio Analytics workspace over an illustrative ledger used to exist and was
 deleted; it is in git history at `d3bba30` if a real ledger is ever wired.
 
-**Full-book Ask Research** runs inside the authenticated Sattva Family `/research`
-view. It uses that app's active portfolio and Ask Sattva query tools, revalidates
-uploaded workbooks per question, and passes a bounded, dated portfolio reading
-alongside research evidence. The active ISIN list replaces the public coverage
-snapshot for that session, retaining fund units and unresolved symbols. Standalone
-Research shows “Open with portfolio” and refuses personal-book questions without
-that connection. Private conversations remain in memory only; no ledger or
-portfolio reading is committed to public assets or saved to Research localStorage.
-See [the integration contract](docs/PORTFOLIO-INTEGRATION.md) for boundaries and tests.
+**Portfolio-aware Ask Research** stays in Central Research. An authenticated,
+hidden Family connector revalidates the uploaded book and refreshes quotes for
+every question. All held listed ISINs, sectors and listed-market-value weights
+accompany the dated question-specific reading, including fund units and unresolved
+symbols. An expired session can be unlocked inside Research; no second dashboard
+is needed. Missing access or a failed archive recheck stops the answer. Existing
+public conversation history remains visible; portfolio-connected conversations
+stay in memory only, with no private data in public assets or localStorage.
+See [the integration contract](docs/PORTFOLIO-INTEGRATION.md).
 
 **Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,

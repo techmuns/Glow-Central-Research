@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Portfolio access stays hidden unless the existing session needs unlocking. */
+.portfolio-unlock-dialog { padding: 0; width: min(440px, calc(100vw - 32px)); border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 24px 80px #0f172a33; }
+.portfolio-unlock-dialog::backdrop { background: #0f172a66; backdrop-filter: blur(4px); }
+.portfolio-unlock-dialog iframe { display: block; width: 100%; height: min(480px, 80vh); border: 0; }
+.portfolio-unlock-close { display: block; margin: 12px 16px 0 auto; padding: 6px 12px; border-radius: 8px; color: #475569; font-size: 13px; }
+.portfolio-unlock-close:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }

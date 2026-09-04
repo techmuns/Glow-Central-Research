@@ -9,6 +9,8 @@ import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
+import { portfolioConnectionState, onPortfolioConnection, unlockPortfolio } from '../research/portfolio-bridge.js';
+import { refreshFamilySession } from '../data/family-session.js';
 
 const SEARCH_DELAY_MS = 250;
 
@@ -39,10 +41,10 @@ function editorHtml(scope) {
     <div data-scope-editor="${escapeHtml(scope)}">
       <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
         <div>
-          <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Scope list</div>
-          <h2 class="font-display mt-1 text-xl font-extrabold text-slate-900">Edit ${escapeHtml(scopeLabel(scope))}</h2>
+          <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-500">${scope === 'portfolio' ? 'Family Office' : 'Scope list'}</div>
+          <h2 class="font-display mt-1 text-xl font-extrabold text-slate-900">${scope === 'portfolio' ? 'View' : 'Edit'} ${escapeHtml(scopeLabel(scope))}</h2>
           <p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-            Search by company name or ticker, then add or remove it. Changes are kept on this device.
+            ${scope === 'portfolio' ? 'Your holdings from Sattva Family Office. Additions and exits update automatically.' : 'Search by company name or ticker, then add or remove it. Changes are kept on this device.'}
           </p>
         </div>
         <button type="button" data-modal-close aria-label="Close scope editor" class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
@@ -50,13 +52,13 @@ function editorHtml(scope) {
 
       <div class="px-6 py-5">
         <div>
-          <label for="scope-company-search" class="sr-only">Search company name or ticker</label>
+          <label for="scope-company-search" class="sr-only">Search company name, ticker or ISIN</label>
           <div class="flex items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-300">
             <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <circle cx="8.5" cy="8.5" r="5.5"></circle><path d="m13 13 4 4"></path>
             </svg>
             <input id="scope-company-search" data-scope-search type="search" autocomplete="off"
-              placeholder="Search company name or ticker…"
+              placeholder="Search company name, ticker or ISIN…"
               class="min-w-0 flex-1 bg-transparent py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400" />
           </div>
           <!-- IN FLOW, NOT FLOATING, AND THAT IS THE FIX RATHER THAN THE STYLE.
@@ -77,9 +79,10 @@ function editorHtml(scope) {
         <div data-scope-loading class="py-12 text-center text-sm text-slate-400">Reading the ${escapeHtml(scopeLabel(scope).toLowerCase())} list…</div>
         <div data-scope-list-panel class="mt-5 hidden">
           <div class="mb-2 flex items-center justify-between gap-3">
-            <div class="text-xs font-bold uppercase tracking-wider text-slate-400"><span data-scope-count>0</span> companies</div>
-            ${scope === 'watchlist' ? '' : '<button type="button" data-scope-reset class="text-xs font-semibold text-slate-400 transition hover:text-rose-600">Restore default</button>'}
+            <div class="text-xs font-bold uppercase tracking-wider text-slate-400"><span data-scope-count>0</span> ${scope === 'portfolio' ? 'holdings' : 'companies'}</div>
+            ${scope !== 'universe' ? '' : '<button type="button" data-scope-reset class="text-xs font-semibold text-slate-400 transition hover:text-rose-600">Restore default</button>'}
           </div>
+          ${scope === 'portfolio' ? '<p data-portfolio-status role="status" class="mb-3 text-xs leading-relaxed text-slate-500"></p>' : ''}
           <div data-scope-members class="scrollbar-thin max-h-[44vh] divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/60 px-3"></div>
           <p data-scope-empty-filter class="hidden py-8 text-center text-sm text-slate-400">No current company matches this search.</p>
         </div>
@@ -90,7 +93,7 @@ function editorHtml(scope) {
           ${scope === 'universe'
             ? 'Universe edits filter every ticker-based feed. A newly added company appears wherever that feed has data for it.'
             : scope === 'portfolio'
-              ? 'This changes the Portfolio scope on this device only; it does not change the book synced from the family office repository.'
+              ? 'Manage holdings in Family Office. Keep companies you want to follow in Watchlist.'
               : 'This is the same list controlled by the ☆ beside company rows.'}
         </p>
         <button type="button" data-modal-close class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Done</button>
@@ -98,18 +101,18 @@ function editorHtml(scope) {
     </div>`;
 }
 
-function memberHtml(entry) {
+function memberHtml(entry, readOnly = false) {
   const ticker = upper(entry.ticker);
-  const key = scopeLists.keyFor(entry);
+  const key = readOnly ? entry.isin || scopeLists.keyFor(entry) : scopeLists.keyFor(entry);
   return `
     <div class="flex items-center gap-3 py-2.5" data-scope-member="${escapeHtml(key)}">
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-[10px] font-extrabold text-indigo-600">${escapeHtml((ticker || entry.name || '?').slice(0, 2))}</div>
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-semibold text-slate-800">${escapeHtml(entry.name || ticker || 'Unnamed company')}</div>
-        <div class="truncate text-[11px] text-slate-400">${escapeHtml([ticker || 'no ticker', entry.industry || entry.sector].filter(Boolean).join(' · '))}</div>
+        <div class="truncate text-[11px] text-slate-400">${escapeHtml([ticker || 'No NSE research symbol', entry.industry || entry.sector].filter(Boolean).join(' · '))}</div>
       </div>
-      <button type="button" data-scope-remove="${escapeHtml(key)}" aria-label="Remove ${escapeHtml(entry.name || ticker)}"
-        class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Remove</button>
+      ${readOnly ? `<div class="shrink-0 text-right"><span class="text-xs font-semibold text-emerald-700">Owned</span>${Number.isFinite(entry.weightPct) ? `<div class="mt-1 text-[11px] text-slate-500">${entry.weightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of listed portfolio</div>` : ''}</div>` : `<button type="button" data-scope-remove="${escapeHtml(key)}" aria-label="Remove ${escapeHtml(entry.name || ticker)}"
+        class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Remove</button>`}
     </div>`;
 }
 
@@ -140,7 +143,8 @@ function searchResultsHtml(results, current, loading, error) {
 }
 
 export function openScopeEditor({ scope, onChanged = null } = {}) {
-  let base = scope === 'portfolio' ? coverage.baseHoldings() : [];
+  if (scope === 'portfolio') return openPortfolioView({ onChanged });
+  let base = [];
   let changed = false;
   let searchResults = [];
   let searchTimer = null;
@@ -270,4 +274,46 @@ export function openScopeEditor({ scope, onChanged = null } = {}) {
       if (!document.body.contains(root)) return;
       loading.innerHTML = `<span class="text-rose-600">Could not read this list: ${escapeHtml(err?.message || err)}</span>`;
     });
+}
+
+/** The existing scope window, now a live read-only view of the same book used
+ * by every research feed. Search never creates a second ownership list. */
+function openPortfolioView({ onChanged }) {
+  let offBook, offConnection;
+  let changed = false;
+  openModal(editorHtml('portfolio'), {
+    size: 'wide',
+    onClose: () => { offBook?.(); offConnection?.(); if (changed) onChanged?.(); },
+  });
+  const root = document.querySelector('[data-scope-editor="portfolio"]');
+  const input = root.querySelector('[data-scope-search]');
+  const paint = () => {
+    const entries = coverage.holdings();
+    const query = clean(input.value).toLowerCase();
+    const matches = entries.filter(h => [h.name, h.bookName, h.ticker, h.isin, h.sector].join(' ').toLowerCase().includes(query));
+    root.querySelector('[data-scope-loading]').classList.add('hidden');
+    root.querySelector('[data-scope-list-panel]').classList.remove('hidden');
+    root.querySelector('[data-scope-count]').textContent = formatNumber(entries.length);
+    root.querySelector('[data-scope-members]').innerHTML = matches.map(h => memberHtml(h, true)).join('');
+    const empty = root.querySelector('[data-scope-empty-filter]');
+    empty.classList.toggle('hidden', matches.length > 0);
+    empty.textContent = query ? 'No holding matches this search.' : 'No holdings available from Family Office.';
+    const m = coverage.meta();
+    const active = ['family-session', 'live'].includes(m.syncStatus);
+    const day = m.asOf ? ` · Book ${m.asOf}` : '';
+    const status = root.querySelector('[data-portfolio-status]');
+    status.textContent = active ? `From Family Office${day}. Holdings without research coverage are included.`
+      : `${m.syncStatus === 'family-checking' ? 'Last verified Family Office portfolio' : 'Saved Family Office portfolio'}${day} · ${m.syncStatus === 'unavailable' ? 'Unable to check for changes.' : 'Checking for changes…'}`;
+    if (portfolioConnectionState() === 'locked') {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'ml-2 font-semibold text-indigo-700 hover:underline';
+      button.textContent = 'Unlock portfolio'; button.onclick = unlockPortfolio;
+      status.append(button);
+    }
+  };
+  offBook = coverage.onChange(event => { changed ||= event.changed; paint(); });
+  offConnection = onPortfolioConnection(paint);
+  input.addEventListener('input', paint);
+  paint(); input.focus();
+  void refreshFamilySession();
 }
