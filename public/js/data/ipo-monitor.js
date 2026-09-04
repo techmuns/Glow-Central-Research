@@ -64,6 +64,8 @@ export function createIpoFeed({ fetcher = fetch } = {}) {
       state.fallback = true;
       state.error = 'The current published source could not be read. Showing the bundled capture.';
     }
+    // The live latest may be newer than a bundled/stale index; it is still a loaded capture.
+    bundle.historyDates = historyIndex([...bundle.historyDates, bundle.latest.meta.snapshot_id]);
     if (signal?.aborted) throw new Error('Cancelled');
     state.bundle = bundle;
     state.snapshots.set(bundle.latest.meta.snapshot_id, bundle.latest);
