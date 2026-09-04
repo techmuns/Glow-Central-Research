@@ -6,10 +6,13 @@
     "sha": "4dc9f970e8e64da84789ae8c6522fcff2d2287cb",
     "date": "2026-07-27T15:21:39Z"
   },
+  "sourceWorkbook": null,
+  "sourceRevision": null,
+  "storage": null,
   "syncedAt": "2026-09-03T10:45:44.583Z",
   "count": 142,
-  "resolved": 123,
-  "unlisted": 11,
+  "resolved": 124,
+  "unlisted": 10,
   "bseOnly": 5,
   "unresolved": 3,
   "holdings": [
@@ -786,9 +789,10 @@
       "name": "OnEMI Technology Solutions",
       "bookName": "OnEMI Technology Solutions Ltd",
       "sector": "Financials",
-      "ticker": null,
-      "listed": false,
-      "reason": "unlisted — private company, held directly"
+      "ticker": "KISSHT",
+      "listed": true,
+      "matchedName": "OnEMI Technology Solutions Limited",
+      "matchedBy": "confirmed:nse"
     },
     {
       "isin": "INE881D01027",

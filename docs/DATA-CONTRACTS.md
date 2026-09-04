@@ -3381,7 +3381,7 @@ the back-adjustment trap that governs corporate actions against a split-adjusted
 Three things the reader owns are not files and never travel to a server. They are documented here
 because a scope filter is a data contract even when its storage is `localStorage`.
 
-### `sattva:scope-lists:v1` — Portfolio and Universe edits on this device
+### `sattva:scope-lists:v1` — Universe edits and legacy Portfolio migration
 
 ```jsonc
 {
@@ -3397,13 +3397,15 @@ because a scope filter is a data contract even when its storage is `localStorage
 }
 ```
 
-The committed book and technicals universe remain the defaults. `added` overlays a named NSE
+Portfolio entries in this legacy format are migrated: additions go to Watchlist,
+and exclusions cannot remove Family holdings. Only Universe remains editable.
+For Universe, `added` overlays a named NSE
 company; `removed` records the excluded default entry (including its upper-case ticker). Keeping
 the name lets the name-only super-investor feed honour the exclusion too. Adding a default company
 again clears its exclusion, and **Restore default** clears both arrays for that scope. Watchlist is
 not duplicated here: its editor calls the existing `sattva:watchlist` store, so stars and the
-header editor cannot disagree. All edits are device-local, and a Portfolio edit affects research
-scope and denominators only — there are no quantities or costs anywhere for it to touch.
+header editor cannot disagree. Universe and Watchlist edits are device-local. Portfolio ownership comes exclusively
+from Family Office; the existing header control opens a read-only View Portfolio.
 
 The browser calls `GET /api/stock-search?q=` after two characters. The Worker sends the exact Muns
 body `{ query, user_index: 124 }`, keeps `MUNS_TOKEN` out of the browser, and normalises the
@@ -3457,7 +3459,7 @@ stored one rather than letting a typo redefine what is on screen.
 
 | Scope | Filters by | Denominator the pill prints |
 | --- | --- | --- |
-| `portfolio` | `portfolio-companies.json` via `js/data/coverage.js`, overlaid by `sattva:scope-lists:v1` | *"123 of 142 book companies"* before edits. Unresolved book lines stay in the denominator; device additions and exclusions update it. |
+| `portfolio` | Authenticated Family book or labelled names-only Family snapshot via `js/data/coverage.js` | All owned identities remain in the denominator, including unresolved symbols. Browser edits cannot alter ownership. |
 | `watchlist` | `sattva:watchlist` above | *"12 of 20 watched companies"*. This gap is only ever *this feed does not carry it* — a watchlist entry came **from** a feed. |
 | `universe` | the feed's full rows, minus local exclusions; local additions appear wherever that feed has data for their ticker | plain count |
 

@@ -22,10 +22,21 @@ expires after 90 seconds even if browser timers stopped; reads more than five se
 future are refused. A pre-sleep request cannot overwrite a resumed request. Browser, Worker and
 scheduled collectors share strict identity, count, provenance and freshness validation.
 
+The shared source fetch must use `redirect: 'manual'`, not `'error'`: the latter
+works in Node but is rejected by the Cloudflare runtime before any network request.
+Every non-2xx response, including a redirect, is rejected before parsing; the
+holdings credential must never follow a redirect. Contract tests pin the supported
+mode and cover 301, 302, 303, 307 and 308 refusal. A bundle-only dry run does not
+exercise edge HTTP behaviour; also check the authenticated path in a Cloudflare
+preview when changing its request options.
+
 The source workbook, stated period end, its age and last successful connection check are visible
 beside the Portfolio controls. A future period end is flagged as not proving today's holdings.
-Existing browser-local manual overrides remain local; an explicit warning identifies when the
-device's list may differ from Family Office. Unmapped new ISINs remain visible as uncovered.
+Portfolio membership is read-only. Legacy manual additions migrate to Watchlist;
+browser exclusions no longer remove owned companies. Unmapped new ISINs remain visible as uncovered.
+The export now carries Family Office's ISIN-to-ticker mapping, ahead of obsolete
+Research listing classifications. OnEMI INE12F801023 resolves to KISSHT, including
+in the saved fallback (NSE listing circular CML74093).
 
 ## Activation — requires approval of both PRs and the exact production actions
 
@@ -79,7 +90,7 @@ fallback snapshot; do not bypass the guard merely to get a green run.
 `node scripts/verify-family-sync.mjs` exercises the resolver, additions/removals, auth boundary,
 failure retention, replay/rollback rejection and six-month reopen behaviour with synthetic/local
 data. `scripts/verify-family-sync-ui.mjs` runs real Chromium/IndexedDB reload, offline, reconnect,
-BFCache and manual-override checks; it runs in PR CI alongside contract tests.
+BFCache and read-only membership checks; it runs in PR CI alongside contract tests.
 `wrangler deploy --dry-run`
 bundles without deployment. The Family Office PR has matching producer/auth tests and a
 Pages Functions build check. No live collection jobs are executed in these tests.
@@ -112,3 +123,27 @@ Coordinate activation using its `docs/versioned-workbooks.md`: freeze legacy
 writes, copy and verify all shared sheets, then enable `WORKBOOKS_MODE=d1` with
 the `WORKBOOKS_DB` binding. Do not activate against a newly created empty database.
 Creating the database is separate from migrating customer data or deploying code.
+
+
+## Unified dashboard portfolio
+
+`family-session.js` starts the hidden authenticated reader from the shell on any
+entry tab, and refreshes while visible, on resume/reconnect and book-ready events.
+The existing scope window is **View Portfolio**: name/ticker/ISIN search, owned
+holdings, and optional percentages of listed market value. It reads the same
+`coverage.holdings()` used by feeds and never offers Add/Remove/Restore controls.
+Changed identities refresh scoped tabs; updates while the window is open repaint
+its list and refresh the underlying tab on close. A quote-only change does not
+tear down a research view. Private positions are kept only in memory.
+
+Family reads are serialized, overlapping positions requests coalesce, and
+background rechecks pause throughout a question's evidence build and answer
+stream. Real workbook-change notifications still invalidate an affected answer.
+This avoids a routine background read advancing the archive revision mid-answer.
+
+`scripts/verify-portfolio-view-ui.mjs` runs the full shell with an isolated Family
+peer and synthetic book. It covers direct News entry, OnEMI/KISSHT/ISIN search,
+unknown symbols, legacy selection migration, additions/exits with the window
+open, all tab entry paths and full holdings in Ask Research. It runs in CI.
+Research PR #47 incorporates the request-runtime correction and redirect tests
+from #48; #48 does not need a separate merge if #47 is approved and merged.

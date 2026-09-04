@@ -1604,7 +1604,7 @@ console.log('\n— AI alerts —');
     localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
   });
 
-  // A scope-list edit is emitted immediately but the editor defers the shell's remount until it
+  // A Watchlist edit is emitted immediately but the editor defers the shell's remount until it
   // closes. The Ask workspace must cancel at the store boundary, before a response for the old
   // membership can be committed to device history.
   await page.locator('[data-research-new]').click();
@@ -1616,7 +1616,9 @@ console.log('\n— AI alerts —');
     const scopeLists = await import('/js/core/scope-lists.js');
     const base = coverage.baseHoldings();
     const member = base[0];
-    scopeLists.remove('portfolio', member, base);
+    (await import('/js/core/watchlist.js')).add(member.ticker, member.name);
+    (await import('/js/core/state.js')).setScope('watchlist');
+    (await import('/js/core/watchlist.js')).remove(member.ticker);
     return member?.ticker || member?.name || null;
   });
   await page.waitForTimeout(1200);
@@ -2387,7 +2389,7 @@ console.log('\n— watchlist scope —');
 }
 
 // ---------------------------------------------------------------------------------------
-// 3f. Editable Portfolio, Watchlist and Universe lists
+// 3f. Family Portfolio view and editable Watchlist/Universe lists
 //
 // The committed book/universe remain the defaults; edits are a browser-local overlay. The search
 // itself is intercepted here so verification never spends the user's Muns token or calls their
@@ -2416,32 +2418,11 @@ console.log('\n— editable scope lists —');
   ok('the scope control has an editor for the active list', (await page.locator('[data-scope-edit]').count()) === 1);
   await page.locator('[data-scope-edit]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 4000 });
-  ok('Portfolio opens with the committed 142-company default', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
-
-  const listSearch = page.locator('[data-scope-search]');
-  await listSearch.fill('ALPHA');
-  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
-  await page.locator('[data-scope-result="0"]').click();
-  ok('a Muns search result can be added to Portfolio',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '143' &&
-      await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:scope-lists:v1') || '{}').portfolio?.added?.some((e) => e.ticker === 'ALPHACO')));
-  await page.locator('[data-scope-result="0"]').click();
-  ok('the same search result can be removed again', (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
-
-  // CLEAR THE BOX BEFORE CLICKING THE LIST BENEATH IT. The results panel opens on any query of two
-  // characters or more and is absolutely positioned over the top of the member list, so a click on
-  // the filtered row underneath is intercepted — which aborted the whole run here, taking every
-  // check after this line with it. Typing narrows the list to find the row; clearing closes the
-  // panel and leaves the row in the list, where Playwright scrolls to it. Same assertion, no race.
-  await listSearch.fill('IIFL');
-  await page.locator('[data-scope-remove="ticker:IIFL"]').waitFor({ state: 'attached', timeout: 3000 });
-  await listSearch.fill('');
-  await page.locator('[data-scope-remove="ticker:IIFL"]').click();
-  ok('a committed Portfolio company can be removed through the local overlay',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '141');
-  await page.locator('[data-scope-reset]').click();
-  ok('Restore default clears Portfolio edits without rewriting the source file',
-    (await page.locator('[data-scope-count]').innerText()).replace(/,/g, '') === '142');
+  ok('Portfolio opens the Family holdings in a read-only view',
+    (await page.getByRole('heading', { name: 'View Portfolio', exact: true }).count()) === 1 &&
+    (await page.locator('[data-scope-remove], [data-scope-reset]').count()) === 0);
+  await page.locator('[data-scope-search]').fill('KISSHT');
+  ok('OnEMI resolves by ticker as already owned', /Owned/.test(await page.locator('[data-scope-members]').innerText()));
   await page.getByRole('button', { name: 'Done' }).click();
 
   await go('/#/research/daily-alerts?scope=watchlist', 900);

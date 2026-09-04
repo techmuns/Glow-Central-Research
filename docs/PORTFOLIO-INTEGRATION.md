@@ -62,3 +62,15 @@ Run Family on `localhost:5173` and Research on `localhost:8080`. Run
 password. Both harnesses block external traffic and model calls. The auth harness
 reads the companion Family repo from `FAMILY_REPO` (default `../Sattva-Family-alert-sizes`).
 Deploy the companion Family connector before the Research consumer after approval.
+
+
+## Portfolio window and background membership
+
+The header's former Edit Portfolio control opens **View Portfolio** in the same
+window. Family Office alone supplies ownership. The window searches actual
+holdings by name, ticker and ISIN; missing research does not remove a holding.
+Manual company selections remain in Watchlist. The hidden reader starts from
+any tab and replaces the shared coverage set for every research feed. Positions
+requests are coalesced/serialized with question reads, and background refreshes
+pause while an answer is being prepared. See `ACTIVE-FAMILY-HOLDINGS.md` for the
+names-only export, authoritative ISIN mapping and the #48 runtime correction.

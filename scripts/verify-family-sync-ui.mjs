@@ -97,7 +97,7 @@ try {
   await page.waitForFunction(() => window.testFamily.coverage.meta().syncStatus === 'live');
   check('a new successful check recovers after months away', (await page.locator('#holdings').innerText()).includes('STLTECH'));
   await page.evaluate(() => window.testFamily.scope.remove('portfolio', { ticker: 'STLTECH', name: 'Sterlite Technologies' }, window.testFamily.coverage.baseHoldings()));
-  check('device-local edits are explicitly identified as differing from Family Office', /WARNING.*manual portfolio edits/.test(await page.locator('#status').innerText()));
+  check('browser edits cannot remove a Family Office holding', (await page.locator('#holdings').innerText()).includes('STLTECH'));
   await page.evaluate(() => window.testFamily.scope.reset('portfolio'));
   // A removal below the reconciliation threshold must fail with a warning.
   holdings = [oldHolding];

@@ -50,7 +50,6 @@ export function render(ctx) {
     unsubs.push(onPortfolioInvalidation((version) => {
       if (!ctxRef || ctxRef.scope !== 'portfolio') return;
       report = null;
-      coverage.useFamilyBook(null);
       // Wait until Family adopts the new book; starting another archive check here
       // would invalidate the check that is still running in the connector.
       if (!sizesLoading) { loadToken += 1; awaitingBook = version; }
@@ -121,10 +120,8 @@ async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
       try {
         positionSizes = await readPositionSizes(controller.signal);
         if (token !== loadToken || !ctxRef) return;
-        coverage.useFamilyBook(positionSizes?.holdings || null, positionSizes?.sizes.bookAsOf);
       } catch (err) {
         if (token !== loadToken || !ctxRef) return;
-        coverage.useFamilyBook(null);
         sizeError = err?.message || 'Your active portfolio could not be read. Please refresh.';
         sizesLoading = false;
         paint(ctxRef);

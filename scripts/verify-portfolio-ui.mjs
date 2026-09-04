@@ -72,6 +72,8 @@ try {
   assert.equal(await research.getByText('Saved standalone conversation', { exact: true }).count(), 1);
   assert.ok(await page.evaluate(() => !localStorage.getItem('sattva:ask-research:v1').includes('Sterlite')), 'private conversations are not persisted');
   assert.ok(questions[0].evidence.portfolioPositions.holdings.length > 100);
+  assert.equal(questions[0].evidence.portfolioPositions.holdings.find(h => h.isin === 'INE12F801023')?.ticker, 'KISSHT', 'actual Family OnEMI identity reaches Research');
+  assert.deepEqual(await page.evaluate(async () => (await import('/js/data/coverage.js')).holdings().map(h => h.isin).sort()), questions[0].evidence.portfolioPositions.holdings.map(h => h.isin).sort(), 'every Family holding reaches the dashboard scope');
   const initialWeight = questions[0].evidence.portfolioPositions.holdings.find(h => h.ticker === 'RBLBANK').weightPct;
   assert.ok(quoteRefreshes >= 1, 'the answer actively refreshes quotes');
   quotePrice = 150;

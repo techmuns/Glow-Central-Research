@@ -1,3 +1,4 @@
+import { pauseFamilySession } from '../data/family-session.js';
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
 import { authHeaders } from '../core/host-context.js';
@@ -10,7 +11,6 @@ import { scopeLabel } from '../data/scope.js';
 import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
 import { connectPortfolio, portfolioConnected, privatePortfolioContext, readPortfolio, onPortfolioInvalidation, portfolioConnectionState, onPortfolioConnection, unlockPortfolio, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
-import { useFamilyBook } from '../data/coverage.js';
 
 export const meta = {
   id: 'ask-research',
@@ -33,7 +33,6 @@ let configState = null;
 let configPromise = null;
 const generations = new Map();
 onPortfolioInvalidation((version) => {
-  useFamilyBook(null);
   for (const generation of generations.values()) {
     if (generation.portfolio && generation.portfolio.archiveVersion !== version) {
       generation.portfolioChanged = true;
@@ -808,12 +807,12 @@ async function submitCurrent() {
   paintAll();
   persistSessions();
 
+  const resumePortfolioSync = pauseFamilySession();
   try {
     setPhase(session, 'Refreshing your portfolio…');
     const family = await readPortfolio(question, generation.controller.signal);
     if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
 
-    useFamilyBook(family.holdings, family.reading.bookAsOf);
     generation.portfolio = family.holdings ? family.reading : null;
     // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
     // can take ten seconds on a cold page, and a scope change during it used to leave the
@@ -864,6 +863,7 @@ async function submitCurrent() {
     session.phase = '';
     persistSessions();
   } finally {
+    resumePortfolioSync();
     generations.delete(session.id);
     if (session.status === 'answering') session.status = 'idle';
     if (activeId === session.id && ctxRef) paintAll();

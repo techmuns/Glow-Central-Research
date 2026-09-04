@@ -85,7 +85,7 @@ assert.equal(readyVersion, null);
 emit({ channel: bridge.PORTFOLIO_CHANNEL, type: 'positions-ready', version: 2 });
 assert.equal(readyVersion, 2);
 assert.equal(invalidated, 2, 'a ready notification does not invalidate the book again');
-responder = m => emit({ ...m, type: 'result', reading: { ...reading, checkedAt: new Date().toISOString() }, ...sizeReply });
+responder = m => emit({ ...m, type: 'result', reading: { ...reading, checkedAt: new Date().toISOString() }, ...sizeReply, sizes: { ...sizeReply.sizes, checkedAt: new Date().toISOString() } });
 assert.deepEqual((await bridge.readPortfolio('Do I own Example?')).holdings, sizeReply.holdings);
 responder = m => emit({ ...m, type: 'result', ...sizeReply, sizes: { ...sizeReply.sizes, checkedAt: new Date().toISOString() } });
 assert.equal((await bridge.readPositionSizes()).holdings[0].weightPct, 50);
@@ -93,14 +93,53 @@ assert.equal(posts.at(-1).message.type, 'positions');
 assert.equal(posts.at(-1).message.question, undefined, 'position sizing does not invoke a model question');
 responder = m => emit({ ...m, type: 'result', reading: { ...reading, checkedAt: '2020-01-01' }, holdings });
 await assert.rejects(bridge.readPortfolio('Do I own Example?'), /stale or invalid/);
-responder = undefined;
+const beforeAbort = posts.length;
 const ctrl = new AbortController();
 const pending = bridge.readPortfolio('Do I own Example?', ctrl.signal);
 ctrl.abort();
 await assert.rejects(pending, /Cancelled/);
-assert.equal(posts.at(-1).message.type, 'cancel');
+assert.equal(posts.length, beforeAbort, 'a cancelled queued question never starts a private read');
 assert.ok(posts.every(p => p.origin === 'https://sattva-family.pages.dev'));
 assert.equal(listeners.size, 1);
+
+let inFlight = 0, peak = 0, positionReads = 0;
+responder = m => {
+  inFlight++; peak = Math.max(peak, inFlight);
+  if (m.type === 'positions') positionReads++;
+  setTimeout(() => {
+    inFlight--;
+    emit({ ...m, type: 'result', reading: { ...reading, checkedAt: new Date().toISOString() },
+      ...sizeReply, sizes: { ...sizeReply.sizes, checkedAt: new Date().toISOString() } });
+  }, 10);
+};
+const consumer = new AbortController();
+const discarded = bridge.readPositionSizes(consumer.signal);
+const shared = bridge.readPositionSizes();
+const question = bridge.readPortfolio('What changed?');
+consumer.abort();
+await assert.rejects(discarded, /Cancelled/);
+await Promise.all([shared, question]);
+assert.equal(peak, 1, 'background, alerts and questions never compete for the Family reader');
+assert.equal(positionReads, 1, 'concurrent scope and alert reads share one positions request');
+assert.equal(coverage.has('EXAMPLE'), true, 'validated replies update the shared dashboard book');
+emit({ channel: bridge.PORTFOLIO_CHANNEL, type: 'invalidated', version: 3 });
+assert.equal(coverage.has('EXAMPLE'), true, 'rechecking does not flash an older fallback book');
+assert.equal(coverage.meta().syncStatus, 'family-checking');
+
+let readStarted, cancelAcknowledged = false;
+const started = new Promise(resolve => { readStarted = resolve; });
+responder = m => {
+  if (m.type === 'read') { readStarted(); return; }
+  if (m.type === 'cancel') { setTimeout(() => { cancelAcknowledged = true; emit({ ...m, type: 'error', message: 'Cancelled' }); }, 20); return; }
+  assert.equal(cancelAcknowledged, true, 'next read waits for cancellation acknowledgement');
+  emit({ ...m, type:'result', ...sizeReply, sizes:{ ...sizeReply.sizes, checkedAt:new Date().toISOString() } });
+};
+const abortRunning = new AbortController();
+const runningQuestion = bridge.readPortfolio('Cancel this reading', abortRunning.signal);
+await started; abortRunning.abort();
+await assert.rejects(runningQuestion, /Cancelled/);
+assert.equal(posts.at(-1).message.type, 'cancel');
+await bridge.readPositionSizes();
 
 emit({ channel: bridge.PORTFOLIO_CHANNEL, id: 'connector', type: 'auth-required' }, 'https://evil.example');
 assert.equal(bridge.portfolioConnected(), true);

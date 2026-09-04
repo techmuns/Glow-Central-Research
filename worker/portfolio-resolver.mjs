@@ -153,7 +153,6 @@ const DISPLAY_NAMES = {
  */
 const NOT_LISTED_EQUITY = {
   INE0OC301013: 'unlisted — private company, held directly', // Turtlemint Fintech Solutions
-  INE12F801023: 'unlisted — private company, held directly', // OnEMI Technology Solutions
   INE0M4D01010: 'unlisted — private company, held directly', // Standard Engineering Technology
   INE0EDU01014: 'unlisted — private company, held directly', // Finbud Financial Services
   INE483S01020: 'unlisted — private company, held directly', // AvenuesAI Ltd
@@ -325,6 +324,19 @@ export async function resolvePortfolio(fixture, sources, lookup = null) {
 
   for (const l of BOOK) {
     const isin = l.isin;
+    // Use the same ISIN mapping as Family Office before legacy name/classification
+    // overrides. The producer sends identities only; never quantities or values.
+    if (l.ticker) {
+      if (!/^[A-Z0-9&.\-]{1,30}$/.test(l.ticker)) throw new Error('Invalid Family ticker');
+      holdings.push(line(l, { ticker: l.ticker, listed: true, matchedName: l.name, matchedBy: 'family:isin' }));
+      continue;
+    }
+    // NSE listing circular CML74093, 7 May 2026:
+    // https://nsearchives.nseindia.com/content/circulars/CML74093.pdf
+    if (isin === 'INE12F801023') {
+      holdings.push(line(l, { ticker: 'KISSHT', listed: true, matchedName: 'OnEMI Technology Solutions Limited', matchedBy: 'confirmed:nse' }));
+      continue;
+    }
     const notListed = NOT_LISTED_EQUITY[isin];
     if (notListed) {
       holdings.push(line(l, { ticker: null, listed: false, reason: notListed }));

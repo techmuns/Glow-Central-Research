@@ -74,7 +74,7 @@ test('live route authenticates only the fixed source URL and never forwards the 
     calls++;
     assert.equal(url, FAMILY_HOLDINGS_URL);
     assert.equal(init.headers.authorization, `Bearer ${token}`);
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual', 'use the Workers-supported no-follow mode');
     return Response.json(incoming);
   });
   assert.equal(calls, 1);
@@ -93,6 +93,16 @@ test('upstream refusal, missing configuration, oversized bodies and redirects ca
     assert.equal((await response.json()).ok, false);
   }
   await assert.rejects(fetchFamilyBook(null));
+  for (const status of [301, 302, 303, 307, 308]) {
+    let requests = 0;
+    await assert.rejects(fetchFamilyBook(token, async (url, init) => {
+      requests++;
+      assert.equal(url, FAMILY_HOLDINGS_URL);
+      assert.equal(init.redirect, 'manual');
+      return new Response(null, { status, headers: { location: 'https://untrusted.test/holdings' } });
+    }), new RegExp(`HTTP ${status}`));
+    assert.equal(requests, 1, 'never follow redirects or forward the holdings token');
+  }
   await assert.rejects(fetchFamilyBook(token, async () => Response.json({ ...incoming, checkedAt: '2020-01-01T00:00:00Z' })));
   await assert.rejects(boundedJson(new Response('x'.repeat(100)), 50));
 });
@@ -231,4 +241,32 @@ test('sleep/resume, offline/reconnect and BFCache restore recheck; pre-sleep res
     await coverage.refresh();
     assert.equal(coverage.meta().syncStatus, 'live');
   } finally { unbind(); globalThis.fetch = originalFetch; coverage.prime(saved); }
+});
+
+
+test('Family ISIN tickers override obsolete listing classifications, preserving the complete book', async () => {
+  const line = incoming.lines.find(l => l.isin === 'INE12F801023');
+  assert.ok(line);
+  const book = validateFamilyBook({ ...incoming, lines: incoming.lines.map(l => l === line ? { ...l, name: 'Kissht', ticker: 'KISSHT' } : l) });
+  const resolved = await resolvePortfolio(book, sources);
+  assert.deepEqual(resolved.holdings.map(h => h.isin).sort(), incoming.lines.map(l => l.isin).sort());
+  const owned = resolved.holdings.find(h => h.isin === line.isin);
+  assert.equal(owned.ticker, 'KISSHT'); assert.equal(owned.listed, true);
+  assert.equal(owned.matchedBy, 'family:isin');
+  assert.throws(() => validateFamilyBook({ ...incoming, lines: incoming.lines.map(l => l === line ? { ...l, ticker: 'bad ticker' } : l) }), /ticker/);
+});
+
+test('legacy browser additions migrate to Watchlist; removals cannot change ownership', async () => {
+  const storage = new Map();
+  globalThis.localStorage = { getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v) };
+  const lists = await import('../public/js/core/scope-lists.js');
+  const watch = await import('../public/js/core/watchlist.js');
+  storage.set(lists.storageKey(), JSON.stringify({ portfolio: { added: [{ ticker: 'MANUAL', name: 'Manual selection' }], removed: [{ ticker: 'KISSHT', name: 'OnEMI' }] } }));
+  coverage.prime(saved);
+  lists.migratePortfolioToWatchlist(); lists.migratePortfolioToWatchlist();
+  assert.equal(coverage.has('KISSHT'), true);
+  assert.equal(coverage.has('MANUAL'), false);
+  assert.deepEqual(watch.all().map(h => h.ticker), ['MANUAL']);
+  assert.equal(lists.add('portfolio', { ticker: 'OTHER' }), false);
+  assert.equal(lists.remove('portfolio', { ticker: 'KISSHT' }, saved.holdings), false);
 });

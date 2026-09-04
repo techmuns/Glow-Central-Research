@@ -1,3 +1,4 @@
+import { useFamilyBook, invalidateFamilyBook } from '../data/coverage.js';
 // The authenticated Family reader runs in a hidden frame inside Central Research.
 // No token, raw ledger, or portfolio reply is persisted here.
 export const FAMILY_ORIGIN = 'https://sattva-family.pages.dev';
@@ -86,12 +87,14 @@ function ensureTarget() {
     window.addEventListener('message', (event) => {
       if (event.origin !== target.origin || event.source !== target.window || event.data?.channel !== PORTFOLIO_CHANNEL) return;
       if (event.data.type === 'auth-required') {
+        useFamilyBook(null);
         setConnection('locked');
         for (const fn of invalidations) fn(-1);
       } else if (event.data.type === 'available') {
         setConnection('connecting');
         connectPortfolio();
       } else if (Number.isSafeInteger(event.data.version)) {
+        if (event.data.type === 'invalidated') invalidateFamilyBook();
         const targets = event.data.type === 'invalidated' ? invalidations : event.data.type === 'positions-ready' ? portfolioReady : [];
         for (const fn of targets) fn(event.data.version);
       }
@@ -113,18 +116,19 @@ function request(type, question, signal, timeoutMs) {
     const cleanup = () => { clearTimeout(timer); clearInterval(retry); window.removeEventListener('message', receive); signal?.removeEventListener('abort', abort); };
     const finish = (error, value) => { cleanup(); error ? reject(error) : resolve(value); };
     const post = (kind) => peer.window.postMessage({ channel: PORTFOLIO_CHANNEL, id, type: kind, ...(question ? { question } : {}) }, peer.origin);
-    const abort = () => { post('cancel'); finish(new DOMException('Cancelled', 'AbortError')); };
+    const abort = () => { post('cancel'); }; // Keep the queue occupied until Family acknowledges cancellation.
     const receive = (event) => {
       if (event.origin !== peer.origin || event.source !== peer.window || event.data?.channel !== PORTFOLIO_CHANNEL) return;
       if (event.data.type === 'auth-required') { finish(new Error('Unlock your portfolio above to answer with your holdings.')); return; }
       if (event.data?.id !== id) return;
+      if (signal?.aborted && ['error', 'result'].includes(event.data.type)) { finish(new DOMException('Cancelled', 'AbortError')); return; }
       if (event.data.type === 'error') finish(new Error(String(event.data.message || 'The portfolio could not be read.').slice(0, 400)));
       else if (event.data.type === (type === 'hello' ? 'ready' : 'result')) finish(null, event.data);
     };
     window.addEventListener('message', receive);
     signal?.addEventListener('abort', abort, { once: true });
     timer = setTimeout(() => { post('cancel'); finish(new Error('The portfolio did not answer in time. Please try again.')); }, timeoutMs);
-    if (signal?.aborted) { abort(); return; }
+    if (signal?.aborted) { finish(new DOMException('Cancelled', 'AbortError')); return; }
     // A cold iframe can finish loading after the first hello. Retry only the
     // side-effect-free handshake, never a question or a data read.
     if (type === 'hello') retry = setInterval(() => post('hello'), 250);
@@ -142,7 +146,7 @@ export function connectPortfolio() {
   return connection;
 }
 
-export async function readPortfolio(question, signal) {
+async function readPortfolioNow(question, signal) {
   if (!connected && !await connectPortfolio()) throw new Error(state === 'locked'
     ? 'Unlock your portfolio above to answer with your holdings.'
     : 'Your portfolio connection is unavailable. Please try again; no old holdings were used.');
@@ -155,11 +159,52 @@ export async function readPortfolio(question, signal) {
 }
 
 /** A direct, ephemeral size snapshot from the authenticated reader; no model or public ledger. */
-export async function readPositionSizes(signal) {
+async function readPositionSizesNow() {
   if (!connected && !await connectPortfolio()) return null;
   if (!positionSizesSupported) return null;
   const startedAt = Date.now();
-  const reply = await request('positions', null, signal, 90_000);
+  const reply = await request('positions', null, null, 90_000);
   if (!validPositionSizes(reply, startedAt)) throw new Error('Holding sizes were stale or incomplete. Refresh to read the active portfolio again.');
   return reply;
+}
+
+// Family accepts one read at a time. Background refresh, AI Alerts and Ask
+// Research share this queue. Cancelling a consumer releases its UI immediately;
+// a cancelled question waits for Family's acknowledgement before the next read
+// starts. Shared positions reads continue for their other consumers.
+let readTail = Promise.resolve();
+let reading = false;
+export const portfolioReadBusy = () => reading;
+let pendingSizes = null;
+const cancelled = () => new DOMException('Cancelled', 'AbortError');
+function forConsumer(operation, signal) {
+  if (!signal) return operation;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(cancelled());
+    signal.addEventListener('abort', abort, { once: true });
+    operation.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    if (signal.aborted) abort();
+  });
+}
+function enqueueRead(read, signal) {
+  const operation = readTail.then(async () => {
+    if (signal?.aborted) throw cancelled();
+    reading = true;
+    try {
+      const reply = await read();
+      useFamilyBook(reply?.holdings || null, reply?.sizes.bookAsOf, reply?.sizes.checkedAt);
+      return reply;
+    } catch (error) { if (error?.name !== 'AbortError') useFamilyBook(null); throw error; }
+    finally { reading = false; }
+  });
+  readTail = operation.catch(() => {});
+  return operation;
+}
+export function readPortfolio(question, signal) {
+  return forConsumer(enqueueRead(() => readPortfolioNow(question, signal), signal), signal);
+}
+export function readPositionSizes(signal) {
+  if (signal?.aborted) return Promise.reject(cancelled());
+  if (!pendingSizes) pendingSizes = enqueueRead(readPositionSizesNow).finally(() => { pendingSizes = null; });
+  return forConsumer(pendingSizes, signal);
 }
