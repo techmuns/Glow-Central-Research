@@ -68,9 +68,11 @@ try {
   const search = page.locator('[data-table-search]');
   await search.fill('older-company');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
+  await search.evaluate(el => { window.activeSearch = el; });
   await page.evaluate(() => window.stream.refresh());
   assert.equal(await search.inputValue(), 'older-company');
   assert(await search.evaluate(el => el === document.activeElement));
+  assert(await search.evaluate(el => el === window.activeSearch), 'status-only updates preserve the mounted search field');
   assert.equal(hits.get('/data/filing-capture/announcements/TCS.json'), 1);
   assert.equal(hits.get('/data/announcements-archive/2025-01.json'), 1);
   console.log('PASS history is searchable, polling skips unchanged archives, and search focus survives updates');

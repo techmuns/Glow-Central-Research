@@ -78,6 +78,7 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let routeCompany = null;
   let ctxRef = null;
+  let renderedRows = null;
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -116,6 +117,7 @@ export function makeFilingsTab(cfg) {
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
@@ -188,8 +190,6 @@ export function makeFilingsTab(cfg) {
     const oldSearch = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-search]');
     const selection = oldSearch && document.activeElement === oldSearch
       ? { value: oldSearch.value, start: oldSearch.selectionStart, end: oldSearch.selectionEnd } : null;
-    disposers.forEach((dispose) => dispose && dispose());
-    disposers = [];
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -206,6 +206,15 @@ export function makeFilingsTab(cfg) {
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
     const rows = filterByScope(all, ctx.scope, coverage.holdings());
+    if (cfg.preserveReadingPosition) {
+      const nextRows = JSON.stringify([ctx.scope, m.reason, rows]);
+      // Archive/check status can change several times in one poll without changing a filing.
+      // Keep the mounted search field and rows intact for those notifications.
+      if (nextRows === renderedRows && ctx.root.querySelector('[data-score-table]')) return;
+      renderedRows = nextRows;
+    }
+    disposers.forEach((dispose) => dispose && dispose());
+    disposers = [];
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -318,7 +327,7 @@ export function makeFilingsTab(cfg) {
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
       exportName: `sattva-${cfg.id}`,
-      onExport: (visible) => cfg.onExport(visible, m),
+      onExport: (visible) => cfg.onExport(visible, cfg.preserveReadingPosition ? cfg.feed.meta() : m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
@@ -412,7 +421,7 @@ export function makeFilingsTab(cfg) {
   function wireMethod(root, m, cov, scope, rows) {
     const btn = root.querySelector('[data-filings-method]');
     if (!btn) return;
-    const onClick = () => openProvenance(m, cov, scope, rows);
+    const onClick = () => openProvenance(cfg.preserveReadingPosition ? cfg.feed.meta() : m, cov, scope, rows);
     btn.addEventListener('click', onClick);
     disposers.push(() => btn.removeEventListener('click', onClick));
   }
@@ -431,6 +440,7 @@ export function makeFilingsTab(cfg) {
   function destroy() {
     token++;
     ctxRef = null;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();

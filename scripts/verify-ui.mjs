@@ -6300,8 +6300,8 @@ console.log('\n— news, announcements and insider trades —');
     await new Promise((r) => setTimeout(r, 2500));
     return { replaced: document.querySelector('#content-host > *') !== first, had: !!first };
   });
-  ok('a repaint still reaches the screen after a scope toggle', repainted.had && repainted.replaced,
-    repainted.had ? (repainted.replaced ? 'panel rebuilt' : 'FROZEN — the feed changed and the DOM did not') : 'no panel to compare');
+  ok('an unchanged source check preserves the mounted stream after a scope toggle', repainted.had && !repainted.replaced,
+    repainted.had ? (repainted.replaced ? 'unnecessary rebuild' : 'existing panel preserved') : 'no panel to compare');
 
   // The headline IS the row, so it gets the width — but not at the cost of a scrollbar under it.
   await go('/#/research/news?scope=portfolio', 3000);
