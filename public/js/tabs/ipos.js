@@ -99,6 +99,8 @@ export function render(ctx) {
       root
         .querySelector('[data-ipo-freshness]')
         .append(' Tracked-issuer supplement unavailable; EAAA coverage may be missing.');
+    if (b.historyIndexFallback)
+      root.querySelector('[data-ipo-freshness]').append(' Using the bundled archive index to retain imported history.');
   }
   function filtered() {
     return rows

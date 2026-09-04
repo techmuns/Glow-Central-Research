@@ -259,4 +259,15 @@ await check('actual Worker route never forwards deployment or caller credentials
     globalThis.fetch = original;
   }
 });
+await check('an unavailable live index retains bundled history without replacing the live latest', async () => {
+  const feed = createIpoFeed({ fetcher: async (url) => {
+    if (url === 'api/ipo-monitor') return Response.json({ ...bundle, historyAvailable: false, historyDates: [] });
+    if (url.startsWith('api/')) return Response.json({ ok: true, snapshot: read(`ipo-monitor/snapshots/${new URL(url, 'https://test/').searchParams.get('snapshot')}.json`) });
+    return Response.json(read(url.replace('data/', '')));
+  } });
+  await feed.load(); await feed.loadHistory();
+  assert.equal(feed.state.fallback, false); assert.equal(feed.state.bundle.historyAvailable, false);
+  assert.equal(feed.state.bundle.historyIndexFallback, true); assert.equal(feed.state.snapshots.size, 9);
+  assert.equal(buildIpoRows([...feed.state.snapshots.values()], tracked).length, 121);
+});
 console.log(`\n${checks} IPO monitor checks passed.`);

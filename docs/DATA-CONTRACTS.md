@@ -2457,6 +2457,8 @@ the reference pipeline is scheduled weekly on Monday. Data-as-of and checked-at 
 Bundled copies under `public/data/ipo-monitor/` provide a labelled fallback; `index.json` records
 the exact source commit and all nine dates. Full Tracker loads history in a three-request pool,
 20 snapshots per batch, with per-request deadlines, local fallback and retryable failure counts.
+When the live GitHub index is unavailable/rate-limited, the bundled archive index retains all
+imported history alongside the live latest capture, with a visible discovery-coverage warning.
 Later refreshes retain already-loaded history; archived files are re-read in a new tab session.
 
 **EAAA coverage gap (verified 4 Sep 2026):** EAAA is absent from all nine repository captures.

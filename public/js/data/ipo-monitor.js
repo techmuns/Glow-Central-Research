@@ -33,6 +33,17 @@ export function createIpoFeed({ fetcher = fetch } = {}) {
       validateIpoSnapshot(bundle.latest);
       bundle.historyDates = historyIndex(bundle.historyDates);
       if (bundle.config) validateScoring(bundle.config);
+      if (!bundle.historyAvailable) {
+        // An API index outage must not hide already-imported history. Keep the live latest
+        // capture and explicitly mark that discovery of newer archive dates is unavailable.
+        try {
+          const index = await read('data/ipo-monitor/index.json', signal);
+          bundle.historyDates = historyIndex(index.historyDates);
+          bundle.historyIndexFallback = true;
+        } catch (error) {
+          if (signal?.aborted) throw error;
+        }
+      }
       state.fallback = false;
       state.error = null;
     } catch (error) {

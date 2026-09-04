@@ -9,6 +9,7 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const data = (path) => JSON.parse(readFileSync(resolve(root, `data/ipo-monitor/${path}`)));
 let failure = false,
+  indexUnavailable = false,
   malformed = false,
   requests = [];
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head><body style="padding:16px;background:#f6f7fb"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
@@ -45,8 +46,8 @@ const server = createServer((req, res) => {
                 ok: true,
                 latest,
                 config: data('scoring_config.json'),
-                historyDates: data('index.json').historyDates,
-                historyAvailable: true,
+                historyDates: indexUnavailable ? [] : data('index.json').historyDates,
+                historyAvailable: !indexUnavailable,
                 checkedAt: '2026-09-04T08:00:00Z',
               },
         ),
@@ -210,6 +211,13 @@ try {
       (await page.locator('[data-ipo-row]').count()) === 1,
   );
   failure = false;
+  indexUnavailable = true;
+  await page.evaluate(() => window.showIpos({view: 'tracker'}));
+  await page.waitForFunction(() => document.querySelector('[data-ipo-history]')?.textContent.startsWith('9 of 9'));
+  check('GitHub index failure retains all imported issuers with a visible fallback warning',
+    /121 of 121/.test(await page.locator('[data-ipo-count]').innerText()) &&
+    /bundled archive index/.test(await page.locator('[data-ipo-freshness]').innerText()));
+  indexUnavailable = false;
   malformed = true;
   await page.evaluate(() => window.showIpos());
   await page.locator('.ipo-card').first().waitFor();
