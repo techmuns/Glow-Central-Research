@@ -40,6 +40,8 @@ jobs:
         run: node scripts/verify-drhp-filings.mjs
       - name: Verify public IPO monitor and retained history
         run: node scripts/verify-ipo-monitor.mjs
+      - name: Verify official IPO filing feed and source failures
+        run: node scripts/verify-ipo-filings.mjs
       - name: Verify complete General Alerts pool and scope isolation
         run: node scripts/verify-general-alerts.mjs
       - name: Verify AI alert search and calendar dates
@@ -48,3 +50,21 @@ jobs:
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle
         run: npx --yes wrangler@4 deploy --dry-run
+
+  ipo-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install isolated browser-test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ipo-browser" --no-audit --no-fund playwright@1.62.1 exceljs@4.4.0
+          "$RUNNER_TEMP/ipo-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify IPO table, live refresh, Excel export and mobile layout
+        run: |
+          PLAYWRIGHT_ROOT="$RUNNER_TEMP/ipo-browser/node_modules/playwright" \
+          EXCELJS_ROOT="$RUNNER_TEMP/ipo-browser/node_modules/exceljs" \
+          node scripts/verify-ipo-monitor-ui.mjs
