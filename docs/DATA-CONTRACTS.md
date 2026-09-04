@@ -2291,7 +2291,6 @@ modify the portfolio or produce earnings figures / transcript summaries from doc
 
 | Placement | Request / display |
 | --- | --- |
-| Corp Announcements → Company filings & reports | India, `form: ["all"]`; annual-report, earnings-report and con-call filters available |
 | NSE Filings → Company NSE filings | India, all forms; only records with an explicit NSE source or an NSE document host are shown |
 | Con-call → Filed con-call documents | India, `form: ["concalls"]`; source links, not invented transcripts |
 | Earnings Hub → Filed earnings reports | India, `form: ["earnings_report"]`; separate from reported metrics and calendar |
@@ -2332,10 +2331,14 @@ headless browser regression, with optional `CHROME_PATH`).
 
 ### IPO / DRHP company lookup
 
-Corp Announcements → **IPO / DRHP filings** is a separate on-demand view, next to the broad BSE
-feed and combined company documents. It accepts a ticker **or an exact company name**, without
+Corporate Announcements opens its announcement feed directly. Its duplicate **Company filings &
+reports** and **IPO / DRHP filings** tabs have been removed; the primary **NSE Filings** and **IPOs**
+tabs remain the navigation destinations for those areas.
+
+The retained DRHP API and lookup component accept a ticker **or an exact company name**, without
 requiring a listed symbol or current portfolio membership. Its independence from Portfolio /
-Watchlist scope is explicit. Looking up an issuer never adds it to holdings.
+Watchlist scope is explicit. Looking up an issuer never adds it to holdings. The component is
+covered by the local browser harness but is no longer mounted in Corporate Announcements.
 
 `POST /api/drhp-filings` accepts `{ "company": "PAYTM" }` (or an exact name) and makes the documented
 read-only `GET https://devde.muns.io/filings/drhp/{encoded company}`. Only the reader's bearer token
