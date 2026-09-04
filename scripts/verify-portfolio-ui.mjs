@@ -16,6 +16,13 @@ const standaloneHistory = JSON.stringify([{ id: 'saved-standalone', title: 'Save
 await context.addInitScript(value => {
   if (location.origin === 'http://localhost:8080' && !localStorage.getItem('sattva:ask-research:v1')) localStorage.setItem('sattva:ask-research:v1', value);
 }, standaloneHistory);
+// Vite can version module URLs after a source change. Recheck the store that
+// the actual connector loaded, rather than creating another module instance.
+const recheckBook = family => family.evaluate(async () => {
+  const loaded = performance.getEntriesByType('resource').find(entry => new URL(entry.name).pathname === '/src/lib/auditStore.ts');
+  if (!loaded) throw new Error('The active workbook store was not loaded.');
+  await (await import(loaded.name)).refreshAskArchive();
+});
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 await context.route('**/*', async (route) => {
   const req = route.request();
@@ -97,7 +104,7 @@ try {
   outage = false;
   await child.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await research.locator('[data-ai-size-note]').filter({ hasText: 'Largest holdings first' }).waitFor();
-  await family.evaluate(async () => { await (await import('/src/lib/auditStore.ts')).refreshAskArchive(); });
+  await recheckBook(family);
   await research.locator('[data-ai-size-note]').filter({ hasText: 'Largest holdings first' }).waitFor({ timeout: 60_000 });
   await child.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
   await input.waitFor();
@@ -116,7 +123,7 @@ try {
   await input.fill('Do I have Sterlite in my portfolio?');
   await research.getByRole('button', { name: 'Send question' }).click();
   await started;
-  await family.evaluate(async () => { await (await import('/src/lib/auditStore.ts')).refreshAskArchive(); });
+  await recheckBook(family);
   await research.getByText('The Family workbook changed while this answer was being written.', { exact: false }).waitFor();
   assert.equal(await input.inputValue(), 'Do I have Sterlite in my portfolio?');
   assert.equal(await research.locator('.research-assistant-answer').count(), 2, 'the invalidated answer cannot be added to the conversation');
