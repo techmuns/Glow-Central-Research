@@ -90,6 +90,7 @@ await check('EAAA is an explicit verified supplement, not invented IPO dates, fi
 });
 await check('missing inputs stay unknown; real zero stays zero; invalid models are refused', () => {
   assert.equal(scoreIpo({}, config).total, null);
+  assert.equal(scoreIpo({}, { ...config, min_coverage_weight: 0 }).total, null);
   const zeros = Object.fromEntries(Object.values(config.components).map((p) => [p.input, { value: 0 }]));
   assert.equal(scoreIpo(zeros, config).coverage, 100);
   const unavailable = Object.fromEntries(

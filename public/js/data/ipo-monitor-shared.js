@@ -110,7 +110,7 @@ export function scoreIpo(financials, config) {
     }
     return { ...part, value, points };
   });
-  total = coverage < config.min_coverage_weight ? null : round(total, 1);
+  total = coverage === 0 || coverage < config.min_coverage_weight ? null : round(total, 1);
   return {
     total,
     coverage,
