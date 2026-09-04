@@ -1,20 +1,26 @@
 # Shared portfolio research
 
-## Contract and implementation plan
+## Active contract
 
-1. Run portfolio-connected Research inside the authenticated Sattva Family app.
-   Its parent supplies the same active PortfolioContext and Ask Sattva tool loop;
+1. Keep Ask Research in Central Research. Its hidden Family `/research-bridge`
+   frame supplies the active PortfolioContext and Ask Sattva tool loop;
    no ledger is copied to Research's public assets or repository.
 2. Use a versioned, request-correlated postMessage channel, exact origin and
    source-window checks on both ends, bounded requests/replies, and timeouts.
-   Standalone Research is explicitly disconnected and links to the Family view.
-3. Revalidate the uploaded-workbook archive before each portfolio question. Wait
+   The frame stays hidden while authenticated. Only a user-initiated inline unlock
+   dialog reveals the existing edge sign-in form; no credentials cross the channel.
+3. Revalidate the uploaded-workbook archive and refresh quotes before every question. Wait
    for the Family context to adopt that archive version. Reject replies if the
    book changes during the read. Preserve workbook date, quote timestamp, partial
    quote coverage and source failures; a recent check is not a current book date.
 4. Reuse Ask Sattva's existing query/read tools and answer verification without
    creating a second conversation in its library. Include the resulting dated
    portfolio reading alongside the research evidence, with explicit size limits.
+   Every question also carries all held listed ISINs, sectors and weights, even when
+   it does not say “my portfolio”. Supplemental analysis can be unavailable without
+   suppressing verified holdings. A missing authenticated holdings read stops the answer.
+   The full holdings packet has a separate 60,000-character limit, leaving the
+   13,000-character research allowance intact. The Worker validates both.
 5. Use the active book's ISINs for Research's portfolio filter, preserving unknown
    symbols and fund holdings. Never infer ownership from a sampled research feed.
 6. Test transport isolation, stale/changed/failed reads, evidence budgets and
@@ -43,5 +49,16 @@ liquid positions; unpriced source values withhold size ordering instead of becom
 Only Portfolio scope uses size ordering, after the normal alert materiality threshold. Priority
 filters remain available, with evidence priority breaking equal-size ties. Missing symbols stay
 in the portfolio denominator even when no research feed can match them. Archive invalidations
-clear private cards before a new read, and tab cleanup cancels in-flight requests. Standalone
-Research retains priority ordering with a link to the authenticated Family view.
+clear private cards before a new read, and tab cleanup cancels in-flight requests.
+Central Research automatically uses the same hidden connection for size ordering.
+Without access, the queue retains explicitly labelled priority ordering and offers
+inline unlock when sign-in is required.
+
+## Local browser verification
+
+Run Family on `localhost:5173` and Research on `localhost:8080`. Run
+`scripts/verify-portfolio-ui.mjs` for the real reader/quote/evidence path and
+`scripts/verify-portfolio-auth-ui.mjs` for edge sign-in with an isolated fixture
+password. Both harnesses block external traffic and model calls. The auth harness
+reads the companion Family repo from `FAMILY_REPO` (default `../Sattva-Family-alert-sizes`).
+Deploy the companion Family connector before the Research consumer after approval.

@@ -32,6 +32,7 @@ export function providerEvidence(evidence = {}) {
     scope: evidence?.scope,
     scopeDefinition: evidence?.scopeDefinition,
     portfolio: evidence?.portfolio,
+    portfolioPositions: evidence?.portfolioPositions,
     selection: {
       tokens: Array.isArray(selection.tokens) ? selection.tokens : [],
       companies: Array.isArray(selection.companies) ? selection.companies : [],
@@ -49,4 +50,10 @@ export function providerEvidence(evidence = {}) {
 /** The number the budget and the Worker bound are both stated in. */
 export function providerEvidenceChars(evidence) {
   return JSON.stringify(providerEvidence(evidence)).length;
+}
+
+/** Full holdings have a separate bound so they cannot crowd out research rows. */
+export const PORTFOLIO_POSITIONS_MAX_CHARS = 60_000;
+export function researchEvidenceChars(evidence) {
+  return providerEvidenceChars({ ...evidence, portfolioPositions: undefined });
 }

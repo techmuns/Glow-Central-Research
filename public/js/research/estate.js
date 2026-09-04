@@ -40,7 +40,7 @@ import * as investors from '../data/super-investors.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
-import { providerEvidenceChars } from './evidence-shared.js';
+import { researchEvidenceChars } from './evidence-shared.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
@@ -358,6 +358,7 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     scope: evidence?.scope || 'portfolio',
     scopeDefinition: clipped(evidence?.scopeDefinition, 360),
     portfolio: evidence?.portfolio,
+    portfolioPositions: evidence?.portfolioPositions,
     selection: {
       ...boundedMetadata(evidence?.selection || {}),
       evidenceCharBudget: charBudget,
@@ -367,7 +368,7 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     catalog: (evidence?.catalog || []).map((source) => ({ id: source.id, status: source.status, error: source.error || null })),
     sources: sourceInputs.map(skeletonOf),
   };
-  const measure = () => providerEvidenceChars(packet);
+  const measure = () => researchEvidenceChars(packet);
   trimSkeleton(packet.sources, measure, Math.floor(charBudget * (1 - ROW_RESERVE_SHARE)));
 
   const candidates = [];
@@ -939,7 +940,7 @@ const BUILDERS = [
   },
 ];
 
-export async function buildResearchEvidence({ question, scope = 'portfolio', portfolio = undefined, onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
+export async function buildResearchEvidence({ question, scope = 'portfolio', portfolio = undefined, portfolioPositions = undefined, onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
   const deferred = await whenDeferredData();
   const holdings = scopeHoldings(scope);
   let completed = 0;
@@ -998,6 +999,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', por
     generatedAt: new Date().toISOString(),
     scope,
     portfolio,
+    portfolioPositions,
     scopeDefinition: scopeDefinition(scope),
     selection: {
       method: 'Every registered source contributes status, coverage and provenance. Rows are ranked by the companies the question names, then by token hits, then by each source\'s own ordering.',
