@@ -5,7 +5,9 @@ export const FAMILY_ORIGIN = 'https://sattva-family.pages.dev';
 export const FAMILY_BRIDGE_URL = `${FAMILY_ORIGIN}/research-bridge`;
 export const PORTFOLIO_CHANNEL = 'sattva-portfolio-v1';
 export const PORTFOLIO_MAX_CHARS = 6000;
-let connected = false;
+// Transport readiness survives a workbook read failure; the displayed status
+// stays unavailable until a later, validated read proves recovery.
+let transportReady = false;
 let connection = null;
 let positionSizesSupported = false;
 const listeners = new Set();
@@ -17,14 +19,15 @@ let dialog = null;
 let state = 'connecting';
 export const portfolioConnectionState = () => state;
 function setConnection(next) {
+  if (state === next) return;
   state = next;
-  connected = next === 'connected';
+  const connected = next === 'connected';
   if (connected && dialog?.open) dialog.close();
   for (const fn of listeners) fn(connected);
 }
 export const onPortfolioInvalidation = (fn) => { invalidations.add(fn); return () => invalidations.delete(fn); };
 export const onPortfolioReady = (fn) => { portfolioReady.add(fn); return () => portfolioReady.delete(fn); };
-export const portfolioConnected = () => connected;
+export const portfolioConnected = () => state === 'connected';
 export const onPortfolioConnection = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 export const privatePortfolioContext = () => typeof window !== 'undefined';
 
@@ -87,11 +90,13 @@ function ensureTarget() {
     window.addEventListener('message', (event) => {
       if (event.origin !== target.origin || event.source !== target.window || event.data?.channel !== PORTFOLIO_CHANNEL) return;
       if (event.data.type === 'auth-required') {
+        transportReady = false;
         useFamilyBook(null);
         setConnection('locked');
         for (const fn of invalidations) fn(-1);
       } else if (event.data.type === 'available') {
-        setConnection('connecting');
+        transportReady = false;
+        if (state !== 'unavailable') setConnection('connecting');
         connectPortfolio();
       } else if (Number.isSafeInteger(event.data.version)) {
         if (event.data.type === 'invalidated') invalidateFamilyBook();
@@ -137,17 +142,18 @@ function request(type, question, signal, timeoutMs) {
 }
 
 export function connectPortfolio() {
-  if (connected) return Promise.resolve(true);
+  if (transportReady) return Promise.resolve(true);
   if (!connection) connection = request('hello', null, null, 15_000).then((reply) => {
     positionSizesSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('position-sizes');
-    setConnection('connected');
+    transportReady = true;
+    if (state !== 'unavailable') setConnection('connected');
     return true;
   }).catch(() => { if (state !== 'locked') setConnection('unavailable'); return false; }).finally(() => { connection = null; });
   return connection;
 }
 
 async function readPortfolioNow(question, signal) {
-  if (!connected && !await connectPortfolio()) throw new Error(state === 'locked'
+  if (!transportReady && !await connectPortfolio()) throw new Error(state === 'locked'
     ? 'Unlock your portfolio above to answer with your holdings.'
     : 'Your portfolio connection is unavailable. Please try again; no old holdings were used.');
   const startedAt = Date.now();
@@ -160,7 +166,7 @@ async function readPortfolioNow(question, signal) {
 
 /** A direct, ephemeral size snapshot from the authenticated reader; no model or public ledger. */
 async function readPositionSizesNow() {
-  if (!connected && !await connectPortfolio()) return null;
+  if (!transportReady && !await connectPortfolio()) return null;
   if (!positionSizesSupported) return null;
   const startedAt = Date.now();
   const reply = await request('positions', null, null, 90_000);
@@ -193,9 +199,16 @@ function enqueueRead(read, signal) {
     try {
       const reply = await read();
       useFamilyBook(reply?.holdings || null, reply?.sizes.bookAsOf, reply?.sizes.checkedAt);
+      if (reply) setConnection('connected');
+      else if (state !== 'locked') setConnection('unavailable');
       return reply;
-    } catch (error) { if (error?.name !== 'AbortError') useFamilyBook(null); throw error; }
-    finally { reading = false; }
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        useFamilyBook(null);
+        if (state !== 'locked') setConnection('unavailable');
+      }
+      throw error;
+    } finally { reading = false; }
   });
   readTail = operation.catch(() => {});
   return operation;
