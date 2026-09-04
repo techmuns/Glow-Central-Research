@@ -31,6 +31,7 @@ export function providerEvidence(evidence = {}) {
     generatedAt: evidence?.generatedAt,
     scope: evidence?.scope,
     scopeDefinition: evidence?.scopeDefinition,
+    portfolio: evidence?.portfolio,
     selection: {
       tokens: Array.isArray(selection.tokens) ? selection.tokens : [],
       companies: Array.isArray(selection.companies) ? selection.companies : [],

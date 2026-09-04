@@ -9,6 +9,8 @@ import * as notifications from '../ui/notifications.js';
 import { scopeLabel } from '../data/scope.js';
 import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
+import { connectPortfolio, portfolioConnected, privatePortfolioContext, questionNeedsPortfolio, readPortfolio, onPortfolioInvalidation, FAMILY_RESEARCH_URL, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
+import { useFamilyBook } from '../data/coverage.js';
 
 export const meta = {
   id: 'ask-research',
@@ -30,6 +32,12 @@ let uiDispose = null;
 let configState = null;
 let configPromise = null;
 const generations = new Map();
+onPortfolioInvalidation((version) => {
+  useFamilyBook(null);
+  for (const generation of generations.values()) {
+    if (generation.portfolio && generation.portfolio.archiveVersion !== version) generation.controller.abort();
+  }
+});
 
 function makeId() {
   return globalThis.crypto?.randomUUID?.() || `research-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,6 +51,7 @@ function newSession() {
     createdAt: now,
     updatedAt: now,
     messages: [],
+    private: privatePortfolioContext(),
     draft: '',
     webResearch: false,
     status: 'idle',
@@ -119,6 +128,7 @@ function loadSessions() {
 function persistSessions() {
   try {
     const payload = sessions
+      .filter((session) => !session.private)
       .slice()
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
       .slice(0, MAX_SESSIONS)
@@ -233,6 +243,7 @@ function template(scope) {
             <h2 class="font-display text-xl font-extrabold text-slate-900">Ask Research</h2>
           </div>
           <p class="mt-1 text-sm text-slate-500">One answer across every dashboard tab in ${scopeLabel(scope)} scope.</p>
+          <p class="mt-1 text-sm text-slate-500" data-portfolio-connection></p>
         </div>
         <span class="research-estate-chip">
           <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
@@ -254,7 +265,7 @@ function template(scope) {
           </div>
           <div class="research-session-list scrollbar-thin" data-research-sessions></div>
           <div class="border-t border-slate-100 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
-            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent securely for the answer.
+            ${privatePortfolioContext() ? 'Portfolio-connected conversations stay in memory only and disappear when this page closes.' : 'Conversation history stays on this device.'} Each question and bounded source readings are sent to the Muns-hosted model for the answer.
           </div>
         </aside>
 
@@ -292,9 +303,23 @@ export function render(ctx) {
   ctx.root.innerHTML = template(ctx.scope);
   uiDispose = wire(ctx.root);
   paintAll();
+  paintPortfolioConnection();
+  connectPortfolio().then(() => { if (ctxRef === ctx) paintPortfolioConnection(); });
   ensureConfig().then(() => {
     if (ctxRef === ctx) paintComposer();
   });
+}
+
+function paintPortfolioConnection() {
+  const mount = ctxRef?.root.querySelector('[data-portfolio-connection]');
+  if (!mount) return;
+  empty(mount);
+  if (portfolioConnected()) {
+    mount.textContent = 'Full portfolio via Ask Sattva · source dates checked with each question';
+  } else {
+    mount.append('Full portfolio not connected · ');
+    mount.appendChild(el('a', { href: FAMILY_RESEARCH_URL, target: '_blank', rel: 'noopener noreferrer', class: 'research-cite' }, 'Open with portfolio'));
+  }
 }
 
 export function destroy() {
@@ -597,6 +622,7 @@ function citeResolver(companies = []) {
   const company = companies.length === 1 ? companies[0] : null;
   return (name) => {
     const wanted = String(name || '').trim().toLowerCase();
+    if (wanted === 'ask sattva' || wanted === 'sattva family') return { href: `${FAMILY_ORIGIN}/ask`, title: 'Open the portfolio source in Sattva Family', label: 'Ask Sattva' };
     const source = DASHBOARD_RESEARCH_SOURCES.find((item) => item.tab.toLowerCase() === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
     if (!source) return null;
     return { href: dashboardHref(tabRoute(source.route), scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
@@ -641,6 +667,19 @@ function messageNode(message) {
   const companies = message.companies || [];
   renderResearchAnswer(body, message.text, { cite: citeResolver(companies) });
   article.appendChild(body);
+  if (message.portfolio) {
+    const p = message.portfolio;
+    const checked = new Date(p.checkedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    const quotes = p.quotes?.asOf ? `${p.quotes.asOf} (${p.quotes.freshness === 'recent' ? 'recent' : 'partial or stale'})` : 'unavailable — workbook marks only';
+    article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Portfolio book: ${p.bookAsOf}. Quotes: ${quotes}. Checked ${checked} IST. Snapshot for this answer, not a live refresh.`));
+    if (p.sourceErrors?.length) article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Sources not read: ${p.sourceErrors.join(', ')}.`));
+    const details = el('details');
+    details.appendChild(el('summary', { class: 'research-cite' }, 'Portfolio source reading · Ask Sattva'));
+    const reading = el('div', { class: 'research-answer-body' });
+    renderResearchAnswer(reading, p.answer, { cite: citeResolver() });
+    details.appendChild(reading);
+    article.appendChild(details);
+  }
   const sources = el('div', { class: 'research-sources' });
   const company = companies.length === 1 ? companies[0] : null;
   renderResearchSources(sources, {
@@ -735,6 +774,7 @@ async function submitCurrent() {
   if (!question) return;
 
   const originalDraft = session.draft;
+  session.private = session.private || privatePortfolioContext();
   const userMessage = { role: 'user', text: question };
   session.messages.push(userMessage);
   if (session.messages.filter((message) => message.role === 'user').length === 1) session.title = shortTitle(question);
@@ -757,6 +797,12 @@ async function submitCurrent() {
   persistSessions();
 
   try {
+    setPhase(session, 'Checking the Family portfolio and its source dates…');
+    const family = await readPortfolio(question, generation.controller.signal);
+    if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+    if (!family.holdings && questionNeedsPortfolio(question)) throw new Error('This question needs your full portfolio. Use “Open with portfolio” above; the dated Research coverage list cannot answer it safely.');
+    useFamilyBook(family.holdings, family.reading.bookAsOf);
+    generation.portfolio = family.holdings ? family.reading : null;
     // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
     // can take ten seconds on a cold page, and a scope change during it used to leave the
     // composer empty and the phase running until then — the reader's question looked lost.
@@ -767,6 +813,7 @@ async function submitCurrent() {
       buildResearchEvidence({
         question,
         scope: generation.scope,
+        portfolio: family.reading,
         onProgress: ({ completed, total, source }) => {
           if (!generation.controller.signal.aborted) setPhase(session, `Reading ${source} · ${completed} of ${total}`);
         },
@@ -878,6 +925,7 @@ async function consumeStream(stream, session, generation) {
     dashboardSources: session.streamDashboard,
     webSources: session.streamSources,
     companies: session.streamCompanies || [],
+    portfolio: generation.portfolio,
   });
   session.messages = session.messages.slice(-MAX_MESSAGES);
   session.updatedAt = new Date().toISOString();
