@@ -30,6 +30,8 @@ jobs:
         run: node scripts/verify-domestic-filings.mjs
       - name: Verify automatic filing capture and archives
         run: node scripts/verify-company-capture.mjs
+      - name: Verify live portfolio capture onboarding and source recovery
+        run: node scripts/verify-capture-onboarding.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog

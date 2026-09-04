@@ -93,28 +93,32 @@ export function withAnnouncementLookups(base) {
     async loadArchive({ onlyChanged = false } = {}) {
       if (sharedPending) return;
       sharedPending = true; sharedError = null; emit();
-      await loadCompanyCaptureIndex();
-      const status = companyCaptureStatus('announcements');
-      const queue = Object.keys(status.entries);
-      const failed = [];
-      await Promise.all([base.loadArchive?.({ onlyChanged }), ...Array.from({ length: 3 }, async () => {
-        while (queue.length) {
-          const ticker = queue.shift();
-          const entry = companyCaptureStatus('announcements').entries[ticker];
-          if (!entry.rowCount) continue;
-          const revision = `${entry.lastSuccessAt || ''}:${entry.rowCount}`;
-          if (onlyChanged && !status.error && sharedRevisions.get(ticker) === revision) continue;
-          try {
-            const result = await capturedCompany('announcements', ticker);
-            shared = mergeAnnouncements(shared, result.value.rows);
-            if (result.stale) failed.push(ticker);
-            else sharedRevisions.set(ticker, revision);
-          } catch { failed.push(ticker); }
-        }
-      })]);
-      sharedLoaded = companyCaptureStatus('announcements').available && !failed.length;
-      sharedError = failed.length ? `Additional company history could not be checked for: ${failed.join(', ')}.` : !sharedLoaded ? 'Additional company history has not been published yet.' : null;
-      sharedPending = false; emit();
+      try {
+        await loadCompanyCaptureIndex();
+        const status = companyCaptureStatus('announcements');
+        const queue = Object.keys(status.entries), failed = [], incoming = [];
+        // Merge once per batch, instead of re-sorting all prior history for every company.
+        const results = await Promise.allSettled([Promise.resolve().then(() => base.loadArchive?.({ onlyChanged })), ...Array.from({ length: 3 }, async () => {
+          while (queue.length) {
+            const ticker = queue.shift(), entry = status.entries[ticker];
+            if (!entry.rowCount) continue;
+            const revision = `${entry.lastResponseAt || entry.lastSuccessAt || ''}:${entry.rowCount}`;
+            if (onlyChanged && !status.error && sharedRevisions.get(ticker) === revision) continue;
+            try {
+              const result = await capturedCompany('announcements', ticker);
+              incoming.push(result.value.rows);
+              if (result.stale) failed.push(ticker);
+              else sharedRevisions.set(ticker, revision);
+            } catch { failed.push(ticker); }
+          }
+        })]);
+        shared = mergeAnnouncements(shared, incoming.flat());
+        sharedLoaded = status.available && !failed.length && results.every(result => result.status === 'fulfilled');
+        sharedError = failed.length ? `Additional company history could not be checked for: ${failed.join(', ')}.` :
+          results.some(result => result.status === 'rejected') ? 'Some captured history could not be checked; saved announcements are retained.' :
+          !sharedLoaded ? 'Additional company history has not been published yet.' : null;
+      } catch { sharedError = 'Captured company history could not be checked; saved announcements are retained.'; sharedLoaded = false; }
+      finally { sharedPending = false; emit(); }
     },
     lookup, lookupMeta,
     // The normal Refresh remains the inexpensive BSE refresh. The company form repeats additional

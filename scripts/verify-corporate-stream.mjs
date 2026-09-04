@@ -50,7 +50,8 @@ const feed = createCorporateAnnouncementsFeed({ base, nse: live,
   readIdentities: async () => {
     if (identityFailure) throw new Error('Identity source unavailable');
     return { value: { version: 1, capturedAt: '2026-09-04T00:00:00Z', entries: identityRows } };
-  } });
+  }, readNseIdentities: async () => ({ value: { version: 1, directories: { equity: { entries: [] }, sme: {
+    entries: [{ isin: 'INEFUTURE001', ticker: 'FUTURE', aliases: ['FUTURE-SM'], name: 'Future SME' }] } } } }) });
 let arrivals = 0;
 const off = feed.onChange(() => { arrivals++; });
 const loading = feed.load([]);
@@ -75,6 +76,7 @@ assert.equal(feed.rows().length, 4, 'source failure retains the whole stream');
 assert.equal(feed.meta().nse.error, 'Offline');
 assert.equal(feed.forTicker('test').length, 3);
 assert.equal(feed.filterByScope([{ ticker: 'KAMATS', scripCode: '539659' }], 'portfolio', [{ isin: 'INEKAMATS001', ticker: null }]).length, 1);
+assert.equal(feed.filterByScope([{ ticker: 'FUTURE-SM' }], 'portfolio', [{ isin: 'INEFUTURE001', ticker: null }]).length, 1, 'dynamic NSE SME identities join future holdings to retained quote-alias filings');
 identityFailure = true; await feed.refresh();
 assert.equal(feed.filterByScope([{ ticker: 'KAMATS', scripCode: '539659' }], 'portfolio', [{ isin: 'INEKAMATS001', ticker: null }]).length, 1, 'identity outages retain previously verified scope matching');
 assert.equal(feed.meta().identity.error, 'Identity source unavailable');

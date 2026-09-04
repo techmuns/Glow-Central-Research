@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { mergeAnnouncements } from '../../public/js/data/announcements-shared.js';
 import { documentUrl } from '../../public/js/data/domestic-filings-shared.js';
-import { createAnnouncementIdentity, filingTicker } from '../../public/js/data/announcement-identity.js';
+import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from '../../public/js/data/announcement-identity.js';
 
 export const day = (time) => new Date(time).toISOString().slice(0, 10);
 const shift = (date, days) => day(Date.parse(date) + days * 86400000);
@@ -60,10 +60,11 @@ export function mergeDocuments(previous, incoming) {
   return [...rows.values()];
 }
 
-export function captureCompanies(dataDir, { announcements = false } = {}) {
-  const book = readJson(join(dataDir, 'portfolio-companies.json'), {}).holdings || [];
+export function captureCompanies(dataDir, { announcements = false, holdings = null } = {}) {
+  const book = holdings ?? readJson(join(dataDir, 'portfolio-companies.json'), {}).holdings ?? [];
   const identities = announcements ? readJson(join(dataDir, 'announcement-identities.json'), {}).entries || [] : [];
-  const identityIndex = createAnnouncementIdentity(identities);
+  const nse = announcements ? readJson(join(dataDir, 'filing-capture/nse-identities.json'), {}).directories || {} : {};
+  const identityIndex = createAnnouncementIdentity(mergeExchangeIdentities(identities, nse.sme?.entries || [], nse.equity?.entries || []));
   const universe = readJson(join(dataDir, 'universe.json'), []);
   const technicals = readJson(join(dataDir, 'technicals.json'), {}).companies || [];
   const announcementBook = book.map(c => {
@@ -77,15 +78,18 @@ export function captureCompanies(dataDir, { announcements = false } = {}) {
   for (const c of known) {
     const ticker = String(c.ticker || /\/company\/([^/]+)/.exec(c['Screener URL'] || '')?.[1] || '').trim().toUpperCase();
     if (!/^[A-Z0-9&._-]{1,80}$/.test(ticker)) { unresolved.push(c.name || c.Company || ticker || 'Unnamed company'); continue; }
-    const key = announcements ? filingTicker(ticker) : ticker;
+    const identity = announcements ? identityIndex.find({ ...c, ticker }) : null;
+    const sourceTicker = c.announcementTicker || (identity && filingTicker(identity.ticker || identity.bseSymbol));
+    const key = announcements ? identityIndex.key({ ...c, ticker }) || filingTicker(ticker) : ticker;
     if (!seen.has(key)) seen.set(key, { ticker, name: c.name || c.Company || ticker,
-      ...(c.announcementTicker ? { announcementTicker: c.announcementTicker } : {}), priority: !!c.priority });
+      ...(sourceTicker ? { announcementTicker: sourceTicker } : {}),
+      ...(identity ? { isin: identity.isin } : {}), priority: !!c.priority });
   }
   return { companies: [...seen.values()], unresolved: [...new Set(unresolved)] };
 }
 
 /** Bounded, restartable capture. Dependencies are injectable for offline failure/recovery tests. */
-export async function captureCompanySources({ dir, companies, unresolved = [], request, now = Date.now,
+export async function captureCompanySources({ dir, companies, unresolved = [], portfolio = null, identitySources = null, request, now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), budgetMs = 20 * 60000,
   spacingMs = 2500, concurrency = 3, backfillDays = 365, maxRequests = Infinity, onProgress = () => {} }) {
   const start = now(), to = day(start);
@@ -96,24 +100,36 @@ export async function captureCompanySources({ dir, companies, unresolved = [], r
   const wanted = new Set(companies.map((c) => c.ticker));
   index.companies = companies;
   index.unresolved = unresolved;
+  if (portfolio) index.portfolio = portfolio;
+  if (identitySources) index.identitySources = identitySources;
   index.requestedFrom = from;
   index.requestedTo = to;
   index.lastRunAt = new Date(start).toISOString();
-  index.scope = 'Committed portfolio, universe and technicals; device-only additions are not registered for background capture.';
+  index.scope = 'Active shared portfolio, universe and technicals; device-only watchlist additions are not registered for company history capture.';
+  const companyByTicker = new Map(companies.map(company => [company.ticker, company]));
   for (const kind of ['announcements', 'domestic']) {
     const entries = index.sources[kind] ||= {};
-    for (const { ticker, priority } of companies) {
+    for (const entry of Object.values(entries)) entry.priority = false;
+    for (const { ticker, priority, announcementTicker } of companies) {
       if (!entries[ticker]) entries[ticker] = { rowCount: 0, ranges: [], registeredAt: new Date(start).toISOString() };
       else entries[ticker].registeredAt ||= index.createdAt;
       entries[ticker].priority = !!priority;
+      const queryTicker = kind === 'announcements' ? announcementTicker || ticker : ticker;
+      if (entries[ticker].queryTicker && entries[ticker].queryTicker !== queryTicker) {
+        entries[ticker].nextRetryAt = null;
+        entries[ticker].failureCount = 0;
+        entries[ticker].recentCheckedAt = null;
+      }
+      entries[ticker].queryTicker = queryTicker;
     }
   }
   // Fair across restarts. A failure is attempted again, but does not starve companies that have
   // never been reached. Nothing is sliced out of the declared universe to meet a run's budget.
   const queue = Object.entries(index.sources).flatMap(([kind, entries]) =>
     Object.entries(entries).filter(([ticker]) => wanted.has(ticker)).map(([ticker, entry]) => ({ kind, ticker, entry,
-      company: companies.find(c => c.ticker === ticker) })))
+      company: companyByTicker.get(ticker) })))
     .filter(({ kind, entry }) => kind !== 'domestic' || !entry.lastSuccessAt || entry.error || now() - Date.parse(entry.lastSuccessAt) >= 86400000)
+    .filter(({ entry }) => !entry.nextRetryAt || Date.parse(entry.nextRetryAt) <= now() || !Number.isFinite(Date.parse(entry.nextRetryAt)))
     .sort((a, b) => {
       const rank = job => !job.entry.lastAttemptAt ? 0 : job.entry.error ? 1 :
         job.kind === 'announcements' && job.entry.priority ? 2 : job.kind === 'announcements' ? 3 : 4;
@@ -171,6 +187,8 @@ export async function captureCompanySources({ dir, companies, unresolved = [], r
         if (entry.skipped) throw new Error(`${entry.skipped} source entries could not be parsed; captured rows retained, window remains incomplete.`);
         entry.lastSuccessAt = entry.lastAttemptAt;
         entry.error = null;
+        entry.failureCount = 0;
+        entry.nextRetryAt = null;
         if (range) {
           entry.ranges = mergeRanges(entry.ranges || [], { from: range.from, to: range.to });
           if (range.recent) entry.recentCheckedAt = entry.lastAttemptAt;
@@ -179,6 +197,9 @@ export async function captureCompanySources({ dir, companies, unresolved = [], r
       } catch (error) {
         // Never persist request headers or raw errors which could contain credentials.
         entry.error = { reason: error.reason || 'upstream', message: error.message || 'Source could not be read', at: entry.lastAttemptAt };
+        entry.failureCount = Math.min(10, (Number(entry.failureCount) || 0) + 1);
+        const delay = Math.min(24 * 3600000, Math.max(2 * 3600000 * 2 ** (entry.failureCount - 1), Number(error.retryAfterMs) || 0));
+        entry.nextRetryAt = new Date(now() + delay).toISOString();
         if (['no-token', 'unauthorised'].includes(error.reason)) stop = true;
       }
       checkpoint();
