@@ -6460,8 +6460,8 @@ console.log('\n— news, announcements and insider trades —');
       ok('...and opens no provenance popup',
         (await page.locator('[data-filings-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
           (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
-      ok('...and accounts for the companies in scope in the table count',
-        /announcements? from .*portfolio compan/i.test(await page.locator('#content-host [data-row-count]').innerText()));
+      ok('...and labels the company count as companies with filings',
+        /announcements? · .*compan(?:y|ies) with filings/i.test(await page.locator('#content-host [data-row-count]').innerText()));
       ok('...and the global Refresh control remains available', (await page.locator('[data-header-refresh]').count()) === 1);
     } else {
       skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');

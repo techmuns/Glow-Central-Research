@@ -60,23 +60,25 @@ export function mergeDocuments(previous, incoming) {
   return [...rows.values()];
 }
 
-export function captureCompanies(dataDir) {
+export function captureCompanies(dataDir, { announcements = false } = {}) {
   const book = readJson(join(dataDir, 'portfolio-companies.json'), {}).holdings || [];
-  const identities = readJson(join(dataDir, 'announcement-identities.json'), {}).entries || [];
+  const identities = announcements ? readJson(join(dataDir, 'announcement-identities.json'), {}).entries || [] : [];
   const identityIndex = createAnnouncementIdentity(identities);
   const universe = readJson(join(dataDir, 'universe.json'), []);
   const technicals = readJson(join(dataDir, 'technicals.json'), {}).companies || [];
-  const known = [...book.map(c => {
+  const announcementBook = book.map(c => {
     const identity = identityIndex.find(c);
     return { ...c, ticker: c.ticker || identity?.ticker || identity?.bseSymbol || null,
       announcementTicker: identity ? filingTicker(identity.ticker || identity.bseSymbol) : filingTicker(c.ticker), priority: true };
-  }), ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals];
+  });
+  const known = [...(announcements ? announcementBook : book), ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals];
   const seen = new Map();
   const unresolved = [];
   for (const c of known) {
     const ticker = String(c.ticker || /\/company\/([^/]+)/.exec(c['Screener URL'] || '')?.[1] || '').trim().toUpperCase();
     if (!/^[A-Z0-9&._-]{1,80}$/.test(ticker)) { unresolved.push(c.name || c.Company || ticker || 'Unnamed company'); continue; }
-    if (!seen.has(filingTicker(ticker))) seen.set(filingTicker(ticker), { ticker, name: c.name || c.Company || ticker,
+    const key = announcements ? filingTicker(ticker) : ticker;
+    if (!seen.has(key)) seen.set(key, { ticker, name: c.name || c.Company || ticker,
       ...(c.announcementTicker ? { announcementTicker: c.announcementTicker } : {}), priority: !!c.priority });
   }
   return { companies: [...seen.values()], unresolved: [...new Set(unresolved)] };

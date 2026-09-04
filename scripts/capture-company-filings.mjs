@@ -5,7 +5,7 @@ import { captureCompanies, captureCompanySources } from './lib/company-capture.m
 
 const dataDir = fileURLToPath(new URL('../public/data/', import.meta.url));
 const base = (process.env.FILINGS_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
-const scope = captureCompanies(dataDir);
+const scope = captureCompanies(dataDir, { announcements: true });
 const result = await captureCompanySources({
   dir: resolve(dataDir, 'filing-capture'), ...scope,
   budgetMs: Number(process.env.COMPANY_CAPTURE_BUDGET_MS || 20 * 60000),

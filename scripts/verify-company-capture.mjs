@@ -75,11 +75,11 @@ try {
   assert.deepEqual(captureCompanies(scratch).unresolved, ['Unresolved']);
   writeJson(join(scratch, 'announcement-identities.json'), { entries: [{ isin: 'INE000000001', ticker: 'BSEONLY', bseSymbol: 'BSEONLY', bseCode: '500001' }] });
   writeJson(join(scratch, 'portfolio-companies.json'), { holdings: [{ isin: 'INE000000001', name: 'BSE-only holding' }] });
-  const mappedBook = captureCompanies(scratch).companies.find(c => c.ticker === 'BSEONLY');
+  const mappedBook = captureCompanies(scratch, { announcements: true }).companies.find(c => c.ticker === 'BSEONLY');
   assert.equal(mappedBook.announcementTicker, 'BSEONLY');
   assert.equal(mappedBook.priority, true);
   writeJson(join(scratch, 'portfolio-companies.json'), { holdings: [{ ticker: 'ALPEXSOLAR-SM', name: 'Alpex Solar' }] });
-  assert.equal(captureCompanies(scratch).companies[0].announcementTicker, 'ALPEXSOLAR');
+  assert.equal(captureCompanies(scratch, { announcements: true }).companies[0].announcementTicker, 'ALPEXSOLAR');
 
   const priorityDir = join(scratch, 'priority');
   const recentEntry = { lastAttemptAt: recent, lastSuccessAt: recent, recentCheckedAt: recent,
