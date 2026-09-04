@@ -58,13 +58,13 @@ await check('the proxy calls only the fixed read-only GET with an encoded exact 
   const response = await handleDrhpFilings(request(name), { fetcher: async (url, init) => {
     assert.equal(url, `https://devde.muns.io/filings/drhp/${encodeURIComponent(name)}`); assert.equal(init.method, 'GET');
     assert.equal(init.body, undefined); assert.equal(init.headers.authorization, 'Bearer fixture.reader.session');
-    assert.equal(init.redirect, 'error'); assert.equal(init.cache, 'no-store'); return Response.json(sample);
+    assert.equal(init.redirect, 'manual'); assert.equal(init.cache, 'no-store'); return Response.json(sample);
   } });
   assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.equal(response.headers.get('vary'), 'Authorization'); assert.equal(response.headers.get('etag'), null); assert.equal((await response.json()).query, name);
 });
 await check('upstream auth, rate limits and failures never look like an empty IPO history', async () => {
-  for (const [status, reason] of [[401, 'unauthorised'], [403, 'unauthorised'], [429, 'rate-limited'], [404, 'upstream'], [503, 'upstream']]) {
+  for (const [status, reason] of [[302, 'upstream'], [307, 'upstream'], [401, 'unauthorised'], [403, 'unauthorised'], [429, 'rate-limited'], [404, 'upstream'], [503, 'upstream']]) {
     const result = await (await handleDrhpFilings(request(), { fetcher: async () => Response.json({ secret: 'not for the browser' }, { status }) })).json();
     assert.equal(result.ok, false); assert.equal(result.reason, reason); assert.equal(result.rows, undefined); assert.ok(!JSON.stringify(result).includes('secret'));
   }

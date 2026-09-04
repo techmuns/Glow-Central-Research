@@ -18,8 +18,9 @@ export async function handleDrhpFilings(request, { fetcher = fetch, now = Date.n
     return reply({ ok: false, reason: 'request', message: error.message === 'too-large' ? 'Request is too large.' : 'Enter a ticker or exact company name (up to 200 characters).' }, error.message === 'too-large' ? 413 : 400);
   }
   try {
+    // Refuse every redirect via the non-2xx guard; workerd does not implement redirect:'error'.
     const response = await fetcher(`https://devde.muns.io/filings/drhp/${encodeURIComponent(company)}`, {
-      method: 'GET', redirect: 'error', cache: 'no-store', signal,
+      method: 'GET', redirect: 'manual', cache: 'no-store', signal,
       headers: { accept: 'application/json', authorization: `Bearer ${token}` },
     });
     if (!response.ok) {

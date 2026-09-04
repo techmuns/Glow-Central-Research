@@ -2446,6 +2446,12 @@ are refused. Successful complete results are cached for five minutes, while part
 results are not. Cache failures do not discard a valid source response. Configuration or history
 index failures remain visible instead of being converted to a fabricated model or empty universe.
 
+Runtime verification caught a Workers compatibility difference: deployed workerd rejects
+`redirect: 'error'`. All three new filing/IPO proxies use `redirect: 'manual'` and reject every
+non-2xx response, including redirects, before parsing. Reader tokens are never forwarded to a
+redirect destination. The corrected public route was verified with real repository reads in
+local workerd; authenticated private response mapping remains a separate pending check.
+
 The browser reads the published artifact on entry/check-for-updates, **not daily new filings**:
 the reference pipeline is scheduled weekly on Monday. Data-as-of and checked-at are separate.
 Bundled copies under `public/data/ipo-monitor/` provide a labelled fallback; `index.json` records

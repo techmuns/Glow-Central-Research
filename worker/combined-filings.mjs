@@ -46,7 +46,8 @@ export async function handleCombinedFilings(request, { fetcher = fetch, now = Da
   try { query = validateCombinedRequest(await boundedJson(request, MAX_REQUEST_BYTES, signal), now()); }
   catch (error) { return reply({ ok: false, reason: 'request', message: error.message === 'too-large' ? 'Request is too large.' : 'Invalid company, filing type or date range. Search at most one year at a time.' }, error.message === 'too-large' ? 413 : 400); }
   try {
-    const response = await fetcher(ENDPOINT, { method: 'POST', redirect: 'error', cache: 'no-store', signal,
+    // workerd rejects redirect:'error'; manual + the non-2xx guard refuses redirects without forwarding tokens.
+    const response = await fetcher(ENDPOINT, { method: 'POST', redirect: 'manual', cache: 'no-store', signal,
       headers: { accept: 'application/json', 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(query) });
     if (!response.ok) {
       await response.body?.cancel();

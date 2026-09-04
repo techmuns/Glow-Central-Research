@@ -64,14 +64,14 @@ await check('success uses the exact documented POST and caller token, with priva
   const response = await handleCombinedFilings(request(), { now, fetcher: async (url, init) => {
     assert.equal(url, 'https://devde.muns.io/filings/combined_filings_announcements'); assert.equal(init.method, 'POST');
     assert.deepEqual(JSON.parse(init.body), query); assert.equal(init.headers.authorization, `Bearer ${tokenA}`);
-    assert.equal(init.redirect, 'error'); assert.equal(init.cache, 'no-store'); return Response.json(sample);
+    assert.equal(init.redirect, 'manual'); assert.equal(init.cache, 'no-store'); return Response.json(sample);
   } });
   assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.equal(response.headers.get('vary'), 'Authorization'); assert.equal(response.headers.get('etag'), null);
   assert.equal((await response.json()).rows.length, 3);
 });
 await check('auth, rate limits and service failures stay failures, not empty histories', async () => {
-  for (const [code, reason] of [[401, 'unauthorised'], [403, 'unauthorised'], [429, 'rate-limited'], [503, 'upstream']]) {
+  for (const [code, reason] of [[302, 'upstream'], [307, 'upstream'], [401, 'unauthorised'], [403, 'unauthorised'], [429, 'rate-limited'], [503, 'upstream']]) {
     const response = await handleCombinedFilings(request(), { now, fetcher: async () => Response.json({ secret: 'never echo upstream errors' }, { status: code }) });
     const data = await response.json(); assert.equal(data.ok, false); assert.equal(data.reason, reason); assert.ok(!JSON.stringify(data).includes('secret'));
   }
