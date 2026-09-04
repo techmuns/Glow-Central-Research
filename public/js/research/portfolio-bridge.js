@@ -159,7 +159,7 @@ export async function readPositionSizes(signal) {
   if (!connected && !await connectPortfolio()) return null;
   if (!positionSizesSupported) return null;
   const startedAt = Date.now();
-  const reply = await request('positions', null, signal, 45_000);
+  const reply = await request('positions', null, signal, 90_000);
   if (!validPositionSizes(reply, startedAt)) throw new Error('Holding sizes were stale or incomplete. Refresh to read the active portfolio again.');
   return reply;
 }

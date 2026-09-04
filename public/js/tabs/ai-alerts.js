@@ -52,7 +52,7 @@ export function render(ctx) {
       report = null;
       coverage.useFamilyBook(null);
       // Wait until Family adopts the new book; starting another archive check here
-      // would invalidate the check that is still running in the parent.
+      // would invalidate the check that is still running in the connector.
       if (!sizesLoading) { loadToken += 1; awaitingBook = version; }
       paint(ctxRef);
     }));
