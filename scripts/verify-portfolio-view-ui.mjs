@@ -108,11 +108,33 @@ try {
   await page.getByRole('textbox', { name:'Ask about the dashboard' }).fill('What should I know?');
   await page.getByRole('button', { name:'Send question' }).click();
   await page.getByText('Fixture answer.', { exact:false }).waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-research-input]')?.disabled === false);
   assert.deepEqual(questions[0].evidence.portfolioPositions.holdings.map(h => h.isin).sort(), replacement.map(h => h.isin).sort());
   assert.equal(questions[0].evidence.portfolioPositions.holdings.find(h => h.ticker === 'KISSHT').weightPct, 60);
+  // A connected iframe can lose workbook access between questions. Background
+  // failures must repaint the badge, and only a valid read may restore it.
+  const connectionBadge = page.locator('[data-portfolio-connection]');
+  assert.match(await connectionBadge.innerText(), /Portfolio connected/);
+  await peer.evaluate(() => { window.failed = true; });
+  await page.evaluate(async () => { await (await import('/js/data/family-session.js')).refreshFamilySession(); });
+  assert.match(await connectionBadge.innerText(), /Portfolio connection unavailable/);
+  await page.evaluate(async () => { await (await import('/js/research/portfolio-bridge.js')).connectPortfolio(); });
+  assert.match(await connectionBadge.innerText(), /Portfolio connection unavailable/);
+  await page.getByRole('textbox', { name:'Ask about the dashboard' }).fill('Read my portfolio again');
+  await page.getByRole('button', { name:'Send question' }).click();
+  await page.getByText('Fixture workbook unavailable', { exact:false }).waitFor();
+  assert.equal(questions.length, 1, 'a failed holdings read never reaches the Research model');
+  assert.match(await connectionBadge.innerText(), /Portfolio connection unavailable/);
+  await peer.evaluate(() => { window.failed = false; });
+  await page.evaluate(async () => { await (await import('/js/data/family-session.js')).refreshFamilySession(); });
+  assert.match(await connectionBadge.innerText(), /Portfolio connected/);
+  assert.equal(await page.getByRole('textbox', { name:'Ask about the dashboard' }).inputValue(), 'Read my portfolio again');
+  await page.getByRole('button', { name:'Send question' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-research-input]')?.disabled === false);
+  assert.equal(questions.length, 2, 'a recovered question can use the verified portfolio');
   assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('weightPct')), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: any-tab startup, OnEMI name/ticker/ISIN search, read-only ownership, uncovered holdings, legacy Watchlist migration, whole-book parity, additions/exits while open, all tabs and Ask exposure.');
+  console.log('PASS: any-tab startup, OnEMI name/ticker/ISIN search, read-only ownership, uncovered holdings, legacy Watchlist migration, whole-book parity, additions/exits while open, all tabs, Ask exposure, outage status and verified recovery.');
 } catch(error) {
   if(page) console.error((await page.locator('body').innerText()).slice(-5000), errors);
   throw error;

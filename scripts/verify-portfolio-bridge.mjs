@@ -93,11 +93,43 @@ assert.equal(posts.at(-1).message.type, 'positions');
 assert.equal(posts.at(-1).message.question, undefined, 'position sizing does not invoke a model question');
 responder = m => emit({ ...m, type: 'result', reading: { ...reading, checkedAt: '2020-01-01' }, holdings });
 await assert.rejects(bridge.readPortfolio('Do I own Example?'), /stale or invalid/);
+assert.equal(bridge.portfolioConnectionState(), 'unavailable', 'a rejected reading revokes the connected badge');
+assert.equal(bridge.portfolioConnected(), false);
+assert.notEqual(coverage.meta().syncStatus, 'family-session');
+assert.equal(await bridge.connectPortfolio(), true, 'the transport can still be available after a data failure');
+assert.equal(bridge.portfolioConnected(), false, 'a handshake alone cannot certify recovery');
+responder = m => emit({ ...m, type: 'ready', capabilities: ['position-sizes'] });
+emit({ channel: bridge.PORTFOLIO_CHANNEL, type: 'available' });
+await bridge.connectPortfolio();
+assert.equal(bridge.portfolioConnected(), false, 'a reloaded peer must also pass a holdings read before recovery');
+
+responder = m => emit({ ...m, type: 'error', message: 'Fixture workbook unavailable' });
+await assert.rejects(bridge.readPositionSizes(), /Fixture workbook unavailable/);
+assert.equal(bridge.portfolioConnectionState(), 'unavailable', 'background failures keep the warning visible');
+
+responder = () => {};
+const realSetTimeout = globalThis.setTimeout;
+try {
+  globalThis.setTimeout = (fn, ms, ...args) => realSetTimeout(fn, ms === 90_000 ? 0 : ms, ...args);
+  await assert.rejects(bridge.readPositionSizes(), /did not answer in time/);
+} finally { globalThis.setTimeout = realSetTimeout; }
+assert.equal(bridge.portfolioConnectionState(), 'unavailable', 'timed-out reads cannot restore the badge');
+
+const recovered = [];
+const offRecovery = bridge.onPortfolioConnection(value => recovered.push(value));
+responder = m => emit({ ...m, type: 'result', ...sizeReply, sizes: { ...sizeReply.sizes, checkedAt: new Date().toISOString() } });
+await bridge.readPositionSizes();
+assert.equal(bridge.portfolioConnected(), true, 'a validated positions read restores the badge');
+assert.equal(coverage.meta().syncStatus, 'family-session');
+await bridge.readPositionSizes();
+assert.deepEqual(recovered, [true], 'unchanged healthy reads do not trigger extra connection refreshes');
+offRecovery();
 const beforeAbort = posts.length;
 const ctrl = new AbortController();
 const pending = bridge.readPortfolio('Do I own Example?', ctrl.signal);
 ctrl.abort();
 await assert.rejects(pending, /Cancelled/);
+assert.equal(bridge.portfolioConnected(), true, 'cancelling a queued question is not a connection failure');
 assert.equal(posts.length, beforeAbort, 'a cancelled queued question never starts a private read');
 assert.ok(posts.every(p => p.origin === 'https://sattva-family.pages.dev'));
 assert.equal(listeners.size, 1);
@@ -140,6 +172,13 @@ await started; abortRunning.abort();
 await assert.rejects(runningQuestion, /Cancelled/);
 assert.equal(posts.at(-1).message.type, 'cancel');
 await bridge.readPositionSizes();
+assert.equal(bridge.portfolioConnected(), true, 'cancelling an active question is not a connection failure');
+
+responder = m => emit({ ...m, type: 'auth-required' });
+await assert.rejects(bridge.readPortfolio('What changed?'), /Unlock/);
+assert.equal(bridge.portfolioConnectionState(), 'locked', 'read failure must preserve the sign-in state');
+responder = m => emit({ ...m, type: 'ready', capabilities: ['position-sizes'] });
+await bridge.connectPortfolio();
 
 emit({ channel: bridge.PORTFOLIO_CHANNEL, id: 'connector', type: 'auth-required' }, 'https://evil.example');
 assert.equal(bridge.portfolioConnected(), true);
