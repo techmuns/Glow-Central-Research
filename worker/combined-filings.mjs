@@ -2,35 +2,12 @@
 // isRead is a property of the signed-in reader, not public market data.
 import { callerToken } from './muns.mjs';
 import { DOCUMENT_FORMS, normaliseCombinedFilings, validDay } from '../public/js/data/combined-filings-shared.js';
+import { boundedJson, privateReply as reply } from './private-documents.mjs';
 
 const ENDPOINT = 'https://devde.muns.io/filings/combined_filings_announcements';
 const MAX_REQUEST_BYTES = 8192;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 20000;
-const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store', vary: 'Authorization', 'x-content-type-options': 'nosniff' } });
-
-async function boundedJson(message, limit, signal) {
-  if (Number(message.headers.get('content-length')) > limit) throw new Error('too-large');
-  const reader = message.body?.getReader();
-  if (!reader) throw new Error('shape');
-  let length = 0;
-  const decoder = new TextDecoder();
-  let body = '';
-  const abort = () => { void reader.cancel().catch(() => {}); };
-  signal?.addEventListener('abort', abort, { once: true });
-  try {
-    while (true) {
-      if (signal?.aborted) throw new Error('timeout');
-      const { done, value } = await reader.read();
-      if (signal?.aborted) throw new Error('timeout');
-      if (done) break;
-      length += value.byteLength;
-      if (length > limit) throw new Error('too-large');
-      body += decoder.decode(value, { stream: true });
-    }
-    return JSON.parse(body + decoder.decode());
-  } finally { signal?.removeEventListener('abort', abort); await reader.cancel().catch(() => {}); reader.releaseLock(); }
-}
 
 export function validateCombinedRequest(input, now = Date.now()) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Provide a company and date range.');

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleCombinedFilings } from '../worker/combined-filings.mjs';
+import { handleDrhpFilings } from '../worker/drhp-filings.mjs';
 
 const pwRoot = process.env.PLAYWRIGHT_ROOT;
 if (!pwRoot) throw new Error('Set PLAYWRIGHT_ROOT to an installed Playwright directory.');
@@ -13,6 +14,15 @@ const { chromium } = await import(`${pwRoot}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const queries = [];
 let fail = false;
+const drhpQueries = [];
+let drhpMode = 'normal';
+let drhpDelay = 0;
+const drhpCompany = 'Example Alternative Asset Advisors Limited';
+const drhpFixture = { symbol: null, company_name: drhpCompany, form_type: 'DRHP', filing_date: '2026-09-03', source: 'IND', documents: [
+  { title: 'Draft prospectus', url: 'https://example.test/draft.pdf' },
+  { name: 'Addendum', document_url: 'https://example.test/addendum.pdf' },
+  { name: 'Unsafe link', url: 'javascript:alert(1)' },
+] };
 const fixture = [
   { ticker: 'STLTECH', title: 'Analyst meeting', source: 'NSE', date: '2026-09-03', filing_url: 'https://nsearchives.nseindia.com/corporate/stl.pdf', isRead: false },
   { ticker: 'STLTECH', title: 'Board outcome', source: 'BSE', date: '2026-09-02', filing_url: 'https://www.bseindia.com/stl.pdf', isRead: true },
@@ -40,6 +50,20 @@ const server = createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store');
     if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
     if (url.pathname === '/api/stock-search') { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ok:true,results:[{ticker:'STLTECH',name:'Sterlite Technologies',country:'India',validTicker:true}]})); return; }
+    if (url.pathname === '/api/drhp-filings') {
+      const chunks=[]; for await (const chunk of req) chunks.push(chunk);
+      const headers=new Headers(req.headers); headers.delete('origin');
+      const response=await handleDrhpFilings(new Request('http://localhost/api/drhp-filings',{method:'POST',headers,body:Buffer.concat(chunks)}),{fetcher:async(path,init)=>{
+        drhpQueries.push({company:decodeURIComponent(new URL(path).pathname.split('/').at(-1)),token:init.headers.authorization,method:init.method});
+        if(drhpDelay)await new Promise(done=>setTimeout(done,drhpDelay));
+        if(drhpMode==='failure')return Response.json({},{status:503});
+        if(drhpMode==='empty')return Response.json([]);
+        if(drhpMode==='unknown')return Response.json([{unexpected:true}]);
+        if(drhpMode==='limit')return Response.json(Array.from({length:50},()=>drhpFixture));
+        return Response.json([drhpFixture]);
+      }});
+      res.writeHead(response.status,Object.fromEntries(response.headers));res.end(await response.text());return;
+    }
     if (url.pathname === '/api/combined-filings') {
       const chunks=[]; for await (const chunk of req) chunks.push(chunk);
       const headers = new Headers(req.headers); headers.delete('origin');
@@ -116,6 +140,51 @@ try {
     await load();
     check('the actual '+name+' tab reaches its assigned document form',queries.at(-1).form[0]===form);
   }
-  check('the document view has no browser runtime errors',errors.length===0);
+  await page.evaluate(()=>window.showTab('corp-announcements'));
+  await page.locator('[data-doc-mode="drhp"]').click();
+  await page.locator('[data-drhp-company]').waitFor();
+  check('Corp Announcements exposes IPO lookup without automatically requesting companies',drhpQueries.length===0);
+  const loadDrhp=async(name=drhpCompany)=>{await page.locator('[data-drhp-company]').fill(name);await page.locator('[data-drhp-load]').click();await page.locator('[data-drhp-load]:not([disabled])').waitFor();};
+  await loadDrhp();
+  check('unlisted issuers use their exact name without stock-search resolution',drhpQueries.at(-1).company===drhpCompany&&drhpQueries.at(-1).method==='GET');
+  check('all nested safe links appear under the returned filing identity',await page.locator('[data-drhp-filing] a').count()===2&&/Symbol not supplied/.test(await page.locator('[data-drhp-results]').innerText())&&/Addendum/.test(await page.locator('[data-drhp-results]').innerText()));
+  check('unsafe nested links are omitted with a mapping warning',await page.locator('[data-drhp-results] a[href^="javascript:"]').count()===0&&/could not be mapped/.test(await page.locator('[data-drhp-status]').innerText()));
+  check('IPO lookup states that scope and upcoming-offer status are not inferred',/independent of Portfolio/.test(await page.locator('[data-drhp-form]').innerText())&&/not confirmation/.test(await page.locator('[data-drhp-form]').innerText()));
+  check('looking up an unlisted issuer does not add it to holdings',await page.evaluate(async()=>{const c=await import('/js/data/coverage.js');return c.holdings().length===1&&c.holdings()[0].ticker==='STLTECH';}));
+  await loadDrhp('A & B (India) Limited');
+  check('spaces and ampersands survive exact-name path encoding',drhpQueries.at(-1).company==='A & B (India) Limited');
+  await loadDrhp('PAYTM');
+  check('listed tickers also reach the DRHP endpoint',drhpQueries.at(-1).company==='PAYTM');
+  const beforeInvalid=drhpQueries.length;await loadDrhp('sync_us');
+  check('reserved administrative names cannot be sent from the browser',drhpQueries.length===beforeInvalid&&/Enter a ticker/.test(await page.locator('[data-drhp-status]').innerText()));
+  drhpMode='empty';await loadDrhp();
+  check('no DRHP results are qualified, not proof of no IPO',/does not prove/.test(await page.locator('[data-drhp-results]').innerText()));
+  drhpMode='unknown';await loadDrhp();
+  check('unrecognised records are not presented as a genuinely empty history',/unrecognised records/.test(await page.locator('[data-drhp-results]').innerText()));
+  drhpMode='limit';await loadDrhp();
+  check('the 50-filing cap is visible',await page.locator('[data-drhp-filing]').count()===50&&/50-filing limit/.test(await page.locator('[data-drhp-status]').innerText()));
+  drhpMode='failure';await loadDrhp();
+  check('DRHP service errors clear old records without claiming no filing',/could not be reached/.test(await page.locator('[data-drhp-status]').innerText())&&await page.locator('[data-drhp-results]').innerText()==='');
+  drhpMode='normal';await loadDrhp();
+  await page.evaluate(()=>window.clearTestSession());
+  check('logout clears IPO results',await page.locator('[data-drhp-results]').innerText()===''&&/Sign in/.test(await page.locator('[data-drhp-status]').innerText()));
+  const beforeNoSession=drhpQueries.length;await loadDrhp();
+  check('IPO lookup without a reader session makes no upstream request',drhpQueries.length===beforeNoSession);
+  await page.evaluate(()=>window.setTestSession('fixture.reader-b.session'));await loadDrhp();
+  check('a new session uses its own bearer token',drhpQueries.at(-1).token==='Bearer fixture.reader-b.session');
+  drhpDelay=150;
+  await page.locator('[data-drhp-load]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-drhp-load]').disabled);
+  await page.evaluate(()=>window.clearTestSession());
+  await new Promise(done=>setTimeout(done,250));
+  check('an in-flight response cannot repopulate records after logout',await page.locator('[data-drhp-results]').innerText()===''&&/Sign in/.test(await page.locator('[data-drhp-status]').innerText()));
+  drhpDelay=0;await page.evaluate(()=>window.setTestSession('fixture.reader-a.session'));await loadDrhp();
+  if(process.env.DRHP_SCREENSHOT_PATH)await page.screenshot({path:process.env.DRHP_SCREENSHOT_PATH,fullPage:true});
+  check('IPO desktop layout fits',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.setViewportSize({width:390,height:844});
+  check('IPO controls and document cards fit a mobile viewport',await page.locator('[data-drhp-load]').isVisible()&&await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('[data-doc-mode="documents"]').click();
+  check('switching back restores ordinary company documents and removes IPO results',await page.locator('[data-doc-company]').isVisible()&&await page.locator('[data-drhp-results]').count()===0);
+  check('the document views have no browser runtime errors',errors.length===0);
   console.log(`\n${checks} combined filings browser checks passed.`);
 } finally { await browser?.close(); await new Promise(done=>server.close(done)); }

@@ -8,6 +8,7 @@ import { scopeAllowsTicker, scopeLabel } from '../data/scope.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import { scoreTable, sectionHead } from './screener.js';
+import { mountDrhpDocuments } from './drhp-documents.js';
 
 const e = escapeHtml;
 const buttonClass = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white';
@@ -24,6 +25,7 @@ export function withCompanyDocuments(tab, options) {
       ctx.root.innerHTML = `<div class="mb-4 flex flex-wrap gap-2" data-document-tabs>
         <button type="button" data-doc-mode="feed" class="${inputClass}">${e(options.feedLabel)}</button>
         <button type="button" data-doc-mode="documents" class="${inputClass}">${e(options.label)}</button>
+        ${options.drhp ? `<button type="button" data-doc-mode="drhp" class="${inputClass}">IPO / DRHP filings</button>` : ''}
       </div><div data-document-content></div>`;
       const root = ctx.root.querySelector('[data-document-content]');
       const show = (next) => {
@@ -35,6 +37,7 @@ export function withCompanyDocuments(tab, options) {
           button.classList.toggle('text-indigo-700', button.dataset.docMode === mode);
         });
         if (mode === 'documents') dispose = mountCompanyDocuments({ ...ctx, root }, options);
+        else if (mode === 'drhp' && options.drhp) dispose = mountDrhpDocuments({ ...ctx, root });
         else tab.render({ ...ctx, root });
       };
       ctx.root.querySelectorAll('[data-doc-mode]').forEach((button) => button.addEventListener('click', () => show(button.dataset.docMode)));

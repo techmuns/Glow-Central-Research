@@ -486,6 +486,14 @@ export function sourceGroups() {
           file: 'worker/combined-filings.mjs · public/js/ui/company-documents.js · public/js/data/combined-filings-shared.js',
         },
         {
+          name: 'Muns — IPO / DRHP company lookup',
+          url: 'https://devde.muns.io/api',
+          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> Corp Announcements → IPO / DRHP filings accepts a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
+          cadence: 'On demand, up to 50 filings per company. No automatic IPO discovery or social-buzz monitoring. Requires the signed-in reader. Nested-document mapping is fixture-tested; a successful authenticated response still needs verification.',
+          status: 'pending',
+          file: 'worker/drhp-filings.mjs · public/js/ui/drhp-documents.js · public/js/data/drhp-shared.js',
+        },
+        {
           name: 'Ticker Finology — superstar investors',
           url: 'https://ticker.finology.in/superstar-portfolios',
           feeds:

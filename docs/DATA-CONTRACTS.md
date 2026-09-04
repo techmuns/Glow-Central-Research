@@ -2370,6 +2370,48 @@ Tests: `node scripts/verify-combined-filings.mjs` (in CI), and
 `PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-combined-filings-ui.mjs` (local-only
 headless browser regression, with optional `CHROME_PATH`).
 
+### IPO / DRHP company lookup
+
+Corp Announcements → **IPO / DRHP filings** is a separate on-demand view, next to the broad BSE
+feed and combined company documents. It accepts a ticker **or an exact company name**, without
+requiring a listed symbol or current portfolio membership. Its independence from Portfolio /
+Watchlist scope is explicit. Looking up an issuer never adds it to holdings.
+
+`POST /api/drhp-filings` accepts `{ "company": "PAYTM" }` (or an exact name) and makes the documented
+read-only `GET https://devde.muns.io/filings/drhp/{encoded company}`. Only the reader's bearer token
+is used, with private/no-store responses, no persistence, no shared cache and no deployment-token
+fallback. The request is bounded to 8 KiB, response to 4 MiB and end-to-end time to 20 seconds;
+redirects are refused. Logout, account changes, edits and leaving the view cancel pending work.
+
+The name is a single validated path segment, up to 200 characters; Unicode names, spaces and
+ordinary company punctuation are supported. Slashes, escapes, query injection and reserved
+`sync` / `sync_*` names are rejected. This matters because the published service also contains
+administrative DRHP synchronization routes, including a mutating GET. **No sync or backfill
+endpoint is invoked by this integration.**
+
+The supplied array contract has `symbol`, `company_name`, `form_type`, `filing_date`, `source`,
+and `documents[]`. Filings stay grouped; every safe nested document link is shown beneath the
+returned issuer identity. Missing symbols, dates, forms, sources and links stay explicitly unknown.
+No offer date, IPO approval, listing status or read flag is invented. Invalid records/documents
+are counted in a visible warning. Exact duplicate URLs deduplicate within a filing, not across
+distinct filings. Up to 50 filings are displayed, with a limit warning at 50 and an omitted count
+if an upstream response exceeds the documented cap. Empty results are not proof that no IPO exists;
+authentication, service and mapping failures remain visibly different from an empty array.
+
+**Verification status (4 Sep 2026):** the route and GET method are confirmed in the published
+OpenAPI schema; an unauthenticated read of the PAYTM route returned 401. The field contract above
+was provided by the user. Nested-document aliases
+(`url` / `link` / `document_url` / `filing_url`, and `title` / `name` / `document_name` /
+`document_type`) and URL strings are supported with synthetic fixtures; a successful authenticated
+response is still required to verify those nested fields. The Sources registry remains pending.
+Tests: `node scripts/verify-drhp-filings.mjs` (CI) and the existing
+`scripts/verify-combined-filings-ui.mjs` local browser harness.
+
+This known-company lookup does **not** discover all upcoming IPOs or capture X/news discussion.
+The published schema also advertises a separate `GET /filings/drhp` company directory with search,
+source and pagination parameters; that directory's response and discovery/capture behavior have
+not been integrated or verified here.
+
 ### NSE live announcements: the one exchange feed that narrows to your companies
 
 **THE ANSWER TO "WHAT DID MY COMPANIES JUST FILE", LIVE.** The publisher news feeds are market-wide

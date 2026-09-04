@@ -270,4 +270,4 @@ const tab = makeFilingsTab({
 });
 
 export const meta = tab.meta;
-export const { render, destroy } = withCompanyDocuments(tab, { form: 'all', feedLabel: 'BSE announcements', label: 'Company filings & reports' });
+export const { render, destroy } = withCompanyDocuments(tab, { form: 'all', feedLabel: 'BSE announcements', label: 'Company filings & reports', drhp: true });
