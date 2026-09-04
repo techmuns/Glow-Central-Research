@@ -5,6 +5,7 @@ import { IPO_SOURCES, parseNseOffers, parseSebiOffers, parseBseOffers, captureIp
 import { handleIpoFilings } from '../worker/ipo-filings.mjs';
 import { ipoDay, filingType, mergeIpoFilings, validateIpoFilings, legacyIpoFilings } from '../public/js/data/ipo-filings-shared.js';
 import { createIpoFilingsFeed } from '../public/js/data/ipo-filings.js';
+import { ipoSourceGroup } from '../public/js/ui/ipo-sources.js';
 const at = '2026-09-04T13:00:00.000Z', now = () => Date.parse(at);
 const nse = JSON.stringify([{ company: 'Example & Co Limited', symbol: '-', isin: 'INE123456789', drhp: 'Draft Prospectus', drhpDate: '01-Sep-2026', drhpAttach: 'https://nsearchives.nseindia.com/a.pdf', rhp: 'Red Herring Prospectus', rhpDate: '04-Sep-2026', rhpAttach: 'https://nsearchives.nseindia.com/b.zip' }]);
 const sebi = `<p>1 to 25 of 2193 records</p><table id="sample_1"><tr><td>Sep 04, 2026</td><td><a href="https://www.sebi.gov.in/filings/public-issues/sep-2026/example.html" title="Example &amp; Co Limited - Addendum to DRHP<br><a href='https://www.sebi.gov.in/dap.pdf'>Draft Abridged</a>">Example &amp; Co Limited - Addendum to DRHP<br><a href='https://www.sebi.gov.in/dap.pdf'>Draft Abridged</a></a></tr></table>`;
@@ -84,5 +85,36 @@ await test('shipped capture retains EAAA and all imported dated filings without 
   assert(capture.rows.length > 5000); assert(capture.rows.some((r) => r.company === 'EAAA India Alternatives Limited'));
   assert(capture.rows.some((r) => r.filingDate === '2026-09-04')); assert(capture.rows.every((r) => !('score' in r)));
   assert.equal(legacyIpoFilings([{ meta: { data_as_of: '2026-08-31' }, filings: [], ipo_market: { open_upcoming: [{ company_name: 'Not a filing' }] } }]).length, 0);
+});
+const presentationMeta = { sources: payload.sources, count: payload.rows.length, undated: 2, loaded: true, liveFailed: false };
+await test('source registry lists each official feed and keeps connection count separate from read health', () => {
+  const group = ipoSourceGroup(presentationMeta, now());
+  assert.deepEqual(group.items.map((s) => s.id), IPO_SOURCES.map((s) => s.id));
+  assert(group.items.every((s) => s.status === 'live' && s.readState === 'read'));
+  const failed = ipoSourceGroup({ ...presentationMeta, sources: payload.sources.map((s) => s.id === 'bse-sme' ? { ...s, status: 'failed', note: 'Source unavailable', count: 0 } : s) }, now());
+  const bse = failed.items.find((s) => s.id === 'bse-sme');
+  assert.equal(bse.readLabel, 'Unavailable'); assert(!bse.details.some((line) => line.startsWith('0 documents')));
+  assert.equal(failed.items.filter((s) => s.status === 'live').length, group.items.length);
+});
+await test('source panel never labels unknown, cached, expired or future checks as newly read', () => {
+  assert(ipoSourceGroup({ ...presentationMeta, sources: [], loaded: false }, now()).items.every((s) => s.readState === 'unchecked'));
+  assert(ipoSourceGroup({ ...presentationMeta, loaded: false }, now()).items.every((s) => s.readState === 'unconfirmed'));
+  assert(ipoSourceGroup({ ...presentationMeta, liveFailed: true }, now()).items.every((s) => s.readState === 'unconfirmed'));
+  assert(ipoSourceGroup(presentationMeta, now() + 601000).items.every((s) => s.readState === 'dated'));
+  assert(ipoSourceGroup(presentationMeta, now() - 61000).items.every((s) => s.readState === 'dated'));
+});
+await test('moved coverage preserves cadence, missing dates, limits and safe source text', () => {
+  const group = ipoSourceGroup({ ...presentationMeta, capped: true, snapshotFailed: true, sources: payload.sources.map((s) => ({ ...s, note: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)' })) }, now());
+  assert(group.notes.some((s) => s.includes('No continuous collection while closed')));
+  assert(group.notes.some((s) => s.includes('2 without a supplied filing date')));
+  assert(group.notes.some((s) => s.includes('BSE-only mainboard')));
+  assert(group.notes.some((s) => s.includes('history limit')));
+  assert(group.notes.some((s) => s.includes('Bundled history unavailable')));
+  assert(group.items.every((s) => s.url === null && !s.feeds.includes('<img') && s.feeds.includes('&lt;img')));
+  const registry = readFileSync(new URL('../public/js/ui/sources.js', import.meta.url), 'utf8');
+  const tab = readFileSync(new URL('../public/js/tabs/ipos.js', import.meta.url), 'utf8');
+  assert(registry.includes('ipoSourceGroup(),'));
+  assert(!registry.includes('DRHP dashboard — public IPO monitor'));
+  assert(!tab.includes('data-ipo-coverage')); assert(tab.includes("openBeacon({ group: 'ipo-filings' })"));
 });
 console.log(`${count} IPO filing checks passed`);

@@ -11,8 +11,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const capture = JSON.parse(readFileSync(resolve(root, 'data/ipo-filings.json')));
 let failure = false, delay = 0, live = structuredClone(capture);
 const requests = [], errors = [];
-const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/style.css"><script src="/test-exceljs.js"></script></head><body style="padding:20px;background:#f6f5ff"><main id="root" style="max-width:1200px;margin:auto"></main><script type="module">
+const shellStyles = [...readFileSync(resolve(root, 'index.html'), 'utf8').matchAll(/<style[^>]*>[\s\S]*?<\/style>/g)].map((match) => match[0]).join('');
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/style.css">${shellStyles}<script src="/test-exceljs.js"></script></head><body style="padding:20px;background:#f6f5ff"><main id="root" style="max-width:1200px;margin:auto"></main><script type="module">
 import * as tab from '/js/tabs/ipos.js';
+import { mount } from '/js/ui/source-beacon.js';
+mount();
 const live={ register(id,entry){window.poll=entry;},start(){window.pollStarted=true;},stop(){window.pollStopped=true;} };
 window.showIpos=(params={})=>{tab.destroy();tab.render({root:document.querySelector('#root'),params,scope:'watchlist',live});};
 window.destroyIpos=()=>{tab.destroy();document.querySelector('#root').innerHTML='Destroyed';};
@@ -51,6 +54,28 @@ try {
   check('empty Watchlist still loads every captured issuer', (await page.locator('[data-row-count]').innerText()).startsWith(`${capture.rows.length} of ${capture.rows.length}`));
   check('newest dated filings appear first', (await page.locator('[data-row-key]').first().innerText()).includes('04 Sept 2026'));
   check('automatic refresh is registered at five minutes', await page.evaluate(() => window.pollStarted && window.poll.intervalMs === 300000));
+  check('long source disclosure removed from the IPO table', await page.locator('#root [data-ipo-coverage]').count() === 0);
+  await page.locator('[data-ipo-sources]').click();
+  const ipoGroup = page.locator('[data-beacon-group="ipo-filings"]');
+  check('source shortcut opens existing beacon at all seven IPO sources', await ipoGroup.isVisible() && await ipoGroup.locator('[data-beacon-source]').count() === 7 && await page.locator('[data-beacon-notes="ipo-filings"] > summary').evaluate((el) => el === document.activeElement));
+  check('live-feed and source totals are derived from the updated registry', await page.evaluate(async () => {
+    const { sourceGroups } = await import('/js/ui/sources.js');
+    const items = sourceGroups().flatMap((g) => g.items);
+    return document.querySelector('[data-beacon-launch-count]').textContent === `${items.filter((s) => s.status === 'live').length} live feeds` && !items.some((s) => s.name.includes('public IPO monitor'));
+  }));
+  await page.locator('[data-beacon-notes="ipo-filings"] > summary').click();
+  check('coverage limitations moved into expandable source-panel details', (await ipoGroup.innerText()).includes('No continuous collection while closed') && (await ipoGroup.innerText()).includes('BSE-only mainboard'));
+  const bseDetails = page.locator('[data-beacon-source="bse-sme"]');
+  await bseDetails.locator('summary').click();
+  const originalBse = structuredClone(live.sources.find((s) => s.id === 'bse-sme'));
+  Object.assign(live.sources.find((s) => s.id === 'bse-sme'), { status: 'failed', note: 'Source unavailable in fixture', count: 0 });
+  await page.evaluate(() => window.poll.fetcher());
+  check('open source panel updates failures without losing expanded rows or keyboard focus', await bseDetails.getAttribute('open') !== null && (await bseDetails.innerText()).includes('Source unavailable in fixture') && await bseDetails.locator('summary').evaluate((el) => el === document.activeElement && !el.classList.contains('is-live')));
+  Object.assign(live.sources.find((s) => s.id === 'bse-sme'), originalBse);
+  await page.evaluate(() => window.poll.fetcher());
+  check('source recovery updates the existing panel', await bseDetails.locator('summary').evaluate((el) => el.classList.contains('is-live')));
+  await page.keyboard.press('Escape');
+  check('source panel closes with Escape and returns focus', await page.locator('#source-beacon-panel').count() === 0 && await page.locator('[data-beacon-toggle]').evaluate((el) => el === document.activeElement));
   if (process.env.IPO_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.IPO_SCREENSHOT_DIR}/ipo-filings-desktop.png`, fullPage: true });
   await page.locator('[data-table-search]').fill('EAAA');
   check('retained EAAA supplement is searchable', (await page.locator('[data-row-key]').count()) >= 2 && (await page.locator('[data-score-table]').innerText()).includes('EAAA India Alternatives'));
@@ -79,6 +104,9 @@ try {
   check('a newly published filing arrives through automatic refresh while preserving search', await page.locator('[data-row-key]').count() === 1 && await page.locator('[data-table-search]').inputValue() === 'Example new arrival');
   failure = true; await page.locator('[data-ipo-refresh]').click(); await ready();
   check('source outage retains documents with a visible stale warning', (await page.locator('[data-ipo-freshness]').innerText()).includes('unavailable') && await page.locator('[data-row-key]').count() === 1);
+  await page.locator('[data-ipo-sources]').click();
+  check('whole-feed outage does not leave green IPO sources in the beacon', await page.locator('[data-beacon-group="ipo-filings"] .beacon-row.is-live').count() === 0);
+  await page.keyboard.press('Escape');
   failure = false;
   const bad = { ...capture.rows[0], company: '<img src=x onerror="window.ipoXss=1">', title: 'Escaped document', url: 'https://www.sebi.gov.in/xss-test.pdf', observedAt: capture.checkedAt };
   live.rows.push(bad); await page.locator('[data-table-search]').fill('onerror'); await page.locator('[data-ipo-refresh]').click(); await ready();

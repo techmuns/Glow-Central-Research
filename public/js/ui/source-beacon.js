@@ -43,6 +43,8 @@ import { state } from '../core/state.js';
 import { sourceGroups } from './sources.js';
 import { openTwitterSources } from './twitter-sources.js';
 import * as twitterHandles from '../core/twitter-handles.js';
+import * as ipoFilings from '../data/ipo-filings.js';
+import { ipoSourceGroup } from './ipo-sources.js';
 
 const ROOT_ID = 'source-beacon-root';
 const PANEL_ID = 'source-beacon-panel';
@@ -62,13 +64,15 @@ const STATUS = {
   unreadable: { label: 'Not found', short: 'could not be read', cls: 'is-unreadable' },
   mock: { label: 'Mock data', short: 'placeholder', cls: 'is-mock' },
   pending: { label: 'Not yet built', short: 'not built', cls: 'is-pending' },
+  partial: { label: 'Coverage gaps', short: 'with coverage gaps', cls: 'is-mock' },
 };
-const ORDER = ['live', 'static', 'ondemand', 'adding', 'unreadable', 'mock', 'pending'];
+const ORDER = ['live', 'static', 'ondemand', 'adding', 'unreadable', 'mock', 'pending', 'partial'];
 
 let rootEl = null;
 let open = false;
 let clock = null;
 let offHandles = null;
+let offIpos = null;
 
 /** Reads the registry — never a cached copy of it — and reduces it to what this widget draws. */
 function readEstate() {
@@ -195,6 +199,17 @@ function flowRail(estate) {
 
 function rowHtml(item, i) {
   const s = STATUS[item.status] || STATUS.pending;
+  if (item.details) {
+    const cls = item.readState === 'read' ? 'is-live' : item.readState === 'unchecked' ? 'is-pending' : 'is-mock';
+    return `<li><details data-beacon-source="${escapeHtml(item.id)}" class="beacon-source-details">
+      <summary class="beacon-row ${cls}" aria-label="${escapeHtml(`${item.name}: ${item.readLabel}. Source details`)}">
+        <span class="beacon-dot" aria-hidden="true"></span>
+        <span class="beacon-row-name">${escapeHtml(item.name)}</span>
+        <span class="beacon-row-status">${escapeHtml(item.readLabel)}</span>
+      </summary>
+      <div class="beacon-source-copy">${item.details.map((note) => `<p>${escapeHtml(note)}</p>`).join('')}</div>
+    </details></li>`;
+  }
   // `feeds` is trusted markup in the registry (it carries <strong>), so it is NOT dropped into a
   // title attribute raw — strip the tags and escape what is left. The cadence is the useful half.
   const detail = String(item.cadence || '').replace(/<[^>]*>/g, '');
@@ -217,7 +232,7 @@ function listHtml(estate) {
         ? `<button type="button" class="beacon-group-action" data-beacon-action="${escapeHtml(g.action.id)}">${escapeHtml(g.action.label)}</button>`
         : '';
       return `
-        <li class="beacon-group" data-family="${gi}">
+        <li class="beacon-group" data-family="${gi}"${g.id ? ` data-beacon-group="${escapeHtml(g.id)}"` : ''}>
           <div class="beacon-group-head">
             <span class="beacon-group-icon" aria-hidden="true">${escapeHtml(g.icon || '•')}</span>
             <span class="beacon-group-title">${escapeHtml(g.title)}</span>
@@ -225,6 +240,7 @@ function listHtml(estate) {
             ${action}
           </div>
           <div class="beacon-group-tabs">${escapeHtml(g.tabs || '')}</div>
+          ${g.notes ? `<details class="beacon-group-details" data-beacon-notes="${escapeHtml(g.id)}"><summary>Coverage &amp; refresh details</summary><div class="beacon-source-copy">${g.notes.map((note) => `<p>${escapeHtml(note)}</p>`).join('')}</div></details>` : ''}
           <ul class="beacon-rows">${rows}</ul>
         </li>`;
     })
@@ -350,13 +366,41 @@ function paintPanel() {
   }
 }
 
-export function openBeacon() {
-  if (open || !rootEl) return;
+// Refresh only IPO disclosures: never restart the flow animation or disturb another group.
+function refreshIpoDetails() {
+  const group = rootEl?.querySelector('[data-beacon-group="ipo-filings"]');
+  if (!group) return;
+  const list = rootEl.querySelector('.beacon-list'), scroll = list?.scrollTop || 0;
+  const key = (el) => el?.dataset.beaconSource || el?.dataset.beaconNotes;
+  const expanded = [...group.querySelectorAll('details[open]')].map(key);
+  const focusKey = group.contains(document.activeElement) ? key(document.activeElement.closest('details')) : null;
+  const template = document.createElement('template');
+  template.innerHTML = listHtml({ groups: [ipoSourceGroup()] });
+  group.innerHTML = template.content.firstElementChild.innerHTML;
+  group.querySelectorAll('details').forEach((el) => {
+    if (expanded.includes(key(el))) el.open = true;
+    if (focusKey && focusKey === key(el)) el.querySelector('summary')?.focus({ preventScroll: true });
+  });
+  if (list) list.scrollTop = scroll;
+}
+
+function focusGroup(id) {
+  const group = [...rootEl.querySelectorAll('[data-beacon-group]')].find((el) => el.dataset.beaconGroup === id);
+  if (!group) return;
+  const list = rootEl.querySelector('.beacon-list');
+  if (list) list.scrollTop += group.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  group.querySelector('summary')?.focus({ preventScroll: true });
+}
+
+export function openBeacon({ group } = {}) {
+  if (!rootEl) return;
+  if (open) { if (group) focusGroup(group); return; }
   open = true;
   rootEl.classList.add('is-open');
   const toggle = rootEl.querySelector('[data-beacon-toggle]');
   toggle?.setAttribute('aria-expanded', 'true');
   paintPanel();
+  if (group) focusGroup(group);
 
   // The launcher's own count is re-read on every open for the same reason the panel's is: it is a
   // measurement, and a measurement that is only taken once is the bug this registry was rewritten
@@ -369,6 +413,8 @@ export function openBeacon() {
   clock = setInterval(() => {
     const el = rootEl?.querySelector('[data-beacon-fresh]');
     if (el) el.textContent = freshnessText();
+    // Age is recomputed even without a successful network response. Preserve disclosure state.
+    if (open) refreshIpoDetails();
   }, 15000);
 
   document.addEventListener('click', onDocClick, true);
@@ -377,6 +423,7 @@ export function openBeacon() {
   offHandles = twitterHandles.onChange(() => {
     if (open) paintPanel();
   });
+  offIpos = ipoFilings.onChange(() => { if (open) refreshIpoDetails(); });
 }
 
 export function close() {
@@ -391,6 +438,8 @@ export function close() {
   clock = null;
   offHandles?.();
   offHandles = null;
+  offIpos?.();
+  offIpos = null;
   document.removeEventListener('click', onDocClick, true);
 }
 

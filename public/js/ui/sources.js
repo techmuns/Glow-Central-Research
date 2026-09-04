@@ -30,6 +30,7 @@ import * as superInvestors from '../data/super-investors.js';
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
+import { ipoSourceGroup } from './ipo-sources.js';
 
 // ---------------------------------------------------------------------------------------
 // NO FIGURE ON THIS SCREEN MAY BE TYPED BY HAND.
@@ -360,6 +361,7 @@ export function sourceGroups() {
         },
       ],
     },
+    ipoSourceGroup(),
     {
       title: 'Con-call scans',
       icon: '🎙️',
@@ -508,18 +510,10 @@ export function sourceGroups() {
         {
           name: 'Muns — IPO / DRHP company lookup',
           url: 'https://devde.muns.io/api',
-          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> IPOs → Company documents and Corp Announcements → IPO / DRHP filings accept a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
+          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> Corp Announcements → IPO / DRHP filings accepts a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
           cadence: 'On demand, up to 50 filings per company. No automatic IPO discovery or social-buzz monitoring. Requires the signed-in reader. Nested-document mapping is fixture-tested; a successful authenticated response still needs verification.',
           status: 'pending',
           file: 'worker/drhp-filings.mjs · public/js/ui/drhp-documents.js · public/js/data/drhp-shared.js',
-        },
-        {
-          name: 'DRHP dashboard — public IPO monitor & historical tracker',
-          url: 'https://github.com/techmuns/DRHP',
-          feeds: '<strong>Published captures, not a complete or live IPO universe.</strong> The IPOs tab reads the DRHP dashboard’s latest filings, scoring model, NSE market observations and saved weekly snapshots. Full Tracker retains older issuers and filing histories; original financial provenance, source links and secondary Groww data remain inspectable. A prospectus alone is never treated as a confirmed listing. EAAA has a separately labelled, source-verified supplement linking its issuer DRHP/addendum notices; this is not an automated issuer crawler. News & X only filters existing captures and reports absent X coverage explicitly.',
-          cadence: 'Reference pipeline publishes weekly (Monday). Opening IPOs or checking for updates reads its newest published artifact, edge-cached up to five minutes; it does not run the capture pipeline. Source data date and check time are separate. Nine imported snapshots provide a labelled offline fallback. Scope is all captured issuers, including unlisted companies, independent of holdings.',
-          status: 'live',
-          file: 'worker/ipo-monitor.mjs · public/js/tabs/ipos.js · public/data/ipo-monitor/ · public/data/ipo-tracked-issuers.json',
         },
         {
           name: 'Ticker Finology — superstar investors',
@@ -675,13 +669,15 @@ export function sourcesModalHtml() {
               <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-700">${g.title}</h3>
               <span class="text-[11px] text-slate-400">${g.tabs}</span>
             </div>
+            ${g.notes ? `<div class="mb-3 space-y-1 text-xs leading-relaxed text-slate-500">${g.notes.map((note) => `<p>${escapeHtml(note)}</p>`).join('')}</div>` : ''}
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
               ${g.items
                 .map((it) => {
+                  const chipState = it.readState ? (it.readState === 'read' ? 'live' : it.readState === 'unchecked' ? 'pending' : 'partial') : it.status;
                   const inner = `
                     <div class="mb-1 flex items-start justify-between gap-2">
                       <span class="text-sm font-semibold text-slate-900 ${it.url ? 'group-hover:text-indigo-700' : ''}">${it.name}</span>
-                      <span class="inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ${STATUS_CHIP[it.status]}">${STATUS_LABEL[it.status]}</span>
+                      <span class="inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ${STATUS_CHIP[chipState]}">${escapeHtml(it.readLabel || STATUS_LABEL[it.status])}</span>
                     </div>
                     <div class="text-[11px] leading-snug text-slate-500">${it.feeds}</div>
                     <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400">
