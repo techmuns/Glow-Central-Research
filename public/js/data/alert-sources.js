@@ -6,28 +6,12 @@ import * as investors from './super-investors.js';
 import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as calendar from './earnings-calendar.js';
-import { createIpoFeed } from './ipo-monitor.js';
+import * as ipoFilings from './ipo-filings.js';
 import { revalidatedJson } from '../core/store.js';
 import { documentRecords, record, istDay } from './alert-records.js';
 
-const ipo = createIpoFeed();
 let calendarCapture = null;
 let calendarTickers = {};
-let trackedIssuers = [];
-async function loadTrackedIssuers() {
-  const payload = await revalidatedJson('data/ipo-tracked-issuers.json');
-  if (!Array.isArray(payload?.issuers) || payload.issuers.some((r) => !r.company_name || !Array.isArray(r.filings))) throw Error('Tracked IPO issuer supplement unavailable');
-  trackedIssuers = payload.issuers;
-}
-function trackedIpoRecords() {
-  return trackedIssuers.flatMap((issuer) => issuer.filings.map((r) => record({
-    id: `ipo:supplement:${issuer.company_name}:${r.filing_date}:${r.filing_type}`,
-    row: { ...r, aliases: issuer.aliases, checkedAt: issuer.checked_at, note: issuer.note, issuerSources: issuer.sources },
-    at: r.filing_date, company: issuer.company_name, headline: `${r.filing_type || 'IPO'} filing · tracked-issuer supplement`,
-    detail: `${(issuer.aliases || []).join(' · ')}. ${issuer.note || 'Source-verified supplement, not a live issuer crawler.'}`,
-    url: r.sources?.sebi_url || r.sources?.addendum_notice || r.sources?.issuer_ipo_page, kind: 'filing',
-  })));
-}
 const confirmed = (asOf, day, incomplete = false, note = null) => ({
   status: incomplete ? 'failed' : 'ok', asOf,
   reachesToday: !incomplete && !!istDay(asOf) && istDay(asOf) >= day, note,
@@ -100,12 +84,14 @@ export const ADDITIONAL_SOURCES = [
     read: ({ day }) => { const m = twitter.meta(); return { events: twitter.rows().map((r) => record({ id: r.id, row: r, at: r.publishedAt,
       company: `@${r.handle}`, headline: r.title, detail: r.displayName, url: r.url, kind: 'post' })),
       ...confirmed(m.capturedAt, day, !!(m.lastReadFailed || m.reason || m.failed), m.lastReadFailed ? 'X capture could not be revalidated; retained posts remain visible.' : m.message || 'Captured monitored accounts only; unresolved posts are visible in Universe.') }; } },
-  { id: 'ipos', label: 'IPO / DRHP monitor', tab: 'ipos', what: 'All available published IPO captures and their filing/market records. Observed stages are not live confirmations.',
-    load: async () => { await Promise.all([loadTrackedIssuers(), (async () => { await ipo.load(); await ipo.loadHistory(undefined, Infinity); })()]); },
-    read: ({ day }) => ({ events: [...ipoRecords(ipo.state.snapshots.values()), ...trackedIpoRecords()],
-      ...confirmed(ipo.state.bundle?.latest?.meta?.data_as_of, day,
-        !!(ipo.state.fallback || !ipo.state.bundle?.historyAvailable || ipo.state.failedDates.size),
-        `${ipo.state.snapshots.size} captures loaded; ${ipo.state.failedDates.size} unread.${ipo.state.error ? ` ${ipo.state.error}` : ''}${!ipo.state.bundle?.historyAvailable ? ' Published history index unavailable.' : ''}`) }) },
+  { id: 'ipos', label: 'IPO filings', tab: 'ipos', what: 'The same official-source documents and retained history as the IPOs tab. Filing does not confirm an open/approved IPO.',
+    load: (refresh) => refresh ? ipoFilings.refresh() : ipoFilings.load(),
+    read: ({ day }) => { const m = ipoFilings.meta(); return { events: ipoFilings.rows().map((r) => record({
+      id: `ipo:${r.id}`, row: r, at: r.filingDate, company: r.company, ticker: r.ticker,
+      headline: `${r.filingType} filing${r.origin === 'supplement' ? ' · tracked-issuer supplement' : ''}`,
+      detail: `${r.title}. ${r.source}${r.note ? `. ${r.note}` : ''}`, url: r.url, kind: 'filing', observedAt: r.observedAt,
+    })), ...confirmed(m.checkedAt, day, !!m.degraded,
+      `Official source check, not a filing timestamp. SEBI recent pages + NSE mainboard/SME + BSE SME + retained captures; not a complete archive. ${m.sources.map((s) => `${s.label}: ${s.status}. ${s.note}`).join(' ')}${m.liveFailed ? ' Live revalidation failed.' : ''}`) }; } },
   { id: 'earnings-calendar', label: 'Earnings calendar', tab: 'earnings-hub', what: 'Every company/date in the captured calendar plus dates explicitly loaded in Earnings Hub. Scheduled, not filed.',
     load: async () => { const [payload, map] = await Promise.all([revalidatedJson('data/earnings-calendar.json'), revalidatedJson('data/mc-ticker-map.json', { optional: true })]);
       if (!payload?.byDate) throw Error('Earnings calendar capture unavailable'); calendarCapture = payload; calendarTickers = map?.map || {}; },
@@ -154,4 +140,4 @@ export const ADDITIONAL_SOURCES = [
     load: null, read: ({ day }) => privateDocuments('drhp-documents', day) },
 ];
 
-export const additionalSubscriptions = [nse, twitter, institutions, calendar];
+export const additionalSubscriptions = [nse, twitter, institutions, calendar, ipoFilings];

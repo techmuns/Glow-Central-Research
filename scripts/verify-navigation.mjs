@@ -62,7 +62,7 @@ try {
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => location.hash.includes('/ipos'));
   await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
-  await page.locator('[data-ipo-board] .ipo-card').first().waitFor();
+  await page.locator('[data-ipo-filings] [data-score-table]').waitFor();
   pass('The primary IPOs tab loads its capture even with an empty watchlist');
   await visibleInStrip(active);
   assert(await page.evaluate((selector) => window.navigationList === document.querySelector(selector), strip));

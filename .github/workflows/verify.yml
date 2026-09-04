@@ -42,6 +42,8 @@ jobs:
         run: node scripts/verify-drhp-filings.mjs
       - name: Verify public IPO monitor and retained history
         run: node scripts/verify-ipo-monitor.mjs
+      - name: Verify official IPO filing feed and source failures
+        run: node scripts/verify-ipo-filings.mjs
       - name: Verify complete General Alerts pool and scope isolation
         run: node scripts/verify-general-alerts.mjs
       - name: Verify AI alert search and calendar dates
@@ -60,7 +62,7 @@ jobs:
           node-version: "22"
       - name: Install pinned browser test runtime
         run: |
-          npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1
+          npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify portfolio reload, offline, resume and cache behaviour
         env:
@@ -70,3 +72,8 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-portfolio-view-ui.mjs
+      - name: Verify IPO table, live refresh, Excel export and mobile layout
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+          EXCELJS_ROOT: ${{ runner.temp }}/family-browser/node_modules/exceljs
+        run: node scripts/verify-ipo-monitor-ui.mjs
