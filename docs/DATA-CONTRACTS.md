@@ -2391,7 +2391,7 @@ cream/teal theme, financial scoring and separate weekly/tracker/news views are n
 - [SEBI Public Issues](https://www.sebi.gov.in/filings/public-issues.html): the latest listing page
   for drafts, red herring documents, final offers and other documents. Category IDs are 10, 11, 12,
   and 78, with sid=3 and ssid=15. SEBI's older paginated listings are **not fully crawled**. Counts
-  and that limitation remain visible in Coverage and the exported workbook. No full-universe claim.
+  and that limitation remain visible in the Data flowing in source panel and the exported workbook. No full-universe claim.
 
 The fixed read-only endpoint rejects caller-supplied query URLs and non-GET methods. It has a
 three-connection pool, a 25-second total deadline, 20-second per-source deadlines and a 4 MiB
@@ -2406,7 +2406,17 @@ history accumulates in IndexedDB, bounded to 20,000 rows with visible truncation
 revalidation or check times older than ten minutes are visibly stale. Refresh does not discard
 filings missing from a narrower source window. There is **no new background capture scheduler**:
 closed browsers do not accumulate new local history. Upstream publication, SEBI pagination and
-BSE-only mainboard coverage can still leave gaps, disclosed in the table's coverage section.
+BSE-only mainboard coverage can still leave gaps, disclosed in the Data flowing in source panel.
+
+The IPO table keeps only a compact freshness/error line and a Source details shortcut. This opens
+the existing source beacon at its IPO filings group. Seven official feeds replace the obsolete
+weekly-tracker registry entry. Expandable source rows carry their own read status, check time,
+document count and coverage note; group details retain undated counts, cadence, archive and cap
+warnings. The registry and sources modal use the same IPO feed metadata, without starting another
+fetch. The beacon updates open IPO details on feed changes and age checks, preserving expansion,
+focus and scroll without restarting the flow diagram. Live-feed counts still measure configured
+refresh connections, not successful latest reads: failed, unconfirmed or dated IPO readings are
+explicitly labelled with non-green dots. No background collector or refresh cadence was changed.
 
 `node scripts/capture-ipo-filings.mjs` refreshes only the local bundled capture for a reviewed PR.
 It also migrates actual filings from all nine imported DRHP snapshots and the EAAA supplement;

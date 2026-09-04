@@ -4,6 +4,7 @@ import { pill } from '../ui/components.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import * as feed from '../data/ipo-filings.js';
 import { ipoKey } from '../data/ipo-filings-shared.js';
+import { openBeacon } from '../ui/source-beacon.js';
 
 export const meta = { id: 'ipos', title: 'IPOs', subtitle: 'Official public-issue filings, including unlisted issuers. Newest filings first.', allowEmptyScope: true, subviews: [] };
 let dispose = null;
@@ -12,7 +13,7 @@ const stamp = (at) => at ? new Date(at).toLocaleString('en-IN', { timeZone: 'Asi
 export function render(ctx) {
   dispose?.();
   let dead = false, tableDispose = null, view = ctx.params?.company ? { q: ctx.params.company } : null;
-  let history = 'all', busy = true, detailsOpen = false;
+  let history = 'all', busy = true;
   const filtered = () => {
     if (history === 'all') return feed.rows();
     if (history === 'undated') return feed.rows().filter((r) => !r.filingDate);
@@ -72,12 +73,8 @@ export function render(ctx) {
         <label class="text-xs font-semibold text-slate-600">History range <select data-ipo-history aria-label="History range" class="ml-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">${[['all', 'All captured'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year'], ['undated', 'Date not supplied']].map(([v, title]) => `<option value="${v}"${history === v ? ' selected' : ''}>${title}</option>`).join('')}</select></label>
         <button data-ipo-refresh class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"${busy ? ' disabled' : ''}>${busy ? 'Checking…' : 'Refresh'}</button>
         <span data-ipo-freshness role="status" class="text-xs ${m.degraded && !busy ? 'text-amber-700' : 'text-slate-500'}">${e(status)} · ${sourcesOk}/${m.sources.length || 7} sources · ${e(stamp(m.checkedAt))}</span>
+        <button type="button" data-ipo-sources class="text-xs font-semibold text-indigo-600 hover:text-indigo-800" aria-controls="source-beacon-panel">Source details</button>
       </div>
-      <details data-ipo-coverage class="mb-3 text-xs text-slate-500"${detailsOpen ? ' open' : ''}><summary class="cursor-pointer">Source coverage & dates · ${m.undated.toLocaleString('en-IN')} undated documents</summary>
-        <p class="my-2">Automatically checked every five minutes while this tab is open; source publication can lag. SEBI supplies recent listing windows, supplemented by NSE mainboard, NSE SME, BSE SME and retained history. BSE-only mainboard filings absent from these sources may be missing. Multiple source copies remain labelled separately. Filing does not mean an IPO is approved or open.</p>
-        ${m.sources.map((s) => `<p class="my-1"><strong>${e(s.label)} · ${e(s.status === 'ok' ? 'read' : 'unavailable')}</strong>: ${e(s.note)} Checked ${e(stamp(s.checkedAt))}.</p>`).join('')}
-        ${m.snapshotFailed ? '<p>Bundled history unavailable; previously captured records may be missing.</p>' : ''}${m.capped ? '<p>Local history limit reached; older records may be omitted.</p>' : ''}
-      </details>
       <p data-ipo-export-status role="status" class="mb-2 text-xs text-amber-700"></p>${table.html}
     </section>`;
     tableDispose = table.wire(ctx.root);
@@ -85,7 +82,7 @@ export function render(ctx) {
     if (searchText !== undefined) ctx.root.querySelector('[data-table-search]').value = searchText;
     if (selection) { const search = ctx.root.querySelector('[data-table-search]'); search.focus({ preventScroll: true }); search.setSelectionRange(...selection); }
     ctx.root.querySelector('[data-ipo-history]').addEventListener('change', (event) => { history = event.target.value; paint(); });
-    ctx.root.querySelector('[data-ipo-coverage]').addEventListener('toggle', (event) => { detailsOpen = event.target.open; });
+    ctx.root.querySelector('[data-ipo-sources]').addEventListener('click', () => openBeacon({ group: 'ipo-filings' }));
     ctx.root.querySelector('[data-ipo-refresh]').addEventListener('click', () => { void refresh(); });
   }
   async function refresh() {
