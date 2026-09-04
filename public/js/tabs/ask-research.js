@@ -35,7 +35,10 @@ const generations = new Map();
 onPortfolioInvalidation((version) => {
   useFamilyBook(null);
   for (const generation of generations.values()) {
-    if (generation.portfolio && generation.portfolio.archiveVersion !== version) generation.controller.abort();
+    if (generation.portfolio && generation.portfolio.archiveVersion !== version) {
+      generation.portfolioChanged = true;
+      generation.controller.abort();
+    }
   }
 });
 
@@ -116,6 +119,7 @@ function normaliseSession(raw) {
 }
 
 function loadSessions() {
+  if (privatePortfolioContext()) return [];
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     if (!Array.isArray(parsed)) return [];
@@ -126,6 +130,9 @@ function loadSessions() {
 }
 
 function persistSessions() {
+  // An embedded private session must neither import nor overwrite standalone
+  // history, including a typed-but-unsent draft from a previously saved session.
+  if (privatePortfolioContext()) return;
   try {
     const payload = sessions
       .filter((session) => !session.private)
@@ -846,8 +853,8 @@ async function submitCurrent() {
     session.streamSources = [];
     session.streamDashboard = [];
     session.streamCompanies = [];
-    session.status = error?.name === 'AbortError' ? 'idle' : 'needs-attention';
-    session.error = error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
+    session.status = error?.name === 'AbortError' && !generation.portfolioChanged ? 'idle' : 'needs-attention';
+    session.error = generation.portfolioChanged ? 'The Family workbook changed while this answer was being written. Send the question again to read the new book.' : error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
     session.phase = '';
     persistSessions();
   } finally {

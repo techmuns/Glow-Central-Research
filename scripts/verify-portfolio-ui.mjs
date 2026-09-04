@@ -7,7 +7,13 @@ const browser = await chromium.launch({ ...(process.env.CHROME_PATH ? { executab
 const context = await browser.newContext({ viewport: { width: 1440, height: 1080 } });
 const errors = [];
 let outage = false;
+let pauseResearch = false, releaseResearch, reportStarted;
 const questions = [];
+let page;
+const standaloneHistory = JSON.stringify([{ id: 'saved-standalone', title: 'Saved standalone conversation', messages: [], draft: '' }]);
+await context.addInitScript(value => {
+  if (location.origin === 'http://localhost:8080' && !localStorage.getItem('sattva:ask-research:v1')) localStorage.setItem('sattva:ask-research:v1', value);
+}, standaloneHistory);
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 await context.route('**/*', async (route) => {
   const req = route.request();
@@ -18,15 +24,16 @@ await context.route('**/*', async (route) => {
     if (req.method() === 'GET') return json(route, { configured: true });
     const body = req.postDataJSON();
     questions.push(body);
+    if (pauseResearch) { reportStarted?.(); await new Promise(resolve => { releaseResearch = resolve; }); }
     return route.fulfill({ contentType: 'application/x-ndjson', body: [
       { type: 'text', text: 'Portfolio source was read. [Dashboard: Ask Sattva]' }, { type: 'done' },
-    ].map(x => JSON.stringify(x)).join('\n') + '\n' });
+    ].map(x => JSON.stringify(x)).join('\n') + '\n' }).catch(error => { if (!pauseResearch) throw error; });
   }
   if (url.pathname.startsWith('/api/')) return json(route, { ok: false, error: 'Test API unavailable' }, 503);
   return route.continue();
 });
 try {
-  const page = await context.newPage();
+  page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('http://localhost:5173/research', { waitUntil: 'domcontentloaded', timeout: 120_000 });
   const research = page.frameLocator('iframe[title="Portfolio-connected Sattva Research"]');
@@ -42,7 +49,8 @@ try {
   await research.getByText('Portfolio book: 2026-06-30.', { exact: false }).waitFor();
   const child = page.frames().find(f => f.url().startsWith('http://localhost:8080'));
   assert.ok(child);
-  assert.doesNotMatch(await child.evaluate(() => localStorage.getItem('sattva:ask-research:v1') || ''), /Sterlite|Portfolio source was read/);
+  assert.equal(await child.evaluate(() => localStorage.getItem('sattva:ask-research:v1')), standaloneHistory, 'private conversations neither load nor overwrite standalone history');
+  assert.equal(await research.getByText('Saved standalone conversation', { exact: true }).count(), 0);
   if (process.env.SCREENSHOT_PATH) await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true });
 
   outage = true;
@@ -51,6 +59,20 @@ try {
   await research.getByText('The shared workbook store could not be checked.', { exact: false }).waitFor({ timeout: 45_000 });
   assert.equal(questions.length, 1, 'an outage must not send old private facts to Research');
 
+  outage = false; pauseResearch = true;
+  const started = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('The fresh portfolio reading never reached Research.')), 125_000);
+    reportStarted = () => { clearTimeout(timer); resolve(); };
+  });
+  await input.fill('Do I have Sterlite in my portfolio?');
+  await research.getByRole('button', { name: 'Send question' }).click();
+  await started;
+  await page.evaluate(async () => { await (await import('/src/lib/auditStore.ts')).refreshAskArchive(); });
+  await research.getByText('The Family workbook changed while this answer was being written.', { exact: false }).waitFor();
+  assert.equal(await input.inputValue(), 'Do I have Sterlite in my portfolio?');
+  assert.equal(await research.locator('.research-assistant-answer').count(), 1, 'the invalidated answer cannot be added to the conversation');
+  releaseResearch();
+
   const standalone = await context.newPage();
   standalone.on('pageerror', e => errors.push(e.message));
   await standalone.goto('http://localhost:8080');
@@ -58,7 +80,12 @@ try {
   await standalone.getByRole('textbox', { name: 'Ask about the dashboard' }).fill('Do I have Sterlite in my portfolio?');
   await standalone.getByRole('button', { name: 'Send question' }).click();
   await standalone.getByText('This question needs your full portfolio.', { exact: false }).waitFor();
-  assert.equal(questions.length, 1, 'standalone portfolio questions never reach a model');
+  assert.equal(questions.length, 2, 'standalone portfolio questions never reach a model');
   assert.deepEqual(errors, []);
-  console.log('Portfolio UI: real Family readers → Research evidence, dates, memory-only history, outage refusal and standalone refusal passed. No production API calls.');
-} finally { await context.close(); await browser.close(); }
+  console.log('Portfolio UI: real Family readers → Research evidence, dates, memory-only history, outage refusal, in-flight invalidation and standalone refusal passed. No production API calls.');
+} catch (error) {
+  console.error('Browser errors:', errors);
+  for (const frame of page?.frames() || []) console.error('Frame:', frame.url(), (await frame.locator('body').innerText().catch(() => '')).slice(-6000));
+  if (process.env.SCREENSHOT_PATH && page) await page.screenshot({ path: process.env.SCREENSHOT_PATH.replace(/\.png$/, '-failure.png'), fullPage: true }).catch(() => {});
+  throw error;
+} finally { releaseResearch?.(); await context.close(); await browser.close(); }
