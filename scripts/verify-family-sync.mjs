@@ -121,6 +121,13 @@ test('browser replaces scope, retains last good on failure, and labels recovery 
     await coverage.refresh();
     assert.equal(coverage.meta().syncStatus, 'live');
     assert.equal(changes, 1);
+    const newerSnapshot = { ...saved, syncedAt: new Date(Date.parse(payload.syncedAt) + 60000).toISOString() };
+    coverage.prime(newerSnapshot);
+    await coverage.restoreLastGood();
+    assert.deepEqual(coverage.baseHoldings(), saved.holdings, 'an older browser cache must not replace a newer committed snapshot');
+    coverage.prime(saved);
+    await coverage.restoreLastGood();
+    assert.equal(coverage.has('STLTECH'), true, 'a newer last-good cache must survive reloads');
     off();
   } finally { globalThis.fetch = original; }
 });

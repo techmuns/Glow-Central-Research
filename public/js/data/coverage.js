@@ -41,7 +41,11 @@ function validPortfolio(p) {
 
 export async function restoreLastGood() {
   const cached = await readEntry(CACHE_KEY);
-  if (validPortfolio(cached?.value)) raw = cached.value;
+  // A newly deployed fallback may be newer than this device's last successful
+  // check. Never roll it back merely because an older browser cache exists.
+  const currentCheck = Date.parse(raw?.syncedAt);
+  if (validPortfolio(cached?.value) &&
+      (!Number.isFinite(currentCheck) || Date.parse(cached.value.syncedAt) > currentCheck)) raw = cached.value;
   // Restored data is a snapshot, never a successful check in this session.
   syncStatus = 'snapshot';
   syncError = null;
