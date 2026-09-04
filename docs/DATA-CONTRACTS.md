@@ -2416,7 +2416,7 @@ General Alerts consumes this exact filing feed, not the old weekly IPO data.
 
 Verification: `node scripts/verify-ipo-filings.mjs`, existing General Alerts/legacy contract checks,
 and `PLAYWRIGHT_ROOT=/path/to/playwright EXCELJS_ROOT=/path/to/exceljs node scripts/verify-ipo-monitor-ui.mjs`.
-The new `ipo-browser` CI job checks layout, search/filter persistence, real XLSX export beyond the
+The `browser` CI job checks layout, search/filter persistence, real XLSX export beyond the
 rendered row window, polling, source outages, HTML escaping, mobile containment and unmount cleanup.
 All browser/API fixtures are local; tests do not submit production model requests or modify sources.
 
