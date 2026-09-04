@@ -105,3 +105,10 @@ Do not sign off production until the active August workbook is confirmed shared 
 local), its ISIN set matches on both dashboards/two clean devices, the sync secrets are configured,
 and deployment/rollback checks have been approved. No production activation or external ongoing
 health monitor has been performed by this PR.
+# Versioned producer prerequisite
+
+The companion Family PR #38 now includes immutable D1 workbook publication.
+Coordinate activation using its `docs/versioned-workbooks.md`: freeze legacy
+writes, copy and verify all shared sheets, then enable `WORKBOOKS_MODE=d1` with
+the `WORKBOOKS_DB` binding. Do not activate against a newly created empty database.
+Creating the database is separate from migrating customer data or deploying code.
