@@ -196,7 +196,7 @@ export function meta() {
     loaded: state.loaded,
     count: visible.length,
     held: state.posts.length,
-    handles: handles.all({ failed: state.failed }).length,
+    handles: handles.all({ failed: state.failed, collected: !!state.capturedAt }).length,
     failed: state.failed.size,
     capturedAt: state.capturedAt,
     checkedAt: state.checkedAt,

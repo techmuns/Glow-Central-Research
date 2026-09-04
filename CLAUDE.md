@@ -1939,6 +1939,19 @@ been lost. `docs/DATA-CONTRACTS.md` has the shapes; the rules that matter here:
    because this deployment has no Worker or no token is never reported as the handle's failure**:
    that is a fact about the deployment, and turning it into "account not found" would send the
    reader to check a handle that was perfectly good.
+   **Nor is being in the committed file evidence the account was read.** The collector writes a
+   dispatched handle to the list BEFORE it tries to read it, so a run that added one and then
+   could not sign in leaves it committed and unread — `collected` (does any capture exist at all)
+   is what separates `Active` from `Adding…`, not membership of the file.
+   **AND A SIGN-IN FAILURE IS NEVER SPENT ON A HANDLE.** Measured on this repository's own runner:
+   X's Cloudflare answered the login with *403 — Sorry, you have been blocked. You are unable to
+   access x.com*, twscrape logged *No active accounts*, and `user_by_login` then returned None for
+   every handle — which the walk wrote into the capture as *account not found* against a perfectly
+   good account, and committed. An outage reported as an absence, about somebody else's account.
+   `active_accounts()` now stops the run before the walk when nothing signed in, and the suite
+   asserts the browser half. **X sign-in from a CI runner is the hard part and is not a bug here**:
+   datacentre address ranges are challenged where a home connection is not, and twscrape takes a
+   proxy for exactly that.
 3. **Deduplication is by the tweet id and `id` is namespaced `tw:<id>`.** The capture is capped, so
    a new post pushes the oldest off the end and the LENGTH DOES NOT MOVE — "did anything arrive" is
    answered by comparing id sets, never by counting. Same rule, same trap, as the news Fetch button.

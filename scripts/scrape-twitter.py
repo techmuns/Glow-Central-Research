@@ -35,8 +35,16 @@ CREDENTIALS
     twscrape drives X as a logged-in user, so it needs at least one account. They are supplied as
     the `X_ACCOUNTS` secret, one account per line:
         username:password:email:email_password
-    With none configured the script exits 3 and writes nothing: no capture is changed, and the UI
-    goes on saying the accounts are being added rather than inventing a failure about them.
+    With none configured — OR when the configured ones cannot sign in — the script exits 3 and
+    writes nothing: no capture is changed, and the UI goes on saying the accounts are being added
+    rather than inventing a failure about them.
+
+    X SIGN-IN FROM A CI RUNNER IS THE HARD PART, AND IT IS NOT A BUG HERE. Measured on this
+    repository's own runner: X's Cloudflare returned "403 - Sorry, you have been blocked. You are
+    unable to access x.com" to the login itself. Datacenter address ranges are challenged; a
+    residential address usually is not. twscrape takes a proxy for exactly this
+    (`API(proxy=...)`, or the TWS_PROXY environment variable), which is the supported way through
+    it. Nothing in this file pretends otherwise, and no handle is blamed for it.
 """
 
 import asyncio
@@ -145,6 +153,41 @@ async def add_accounts(api):
     return True
 
 
+async def active_accounts(api):
+    """
+    How many accounts actually SIGNED IN, or None when that cannot be determined.
+
+    A CONFIGURED ACCOUNT IS NOT A WORKING ONE, AND THE DIFFERENCE IS THE WHOLE POINT OF THIS
+    FUNCTION. Measured on a real run: X's Cloudflare answered the runner's login with
+    "403 — Sorry, you have been blocked. You are unable to access x.com", twscrape logged
+    "No active accounts. Stopping...", and every single handle then came back from
+    `user_by_login` as None. Without this check the walk reads that as "account not found" and
+    writes it into the capture, so the dashboard tells the reader their perfectly good account
+    does not exist — an outage reported as an absence, about somebody else's account, which is
+    the error class this repository closes everywhere else.
+
+    So a run with no live account stops before the walk and says the credential could not sign
+    in. That is a fact about THIS DEPLOYMENT, and it is never spent on a handle.
+
+    None means twscrape did not expose the pool in a shape this understands — a version change
+    rather than a failure — and the run proceeds rather than refusing on a check of its own.
+    """
+    try:
+        info = await api.pool.accounts_info()
+    except Exception:
+        return None
+    if not isinstance(info, list):
+        return None
+    live = 0
+    for entry in info:
+        got = entry.get("active") if isinstance(entry, dict) else getattr(entry, "active", None)
+        if got is None:
+            return None
+        if got:
+            live += 1
+    return live
+
+
 async def collect(api, handles, held_ids):
     posts, failed = [], []
     for entry in handles:
@@ -196,6 +239,18 @@ async def main():
     api = API()
     if not await add_accounts(api):
         print("No X_ACCOUNTS secret is configured, so no account could be read.", file=sys.stderr)
+        return 3
+
+    # THE CREDENTIAL EXISTS; DID IT WORK? See `active_accounts` for why these are different
+    # questions and why answering only the first one slanders the handles.
+    live = await active_accounts(api)
+    if live == 0:
+        print(
+            "The configured X account(s) could not sign in, so nothing could be read. "
+            "The committed capture is unchanged and no handle has been marked unreadable — "
+            "this is a fact about this deployment, not about the accounts being monitored.",
+            file=sys.stderr,
+        )
         return 3
 
     existing = load_json(POSTS_FILE, {})

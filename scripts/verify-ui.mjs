@@ -6807,6 +6807,25 @@ console.log('\n— twitter / x as a news source —');
   ok('...and one the collector could not read says so, with its reason',
     !!editor && /account not found/i.test(editor.rows.find((r) => /sattva_gone/.test(r)) || ''), editor?.rows.find((r) => /sattva_gone/.test(r)) || '');
 
+  // A HANDLE IN THE COMMITTED FILE HAS NOT NECESSARILY BEEN READ, and this is the check that
+  // stopped it claiming otherwise. The collector writes a dispatched handle to the list BEFORE it
+  // tries to read the account, so a run that added one and then could not sign in leaves it
+  // committed and unread. Measured on a real run: X's Cloudflare refused the runner's login with
+  // a 403, twscrape reported no active account, and every handle came back from `user_by_login`
+  // as None — which the walk wrote into the capture as "account not found" against a perfectly
+  // good account. The scraper now stops before the walk, and this asserts the browser half: with
+  // no capture at all, a committed handle reads `adding`, never `active`.
+  const unread = await evalSafe(async () => {
+    const h = await import('/js/core/twitter-handles.js');
+    const withCapture = h.all({ failed: new Map(), collected: true }).map((e) => `${e.handle}:${e.status}`);
+    const without = h.all({ failed: new Map(), collected: false }).map((e) => `${e.handle}:${e.status}`);
+    return { withCapture, without };
+  });
+  ok('a committed handle no run has read reads Adding, not Active',
+    !!unread && unread.without.length > 0 && unread.without.every((v) => v.endsWith(':adding')) &&
+      unread.withCapture.some((v) => v.endsWith(':active')),
+    unread ? `no capture: ${unread.without.join(', ')} · with: ${unread.withCapture.join(', ')}` : 'not evaluated');
+
   const addOne = async (value) => {
     await page.fill('[data-tw-input]', value);
     await page.locator('[data-tw-add] button[type=submit]').click();

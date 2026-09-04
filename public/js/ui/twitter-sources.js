@@ -60,9 +60,12 @@ function rowHtml(entry, counts) {
 
 function bodyHtml() {
   const failed = twitterNews.failedByKey();
-  const list = handles.all({ failed });
-  const counts = twitterNews.countsByHandle();
   const m = twitterNews.meta();
+  // `collected` is whether ANY capture exists, not whether this handle is in the committed list —
+  // see the note on handles.all(). A run that added a handle and then could not sign in must not
+  // leave it reading Active.
+  const list = handles.all({ failed, collected: !!m.capturedAt });
+  const counts = twitterNews.countsByHandle();
 
   return `
     <div data-twitter-sources class="px-7 py-6">

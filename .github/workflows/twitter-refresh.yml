@@ -81,7 +81,7 @@ jobs:
           fi
           if [ "$code" = "3" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning title=No X credentials configured::Add an X_ACCOUNTS secret (username:password:email:email_password, one per line) to start collecting posts. Handles added in the dashboard stay listed as being added until then."
+            echo "::warning title=No X account could sign in::Either no X_ACCOUNTS secret is set (username:password:email:email_password, one per line), or the accounts it names could not sign in — X challenges datacentre addresses, so a runner is often refused where a home connection is not; twscrape takes a proxy for that. The committed capture is unchanged and no handle has been marked unreadable. Handles added in the dashboard stay listed as being added until a run reads them."
             exit 0
           fi
           exit $code

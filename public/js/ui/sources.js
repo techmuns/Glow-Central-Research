@@ -125,7 +125,7 @@ function twitterSources() {
   try {
     failed = twitterNews.failedByKey();
     counts = twitterNews.countsByHandle();
-    list = twitterHandles.all({ failed });
+    list = twitterHandles.all({ failed, collected: !!twitterNews.meta().capturedAt });
   } catch {
     list = [];
   }

@@ -137,19 +137,29 @@ function committedEntries() {
 /**
  * Every monitored handle, committed and local, in one list.
  *
- * `status` is derived, never stored: `active` once the committed list names it, `adding` while only
- * this browser does, `not-found` when the capture recorded that the account could not be read.
- * `postCount` is supplied by the caller (data/twitter-news.js owns the posts) so this module stays
- * about the list alone.
+ * `status` is derived, never stored: `active` once a collection run has actually read the account,
+ * `adding` while it is monitored and nothing has read it, `not-found` when the capture recorded
+ * that the account could not be read.
+ *
+ * `collected` IS WHAT SEPARATES THE FIRST TWO, AND BEING IN THE COMMITTED FILE IS NOT ENOUGH.
+ * A dispatch may name a handle, and the collector writes it to the list BEFORE it tries to read
+ * it — so a run that added the handle and then failed to sign in leaves it in the committed file
+ * having never been read. Reading that as `active` is the same overclaim as a green Live pill over
+ * data nobody confirmed. So the caller passes whether any capture exists at all (data/twitter-news
+ * .js owns that: `capturedAt`), and with none, every handle is `adding`, which is exactly true.
+ *
+ * `postCount` is supplied by the caller for the same reason — that module owns the posts, and this
+ * one stays about the list alone.
  */
-export function all({ failed = new Map() } = {}) {
+export function all({ failed = new Map(), collected = true } = {}) {
   const overlay = readOverlay();
   const removed = new Set(overlay.removed);
   const seen = new Map();
 
   for (const e of committedEntries()) {
     if (removed.has(e.key)) continue;
-    seen.set(e.key, { ...e, status: failed.has(e.key) ? 'not-found' : 'active', reason: failed.get(e.key) || null });
+    const status = failed.has(e.key) ? 'not-found' : collected ? 'active' : 'adding';
+    seen.set(e.key, { ...e, status, reason: failed.get(e.key) || null });
   }
   for (const e of overlay.added) {
     if (removed.has(e.key) || seen.has(e.key)) continue;
