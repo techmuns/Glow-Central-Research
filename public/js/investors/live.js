@@ -37,9 +37,14 @@ import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { scopePossessive } from '../data/scope.js';
+<<<<<<< HEAD
 // GLOW-OWNED: the family's own managers — first under Portfolio, and a block of their own on
 // Quarterly Changes. See js/investors/my-managers.js; this file only places them.
 import { sectionsFor, renderManagers, managerSummaryBlock } from './my-managers.js';
+=======
+// The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
+import { classifyHolding, filedPair } from '../data/finology-shared.js';
+>>>>>>> upstream/main
 
 const SOURCE = 'Ticker Finology, captured through this dashboard’s Worker and refreshed on demand.';
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
@@ -245,6 +250,7 @@ const COMPANY_ACTION = {
   held: ['Unchanged', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Reduced', 'bg-amber-50 text-amber-800 ring-amber-200'],
   exited: ['No longer disclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  awaiting: ['Filing due', 'bg-slate-100 text-slate-500 ring-slate-200'],
   unknown: ['One quarter only', 'bg-slate-100 text-slate-500 ring-slate-200'],
 };
 
@@ -361,6 +367,8 @@ function summaryHead(q) {
     clause(c.trimmed, `${formatNumber(c.trimmed)} reduced`),
     clause(c.exited, `${formatNumber(c.exited)} no longer disclosed`),
   ].filter(Boolean);
+  // Said separately from the moves, because it is not one. See `counts` in data/super-investors.js.
+  const outstanding = c.awaiting ? `${formatNumber(c.awaiting)} position${c.awaiting === 1 ? '' : 's'} still awaiting a filing for this quarter` : null;
 
   const span =
     q.pairs.length === 1 && q.pairs[0].latest
@@ -377,7 +385,7 @@ function summaryHead(q) {
     </div>
     <p class="mb-3 text-xs text-slate-500">
       ${parts.length ? `${escapeHtml(parts.join(' · '))} across ${formatNumber(q.contributingBooks)} of ${formatNumber(q.comparableBooks)} comparable books` : 'No position moved in any comparable book.'}
-      <span class="text-slate-400">· ${span}${q.singleQuarterBooks ? ` · ${formatNumber(q.singleQuarterBooks)} book${q.singleQuarterBooks === 1 ? '' : 's'} publish only one quarter and cannot be compared` : ''}</span>
+      <span class="text-slate-400">· ${span}${outstanding ? ` · ${escapeHtml(outstanding)}` : ''}${q.singleQuarterBooks ? ` · ${formatNumber(q.singleQuarterBooks)} book${q.singleQuarterBooks === 1 ? '' : 's'} publish only one quarter and cannot be compared` : ''}</span>
     </p>`;
 }
 
@@ -393,6 +401,7 @@ function summaryHelpBody(q) {
       </div>
       <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
         <p>Finology publish a holding <strong>percentage</strong> per company per quarter. The change is the latest quarter minus the one before it, per company, per investor — <strong>the only computed figure on this page</strong>. Everything else is reproduced as they publish it.</p>
+        <p><strong>A quarter that has not closed is not compared at all.</strong> The source opens a column for the current period as soon as the first company files into it, and prints <em>Filing Due</em> against everyone else — so that column is compared against nothing. Comparison is always between the two most recent quarters that actually closed (March, June, September or December). And where a percentage is missing from a closed quarter but the source still puts a value on the position, it is shown as <strong>Filing due</strong> rather than as a holding that has gone.</p>
         <p><strong>A blank quarter is not a zero.</strong> Where a holder is not on the shareholding pattern the source prints "-", which below the Indian disclosure threshold means <em>not disclosed</em> rather than <em>sold</em>. So a position appearing counts as <strong>new</strong> and one disappearing as <strong>no longer disclosed</strong> — and neither carries a percentage-point figure, because printing ±the whole holding would invent a trade size that nobody disclosed.</p>
         <p><strong>Increases and reductions are in percentage points of the company, not rupees.</strong> The ₹ figure beside a holding is Finology's derivation of what the position is worth <em>now</em>, from a percentage and a market cap. It is not what was traded, so ranking "largest buys" by it would answer a different question and attach a rupee amount to a trade nobody stated.</p>
         <p><strong>"Bought by more than one investor" is a count, not a signal.</strong> It says how many tracked investors added to or newly disclosed the same company. It is not weighted, not scored and not a recommendation — this dashboard adds no model of its own to somebody else's filings.</p>
@@ -582,7 +591,7 @@ function investorCard(inv) {
         ${portrait}
         <span class="min-w-0">
           <span class="block truncate font-display text-sm font-bold text-slate-900">${escapeHtml(inv.name || inv.slug)}</span>
-          <span class="block truncate text-[11px] text-slate-500">${escapeHtml(b?.quarters?.[0] ? `as of ${b.quarters[0]}` : fail ? 'not read' : 'reading…')}</span>
+          <span class="block truncate text-[11px] text-slate-500">${escapeHtml(filedPair(b?.quarters)[0] ? `as of ${filedPair(b.quarters)[0]}` : fail ? 'not read' : 'reading…')}</span>
         </span>
       </div>
       ${inv.bio ? `<p class="mt-2.5 line-clamp-2 text-[11px] leading-snug text-slate-500">${escapeHtml(inv.bio)}</p>` : ''}
@@ -689,6 +698,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
           { value: 'added', label: 'Added to' },
           { value: 'trimmed', label: 'Trimmed' },
           { value: 'exited', label: 'No longer disclosed' },
+          { value: 'awaiting', label: 'Filing due' },
           { value: 'held', label: 'Unchanged' },
         ],
         match: (r, v) => changeOf(r)?.action === v,
@@ -704,17 +714,18 @@ function holdingsTable(ctx, rows, quarters, initialView) {
   });
 }
 
-/** The derived move for one row, computed from the two most recent quarters of its own book. */
+/**
+ * The derived move for one row, asked of the SHARED classifier rather than re-implemented.
+ *
+ * This function used to hold its own copy of the five branches, reading `quarters[0]` and `[1]`
+ * directly — so when a book's newest column was an unfiled "Filing Due" period it printed
+ * "Undisclosed" against a company the investor plainly still held, and it would have gone on
+ * printing it after `deriveMoves` was fixed. See `classifyHolding` in js/data/finology-shared.js.
+ */
 function changeOf(r) {
-  const [latest, prior] = r.quarters || [];
+  const [latest, prior] = filedPair(r.quarters);
   if (!latest || !prior) return null;
-  const now = r.quarterlyHoldings[latest];
-  const before = r.quarterlyHoldings[prior];
-  if (now == null && before == null) return null;
-  if (before == null) return { action: 'new', deltaPp: null };
-  if (now == null) return { action: 'exited', deltaPp: null };
-  const deltaPp = Math.round((now - before) * 100) / 100;
-  return { action: deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held', deltaPp };
+  return classifyHolding(r, latest, prior);
 }
 
 const ACTION = {
@@ -723,6 +734,10 @@ const ACTION = {
   held: ['Held', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Trimmed', 'bg-amber-50 text-amber-800 ring-amber-200'],
   exited: ['Undisclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  // NEUTRAL, AND DELIBERATELY NOT ROSE. An outstanding filing is the absence of an answer, not a
+  // negative one; giving it the exit's colour would put a sale back on the screen in everything
+  // but the word.
+  awaiting: ['Filing due', 'bg-slate-100 text-slate-500 ring-slate-200'],
 };
 
 function changeCell(r) {
@@ -736,9 +751,11 @@ function changeCell(r) {
   const why =
     c.action === 'exited'
       ? 'Not on the latest shareholding pattern. Below the disclosure threshold a holding is invisible, so this is "no longer disclosed", not necessarily "sold".'
-      : c.action === 'new'
-        ? 'Not disclosed in the prior quarter, disclosed in the latest.'
-        : 'Latest disclosed percentage minus the prior one.';
+      : c.action === 'awaiting'
+        ? 'No percentage filed for this quarter yet, and the source still values the position — so the filing is outstanding rather than the holding gone.'
+        : c.action === 'new'
+          ? 'Not disclosed in the prior quarter, disclosed in the latest.'
+          : 'Latest disclosed percentage minus the prior one.';
   return `<span class="inline-flex items-center whitespace-nowrap" title="${escapeHtml(why)}">${delta}<span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${label}</span></span>`;
 }
 
@@ -807,7 +824,7 @@ function movesPanel() {
   if (!comparable) {
     return `<p class="py-10 text-center text-sm text-slate-500">Finology publish only one quarter for this investor, so there is nothing to compare it against. No moves are shown rather than calling every position new.</p>`;
   }
-  const order = ['new', 'added', 'trimmed', 'exited', 'held'];
+  const order = ['new', 'added', 'trimmed', 'exited', 'awaiting', 'held'];
   return `
     <p class="mb-3 text-xs leading-relaxed text-slate-500">
       <strong>Derived</strong> — ${escapeHtml(latest)} minus ${escapeHtml(prior)}, per company, from Finology's own disclosed percentages.

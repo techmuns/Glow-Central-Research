@@ -1,5 +1,8 @@
 name: Company news refresh
 
+env:
+  FAMILY_HOLDINGS_LIVE: 'true'
+
 # The company-news tab is a committed universe capture, built one company search at a time. This
 # dedicated job can run after publishing begins without touching end-of-day prices or technicals.
 # The weekday schedule is the normal morning attempt. Opening the dashboard is the demand-driven

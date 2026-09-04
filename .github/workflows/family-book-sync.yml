@@ -1,5 +1,6 @@
 name: Family book sync
 
+<<<<<<< HEAD
 # THE PORTFOLIO SCOPE'S BOOK, KEPT IN STEP WITH THE FAMILY OFFICE'S OWN REPOSITORY.
 #
 # public/data/portfolio-companies.json — the list every research tab's Portfolio toggle filters by —
@@ -29,48 +30,51 @@ on:
 
 run-name: Family book sync (${{ github.event_name }})
 
+=======
+# The live UI reads the active book directly. This job maintains a REVIEWED
+# fallback snapshot; it never pushes or merges changes directly to main.
+on:
+  schedule:
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [family-book-updated]
+>>>>>>> upstream/main
 concurrency:
-  group: data-refresh
+  group: family-book-snapshot-pr
   cancel-in-progress: false
-
 jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
           ref: main
-
       - uses: actions/setup-node@v5
         with:
-          node-version: "22"
-
-      - name: Read the book from techmuns/Sattva-Family and re-resolve it
+          node-version: '22'
+      - name: Read the active shared holdings
         env:
-          FAMILY_REPO_TOKEN: ${{ secrets.FAMILY_REPO_TOKEN }}
+          FAMILY_HOLDINGS_TOKEN: ${{ secrets.FAMILY_HOLDINGS_TOKEN }}
         run: node scripts/sync-family-book.mjs
-
-      - name: Commit the book to main if it changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/fixtures/family-book.json public/data/portfolio-companies.json
-          if git diff --cached --quiet; then
-            echo "The book is unchanged; nothing to commit."
-            exit 0
-          fi
-          git commit -m "Family book sync ($(date -u +'%Y-%m-%d %H:%M UTC'))"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then
-              echo "Push succeeded on attempt $attempt."
-              exit 0
-            fi
-            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+      - name: Verify the sync contract
+        run: node scripts/verify-family-sync.mjs
+      - name: Open or update the fallback snapshot PR
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.FAMILY_SYNC_PR_TOKEN || github.token }}
+          branch: codex/family-book-snapshot
+          base: main
+          add-paths: |
+            scripts/fixtures/family-book.json
+            public/data/portfolio-companies.json
+          commit-message: Update active Family Office holdings snapshot
+          title: Update active Family Office holdings snapshot
+          body: |
+            Names-only fallback snapshot from Family Office's active shared workbook.
+            Review additions/removals and required checks before merging. No auto-merge or deployment.
+            Live Portfolio scope does not wait for this PR.

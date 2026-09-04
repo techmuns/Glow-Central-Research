@@ -13,6 +13,7 @@
 // column may be blank; totalling those would either crash or, worse, quietly produce a number.
 // Insider dealing is a list of events, and this shows the list.
 
+import { filingHistoryControls } from './filing-history-controls.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatDate } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
@@ -102,7 +103,10 @@ function tradeFilters(rows) {
   });
 }
 
+const history = filingHistoryControls(feed);
 const tab = makeFilingsTab({
+  aboveTable: history.html,
+  wireAboveTable: history.wire,
   id: 'insider-trades',
   title: 'Insider Trades',
   subtitle: 'Insider dealing disclosed for the companies in scope. Each row preserves the disclosure’s fields and links to its matching public record.',
@@ -179,6 +183,9 @@ const tab = makeFilingsTab({
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What this dashboard does to it</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
+          <li><strong>Adds disclosures to retained history.</strong> A later empty or partial response does not erase
+              trades already captured in the rolling 365-day window. Repeat responses do not multiply rows;
+              different insiders, transactions and sources remain separate. Undated disclosures are retained.</li>
           <li><strong>Reads the date</strong>, so the table can sort. That is the only cell interpreted.</li>
           <li><strong>Tints a direction</strong> where the cell says so in words — <em>bought</em>, <em>sold</em>,
               <em>disposal</em>. A value it does not recognise stays plain rather than being guessed into a direction.</li>

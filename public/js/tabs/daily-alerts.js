@@ -1,4 +1,4 @@
-// tabs/daily-alerts.js — GENERAL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
+// tabs/daily-alerts.js — ALL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
 //
 // Every other tab here is organised by SOURCE: this is what the results feed holds, this is what
 // BSE filed, this is what the technicals scrape measured. That is the right shape for research and
@@ -33,10 +33,11 @@ import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/daily-alerts.js';
 import * as coverage from '../data/coverage.js';
 import { scopeLabel } from '../data/scope.js';
+import * as records from '../data/alert-records.js';
 
 export const meta = {
   id: 'daily-alerts',
-  title: 'General Alerts',
+  title: 'All Alerts',
   subtitle: 'Every retained alert in one newest-first timeline.',
   // No rail. This is one stream and splitting it by feed would rebuild the tabs it exists to
   // collapse — the feed filter in the toolbar does that job without costing a navigation.
@@ -64,13 +65,24 @@ let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // a full Set silently becomes a partial filter when a sixth feed is added. The same distinction
 // `scopeTickers` draws between `null` and an empty Set, for the same reason.
 let picked = null;
+let collecting = 0;
+let sourceTimer = null;
+let sourceDirty = false;
+function sourceChanged() {
+  sourceDirty = true;
+  if (!ctxRef || sourceTimer || collecting) return;
+  sourceTimer = setTimeout(() => {
+    sourceTimer = null; sourceDirty = false;
+    if (ctxRef) void recollect(ctxRef, { load: false });
+  }, 250);
+}
 
 export function render(ctx) {
   ctxRef = ctx;
 
   // AI ALERTS LINKS TO THE COMPLETE EVIDENCE FOR ONE COMPANY. Seed the existing table search
   // rather than inventing a second company filter. Entering through that link resets an earlier
-  // General Alerts filter state: "See all" cannot quietly retain e.g. Today-only or one feed and
+  // All Alerts filter state: "See all" cannot quietly retain e.g. Today-only or one feed and
   // then show an empty subset. Subsequent feed repaints retain the new table's own state as usual.
   const requestedCompany = String(ctx.params?.company || '').trim();
   if (requestedCompany && requestedCompany !== routeCompany) tableView = { q: requestedCompany };
@@ -78,11 +90,19 @@ export function render(ctx) {
   routeCompany = requestedCompany || null;
 
   if (!unsubs.length) {
-    // NOTHING SUBSCRIBED. The owning tabs may poll while mounted, but this consolidated page takes
-    // one cached/snapshot reading on mount and another only when the reader presses Refresh.
+    unsubs.push(alerts.onChange(sourceChanged));
+    unsubs.push(records.onChange(() => {
+      // Remove private rows synchronously, even while another public source is still loading.
+      if (report) { report = { ...report, events: report.events.filter((r) => !r.private) }; if (ctxRef) paint(ctxRef); }
+      sourceChanged();
+    }));
+    const timer = setInterval(() => {
+      if (ctxRef && !collecting && !document.hidden) void recollect(ctxRef, { refresh: true });
+    }, 90000);
+    unsubs.push(() => clearInterval(timer));
     unsubs.push(
       refresh.register(REFRESH_ID, {
-        label: 'General Alerts',
+        label: 'All Alerts',
         // A REFRESH HERE COSTS NOTHING PER COMPANY. Earnings, con-calls and chatter each expose a
         // bounded one-shot revalidation; investors revalidate the one bulk snapshot. The owning
         // Super Investors tab keeps the deliberate ninety-one-book walk behind its own control.
@@ -94,7 +114,8 @@ export function render(ctx) {
           // that can gain and lose rows in the same read — the day rolls over, a capture lands, a
           // story drops off the end. Same rule, and same failure, as the news Fetch button.
           const added = now.filter((e) => !before.has(e.id)).length;
-          return { added, checked: (report?.feeds || []).filter((f) => f.status === 'ok').length };
+          return { added, checked: (report?.feeds || []).filter((f) => f.status === 'ok').length,
+            failed: (report?.feeds || []).filter((f) => f.status === 'failed').length };
         },
       })
     );
@@ -109,11 +130,13 @@ export function render(ctx) {
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
-  recollect(ctx);
+  recollect(ctx, { refresh: true });
 }
 
 export function destroy() {
   ctxRef = null;
+  loadToken++;
+  clearTimeout(sourceTimer); sourceTimer = null; sourceDirty = false;
   cancelThrottledPaint();
   for (const off of unsubs) {
     try {
@@ -132,13 +155,14 @@ export function destroy() {
  * paint the previous scope's rows over the new one. The token is compared against the module's
  * counter, not against a captured ctx, for the same reason the subscriptions are.
  */
-async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
+async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {}) {
   // NO "already collecting" EARLY RETURN. `render()` runs again on every scope change, so bailing
   // out because a collect was in flight would leave the new scope showing the old scope's rows for
   // ever — the guard has to be about which result is allowed to PAINT, not about which reads are
   // allowed to start. Every read below is a conditional GET against a file or a cached route, so
   // an overlapping one costs a revalidation, not a download.
   const token = ++loadToken;
+  collecting++;
   try {
     const next = await alerts.collect({
       scope: ctx.scope,
@@ -148,6 +172,7 @@ async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
       // internal scroller advances. No request per company and no new route are introduced.
       includeHistory: true,
       refresh: forceRefresh,
+      load,
       // Feeds land one at a time and the page follows them. Coalesced, because eight arrivals is
       // eight full rebuilds of a table the reader may be typing into — a TRAILING THROTTLE rather
       // than a debounce, since a debounce would keep deferring while feeds kept landing and the
@@ -165,6 +190,9 @@ async function recollect(ctx, { refresh: forceRefresh = false } = {}) {
     paint(ctxRef);
   } catch (err) {
     console.error('[daily-alerts] collect failed', err);
+  } finally {
+    collecting--;
+    if (sourceDirty) sourceChanged();
   }
 }
 
@@ -225,7 +253,7 @@ function paint(ctx) {
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
   ctx.root.innerHTML = `
     ${sectionHead({
-      title: 'General Alerts',
+      title: 'All Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
@@ -288,7 +316,7 @@ function restoreFocus(root, focus) {
  */
 function livePill(rep, day) {
   const feeds = rep?.feeds || [];
-  const behind = feeds.filter((f) => f.reachesToday === false).length;
+  const behind = feeds.filter((f) => f.status !== 'ok' || f.reachesToday !== true).length;
   const reading = rep?.pending ?? 0;
   const label = `${fmtDay(day)}`;
   if (behind || reading) {
@@ -502,13 +530,16 @@ export function feedState(f) {
     return { label: 'reading…', short: () => 'reading…', dot: 'bg-slate-300 animate-pulse', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-400' };
   }
   if (f.status === 'failed') {
-    return { label: 'source is updating', short: () => 'updating', dot: 'bg-slate-300 animate-pulse', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-500' };
+    return { label: 'read failed or incomplete; retained records shown', short: () => 'incomplete', dot: 'bg-amber-500', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-500' };
+  }
+  if (f.status === 'on-demand') {
+    return { label: 'on-demand coverage only; not a complete source scan', short: () => 'on-demand', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-500' };
   }
   if (f.scopable === false) {
     return { label: 'not in this scope', short: () => 'not in scope', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-slate-50/50', text: 'text-slate-400' };
   }
-  if (f.reachesToday === false) {
-    return { label: 'latest available capture', short: () => 'latest', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-500' };
+  if (f.reachesToday !== true) {
+    return { label: 'latest available capture; not confirmed current', short: () => 'stale / unknown', dot: 'bg-slate-300', ring: 'ring-slate-100', bg: 'bg-white', text: 'text-slate-500' };
   }
   const todayCount = f.todayCount ?? f.count ?? 0;
   if (todayCount) {
@@ -573,11 +604,11 @@ function eventsTable(ctx, events, day) {
         label: 'Date / time',
         align: 'left',
         get: (e) => `<time datetime="${escapeHtml(e.day || '')}" data-event-day="${escapeHtml(e.day || '')}" class="block whitespace-nowrap tabular-nums text-slate-700">
-          <span class="block font-medium">${escapeHtml(fmtDay(e.day || ''))}</span>
-          <span class="block text-xs ${e.time ? 'text-slate-500' : 'text-slate-400'}">${e.time ? `${escapeHtml(e.time)} IST` : 'Day only'}</span>
+          <span class="block font-medium">${escapeHtml(e.day ? fmtDay(e.day) : 'Date not supplied')}</span>
+          <span class="block text-xs ${e.time ? 'text-slate-500' : 'text-slate-400'}">${e.kind === 'scheduled' ? 'Scheduled · ' : ''}${e.time ? `${escapeHtml(e.time)} IST` : e.day ? 'Day only' : 'Undated'}</span>
         </time>`,
         html: true,
-        sortValue: (e) => `${e.day || ''}T${e.time || ''}`,
+        sortValue: (e) => `${e.day || '0000-00-00'}T${e.time || ''}`,
       },
       {
         label: 'Direction',
@@ -619,7 +650,18 @@ function eventsTable(ctx, events, day) {
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }
-      if (e.tab) location.hash = `#/research/${e.tab}?scope=${ctx.scope}`;
+      // FALL BACK TO THE TAB, ON THE COMPANY — not just the tab. A row with no source URL (public
+      // chatter, price/volume moves) used to land on the owning tab's whole list, leaving the reader
+      // to search for the company they had just clicked. `?company=` seeds that tab's own search
+      // (every table tab honours it via companySeededView), and for chatter — whose real content is
+      // the per-company mentions popup, not the row — `open=mentions` asks the tab to open it
+      // straight away, which is the thing the row is actually about.
+      if (e.tab) {
+        const params = [`scope=${ctx.scope}`];
+        if (e.ticker) params.push(`company=${encodeURIComponent(e.ticker)}`);
+        if (e.feed === 'chatter' && e.ticker) params.push('open=mentions');
+        location.hash = `#/research/${e.tab}?${params.join('&')}`;
+      }
     },
     searchable: (e) => `${e.day || ''} ${e.time || ''} ${e.company} ${e.ticker || ''} ${e.direction || ''} ${e.importance || ''} ${e.headline} ${e.detail || ''} ${e.signalReason || ''} ${e.importanceReason || ''} ${e.feedLabel}`,
     filters: [
@@ -656,7 +698,7 @@ function eventsTable(ctx, events, day) {
     initialSort: { key: 'Date / time', dir: 'desc' },
     initialView: tableView,
     emptyMessage: emptyMessageFor(ctx.scope, day),
-    exportName: `sattva-general-alerts-through-${day}`,
+    exportName: `sattva-all-alerts-through-${day}`,
     onExport: (visible) => exportStream(visible, day, ctx.scope),
   });
 }
@@ -675,12 +717,17 @@ function dateRangeOptions(events, day) {
     { value: '7d', label: 'Last 7 days' },
     { value: '30d', label: 'Last 30 days' },
   ];
+  if (events.some((event) => !event.day)) options.push({ value: 'undated', label: 'Date not supplied' });
+  if (events.some((event) => event.day > day)) options.push({ value: 'upcoming', label: 'Upcoming dates' });
   if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
   return options;
 }
 
 function matchesDateRange(eventDay, throughDay, range) {
-  if (!eventDay || range === 'all') return !!eventDay;
+  if (range === 'all') return true;
+  if (range === 'undated') return !eventDay;
+  if (!eventDay) return false;
+  if (range === 'upcoming') return eventDay > throughDay;
   if (range === 'today') return eventDay === throughDay;
   if (range === '7d') return eventDay >= shiftDay(throughDay, -6) && eventDay <= throughDay;
   if (range === '30d') return eventDay >= shiftDay(throughDay, -29) && eventDay <= throughDay;
@@ -716,12 +763,12 @@ function emptyMessageFor(scope, day) {
 
 function exportStream(visible, day, scope) {
   const feeds = report?.feeds || [];
-  const behind = feeds.filter((f) => f.reachesToday === false).map((f) => f.label);
+  const behind = feeds.filter((f) => f.reachesToday !== true || f.status !== 'ok').map((f) => f.label);
   const banner = {
     __banner: true,
     line:
-      `SATTVA CENTRAL RESEARCH — GENERAL ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
-      `Rows consolidate Earnings, Con-calls, Public Chatter, Price moves, Investor activity, Announcements, Insider trades and News. ` +
+      `SATTVA CENTRAL RESEARCH — ALL ALERTS HISTORY through ${day} (Indian trading date), ${scopeLabel(scope)} scope. ` +
+      `Registered feeds: ${alerts.FEEDS.map((f) => f.label).join(', ')}. Includes captured records, scheduled events and explicitly labelled snapshots, including undated records. ` +
       `Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. ` +
       `High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
       `Announcement direction is rule-derived and unmatched filings stay neutral; news stays neutral. ` +
@@ -732,8 +779,8 @@ function exportStream(visible, day, scope) {
 
   const cell = (get) => (r) => (r.__banner ? '' : get(r));
   return exportRows({
-    filename: `sattva-general-alerts-through-${day}`,
-    sheetName: 'General Alerts',
+    filename: `sattva-all-alerts-through-${day}`,
+    sheetName: 'All Alerts',
     columns: [
       { header: 'Date (IST)', key: 'date', width: 14, get: (r) => (r.__banner ? r.line : r.day || '') },
       { header: 'Time (IST)', key: 'time', width: 12, get: cell((r) => r.time || '') },
@@ -744,6 +791,8 @@ function exportStream(visible, day, scope) {
       { header: 'Company', key: 'company', width: 32, get: cell((r) => r.company) },
       { header: 'What happened', key: 'headline', width: 60, get: cell((r) => r.headline) },
       { header: 'Detail', key: 'detail', width: 50, get: cell((r) => r.detail || '') },
+      { header: 'Record type', key: 'kind', width: 16, get: cell((r) => r.kind || 'event') },
+      { header: 'Source record (JSON)', key: 'sourceRecord', width: 60, get: cell((r) => JSON.stringify(r.sourceRecord || {})) },
       { header: 'Direction reason', key: 'signalReason', width: 48, get: cell((r) => r.signalReason || '') },
       { header: 'Importance reason', key: 'importanceReason', width: 48, get: cell((r) => r.importanceReason || '') },
       { header: 'Source link', key: 'url', width: 44, get: cell((r) => r.url || '') },

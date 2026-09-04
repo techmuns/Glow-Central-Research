@@ -80,10 +80,14 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let routeCompany = null;
   let ctxRef = null;
+<<<<<<< HEAD
   // The scope the company selection was made in. A selection is a list of companies IN A SCOPE, so
   // carrying it across the toggle would narrow the watchlist by book tickers and show nothing —
   // a control the reader cannot see the state of, filtering a view they did not filter.
   let lastScope = null;
+=======
+  let renderedRows = null;
+>>>>>>> upstream/main
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -137,10 +141,14 @@ export function makeFilingsTab(cfg) {
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+<<<<<<< HEAD
     if (ctx.scope !== lastScope) {
       lastScope = ctx.scope;
       if (view) view = { ...view, companies: [] };
     }
+=======
+    renderedRows = null;
+>>>>>>> upstream/main
     disposers.forEach((d) => d && d());
     disposers = [];
     // `exact: true` — these three tabs render the company multi-select, so a `?company=` deep link
@@ -228,6 +236,15 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
+    const oldScroller = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-scroll]');
+    const oldRows = oldScroller ? [...oldScroller.querySelectorAll('tbody tr[data-row-key]')] : [];
+    const anchor = oldScroller?.scrollTop > 0
+      ? oldRows.find((row) => row.getBoundingClientRect().bottom > oldScroller.getBoundingClientRect().top + 40) : null;
+    const position = oldScroller ? { top: oldScroller.scrollTop, left: oldScroller.scrollLeft,
+      key: anchor?.dataset.rowKey, offset: anchor ? anchor.getBoundingClientRect().top - oldScroller.getBoundingClientRect().top : 0 } : null;
+    const oldSearch = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-search]');
+    const selection = oldSearch && document.activeElement === oldSearch
+      ? { value: oldSearch.value, start: oldSearch.selectionStart, end: oldSearch.selectionEnd } : null;
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -243,6 +260,7 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
+<<<<<<< HEAD
     // WHAT THE CAPTURE HOLDS IS MEASURED OVER THE WHOLE FEED, not over the scoped subset, and the
     // difference decides whether the reach note below is true. A scoped list can be short because
     // those particular companies were quiet, which says nothing at all about how far back the
@@ -257,6 +275,18 @@ export function makeFilingsTab(cfg) {
     // eleven hundred rows reads as a feed that lost them.
     const windowed = applyRange(inScope, range);
     const rows = windowed.rows;
+=======
+    const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
+    if (cfg.preserveReadingPosition) {
+      const nextRows = JSON.stringify([ctx.scope, m.reason, rows]);
+      // Archive/check status can change several times in one poll without changing a filing.
+      // Keep the mounted search field and rows intact for those notifications.
+      if (nextRows === renderedRows && ctx.root.querySelector('[data-score-table]')) return;
+      renderedRows = nextRows;
+    }
+    disposers.forEach((dispose) => dispose && dispose());
+    disposers = [];
+>>>>>>> upstream/main
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -289,15 +319,26 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({
           title: cfg.title,
           description: cfg.subtitle,
+<<<<<<< HEAD
           meta: pill(m, ctx.scope, []),
           // THE RANGE CONTROL SURVIVES THE FAILURE STATE, for the same reason the company picker
           // had to: a control that selects what failed must outlive the failure, or a reader whose
           // one-year request could not be read has no way to ask for anything else.
           controls: rangeControls(range, { first: null, last: null, count: 0 }, reachOf(range, null), m, customOpen),
+=======
+          meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, []),
+>>>>>>> upstream/main
         })}
-        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
+        ${cfg.aboveTable?.(ctx, m) || ''}
+        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}
+        ${methodFooter(cfg)}`;
       wireRefresh(ctx.root);
+<<<<<<< HEAD
       wireRange(ctx.root, ctx);
+=======
+      disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
+      wireMethod(ctx.root, m, null, ctx.scope, []);
+>>>>>>> upstream/main
       return;
     }
 
@@ -378,7 +419,11 @@ export function makeFilingsTab(cfg) {
       dense: true,
       wrapHeads: true,
       nameMaxPx: cfg.nameMaxPx || 460,
-      stickyHead: 'max(320px, calc(100vh - 300px))',
+      stickyHead: cfg.stickyHead || 'max(320px, calc(100vh - 300px))',
+      fillMode: cfg.fillMode || 'idle',
+      initialRowCount: oldRows.length || 40,
+      initialRowKey: position?.key || null,
+      showWatchFilter: cfg.showWatchFilter !== false,
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
@@ -401,6 +446,7 @@ export function makeFilingsTab(cfg) {
       // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
       // Recompute both figures from the visible row DATA whenever search or a filter changes.
       countLabel: (visible) => {
+        if (cfg.countLabel) return cfg.countLabel(visible, { scope: ctx.scope, holdings: coverage.holdings() });
         const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
         const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
         const companyNoun =
@@ -414,15 +460,20 @@ export function makeFilingsTab(cfg) {
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
       exportName: `sattva-${cfg.id}`,
+<<<<<<< HEAD
       // A WORKBOOK LEAVES THE PAGE WITHOUT THE CONTROL ON IT, so the window travels in the banner.
       // Nobody opening the file later can see which six months these rows are, and a sheet of
       // filings with no window on it is the one artefact where that cannot be recovered — the same
       // reason every mock and third-party disclosure here is stamped into row 1.
       onExport: (visible) => cfg.onExport(visible, m, { range, describeRange, held }),
+=======
+      onExport: (visible) => cfg.onExport(visible, cfg.preserveReadingPosition ? cfg.feed.meta() : m),
+>>>>>>> upstream/main
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
       // strip above says the same thing; this stops the table contradicting it at a glance.
+<<<<<<< HEAD
       // A FUNCTION, because the reader can narrow to a handful of companies without the table being
       // rebuilt, and "nothing for your holdings" is the wrong sentence the moment they have. Picked
       // companies are named by count so the message describes what was actually asked.
@@ -437,6 +488,13 @@ export function makeFilingsTab(cfg) {
             : scopePossessive(ctx.scope)
               ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in ${describeRange(range)}.`
               : `No ${cfg.noun} matches your filters.`,
+=======
+      emptyMessage: cfg.emptyMessage || (m.outstanding
+        ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
+        : scopePossessive(ctx.scope)
+          ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
+          : `No ${cfg.noun} matches your filters.`),
+>>>>>>> upstream/main
     });
     view = table.view;
 
@@ -450,7 +508,7 @@ export function makeFilingsTab(cfg) {
         // that: 23 rows still look complete until you know the book is 142, so the number still has
         // to be reachable, and the chip is what reaches it. What it stops doing is competing with
         // the table for the top of the page on every one of three tabs and three scopes.
-        meta: pill(m, ctx.scope, rows),
+        meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, rows),
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
@@ -460,10 +518,34 @@ export function makeFilingsTab(cfg) {
         controls: rangeControls(range, held, reach, m, customOpen, windowed),
       })}
       ${busyStrip(m)}
-      ${table.html}`;
+      ${cfg.aboveTable?.(ctx, m) || ''}
+      ${table.html}
+      ${methodFooter(cfg)}`;
 
+    const nextScroller = ctx.root.querySelector('[data-table-scroll]');
+    // We restore a specific filing below. Native scroll anchoring must not apply a second
+    // adjustment when Chromium lays out the replacement rows or appends the next page.
+    if (cfg.preserveReadingPosition) nextScroller.style.overflowAnchor = 'none';
     disposers.push(table.wire(ctx.root));
+<<<<<<< HEAD
     wireRange(ctx.root, ctx);
+=======
+    if (position) {
+      const scroller = ctx.root.querySelector('[data-table-scroll]');
+      scroller.scrollTop = position.top;
+      scroller.scrollLeft = position.left;
+      const next = position.key && [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((row) => row.dataset.rowKey === position.key);
+      if (next) scroller.scrollTop += next.getBoundingClientRect().top - scroller.getBoundingClientRect().top - position.offset;
+    }
+    if (selection) {
+      const search = ctx.root.querySelector('[data-table-search]');
+      search.value = selection.value;
+      search.focus({ preventScroll: true });
+      search.setSelectionRange(selection.start, selection.end);
+    }
+    disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
+    wireMethod(ctx.root, m, cov, ctx.scope, rows);
+>>>>>>> upstream/main
     // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
     // heading — how old the capture is, how many companies were searched, what they answered —
     // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
@@ -501,6 +583,7 @@ export function makeFilingsTab(cfg) {
 
   const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
 
+<<<<<<< HEAD
   /**
    * The range control: six presets, a custom pair, and nothing that fetches on its own.
    *
@@ -561,6 +644,14 @@ export function makeFilingsTab(cfg) {
       el.addEventListener('change', onChange);
       disposers.push(() => el.removeEventListener('change', onChange));
     }
+=======
+  function wireMethod(root, m, cov, scope, rows) {
+    const btn = root.querySelector('[data-filings-method]');
+    if (!btn) return;
+    const onClick = () => openProvenance(cfg.preserveReadingPosition ? cfg.feed.meta() : m, cov, scope, rows);
+    btn.addEventListener('click', onClick);
+    disposers.push(() => btn.removeEventListener('click', onClick));
+>>>>>>> upstream/main
   }
 
   function wireRefresh(root) {
@@ -577,6 +668,7 @@ export function makeFilingsTab(cfg) {
   function destroy() {
     token++;
     ctxRef = null;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();
@@ -602,6 +694,7 @@ export function makeFilingsTab(cfg) {
 
 
 /**
+<<<<<<< HEAD
  * The history window, as a row of presets plus an optional custom pair.
  *
  * WHY THIS IS A CONTROL ROW AND NOT A COLUMN FILTER. `scoreTable`'s `filters` are questions about
@@ -720,6 +813,29 @@ function heldBackNote(windowed) {
       : 'These rows are held by this feed and fall outside the selected dates.'
   )}">${escapeHtml(bits.join(' · '))} hidden</span>`;
 }
+=======
+ * The tab's own provenance, reachable — one muted line UNDER the table.
+ *
+ * `cfg.provenance` was built by all three of these tabs and NOTHING EVER OPENED IT. The only
+ * candidate trigger was the freshness pill, which CLAUDE.md deliberately made a passive `<span>`
+ * that "must not open a provenance explainer" — so the content was written, maintained, and
+ * unreachable, which is worse than absent because it reads as documentation of a working feature.
+ *
+ * This is not that decision being undone. The pill stays passive and stays where it is; what
+ * changes is that the explanation gets a door of its own, placed AFTER the content so it cannot
+ * compete with the table for the top of the page — which was the whole reason the chrome was
+ * removed. It carries what no static registry can: the MEASURED coverage for the rows on screen —
+ * how many companies answered, how many had nothing, how many could not be read at all. CLAUDE.md's
+ * denominator rule says that number has to stay reachable, not that it has to stay on the page.
+ */
+const methodFooter = (cfg) => `
+  <div class="mt-6 border-t border-slate-100 pt-4 text-center">
+    <button type="button" data-filings-method
+      class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
+      How ${escapeHtml(cfg.title)} is collected, and what this view covers
+    </button>
+  </div>`;
+>>>>>>> upstream/main
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -743,7 +859,7 @@ function pill(m, scope, rows) {
   const tone = fresh ? 'text-emerald-700' : 'text-slate-500';
   // The face is calm and useful. Coverage/retry details remain in provenance while the watchdog
   // fixes them in the background; internal pipeline vocabulary is not customer guidance.
-  const label = age === null ? 'Updating' : fresh ? 'Up to date' : `Updated ${formatRelativeTime(at)}`;
+  const label = (m.supplement ? 'BSE capture · ' : '') + (age === null ? 'Updating' : fresh ? 'Up to date' : `Updated ${formatRelativeTime(at)}`);
   return `<span data-filings-info
       title="${escapeHtml(scopeTitle(scope, rows, m))}"
       class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">

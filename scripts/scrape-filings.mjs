@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { loadActivePortfolio } from './lib/active-portfolio.mjs';
 // scripts/scrape-filings.mjs — news and insider trades for the universe.
 //
 //   node scripts/scrape-filings.mjs                              news and insider, the whole universe
@@ -49,7 +50,13 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchNews, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
 import { mergeLastGoodFilings } from './lib/filings-snapshot.mjs';
+<<<<<<< HEAD
 import { isEnglishHeadline } from '../public/js/data/filings-shared.js';
+=======
+import { captureCompanies } from './lib/company-capture.mjs';
+import { mergeInsiderTrades } from '../public/js/data/insider-history.js';
+import { archiveFilings } from './lib/filing-archive.mjs';
+>>>>>>> upstream/main
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -67,11 +74,20 @@ const FEEDS = {
   insider: { file: 'insider-trades.json', rowsKey: 'trades', windowDays: 365 },
 };
 
-// Sixty requests a minute is the documented ceiling. One request per second with four in flight
-// sits under it with room for the retries muns.mjs does on a timeout — and being comfortably under
-// somebody else's limit is cheaper than discovering where it is.
+// One global 2.5-second request-start interval leaves room for the Worker's retries.
+// A per-worker pause alone does not enforce a shared upstream budget.
 const CONCURRENCY = 4;
-const GAP_MS = 250;
+const GAP_MS = 2500;
+let requestGate = Promise.resolve();
+let nextRequestAt = 0;
+function paceRequest() {
+  const turn = requestGate.then(async () => {
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, nextRequestAt - Date.now())));
+    nextRequestAt = Date.now() + GAP_MS;
+  });
+  requestGate = turn;
+  return turn;
+}
 
 const env = { MUNS_TOKEN: process.env.MUNS_TOKEN, MUNS_NEWS_TOKEN: process.env.MUNS_NEWS_TOKEN, MUNS_BASE: process.env.MUNS_BASE, MUNS_NEWS_BASE: process.env.MUNS_NEWS_BASE };
 
@@ -96,6 +112,7 @@ async function viaWorker(path, label) {
   let last = null;
   for (let attempt = 1; attempt <= REQ_ATTEMPTS; attempt++) {
     try {
+      await paceRequest();
       const res = await fetch(`${BASE}${path}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
       if (!res.ok) {
         last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url: `${BASE}${path}` });
@@ -133,11 +150,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * the Action's time budget — should have covered the holdings before the index. The alphabetical
  * order that fell out of the file would have covered whatever happened to start with A.
  */
-function companies() {
-  const book = JSON.parse(readFileSync(DATA('portfolio-companies.json'), 'utf8'));
+async function companies() {
+  const book = await loadActivePortfolio(DATA('portfolio-companies.json'));
   const held = (book.holdings || []).filter((h) => h.ticker).map((h) => ({ ticker: h.ticker.toUpperCase(), name: h.name, held: true }));
   if (SCOPE === 'book') return dedupe(held);
 
+<<<<<<< HEAD
   // The rest of the universe is the TRACKED MARKET UNIVERSE — every listed company above a market-cap
   // floor, ~1,900 of them, already ordered biggest-first by scripts/import-tracked-universe.mjs. The
   // book still comes first (a cut-short run covers the holdings), then the rest walks from the largest
@@ -146,6 +164,9 @@ function companies() {
   // and an on-demand Refresh cannot disagree about who is in scope.
   const uni = JSON.parse(readFileSync(DATA('tracked-universe.json'), 'utf8'));
   const rest = (uni.companies || []).filter((c) => c.ticker).map((c) => ({ ticker: String(c.ticker).toUpperCase(), name: c.name, held: false }));
+=======
+  const rest = captureCompanies(DATA('.')).companies;
+>>>>>>> upstream/main
   return dedupe([...held, ...rest]);
 }
 
@@ -172,6 +193,15 @@ function dedupe(list) {
 /** One feed, walked CONCURRENCY at a time, writing what it got even if it did not get all of it. */
 async function run(kind, list) {
   const { file, rowsKey, windowDays } = FEEDS[kind];
+  const startedAt = Date.now();
+  const budgetMs = Number(process.env.FILINGS_BUDGET_MS || (kind === 'insider' ? 30 : 20) * 60000);
+  const prior = readIfPresent(file);
+  const minimumAge = Number(process.env.FILINGS_MIN_INTERVAL_HOURS || 0) * 3600000;
+  const knownTickers = new Set([...Object.keys(prior?.byTicker || {}), ...(prior?.empty || [])]);
+  if (minimumAge && list.every((c) => knownTickers.has(c.ticker)) && prior?.capturedAt && !prior.failedCount && !prior.fallbackCount && Date.now() - Date.parse(prior.capturedAt) < minimumAge) {
+    console.log(`${kind}: last complete capture is inside the configured refresh interval.`);
+    return;
+  }
   const from = daysAgo(windowDays);
   const to = iso(Date.now());
 
@@ -187,13 +217,16 @@ async function run(kind, list) {
   const headers = new Set();
   let done = 0;
 
-  const queue = [...list];
+  const lastGoodAt = (ticker) => prior?.failed?.[ticker] || !knownTickers.has(ticker) ? '' : prior?.fallback?.[ticker]?.capturedAt || prior?.capturedAt || '';
+  const queue = [...list].sort((a, b) => lastGoodAt(a.ticker).localeCompare(lastGoodAt(b.ticker)));
   const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
     for (;;) {
+      if (Date.now() - startedAt >= budgetMs) return;
       const c = queue.shift();
       if (!c) return;
       try {
         let res;
+        if (!VIA_WORKER) await paceRequest();
         // THE COMPANY NAME, AND NOTHING APPENDED TO IT. The query used to end "share price results",
         // which reads like a helpful narrowing and is not: measured against one company it swapped a
         // Moneycontrol quarterly-results story for an unrelated IPO story, because the extra words
@@ -234,7 +267,7 @@ async function run(kind, list) {
       }
       done++;
       if (done % 25 === 0) process.stdout.write(`\r  ${kind}: ${done}/${list.length} …`);
-      await sleep(GAP_MS);
+
     }
   });
   await Promise.all(workers);
@@ -244,6 +277,7 @@ async function run(kind, list) {
     _provenance:
       `REAL DATA, NOT OURS. ${kind} for Indian listed companies via the Muns API, reaching back ${windowDays} days. ` +
       'Headlines, subjects, column headings and wording are the source\'s own, reproduced unchanged and never summarised. ' +
+      (kind === 'insider' ? 'Insider disclosures accumulate within the date window; an empty or partial response does not retract retained events. ' : '') +
       'A company in `byTicker` had something; one in `empty` was asked and answered nothing; one in `failed` could not be read; ' +
       'one in none of the three was never reached. Those are four different answers and must not be conflated.',
     kind,
@@ -277,12 +311,17 @@ async function run(kind, list) {
   // query and devde.muns.io did not answer at all, so a run wrote a snapshot covering nobody — and
   // a snapshot covering nobody is a file that says "these 123 companies have no news", which is a
   // measurement nobody made. An outage is not an absence of events.
-  if (!payload.covered && list.length && !process.env.FILINGS_FORCE) {
+  if (kind !== 'insider' && !payload.covered && list.length && !process.env.FILINGS_FORCE) {
     console.log(`\r  ${kind}: nothing came back for any of ${list.length} companies — the upstream is down. Nothing written.`);
     return;
   }
 
   const previous = readIfPresent(file);
+  if (kind === 'insider') {
+    const flatten = (capture) => Object.entries(capture?.byTicker || {}).flatMap(([ticker, rows]) => rows.map((row) => ({ ...row, ticker })));
+    // Retain before mergeLastGoodFilings applies the 365-day display window.
+    archiveFilings(DATA('insider-archive'), 'insider', mergeInsiderTrades(flatten(previous), flatten(payload)));
+  }
   // AND A COLLAPSE IN COMPANIES THAT HAD SOMETHING, which `covered` cannot see any more. Once
   // `covered` counted answers rather than rows, an upstream timing out stopped looking like a bad
   // run at all: every company answers "nothing", `empty` absorbs them, `covered` stays at the full
@@ -294,7 +333,7 @@ async function run(kind, list) {
   // this week and none next — and a strict "never fewer" would block almost every honest run. Half
   // is far outside that drift and squarely inside an outage.
   const prevWithRows = previous ? (previous.withRows ?? Object.keys(previous.byTicker || {}).length) : 0;
-  if (previous && prevWithRows >= 8 && payload.withRows < prevWithRows / 2 && !process.env.FILINGS_FORCE) {
+  if (kind !== 'insider' && previous && prevWithRows >= 8 && payload.withRows < prevWithRows / 2 && !process.env.FILINGS_FORCE) {
     console.log(
       `\r  ${kind}: only ${payload.withRows} companies had anything, against ${prevWithRows} in the committed ` +
         'snapshot — that is an upstream problem, not a quiet week. Keeping it; set FILINGS_FORCE=1 to override.'
@@ -309,20 +348,22 @@ async function run(kind, list) {
   // were thrown away. Merge at the company boundary instead: fresh rows or a fresh empty answer
   // win, and a failed/not-reached company retains its last-known-good answer. The unresolved map is
   // what remains after that recovery, so the UI can retry real gaps without freezing everybody.
-  if (previous && !process.env.FILINGS_FORCE) {
+  // Insider events are additive even after an empty/partial response or a forced capture. Their
+  // rolling date window bounds retention, so the news collapse guard must not discard new trades.
+  if (kind === 'insider' || (previous && !process.env.FILINGS_FORCE)) {
     payload = mergeLastGoodFilings(payload, previous, list);
   }
 
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(
-    `\r  ${kind}: ${payload.rowCount} rows across ${payload.withRows} of ${list.length} companies` +
+    `\r  ${kind}: ${payload.rowCount} rows across ${payload.withRows} companies (${list.length} requested)` +
       `${payload.emptyCount ? `, ${payload.emptyCount} asked and had nothing` : ''}` +
       `${payload.fallbackCount ? `, ${payload.fallbackCount} retained from last-good data` : ''}` +
       `${payload.failedCount ? `, ${payload.failedCount} could not be read` : ''} -> public/data/${file}`
   );
 }
 
-const list = companies();
+const list = await companies();
 console.log(`Walking ${list.length} companies (${SCOPE}) for: ${wanted.join(', ')}`);
 console.log(VIA_WORKER ? `  through ${BASE} — no token needed here; the Worker holds it\n` : '  straight at the upstream, with MUNS_TOKEN\n');
 for (const kind of wanted) await run(kind, list);
