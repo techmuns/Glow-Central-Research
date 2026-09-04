@@ -357,6 +357,7 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     generatedAt: evidence?.generatedAt || new Date().toISOString(),
     scope: evidence?.scope || 'portfolio',
     scopeDefinition: clipped(evidence?.scopeDefinition, 360),
+    portfolio: evidence?.portfolio,
     selection: {
       ...boundedMetadata(evidence?.selection || {}),
       evidenceCharBudget: charBudget,
@@ -938,7 +939,7 @@ const BUILDERS = [
   },
 ];
 
-export async function buildResearchEvidence({ question, scope = 'portfolio', onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
+export async function buildResearchEvidence({ question, scope = 'portfolio', portfolio = undefined, onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
   const deferred = await whenDeferredData();
   const holdings = scopeHoldings(scope);
   let completed = 0;
@@ -996,6 +997,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
   return fitEvidenceToBudget({
     generatedAt: new Date().toISOString(),
     scope,
+    portfolio,
     scopeDefinition: scopeDefinition(scope),
     selection: {
       method: 'Every registered source contributes status, coverage and provenance. Rows are ranked by the companies the question names, then by token hits, then by each source\'s own ordering.',

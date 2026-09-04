@@ -5,11 +5,21 @@ earnings, con-calls, public chatter, technical breakouts, superstar investors, n
 announcements, NSE filings and insider trades — under a global **Portfolio · Watchlist · Universe**
 scope toggle that applies to every one of them.
 
-**Portfolio here means a list of company names, and nothing else.** The Portfolio scope filters the
+**The public Portfolio snapshot is a list of company names, not a ledger.** The Portfolio scope filters the
 research tabs by the family office's own direct-equity book — 142 lines, names and sectors, synced
 from `techmuns/Sattva-Family`. There are no quantities, no costs and no valuations anywhere in this
-dashboard. A Portfolio Analytics workspace over an illustrative ledger used to exist and was
+public snapshot. A Portfolio Analytics workspace over an illustrative ledger used to exist and was
 deleted; it is in git history at `d3bba30` if a real ledger is ever wired.
+
+**Full-book Ask Research** runs inside the authenticated Sattva Family `/research`
+view. It uses that app's active portfolio and Ask Sattva query tools, revalidates
+uploaded workbooks per question, and passes a bounded, dated portfolio reading
+alongside research evidence. The active ISIN list replaces the public coverage
+snapshot for that session, retaining fund units and unresolved symbols. Standalone
+Research shows “Open with portfolio” and refuses personal-book questions without
+that connection. Private conversations remain in memory only; no ledger or
+portfolio reading is committed to public assets or saved to Research localStorage.
+See [the integration contract](docs/PORTFOLIO-INTEGRATION.md) for boundaries and tests.
 
 **Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,

@@ -24,6 +24,15 @@
 import * as scopeLists from '../core/scope-lists.js';
 
 let raw = null;
+let family = null;
+
+/** Authenticated, per-question identities only. Never write these to storage or
+ * mix device edits into what the active Family book says is owned. */
+export function useFamilyBook(holdings, asOf) {
+  if (!Array.isArray(holdings)) { family = null; return; }
+  const known = new Map(baseHoldings().map((h) => [h.isin, h]));
+  family = { asOf, holdings: holdings.map((h) => ({ ...h, ticker: h.ticker || known.get(h.isin)?.ticker || null })) };
+}
 
 export function prime(payload) {
   if (payload && Array.isArray(payload.holdings)) raw = payload;
@@ -41,7 +50,7 @@ export const isLoaded = () => !!raw;
 export const baseHoldings = () => (raw ? raw.holdings : []);
 
 /** The book the reader asked to use on this device. The committed file remains the reset point. */
-export const holdings = () => scopeLists.apply('portfolio', baseHoldings());
+export const holdings = () => family ? family.holdings : scopeLists.apply('portfolio', baseHoldings());
 
 /** The subset a feed can actually match. */
 export const tracked = () => holdings().filter((h) => h.ticker);
@@ -60,16 +69,16 @@ export function meta() {
   const current = holdings();
   const currentUncovered = current.filter((h) => !h.ticker);
   return {
-    asOf: raw?.asOf || null,
-    source: raw?.source || null,
+    asOf: family?.asOf || raw?.asOf || null,
+    source: family ? 'Active Sattva Family book' : raw?.source || null,
     count: current.length,
     tracked: current.length - currentUncovered.length,
     uncovered: currentUncovered.length,
     // The committed source's three reason buckets are only exact before a reader edits it. Once
     // edited, keep the honest total above and do not pretend the old split still describes it.
-    unlisted: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
-    bseOnly: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
-    unresolved: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
+    unlisted: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
+    bseOnly: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
+    unresolved: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
   };
 }
 
