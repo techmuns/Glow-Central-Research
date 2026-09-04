@@ -23,17 +23,15 @@ the interface, and change the doc and the producer together.
 | --- | --- |
 | `portfolioCompanies` | `public/data/portfolio-companies.json` |
 | `universe` | `public/data/universe.json` |
-| `earnings` | `public/data/mock/earnings.json` |
-| `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `filedHoldings` | `public/data/institution-holdings.json` |
 
 `universe.json` is loaded twice over: the raw screener rows stay on `ctx.data.universeRaw`, and
 `ctx.data.universe` carries the adapted `{ ticker, name, marketCap, sector, industry }` shape the
 older tabs were built against (see `js/data/universe.js`).
 
-`earnings.json` follows the same pattern: the full payload stays on `ctx.data.earningsRaw` and
-primes `js/data/earnings.js` (so the module never refetches it), while `ctx.data.earnings` carries
-the flat one-row-per-company summary that Breakouts → Earnings Surprise was written against.
+The synthetic earnings and calendar corpus is now under `scripts/fixtures/`, outside the served
+assets. Bootstrap no longer loads it; legacy scoring accessors reject mock/synthetic payloads.
+Earnings Surprise stays unavailable until verified actuals and analyst estimates are connected.
 
 **Not in that map:** several heavy feeds are fetched lazily by their own data modules the first
 time their tab mounts, then cached for the life of the page — the other tabs shouldn't pay for
@@ -2857,7 +2855,7 @@ committed capture. `TWITTER_LIMIT` (20) bounds the posts read per account per ru
 
 ### Corporate announcements are read by DATE, from BSE — a different shape entirely
 
-**`corp-announcements.json` no longer comes from the Muns filings API and must not go back to it.**
+**`corp-announcements.json` remains the BSE date-indexed base capture.** Additional Muns company/date lookups are merged in the browser; they never overwrite that exchange-wide file.
 The per-company route reached 118 of 603 companies because it costs one request each against a
 ~60/minute cap. BSE publish the same filings indexed by date, so the whole exchange arrives in about
 twenty requests, with no credential.
@@ -2914,6 +2912,43 @@ ANN_DAYS=7 ANN_MERGE=0 node scripts/scrape-bse-announcements.mjs   # rebuild a w
 ```
 Scheduled by `.github/workflows/announcements-refresh.yml` at 20:00 IST on weekdays — after filing
 stops for the day, which is why it is not a step in the 07:00 data refresh.
+
+### Additional corporate-announcement lookups
+
+Corp Announcements now offers a company ticker and date-range form for the supplied
+`GET /filings/corp/announcements/{ticker}` service. The Worker sends required `fromDate` and
+`toDate` in `YYYYMMDD`; its browser route `/api/announcements/{ticker}` accepts `from`/`to` ISO dates
+or the compact `fromDate`/`toDate` aliases. Invalid calendar dates, reversed ranges and malformed
+symbols fail before an upstream request. Successes are cached for 15 minutes per ticker/range,
+failures for 15 seconds; the normalized schema has a versioned cache identity. Reads are bounded
+by the existing 20-second retry deadline and a 4 MB response limit. Authentication uses the existing
+server token or the signed-in host's forwarded session token when the server secret is absent.
+
+`announcements-shared.js` preserves BSE/NSE/DRHP grouping, source subject, timestamp, original
+attachment URL and the requested company ticker. A BSE numeric `symbol` becomes `scripCode`, not
+the NSE ticker used for Portfolio/Watchlist scope. Unknown/error payloads fail visibly rather than
+claiming no announcements; partially unreadable groups carry `skipped`. Undated DRHP documents
+remain visible with a blank date. An authenticated preview lookup for RELIANCE over
+2025-01-01 through 2026-07-15 returned 252 announcements from the NSE fallback on 4 September 2026.
+
+`withAnnouncementLookups()` wraps the existing BSE feed. The same Corp Announcements table,
+Source filter, company watchlist, exports, Ask Research and General Alerts consume the combined
+rows. Its `supplement` metadata reports the lookups separately; `capturedAt`, `coversUniverse` and
+`windowDays` still describe only the BSE base. The freshness label names the BSE capture explicitly.
+The normal Refresh re-reads BSE and the shared company capture. Opening the page loads the
+shared recent capture and device history without walking the upstream per company. Background
+capture is described below; the form remains available for an immediate company/date check.
+
+Lookup rows are retained in IndexedDB under `announcement-lookups:v1`, outside the HTTP cache and
+the BSE snapshot. An empty/failed response or a newer BSE snapshot cannot erase them. Matching
+company/date/document identity collapses overlap while retaining source/provider labels; BSE's
+AttachLive, AttachHis and Pname variants of one attachment share its PDF identifier. Distinct
+exchange documents remain distinct, and identical rows without a document ID preserve their
+maximum observed multiplicity across responses. Manual lookups remain device-retained, alongside the scheduled shared company histories. It may include dates older than the BSE base window.
+
+`node scripts/verify-announcement-lookups.mjs` covers source grouping, numeric BSE identity,
+calendar validation, authentication, range-separated caching, overlap, empty/failure retention and
+restoring device history. Browser checks cover the form, scope identity, Source filter and export.
 
 ### News and insider trades: snapshot first, live walk second
 
@@ -3724,6 +3759,115 @@ chatter revalidators plus one conditional read of the bulk investor snapshot. It
 the Super Investors tab's ninety-one-book revalidation walk.
 
 ---
+
+## Domestic company filings
+
+**Consumer:** Earnings Hub → Company Filings (`?view=filings`), with ticker links from Earnings
+Reported (earnings reports) and Con-call (transcripts). Existing live results, schedules and scan
+analysis remain separate sources. Scheduled capture reads every registered company; the document
+view opens its shared history first and permits an immediate source check.
+
+The browser calls `GET /api/domestic-filings/{ticker}?form=all`. The Worker sends an authenticated
+`POST https://devde.muns.io/filings/domestic` with `{ "ticker": "RELIANCE", "form": "all" }`.
+The four forms are `all`, `concalls`, `annual_report` and `earnings_report`. Tickers are trimmed,
+uppercased and validated. Authentication uses the existing Worker `MUNS_TOKEN`, or the forwarded
+host session token when that secret is absent; `MUNS_BASE` can redirect local tests.
+
+Successful responses have `ok`, `ticker`, `form`, `source`, `count`, `documents`, `skipped`,
+`unavailableLinks`, bounded `unreadableShapes` field/type diagnostics and `fetchedAt`.
+Each document contains `ticker`, `form` (nullable), `title`, `date` (nullable source
+text), `url` and `source`. The parser accepts link records, document arrays and grouped/wrapped
+records. Only HTTP(S) URLs without embedded credentials become links. Repeated form/URL pairs
+collapse; original links and period labels are retained. Unreadable entries produce a visible
+partial-response warning. Null document slots are counted separately as source-unavailable links.
+An unfamiliar or error payload fails instead of becoming an empty list.
+
+The supplied contract and public OpenAPI do **not** define a concrete response schema. Local tests
+use fixtures. Authenticated reads through the branch preview on 4 September 2026 verified all four
+forms for RELIANCE: 18 concall links, 15 annual reports and 12 earnings reports; concalls also had
+28 null document slots. Links retain the source's original target, which can be a report page
+rather than a direct PDF. Successful responses are edge-cached for 15 minutes, failures for
+15 seconds, with ticker, form and normalized-schema version in the cache key. Upstream reads
+have the existing bounded timeout/retry policy plus a 4 MB response limit.
+
+The browser merges document links into a last-good device copy for each ticker/form. A failed
+refresh labels that copy stale and shows the error; an empty later response does not erase known
+documents. Navigation cancels in-flight work. Watchlist stars identify the company and Excel
+exports include the original document URL. Portfolio/Watchlist scope limits the selectable
+companies; Universe also accepts a directly entered Indian ticker.
+
+Ask Research can cite the metadata/links from lookups already performed in this page session.
+**PDF contents are not extracted.** This endpoint does not provide analyst consensus, eight-quarter
+financial history or a basis for beat/miss and quality scores. The source registry therefore lists
+**Screener.in — company filings** with its measured capture status and **Analyst consensus estimates: Not connected**.
+
+Run `node scripts/verify-domestic-filings.mjs` for parser, proxy, authentication, caching,
+saved-document retention and synthetic-data rejection checks.
+
+## Automatic company capture and permanent filing history
+
+`scripts/capture-company-filings.mjs` runs in the existing `insider-trades-refresh.yml` workflow,
+now scheduled every two hours on all days. It reads the union of the committed portfolio, raw
+Screener universe and technicals: 603 tickers at implementation time. Entries without a usable
+ticker remain explicitly unresolved; browser-only scope/watchlist additions are not transmitted to
+this public repository and therefore are **not registered for background capture**.
+
+`public/data/filing-capture/index.json` records each source/company independently: last attempt,
+last fully parsed success, response time, errors, missing document links, retained row count, and
+successfully read announcement date ranges. Per-company files under `announcements/` and
+`domestic/` keep all captured records without a date expiry. Files are written atomically before
+advancing the checkpoint. Empty responses cannot retract records; partial responses add readable
+rows but do not close the date gap. Authentication failures stop additional requests, preserve
+history, and remain visible. The next run prioritizes companies least recently attempted.
+
+A run has a 20-minute budget, three requests in flight and one shared 2.5-second request-start
+interval. Reaching the budget retains unvisited work for later runs; it does not reduce the declared
+universe. Domestic documents are rechecked daily. Announcement requests use 31-day backfill
+windows, starting with the most recent seven days. That recent window is rechecked at least daily
+as a company is reached. The initial backfill floor is 365 days before setup and stays fixed;
+unread dates never disappear because the clock advances. After backfill, historical windows cycle
+again to catch late disclosures. A successful source response is a read, not proof that the
+provider disclosed every event.
+
+`announcements-recent.json` supplies the first 30 days plus undated company announcements to the
+existing table. **Load all captured history** joins per-company histories and the BSE archive into
+that same table, filters, source links and Excel export. A partial archive load names unavailable
+files/companies rather than claiming completion. Company Filings reads its shared company file
+first; the explicit source-check button uses the authenticated API. Coverage details list failed,
+never-checked, overdue, backfilling and unregistered companies, and source-unavailable links.
+The source registry shows **Coverage gaps** while these conditions remain.
+
+Before applying recent display windows, the BSE and insider scrapers preserve records in
+`public/data/announcements-archive/` and `public/data/insider-archive/`, partitioned by month with
+an index. There is no archive expiry. The migration seeds the existing real snapshots (3,180 BSE
+announcements and 2,185 insider rows); it cannot recover events the dashboard never captured.
+Read-only staging checks also seed RELIANCE and INFY (109 domestic documents and two recent
+NSE announcements); all other companies remain explicitly unchecked for the new sources.
+Insider exact-row multiplicity and source columns are preserved. The insider scan has a 30-minute
+budget and prioritizes failed, unreached and older company reads; it also has a global request gate; incomplete scans retain last-good data and explicit failures.
+A complete insider capture is reused for 18 hours between scheduled company-capture passes.
+
+The BSE job also runs every two hours on all days, overlapping two days and recovering from the
+last completed date if a scheduled run was missed. A source pagination shortfall or unknown
+category prevents `coversUniverse: true` and does not advance `lastCompleteTo`.
+
+**Operational limit:** these jobs use the repository's existing snapshot publication pipeline once
+the change is approved and deployed. GitHub schedules are best-effort and have previously stalled;
+the browser watchdog detects an overdue company-capture report as an additional safety net.
+There is still no independent guaranteed scheduler: this Cloudflare account has no free cron slot.
+This change neither installs a production scheduler nor dispatches a production job. Deployment
+and any scheduler provisioning require separate, specific authorization. Analyst consensus remains
+unconnected, and exchange/provider omissions and unresolved company identities remain visible
+limitations. The dashboard must not advertise 100% completeness.
+
+Verification: `node scripts/verify-company-capture.mjs` exercises restart fairness, request pacing,
+time budgets, date gaps, partial/empty/auth failures, raw-universe scope, archive multiplicity,
+missing static files, and coverage reporting. The existing domestic, announcement, insider and
+snapshot contract tests cover the upstream parsers and additive consumer behavior.
+
+Operational detection and alert-delivery requirements are documented in
+[`FILINGS-OPERATIONS.md`](FILINGS-OPERATIONS.md). Source failures fail a post-publication health
+gate, and `/api/filings-health` exposes a read-only HTTP 503 signal for external monitoring.
 
 ## Adding a new data file
 
