@@ -1,4 +1,4 @@
-// Retained exchange-wide NSE corporate actions. One conditional static read serves every scope;
+// Retained NSE + Screener corporate actions. One conditional static read serves every scope;
 // adding a portfolio company needs no new upstream request because filtering happens at paint time.
 
 import { conditionalJson, readEntry, KEYS } from '../core/store.js';
@@ -31,7 +31,7 @@ export function createCorporateActionsFeed({
 
   function absorb(payload, origin, checkedAt) {
     if (payload?.version !== 1 || !Array.isArray(payload.rows) || !payload.rows.length) return false;
-    held = payload.rows.filter((row) => row?.ticker && row?.purpose && row?.id);
+    held = payload.rows.filter((row) => row?.company && row?.purpose && row?.id);
     if (!held.length) return false;
     source = {
       capturedAt: payload.capturedAt || null,
@@ -40,7 +40,10 @@ export function createCorporateActionsFeed({
       requestedFrom: payload.requestedFrom || null,
       requestedTo: payload.requestedTo || null,
       typeCounts: payload.typeCounts || {},
-      companyCount: payload.companyCount || new Set(held.map((row) => row.ticker)).size,
+      companyCount: payload.companyCount || new Set(held.map((row) => row.ticker || row.company)).size,
+      sources: payload.sources || {},
+      sourceCounts: payload.sourceCounts || { nse: held.length, screener: 0, enriched: 0, screenerOnly: 0 },
+      crossSourceDuplicates: payload.crossSourceDuplicates || 0,
       reason: null,
       degraded: null,
     };

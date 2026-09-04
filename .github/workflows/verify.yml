@@ -38,8 +38,10 @@ jobs:
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
-      - name: Verify retained NSE corporate actions and dynamic scope
+      - name: Verify retained combined corporate actions and dynamic scope
         run: node scripts/verify-corporate-actions.mjs public/data/corporate-actions.json
+      - name: Verify authenticated Screener action parsing and additive deduplication
+        run: node scripts/verify-screener-actions.mjs
       - name: Verify active Family Office holdings sync
         run: node scripts/verify-family-sync.mjs
       - name: Verify S Screen portfolio mirror safety

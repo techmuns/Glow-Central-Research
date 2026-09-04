@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { assertSafeCorporateActionReplacement, corporateActionType, corporateActionKey, normaliseNseCorporateActions, parseNseActionDate } from '../public/js/data/corporate-actions-shared.js';
+import { assertSafeCorporateActionReplacement, corporateActionType, corporateActionKey, normaliseNseCorporateActions, parseNseActionDate, validateScreenerActionRows } from '../public/js/data/corporate-actions-shared.js';
 import { createCorporateActionsFeed, filterCorporateActionsByScope } from '../public/js/data/corporate-actions.js';
 
 assert.equal(parseNseActionDate('04-Sep-2026'), '2026-09-04');
@@ -72,14 +72,22 @@ if (process.argv[2]) {
   assert.ok(Date.parse(body.capturedAt));
   assert.ok(Array.isArray(body.rows) && body.rows.length > 0);
   assert.equal(body.rowCount, body.rows.length);
-  assert.equal(body.companyCount, new Set(body.rows.map((row) => row.ticker)).size);
+  assert.equal(body.companyCount, new Set(body.rows.map((row) => row.ticker || `screener:${row.screener?.companyKey || row.company}`)).size);
+  const screener = [];
   for (const row of body.rows) {
     assert.equal(row.id, corporateActionKey(row));
-    assert.ok(row.ticker && row.company && row.purpose);
+    assert.ok((row.ticker || row.screener?.companyKey) && row.company && row.purpose);
     assert.ok(Object.hasOwn(row, 'exDate') && Object.hasOwn(row, 'recordDate'));
-    assert.equal(row.source, 'NSE');
-    assert.match(row.sourceUrl, /^https:\/\/www\.nseindia\.com\//);
+    const sources = row.sources || [row.source];
+    assert.ok(sources.every((source) => ['NSE', 'Screener'].includes(source)));
+    if (sources.includes('NSE')) assert.match(row.sourceUrl, /^https:\/\/www\.nseindia\.com\//);
+    if (sources.includes('Screener')) {
+      assert.ok(row.screener);
+      assert.match(row.screenerUrl, /^https:\/\/www\.screener\.in\/actions\//);
+      screener.push(row.screener);
+    }
   }
+  validateScreenerActionRows([...new Map(screener.map((row) => [row.id, row])).values()]);
 }
 
 console.log('PASS corporate actions parsing, retention, refresh and dynamic portfolio scope');

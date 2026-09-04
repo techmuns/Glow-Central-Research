@@ -71,31 +71,43 @@ The three Super Investors files load at bootstrap and seed `js/data/investors.js
 
 ## `public/data/corporate-actions.json` — LIVE
 
-NSE's exchange-wide corporate-actions calendar, captured hourly by
+NSE's exchange-wide corporate-actions calendar plus authenticated Screener action catalogues,
+captured every 15 minutes by
 `.github/workflows/corporate-actions-refresh.yml` through
 `scripts/scrape-corporate-actions.mjs`. The request covers the prior three years and the next year
-in one bounded response. The browser loads this file only when Corporate Actions opens, keeps it in
+in one bounded view. NSE is the official base. Screener adds its bonus, rights, split, buyback and
+dividend records and their structured terms. The browser loads this file only when Corporate Actions opens, keeps it in
 the shared IndexedDB cache, and conditionally checks it every 90 seconds while visible.
 
-The capture is replaced only after a successful HTTP response parses into a valid row set. A
-refusal, timeout, empty response, format change, or drop of more than 25% of the prior rows or
-companies exits without replacing the last valid file.
-The app-wide capture watchdog asks the fixed workflow to recover whenever the committed capture is
-more than 75 minutes old.
+Each upstream has an independent last-good layer. An NSE refusal, timeout, empty response, format
+change, or drop of more than 25% of the prior NSE rows or companies exits without replacing the
+file. A Screener failure retains the prior Screener rows while a valid NSE refresh continues.
+Normal Screener reads stop once they reach known head records; a daily full crawl reconciles older
+backfills, corrections and deletions.
+The app-wide capture watchdog asks the fixed workflow to recover whenever Screener's successful
+layer is more than 35 minutes old, so a fresh NSE write cannot hide a stalled enrichment source.
+
+Illustrative shape (counts change on every capture):
 
 ```jsonc
 {
   "version": 1,
   "capturedAt": "2026-09-04T19:52:40.891Z",
-  "source": "NSE corporate actions",
+  "source": "NSE + Screener corporate actions",
   "requestedFrom": "2023-09-05",
   "requestedTo": "2027-09-04",
-  "rowCount": 5806,
-  "companyCount": 1667,
-  "typeCounts": { "dividend": 4757, "bonus": 162 /* … */ },
+  "rowCount": 8871,
+  "companyCount": 2614,
+  "typeCounts": { "dividend": 7121, "bonus": 395 /* … */ },
   "skipped": 0,
   "excludedMeetings": 1396,
   "duplicates": 0,
+  "crossSourceDuplicates": 5205,
+  "sourceCounts": { "nse": 5806, "screener": 8270, "enriched": 5205, "screenerOnly": 3065 },
+  "sources": {
+    "nse": { "state": "live", "capturedAt": "2026-09-04T20:47:57.926Z", "rowCount": 5806 },
+    "screener": { "state": "live", "capturedAt": "2026-09-04T20:41:25.042Z", "fullHistory": true, "rowCount": 8270 }
+  },
   "rows": [ /* … */ ]
 }
 ```
@@ -110,15 +122,21 @@ more than 75 minutes old.
 | `actionType` | enum | Derived navigation label: `dividend`, `distribution`, `bonus`, `rights`, `split`, `buyback`, `demerger`, `interest`, `redemption`, `capital-reduction`, or `other`. It is not a score. |
 | `faceValue` | string \| null | Face value as supplied; no numeric interpretation is imposed on the capture. |
 | `exDate`, `recordDate`, `bookClosureStart`, `bookClosureEnd` | date \| null | NSE dates normalized from `DD-Mmm-YYYY` to ISO; missing and invalid dates stay null. |
-| `source` | `"NSE"` | Source identity. |
-| `sourceUrl` | URL | Official NSE company-action view. |
+| `source`, `sources` | string, array | `NSE`, `Screener`, or both. Both source identities remain on an enriched row. |
+| `sourceUrl` | URL | NSE action view for rows carrying NSE; Screener catalogue URL for Screener-only rows. |
+| `screenerUrl`, `screenerCompanyUrl` | URL \| null | Screener catalogue and company links when that source contributed. |
+| `screener` | object \| null | Original Screener identity plus structured `ratio`, `premium`, split face values, buyback end date/type/max price/amount, or dividend type/percent fields. |
 
-The file covers the exchange rather than the current book. Portfolio and Watchlist filter the
+The file covers the sources' market-wide catalogues rather than the current book. Portfolio and Watchlist filter the
 same retained rows at paint time, so a newly added symbol does not wait for a new upstream capture.
 Portfolio matching also uses ISIN, so a symbol rename does not detach earlier actions from the book.
 Meeting-only AGM/EGM diary entries returned by the endpoint are counted in `excludedMeetings` and
-left out of this action feed; a meeting row that also declares an action remains. An action absent
-from NSE's published calendar cannot be inferred or filled from another site.
+left out of this action feed; a meeting row that also declares an action remains.
+
+A Screener row enriches an NSE row only when the ticker, action type and ex date produce exactly
+one candidate from each source. The NSE purpose and URL remain authoritative while Screener's
+structured fields and links are attached. Ambiguous candidates and source-only actions stay as
+separate rows. Repeated collection is idempotent on stable source keys.
 
 ---
 

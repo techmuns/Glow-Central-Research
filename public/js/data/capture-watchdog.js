@@ -50,11 +50,12 @@ const CONFIG = {
     budgetMs: 20 * 60 * 1000,
   },
   corporateActions: {
+    sourceId: 'screener',
     route: 'api/corporate-actions-snapshot/refresh?source=auto',
     run: 'api/corporate-actions-snapshot/run',
-    maxAgeMs: 75 * 60 * 1000,
+    maxAgeMs: 35 * 60 * 1000,
     active: () => true,
-    budgetMs: 20 * 60 * 1000,
+    budgetMs: 30 * 60 * 1000,
   },
   insider: {
     route: 'api/insider-snapshot/refresh?source=auto',
@@ -142,7 +143,8 @@ export function refreshDue(name, capture, now = Date.now()) {
 export function freshnessOf(name, capture) {
   const owner = CONFIG[name]?.sourceId;
   const mine = owner ? capture?.sources?.[owner]?.capturedAt : null;
-  return mine || capture?.capturedAt || null;
+  if (owner && capture?.sources && Object.hasOwn(capture.sources, owner)) return mine || null;
+  return capture?.capturedAt || null;
 }
 
 async function applyLandedCapture(name) {

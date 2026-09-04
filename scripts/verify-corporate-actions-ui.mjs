@@ -9,17 +9,25 @@ import { resolve, extname, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
 const at = '2026-09-04T18:00:00.000Z';
-const row = (ticker, company, purpose, type, exDate) => ({
+const row = (ticker, company, purpose, type, exDate, screener = null) => ({
   ticker, company, isin: `INE${ticker.padEnd(9, '0').slice(0, 9)}`, series: 'EQ', purpose, actionType: type,
   faceValue: '10', exDate, recordDate: exDate, bookClosureStart: null, bookClosureEnd: null, source: 'NSE',
   sourceUrl: `https://www.nseindia.com/companies-listing/corporate-filings-actions?symbol=${ticker}&tabIndex=equity`,
+  sources: screener ? ['NSE', 'Screener'] : ['NSE'],
+  ...(screener ? { source: 'NSE + Screener', screener, screenerUrl: screener.sourceUrl, screenerCompanyUrl: screener.companyUrl } : {}),
   id: `${ticker}|EQ|${exDate}|${exDate}|${purpose}`,
+});
+const screener = (ticker, company, type, exDate, fields) => ({
+  id: `${ticker}|${type}|${exDate}|${type === 'dividend' ? String(fields.dividendType || '').toLowerCase() : ''}`,
+  companyKey: ticker, ticker, company, companyUrl: `https://www.screener.in/company/${ticker}/consolidated/`,
+  actionType: type, exDate, catalogueKey: type === 'dividend' ? 'dividend:2026' : type,
+  sourceUrl: `https://www.screener.in/actions/${type === 'rights' ? 'right' : type}/`, observedAt: at, ...fields,
 });
 const capture = {
   version: 1, capturedAt: at, requestedFrom: '2023-09-05', requestedTo: '2027-09-04', companyCount: 3,
   typeCounts: { dividend: 1, bonus: 1, rights: 1 },
   rows: [
-    row('TCS', 'Tata Consultancy Services Limited', 'Dividend - Rs 10 Per Share', 'dividend', '2026-09-10'),
+    row('TCS', 'Tata Consultancy Services Limited', 'Dividend - Rs 10 Per Share', 'dividend', '2026-09-10', screener('TCS', 'Tata Consultancy Services Limited', 'dividend', '2026-09-10', { dividendType: 'Interim', percent: '100.00' })),
     row('INFY', 'Infosys Limited', 'Bonus 1:1', 'bonus', '2026-09-11'),
     row('NEWCO', 'New Company Limited', 'Rights 2:5', 'rights', '2026-09-12'),
   ],
@@ -67,8 +75,10 @@ try {
   await page.locator('[data-score-table]').waitFor();
   assert.match(await page.locator('[data-row-count]').innerText(), /^1 action · 1 company$/);
   assert.match(await page.locator('tbody').innerText(), /Dividend - Rs 10 Per Share/);
-  assert.deepEqual(await page.locator('thead th').allInnerTexts(), ['PURPOSE', 'TYPE', 'EX DATE ▾', 'RECORD DATE', 'FACE VALUE', 'SOURCE']);
+  assert.match(await page.locator('tbody').innerText(), /Interim · 100.00%/);
+  assert.deepEqual(await page.locator('thead th').allInnerTexts(), ['PURPOSE', 'TYPE', 'EX DATE ▾', 'RECORD / END DATE', 'TERMS', 'SOURCE']);
   assert.equal(await page.locator('tbody a[href*="nseindia.com"]').count(), 1);
+  assert.equal(await page.locator('tbody a[href*="screener.in"]').count(), 1);
   assert(await page.evaluate(() => window.pollStarted && window.poll.intervalMs === 90000));
 
   await page.evaluate(() => window.renderScope('universe'));

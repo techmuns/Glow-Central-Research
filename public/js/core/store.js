@@ -75,7 +75,7 @@ export const KEYS = {
   nseFilings: 'nse-filings',
   // Separate from the HTTP response/ETag: a shrinking live window cannot erase retained rows.
   nseFilingsHistory: 'nse-filings:history',
-  // NSE's exchange-wide corporate-actions calendar. One retained snapshot serves all scopes.
+  // NSE + Screener's exchange-wide corporate-actions calendar. One retained snapshot serves all scopes.
   corporateActions: 'corporate-actions',
   // X/Twitter posts from the monitored handles, which join the market-news list. Its own key
   // rather than a slice of `marketNews`: the two are separate captures with separate ETags, and a

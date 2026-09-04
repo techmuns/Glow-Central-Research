@@ -1882,7 +1882,12 @@ async function handleCaptureStatus(request, env, ctx) {
         // the file carries one, and `capturedAt` stays the whole capture's for everything else.
         const perSource = Array.isArray(body.sources)
           ? Object.fromEntries(body.sources.map((s) => [s.id, { capturedAt: s.capturedAt || null, ok: s.ok !== false }]))
-          : null;
+          : body.sources && typeof body.sources === 'object'
+            ? Object.fromEntries(Object.entries(body.sources).map(([id, source]) => [id, {
+                capturedAt: source?.capturedAt || null,
+                ok: source?.state ? source.state === 'live' : source?.ok !== false,
+              }]))
+            : null;
         captures[name] = {
           ok: true,
           capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || body.lastRunFinishedAt || null,
