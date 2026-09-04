@@ -83,7 +83,7 @@ try {
   });
   nseRows = [{ ...nseRow, subject: 'Just arrived', publishedAt: '2026-09-04T13:00:00Z', url: 'https://example.test/new.pdf' }, ...nseRows];
   await page.clock.fastForward(90100);
-  await page.waitForFunction(() => window.stream.rows().some(r => r.title === 'Just arrived'));
+  await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key]')?.textContent.includes('Just arrived') && !window.stream.meta().archive.pending);
   const after = await page.locator('[data-table-scroll]').evaluate((el, key) => {
     const row = [...el.querySelectorAll('tbody tr')].find(row => row.dataset.rowKey === key);
     return row?.getBoundingClientRect().top - el.getBoundingClientRect().top;

@@ -352,6 +352,10 @@ export function makeFilingsTab(cfg) {
       ${table.html}
       ${methodFooter(cfg)}`;
 
+    const nextScroller = ctx.root.querySelector('[data-table-scroll]');
+    // We restore a specific filing below. Native scroll anchoring must not apply a second
+    // adjustment when Chromium lays out the replacement rows or appends the next page.
+    if (cfg.preserveReadingPosition) nextScroller.style.overflowAnchor = 'none';
     disposers.push(table.wire(ctx.root));
     if (position) {
       const scroller = ctx.root.querySelector('[data-table-scroll]');
