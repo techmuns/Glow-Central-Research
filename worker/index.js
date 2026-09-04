@@ -33,7 +33,10 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, withCallerToken, MunsError } from './muns.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, fetchDomesticFilings, searchStocks, withCallerToken, MunsError } from './muns.mjs';
+import { DOMESTIC_FORMS } from '../public/js/data/domestic-filings-shared.js';
+import { announcementRange } from '../public/js/data/announcements-shared.js';
+import { assessFilingsHealth, FILINGS_HEALTH_FILES } from '../public/js/data/filings-health-shared.js';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 import {
   dispatchWorkflow,
@@ -50,6 +53,9 @@ import {
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
 import { handleFamilyPortfolio } from './family-portfolio.mjs';
+import { handleCombinedFilings } from './combined-filings.mjs';
+import { handleDrhpFilings } from './drhp-filings.mjs';
+import { handleIpoMonitor } from './ipo-monitor.mjs';
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
@@ -109,6 +115,11 @@ export default {
       return preflight();
     }
 
+    // isRead is caller-specific. This route must bypass deployment-token fallback and edge caches.
+    if (url.pathname === '/api/combined-filings') return handleCombinedFilings(request);
+    if (url.pathname === '/api/drhp-filings') return handleDrhpFilings(request);
+    if (url.pathname === '/api/ipo-monitor') return handleIpoMonitor(request);
+
     // THE READER'S OWN TOKEN, BUT ONLY WHERE THIS DEPLOYMENT HAS NONE. The dashboard runs inside
     // the Munshot host, which hands the browser the signed-in reader's session JWT; the browser
     // sends it back on these same-origin routes (js/core/host-context.js). `withCallerToken` fills
@@ -157,6 +168,9 @@ export default {
     }
     if (url.pathname.startsWith('/api/insider-trades/')) {
       return handleMuns(request, env, ctx, 'insider', url.pathname.slice('/api/insider-trades/'.length));
+    }
+    if (url.pathname.startsWith('/api/domestic-filings/')) {
+      return handleMuns(request, env, ctx, 'domestic', url.pathname.slice('/api/domestic-filings/'.length));
     }
     // POST-ONLY, DELIBERATELY. This is the one route here that makes something happen rather than
     // reporting something — a GET that started a scrape could be fired by a prefetcher, a link
@@ -248,6 +262,9 @@ export default {
         workflow: DATA_WORKFLOW,
         cacheName: 'data-snapshot-run-status',
       });
+    }
+    if (url.pathname === '/api/filings-health') {
+      return handleFilingsHealth(request, env, ctx);
     }
     if (url.pathname === '/api/capture-status') {
       return handleCaptureStatus(request, env, ctx);
@@ -670,7 +687,7 @@ async function handleCalendar(request, env, ctx) {
 // A FAILURE IS CACHED FOR SECONDS, NOT MINUTES. These are session JWTs and they expire, so a
 // corrected token has to take effect at once rather than after the success TTL.
 // ---------------------------------------------------------------------------------------
-const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900 };
+const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900, domestic: 900 };
 const MUNS_FAIL_TTL_S = 15;
 
 // Company names move much less often than filings. Cache each query at the edge so ten readers
@@ -709,13 +726,20 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
 
   const url = new URL(request.url);
   const iso = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
-  const from = iso(url.searchParams.get('from'));
-  const to = iso(url.searchParams.get('to'));
+  let from = iso(url.searchParams.get('from'));
+  let to = iso(url.searchParams.get('to'));
+  if (kind === 'announcements') {
+    try { ({ from, to } = announcementRange(url.searchParams.get('from') || url.searchParams.get('fromDate'), url.searchParams.get('to') || url.searchParams.get('toDate'))); }
+    catch (err) { return json({ ok: false, reason: 'shape', message: err.message }, 400); }
+  }
 
   // A ticker is a path segment on two of these routes, so it is validated rather than passed
   // through: this must not become an open proxy to arbitrary upstream paths.
-  const ticker = decodeURIComponent(rawTicker).trim().toUpperCase();
-  if (kind !== 'news' && !/^[A-Z0-9&.\-]{1,20}$/.test(ticker)) {
+  let ticker;
+  try { ticker = decodeURIComponent(rawTicker).trim().toUpperCase(); }
+  catch { return json({ ok: false, reason: 'shape', message: 'That is not a valid ticker.' }, 400); }
+  const tickerPattern = ['announcements', 'domestic'].includes(kind) ? /^[A-Z0-9&._-]{1,80}$/ : /^[A-Z0-9&.\-]{1,20}$/;
+  if (kind !== 'news' && !tickerPattern.test(ticker)) {
     return json({ ok: false, reason: 'shape', message: 'That is not a ticker this route will ask about.' }, 400);
   }
 
@@ -724,7 +748,9 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     return json({ ok: false, reason: 'shape', message: 'A news search needs ?q=.' }, 400);
   }
 
-  const cacheKey = edgeKey(`muns-${kind}?t=${ticker}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}`);
+  const form = kind === 'domestic' ? url.searchParams.get('form') || 'all' : null;
+  if (form && !Object.hasOwn(DOMESTIC_FORMS, form)) return json({ ok: false, reason: 'shape', message: 'Choose all, concalls, annual_report or earnings_report.' }, 400);
+  const cacheKey = edgeKey(`muns-${kind}?t=${encodeURIComponent(ticker)}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}${form ? `&form=${form}&schema=2` : kind === 'announcements' ? '&schema=2' : ''}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -734,6 +760,7 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
   try {
     if (kind === 'news') payload = { ok: true, kind, ...(await fetchNews({ query, country: url.searchParams.get('country') || 'IN', fromDate: from, toDate: to }, env)) };
     else if (kind === 'announcements') payload = { ok: true, kind, ...(await fetchAnnouncements({ ticker, fromDate: from, toDate: to }, env)) };
+    else if (kind === 'domestic') payload = { ok: true, kind, ...(await fetchDomesticFilings({ ticker, form }, env)) };
     else payload = { ok: true, kind, ...(await fetchInsiderTrades({ ticker, country: 'india', fromDate: from, toDate: to }, env)) };
   } catch (err) {
     const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
@@ -1710,6 +1737,7 @@ async function handleWorkflowRunStatus(env, ctx, { workflow, cacheName }) {
 // dashboard cost one internal asset read per half-minute rather than one per reader.
 const CAPTURE_STATUS_TTL_S = 30;
 const CAPTURE_FILES = {
+  companyFilings: '/data/filing-capture/index.json',
   companyNews: '/data/news.json',
   insider: '/data/insider-trades.json',
   announcements: '/data/corp-announcements.json',
@@ -1717,11 +1745,36 @@ const CAPTURE_FILES = {
   marketNews: '/data/market-news.json',
 };
 
+// Read-only health signal for an independent uptime monitor. Never starts a capture or calls Muns.
+async function handleFilingsHealth(request, env, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
+  const key = edgeKey('filings-operational-health-v1');
+  const cache = caches.default;
+  const hit = await cache.match(key);
+  if (hit) {
+    const report = await hit.json();
+    return json(report, report.ok ? 200 : 503);
+  }
+  const captures = {};
+  await Promise.all(Object.entries(FILINGS_HEALTH_FILES).map(async ([source, path]) => {
+    try {
+      const response = await env.ASSETS.fetch(new Request(new URL(`/data/${path}`, request.url)));
+      if (!response.ok) throw new Error('Capture unavailable');
+      captures[source] = await response.json();
+    } catch { captures[source] = null; }
+  }));
+  const report = assessFilingsHealth(captures);
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(report), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'max-age=30' },
+  })));
+  return json(report, report.ok ? 200 : 503);
+}
+
 async function handleCaptureStatus(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
 
   const cache = caches.default;
-  const key = edgeKey('capture-status-v1');
+  const key = edgeKey('capture-status-v2');
   const held = await cache.match(key);
   if (held) {
     return new Response(held.body, {
@@ -1751,7 +1804,7 @@ async function handleCaptureStatus(request, env, ctx) {
           : null;
         captures[name] = {
           ok: true,
-          capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || null,
+          capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || body.lastRunFinishedAt || null,
           ...(perSource ? { sources: perSource } : {}),
           covered: Number.isFinite(body.covered) ? body.covered : Number.isFinite(body.company_count) ? body.company_count : null,
           failed: Number.isFinite(body.failedCount) ? body.failedCount : Number.isFinite(body.failures) ? body.failures : null,

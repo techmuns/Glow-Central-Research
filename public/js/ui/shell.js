@@ -31,6 +31,7 @@ import * as news from '../tabs/news.js';
 import * as corpAnnouncements from '../tabs/corp-announcements.js';
 import * as nseFilings from '../tabs/nse-filings.js';
 import * as insiderTrades from '../tabs/insider-trades.js';
+import * as ipos from '../tabs/ipos.js';
 
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
@@ -56,15 +57,18 @@ import * as insiderTrades from '../tabs/insider-trades.js';
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, corpAnnouncements, nseFilings, insiderTrades] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, nseFilings, insiderTrades] },
 ];
 
 let contentHost = null;
 let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
+let topTabs = null;
 
 export function mount(root) {
+  topTabs?.dispose();
+  topTabs = null;
   root.innerHTML = shellTemplate();
   contentHost = $('#content-host', root);
 
@@ -172,7 +176,7 @@ function shellTemplate() {
       <div id="portfolio-sync-status" role="status"></div>
     </header>
 
-    <nav class="mx-auto max-w-[1400px] px-6">
+    <nav class="mx-auto max-w-[1400px] px-6" aria-label="Research navigation">
       <div id="tabbar-mount" class="min-w-0"></div>
     </nav>
 
@@ -370,11 +374,18 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     chromeDisposers.push(subviewPicker.wire(subviewMount));
   }
 
-  const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
-  const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab });
-  const tabBarMount = $('#tabbar-mount', root);
-  tabBarMount.innerHTML = bar.html;
-  chromeDisposers.push(bar.wire(tabBarMount));
+  // Keep the strip mounted across routes: replacing it resets horizontal scroll and drops
+  // keyboard focus on every selection, including changes to the scope or subview.
+  if (topTabs?.workspace === ws.id) {
+    topTabs.bar.update(resolved.tab);
+  } else {
+    topTabs?.dispose();
+    const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
+    const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab, label: 'Research sections' });
+    const tabBarMount = $('#tabbar-mount', root);
+    tabBarMount.innerHTML = bar.html;
+    topTabs = { workspace: ws.id, bar, dispose: bar.wire(tabBarMount) };
+  }
 
   document.title = `${tabModule.meta.title} · Sattva Central Research`;
 

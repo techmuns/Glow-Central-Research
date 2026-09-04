@@ -251,6 +251,7 @@ export function startLive(live) {
 export async function refresh() {
   await load();
   const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
+  if (!Array.isArray(out.value?.rows) || out.value?.ok === false) throw Error('Con-call revalidation failed; retained analysis is unchanged');
   if (!out.value?.rows?.length) return cache;
   if (out.status === 304) {
     markChecked('live', out.checkedAt);

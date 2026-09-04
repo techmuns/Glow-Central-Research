@@ -619,7 +619,7 @@ export function rankReport(report, { holdings = coverage.holdings() } = {}) {
   );
 
   const recent = (report?.events || []).filter(
-    (event) => event.ticker && event.day && event.day >= firstDay && event.day <= day
+    (event) => event.aiEligible !== false && event.ticker && event.day && event.day >= firstDay && event.day <= day
   );
   const grouped = new Map();
   for (const event of recent) {

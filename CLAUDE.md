@@ -2377,6 +2377,12 @@ label.
 
 ## General Alerts — the complete view, and the only one organised as a TIMELINE
 
+**Current pool contract:** [GENERAL-ALERTS-POOL.md](docs/GENERAL-ALERTS-POOL.md) supersedes the
+historical nine-feed, threshold-entry and mount/Refresh-only descriptions below. General Alerts
+now retains available source records, including undated records and future schedules; nineteen
+categories cover the source tabs. Scope is applied after collection, private/on-demand coverage is
+explicit, and raw observations do not implicitly change the AI priority policy.
+
 Every other tab here is organised by SOURCE. That is right for research and wrong for the first
 thirty seconds of a morning, when the question is not *what does Moneycontrol have* but *what
 happened, and does any of it need me*.
@@ -3125,7 +3131,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
-| Change Corporate Announcements | `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs` — read *Ask the axis the data is published on* first. It does **not** go through `worker/muns.mjs` and must not go back |
+| Change Corporate Announcements | Keep the exchange-wide base in `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs`. Additional user-requested company/date lookups use `worker/muns.mjs` + `js/data/announcements-extra.js`; they merge with the table and never replace the base capture or claim universe coverage. |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
@@ -3426,3 +3432,14 @@ It covers, beyond the checklist below:
 > Sandbox note: the agent proxy may not reach Google Fonts or ExcelJS. The committed Tailwind
 > stylesheet still gives screenshots the shipped layout and colours; the browser falls back to
 > system fonts when Google Fonts is unavailable. Export checks report SKIP when ExcelJS cannot load.
+
+## Automatic filing coverage (September 2026)
+
+The company announcement and domestic-filings integrations now share the scheduled
+`insider-trades-refresh.yml` capture. See `docs/DATA-CONTRACTS.md` → Automatic company capture
+and permanent filing history for the authoritative contract. Do not replace BSE's date feed
+with company lookups, discard captured history on an empty/failing response, advance a date
+checkpoint after a partial parse, or equate a successful source check with complete coverage.
+`company-capture.mjs` owns resumable state; `filing-archive.mjs` preserves BSE/insider events
+before recent display windows apply. The frontend exposes coverage gaps and archived rows.
+Production activation remains subject to the user's PR-specific deployment authorization.

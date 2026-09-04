@@ -11,6 +11,7 @@
 //   'mock'    — placeholder data ships in the repo; the real source is named but not connected
 //   'pending' — nothing exists yet; named so the gap is visible rather than hidden
 
+import { companyCaptureStatus } from '../data/company-captures.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatRelativeTime, formatNumber } from '../core/format.js';
 import * as coverage from '../data/coverage.js';
@@ -25,7 +26,7 @@ import * as nseFeed from '../data/nse-filings.js';
 import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
 import * as superInvestors from '../data/super-investors.js';
-// NOT TYPED OUT. The threshold is stated in the General Alerts row reasons, its export and here; all
+// NOT TYPED OUT. The threshold is stated in the All Alerts row reasons, its export and here; all
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
@@ -46,6 +47,17 @@ import * as aiAlerts from '../data/ai-alerts.js';
 // written to lose the clause rather than print a wrong figure — "every earnings call held this
 // quarter" is true forever; "877 of them" is true for about a day.
 // ---------------------------------------------------------------------------------------
+
+function capturedSourceState(kind) {
+  const status = companyCaptureStatus(kind);
+  return !status.available ? 'pending' : status.error || status.gaps.length || status.unresolved.length || status.unavailableLinks ? 'partial' : 'live';
+}
+function capturedSourceCadence(kind) {
+  const status = companyCaptureStatus(kind);
+  return 'Scheduled every two hours; progress resumes across runs. ' + (!status.available ? 'No shared capture published yet.' :
+    `${status.checked}/${status.total} recently checked, ${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. `) +
+    'Shared history does not expire; personal device-only additions are outside scheduled coverage.';
+}
 
 /** A live count, or null if the feed has not loaded. Never 0-as-unknown — see the header. */
 function num(fn) {
@@ -197,18 +209,18 @@ export function sourceGroups() {
       // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
       // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
       // not exist.
-      title: 'AI & General Alerts',
+      title: 'AI & All Alerts',
       icon: '🔔',
-      tabs: 'AI Alerts · General Alerts',
+      tabs: 'AI Alerts · All Alerts',
       items: [
         {
           name: 'No source of its own — two views over the research feeds below',
           feeds:
-            '<strong>General Alerts</strong> consolidates Earnings, Con-calls, Public Chatter, Breakouts / Technical, Super Investors, News, Corp Announcements and Insider Trades, ordered newest-first by Indian date and available time. Its date filter narrows the already-loaded timeline without issuing another request. ' +
+            `<strong>All Alerts</strong> retains the available records from ${dailyAlerts.FEEDS.length} source categories, including NSE filings, IPO history and tracked-issuer supplements, schedules, institutional holdings, X posts and session-only document lookups. Missing dates and unresolved companies remain visible in Universe; on-demand coverage is explicitly labelled. Date filters narrow the loaded pool without issuing requests. ` +
             '<strong>Positive / Negative / Neutral</strong> direction and <strong>High / Low</strong> importance are separate, and every row prints both reasons. Source sentiment is reproduced where it exists; insider and investor transactions use their own direction; announcements use the narrow rules documented here; news remains neutral. ' +
             `High thresholds include ±${dailyAlerts.MOVE_PCT}% price moves, ${dailyAlerts.INSIDER_HIGH_PCT}% or ₹${dailyAlerts.INSIDER_HIGH_VALUE / 10_000_000} crore insider activity, ${dailyAlerts.INVESTOR_HIGH_PP}pp investor changes, and ${dailyAlerts.CHATTER_HIGH_MENTIONS} mentions or ${dailyAlerts.CHATTER_HIGH_CHANGE_PCT}% mention change. ` +
-            `Its panel keeps retained rows separate from whether each feed has looked today. <strong>AI Alerts</strong> groups the same company-specific events over ${aiAlerts.WINDOW_DAYS} days and applies an explainable ${aiAlerts.MIN_SCORE}-point priority threshold. It scores materiality, recency, direction, real Portfolio membership, independent-feed corroboration, conflicts and portfolio-sector clusters; stale feeds are penalised. Tickerless market news and lower-scoring names stay in General Alerts. Portfolio Analytics weights and conviction are not used because that ledger is illustrative.`,
-          cadence: 'Rebuilt on every visit and on Refresh from each owning feed; nothing on it walks per company',
+            `Its panel distinguishes failed, stale and on-demand coverage from current data. <strong>AI Alerts</strong> applies its existing ${aiAlerts.WINDOW_DAYS}-day, ${aiAlerts.MIN_SCORE}-point policy to supported company signals; newly retained raw snapshots and schedules are not automatically ranked as corroboration. Broader AI interpretation is a separate phase. No illustrative portfolio weights are used.`,
+          cadence: 'All Alerts revalidates on visit, Refresh and every 90 seconds while visible. Source updates reuse loaded records; no per-company walks or upstream job dispatches.',
           status: 'live',
           file: 'js/data/ai-alerts.js · js/tabs/ai-alerts.js · js/data/daily-alerts.js · js/tabs/daily-alerts.js',
         },
@@ -281,7 +293,7 @@ export function sourceGroups() {
     {
       title: 'Earnings & filings',
       icon: '📊',
-      tabs: 'Earnings Hub · Breakouts → Earnings Surprise',
+      tabs: 'Earnings Hub · Con-call · Breakouts → Earnings Surprise',
       items: [
         {
           name: 'Live published-results feed',
@@ -311,22 +323,22 @@ export function sourceGroups() {
           file: 'public/data/result-returns.json · scripts/scrape-result-returns.mjs',
         },
         {
-          name: 'BSE / NSE corporate filings',
-          url: 'https://www.nseindia.com/companies-listing/corporate-filings-financial-results',
-          feeds:
-            'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it uses the live published-results feed above.',
-          cadence: 'Event-driven during results season — not yet connected',
-          status: 'mock',
-          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
-        },
-        {
-          name: 'Screener.in / Trendlyne — consensus',
+          name: 'Screener.in — company filings',
           url: 'https://www.screener.in/',
           feeds:
-            'Street EPS and revenue estimates behind the two Surprise rules and the beat/miss tag in Breakouts. <strong class="text-amber-700">Synthetic today:</strong> generated alongside the actuals, so a beat is an artefact of the generator, not of the street.',
-          cadence: 'Refreshed alongside each result — not yet connected',
-          status: 'mock',
-          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
+            'Annual report PDFs, earnings report PDFs and concall transcripts for an Indian ticker, read through the authenticated Muns domestic-filings service. Open Earnings Hub → Company Filings, or follow Reports / Transcripts from a company row. Documents keep their original source links. This source provides documents; it does not populate a financial quality score or analyst estimates.',
+          cadence: capturedSourceCadence('domestic'),
+          status: capturedSourceState('domestic'),
+          file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
+        },
+        {
+          name: 'Analyst consensus estimates',
+          url: null,
+          feeds:
+            'No verified consensus feed is connected. EPS and revenue estimates, beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable. Generated figures have been removed from the dashboard and Ask Research. Filing PDFs alone do not supply analyst estimates.',
+          cadence: 'Awaiting a real estimates source',
+          status: 'pending',
+          file: 'public/js/tabs/breakouts.js · public/js/research/estate.js',
         },
         {
           name: 'Published results calendar — counts',
@@ -425,12 +437,12 @@ export function sourceGroups() {
           name: 'Tracked news keywords (computed)',
           url: null,
           feeds:
-            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces, against each filing\'s subject and BSE\'s own sub-category on Corp Announcements, and used as the materiality rule for both feeds in General Alerts and AI Alerts. ' +
+            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces, against each filing\'s subject and BSE\'s own sub-category on Corp Announcements, and used as the materiality rule for both feeds in All Alerts and AI Alerts. ' +
             'It exists because the news upstream is a <strong>search by company name</strong>, so the capture is a name match and names collide: on the shipped file, filtering 11,060 stories by these keywords leaves 2,889. ' +
-            '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in General Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
+            '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in All Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
             'Several patterns are deliberately narrower than the plain word, and each says so on its own chip: a bare <em>trial</em> matched free-trial boilerplate, a bare <em>fire</em> matched "stock on fire". ' +
             'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>. ' +
-            'On announcements it also <strong>replaced</strong> a borrowed gate rather than sitting beside one: BSE\'s own critical flag marks about a third of all filings, most of them AGM notices, so it is reproduced on every row but no longer decides what General Alerts calls material — measured, high importance there fell from 32% of filings to 11%.',
+            'On announcements it also <strong>replaced</strong> a borrowed gate rather than sitting beside one: BSE\'s own critical flag marks about a third of all filings, most of them AGM notices, so it is reproduced on every row but no longer decides what All Alerts calls material — measured, high importance there fell from 32% of filings to 11%.',
           cadence: 'Recomputed on every load',
           status: 'static',
           file: 'public/js/data/news-keywords.js',
@@ -454,9 +466,17 @@ export function sourceGroups() {
           // screen and this feed only loads when its tab mounts. A sentence built AROUND a number
           // reads as broken prose the moment it does not arrive.
           cadence:
-            `Refreshed weekdays at 20:00 IST, after filing stops for the day.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().rowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().covered), ' <n> companies filed something.')}`,
+            `Scheduled every two hours, including weekends; missed date windows are retried and older rows are archived.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().baseRowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().baseCovered), ' <n> companies filed something.')}`,
           status: 'live',
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · .github/workflows/announcements-refresh.yml',
+        },
+        {
+          name: 'Muns — BSE / NSE / DRHP corporate announcements',
+          url: 'https://devde.muns.io',
+          feeds: 'Additional corporate announcements from BSE, NSE fallback and DRHP documents through the authenticated corporate-announcements endpoint. Scheduled captures cover the committed companies; the company/date form permits an immediate check. Results join the existing table with source labels and document links; matching disclosures are deduplicated. Saved lookup rows survive an empty or failed refresh. Coverage is limited to the companies and dates requested, not the whole NSE or DRHP universe.',
+          cadence: capturedSourceCadence('announcements'),
+          status: capturedSourceState('announcements'),
+          file: 'worker/muns.mjs → GET /filings/corp/announcements/{ticker} · public/js/data/announcements-extra.js',
         },
         {
           name: 'NSE — live exchange announcements',
@@ -476,6 +496,30 @@ export function sourceGroups() {
           cadence: 'Additive history within a rolling 365-day window · captured weekdays at 19:00 IST; Refresh adds live disclosures while retaining earlier captures',
           status: 'live',
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
+        },
+        {
+          name: 'Muns — combined company filings & reports',
+          url: 'https://devde.muns.io/api',
+          feeds: '<strong>Company-specific document lookup, not a market-wide capture.</strong> The combined filings endpoint supplies BSE/NSE announcements, DRHP and Screener reports. Corp Announcements offers all documents and annual reports; NSE Filings retains only identified NSE documents; Con-call and Earnings Hub request their corresponding document forms. Sources, original document links and supplied read status are retained. Identical document links are deduplicated. Unknown dates and read flags are not invented. Requires the signed-in Munshot reader; personal read status is never stored in the shared cache.',
+          cadence: 'On demand, one selected Indian company and up to one year per request. No background universe sweep. Authenticated response verification is still pending; request contract checked against the published API schema.',
+          status: 'pending',
+          file: 'worker/combined-filings.mjs · public/js/ui/company-documents.js · public/js/data/combined-filings-shared.js',
+        },
+        {
+          name: 'Muns — IPO / DRHP company lookup',
+          url: 'https://devde.muns.io/api',
+          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> IPOs → Company documents and Corp Announcements → IPO / DRHP filings accept a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
+          cadence: 'On demand, up to 50 filings per company. No automatic IPO discovery or social-buzz monitoring. Requires the signed-in reader. Nested-document mapping is fixture-tested; a successful authenticated response still needs verification.',
+          status: 'pending',
+          file: 'worker/drhp-filings.mjs · public/js/ui/drhp-documents.js · public/js/data/drhp-shared.js',
+        },
+        {
+          name: 'DRHP dashboard — public IPO monitor & historical tracker',
+          url: 'https://github.com/techmuns/DRHP',
+          feeds: '<strong>Published captures, not a complete or live IPO universe.</strong> The IPOs tab reads the DRHP dashboard’s latest filings, scoring model, NSE market observations and saved weekly snapshots. Full Tracker retains older issuers and filing histories; original financial provenance, source links and secondary Groww data remain inspectable. A prospectus alone is never treated as a confirmed listing. EAAA has a separately labelled, source-verified supplement linking its issuer DRHP/addendum notices; this is not an automated issuer crawler. News & X only filters existing captures and reports absent X coverage explicitly.',
+          cadence: 'Reference pipeline publishes weekly (Monday). Opening IPOs or checking for updates reads its newest published artifact, edge-cached up to five minutes; it does not run the capture pipeline. Source data date and check time are separate. Nine imported snapshots provide a labelled offline fallback. Scope is all captured issuers, including unlisted companies, independent of holdings.',
+          status: 'live',
+          file: 'worker/ipo-monitor.mjs · public/js/tabs/ipos.js · public/data/ipo-monitor/ · public/data/ipo-tracked-issuers.json',
         },
         {
           name: 'Ticker Finology — superstar investors',
@@ -577,6 +621,7 @@ const STATUS_CHIP = {
   // Indigo is the brand/action colour and this status IS an action — a source that produces
   // nothing until the reader asks it to. It is deliberately not emerald: counting it among the
   // live feeds would claim data is flowing when none is until someone clicks.
+  partial: 'bg-amber-50 text-amber-700 ring-amber-200',
   ondemand: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
   // A source this browser is monitoring that nothing has read yet. Amber rather than emerald for
   // the reason the whole registry exists: green means data is arriving, and none is until a
@@ -590,10 +635,11 @@ export const STATUS_LABEL = {
   live: 'Live',
   static: 'Real · manual',
   mock: 'Mock data',
+  partial: 'Coverage gaps',
   ondemand: 'On demand',
   adding: 'Adding…',
   unreadable: 'Not found',
-  pending: 'Not yet built',
+  pending: 'Not connected',
 };
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
@@ -614,7 +660,7 @@ export function sourcesModalHtml() {
             Every source that feeds this dashboard, grouped by the tabs it serves.
             <span class="font-semibold text-slate-700">${live} of ${total}</span> are wired to a live feed today,
             ${realStatic} more carry real data refreshed by hand${onDemand ? `, and ${onDemand} runs only when you ask it to` : ''} —
-            the rest ship with mock data and are labelled as such.
+            other sources show their connection status individually.
           </p>
         </div>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>

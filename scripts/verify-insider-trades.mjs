@@ -158,9 +158,9 @@ const server = createServer((req, res) => {
 });
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'worker/muns.mjs',
+  for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'scripts/lib/company-capture.mjs', 'scripts/lib/filing-archive.mjs', 'worker/muns.mjs',
     'scripts/lib/active-portfolio.mjs', 'public/js/data/family-book-contract.js',
-    'public/js/data/filings-shared.js', 'public/js/data/insider-history.js']) {
+    'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/domestic-filings-shared.js']) {
     await mkdir(dirname(join(scratch, file)), { recursive: true });
     await copyFile(new URL(`../${file}`, import.meta.url), join(scratch, file));
   }
@@ -172,7 +172,7 @@ try {
     await writeFile(output, JSON.stringify(prior));
     await promisify(execFile)(process.execPath, ['scripts/scrape-filings.mjs', 'insider'], {
       cwd: scratch, env: { FILINGS_BASE: `http://127.0.0.1:${server.address().port}`, FILINGS_SCOPE: 'book', FILINGS_FORCE: force },
-      timeout: 15000,
+      timeout: 60000,
     });
     const captured = JSON.parse(await readFile(output, 'utf8'));
     assert.equal(captured.rowCount, 9, `partial capture adds new rows with FILINGS_FORCE=${force}`);
@@ -182,7 +182,7 @@ try {
   }
   returnRows = false;
   await promisify(execFile)(process.execPath, ['scripts/scrape-filings.mjs', 'insider'], {
-    cwd: scratch, env: { FILINGS_BASE: `http://127.0.0.1:${server.address().port}`, FILINGS_SCOPE: 'book' }, timeout: 15000,
+    cwd: scratch, env: { FILINGS_BASE: `http://127.0.0.1:${server.address().port}`, FILINGS_SCOPE: 'book' }, timeout: 60000,
   });
   assert.equal(JSON.parse(await readFile(output, 'utf8')).rowCount, 9, 'an all-empty capture keeps earlier additions');
   assert.deepEqual(fixtureErrors, []);

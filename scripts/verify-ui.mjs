@@ -1075,7 +1075,7 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Ask Research is the landing tab; AI Alerts and General Alerts retain their focused checks
+// 3d. Ask Research is the landing tab; AI Alerts and All Alerts retain their focused checks
 // ---------------------------------------------------------------------------------------
 console.log('\n— AI alerts —');
 {
@@ -1348,7 +1348,7 @@ console.log('\n— AI alerts —');
   // button — so this names one rather than asserting there is only one to name.
   await aiCards.first().locator('[data-open-general]').first().click();
   await page.waitForTimeout(5000);
-  ok('a card drills into General Alerts without changing the selected scope',
+  ok('a card drills into All Alerts without changing the selected scope',
     /\/daily-alerts\?scope=portfolio/.test(page.url()) && new URL(page.url()).hash.includes(`company=${firstTicker}`), page.url());
   const seeded = await page.locator('#content-host [data-table-search]').inputValue();
   // Count REAL result rows. `tbody tr` includes the one empty-state row, so the old assertion
@@ -1439,9 +1439,9 @@ console.log('\n— AI alerts —');
 
   // A QUESTION THAT NAMES A COMPANY GETS THAT COMPANY, FROM EVERY SOURCE THAT CARRIES IT. Measured
   // against the shipped data rather than a fixture: the book company with events in the most
-  // General Alerts feeds is asked about by NAME, in lower case, and the packet must resolve it to
+  // All Alerts feeds is asked about by NAME, in lower case, and the packet must resolve it to
   // its ticker and land its rows from more than one source. Before this, "anything i should know
-  // about IIFL finance?" was answered "not present" over four visible General Alerts rows.
+  // about IIFL finance?" was answered "not present" over four visible All Alerts rows.
   const companyAudit = await evalSafe(async () => {
     const { buildResearchEvidence } = await import('/js/research/estate.js');
     const alerts = await import('/js/data/daily-alerts.js');
@@ -1476,7 +1476,7 @@ console.log('\n— AI alerts —');
     `"${companyAudit.name}" → ${companyAudit.resolved?.map((company) => `${company.ticker} (${company.inScope ? 'in scope' : 'outside scope'})`).join(', ') || 'nothing'}`);
   ok('...and lands that company\'s rows from more than one source, ahead of every other company\'s',
     companyAudit.carrying?.length >= 2 && companyAudit.alertRows >= Math.min(companyAudit.alertFeeds, 2) && companyAudit.companyRowsFirst === true,
-    `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} General Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
+    `${companyAudit.ticker}: ${companyAudit.carrying?.join(', ')} · ${companyAudit.alertRows} All Alerts row(s) of ${companyAudit.alertFeeds} feed(s)`);
 
   // THE MOCK LEDGER IS NOT EVIDENCE. It used to be the fifteenth source — invented quantities and
   // costs, marked live, summarised into XIRR/TWR/drawdown and streamed to the model, which then
@@ -1577,14 +1577,14 @@ console.log('\n— AI alerts —');
 
   // AN ANSWER SAVED BEFORE ITS COMPANIES WERE STORED STILL DEEP-LINKS. Its question is resolved
   // again on first paint and the result stored on the message — so a conversation from before
-  // the link change opens General Alerts on the company's nineteen rows, not on all 21,000.
+  // the link change opens All Alerts on the company's nineteen rows, not on all 21,000.
   const legacyMember = await page.evaluate(async () => {
     const coverage = await import('/js/data/coverage.js');
     const member = coverage.holdings().find((h) => h.ticker && h.name && h.name.split(' ').length >= 2);
     const stored = JSON.parse(localStorage.getItem('sattva:ask-research:v1') || '[]');
     stored.unshift({ id: 'legacy-answer', title: 'legacy', createdAt: '2026-09-01T00:00:00Z', updatedAt: '2099-01-01T00:00:00Z', messages: [
       { role: 'user', text: `anything i should know about ${member.name.toLowerCase()}?` },
-      { role: 'assistant', text: 'Filed today. [Dashboard: General Alerts]', dashboardSources: [{ id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts' }], webSources: [] },
+      { role: 'assistant', text: 'Filed today. [Dashboard: All Alerts]', dashboardSources: [{ id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts' }], webSources: [] },
     ] });
     localStorage.setItem('sattva:ask-research:v1', JSON.stringify(stored));
     return member.ticker;
@@ -1665,7 +1665,7 @@ console.log('\n— AI alerts —');
     `${seedTicker}: search "${seededSearch}", ${seededRows.length} row(s), company present ${seededCompanyPresent}`);
 
   // ---------------------------------------------------------------------------------------
-  // 3f. General Alerts — the complete chronological stream
+  // 3f. All Alerts — the complete chronological stream
   //
   // It must consolidate every feed, keep today's freshness distinct from retained history, and
   // reveal older dates through the table's own scroller in strict chronological order.
@@ -1678,7 +1678,7 @@ console.log('\n— AI alerts —');
   // beneath them already lists and the fourth printed the date; the description restated what the
   // coverage panel says per feed. What may not be lost with them is the provenance and the day, so
   // both are asserted here rather than the furniture that used to carry them.
-  ok('General Alerts carries no redundant stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
+  ok('All Alerts carries no redundant stat strip', (await page.locator('#content-host .stat-card').count()) === 0);
   ok('...and no description paragraph competing with the stream',
     !/in one stream\. Red is an alert/.test(daText));
   ok('the sub-view picker is hidden for this single-stream tab', await page.evaluate(() => {
@@ -1694,7 +1694,7 @@ console.log('\n— AI alerts —');
     (await page.locator('[data-alerts-info]').count()) === 1 &&
       (await page.locator('[data-alerts-info]').evaluate((el) => el.tagName)) === 'SPAN');
   const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
-  ok('General Alerts states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
+  ok('All Alerts states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
@@ -1703,7 +1703,8 @@ console.log('\n— AI alerts —');
   // in the registered source metadata. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
+  const expectedScopedFeeds = await page.evaluate(async () => (await import('/js/data/daily-alerts.js')).FEEDS.filter((f) => !['market-news', 'twitter'].includes(f.id)).length);
+  ok('the coverage panel accounts for every registered company-scopable feed', feedRows === expectedScopedFeeds, `${feedRows} feed rows`);
   ok('...and every research tab asked for is represented',
     ['Price & volume', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
@@ -1752,7 +1753,7 @@ console.log('\n— AI alerts —');
   // The status label must not bring back the long explainer overlay.
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(200);
-  ok('the General Alerts status opens no explainer popup',
+  ok('the All Alerts status opens no explainer popup',
     (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
   ok('...and a feed that could not be read is distinguished from one with nothing to report',
     !/could not be read/.test(panel) || !/could not be read.*nothing today/s.test(panel));
@@ -1882,7 +1883,7 @@ console.log('\n— AI alerts —');
     const m = tech.meta() || {};
     const r = await da.collect({ scope: 'universe', includeHistory: true });
     const feed = r.feeds.find((f) => f.id === 'technicals');
-    const moves = r.events.filter((e) => e.feed === 'technicals');
+    const moves = r.events.filter((e) => e.feed === 'technicals' && ['move', 'volume', 'breakout', 'price-reading'].includes(e.kind));
     const byTicker = new Map(tech.all().map((s) => [s.company?.ticker, s.company]));
     return {
       priceDate: m.price_date || null,
@@ -2171,7 +2172,7 @@ console.log('\n— AI alerts —');
     embeddedFill ? `table ends ${embeddedFill.vh - embeddedFill.bottom}px above the fold, ${embeddedFill.height}px tall` : 'no scroll container');
   await page.setViewportSize({ width: 1440, height: 1100 });
 
-  // THE NEWS TIME, ASSERTED AT THE RULE. General Alerts read it off `raw.page_age`, and `raw` is
+  // THE NEWS TIME, ASSERTED AT THE RULE. All Alerts read it off `raw.page_age`, and `raw` is
   // stripped before the snapshot is written — so it was present on a live walk and absent on every
   // row that came from the file, which is all of them. It reads `publishedAt` now, a first-class
   // field that survives the strip. That field only reaches the committed capture once the Worker
@@ -2677,7 +2678,7 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     ['strong-breakouts', 'Strong Breakouts', false],
     ['technical-scanner', 'Technical Scanner', false],
     ['fii-accumulation', 'FII Accumulation', false],
-    ['earnings-surprise', 'Earnings Surprise', true], // half mock — may not wear a green Live
+    ['earnings-surprise', 'Earnings Surprise', true], // estimates unavailable — no live pill
   ];
 
   const seen = [];
@@ -2712,16 +2713,16 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.every(([, , m]) => !m.hero),
     seen.filter(([, , m]) => m.hero).map(([l]) => l).join(', ') || 'none');
   ok('...and each carries exactly one Live pill, in the section head',
-    seen.every(([, , m]) => m.pills === 1 && m.inHead),
+    seen.filter(([, unavailable]) => !unavailable).every(([, , m]) => m.pills === 1 && m.inHead),
     seen.map(([l, , m]) => `${l}:${m.pills}${m.inHead ? '' : ' (not in head)'}`).join(' · '));
   ok('a current sub-view\'s pill is green, dotted, and reads "Up to date"',
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
-  // The mock half may not hide behind a green chip: a screenshot travels without the modal.
+  // Missing estimates must not be replaced by a synthetic table or a live-data label.
   const es = seen.find(([l]) => l === 'Earnings Surprise')[2];
-  ok('the half-mock sub-view is amber instead, and says so on the chip itself',
-    es.amber && !es.green && /mock/i.test(es.face), `"${es.face}"`);
+  ok('the unavailable estimates view has no live-data pill', es.pills === 0 && !es.green);
+  ok('missing consensus is explicit and no generated rows are shown', /consensus estimates are not connected/i.test(await hostText()) && await rowCount() === 0);
 
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
@@ -2936,7 +2937,7 @@ const sources = await page.evaluate(async () => {
 });
 ok('the source registry lists the live published-results feed without naming the provider',
   /live published-results feed/i.test(sources) && !/money\s*control/i.test(sources));
-ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
+ok('...and distinguishes real document access from unavailable consensus', /Screener.in — company filings/.test(sources) && /Analyst consensus estimates/.test(sources) && /Not connected/.test(sources) && !/gen-mock-earnings/.test(sources));
 
 // NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
 // that was true the day the sentence was written — "1,319 companies in the current pull", "877 in
@@ -3511,7 +3512,25 @@ if (!chatterState.ok) {
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
 
-  // A GENERAL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
+  const featuredCard = page.locator('#content-host [data-top-cards] [data-top-idx]').first();
+  if (await featuredCard.count()) {
+    const featured = await evalSafe(async () => {
+      const c = await import('/js/data/chatter-live.js');
+      const row = c.forScope('universe').find((entry) => entry.mentions > 0);
+      return { name: row.name, slug: row.slug, mentions: row.mentions };
+    });
+    const cardText = (await featuredCard.innerText()).replace(/\s+/g, ' ');
+    ok('a most-discussed card explains its count, time period and action',
+      /\bmentions?\b/.test(cardText) && /Last \d+ days?/.test(cardText) && cardText.includes('Read mentions'), cardText);
+    await featuredCard.click();
+    await page.locator('[data-chatter-mention-row]').first().waitFor({ state: 'visible' });
+    ok('clicking the card opens that company’s underlying mentions',
+      await page.locator('[data-chatter-mentions-dialog]').getAttribute('data-chatter-slug') === featured.slug,
+      `${featured.name} · ${featured.mentions} mentions`);
+    await page.locator('#modal-content [data-modal-close]').click();
+  }
+
+  // A ALL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
   // event carries no source URL, so daily-alerts.js falls back to the tab WITH the company and an
   // `open=mentions` flag; this asserts the receiving end honours it. Driven through the URL the row
   // click builds (deterministic) rather than through the alerts tab, which needs every feed's egress

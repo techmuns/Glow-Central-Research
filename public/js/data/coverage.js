@@ -105,6 +105,7 @@ export function refresh() {
 }
 
 export function syncLabel() {
+  if (family) return 'Using holdings supplied by the authenticated Family Office session. These private session identities are not saved to the public portfolio snapshot.';
   const checked = raw?.syncedAt ? new Date(raw.syncedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'unknown';
   const source = `Workbook: ${raw?.sourceWorkbook?.label || 'saved baseline'} · stated period end: ${raw?.asOf || 'unknown'} · last successful check: ${checked} IST`;
   const periodDays = Math.floor((Date.now() - Date.parse(raw?.asOf)) / 86400000);
@@ -117,6 +118,15 @@ export function syncLabel() {
   const lead = syncError || (status === 'stale' ? 'Portfolio check expired — showing saved holdings, which may be out of date.' :
     status !== 'live' ? 'Portfolio is a saved snapshot — checking Family Office…' : 'Family Office connection checked.');
   return `${lead} ${source}${periodAge}${overrides} · Holdings are workbook-based, not live broker trades.`;
+}
+let family = null;
+
+/** Authenticated, per-question identities only. Never write these to storage or
+ * mix device edits into what the active Family book says is owned. */
+export function useFamilyBook(holdings, asOf) {
+  if (!Array.isArray(holdings)) { family = null; return; }
+  const known = new Map(baseHoldings().map((h) => [h.isin, h]));
+  family = { asOf, holdings: holdings.map((h) => ({ ...h, ticker: h.ticker || known.get(h.isin)?.ticker || null })) };
 }
 
 export function prime(payload) {
@@ -136,7 +146,7 @@ export const isLoaded = () => !!raw;
 export const baseHoldings = () => (raw ? raw.holdings : []);
 
 /** The book the reader asked to use on this device. The committed file remains the reset point. */
-export const holdings = () => scopeLists.apply('portfolio', baseHoldings());
+export const holdings = () => family ? family.holdings : scopeLists.apply('portfolio', baseHoldings());
 
 /** The subset a feed can actually match. */
 export const tracked = () => holdings().filter((h) => h.ticker);
@@ -155,11 +165,11 @@ export function meta() {
   const current = holdings();
   const currentUncovered = current.filter((h) => !h.ticker);
   return {
-    asOf: raw?.asOf || null,
-    source: raw?.source || null,
-    sourceWorkbook: raw?.sourceWorkbook || null,
-    syncedAt: raw?.syncedAt || null,
-    syncStatus: currentStatus(),
+    asOf: family?.asOf || raw?.asOf || null,
+    source: family ? 'Active Sattva Family book' : raw?.source || null,
+    sourceWorkbook: family ? null : raw?.sourceWorkbook || null,
+    syncedAt: family ? null : raw?.syncedAt || null,
+    syncStatus: family ? 'family-session' : currentStatus(),
     syncError,
     manualEdits: scopeLists.added('portfolio').length + scopeLists.removed('portfolio').length,
     count: current.length,
@@ -167,9 +177,9 @@ export function meta() {
     uncovered: currentUncovered.length,
     // The committed source's three reason buckets are only exact before a reader edits it. Once
     // edited, keep the honest total above and do not pretend the old split still describes it.
-    unlisted: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
-    bseOnly: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
-    unresolved: scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
+    unlisted: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unlisted ?? 0,
+    bseOnly: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.bseOnly ?? 0,
+    unresolved: family || scopeLists.added('portfolio').length || scopeLists.removed('portfolio').length ? null : raw?.unresolved ?? 0,
   };
 }
 

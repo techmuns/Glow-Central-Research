@@ -16,7 +16,7 @@
 // coverages, definitions and summaries — used to be measured on the wire packet, chrome included,
 // and on real data it alone exceeded the budget. So every row was pushed and immediately popped, and
 // the model was told, correctly, that `includedRows` was 0 everywhere: it answered that the dashboard
-// held no company data while General Alerts showed four rows for the company asked about. Nothing
+// held no company data while All Alerts showed four rows for the company asked about. Nothing
 // threw and the packet was under bound. The skeleton is now compact, measured on the provider's
 // shape (`evidence-shared.js`), and may take at most `1 - ROW_RESERVE_SHARE` of the budget: past
 // that, summaries and then coverages are dropped from the largest sources — recorded on the source
@@ -31,7 +31,7 @@ import { filterByScope, scopeAllowsTicker } from '../data/scope.js';
 import * as alerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
 import * as earningsLive from '../data/earnings-live.js';
-import * as earningsScored from '../data/earnings.js';
+import { domesticFilingsEvidence } from '../data/domestic-filings.js';
 import * as earningsCalendar from '../data/earnings-calendar.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
@@ -44,19 +44,20 @@ import { providerEvidenceChars } from './evidence-shared.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
-  { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over General Alerts: which companies carry the most material, corroborated recent evidence.' },
-  { id: 'daily-alerts', tab: 'General Alerts', route: '#/research/daily-alerts', description: 'Derived timeline across earnings, con-calls, chatter, technicals, investor activity, news, announcements and insider disclosures.' },
+  { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over All Alerts: which companies carry the most material, corroborated recent evidence.' },
+  { id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts', description: 'Derived timeline across earnings, con-calls, chatter, technicals, investor activity, news, announcements and insider disclosures.' },
   { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns.' },
+  { id: 'company-filings', tab: 'Earnings Hub', route: '#/research/earnings-hub?view=filings', description: 'Company document titles, periods and source links already read in Company Filings. PDF contents are not extracted.' },
   { id: 'earnings-calendar', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Currently loaded all-exchange scheduled-results dates and company lists.' },
   { id: 'concall', tab: 'Con-call', route: '#/research/concall', description: 'Held and scheduled earnings calls with StockScans scores, sentiment tiers and source tags.' },
   { id: 'public-chatter', tab: 'Public Chatter', route: '#/research/public-chatter', description: 'Retail mention counts and sentiment across ValuePickr, TradingQnA and Google News.' },
   { id: 'technicals', tab: 'Breakouts / Technical', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
-  { id: 'earnings-surprise', tab: 'Breakouts / Technical', route: '#/research/breakouts/earnings-surprise', description: 'The explicitly mock earnings-scoring corpus used by the Earnings Surprise sub-view.' },
+  { id: 'earnings-surprise', tab: 'Breakouts / Technical', route: '#/research/breakouts/earnings-surprise', description: 'Analyst consensus and earnings surprise are unavailable until a real estimates feed is connected.' },
   { id: 'super-investors', tab: 'Super Investors', route: '#/research/super-investors/superstar-investors', description: 'Filed superstar-investor holdings and quarter-on-quarter disclosed changes.' },
   { id: 'institutions', tab: 'Super Investors', route: '#/research/super-investors/institutions', description: 'Institutional shareholding patterns and AMC portfolio disclosures.' },
   { id: 'company-news', tab: 'News', route: '#/research/news', description: 'Company-specific retained news for covered symbols.' },
   { id: 'market-news', tab: 'News', route: '#/research/news', description: 'Market-wide Moneycontrol stories; intentionally not company-scopeable.' },
-  { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE filings in the exchange-wide retained capture.' },
+  { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE exchange-wide capture plus retained company/date lookups from BSE, NSE and DRHP.' },
   { id: 'insider-trades', tab: 'Insider Trades', route: '#/research/insider-trades', description: 'Insider and promoter disclosures in the upstream\'s own vocabulary.' },
 ];
 
@@ -356,6 +357,7 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     generatedAt: evidence?.generatedAt || new Date().toISOString(),
     scope: evidence?.scope || 'portfolio',
     scopeDefinition: clipped(evidence?.scopeDefinition, 360),
+    portfolio: evidence?.portfolio,
     selection: {
       ...boundedMetadata(evidence?.selection || {}),
       evidenceCharBudget: charBudget,
@@ -535,6 +537,8 @@ function announcementRow(row) {
     category: clipped(row.category, 60),
     subCategory: clipped(row.subCategory, 60),
     source: row.source || null,
+    sources: row.sources || null,
+    url: row.url || null,
   };
 }
 
@@ -586,9 +590,23 @@ const byDateDesc = (key) => (a, b) => String(b[key] || '').localeCompare(String(
 const byDateTimeDesc = (a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`);
 
 // Each builder LOADS (phase one) and then READS (phase three) — see the header. `read` is a plain
-// filter over the module's cache and must not fetch; General Alerts is the one exception, because
+// filter over the module's cache and must not fetch; All Alerts is the one exception, because
 // `collect()` is the whole of that feed and it seeds rather than walks.
 const BUILDERS = [
+  {
+    id: 'company-filings',
+    load: async () => null,
+    read({ scope, holdings, plan }) {
+      const evidence = domesticFilingsEvidence();
+      const rows = filterByScope(evidence.rows, scope, holdings);
+      return sourcePacket(this.id, {
+        source: 'Screener.in domestic filings via Muns', rowCount: rows.length,
+        coverage: { lookups: evidence.lookups, staleLookups: evidence.stale },
+        definition: 'Document metadata and links only, from company lookups already made in this session. PDF contents have not been read: never infer financial figures, consensus or transcript findings from titles.',
+        ...chooseRows(rows, plan, (row) => ({ ticker: row.ticker, title: clipped(row.title, 160), form: row.form, period: row.date, url: row.url })),
+      });
+    },
+  },
   {
     id: 'earnings-hub',
     load: () => earningsLive.load(),
@@ -724,38 +742,9 @@ const BUILDERS = [
   },
   {
     id: 'earnings-surprise',
-    load: () => earningsScored.load(),
-    read({ scope, holdings, plan }) {
-      const rows = earningsScored.forScope(scope, holdings);
-      const meta = earningsScored.meta() || {};
-      return sourcePacket(this.id, {
-        source: 'Mock earnings corpus (seeded generator)',
-        asOf: meta.generated_at || null,
-        rowCount: rows.length,
-        coverage: { total: meta.company_count, withoutResultData: rows.filter((row) => row.tickerError).length },
-        definition: 'MOCK: synthetic financial figures on real company identities. Label as mock; never blend into factual company financials.',
-        dataQuality: 'mock',
-        ...chooseRows(rows, plan, (row) => {
-          const company = row.company || {};
-          const latest = company.quarters?.at?.(-1) || null;
-          // The book gets a placeholder row for a holding the corpus does not carry; it must read
-          // as "no data", never as a company that scored nought.
-          if (row.tickerError) return { ticker: company.ticker || null, company: clipped(company.name || company.ticker, 60), note: clipped(row.tickerError, 80) };
-          return {
-            ticker: company.ticker || null,
-            company: clipped(company.name || company.ticker, 60),
-            quarter: company.quarter || latest?.quarter || null,
-            reportedOn: company.reportedOn || null,
-            score: { points: row.totalPoints ?? null, max: row.totalMax ?? null, pct: round(row.scorePct) },
-            hardFails: (row.hardFails || []).map((item) => clipped(item.label || item.key || item, 80)).slice(0, 6),
-            revenueCr: latest?.revenue ?? null,
-            netProfitCr: latest?.netProfit ?? null,
-            epsRupees: latest?.eps ?? null,
-            operatingMarginPct: latest?.opm ?? null,
-            consensusEpsRupees: company.consensus?.eps ?? null,
-          };
-        }, (a, b) => (b.score?.points ?? -Infinity) - (a.score?.points ?? -Infinity)),
-      });
+    load: async () => null,
+    read() {
+      return failedPacket(this.id, 'Analyst consensus estimates and structured earnings history are not connected. No synthetic financials are supplied.');
     },
   },
   {
@@ -860,11 +849,11 @@ const BUILDERS = [
       const rows = filterByScope(announcements.rows(), scope, holdings);
       const meta = announcements.meta();
       return sourcePacket(this.id, {
-        source: 'BSE date-indexed corporate announcements',
+        source: 'BSE date capture plus Muns BSE / NSE / DRHP company lookups',
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
-        coverage: { coversUniverse: meta.coversUniverse, exchangeCompanies: meta.exchangeCompanies, windowDays: meta.windowDays, unnamedRows: meta.unnamedRows },
-        definition: 'BSE categories are taxonomy, not a materiality or sentiment judgement.',
+        coverage: { bseCoversUniverse: meta.coversUniverse, exchangeCompanies: meta.exchangeCompanies, bseWindowDays: meta.windowDays, unnamedRows: meta.unnamedRows, additionalLookups: meta.supplement?.lookups || 0, lookupCompanies: meta.supplement?.companies || 0, failedLookups: meta.supplement?.failed || 0 },
+        definition: 'Categories are source taxonomy, not a sentiment judgement. The capture timestamp and universe coverage apply only to BSE. Additional BSE/NSE/DRHP rows cover explicitly requested company/date ranges, not a full universe crawl. PDF contents have not been read.',
         ...chooseRows(rows, plan, announcementRow, byDateTimeDesc),
       });
     },
@@ -926,11 +915,11 @@ const BUILDERS = [
       const m = report.meta || {};
       const cards = report.cards || [];
       return sourcePacket(this.id, {
-        source: 'Derived ranking over General Alerts (this dashboard)',
+        source: 'Derived ranking over All Alerts (this dashboard)',
         asOf: report.day || null,
         rowCount: cards.length,
         coverage: { windowDays: aiAlerts.WINDOW_DAYS, firstDay: m.firstDay, activeCompanies: m.activeCompanies, surfaced: m.surfacedCompanies, suppressed: m.suppressedCompanies },
-        definition: 'Deterministic seven-day priority over General Alerts: importance, materiality, recency, book membership, multi-feed corroboration, repeats. rank is the reading; no score is published. Not a recommendation.',
+        definition: 'Deterministic seven-day priority over All Alerts: importance, materiality, recency, book membership, multi-feed corroboration, repeats. rank is the reading; no score is published. Not a recommendation.',
         ...chooseRows(cards, plan, (card, index) => ({
           rank: index + 1,
           ticker: card.ticker || null,
@@ -950,7 +939,7 @@ const BUILDERS = [
   },
 ];
 
-export async function buildResearchEvidence({ question, scope = 'portfolio', onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
+export async function buildResearchEvidence({ question, scope = 'portfolio', portfolio = undefined, onProgress = null, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET } = {}) {
   const deferred = await whenDeferredData();
   const holdings = scopeHoldings(scope);
   let completed = 0;
@@ -1008,6 +997,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', onP
   return fitEvidenceToBudget({
     generatedAt: new Date().toISOString(),
     scope,
+    portfolio,
     scopeDefinition: scopeDefinition(scope),
     selection: {
       method: 'Every registered source contributes status, coverage and provenance. Rows are ranked by the companies the question names, then by token hits, then by each source\'s own ordering.',
