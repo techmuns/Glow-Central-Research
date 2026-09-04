@@ -2412,6 +2412,61 @@ The published schema also advertises a separate `GET /filings/drhp` company dire
 source and pagination parameters; that directory's response and discovery/capture behavior have
 not been integrated or verified here.
 
+### IPOs — public DRHP dashboard integration
+
+The primary **IPOs** tab is independent of Portfolio / Watchlist membership (including an empty
+scope), since unlisted issuers need not have a listed symbol. It adapts the cream/teal UI and
+published data contract from `techmuns/DRHP` at commit
+`690ffa1a8cefe895ebd4c2080acad8ec39d29392`. No capture workflow, secrets, scoring writes or production
+deploys are copied or triggered.
+
+- **Weekly Monitor:** filing events, four KPI cards, source-stage dates, sector concentration.
+  Counts use the actual weekly window: 3 DRHPs, 4 prospectuses, 4 updates, 5 dig-deeper issuers in
+  the imported 31 Aug capture. Previous counts use the same definitions, not inconsistent upstream
+  deltas. A prospectus means *Prospectus filed*, not *Listed*, without a market observation.
+- **Full Tracker:** all nine saved snapshots (30 Jun–31 Aug 2026), deduplicated filing histories,
+  NSE open/upcoming and recent listings, original financial provenance, Groww secondary records
+  and conflicts, filters, aliases, lifecycle facets, score breakdowns, local-only scoring previews,
+  filtered CSV export and browser Print/PDF. Historical market statuses retain their as-of dates;
+  absence from a newer weekly capture never deletes an issuer. Original filing histories remain
+  inspectable, including fields not promoted into the UI. Missing financial inputs are not zeros.
+- **News & X:** IPO-related stories from the existing market-news/X captures only. This does not
+  enable broad X search, change monitored handles, or start a scraper. The current X capture has no
+  successful capture date or posts; the screen says so. General EAAA earnings stories are not
+  presented as IPO news.
+- **Company documents:** the existing caller-private `/api/drhp-filings` lookup, with explicit
+  company selection, no automatic fan-out, no shared authentication. Its live authenticated
+  nested-document response verification remains pending as documented above.
+
+`GET /api/ipo-monitor` reads three fixed public repository resources: `data/latest.json`,
+`data/scoring_config.json`, and the GitHub contents listing for `data/snapshots`. Optional
+`?snapshot=YYYY-MM-DD` reads one validated snapshot file. No URL/host/path is caller-selectable;
+no caller bearer or deployment token is forwarded. Requests and JSON bodies are bounded; redirects
+are refused. Successful complete results are cached for five minutes, while partial/failure
+results are not. Cache failures do not discard a valid source response. Configuration or history
+index failures remain visible instead of being converted to a fabricated model or empty universe.
+
+The browser reads the published artifact on entry/check-for-updates, **not daily new filings**:
+the reference pipeline is scheduled weekly on Monday. Data-as-of and checked-at are separate.
+Bundled copies under `public/data/ipo-monitor/` provide a labelled fallback; `index.json` records
+the exact source commit and all nine dates. Full Tracker loads history in a three-request pool,
+20 snapshots per batch, with per-request deadlines, local fallback and retryable failure counts.
+Later refreshes retain already-loaded history; archived files are re-read in a new tab session.
+
+**EAAA coverage gap (verified 4 Sep 2026):** EAAA is absent from all nine repository captures.
+`public/data/ipo-tracked-issuers.json` is a transparent manual supplement: EAAA India Alternatives
+Limited, aliases EAAA/Edelweiss Alternatives, DRHP dated 19 Jan and addendum dated 13 Aug. Evidence:
+`https://www.eaaa.in/ipo-page/`, `https://www.eaaa.in/drhp-disclaimer/` and the SEBI DRHP notice.
+No residency confirmation was accepted and no restricted document was downloaded. No offer date,
+approval, listing, financial score or X sentiment is inferred. The resulting import has **121
+issuers**, including this supplement. It will not automatically discover every similarly omitted
+issuer; wider discovery needs an independently verified directory/capture source.
+
+Verification: `node scripts/verify-ipo-monitor.mjs` (CI); local headless browser
+`PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-ipo-monitor-ui.mjs`. Tests block external
+browser requests and cover source failures, history retention, EAAA aliases, conservative stages,
+scoring, CSV, exact-name documents, X gaps, escaping, empty watchlist and mobile containment.
+
 ### NSE live announcements: the one exchange feed that narrows to your companies
 
 **THE ANSWER TO "WHAT DID MY COMPANIES JUST FILE", LIVE.** The publisher news feeds are market-wide

@@ -488,10 +488,18 @@ export function sourceGroups() {
         {
           name: 'Muns — IPO / DRHP company lookup',
           url: 'https://devde.muns.io/api',
-          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> Corp Announcements → IPO / DRHP filings accepts a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
+          feeds: '<strong>Prospectus documents, not an upcoming-IPO calendar.</strong> IPOs → Company documents and Corp Announcements → IPO / DRHP filings accept a ticker or exact company name, including issuers without a listed symbol. Each returned filing retains its company, symbol, form, filing date, source and nested document links. It does not infer approval, listing or offer dates from a DRHP. This explicit lookup is independent of Portfolio / Watchlist scope and does not alter holdings.',
           cadence: 'On demand, up to 50 filings per company. No automatic IPO discovery or social-buzz monitoring. Requires the signed-in reader. Nested-document mapping is fixture-tested; a successful authenticated response still needs verification.',
           status: 'pending',
           file: 'worker/drhp-filings.mjs · public/js/ui/drhp-documents.js · public/js/data/drhp-shared.js',
+        },
+        {
+          name: 'DRHP dashboard — public IPO monitor & historical tracker',
+          url: 'https://github.com/techmuns/DRHP',
+          feeds: '<strong>Published captures, not a complete or live IPO universe.</strong> The IPOs tab reads the DRHP dashboard’s latest filings, scoring model, NSE market observations and saved weekly snapshots. Full Tracker retains older issuers and filing histories; original financial provenance, source links and secondary Groww data remain inspectable. A prospectus alone is never treated as a confirmed listing. EAAA has a separately labelled, source-verified supplement linking its issuer DRHP/addendum notices; this is not an automated issuer crawler. News & X only filters existing captures and reports absent X coverage explicitly.',
+          cadence: 'Reference pipeline publishes weekly (Monday). Opening IPOs or checking for updates reads its newest published artifact, edge-cached up to five minutes; it does not run the capture pipeline. Source data date and check time are separate. Nine imported snapshots provide a labelled offline fallback. Scope is all captured issuers, including unlisted companies, independent of holdings.',
+          status: 'live',
+          file: 'worker/ipo-monitor.mjs · public/js/tabs/ipos.js · public/data/ipo-monitor/ · public/data/ipo-tracked-issuers.json',
         },
         {
           name: 'Ticker Finology — superstar investors',
