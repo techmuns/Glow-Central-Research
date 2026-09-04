@@ -78,6 +78,7 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let routeCompany = null;
   let ctxRef = null;
+  let renderedRows = null;
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -116,6 +117,7 @@ export function makeFilingsTab(cfg) {
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
@@ -179,8 +181,15 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
-    disposers.forEach((dispose) => dispose && dispose());
-    disposers = [];
+    const oldScroller = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-scroll]');
+    const oldRows = oldScroller ? [...oldScroller.querySelectorAll('tbody tr[data-row-key]')] : [];
+    const anchor = oldScroller?.scrollTop > 0
+      ? oldRows.find((row) => row.getBoundingClientRect().bottom > oldScroller.getBoundingClientRect().top + 40) : null;
+    const position = oldScroller ? { top: oldScroller.scrollTop, left: oldScroller.scrollLeft,
+      key: anchor?.dataset.rowKey, offset: anchor ? anchor.getBoundingClientRect().top - oldScroller.getBoundingClientRect().top : 0 } : null;
+    const oldSearch = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-search]');
+    const selection = oldSearch && document.activeElement === oldSearch
+      ? { value: oldSearch.value, start: oldSearch.selectionStart, end: oldSearch.selectionEnd } : null;
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -197,6 +206,15 @@ export function makeFilingsTab(cfg) {
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
     const rows = filterByScope(all, ctx.scope, coverage.holdings());
+    if (cfg.preserveReadingPosition) {
+      const nextRows = JSON.stringify([ctx.scope, m.reason, rows]);
+      // Archive/check status can change several times in one poll without changing a filing.
+      // Keep the mounted search field and rows intact for those notifications.
+      if (nextRows === renderedRows && ctx.root.querySelector('[data-score-table]')) return;
+      renderedRows = nextRows;
+    }
+    disposers.forEach((dispose) => dispose && dispose());
+    disposers = [];
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -229,7 +247,7 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({
           title: cfg.title,
           description: cfg.subtitle,
-          meta: pill(m, ctx.scope, []),
+          meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, []),
         })}
         ${cfg.aboveTable?.(ctx, m) || ''}
         ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}
@@ -281,7 +299,11 @@ export function makeFilingsTab(cfg) {
       dense: true,
       wrapHeads: true,
       nameMaxPx: cfg.nameMaxPx || 460,
-      stickyHead: 'max(320px, calc(100vh - 300px))',
+      stickyHead: cfg.stickyHead || 'max(320px, calc(100vh - 300px))',
+      fillMode: cfg.fillMode || 'idle',
+      initialRowCount: oldRows.length || 40,
+      initialRowKey: position?.key || null,
+      showWatchFilter: cfg.showWatchFilter !== false,
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
@@ -305,16 +327,16 @@ export function makeFilingsTab(cfg) {
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
       exportName: `sattva-${cfg.id}`,
-      onExport: (visible) => cfg.onExport(visible, m),
+      onExport: (visible) => cfg.onExport(visible, cfg.preserveReadingPosition ? cfg.feed.meta() : m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
       // strip above says the same thing; this stops the table contradicting it at a glance.
-      emptyMessage: m.outstanding
+      emptyMessage: cfg.emptyMessage || (m.outstanding
         ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
         : scopePossessive(ctx.scope)
           ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
-          : `No ${cfg.noun} matches your filters.`,
+          : `No ${cfg.noun} matches your filters.`),
     });
     view = table.view;
 
@@ -328,7 +350,7 @@ export function makeFilingsTab(cfg) {
         // that: 23 rows still look complete until you know the book is 142, so the number still has
         // to be reachable, and the chip is what reaches it. What it stops doing is competing with
         // the table for the top of the page on every one of three tabs and three scopes.
-        meta: pill(m, ctx.scope, rows),
+        meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, rows),
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
@@ -339,7 +361,24 @@ export function makeFilingsTab(cfg) {
       ${table.html}
       ${methodFooter(cfg)}`;
 
+    const nextScroller = ctx.root.querySelector('[data-table-scroll]');
+    // We restore a specific filing below. Native scroll anchoring must not apply a second
+    // adjustment when Chromium lays out the replacement rows or appends the next page.
+    if (cfg.preserveReadingPosition) nextScroller.style.overflowAnchor = 'none';
     disposers.push(table.wire(ctx.root));
+    if (position) {
+      const scroller = ctx.root.querySelector('[data-table-scroll]');
+      scroller.scrollTop = position.top;
+      scroller.scrollLeft = position.left;
+      const next = position.key && [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((row) => row.dataset.rowKey === position.key);
+      if (next) scroller.scrollTop += next.getBoundingClientRect().top - scroller.getBoundingClientRect().top - position.offset;
+    }
+    if (selection) {
+      const search = ctx.root.querySelector('[data-table-search]');
+      search.value = selection.value;
+      search.focus({ preventScroll: true });
+      search.setSelectionRange(selection.start, selection.end);
+    }
     disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
     wireMethod(ctx.root, m, cov, ctx.scope, rows);
     // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
@@ -382,7 +421,7 @@ export function makeFilingsTab(cfg) {
   function wireMethod(root, m, cov, scope, rows) {
     const btn = root.querySelector('[data-filings-method]');
     if (!btn) return;
-    const onClick = () => openProvenance(m, cov, scope, rows);
+    const onClick = () => openProvenance(cfg.preserveReadingPosition ? cfg.feed.meta() : m, cov, scope, rows);
     btn.addEventListener('click', onClick);
     disposers.push(() => btn.removeEventListener('click', onClick));
   }
@@ -401,6 +440,7 @@ export function makeFilingsTab(cfg) {
   function destroy() {
     token++;
     ctxRef = null;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();

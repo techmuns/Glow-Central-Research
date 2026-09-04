@@ -11,6 +11,7 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
+  const sharedRevisions = new Map();
   async function loadShared() {
     await loadCompanyCaptureIndex();
     try {
@@ -89,21 +90,25 @@ export function withAnnouncementLookups(base) {
     async seed() { await Promise.all([base.seed(), restore(), loadShared()]); emit(); },
     async load(...args) { await Promise.all([base.load(...args), restore(), loadShared()]); emit(); },
     async refreshSnapshot() { await Promise.all([base.refreshSnapshot(), loadShared()]); emit(); },
-    async loadArchive() {
+    async loadArchive({ onlyChanged = false } = {}) {
       if (sharedPending) return;
       sharedPending = true; sharedError = null; emit();
       await loadCompanyCaptureIndex();
-      const queue = Object.keys(companyCaptureStatus('announcements').entries);
+      const status = companyCaptureStatus('announcements');
+      const queue = Object.keys(status.entries);
       const failed = [];
-      await Promise.all([base.loadArchive?.(), ...Array.from({ length: 3 }, async () => {
+      await Promise.all([base.loadArchive?.({ onlyChanged }), ...Array.from({ length: 3 }, async () => {
         while (queue.length) {
           const ticker = queue.shift();
           const entry = companyCaptureStatus('announcements').entries[ticker];
           if (!entry.rowCount) continue;
+          const revision = `${entry.lastSuccessAt || ''}:${entry.rowCount}`;
+          if (onlyChanged && !status.error && sharedRevisions.get(ticker) === revision) continue;
           try {
             const result = await capturedCompany('announcements', ticker);
             shared = mergeAnnouncements(shared, result.value.rows);
             if (result.stale) failed.push(ticker);
+            else sharedRevisions.set(ticker, revision);
           } catch { failed.push(ticker); }
         }
       })]);
@@ -119,6 +124,6 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
-    invalidate() { base.invalidate(); restored = null; history = []; shared = []; sharedLoaded = false; queries.clear(); lastQuery = null; },
+    invalidate() { base.invalidate(); restored = null; history = []; shared = []; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
   };
 }

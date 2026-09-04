@@ -143,7 +143,7 @@ try {
     check('the actual '+name+' tab reaches its assigned document form',queries.at(-1).form[0]===form);
   }
   await page.evaluate(()=>window.showTab('corp-announcements'));
-  await page.locator('[data-announcement-lookup]').waitFor();
+  await page.locator('[data-score-table]').waitFor();
   check('Corp Announcements opens its feed without duplicate document or IPO tabs',await page.locator('[data-document-tabs]').count()===0&&await page.locator('[data-score-table]').isVisible());
   // The retained DRHP component is tested directly; it is no longer a Corporate Announcements view.
   await page.evaluate(()=>window.showDrhp());
