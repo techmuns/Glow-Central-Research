@@ -9,6 +9,7 @@ import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import { scoreTable, sectionHead } from './screener.js';
 import { mountDrhpDocuments } from './drhp-documents.js';
+import { recordDocuments } from '../data/alert-records.js';
 
 const e = escapeHtml;
 const buttonClass = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white';
@@ -140,6 +141,7 @@ export function mountCompanyDocuments(ctx, options) {
       const payload = await response.json();
       if (!current()) return;
       if (!response.ok || payload?.ok !== true || !Array.isArray(payload.rows)) throw new Error(payload?.message || 'The company document history could not be loaded.');
+      recordDocuments('company-documents', payload, company);
       const matching = payload.rows.filter((row) => row.ticker === company.ticker && (!row.date || (row.date >= body.start_date && row.date <= body.end_date)));
       const rows = matching.filter((row) => !options.source || row.sourceTags?.includes(options.source));
       const hidden = payload.rows.length - rows.length;

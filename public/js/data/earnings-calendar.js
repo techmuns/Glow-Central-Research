@@ -39,6 +39,8 @@ const inflight = new Map(); // "iso|list" -> promise, so a double-click is one f
 // Per-date also means one bad date does not stop the reader trying another.
 const failures = new Map(); // iso -> message
 let lastError = null;
+const subscribers = new Set();
+export const onChange = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
 
 export function strip() {
   return stripCache;
@@ -100,6 +102,7 @@ export function loadDate(iso, { from, to, list = 'full' } = {}) {
       // rather than replacing it — clicking around the strip must not make dates disappear.
       mergeStrip(payload.days || []);
       byDate.set(ck, payload);
+      subscribers.forEach((fn) => fn());
       failures.delete(iso);
       lastError = null;
       return payload;

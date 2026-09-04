@@ -1703,7 +1703,8 @@ console.log('\n— AI alerts —');
   // in the registered source metadata. Asserted exactly rather than as
   // a floor — a `>=` would not notice the page widening back to feeds it was narrowed away from.
   const feedRows = await page.locator('[data-alerts-coverage] [data-feed]').count();
-  ok('the coverage panel accounts for exactly the eight company-scopable feeds', feedRows === 8, `${feedRows} feed rows`);
+  const expectedScopedFeeds = await page.evaluate(async () => (await import('/js/data/daily-alerts.js')).FEEDS.filter((f) => !['market-news', 'twitter'].includes(f.id)).length);
+  ok('the coverage panel accounts for every registered company-scopable feed', feedRows === expectedScopedFeeds, `${feedRows} feed rows`);
   ok('...and every research tab asked for is represented',
     ['Price & volume', 'Earnings', 'Con-calls', 'Public chatter', 'Investor activity', 'Announcements', 'Insider trades', 'Company news'].every((n) => panel.includes(n)),
     panel.replace(/\s+/g, ' ').slice(0, 120));
@@ -1882,7 +1883,7 @@ console.log('\n— AI alerts —');
     const m = tech.meta() || {};
     const r = await da.collect({ scope: 'universe', includeHistory: true });
     const feed = r.feeds.find((f) => f.id === 'technicals');
-    const moves = r.events.filter((e) => e.feed === 'technicals');
+    const moves = r.events.filter((e) => e.feed === 'technicals' && ['move', 'volume', 'breakout', 'price-reading'].includes(e.kind));
     const byTicker = new Map(tech.all().map((s) => [s.company?.ticker, s.company]));
     return {
       priceDate: m.price_date || null,

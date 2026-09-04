@@ -1,5 +1,9 @@
 # Data Contracts
 
+General Alerts' current source-record pool, date semantics, scope rules, privacy and coverage
+limitations are specified in [GENERAL-ALERTS-POOL.md](GENERAL-ALERTS-POOL.md). That contract
+supersedes the older nine-feed/threshold-entry description of the timeline in this document.
+
 Every JSON file the dashboard reads, its exact shape, field types, units, refresh cadence and
 the real source it will be wired to. This document is how live data gets connected — treat it as
 the interface, and change the doc and the producer together.

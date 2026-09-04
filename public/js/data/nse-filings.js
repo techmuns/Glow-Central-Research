@@ -62,11 +62,13 @@ export function createNseFeed({
     await save({ rows: retained, capturedAt: source.capturedAt, degraded: source.degraded });
   }
 
-  async function loadHistory(days = windowDays) {
-    windowDays = HISTORY_DAYS.includes(Number(days)) ? Number(days) : 7;
+  async function loadHistory(days = windowDays, { updateWindow = true } = {}) {
+    const requestedDays = HISTORY_DAYS.includes(Number(days)) ? Number(days) : 7;
+    if (updateWindow) windowDays = requestedDays;
+    const cutoff = firstHistoryDay(requestedDays, now());
     const gen = generation;
     const needed = (index?.days || []).filter((entry) =>
-      /^(\d{4}-\d{2}-\d{2}|undated)$/.test(entry.day) && (entry.day === 'undated' || entry.day >= from()));
+      /^(\d{4}-\d{2}-\d{2}|undated)$/.test(entry.day) && (entry.day === 'undated' || entry.day >= cutoff));
     const queue = needed.filter((entry) => !loadedDays.has(entry.day) || loadedDays.get(entry.day) !== entry.revision || failedDays.has(entry.day));
     // At most four archive requests in flight; 90 days must not fan out ninety requests.
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
@@ -141,11 +143,13 @@ export function createNseFeed({
       windowDays, from: from(), archiveDays: index?.days?.length || 0,
       historyUnavailable: indexFailed,
       missingDays: [...failedDays].filter((day) => day === 'undated' || day >= from()),
+      allMissingDays: [...failedDays],
     };
   }
 
   return {
     load, refresh, loadHistory, rows, all: rows, meta,
+    retainedRows: () => held.filter((row) => inHistoryRange(row, firstHistoryDay(90, now()))),
     isLoaded: () => loaded,
     rowKey: filingKey,
     idsHeld: () => new Set(held.map(filingKey)),
@@ -164,5 +168,5 @@ export function createNseFeed({
   };
 }
 
-export const { load, refresh, loadHistory, rows, all, meta, isLoaded, rowKey, idsHeld,
+export const { load, refresh, loadHistory, rows, all, retainedRows, meta, isLoaded, rowKey, idsHeld,
   forScope, onChange, startLive, stopLive, invalidate } = createNseFeed();

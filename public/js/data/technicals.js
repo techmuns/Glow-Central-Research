@@ -24,6 +24,14 @@ const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
 let loadPromise = null;
 let cache = null; // { meta, scored, byTicker }
 
+// Revalidate the bounded capture; a General Alerts refresh must not reuse the page-lifetime cache.
+export async function refresh() {
+  if (loadPromise && !cache) return loadPromise;
+  const previous = cache;
+  try { cache = await buildCache(); return cache; }
+  catch (error) { cache = previous; throw error; }
+}
+
 /**
  * Fetch + score once. Concurrent callers share the same in-flight promise, and every later
  * call returns the cached result immediately.

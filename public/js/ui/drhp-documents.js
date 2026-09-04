@@ -3,6 +3,7 @@ import { hostToken, onHostContext } from '../core/host-context.js';
 import { validateDrhpCompany } from '../data/drhp-shared.js';
 import { documentUrl } from '../data/combined-filings-shared.js';
 import { sectionHead } from './screener.js';
+import { recordDocuments } from '../data/alert-records.js';
 
 export function mountDrhpDocuments({ root }) {
   let controller = null;
@@ -52,6 +53,7 @@ export function mountDrhpDocuments({ root }) {
       const payload = await response.json();
       if (!current()) return;
       if (!response.ok || payload?.ok !== true || !Array.isArray(payload.rows)) throw new Error(payload?.message || 'The IPO / DRHP lookup could not be loaded.');
+      recordDocuments('drhp-documents', payload);
       const rows = payload.rows;
       const documentCount = rows.reduce((count, row) => count + row.documents.length, 0);
       say(`${rows.length} filings · ${documentCount} document links returned for “${company}”. Check the returned company identity below.${payload.limitReached ? ' The 50-filing limit was reached; this may not be the full history.' : ''}${payload.omittedRows ? ` ${payload.omittedRows} additional records exceed the display limit.` : ''}${payload.unmapped || payload.unmappedDocuments ? ` Warning: ${payload.unmapped || 0} filing record(s) and ${payload.unmappedDocuments || 0} document entry/entries could not be mapped; coverage may be incomplete.` : ''}`);
