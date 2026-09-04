@@ -677,7 +677,7 @@ function messageNode(message) {
   if (message.portfolio) {
     const p = message.portfolio;
     const checked = new Date(p.checkedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-    const quotes = p.quotes?.asOf ? `${p.quotes.asOf} (${p.quotes.freshness === 'recent' ? 'recent' : 'partial or stale'})` : 'unavailable — workbook marks only';
+    const quotes = p.quotes?.asOf ? `${p.quotes.asOf} (${p.quotes.freshness === 'partial-or-stale' ? 'partial or stale' : 'per-symbol freshness unverified'})` : 'unavailable — workbook marks only';
     article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Portfolio book: ${p.bookAsOf}. Quotes: ${quotes}. Checked ${checked} IST. Snapshot for this answer, not a live refresh.`));
     if (p.sourceErrors?.length) article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Sources not read: ${p.sourceErrors.join(', ')}.`));
     const details = el('details');

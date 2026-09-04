@@ -27,4 +27,6 @@ No model can guarantee perfect answers. Available source records may themselves
 be old or incomplete. Research must identify that limitation, never describe
 freshly checked June statements as September holdings, never fill missing data
 with zero, and never treat an omitted row as evidence that a holding is absent.
+Quote-batch timestamps do not certify per-symbol freshness: the Family quote
+feed can retain prices from previous batches, so Research labels that unverified.
 The Family app's authentication remains the boundary for full-book access.
