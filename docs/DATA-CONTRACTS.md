@@ -2372,7 +2372,64 @@ The published schema also advertises a separate `GET /filings/drhp` company dire
 source and pagination parameters; that directory's response and discovery/capture behavior have
 not been integrated or verified here.
 
-### IPOs — public DRHP dashboard integration
+### IPOs — native official filing feed (4 Sep 2026)
+
+The primary IPOs tab now uses the **same `scoreTable` and `sectionHead` as NSE Filings**:
+white table, dashboard typography/avatars, newest-first dates, search, filing/board/source filters,
+history ranges and filtered Excel export. It is automatically populated for all issuers regardless
+of Portfolio/Watchlist scope; a missing listed symbol never removes an issuer. The weekly KPI cards,
+cream/teal theme, financial scoring and separate weekly/tracker/news views are no longer this tab.
+
+`GET /api/ipo-filings` reads seven fixed public resources with no credentials:
+
+- NSE mainboard and SME: `https://www.nseindia.in/api/corporates/offerdocs?index=equities` and
+  `?index=sme`, verified from the official [offer-document page](https://www.nseindia.com/companies-listing/corporate-filings-offer-documents)
+  and its published JavaScript. Each draft/RHP/final/advertisement attachment becomes a filing row.
+- [BSE SME offer documents](https://www.bsesme.com/PublicIssues/SMEIPODRHP.aspx): every issuer row,
+  draft/RHP/prospectus/basis-of-allotment attachment. Only dates actually printed by BSE are used;
+  an RHP's filename timestamp or the company's draft date must not become its filing date.
+- [SEBI Public Issues](https://www.sebi.gov.in/filings/public-issues.html): the latest listing page
+  for drafts, red herring documents, final offers and other documents. Category IDs are 10, 11, 12,
+  and 78, with sid=3 and ssid=15. SEBI's older paginated listings are **not fully crawled**. Counts
+  and that limitation remain visible in Coverage and the exported workbook. No full-universe claim.
+
+The fixed read-only endpoint rejects caller-supplied query URLs and non-GET methods. It has a
+three-connection pool, a 25-second total deadline, 20-second per-source deadlines and a 4 MiB
+streaming body cap per source. Redirects are rejected and no caller headers/tokens are forwarded.
+Every source reports its own status/check time; partial failures retain successful sources.
+Responses with at least one working source cache for five minutes (including their original check
+timestamps). Complete failure returns 502 and is not cached.
+
+The browser paints `data/ipo-filings.json`, then revalidates the official feed on entry and every
+five minutes while mounted. The existing live engine pauses hidden-tab polling. Public captured
+history accumulates in IndexedDB, bounded to 20,000 rows with visible truncation warnings. Failed
+revalidation or check times older than ten minutes are visibly stale. Refresh does not discard
+filings missing from a narrower source window. There is **no new background capture scheduler**:
+closed browsers do not accumulate new local history. Upstream publication, SEBI pagination and
+BSE-only mainboard coverage can still leave gaps, disclosed in the table's coverage section.
+
+`node scripts/capture-ipo-filings.mjs` refreshes only the local bundled capture for a reviewed PR.
+It also migrates actual filings from all nine imported DRHP snapshots and the EAAA supplement;
+weekly market observations, financials and scores are not treated as filings. Source copies from
+different regulators/exchanges remain separately labelled; equal URLs within one source deduplicate.
+General Alerts consumes this exact filing feed, not the old weekly IPO data.
+
+Verification: `node scripts/verify-ipo-filings.mjs`, existing General Alerts/legacy contract checks,
+and `PLAYWRIGHT_ROOT=/path/to/playwright EXCELJS_ROOT=/path/to/exceljs node scripts/verify-ipo-monitor-ui.mjs`.
+The `browser` CI job checks layout, search/filter persistence, real XLSX export beyond the
+rendered row window, polling, source outages, HTML escaping, mobile containment and unmount cleanup.
+All browser/API fixtures are local; tests do not submit production model requests or modify sources.
+
+Local runtime check: all seven sources succeeded under Node for the bundled capture (6,494 rows
+including retained imports). Local workerd read both NSE feeds and BSE SME, but returned an
+upstream internal error for SEBI. This is reported per source, not hidden behind a new check time.
+Runtime availability remains environment-dependent; the complete Node capture is a dated floor,
+not a claim that every source is continuously reachable from Cloudflare.
+
+### Historical IPO monitor integration (superseded UI; artifacts retained)
+
+The following documents the former weekly implementation. Its source files and read-only
+`/api/ipo-monitor` compatibility route remain, but the IPOs tab no longer renders this interface.
 
 The primary **IPOs** tab is independent of Portfolio / Watchlist membership (including an empty
 scope), since unlisted issuers need not have a listed symbol. It adapts the cream/teal UI and
