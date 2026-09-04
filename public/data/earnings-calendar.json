@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-09-03T07:05:25.861Z",
-  "from": "2026-08-31",
-  "to": "2026-09-24",
+  "capturedAt": "2026-09-04T02:25:30.432Z",
+  "from": "2026-09-01",
+  "to": "2026-09-25",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-09-25",
+      "displayDate": "25 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-24",
       "displayDate": "24 Sep",
@@ -125,11 +130,6 @@
       "date": "2026-09-01",
       "displayDate": "01 Sep",
       "count": 1
-    },
-    {
-      "date": "2026-08-31",
-      "displayDate": "31 Aug",
-      "count": 4
     }
   ],
   "byDate": {
@@ -143,9 +143,9 @@
           "displayDate": "8 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 32.1,
-          "changePct": 0.82,
-          "marketCap": 193.88,
+          "ltp": 31.7,
+          "changePct": -0.44,
+          "marketCap": 191.47,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/household-personal-products/marutiinteriorproducts/MIP02"
         }
@@ -154,7 +154,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     },
     "2026-09-07": {
       "rows": [
@@ -166,16 +166,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 136.74,
-          "changePct": 2.18,
-          "marketCap": 9948.9,
+          "ltp": 135.89,
+          "changePct": 1.55,
+          "marketCap": 9887.05,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/online-services/shiprocket/SL26",
           "ticker": "SHIPROCKET",
           "fullName": "Shiprocket",
           "industry": "Online Services",
           "shares": 727577587,
-          "mktCapAtBuild": 9948.9
+          "mktCapAtBuild": 9887.05
         },
         {
           "scId": "BLE",
@@ -185,16 +185,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 451.8,
-          "changePct": 1.47,
-          "marketCap": 1911.23,
+          "ltp": 454.25,
+          "changePct": 2.02,
+          "marketCap": 1921.59,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-castings-forgings/beharilalengineering/BLE",
           "ticker": "BLEL",
           "fullName": "Behari Lal Engg",
           "industry": "Metals - Castings/Forgings",
           "shares": 42302482,
-          "mktCapAtBuild": 1911.23
+          "mktCapAtBuild": 1921.59
         },
         {
           "scId": "SF26",
@@ -215,7 +215,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     },
     "2026-09-05": {
       "rows": [
@@ -227,23 +227,23 @@
           "displayDate": "5 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1120.3,
-          "changePct": 1.13,
-          "marketCap": 12910.34,
+          "ltp": 1135.2,
+          "changePct": 2.47,
+          "marketCap": 13082.04,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/medical-equipment-supplies-accessories/molbiodiagnostics/MDL02",
           "ticker": "MOLBIO",
           "fullName": "Molbio Diagnost",
           "industry": "Medical Equipment/Supplies/Accessories",
           "shares": 115239996,
-          "mktCapAtBuild": 12910.34
+          "mktCapAtBuild": 13082.04
         }
       ],
       "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     },
     "2026-09-04": {
       "rows": [
@@ -255,23 +255,23 @@
           "displayDate": "4 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1584.1,
-          "changePct": 4.07,
-          "marketCap": 32402.46,
+          "ltp": 1583.5,
+          "changePct": 4.03,
+          "marketCap": 32390.18,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries-auto-truck-motorcycle-parts/dhoottransmission/DTL02",
           "ticker": "DHOOTTRANS",
           "fullName": "Dhoot Transmiss",
           "industry": "Auto Ancillaries - Auto, Truck & Motorcycle Parts",
           "shares": 204548057,
-          "mktCapAtBuild": 32402.46
+          "mktCapAtBuild": 32390.18
         }
       ],
       "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     },
     "2026-09-02": {
       "rows": [
@@ -302,9 +302,9 @@
           "displayDate": "2 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1.86,
-          "changePct": 1.09,
-          "marketCap": 23.96,
+          "ltp": 1.84,
+          "changePct": null,
+          "marketCap": 23.7,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/vivantaindustrieslimited/VIVAN54173"
         }
@@ -313,7 +313,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     },
     "2026-09-01": {
       "rows": [
@@ -325,9 +325,9 @@
           "displayDate": "1 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 20.76,
-          "changePct": -4.99,
-          "marketCap": 34.24,
+          "ltp": 21.39,
+          "changePct": -2.11,
+          "marketCap": 35.27,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/it-services-consulting/telecanorglobal/TCG01"
         }
@@ -336,92 +336,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "03/09/2026"
-    },
-    "2026-08-31": {
-      "rows": [
-        {
-          "scId": "MMD",
-          "name": "Milky Mist Dairy Food",
-          "shortName": null,
-          "resultDate": "2026-08-31",
-          "displayDate": "31 Aug",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 256.29,
-          "changePct": 1.69,
-          "marketCap": 19730.32,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/consumer-food/milkymistdairyfood/MMD",
-          "ticker": "MILKYMIST",
-          "fullName": "Milky Mist",
-          "industry": "Consumer Food",
-          "shares": 769843411,
-          "mktCapAtBuild": 17862.68
-        },
-        {
-          "scId": "LIL07",
-          "name": "LEAP India",
-          "shortName": null,
-          "resultDate": "2026-08-31",
-          "displayDate": "31 Aug",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 154.73,
-          "changePct": -1.87,
-          "marketCap": 6816.42,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/leapindia/LIL07",
-          "ticker": "LEAPIND",
-          "fullName": "LEAP India",
-          "industry": "Logistics",
-          "shares": 440536458,
-          "mktCapAtBuild": 7156.96
-        },
-        {
-          "scId": "GSC01",
-          "name": "Setco Automotive",
-          "shortName": null,
-          "resultDate": "2026-08-31",
-          "displayDate": "31 Aug",
-          "quarter": "Q4-2026",
-          "time": null,
-          "ltp": 17.49,
-          "changePct": -0.11,
-          "marketCap": 233.96,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/auto-ancillaries/setcoautomotive/SA14",
-          "ticker": "SETCO",
-          "fullName": "Setco Auto",
-          "industry": "Auto Ancillaries - Clutches",
-          "shares": 133767275,
-          "mktCapAtBuild": 233.96
-        },
-        {
-          "scId": "CC24",
-          "name": "Cressanda Railway Solution",
-          "shortName": null,
-          "resultDate": "2026-08-31",
-          "displayDate": "31 Aug",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 2.61,
-          "changePct": -4.74,
-          "marketCap": 110.44,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software-medium-small/cressandarailwaysolution/CS17",
-          "ticker": "CRSL",
-          "fullName": "Cressanda Rail",
-          "industry": "IT Services & Consulting",
-          "shares": 423144706,
-          "mktCapAtBuild": 115.94
-        }
-      ],
-      "scheduledCount": 4,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "03/09/2026"
+      "asOnDate": "04/09/2026"
     }
   }
 }
