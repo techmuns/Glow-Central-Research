@@ -2322,6 +2322,54 @@ publisher; the parser reads by shape, because Business Standard sends `<link>` b
 field including `<pubDate>` in CDATA, and Economic Times leaves a trailing space inside the CDATA.
 All three are valid RSS, and a parser written against whichever one was opened first fails silently
 on the other two by returning null and rendering a story with no date.
+### Combined company filings and document history
+
+`POST /api/combined-filings` forwards a bounded request to
+`https://devde.muns.io/filings/combined_filings_announcements`. It supplements, rather than
+replaces, the broad BSE and live/captured NSE feeds. It does not start a universe-wide scrape,
+modify the portfolio or produce earnings figures / transcript summaries from document links.
+
+| Placement | Request / display |
+| --- | --- |
+| Corp Announcements → Company filings & reports | India, `form: ["all"]`; annual-report, earnings-report and con-call filters available |
+| NSE Filings → Company NSE filings | India, all forms; only records with an explicit NSE source or an NSE document host are shown |
+| Con-call → Filed con-call documents | India, `form: ["concalls"]`; source links, not invented transcripts |
+| Earnings Hub → Filed earnings reports | India, `form: ["earnings_report"]`; separate from reported metrics and calendar |
+
+The reader selects one company inside the current Portfolio/Watchlist/Universe scope and a date
+range no longer than 366 elapsed days. Name searches return explicit company choices; ambiguous
+names are not silently interpreted as stock tickers. Default range: the past year through today
+(IST). The server validates the ticker, calendar dates, country and Indian form allow-list, and
+strips unknown request fields. The API route also accepts USA/United States plus the documented
+optional `email` and `company_name`; the Indian-equities UI does not offer US coverage.
+
+**Privacy:** the route uses only the requesting reader's bearer token. It executes before the
+existing deployment-token fallback, never touches the edge cache, returns `private, no-store`,
+and does not persist document rows or `isRead` in IndexedDB/localStorage. Session changes and
+logout (including an explicit null session) clear visible rows and cancel in-flight requests.
+Missing/expired sessions, throttling, timeout, malformed responses and oversize responses are
+failures, never empty filing histories. Request bodies are capped at 8 KiB, responses at 4 MiB,
+and the full request has a 20-second budget. Redirects are refused so credentials cannot follow
+an upstream redirect. The browser makes no mark-read mutation: true/false/null means supplied
+read/unread/not supplied or conflicting.
+
+**Response adaptation:** the documented top-level array and grouped announcement DTO
+`{ source, data: AnnouncementDto[] }` are supported. The published filing DTO uses `filing_url`,
+`ticker`, `title`, `date`, `country`, `form`; existing announcement aliases are retained.
+Unrecognised records are counted and flagged. Identical company/document URLs deduplicate while
+retaining source labels; contradictory read flags become unknown. No missing date is set to today.
+
+**Verification status (4 Sep 2026):** the request and related DTOs were checked against the live
+`https://devde.muns.io/api-json` schema. An unauthenticated probe returned 401 and no user session
+was available locally. Local tests use clearly synthetic DTO fixtures; authenticated production
+response compatibility is not yet claimed. The Sources registry marks this integration pending
+that check. A successful sample response (without credentials) can complete the remaining adapter
+verification; never commit session tokens or real user read-state fixtures.
+
+Tests: `node scripts/verify-combined-filings.mjs` (in CI), and
+`PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-combined-filings-ui.mjs` (local-only
+headless browser regression, with optional `CHROME_PATH`).
+
 ### NSE live announcements: the one exchange feed that narrows to your companies
 
 **THE ANSWER TO "WHAT DID MY COMPANIES JUST FILE", LIVE.** The publisher news feeds are market-wide

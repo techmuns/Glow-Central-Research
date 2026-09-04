@@ -478,6 +478,14 @@ export function sourceGroups() {
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
         },
         {
+          name: 'Muns — combined company filings & reports',
+          url: 'https://devde.muns.io/api',
+          feeds: '<strong>Company-specific document lookup, not a market-wide capture.</strong> The combined filings endpoint supplies BSE/NSE announcements, DRHP and Screener reports. Corp Announcements offers all documents and annual reports; NSE Filings retains only identified NSE documents; Con-call and Earnings Hub request their corresponding document forms. Sources, original document links and supplied read status are retained. Identical document links are deduplicated. Unknown dates and read flags are not invented. Requires the signed-in Munshot reader; personal read status is never stored in the shared cache.',
+          cadence: 'On demand, one selected Indian company and up to one year per request. No background universe sweep. Authenticated response verification is still pending; request contract checked against the published API schema.',
+          status: 'pending',
+          file: 'worker/combined-filings.mjs · public/js/ui/company-documents.js · public/js/data/combined-filings-shared.js',
+        },
+        {
           name: 'Ticker Finology — superstar investors',
           url: 'https://ticker.finology.in/superstar-portfolios',
           feeds:

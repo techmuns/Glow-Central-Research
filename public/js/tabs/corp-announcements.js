@@ -25,6 +25,7 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { announcements as feed } from '../data/filings.js';
+import { withCompanyDocuments } from '../ui/company-documents.js';
 import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel, FILTER_TARGETED } from '../data/news-keywords.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
@@ -269,5 +270,4 @@ const tab = makeFilingsTab({
 });
 
 export const meta = tab.meta;
-export const render = tab.render;
-export const destroy = tab.destroy;
+export const { render, destroy } = withCompanyDocuments(tab, { form: 'all', feedLabel: 'BSE announcements', label: 'Company filings & reports' });

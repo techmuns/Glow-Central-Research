@@ -18,6 +18,7 @@ import { formatRelativeTime } from '../core/format.js';
 import { scopeBook, scopeLabel } from '../data/scope.js';
 import * as coverage from '../data/coverage.js';
 import * as feed from '../data/nse-filings.js';
+import { withCompanyDocuments } from '../ui/company-documents.js';
 
 export const meta = {
   id: 'nse-filings',
@@ -34,7 +35,7 @@ let tableView = null;
 // past the tab, and app-wide polling of a per-scope table is not what this feed is for.
 let liveRef = null;
 
-export function render(ctx) {
+function renderFeed(ctx) {
   const token = ++renderToken;
   cleanup();
   ctx.root.innerHTML = loadingHtml();
@@ -64,7 +65,7 @@ export function render(ctx) {
     });
 }
 
-export function destroy() {
+function destroyFeed() {
   renderToken++;
   cleanup();
   tableView = null;
@@ -222,3 +223,5 @@ function loadingHtml() {
     ${sectionHead({ title: meta.title, description: meta.subtitle })}
     <div class="skeleton-shimmer h-[520px] rounded-2xl bg-slate-100"></div>`;
 }
+
+export const { render, destroy } = withCompanyDocuments({ render: renderFeed, destroy: destroyFeed }, { form: 'all', source: 'NSE', feedLabel: 'NSE live & captured history', label: 'Company NSE filings' });

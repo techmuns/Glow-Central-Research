@@ -48,6 +48,7 @@ import { exportRows } from '../ui/export.js';
 import * as feed from '../data/earnings-live.js';
 import * as calendar from '../data/earnings-calendar.js';
 import * as coverage from '../data/coverage.js';
+import { withCompanyDocuments } from '../ui/company-documents.js';
 import { filterByScope, scopePossessive } from '../data/scope.js';
 
 export const meta = {
@@ -85,7 +86,7 @@ let routeCompany = null;
 // than swallowed, because the alternative is one comparison shown under the other's label.
 let periodError = null;
 
-export function render(ctx) {
+function renderFeed(ctx) {
   const token = ++renderToken;
   ctx.root.innerHTML = loadingHtml();
   const seeded = companySeededView(ctx, routeCompany, tableView);
@@ -131,7 +132,7 @@ export function render(ctx) {
     });
 }
 
-export function destroy() {
+function destroyFeed() {
   renderToken++;
   disposers.forEach((d) => d && d());
   disposers = [];
@@ -148,6 +149,8 @@ export function destroy() {
 
 /** Which half of the tab the URL is asking for. Anything unrecognised falls back to reported. */
 const viewOf = (ctx) => (ctx.params?.view === 'calendar' ? 'calendar' : 'reported');
+
+export const { render, destroy } = withCompanyDocuments({ render: renderFeed, destroy: destroyFeed }, { form: 'earnings_report', feedLabel: 'Results & calendar', label: 'Filed earnings reports' });
 
 function loadingHtml() {
   return `
