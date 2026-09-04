@@ -978,7 +978,7 @@ function fromAnnouncements({ day, wanted, includeHistory }) {
     ticker: r.ticker || null,
     company: r.company || r.ticker || '—',
     headline: r.title || r.headline || 'Filing',
-    detail: [r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',
+    detail: [...(r.sources || [r.source]), r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',
     url: r.url || null,
   }));
 
@@ -989,7 +989,8 @@ function fromAnnouncements({ day, wanted, includeHistory }) {
     // empty bucket means nobody looked, not that nobody filed.
     reachesToday: !!capturedDay && capturedDay >= day,
     asOf: m.capturedAt || null,
-    note: capturedDay && capturedDay >= day ? null : `The newest capture of the exchange's filings ran on ${capturedDay || 'an unknown date'}, so nothing here has looked at ${day}.`,
+    note: (capturedDay && capturedDay >= day ? '' : `The newest BSE capture ran on ${capturedDay || 'an unknown date'}. `) +
+      'Exchange-wide coverage and freshness refer to BSE. Additional NSE/DRHP rows cover only requested company/date lookups.',
   };
 }
 
