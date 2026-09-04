@@ -1,10 +1,15 @@
 # Glow Central Research
 
-An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (AI and general alerts, Ask Research, earnings, con-calls, public chatter, technical breakouts,
-superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
-allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
-toggle that applies to every tab.
+An Indian-equities research dashboard: twelve tabs — Ask Research, AI and general alerts,
+earnings, con-calls, public chatter, technical breakouts, superstar investors, news, corporate
+announcements, NSE filings and insider trades — under a global **Portfolio · Watchlist · Universe**
+scope toggle that applies to every one of them.
+
+**Portfolio here means a list of company names, and nothing else.** The Portfolio scope filters the
+research tabs by the family office's own direct-equity book — 142 lines, names and sectors, synced
+from `techmuns/Sattva-Family`. There are no quantities, no costs and no valuations anywhere in this
+dashboard. A Portfolio Analytics workspace over an illustrative ledger used to exist and was
+deleted; it is in git history at `d3bba30` if a real ledger is ever wired.
 
 **Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
@@ -53,16 +58,11 @@ deploy notes and the known gaps.
 daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
 [a GitHub Action](.github/workflows/technicals-refresh.yml).
 
-*Portfolio Analytics* marks every position to market from that same feed, and builds its equity
-curve and drawdown from **735 trading days of real closing prices** — because a max drawdown from
-an invented price series looks exactly like a measured one and nobody could check it. The trade
-ledger behind it is synthetic, but every execution price in it is a real close on a real trading
-day, so the curve never steps at a trade. The split ribbon on that workspace states both halves.
-
-**Two full scoring/analysis systems sit on mock-but-real-shaped data.** The Earnings Hub scores
-every result against a 15-rule, 21-point quality-and-growth model; the Con-call tab scans real
-transcript text for user-editable keywords, at runtime, in the browser. Both are wired exactly as
-they will be when the feeds land — swapping the JSON is the only change needed.
+**Earnings and con-call scans use real feeds.** Earnings Reported uses Moneycontrol and Con-call
+uses StockScans. Earnings Hub → Company Filings adds on-demand annual reports, earnings reports
+and transcripts from Screener.in through Muns. The old synthetic earnings corpus is no longer
+served or loaded. Analyst consensus estimates remain **not connected**, so Earnings Surprise
+shows an unavailable state instead of invented beat/miss figures.
 
 The Sources modal in the header lists every feed with an honest live / real / mock / pending
 status. What each tab does *not* do is recorded in `docs/SPEC.md` under its "Still to come" —
@@ -152,13 +152,18 @@ public/
     research/         bounded cross-dashboard evidence catalog + safe answer renderer
     tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
+<<<<<<< HEAD
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the Portfolio scope's book, rebuilt daily from techmuns/GlowVentures), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
+=======
+  data/               portfolio-companies.json (the book, synced from techmuns/Sattva-Family — names
+                      and sectors only, the ONLY portfolio data here), universe.json, technicals.json
+>>>>>>> upstream/main
 worker/index.js       asset serving + live read-through APIs + the Ask Research stream
 worker/research.mjs   server-only streaming Muns LLM bridge and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
-docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
+docs/HANDOFF.md       live-vs-mock inventory, architecture, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source
 CLAUDE.md             working rules, module contract, design tokens, where-to-look index
 ```
@@ -184,18 +189,17 @@ TECH_LIMIT=15 node scripts/scrape-technicals.mjs   # smoke run -> technicals.smo
 A capped run writes to a sibling file and skips the ATR accumulator, so it can never truncate
 the committed feed or poison the volatility-trend history.
 
-## Regenerate the mock earnings set
+## Regenerate the earnings test fixtures
 
 ```bash
 node scripts/gen-mock-earnings.mjs
 ```
 
 Seeded, so the output is byte-stable — a diff means a real change. Writes
-`public/data/mock/earnings.json` and `public/data/mock/earnings-calendar.json`. Company names,
-tickers, sectors and market caps come from `universe.json` and are real; **every financial figure
-is synthetic**, and the dashboard says so on every surface that shows one. Swapping in the real
-filings feed is a three-file change — see *Wiring the real feed* in
-[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md).
+`scripts/fixtures/mock-earnings.json` and `scripts/fixtures/mock-earnings-calendar.json`.
+These synthetic figures are test inputs outside the served assets. The dashboard rejects them.
+See [Domestic company filings](docs/DATA-CONTRACTS.md#domestic-company-filings) for the real
+document endpoint; PDFs do not populate analyst estimates or structured financial history.
 
 ## Regenerate the mock con-calls
 
@@ -236,6 +240,7 @@ python3 -m http.server 8080 -d public &
 node scripts/verify-calendar.mjs
 node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
+node scripts/verify-navigation.mjs
 ```
 
 Drives the site with Playwright and walks CLAUDE.md's checklist — every route in both scopes,
@@ -253,11 +258,3 @@ elsewhere) rather than adding an npm dependency.
 | Strong Breakouts | FII Accumulation |
 | --- | --- |
 | ![Strong Breakouts](docs/screenshots/strong-breakouts.png) | ![FII Accumulation](docs/screenshots/fii-accumulation.png) |
-
-| Portfolio Overview — live marks, FIFO basis, reconciliation strip | Drawdown — 735 real trading days |
-| --- | --- |
-| ![Portfolio Overview](docs/screenshots/portfolio-overview.png) | ![Drawdown](docs/screenshots/portfolio-drawdown.png) |
-
-| The FIFO working behind a sell | Grouped by lot, not by position |
-| --- | --- |
-| ![FIFO drill](docs/screenshots/portfolio-fifo-drill.png) | ![Position By](docs/screenshots/portfolio-position-by.png) |

@@ -33,7 +33,10 @@
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
-import { fetchNews, fetchAnnouncements, fetchInsiderTrades, searchStocks, withCallerToken, MunsError } from './muns.mjs';
+import { fetchNews, fetchAnnouncements, fetchInsiderTrades, fetchDomesticFilings, searchStocks, withCallerToken, MunsError } from './muns.mjs';
+import { DOMESTIC_FORMS } from '../public/js/data/domestic-filings-shared.js';
+import { announcementRange } from '../public/js/data/announcements-shared.js';
+import { assessFilingsHealth, FILINGS_HEALTH_FILES } from '../public/js/data/filings-health-shared.js';
 import { CORS, preflight, contentTag, withTag, tagged, revalidate } from './http.mjs';
 import {
   dispatchWorkflow,
@@ -45,10 +48,15 @@ import {
   INSIDER_WORKFLOW,
   ANNOUNCEMENTS_WORKFLOW,
   DATA_WORKFLOW,
+  TWITTER_WORKFLOW,
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
+<<<<<<< HEAD
 import { handleEconCalendar } from './econ-calendar.mjs';
+=======
+import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
+>>>>>>> upstream/main
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -129,6 +137,9 @@ export default {
     if (url.pathname === '/api/earnings-calendar') {
       return handleCalendar(request, env, ctx);
     }
+    if (url.pathname === '/api/nse-announcements') {
+      return handleNseAnnouncements(request, env, ctx);
+    }
     if (url.pathname === '/api/concalls') {
       return handleConcalls(request, env, ctx);
     }
@@ -150,6 +161,9 @@ export default {
     if (url.pathname.startsWith('/api/insider-trades/')) {
       return handleMuns(request, env, ctx, 'insider', url.pathname.slice('/api/insider-trades/'.length));
     }
+    if (url.pathname.startsWith('/api/domestic-filings/')) {
+      return handleMuns(request, env, ctx, 'domestic', url.pathname.slice('/api/domestic-filings/'.length));
+    }
     // POST-ONLY, DELIBERATELY. This is the one route here that makes something happen rather than
     // reporting something — a GET that started a scrape could be fired by a prefetcher, a link
     // preview or a crawler.
@@ -159,6 +173,31 @@ export default {
     }
     if (url.pathname === '/api/market-news/run') {
       return handleNewsRunStatus(request, env, ctx);
+    }
+    // X/Twitter collection. Same shape as every other dispatch route here, with one addition: it
+    // may carry the handle that prompted it, so a newly added account is read now rather than at
+    // the next scheduled run.
+    //
+    // THE HANDLE IS VALIDATED HERE, NOT TRUSTED. It reaches a `workflow_dispatch` input and from
+    // there a runner's shell, so it is checked against X's own rule — 1-15 of [A-Za-z0-9_] — and
+    // dropped entirely if it does not match, exactly as `?source=` is an allow-list of three words
+    // rather than a string that reaches the run name. A request cannot choose the repository, the
+    // workflow or the ref either; all three are fixed on this Worker.
+    if (url.pathname === '/api/twitter/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a collection with POST.' }, 405);
+      const raw = url.searchParams.get('handle') || '';
+      const handle = /^[A-Za-z0-9_]{1,15}$/.test(raw) ? raw : null;
+      return handleWorkflowDispatch(request, env, ctx, {
+        workflow: TWITTER_WORKFLOW,
+        // Keyed by handle so adding a second account is not swallowed by the first one's cooldown,
+        // while holding the button down on one account still is.
+        cacheName: `twitter-dispatch${handle ? `:${handle.toLowerCase()}` : ''}`,
+        cooldownS: TWITTER_DISPATCH_COOLDOWN_S,
+        extraInputs: handle ? { handle } : null,
+      });
+    }
+    if (url.pathname === '/api/twitter/run') {
+      return handleWorkflowRunStatus(env, ctx, { workflow: TWITTER_WORKFLOW, cacheName: 'twitter-run-status' });
     }
     if (url.pathname === '/api/company-news/refresh') {
       if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
@@ -216,9 +255,14 @@ export default {
         cacheName: 'data-snapshot-run-status',
       });
     }
+<<<<<<< HEAD
     // GLOW-OWNED: the economic release calendar behind the Economy & Macro tab — worker/econ-calendar.mjs.
     if (url.pathname === '/api/econ-calendar') {
       return handleEconCalendar(request);
+=======
+    if (url.pathname === '/api/filings-health') {
+      return handleFilingsHealth(request, env, ctx);
+>>>>>>> upstream/main
     }
     if (url.pathname === '/api/capture-status') {
       return handleCaptureStatus(request, env, ctx);
@@ -641,7 +685,7 @@ async function handleCalendar(request, env, ctx) {
 // A FAILURE IS CACHED FOR SECONDS, NOT MINUTES. These are session JWTs and they expire, so a
 // corrected token has to take effect at once rather than after the success TTL.
 // ---------------------------------------------------------------------------------------
-const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900 };
+const MUNS_TTL_S = { news: 180, announcements: 900, insider: 900, domestic: 900 };
 const MUNS_FAIL_TTL_S = 15;
 
 // Company names move much less often than filings. Cache each query at the edge so ten readers
@@ -680,13 +724,20 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
 
   const url = new URL(request.url);
   const iso = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
-  const from = iso(url.searchParams.get('from'));
-  const to = iso(url.searchParams.get('to'));
+  let from = iso(url.searchParams.get('from'));
+  let to = iso(url.searchParams.get('to'));
+  if (kind === 'announcements') {
+    try { ({ from, to } = announcementRange(url.searchParams.get('from') || url.searchParams.get('fromDate'), url.searchParams.get('to') || url.searchParams.get('toDate'))); }
+    catch (err) { return json({ ok: false, reason: 'shape', message: err.message }, 400); }
+  }
 
   // A ticker is a path segment on two of these routes, so it is validated rather than passed
   // through: this must not become an open proxy to arbitrary upstream paths.
-  const ticker = decodeURIComponent(rawTicker).trim().toUpperCase();
-  if (kind !== 'news' && !/^[A-Z0-9&.\-]{1,20}$/.test(ticker)) {
+  let ticker;
+  try { ticker = decodeURIComponent(rawTicker).trim().toUpperCase(); }
+  catch { return json({ ok: false, reason: 'shape', message: 'That is not a valid ticker.' }, 400); }
+  const tickerPattern = ['announcements', 'domestic'].includes(kind) ? /^[A-Z0-9&._-]{1,80}$/ : /^[A-Z0-9&.\-]{1,20}$/;
+  if (kind !== 'news' && !tickerPattern.test(ticker)) {
     return json({ ok: false, reason: 'shape', message: 'That is not a ticker this route will ask about.' }, 400);
   }
 
@@ -695,7 +746,13 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     return json({ ok: false, reason: 'shape', message: 'A news search needs ?q=.' }, 400);
   }
 
+<<<<<<< HEAD
   const cacheKey = edgeKey(request, `muns-${kind}?t=${ticker}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}`);
+=======
+  const form = kind === 'domestic' ? url.searchParams.get('form') || 'all' : null;
+  if (form && !Object.hasOwn(DOMESTIC_FORMS, form)) return json({ ok: false, reason: 'shape', message: 'Choose all, concalls, annual_report or earnings_report.' }, 400);
+  const cacheKey = edgeKey(`muns-${kind}?t=${encodeURIComponent(ticker)}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}${form ? `&form=${form}&schema=2` : kind === 'announcements' ? '&schema=2' : ''}`);
+>>>>>>> upstream/main
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -705,6 +762,7 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
   try {
     if (kind === 'news') payload = { ok: true, kind, ...(await fetchNews({ query, country: url.searchParams.get('country') || 'IN', fromDate: from, toDate: to }, env)) };
     else if (kind === 'announcements') payload = { ok: true, kind, ...(await fetchAnnouncements({ ticker, fromDate: from, toDate: to }, env)) };
+    else if (kind === 'domestic') payload = { ok: true, kind, ...(await fetchDomesticFilings({ ticker, form }, env)) };
     else payload = { ok: true, kind, ...(await fetchInsiderTrades({ ticker, country: 'india', fromDate: from, toDate: to }, env)) };
   } catch (err) {
     const e = err instanceof MunsError ? err : new MunsError('upstream', String(err?.message || err));
@@ -752,6 +810,105 @@ const CONCALL_HEAD_TTL_S = 30;
 const CONCALL_TAIL_TTL_S = 600;
 const CONCALL_SCHEDULE_TTL_S = 120;
 const CONCALL_SNAPSHOT = '/data/concall-scans.json';
+
+// ---------------------------------------------------------------------------------------
+// NSE live announcements — the one exchange feed that can be narrowed to a reader's companies
+// ---------------------------------------------------------------------------------------
+//
+// The browser cannot read NSE (CORS `null`), so this proxies it: fetch the RSS with a full desktop
+// user-agent (a weak one is Akamai-blocked), resolve each filing's company name to a ticker, and
+// return JSON the page can narrow by scope. Edge-cached NSE_TTL_S so a thousand readers cost NSE one
+// fetch per window; a content ETag lets an unchanged poll come back a bodyless 304.
+//
+// Resolution needs the universe, so the resolver is built once from three committed files and cached
+// in module scope across requests — rebuilding it per request would parse ~700 KB of JSON every tick.
+
+const NSE_TTL_S = 90;
+const NSE_SNAPSHOT = '/data/nse-announcements.json';
+let nseResolver = null;
+
+async function nseResolverFor(env, request) {
+  if (nseResolver) return nseResolver;
+  const read = async (path) => {
+    try {
+      const r = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  };
+  const [mc, tech, book] = await Promise.all([
+    read('/data/mc-ticker-map.json'),
+    read('/data/technicals.json'),
+    read('/data/portfolio-companies.json'),
+  ]);
+  nseResolver = buildResolver({
+    book: book?.holdings || [],
+    mcMap: mc?.map || {},
+    tech: tech?.rows || tech?.companies || [],
+  });
+  return nseResolver;
+}
+
+// A weak user-agent is refused; a slow fetch is bounded and retried once, because NSE is behind the
+// same best-effort Akamai edge as the rest of the exchange.
+async function fetchNseXml() {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch(NSE_FEED_URL, { headers: NSE_HEADERS, signal: AbortSignal.timeout(15000) });
+      const body = await res.text();
+      if (!res.ok) { lastErr = new Error(`NSE HTTP ${res.status}`); continue; }
+      assertNseShape(body, { status: res.status });
+      return body;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('NSE unreachable');
+}
+
+async function loadNseSnapshot(env, request) {
+  try {
+    const r = await env.ASSETS.fetch(new Request(new URL(NSE_SNAPSHOT, request.url)));
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
+async function handleNseAnnouncements(request, env, ctx) {
+  if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
+  const cache = caches.default;
+  const cacheKey = edgeKey('nse-announcements');
+  const hit = await cache.match(cacheKey);
+  if (hit) return revalidate(request, new Response(hit.body, { headers: { ...Object.fromEntries(hit.headers), 'x-sattva-cache': 'hit' } }), 'hit');
+
+  try {
+    const xml = await fetchNseXml();
+    const resolver = await nseResolverFor(env, request);
+    const rows = resolveNse(parseAnnouncements(xml), resolver);
+    const resolved = rows.filter((r) => r.ticker).length;
+    const payload = {
+      ok: true,
+      capturedAt: new Date().toISOString(),
+      count: rows.length,
+      resolved,
+      unresolved: rows.length - resolved,
+      rows,
+    };
+    const { body, tag } = withTag(payload);
+    const stored = tagged(body, tag, NSE_TTL_S, { 'x-sattva-cache': 'live' });
+    ctx?.waitUntil?.(cache.put(cacheKey, stored.clone()));
+    return revalidate(request, stored, 'miss');
+  } catch (err) {
+    // NSE is unreachable or refused us — serve the committed snapshot rather than nothing, labelled
+    // so the page can say the age is the snapshot's, not a live read. `blocked` is Akamai saying no,
+    // which is a wait-and-retry state, not a bug in anything here.
+    const snap = await loadNseSnapshot(env, request);
+    if (snap) {
+      const { body, tag } = withTag({ ...snap, ok: true, degraded: `NSE is unavailable (${err?.reason || err?.message || err}) — showing the last committed snapshot.` });
+      return revalidate(request, tagged(body, tag, 15), 'fallback');
+    }
+    return json({ ok: false, reason: err?.reason || 'unreachable', degraded: `NSE is unreachable and no snapshot is committed: ${String(err?.message || err)}`, rows: [] }, 502);
+  }
+}
 
 async function handleConcalls(request, env, ctx) {
   if (request.method !== 'GET') return json({ error: 'GET only' }, 405);
@@ -1375,6 +1532,9 @@ const FILINGS_DISPATCH_COOLDOWN_S = 30 * 60;
 const ANNOUNCEMENTS_DISPATCH_COOLDOWN_S = 10 * 60;
 // End-of-day technicals can take most of an hour and must never overlap themselves.
 const DATA_DISPATCH_COOLDOWN_S = 60 * 60;
+// Short, because this one is usually a reader who has just added an account and is waiting to see
+// its posts. The duplicate-run guard in dispatchWorkflow is what stops a second run either way.
+const TWITTER_DISPATCH_COOLDOWN_S = 3 * 60;
 const RUN_STATUS_TTL_S = 5; // so twenty readers watching one run cost GitHub four calls a minute
 // How far back `lastAutomatic` looks. Ten runs is about a day at the schedule's own cadence.
 const RUN_WINDOW = 10;
@@ -1496,7 +1656,7 @@ async function handleNewsDispatch(request, env, ctx) {
   });
 }
 
-async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS }) {
+async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, cooldownS, extraInputs = null }) {
   const cfg = githubConfig(env);
   if (cfg.error) return json(cfg.error, 200);
   const source = sourceOf(new URL(request.url));
@@ -1512,7 +1672,7 @@ async function handleWorkflowDispatch(request, env, ctx, { workflow, cacheName, 
   }
 
   try {
-    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source });
+    const out = await dispatchWorkflow(fetch, cfg, workflow, cfg.ref, { source, ...(extraInputs || {}) });
     const payload = {
       ok: true,
       dispatched: out.dispatched,
@@ -1592,6 +1752,7 @@ async function handleWorkflowRunStatus(request, env, ctx, { workflow, cacheName 
 // dashboard cost one internal asset read per half-minute rather than one per reader.
 const CAPTURE_STATUS_TTL_S = 30;
 const CAPTURE_FILES = {
+  companyFilings: '/data/filing-capture/index.json',
   companyNews: '/data/news.json',
   insider: '/data/insider-trades.json',
   announcements: '/data/corp-announcements.json',
@@ -1599,11 +1760,40 @@ const CAPTURE_FILES = {
   marketNews: '/data/market-news.json',
 };
 
+// Read-only health signal for an independent uptime monitor. Never starts a capture or calls Muns.
+async function handleFilingsHealth(request, env, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
+  const key = edgeKey('filings-operational-health-v1');
+  const cache = caches.default;
+  const hit = await cache.match(key);
+  if (hit) {
+    const report = await hit.json();
+    return json(report, report.ok ? 200 : 503);
+  }
+  const captures = {};
+  await Promise.all(Object.entries(FILINGS_HEALTH_FILES).map(async ([source, path]) => {
+    try {
+      const response = await env.ASSETS.fetch(new Request(new URL(`/data/${path}`, request.url)));
+      if (!response.ok) throw new Error('Capture unavailable');
+      captures[source] = await response.json();
+    } catch { captures[source] = null; }
+  }));
+  const report = assessFilingsHealth(captures);
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(report), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'max-age=30' },
+  })));
+  return json(report, report.ok ? 200 : 503);
+}
+
 async function handleCaptureStatus(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
 
   const cache = caches.default;
+<<<<<<< HEAD
   const key = edgeKey(request, 'capture-status-v1');
+=======
+  const key = edgeKey('capture-status-v2');
+>>>>>>> upstream/main
   const held = await cache.match(key);
   if (held) {
     return new Response(held.body, {
@@ -1619,9 +1809,22 @@ async function handleCaptureStatus(request, env, ctx) {
         const response = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
+        // WHOSE FRESHNESS THIS IS, when a capture has several contributors.
+        //
+        // The market-news file is written by two jobs — the Moneycontrol listing walk and the RSS
+        // reader — and its `capturedAt` is whichever ran last. The watchdog uses this value to
+        // decide whether to dispatch the MONEYCONTROL workflow, so reading the top-level field
+        // would let an hourly RSS run keep the timestamp fresh while Moneycontrol went unread for
+        // days, and nothing would ever notice: the one measurement that exists to catch a stalled
+        // source would be answered by a different source. So a per-source time is reported where
+        // the file carries one, and `capturedAt` stays the whole capture's for everything else.
+        const perSource = Array.isArray(body.sources)
+          ? Object.fromEntries(body.sources.map((s) => [s.id, { capturedAt: s.capturedAt || null, ok: s.ok !== false }]))
+          : null;
         captures[name] = {
           ok: true,
-          capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || null,
+          capturedAt: body.capturedAt || body.generated_at || body.fetchedAt || body.lastRunFinishedAt || null,
+          ...(perSource ? { sources: perSource } : {}),
           covered: Number.isFinite(body.covered) ? body.covered : Number.isFinite(body.company_count) ? body.company_count : null,
           failed: Number.isFinite(body.failedCount) ? body.failedCount : Number.isFinite(body.failures) ? body.failures : null,
           fallback: Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0,

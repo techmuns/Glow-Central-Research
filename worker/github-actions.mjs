@@ -57,6 +57,7 @@ export const COMPANY_NEWS_WORKFLOW = 'company-news-refresh.yml';
 export const INSIDER_WORKFLOW = 'insider-trades-refresh.yml';
 export const ANNOUNCEMENTS_WORKFLOW = 'announcements-refresh.yml';
 export const DATA_WORKFLOW = 'technicals-refresh.yml';
+export const TWITTER_WORKFLOW = 'twitter-refresh.yml';
 export const DEPLOY_WORKFLOW = 'deploy.yml';
 
 // Six seconds is generous for api.github.com, which answers in well under one when healthy. Two

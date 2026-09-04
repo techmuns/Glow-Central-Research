@@ -1,0 +1,80 @@
+name: NSE announcements refresh
+
+# NSE's live "latest announcements" feed, captured to a snapshot and additive daily history.
+#
+# WHY A SNAPSHOT WHEN THE FEED IS LIVE. The live experience is the Worker route
+# /api/nse-announcements, which the NSE Filings tab polls. This snapshot is the FLOOR beneath it:
+# what a first visit paints before the route answers, what a static origin (no Worker) shows, and
+# what the Worker itself serves when NSE refuses a fetch. Every other feed here has the same live
+# route + committed fallback shape. Each successful capture also archives the previous and new
+# windows by filing date, so rollover does not delete yesterday's searchable records.
+#
+# COST: one request, a few seconds. NSE does NOT TLS-fingerprint the reader the way Moneycontrol
+# does, so node's fetch reads it directly with a full desktop user-agent (a weak one is
+# Akamai-blocked). No credential.
+#
+# EXIT 2 MEANS NSE REFUSED THIS RUNNER, which is a wait-and-retry state behind their best-effort
+# Akamai edge, not a bug here — the committed snapshot is untouched and still correct. Reporting it
+# as a failed build would send someone to read a working scraper. Exit 1 (parser broke, zero rows)
+# still fails loudly.
+
+on:
+  schedule:
+    # Hourly across Indian market and filing hours (04:00-15:00 UTC = 09:30-20:30 IST), weekdays.
+    # GitHub schedules are best-effort. This preserves what was captured, not a complete exchange
+    # archive; the live route also retains observed rows in each reader's device cache.
+    - cron: "0 4-15 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: nse-announcements-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Capture NSE announcements
+        id: capture
+        run: |
+          set +e
+          node scripts/scrape-nse-announcements.mjs
+          code=$?
+          set -e
+          if [ "$code" = "2" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=NSE refused this runner::The committed snapshot is unchanged. The live Worker route is unaffected."
+            exit 0
+          fi
+          exit $code
+
+      - name: Commit the snapshot and captured history
+        if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/nse-announcements.json public/data/nse-filings
+          if git diff --cached --quiet; then
+            echo "No change."
+            exit 0
+          fi
+          git commit -m "NSE announcements refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

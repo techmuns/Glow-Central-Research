@@ -11,6 +11,7 @@
 //   'mock'    — placeholder data ships in the repo; the real source is named but not connected
 //   'pending' — nothing exists yet; named so the gap is visible rather than hidden
 
+import { companyCaptureStatus } from '../data/company-captures.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatRelativeTime, formatNumber } from '../core/format.js';
 import * as coverage from '../data/coverage.js';
@@ -23,6 +24,9 @@ import * as mfWeekly from '../data/mf-weekly.js';
 import * as technicals from '../data/technicals.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
+import * as nseFeed from '../data/nse-filings.js';
+import * as twitterNews from '../data/twitter-news.js';
+import * as twitterHandles from '../core/twitter-handles.js';
 import * as superInvestors from '../data/super-investors.js';
 import * as macroSeries from '../data/series.js';
 import * as familyBook from '../data/book.js';
@@ -48,6 +52,17 @@ import * as aiAlerts from '../data/ai-alerts.js';
 // written to lose the clause rather than print a wrong figure — "every earnings call held this
 // quarter" is true forever; "877 of them" is true for about a day.
 // ---------------------------------------------------------------------------------------
+
+function capturedSourceState(kind) {
+  const status = companyCaptureStatus(kind);
+  return !status.available ? 'pending' : status.error || status.gaps.length || status.unresolved.length || status.unavailableLinks ? 'partial' : 'live';
+}
+function capturedSourceCadence(kind) {
+  const status = companyCaptureStatus(kind);
+  return 'Scheduled every two hours; progress resumes across runs. ' + (!status.available ? 'No shared capture published yet.' :
+    `${status.checked}/${status.total} recently checked, ${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. `) +
+    'Shared history does not expire; personal device-only additions are outside scheduled coverage.';
+}
 
 /** A live count, or null if the feed has not loaded. Never 0-as-unknown — see the header. */
 function num(fn) {
@@ -110,6 +125,59 @@ export function deliveryNote(meta, { poll } = {}) {
       feed answers with <strong>no data at all</strong> rather than resending itself. The full payload crosses the wire only
       when something in it actually changed.
     </p>`;
+}
+
+/**
+ * One row per monitored X account, with the state the ingestion job actually established.
+ *
+ * `active` means a collection run has read the account; `adding` means this browser is monitoring
+ * it and no run has yet. Those are different claims and the second is the honest one for a handle
+ * somebody added a minute ago — the same distinction as a cached paint that has not been confirmed.
+ * `unreadable` is the job's own answer, carried through with its reason rather than paraphrased.
+ */
+function twitterSources() {
+  let list = [];
+  let failed = new Map();
+  let counts = new Map();
+  try {
+    failed = twitterNews.failedByKey();
+    counts = twitterNews.countsByHandle();
+    list = twitterHandles.all({ failed, collected: !!twitterNews.meta().capturedAt });
+  } catch {
+    list = [];
+  }
+  const cadence = 'Every 30 minutes · GitHub Actions';
+  if (!list.length) {
+    return [
+      {
+        name: 'No accounts monitored yet',
+        url: null,
+        feeds:
+          'Posts from X/Twitter accounts join the market-wide News feed as ordinary stories — same list, same search, ' +
+          'same sort, same export, marked <strong>Twitter / X</strong>. Add an account under <strong>Edit Twitter Sources</strong> and its ' +
+          'posts appear there. Nothing is scored, ranked, summarised or mapped to a company: the post is reproduced as published.',
+        cadence,
+        status: 'pending',
+        file: 'public/data/twitter-handles.json',
+      },
+    ];
+  }
+  return list.map((e) => {
+    const n = counts.get(e.key) || 0;
+    return {
+      name: `@${e.handle}`,
+      url: `https://x.com/${encodeURIComponent(e.handle)}`,
+      feeds:
+        e.status === 'not-found'
+          ? `This account could not be read${e.reason ? ` — ${escapeHtml(e.reason)}` : ''}. It stays on the list and is tried again on the next run; it is <strong>absent</strong> from the feed rather than shown as an account with nothing to say.`
+          : e.status === 'adding'
+            ? 'Monitored by this browser. Its posts join the News feed once a collection run has read the account.'
+            : `Posts join the market-wide News feed, marked <strong>Twitter / X</strong>${clause(n || null, ', <n> in the feed now')}. Reproduced as published — nothing scored, ranked or summarised.`,
+      cadence,
+      status: e.status === 'active' ? 'live' : e.status === 'adding' ? 'adding' : 'unreadable',
+      file: 'public/data/twitter-posts.json',
+    };
+  });
 }
 
 /**
@@ -238,7 +306,7 @@ export function sourceGroups() {
     {
       title: 'Earnings & filings',
       icon: '📊',
-      tabs: 'Earnings Hub · Breakouts → Earnings Surprise',
+      tabs: 'Earnings Hub · Con-call · Breakouts → Earnings Surprise',
       items: [
         {
           name: 'Live published-results feed',
@@ -268,22 +336,22 @@ export function sourceGroups() {
           file: 'public/data/result-returns.json · scripts/scrape-result-returns.mjs',
         },
         {
-          name: 'BSE / NSE corporate filings',
-          url: 'https://www.nseindia.com/companies-listing/corporate-filings-financial-results',
-          feeds:
-            'Eight quarters of revenue, operating profit, PAT, EPS, other income, exceptional items and tax — the actuals behind the 15-rule quality score used by <strong>Breakouts → Earnings Surprise</strong>. <strong class="text-amber-700">Synthetic today:</strong> generated by <code class="rounded bg-amber-100 px-1">scripts/gen-mock-earnings.mjs</code> (seed 20260810), with real names, tickers, sectors and market caps. The Earnings Hub no longer uses this — it uses the live published-results feed above.',
-          cadence: 'Event-driven during results season — not yet connected',
-          status: 'mock',
-          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
-        },
-        {
-          name: 'Screener.in / Trendlyne — consensus',
+          name: 'Screener.in — company filings',
           url: 'https://www.screener.in/',
           feeds:
-            'Street EPS and revenue estimates behind the two Surprise rules and the beat/miss tag in Breakouts. <strong class="text-amber-700">Synthetic today:</strong> generated alongside the actuals, so a beat is an artefact of the generator, not of the street.',
-          cadence: 'Refreshed alongside each result — not yet connected',
-          status: 'mock',
-          file: 'public/data/mock/earnings.json · scripts/gen-mock-earnings.mjs',
+            'Annual report PDFs, earnings report PDFs and concall transcripts for an Indian ticker, read through the authenticated Muns domestic-filings service. Open Earnings Hub → Company Filings, or follow Reports / Transcripts from a company row. Documents keep their original source links. This source provides documents; it does not populate a financial quality score or analyst estimates.',
+          cadence: capturedSourceCadence('domestic'),
+          status: capturedSourceState('domestic'),
+          file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
+        },
+        {
+          name: 'Analyst consensus estimates',
+          url: null,
+          feeds:
+            'No verified consensus feed is connected. EPS and revenue estimates, beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable. Generated figures have been removed from the dashboard and Ask Research. Filing PDFs alone do not supply analyst estimates.',
+          cadence: 'Awaiting a real estimates source',
+          status: 'pending',
+          file: 'public/js/tabs/breakouts.js · public/js/research/estate.js',
         },
         {
           name: 'Published results calendar — counts',
@@ -373,20 +441,34 @@ export function sourceGroups() {
           name: 'Muns news API — company news',
           url: 'https://fastapi.muns.io',
           feeds:
-            "<strong>Real, and not ours.</strong> Recent articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>No sentiment and no ranking of ours</strong> — articles keep the order the API returned them in. The company a story is filed under is our search term, not a claim by the article. <strong>The shape is unverified</strong>: no working token was available when this was wired, so the parser reads by shape and by candidate key rather than by one guessed field name.",
+            "<strong>Real, and not ours.</strong> Recent articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>No sentiment and no ranking of ours</strong> — articles keep the order the API returned them in. The company a story is filed under is our search term, not a claim by the article. <strong>Topics are ours and are the one reading this dashboard adds</strong>: thirty keywords the desk tracks newsflow by, matched against the headline and standfirst. A keyword says what a story is ABOUT and is never a direction or a score — the search supplies the company name, the keyword supplies the rest. <strong>The shape is unverified</strong>: no working token was available when this was wired, so the parser reads by shape and by candidate key rather than by one guessed field name.",
           cadence: 'Rolling 30 days · captured weekdays at 07:00 and 09:00 IST; the live routes answer the Refresh button, never a page load',
           status: 'live',
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/filings-shared.js · scripts/scrape-filings.mjs',
         },
         {
-          name: 'Market-wide stocks news feed',
+          name: 'Tracked news keywords (computed)',
+          url: null,
+          feeds:
+            '<strong>Not a feed — the one reading this dashboard adds to somebody else\'s reporting.</strong> Thirty keywords, supplied by the desk, matched against each story\'s headline and standfirst on both News surfaces, against each filing\'s subject and BSE\'s own sub-category on Corp Announcements, and used as the materiality rule for both feeds in General Alerts and AI Alerts. ' +
+            'It exists because the news upstream is a <strong>search by company name</strong>, so the capture is a name match and names collide: on the shipped file, filtering 11,060 stories by these keywords leaves 2,889. ' +
+            '<strong>A keyword is a TOPIC, never a direction</strong> — "Lawsuit" is something a company can be on either side of — so no story here is scored positive or negative, and every company-news row in General Alerts stays directionally neutral exactly as it was. What a match changes is importance. ' +
+            'Several patterns are deliberately narrower than the plain word, and each says so on its own chip: a bare <em>trial</em> matched free-trial boilerplate, a bare <em>fire</em> matched "stock on fire". ' +
+            'The filter always offers <strong>No tracked keyword</strong>, so a pattern that is quietly too narrow can be found rather than mistaken for a quiet week; and a story that does not appear to name the company it is filed under is <strong>marked, never removed</strong>. ' +
+            'On announcements it also <strong>replaced</strong> a borrowed gate rather than sitting beside one: BSE\'s own critical flag marks about a third of all filings, most of them AGM notices, so it is reproduced on every row but no longer decides what General Alerts calls material — measured, high importance there fell from 32% of filings to 11%.',
+          cadence: 'Recomputed on every load',
+          status: 'static',
+          file: 'public/js/data/news-keywords.js',
+        },
+        {
+          name: 'Market-wide news — five publishers',
           url: 'https://www.moneycontrol.com/news/business/stocks/',
           feeds:
-            "<strong>Real reporting, and not ours.</strong> Every story in the market-wide publisher feed — the Universe half of the News tab. Headlines, standfirsts and section names are theirs, reproduced unchanged; the article stays on their site and every row links to it. Nothing is summarised, scored, ranked or flagged as important, and <strong>the order is the publisher's own</strong>, by their article id. <strong>It is a capture, not a live read, and that is not a choice:</strong> their site refuses automated readers by TLS fingerprint — curl with a browser user-agent gets 200 and 598 KB, node's <code class=\"rounded bg-slate-100 px-1\">fetch</code> gets 403 on every header set tried, and a Cloudflare Worker gets 403 too — so a scheduled Action reads the page and the browser reads what it committed. Their listing page carries <strong>no date at all</strong>, so a story's time comes from its own page, costs one request each and is budgeted; the rest read <em>time not published</em> and are <strong>never</strong> stamped with the moment this dashboard saw them. <strong>The stories are rendered as the publisher's own cards</strong> — their thumbnail, headline and standfirst — and the whole card links to their page.",
+            "<strong>Real reporting, and not ours.</strong> Every story in five publishers' market-wide feeds — the Universe half of the News tab. Headlines and standfirsts are theirs, reproduced unchanged; the article stays on their site, every row links to it and <strong>every row names who published it</strong>, because an unattributed headline in a mixed list attributes itself to whichever masthead the reader assumes. Nothing is summarised, scored, ranked or flagged as important, no publisher is ranked above another, and <strong>the order is by publication time</strong>. <strong>Section is ours, not theirs</strong>: each publisher offers several feed URLs, so a story's section records which of their feeds it arrived on rather than a tag they applied to it. <strong>It is a capture, not a live read, and that is not a choice:</strong> three of the five refuse a server by TLS fingerprint rather than by headers — measured with node's <code class=\"rounded bg-slate-100 px-1\">fetch</code>, two of them answer 200 while the other three answer <strong>403 with a 24-byte body</strong> — the same 24 bytes each — and curl with a browser user-agent gets all five at 200 — so a scheduled Action reads them and the browser reads what it committed. <strong>A story with no time says so</strong> and is <strong>never</strong> stamped with the moment this dashboard saw it. <strong>Nothing is ever discarded:</strong> the file the browser downloads holds the newest stories only, and everything older is kept in a shard per month that is fetched when a reader scrolls to the end of the list.",
           cadence:
-            `Captured on a schedule through the day.${clause(num(() => marketNews.meta().count), ' <n> stories in the current file.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry the publisher's own time.")}`,
+            `Captured on a schedule through the day.${clause(num(() => marketNews.meta().count), ' <n> stories loaded on this page.')}${clause(num(() => marketNews.meta().archive?.total), ' <n> in the capture, head and archive together.')}${clause(num(() => marketNews.meta().withPublishedAt), " <n> carry their publisher's own time.")}`,
           status: 'live',
-          file: 'worker/mc-news.mjs · scripts/scrape-mc-news.mjs · .github/workflows/market-news-refresh.yml',
+          file: 'worker/mc-news.mjs · worker/rss-news.mjs · scripts/scrape-mc-news.mjs · scripts/scrape-rss-news.mjs · scripts/lib/news-store.mjs · .github/workflows/market-news-refresh.yml · .github/workflows/rss-news-refresh.yml',
         },
         {
           name: 'BSE — corporate announcements, indexed by date',
@@ -397,16 +479,34 @@ export function sourceGroups() {
           // screen and this feed only loads when its tab mounts. A sentence built AROUND a number
           // reads as broken prose the moment it does not arrive.
           cadence:
-            `Refreshed weekdays at 20:00 IST, after filing stops for the day.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().rowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().covered), ' <n> companies filed something.')}`,
+            `Scheduled every two hours, including weekends; missed date windows are retried and older rows are archived.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().baseRowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().baseCovered), ' <n> companies filed something.')}`,
           status: 'live',
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · .github/workflows/announcements-refresh.yml',
+        },
+        {
+          name: 'Muns — BSE / NSE / DRHP corporate announcements',
+          url: 'https://devde.muns.io',
+          feeds: 'Additional corporate announcements from BSE, NSE fallback and DRHP documents through the authenticated corporate-announcements endpoint. Scheduled captures cover the committed companies; the company/date form permits an immediate check. Results join the existing table with source labels and document links; matching disclosures are deduplicated. Saved lookup rows survive an empty or failed refresh. Coverage is limited to the companies and dates requested, not the whole NSE or DRHP universe.',
+          cadence: capturedSourceCadence('announcements'),
+          status: capturedSourceState('announcements'),
+          file: 'worker/muns.mjs → GET /filings/corp/announcements/{ticker} · public/js/data/announcements-extra.js',
+        },
+        {
+          name: 'NSE — live exchange announcements',
+          url: 'https://www.nseindia.com/companies-listing/corporate-filings-announcements',
+          feeds:
+            "<strong>Real filings, live, and narrowed to your companies.</strong> NSE rebuilds an announcements RSS every few minutes and every item names the filer, so unlike the market-wide publisher feeds this one can be scoped: each row is resolved to an NSE symbol and the Portfolio / Watchlist toggle shows just your holdings. <strong>The company name is the identity</strong> — the filename prefix looks like a symbol but was measured only 31% reliable (truncations, a different entity's code, XBRL names with no clean prefix), so it is a last resort behind a name match. <strong>The browser cannot read NSE directly</strong> (it answers <code class=\"rounded bg-slate-100 px-1\">access-control-allow-origin: null</code>), so this is proxied through our Worker with a 90-second edge cache; a committed snapshot is the floor beneath it for a first visit or a static origin. <strong>A filing whose company is outside the universe we can name keeps no symbol</strong> and shows only under Universe — never under a narrowed scope, because nothing on it says whose it is. Exchange surveillance notices (&ldquo;significant movement in price&rdquo;) carry no document and say so rather than being dropped. Nothing here is scored, ranked or judged.",
+          cadence:
+            `Live off the exchange, edge-cached; scheduled captures also retain daily history. Search covers the selected 7, 30 or 90 days and scope, not a complete NSE archive. Missing historical files are flagged.${clause(num(() => nseFeed.meta().count), ' <n> announcements in the selected range.')}${clause(num(() => nseFeed.meta().resolved), ' <n> resolved to a symbol.')}`,
+          status: 'live',
+          file: 'worker/nse-ann.mjs · public/js/data/nse-filings.js · scripts/scrape-nse-announcements.mjs · .github/workflows/nse-announcements-refresh.yml',
         },
         {
           name: 'Muns filings API — insider trades',
           url: 'https://devde.muns.io',
           feeds:
             "<strong>Real disclosures.</strong> Promoter, director and designated-person dealing from <code class=\"rounded bg-slate-100 px-1\">POST /filings/data/insider_trades</code> with <code class=\"rounded bg-slate-100 px-1\">country: india</code>, routing to NSE, BSE and Trendlyne. <strong>This endpoint answers with a markdown table, not JSON</strong> — the only upstream here that does — so the columns on screen are whatever their table declared, in their order, under their headings. Nothing is renamed and <strong>nothing is summed</strong>: a quantity written \"1,20,000 (pledged)\" is not a number.",
-          cadence: 'Rolling 365 days · captured weekdays at 07:00 and 09:00 IST; the live routes answer the Refresh button, never a page load',
+          cadence: 'Additive history within a rolling 365-day window · captured weekdays at 19:00 IST; Refresh adds live disclosures while retaining earlier captures',
           status: 'live',
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
         },
@@ -465,6 +565,7 @@ export function sourceGroups() {
       ],
     },
     {
+<<<<<<< HEAD
       // GLOW-OWNED: the Mutual Funds tab reads two fund feeds that are dated DIFFERENT DAYS and
       // answer different questions, so they are listed as two sources and never as one.
       title: 'Mutual funds',
@@ -565,50 +666,40 @@ export function sourceGroups() {
     },
     {
       title: 'Portfolio',
+=======
+      // THE ONE GROUP WHOSE ITEMS ARE THE READER'S OWN LIST. Every other source here is wired by
+      // this repository; these are accounts somebody chose to follow, so the group is generated
+      // from js/core/twitter-handles.js rather than written down — and it says so plainly when the
+      // list is empty rather than pretending to a feed that is not reading anything.
+      id: 'twitter',
+      title: 'Twitter / X',
+      icon: '🐦',
+      tabs: 'News',
+      // Read by ui/source-beacon.js, which renders it as the "Edit Twitter Sources" button. Kept
+      // on the group rather than hard-coded in the beacon so the registry stays the one place that
+      // knows this family is editable.
+      action: { id: 'edit-twitter', label: 'Edit Twitter Sources' },
+      items: twitterSources(),
+    },
+    {
+      title: 'Portfolio scope',
+>>>>>>> upstream/main
       icon: '💼',
-      tabs: 'Portfolio Analytics',
+      tabs: 'Every research tab',
       items: [
         {
           name: 'Direct-equity statement — the book',
           url: null,
           feeds:
-            `What the Portfolio toggle means on every research tab.${clause(book?.count, ' <n> companies')} from the family office statement, ` +
-            `resolved to NSE symbols by scripts/resolve-portfolio-companies.mjs. Names and sectors only — no quantity, ` +
-            `no cost, no value.${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
+            `What the Portfolio toggle means on every research tab, and <strong>the only portfolio information this ` +
+            `dashboard holds</strong>.${clause(book?.count, ' <n> company lines')} read from the family office's own repository ` +
+            `(techmuns/Sattva-Family) by scripts/sync-family-book.mjs and resolved to NSE symbols by ` +
+            `scripts/resolve-portfolio-companies.mjs. <strong>Names and sectors only — no quantity, no cost, no value, ` +
+            `no valuation.</strong>${clause(book?.uncovered, ' <n> lines carry no NSE symbol')} (unlisted, warrants, the Vedanta demerger entities, ` +
             `BSE-only, or unresolved); they are kept with the reason and shown as held-but-not-covered rather than dropped.`,
-          cadence: 'When the statement changes · re-run the resolver and commit the diff',
+          cadence: 'Daily 06:00 IST, and on a repository_dispatch from the family repository',
           status: 'static',
           file: 'public/data/portfolio-companies.json',
-        },
-        {
-          name: 'Holdings (user-maintained)',
-          url: null,
-          feeds:
-            'The holdings list — tickers, names, sectors, conviction tiers. Quantity and average cost are NOT edited here: ' +
-            'they are derived from a FIFO replay of the ledger below, so the position table and the ledger cannot disagree.',
-          cadence: 'User-edited; qty/avgPrice regenerated with the ledger',
-          status: 'mock',
-          file: 'public/data/portfolio.json',
-        },
-        {
-          name: 'Broker contract notes',
-          url: null,
-          feeds:
-            'The buy/sell/dividend/corporate-action ledger behind the book. Which trades were made and when is synthetic; ' +
-            'every execution price in it is a real Yahoo close on a real trading day. CSV import parses in-browser and lasts until reload.',
-          cadence: 'Event-driven, per trade · regenerate with scripts/gen-mock-transactions.mjs',
-          status: 'mock',
-          file: 'public/data/mock/transactions.json',
-        },
-        {
-          name: 'Yahoo Finance — daily closes, 3 years',
-          url: 'https://query1.finance.yahoo.com/v8/finance/chart/',
-          feeds:
-            'The equity curve and every drawdown figure. Daily closes for each ticker the ledger touches plus the Nifty 500 ' +
-            '(^CRSLDX) benchmark. Tickers Yahoo will not serve are recorded in failures[] and named in the UI, never dropped.',
-          cadence: 'Weekdays 07:00 IST via GitHub Actions, alongside the technicals refresh',
-          status: 'live',
-          file: 'public/data/portfolio-history.json',
         },
       ],
     },
@@ -622,10 +713,26 @@ const STATUS_CHIP = {
   // Indigo is the brand/action colour and this status IS an action — a source that produces
   // nothing until the reader asks it to. It is deliberately not emerald: counting it among the
   // live feeds would claim data is flowing when none is until someone clicks.
+  partial: 'bg-amber-50 text-amber-700 ring-amber-200',
   ondemand: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  // A source this browser is monitoring that nothing has read yet. Amber rather than emerald for
+  // the reason the whole registry exists: green means data is arriving, and none is until a
+  // collection run has actually reached the account.
+  adding: 'bg-amber-50 text-amber-700 ring-amber-200',
+  // The upstream's own answer, not a guess made here — the account could not be read.
+  unreadable: 'bg-rose-50 text-rose-700 ring-rose-200',
   pending: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
-const STATUS_LABEL = { live: 'Live', static: 'Real · manual', mock: 'Mock data', ondemand: 'On demand', pending: 'Not yet built' };
+export const STATUS_LABEL = {
+  live: 'Live',
+  static: 'Real · manual',
+  mock: 'Mock data',
+  partial: 'Coverage gaps',
+  ondemand: 'On demand',
+  adding: 'Adding…',
+  unreadable: 'Not found',
+  pending: 'Not connected',
+};
 
 // Renders the Sources modal body. Kept here (beside the data) so the two never drift.
 export function sourcesModalHtml() {
@@ -645,7 +752,7 @@ export function sourcesModalHtml() {
             Every source that feeds this dashboard, grouped by the tabs it serves.
             <span class="font-semibold text-slate-700">${live} of ${total}</span> are wired to a live feed today,
             ${realStatic} more carry real data refreshed by hand${onDemand ? `, and ${onDemand} runs only when you ask it to` : ''} —
-            the rest ship with mock data and are labelled as such.
+            other sources show their connection status individually.
           </p>
         </div>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
