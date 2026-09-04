@@ -14,6 +14,7 @@ let nseRows = [nseRow, { ...nseRow, ticker: null, company: 'Unresolved Company',
 let fail = false;
 const hits = new Map();
 const bodies = {
+  '/data/filing-capture/nse-identities.json': { version: 1, directories: { sme: { entries: [] }, equity: { entries: [] } } },
   '/data/announcement-identities.json': { version: 1, capturedAt: at, entries: [
     { isin: 'INE564S01019', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' },
     { isin: 'INE094B01013', bseCode: '543766', bseSymbol: 'ASHIKAG', ticker: 'ASHIKAG', name: 'Ashika Global Securities Ltd' },
@@ -38,6 +39,7 @@ import {corporateAnnouncements as feed} from '/js/data/corporate-announcements.j
 coverage.prime({holdings:[{ticker:'TCS',name:'TCS Test Company'}, {isin:'INE564S01019',ticker:null,name:'Vikram Kamats Hospitality'}, {isin:'INE094B01013',ticker:null,name:'Ashika Credit Capital'}]}); watchlist.add('INFY','INFY Test Company');
 window.renderScope=(scope)=>{const root=document.querySelector('#root');root.innerHTML='';tab.render({root,scope,live,data:{universe:[{ticker:'TCS'},{ticker:'INFY'}]},params:{}});};
 window.stream=feed;window.destroyStream=()=>tab.destroy();window.renderScope('portfolio');
+window.addFutureHolding=()=>coverage.prime({holdings:[...coverage.holdings(),{isin:'INE000Z01019',ticker:null,name:'Future SME'}]});
 </script></body></html>`;
 const server = createServer((req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
@@ -134,6 +136,18 @@ try {
   assert.equal(hits.get('/data/announcements-archive/2025-01.json'), monthReads + 1);
   assert(await page.evaluate(() => window.stream.rows().some(r => r.title === 'TCS announcement older-bse')));
   console.log('PASS changed archive revisions refresh automatically, including unchanged row counts');
+  bodies['/data/filing-capture/nse-identities.json'].directories.sme.entries.push({ isin: 'INE000Z01019', ticker: 'FUTURE', aliases: ['FUTURE-SM'], name: 'Future SME' });
+  bodies['/data/filing-capture/announcements-recent.json'].rows.push({ ...filing('FUTURE-SM', 'new-holding'), source: 'NSE' });
+  await page.evaluate(() => { window.addFutureHolding(); window.renderScope('portfolio'); });
+  await page.evaluate(() => window.stream.refresh());
+  await search.fill('new-holding');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr[data-row-key]').length === 1);
+  assert.match(await page.locator('tbody').innerText(), /FUTURE/);
+  await page.evaluate(() => window.renderScope('watchlist'));
+  await search.fill('new-holding');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 0);
+  await page.evaluate(() => window.renderScope('portfolio'));
+  console.log('PASS a new portfolio holding and newly published NSE identity join the live feed without a page reload');
   fail = true; await page.evaluate(() => window.stream.refresh());
   assert(await page.evaluate(() => window.stream.rows().some(r => r.title === 'Just arrived')));
   assert(await page.evaluate(() => !!window.stream.meta().nse.degraded));

@@ -36,12 +36,16 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Capture insider trades
-        run: FILINGS_SCOPE=universe FILINGS_MIN_INTERVAL_HOURS=18 FILINGS_TIMEOUT_MS=25000 node scripts/scrape-filings.mjs insider
-
       - name: Capture company announcements and domestic filings
-        if: ${{ !cancelled() }}
+        id: company
+        timeout-minutes: 25
         run: node scripts/capture-company-filings.mjs
+
+      - name: Capture insider trades
+        id: insider
+        timeout-minutes: 40
+        if: ${{ !cancelled() }}
+        run: FILINGS_SCOPE=universe FILINGS_MIN_INTERVAL_HOURS=18 FILINGS_TIMEOUT_MS=25000 node scripts/scrape-filings.mjs insider
 
       - name: Upload insider-trades data
         if: always()
@@ -55,7 +59,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Commit insider trades to main
-        if: success() && github.ref == 'refs/heads/main'
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

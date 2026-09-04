@@ -3,7 +3,8 @@ import { companyCaptureStatus } from '../data/company-captures.js';
 
 export function captureCoverageHtml(kind, tickers = null) {
   const status = companyCaptureStatus(kind, tickers);
-  const hasGaps = !status.available || status.error || status.gaps.length || status.unresolved.length || status.unavailableLinks;
+  const identityErrors = Object.values(status.identitySources).map(source => source?.error).filter(Boolean);
+  const hasGaps = !status.available || status.error || status.portfolio?.error || identityErrors.length || status.gaps.length || status.unresolved.length || status.unavailableLinks;
   const tone = hasGaps ? 'bg-amber-50 text-amber-900 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-emerald-200';
   const title = kind === 'domestic' ? 'Company filings' : 'Additional BSE / NSE / DRHP announcements';
   const summary = !status.available ? 'Automatic capture has not published a coverage report yet.' :
@@ -14,6 +15,8 @@ export function captureCoverageHtml(kind, tickers = null) {
   return `<details class="my-3 rounded-lg p-3 text-xs ring-1 ${tone}" data-capture-coverage>
     <summary class="cursor-pointer font-semibold">${escapeHtml(title)} — ${escapeHtml(summary)}</summary>
     <p class="mt-2">${escapeHtml(status.error || '')} Scheduled capture keeps records between visits. A checked source can still omit records; these counts describe successful reads, not a guarantee of completeness.</p>
+    ${status.portfolio?.error ? `<p class="mt-2">${escapeHtml(status.portfolio.error)}</p>` : ''}
+    ${identityErrors.length ? `<p class="mt-2">${escapeHtml(identityErrors.join(' '))}</p>` : ''}
     ${status.from ? `<p class="mt-2">Announcement backfill window: ${escapeHtml(status.from)} to ${escapeHtml(status.to)}. Captured history is retained beyond this window.</p>` : ''}
     ${status.updatedAt ? `<p class="mt-2">Coverage report updated ${escapeHtml(new Date(status.updatedAt).toLocaleString())}.</p>` : ''}
     ${status.unavailableLinks ? `<p class="mt-2">The source lists ${status.unavailableLinks} unavailable document links.</p>` : ''}

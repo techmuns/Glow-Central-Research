@@ -6,6 +6,16 @@ const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM':
 const ISSUER_EQUITY = { INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017' };
 const upper = value => String(value || '').trim().toUpperCase();
 export const filingTicker = value => SME[upper(value)] || upper(value);
+// Exchange ISINs join the directories. Keep old exchange/provider symbols as exact aliases.
+export function mergeExchangeIdentities(...lists) {
+  const entries = new Map();
+  for (const entry of lists.flat()) {
+    const previous = entries.get(entry.isin);
+    entries.set(entry.isin, { ...previous, ...entry,
+      aliases: [...new Set([...(previous?.aliases || []), previous?.ticker, ...(entry.aliases || [])].filter(Boolean))] });
+  }
+  return [...entries.values()];
+}
 const nameKey = value => upper(value).replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ')
   .replace(/\b(LIMITED|LTD)\b/g, '').replace(/\s+/g, ' ').trim();
 
@@ -19,7 +29,7 @@ export function createAnnouncementIdentity(entries = []) {
   for (const entry of entries) {
     unique(isins, upper(entry.isin), entry);
     unique(codes, String(entry.bseCode || ''), entry);
-    for (const symbol of [entry.ticker, entry.bseSymbol]) unique(symbols, filingTicker(symbol), entry);
+    for (const symbol of [entry.ticker, entry.bseSymbol, ...(entry.aliases || [])]) unique(symbols, filingTicker(symbol), entry);
     unique(names, nameKey(entry.name), entry);
   }
   function find(company) {

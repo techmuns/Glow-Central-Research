@@ -29,6 +29,15 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
         add(source, 'invalid-capture', 'critical'); continue;
       }
       age(source, body.lastRunFinishedAt, FILINGS_HEALTH_LIMITS.runHours, 'capture-job-overdue');
+      if (body.portfolio?.liveRequested) {
+        if (body.portfolio.status !== 'live' || body.portfolio.error) add(source, 'portfolio-sync-unavailable', 'critical');
+        age(source, body.portfolio.checkedAt, FILINGS_HEALTH_LIMITS.runHours, 'portfolio-check-overdue');
+      }
+      for (const [kind, directory] of Object.entries(body.identitySources || {})) {
+        if (!object(directory)) { add(source, 'invalid-capture', 'critical', [kind]); continue; }
+        if (directory.error) add(source, 'identity-directory-unavailable', 'critical', [kind]);
+        age(source, directory.checkedAt, 48, 'identity-directory-overdue', [kind]);
+      }
       for (const kind of ['announcements', 'domestic']) {
         const name = `${source}/${kind}`, entries = body.sources[kind];
         if (!object(entries)) { add(name, 'capture-unavailable', 'critical'); continue; }

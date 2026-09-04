@@ -4,6 +4,7 @@ import worker from '../worker/index.js';
 import { normaliseCorporateAnnouncements, announcementRange, mergeAnnouncements } from '../public/js/data/announcements-shared.js';
 import { withAnnouncementLookups } from '../public/js/data/announcements-extra.js';
 import { clearAll } from '../public/js/core/store.js';
+import { loadCompanyCaptureIndex } from '../public/js/data/company-captures.js';
 
 const pdf = 'a1111111-1111-1111-1111-111111111111.pdf';
 const fixture = [
@@ -79,5 +80,34 @@ try {
   const reloaded=withAnnouncementLookups(base); await reloaded.seed();
   assert.equal(reloaded.rows().length,3,'additional rows survive reload');
   assert.match(reloaded.lookupMeta().last.error,/expired/);
+
+  await clearAll();
+  let baseFails = true, companyReads = 0;
+  const captured = { version: 1, companies: [{ ticker: 'A' }, { ticker: 'B' }], sources: { announcements: {
+    A: { rowCount: 1, lastResponseAt: '2026-09-04T07:00:00Z' },
+    B: { rowCount: 1, lastResponseAt: '2026-09-04T07:00:00Z' },
+  } } };
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/index.json')) return Response.json(captured);
+    companyReads++;
+    const ticker = String(url).includes('/A.json') ? 'A' : 'B';
+    return Response.json({ rows: [{ ticker, date: '2020-01-01', title: `${ticker} history`, url: `https://example.test/${ticker}.pdf` }] });
+  };
+  await loadCompanyCaptureIndex({ force: true });
+  const archived = withAnnouncementLookups({ ...base, rows: () => [],
+    loadArchive: async () => { if (baseFails) throw new Error('BSE archive unavailable'); } });
+  await archived.loadArchive({ onlyChanged: true });
+  assert.equal(archived.rows().length, 2, 'a base archive failure does not discard successful company histories');
+  assert.equal(archived.meta().archive.pending, false, 'a rejected base archive cannot leave history stuck pending');
+  assert(archived.meta().archive.error);
+  assert.equal(companyReads, 2);
+  baseFails = false;
+  await archived.loadArchive({ onlyChanged: true });
+  assert.equal(archived.meta().archive.error, null, 'the next refresh recovers after a base archive rejection');
+  assert.equal(companyReads, 2, 'successful unchanged company files are not fetched again');
+  captured.sources.announcements.A.lastResponseAt = '2026-09-04T08:00:00Z';
+  await loadCompanyCaptureIndex({ force: true });
+  await archived.loadArchive({ onlyChanged: true });
+  assert.equal(companyReads, 3, 'newly parsed partial rows refresh even when a full-success timestamp has not advanced');
 } finally {globalThis.fetch=originalFetch;globalThis.caches=originalCaches;await clearAll()}
 console.log('PASS grouped announcements, scope identity, date contract, auth/cache and additive device retention');

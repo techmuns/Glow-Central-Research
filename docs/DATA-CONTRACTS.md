@@ -2893,6 +2893,15 @@ the existing Moneycontrol BSE-code map supplying the preferred ticker label. Cor
 scope matching therefore does not depend on a holding having an NSE ticker or retaining its old
 company name. Exact identifiers take precedence; similar company names are never guessed.
 
+`filing-capture/nse-identities.json` refreshes NSE's official
+[equity](https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv) and
+[SME](https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv) directories on each
+company-capture run. These directories join the BSE map by ISIN, with NSE's symbol preferred for
+company queries. Verified historical symbols and SME quote aliases survive renames and migration
+to the main board. Invalid, undersized, ambiguous or abruptly truncated directories cannot replace
+the last verified list; each directory records its own failure and check time. Both the browser
+and collector use this mapping, so new NSE-only holdings do not require a hand-maintained symbol list.
+
 The per-company collector gives portfolio announcement history priority after never-checked and
 failed work. Two out of three request starts are reserved for announcements and one for domestic
 reports; never-visited companies take precedence over repeats. Within announcements, portfolio
@@ -3861,18 +3870,29 @@ saved-document retention and synthetic-data rejection checks.
 ## Automatic company capture and permanent filing history
 
 `scripts/capture-company-filings.mjs` runs in the existing `insider-trades-refresh.yml` workflow,
-now scheduled every two hours on all days. It reads the union of the committed portfolio, raw
-Screener universe and technicals: 603 tickers at implementation time. Entries without a usable
+now scheduled every two hours on all days. With `FAMILY_HOLDINGS_LIVE=true`, it reads the current
+shared Family portfolio on every run and combines it with the raw Screener universe and technicals.
+The last verified names/identifiers-only portfolio is retained in `filing-capture/portfolio.json`;
+the reviewed `portfolio-companies.json` remains the initial fallback. A source outage, stale response,
+older workbook, invalid shape or unreconciled loss of more than 20% cannot roll back newer verified
+holdings. The index records live/fallback state and a failed portfolio check makes operational health
+critical while capture continues for known companies. No money, quantities or unknown API fields
+are copied into the cache. New companies are registered before requests begin, so the next run can
+resume even if this one has no budget left. Valid removals lose portfolio priority; archived filings
+remain retained and companies still in Universe continue to be captured. Entries without a usable
 ticker remain explicitly unresolved; browser-only scope/watchlist additions are not transmitted to
 this public repository and therefore are **not registered for background capture**.
 
 `public/data/filing-capture/index.json` records each source/company independently: last attempt,
-last fully parsed success, response time, errors, missing document links, retained row count, and
+last fully parsed success, response time, errors, failure count, next retry time, query symbol,
+missing document links, retained row count, and
 successfully read announcement date ranges. Per-company files under `announcements/` and
 `domestic/` keep all captured records without a date expiry. Files are written atomically before
 advancing the checkpoint. Empty responses cannot retract records; partial responses add readable
 rows but do not close the date gap. Authentication failures stop additional requests, preserve
-history, and remain visible. The next run prioritizes companies least recently attempted.
+history, and remain visible. Failed entries retry with exponential delays from two hours up to
+24 hours, respecting `Retry-After` within that bound. A corrected query symbol clears its delay
+and requests a recent check. Failures never close history gaps or become successful empty reads.
 
 A run has a 20-minute budget, three requests in flight and one shared 2.5-second request-start
 interval. Reaching the budget retains unvisited work for later runs; it does not reduce the declared
@@ -3884,8 +3904,10 @@ again to catch late disclosures. A successful source response is a read, not pro
 provider disclosed every event.
 
 `announcements-recent.json` supplies the first 30 days plus undated company announcements to the
-existing table. **Load all captured history** joins per-company histories and the BSE archive into
-that same table, filters, source links and Excel export. A partial archive load names unavailable
+existing table. Per-company histories and the BSE archive load automatically into that same table,
+source links and Excel export. Downloads use three workers, skip unchanged company revisions, and
+merge each batch once. A failed base archive cannot leave company loading stuck or discard successful
+company downloads. A partial archive load names unavailable
 files/companies rather than claiming completion. Company Filings reads its shared company file
 first; the explicit source-check button uses the authenticated API. Coverage details list failed,
 never-checked, overdue, backfilling and unregistered companies, and source-unavailable links.
@@ -3900,6 +3922,8 @@ NSE announcements); all other companies remain explicitly unchecked for the new 
 Insider exact-row multiplicity and source columns are preserved. The insider scan has a 30-minute
 budget and prioritizes failed, unreached and older company reads; it also has a global request gate; incomplete scans retain last-good data and explicit failures.
 A complete insider capture is reused for 18 hours between scheduled company-capture passes.
+Company capture runs before the longer insider pass; either successful capture can publish its
+saved progress even if the other step fails. Health checks run after that publication.
 
 The BSE job also runs every two hours on all days, overlapping two days and recovering from the
 last completed date if a scheduled run was missed. A source pagination shortfall or unknown
