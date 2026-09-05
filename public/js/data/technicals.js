@@ -8,7 +8,7 @@
 //
 //   await load();                 // idempotent; safe to await from every render()
 //   all()                         // scored rows, best score first
-//   forScope('portfolio')         // narrowed to portfolio.json holdings
+//   forScope('portfolio')         // narrowed to the synced book (js/data/coverage.js)
 //   byTicker('RELIANCE')          // one scored row
 //   meta()                        // generated_at, source, counts, index, breadth
 //
@@ -23,6 +23,14 @@ const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
 
 let loadPromise = null;
 let cache = null; // { meta, scored, byTicker }
+
+// Revalidate the bounded capture; a General Alerts refresh must not reuse the page-lifetime cache.
+export async function refresh() {
+  if (loadPromise && !cache) return loadPromise;
+  const previous = cache;
+  try { cache = await buildCache(); return cache; }
+  catch (error) { cache = previous; throw error; }
+}
 
 /**
  * Fetch + score once. Concurrent callers share the same in-flight promise, and every later

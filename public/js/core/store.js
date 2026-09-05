@@ -68,6 +68,7 @@ export const KEYS = {
   // News, announcements and insider trades. One entry per committed snapshot and one per company
   // walked live, so a quarter landing for one company cannot invalidate the other six hundred.
   filings: (kind) => `filings:${kind}`,
+<<<<<<< HEAD
   // THE WINDOW IS PART OF THE KEY, because it is part of the question. These routes take `from`
   // and `to`, so the reader's history range decides what a request asks for — and a thirty-day
   // answer served back for a one-year request would be a store hit, no network, and eleven months
@@ -77,9 +78,34 @@ export const KEYS = {
     windowDays && windowDays !== DEFAULT_FILING_WINDOW[kind]
       ? `filings:${kind}:${ticker}:${windowDays}d`
       : `filings:${kind}:${ticker}`,
+=======
+  filingRow: (kind, ticker) => `filings:${kind}:${ticker}`,
+  // Additive insider history is separate from the exact HTTP response and its ETag.
+  insiderHistory: (ticker) => `insider-history:${ticker}`,
+  announcementLookups: 'announcement-lookups:v1',
+  domesticFilings: (ticker, form) => `domestic-filings:${ticker}:${form}`,
+>>>>>>> upstream/main
   // Market-wide stocks news, the Universe half of the News tab. One committed capture, refreshed
   // by a scheduled Action — neither the browser nor the Worker can read the publisher directly.
   marketNews: 'market-news',
+  // One entry per ARCHIVE MONTH, not one for the whole archive. A reader who has scrolled back
+  // three months holds three entries, and a story landing in the current month must not invalidate
+  // the two below it — the same reasoning as the per-investor and per-company keys above.
+  marketNewsMonth: (month) => `market-news:${month}`,
+  // NSE's live announcements feed — one committed blob, refreshed live off /api/nse-announcements.
+  nseFilings: 'nse-filings',
+  // Separate from the HTTP response/ETag: a shrinking live window cannot erase retained rows.
+  nseFilingsHistory: 'nse-filings:history',
+  // NSE + Screener's exchange-wide corporate-actions calendar. One retained snapshot serves all scopes.
+  corporateActions: 'corporate-actions',
+  // X/Twitter posts from the monitored handles, which join the market-news list. Its own key
+  // rather than a slice of `marketNews`: the two are separate captures with separate ETags, and a
+  // post landing must not invalidate 600 publisher stories.
+  twitterPosts: 'twitter-posts',
+  // Source-backed operating metrics extracted by Screener from company documents. One daily
+  // artifact covers the public universe and the synchronized portfolio; it is conditional and
+  // disk-backed because the series change far less often than a dashboard session.
+  screenerInsights: 'screener-insights',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still

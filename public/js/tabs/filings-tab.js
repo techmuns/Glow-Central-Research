@@ -30,7 +30,11 @@ import * as watchlist from '../core/watchlist.js';
 import * as trackedUniverse from '../data/tracked-universe.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
+<<<<<<< HEAD
 import { RANGES, parseRange, rangeParam, applyRange, heldSpan, reachOf, describeRange, iso } from '../data/date-range.js';
+=======
+import { portfolioNewsEntities, newsRowEntityKey } from '../data/company-news-identity.js';
+>>>>>>> upstream/main
 
 const REASONS = {
   'no-route': {
@@ -80,10 +84,14 @@ export function makeFilingsTab(cfg) {
   let view = null;
   let routeCompany = null;
   let ctxRef = null;
+<<<<<<< HEAD
   // The scope the company selection was made in. A selection is a list of companies IN A SCOPE, so
   // carrying it across the toggle would narrow the watchlist by book tickers and show nothing —
   // a control the reader cannot see the state of, filtering a view they did not filter.
   let lastScope = null;
+=======
+  let renderedRows = null;
+>>>>>>> upstream/main
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -104,6 +112,7 @@ export function makeFilingsTab(cfg) {
    * company. The other two feeds are per-ticker upstreams and ignore it.
    */
   function tickersFor(ctx) {
+<<<<<<< HEAD
     const mcap = (t) => trackedUniverse.marketCapOf(t) ?? -1;
     const book = coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
     // PORTFOLIO — the holdings, biggest first, so a bounded refresh covers the largest positions
@@ -131,16 +140,48 @@ export function makeFilingsTab(cfg) {
     for (const c of trackedUniverse.all()) add(c.ticker, c.name);
     for (const b of book) add(b.ticker, b.name);
     for (const r of cfg.feed.rows()) add(r.ticker, null);
+=======
+    const book = cfg.id === 'news'
+      ? portfolioNewsEntities(coverage.holdings()).map((entity) => ({
+          key: entity.key,
+          ticker: entity.ticker,
+          entityId: entity.entityId,
+          name: entity.name,
+        }))
+      : coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
+    if (ctx.scope === 'portfolio') return book;
+    // The watchlist carries the name the row was starred under, which is exactly what the news
+    // search needs — and it is the only name we have for a watched company outside the book.
+    if (ctx.scope === 'watchlist') return watchlist.all().map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
+    // Universe is the book plus every company the committed snapshot already covers. Deliberately
+    // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
+    // companies nothing else on this dashboard tracks would spend the rate limit on rows nobody can
+    // act on. The book comes FIRST, so a walk cut short by LIVE_LIMIT has covered the holdings
+    // rather than whatever the snapshot happens to list first — the same rule the scraper follows.
+    const seen = new Set(book.map((b) => String(b.key || b.ticker).toUpperCase()));
+    const out = [...book];
+    for (const r of cfg.feed.rows()) {
+      const t = String(r.ticker || '').toUpperCase();
+      if (t && !seen.has(t)) {
+        seen.add(t);
+        out.push({ ticker: t, name: null });
+      }
+    }
+>>>>>>> upstream/main
     return scopeLists.apply('universe', out);
   }
 
   function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+<<<<<<< HEAD
     if (ctx.scope !== lastScope) {
       lastScope = ctx.scope;
       if (view) view = { ...view, companies: [] };
     }
+=======
+    renderedRows = null;
+>>>>>>> upstream/main
     disposers.forEach((d) => d && d());
     disposers = [];
     // `exact: true` — these three tabs render the company multi-select, so a `?company=` deep link
@@ -228,6 +269,15 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
+    const oldScroller = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-scroll]');
+    const oldRows = oldScroller ? [...oldScroller.querySelectorAll('tbody tr[data-row-key]')] : [];
+    const anchor = oldScroller?.scrollTop > 0
+      ? oldRows.find((row) => row.getBoundingClientRect().bottom > oldScroller.getBoundingClientRect().top + 40) : null;
+    const position = oldScroller ? { top: oldScroller.scrollTop, left: oldScroller.scrollLeft,
+      key: anchor?.dataset.rowKey, offset: anchor ? anchor.getBoundingClientRect().top - oldScroller.getBoundingClientRect().top : 0 } : null;
+    const oldSearch = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-search]');
+    const selection = oldSearch && document.activeElement === oldSearch
+      ? { value: oldSearch.value, start: oldSearch.selectionStart, end: oldSearch.selectionEnd } : null;
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -243,6 +293,7 @@ export function makeFilingsTab(cfg) {
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
     if (cfg.keepRow) all = all.filter(cfg.keepRow);
 
+<<<<<<< HEAD
     // WHAT THE CAPTURE HOLDS IS MEASURED OVER THE WHOLE FEED, not over the scoped subset, and the
     // difference decides whether the reach note below is true. A scoped list can be short because
     // those particular companies were quiet, which says nothing at all about how far back the
@@ -257,6 +308,18 @@ export function makeFilingsTab(cfg) {
     // eleven hundred rows reads as a feed that lost them.
     const windowed = applyRange(inScope, range);
     const rows = windowed.rows;
+=======
+    const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
+    if (cfg.preserveReadingPosition) {
+      const nextRows = JSON.stringify([ctx.scope, m.reason, rows]);
+      // Archive/check status can change several times in one poll without changing a filing.
+      // Keep the mounted search field and rows intact for those notifications.
+      if (nextRows === renderedRows && ctx.root.querySelector('[data-score-table]')) return;
+      renderedRows = nextRows;
+    }
+    disposers.forEach((dispose) => dispose && dispose());
+    disposers = [];
+>>>>>>> upstream/main
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -268,10 +331,10 @@ export function makeFilingsTab(cfg) {
     const scoped = tickersFor(ctx);
     const cov = {
       inScope: scoped.length,
-      withRows: new Set(rows.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
-      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.ticker)).length,
-      failed: scoped.filter((c) => cfg.feed.failureFor(c.ticker)).length,
-      unlisted: ctx.scope === 'portfolio' ? coverage.meta().uncovered || 0 : 0,
+      withRows: new Set(rows.map((r) => cfg.id === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
+      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.key || c.ticker)).length,
+      failed: scoped.filter((c) => cfg.feed.failureFor(c.key || c.ticker)).length,
+      unlisted: ctx.scope === 'portfolio' && cfg.id !== 'news' ? coverage.meta().uncovered || 0 : 0,
       noun: cfg.noun,
       windowDays: m.windowDays,
       coversUniverse: m.coversUniverse,
@@ -289,15 +352,26 @@ export function makeFilingsTab(cfg) {
         ${sectionHead({
           title: cfg.title,
           description: cfg.subtitle,
+<<<<<<< HEAD
           meta: pill(m, ctx.scope, []),
           // THE RANGE CONTROL SURVIVES THE FAILURE STATE, for the same reason the company picker
           // had to: a control that selects what failed must outlive the failure, or a reader whose
           // one-year request could not be read has no way to ask for anything else.
           controls: rangeControls(range, { first: null, last: null, count: 0 }, reachOf(range, null), m, customOpen),
+=======
+          meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, []),
+>>>>>>> upstream/main
         })}
-        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}`;
+        ${cfg.aboveTable?.(ctx, m) || ''}
+        ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}
+        ${methodFooter(cfg)}`;
       wireRefresh(ctx.root);
+<<<<<<< HEAD
       wireRange(ctx.root, ctx);
+=======
+      disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
+      wireMethod(ctx.root, m, null, ctx.scope, []);
+>>>>>>> upstream/main
       return;
     }
 
@@ -378,7 +452,11 @@ export function makeFilingsTab(cfg) {
       dense: true,
       wrapHeads: true,
       nameMaxPx: cfg.nameMaxPx || 460,
-      stickyHead: 'max(320px, calc(100vh - 300px))',
+      stickyHead: cfg.stickyHead || 'max(320px, calc(100vh - 300px))',
+      fillMode: cfg.fillMode || 'idle',
+      initialRowCount: oldRows.length || 40,
+      initialRowKey: position?.key || null,
+      showWatchFilter: cfg.showWatchFilter !== false,
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
@@ -395,13 +473,14 @@ export function makeFilingsTab(cfg) {
           ? ''
           : `Switch the scope toggle to Universe to reach any company beyond ${scopePossessive(ctx.scope) || 'this list'}.`,
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
-      initialSort: { key: 'Date', dir: 'desc' },
+      initialSort: cfg.initialSort || { key: 'Date', dir: 'desc' },
       initialView: view,
       // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
       // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
       // Recompute both figures from the visible row DATA whenever search or a filter changes.
       countLabel: (visible) => {
-        const companies = new Set(visible.map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+        if (cfg.countLabel) return cfg.countLabel(visible, { scope: ctx.scope, holdings: coverage.holdings() });
+        const companies = new Set(visible.map((r) => cfg.id === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
         const rowNoun = visible.length === 1 ? cfg.noun.replace(/s$/, '') : cfg.noun;
         const companyNoun =
           ctx.scope === 'portfolio'
@@ -414,15 +493,20 @@ export function makeFilingsTab(cfg) {
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
       exportName: `sattva-${cfg.id}`,
+<<<<<<< HEAD
       // A WORKBOOK LEAVES THE PAGE WITHOUT THE CONTROL ON IT, so the window travels in the banner.
       // Nobody opening the file later can see which six months these rows are, and a sheet of
       // filings with no window on it is the one artefact where that cannot be recovered — the same
       // reason every mock and third-party disclosure here is stamped into row 1.
       onExport: (visible) => cfg.onExport(visible, m, { range, describeRange, held }),
+=======
+      onExport: (visible) => cfg.onExport(visible, cfg.preserveReadingPosition ? cfg.feed.meta() : m),
+>>>>>>> upstream/main
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
       // routes have no index, so the only honest statement is how many were not asked about. The
       // strip above says the same thing; this stops the table contradicting it at a glance.
+<<<<<<< HEAD
       // A FUNCTION, because the reader can narrow to a handful of companies without the table being
       // rebuilt, and "nothing for your holdings" is the wrong sentence the moment they have. Picked
       // companies are named by count so the message describes what was actually asked.
@@ -437,6 +521,13 @@ export function makeFilingsTab(cfg) {
             : scopePossessive(ctx.scope)
               ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in ${describeRange(range)}.`
               : `No ${cfg.noun} matches your filters.`,
+=======
+      emptyMessage: cfg.emptyMessage || (m.outstanding
+        ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
+        : scopePossessive(ctx.scope)
+          ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in the last ${m.windowDays} days.`
+          : `No ${cfg.noun} matches your filters.`),
+>>>>>>> upstream/main
     });
     view = table.view;
 
@@ -450,7 +541,7 @@ export function makeFilingsTab(cfg) {
         // that: 23 rows still look complete until you know the book is 142, so the number still has
         // to be reachable, and the chip is what reaches it. What it stops doing is competing with
         // the table for the top of the page on every one of three tabs and three scopes.
-        meta: pill(m, ctx.scope, rows),
+        meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, rows),
         // A ROW OF ITS OWN, never the `meta` slot — `meta` sits in a justify-between row, so
         // whether it renders beside the title or wraps under it depends on how wide the chips and
         // the description happen to be, and both change as companies are added. A control that
@@ -460,10 +551,34 @@ export function makeFilingsTab(cfg) {
         controls: rangeControls(range, held, reach, m, customOpen, windowed),
       })}
       ${busyStrip(m)}
-      ${table.html}`;
+      ${cfg.aboveTable?.(ctx, m) || ''}
+      ${table.html}
+      ${methodFooter(cfg)}`;
 
+    const nextScroller = ctx.root.querySelector('[data-table-scroll]');
+    // We restore a specific filing below. Native scroll anchoring must not apply a second
+    // adjustment when Chromium lays out the replacement rows or appends the next page.
+    if (cfg.preserveReadingPosition) nextScroller.style.overflowAnchor = 'none';
     disposers.push(table.wire(ctx.root));
+<<<<<<< HEAD
     wireRange(ctx.root, ctx);
+=======
+    if (position) {
+      const scroller = ctx.root.querySelector('[data-table-scroll]');
+      scroller.scrollTop = position.top;
+      scroller.scrollLeft = position.left;
+      const next = position.key && [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((row) => row.dataset.rowKey === position.key);
+      if (next) scroller.scrollTop += next.getBoundingClientRect().top - scroller.getBoundingClientRect().top - position.offset;
+    }
+    if (selection) {
+      const search = ctx.root.querySelector('[data-table-search]');
+      search.value = selection.value;
+      search.focus({ preventScroll: true });
+      search.setSelectionRange(selection.start, selection.end);
+    }
+    disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
+    wireMethod(ctx.root, m, cov, ctx.scope, rows);
+>>>>>>> upstream/main
     // THE ACCOUNT MOVED BEHIND THE PILL, IT DID NOT GO. A permanent grey paragraph under the
     // heading — how old the capture is, how many companies were searched, what they answered —
     // was competing with the table it qualifies, which is the same trade the Earnings Hub ribbon,
@@ -501,6 +616,7 @@ export function makeFilingsTab(cfg) {
 
   const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
 
+<<<<<<< HEAD
   /**
    * The range control: six presets, a custom pair, and nothing that fetches on its own.
    *
@@ -561,6 +677,14 @@ export function makeFilingsTab(cfg) {
       el.addEventListener('change', onChange);
       disposers.push(() => el.removeEventListener('change', onChange));
     }
+=======
+  function wireMethod(root, m, cov, scope, rows) {
+    const btn = root.querySelector('[data-filings-method]');
+    if (!btn) return;
+    const onClick = () => openProvenance(cfg.preserveReadingPosition ? cfg.feed.meta() : m, cov, scope, rows);
+    btn.addEventListener('click', onClick);
+    disposers.push(() => btn.removeEventListener('click', onClick));
+>>>>>>> upstream/main
   }
 
   function wireRefresh(root) {
@@ -577,6 +701,7 @@ export function makeFilingsTab(cfg) {
   function destroy() {
     token++;
     ctxRef = null;
+    renderedRows = null;
     disposers.forEach((d) => d && d());
     disposers = [];
     unsub?.();
@@ -602,6 +727,7 @@ export function makeFilingsTab(cfg) {
 
 
 /**
+<<<<<<< HEAD
  * The history window, as a row of presets plus an optional custom pair.
  *
  * WHY THIS IS A CONTROL ROW AND NOT A COLUMN FILTER. `scoreTable`'s `filters` are questions about
@@ -720,6 +846,29 @@ function heldBackNote(windowed) {
       : 'These rows are held by this feed and fall outside the selected dates.'
   )}">${escapeHtml(bits.join(' · '))} hidden</span>`;
 }
+=======
+ * The tab's own provenance, reachable — one muted line UNDER the table.
+ *
+ * `cfg.provenance` was built by all three of these tabs and NOTHING EVER OPENED IT. The only
+ * candidate trigger was the freshness pill, which CLAUDE.md deliberately made a passive `<span>`
+ * that "must not open a provenance explainer" — so the content was written, maintained, and
+ * unreachable, which is worse than absent because it reads as documentation of a working feature.
+ *
+ * This is not that decision being undone. The pill stays passive and stays where it is; what
+ * changes is that the explanation gets a door of its own, placed AFTER the content so it cannot
+ * compete with the table for the top of the page — which was the whole reason the chrome was
+ * removed. It carries what no static registry can: the MEASURED coverage for the rows on screen —
+ * how many companies answered, how many had nothing, how many could not be read at all. CLAUDE.md's
+ * denominator rule says that number has to stay reachable, not that it has to stay on the page.
+ */
+const methodFooter = (cfg) => `
+  <div class="mt-6 border-t border-slate-100 pt-4 text-center">
+    <button type="button" data-filings-method
+      class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
+      How ${escapeHtml(cfg.title)} is collected, and what this view covers
+    </button>
+  </div>`;
+>>>>>>> upstream/main
 
 const loadingHtml = () => `
   <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -738,12 +887,12 @@ const loadingHtml = () => `
 function pill(m, scope, rows) {
   const at = m.capturedAt ? Date.parse(m.capturedAt) : NaN;
   const age = Number.isFinite(at) ? Date.now() - at : null;
-  const maxAge = m.kind === 'announcements' ? 90 * 60 * 1000 : m.kind === 'news' ? 3 * 60 * 60 * 1000 : 6 * 60 * 60 * 1000;
+  const maxAge = m.kind === 'announcements' ? 90 * 60 * 1000 : m.kind === 'news' ? 3 * 60 * 60 * 1000 : 75 * 60 * 1000;
   const fresh = age !== null && age >= 0 && age <= maxAge;
   const tone = fresh ? 'text-emerald-700' : 'text-slate-500';
   // The face is calm and useful. Coverage/retry details remain in provenance while the watchdog
   // fixes them in the background; internal pipeline vocabulary is not customer guidance.
-  const label = age === null ? 'Updating' : fresh ? 'Up to date' : `Updated ${formatRelativeTime(at)}`;
+  const label = (m.supplement ? 'BSE capture · ' : '') + (age === null ? 'Updating' : fresh ? 'Up to date' : `Updated ${formatRelativeTime(at)}`);
   return `<span data-filings-info
       title="${escapeHtml(scopeTitle(scope, rows, m))}"
       class="inline-flex items-center gap-1.5 text-xs font-semibold ${tone}">
@@ -761,9 +910,16 @@ function pill(m, scope, rows) {
  * of three tabs across three scopes.
  */
 function scopeTitle(scope, rows, m) {
-  const n = new Set((rows || []).map((r) => String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
+  const n = new Set((rows || []).map((r) => m.kind === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
   const book = coverage.meta();
   if (scope === 'portfolio' && book?.count) {
+    if (m.kind === 'news' && m.portfolioEntities) {
+      return `${formatNumber(n)} of ${formatNumber(m.portfolioEntities)} portfolio companies appear on this feed. ` +
+        `All ${formatNumber(m.portfolioLines || book.count)} book lines resolve to a news identity, including all ${formatNumber(m.tickerlessPortfolioLines ?? m.tickerlessPortfolioEntities ?? 0)} lines without an NSE ticker` +
+        (m.tickerlessPortfolioLines && m.tickerlessPortfolioEntities && m.tickerlessPortfolioLines !== m.tickerlessPortfolioEntities
+          ? ` (${formatNumber(m.tickerlessPortfolioEntities)} distinct companies; warrant lines share the underlying company's identity).`
+          : '.');
+    }
     return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
       (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
       '';
@@ -809,11 +965,20 @@ function coverageSentence(m, cov) {
   const n = (x) => escapeHtml(formatNumber(x));
   const co = (x, one, many) => `${x === 1 ? one : many}`;
 
+  if (m.kind === 'corporate-actions') {
+    const range = m.requestedFrom && m.requestedTo
+      ? ` between <strong>${escapeHtml(m.requestedFrom)}</strong> and <strong>${escapeHtml(m.requestedTo)}</strong>`
+      : '';
+    return ` The capture reads the combined NSE and Screener market-wide calendars${range}; ${n(cov.withRows)} of ${n(cov.inScope)}
+      ${co(cov.inScope, 'company', 'companies')} in scope have a published action in that range.`;
+  }
+
   if (cov.coversUniverse) {
     // Nothing was asked company by company here, so there is no company that went unasked. What
     // the reader is owed instead is that an absence in this feed is a real answer.
-    return ` The capture reads the whole exchange by date, so a company with nothing here filed
-      nothing in the last ${n(m.windowDays)} days — ${n(cov.withRows)} of ${n(cov.inScope)}
+    const period = m.coverageFrom ? `since <strong>${escapeHtml(m.coverageFrom)}</strong>` : `in the last ${n(m.windowDays)} days`;
+    return ` The capture reads the whole exchange by date, so a company with nothing here has no captured disclosure
+      ${period} — ${n(cov.withRows)} of ${n(cov.inScope)}
       ${co(cov.inScope, 'company', 'companies')} in scope filed something.`;
   }
 
@@ -966,8 +1131,8 @@ export function coverageBlock(m) {
       m.coversUniverse
         ? `<p class="mt-2 text-xs"><strong>Read by date, not by company.</strong> The question asked was <em>what was filed on
              these dates</em>, across ${m.exchangeCompanies ? `all <strong>${escapeHtml(formatNumber(m.exchangeCompanies))}</strong> active listings` : 'the whole exchange'} —
-             not <em>what did these companies file</em>. So <strong>a company absent from this file filed nothing in the
-             window</strong>, rather than being one there was no request budget to ask about. That distinction is the entire
+             not <em>what did these companies file</em>. So <strong>a company absent from this file has no captured row
+             ${m.coverageFrom ? `since ${escapeHtml(m.coverageFrom)}` : 'in the verified window'}</strong>, rather than being one there was no request budget to ask about. That distinction is the entire
              reason this feed changed source.</p>`
         : `<p class="mt-2 text-xs">A company with no rows had <em>nothing in this window</em>; a company that could not be read is not
        listed at all. Those are different states and the pill counts them separately.</p>`

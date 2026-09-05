@@ -40,6 +40,16 @@ const PATH = 'data/institution-holdings.json';
 
 let cache = null;
 let loadPromise = null;
+const subscribers = new Set();
+export const onChange = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
+export async function refresh() {
+  const { revalidatedJson } = await import('../core/store.js');
+  const payload = await revalidatedJson(PATH);
+  if (!Array.isArray(payload?.institutions)) throw Error('Institutional capture unavailable');
+  ingest(payload);
+  subscribers.forEach((fn) => fn());
+  return cache;
+}
 
 /** Seed from the bootstrap payload so the module never refetches what app.js already has. */
 export function prime(payload) {

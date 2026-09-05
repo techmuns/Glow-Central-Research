@@ -48,8 +48,16 @@
 // Worker named, and the pill says how many could not be read. Rendering them as zero rows would
 // report an outage as an absence of events.
 
+<<<<<<< HEAD
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 import { isEnglishHeadline } from './filings-shared.js';
+=======
+import { conditionalJson, readEntries, writeEntry, KEYS, isPersistent } from '../core/store.js';
+import { mergeInsiderTrades, mergeInsiderHeaders } from './insider-history.js';
+import { withFilingArchive } from './filing-archives.js';
+import { withAnnouncementLookups } from './announcements-extra.js';
+import { dedupeArticles } from './filings-shared.js';
+>>>>>>> upstream/main
 
 // How many companies one Refresh press asks about before it stops and says how many remain. The
 // upstreams allow ~60 requests a minute, so this is one minute's budget: a press fetches the top 60
@@ -99,7 +107,7 @@ const ROUTE = {
 // Which array each payload carries its rows in, and what a row's company is called.
 const ROWS_KEY = { news: 'articles', announcements: 'announcements', insider: 'trades' };
 
-/** How far back each feed asks. An announcement is worth a year; news past a month is not news. */
+/** How far back each live request and first-paint head asks; portfolio-news retention is permanent. */
 export const WINDOW_DAYS = { news: 30, announcements: 365, insider: 365 };
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
@@ -123,6 +131,7 @@ const daysAgo = (n) => iso(Date.now() - n * 86400000);
  *     is what the provenance modal says — and dropping one would hide it from whichever reader was
  *     looking at that company. Hence: within a company, never across.
  */
+<<<<<<< HEAD
 const canonicalUrl = (raw) => {
   try {
     const u = new URL(raw);
@@ -160,6 +169,8 @@ const dedupeArticles = (list) => {
 // so the snapshot, the live walk and every consumer (the tab, General Alerts, Ask Research) agree.
 const englishOnly = (rows) => rows.filter((r) => isEnglishHeadline(r?.title, r?.source));
 
+=======
+>>>>>>> upstream/main
 export function createFeed(kind) {
   let state = fresh();
   let loading = null;
@@ -173,8 +184,10 @@ export function createFeed(kind) {
       rows: new Map(), // ticker -> rows[]
       failures: new Map(), // ticker -> { reason, message, requestedUrl }
       asked: new Set(),
-      // ticker -> company name, so the news search asks about the COMPANY rather than the symbol.
+      // Capture key -> company name/identity. News keys may be NSE symbols or stable `ISIN:…`
+      // values for portfolio companies which have no ticker.
       names: new Map(),
+      identities: new Map(),
       // Companies the committed snapshot covers. They are not re-walked: the snapshot is the bulk
       // source and is refreshed on a schedule, and its age is reported as `capturedAt` rather than
       // hidden by 603 live requests.
@@ -217,6 +230,14 @@ export function createFeed(kind) {
       // The window the snapshot actually holds, which a date-indexed capture knows and a per-company
       // walk does not. Falls back to the feed's own constant.
       snapshotWindowDays: null,
+      coverageFrom: null,
+      retention: null,
+      archive: null,
+      portfolioLines: null,
+      portfolioEntities: null,
+      tickerlessPortfolioLines: null,
+      tickerlessPortfolioEntities: null,
+      queryCoverage: null,
       capturedAt: null,
       oldestDataAt: null,
       fallbackCount: 0,
@@ -298,10 +319,21 @@ export function createFeed(kind) {
       // A date-indexed snapshot knows its own window; only fall back to the constant when nothing
       // has declared one, so the coverage text cannot claim a year it does not hold.
       windowDays: state.snapshotWindowDays ?? WINDOW_DAYS[kind],
+<<<<<<< HEAD
       // HOW FAR BACK THE WALK NOW ASKS, which the reader's range control moves and which is a
       // different fact from what the committed capture happens to hold. The tab needs both: one
       // says what a Refresh would go and get, the other says what is on screen without one.
       requestWindowDays: state.requestWindowDays,
+=======
+      coverageFrom: state.coverageFrom,
+      retention: state.retention,
+      archive: state.archive,
+      portfolioLines: state.portfolioLines,
+      portfolioEntities: state.portfolioEntities,
+      tickerlessPortfolioLines: state.tickerlessPortfolioLines,
+      tickerlessPortfolioEntities: state.tickerlessPortfolioEntities,
+      queryCoverage: state.queryCoverage,
+>>>>>>> upstream/main
       // WHAT THIS SESSION HAS NOT LOOKED AT, which is a statement about us and not a claim about
       // the upstream. These routes answer per company and have no index, so "is there anything
       // new?" cannot be answered without asking — the honest thing to print is how many companies
@@ -319,7 +351,14 @@ export function createFeed(kind) {
   /** Every row that has landed, newest first. Rows with no readable date sort last, never first. */
   function rows() {
     const out = [];
-    for (const [ticker, list] of state.rows) for (const r of list) out.push({ ...r, ticker: r.ticker || ticker });
+    for (const [key, list] of state.rows) {
+      for (const row of list) {
+        // A stable entity key is not a synthetic exchange symbol. Tickerless portfolio companies
+        // stay tickerless while their `entityId` makes them scopable.
+        const ticker = row.ticker || (kind === 'news' && row.entityId ? null : key);
+        out.push({ ...row, ticker });
+      }
+    }
     return out.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }
 
@@ -412,13 +451,14 @@ export function createFeed(kind) {
   function setWanted(items = []) {
     const wanted = [];
     for (const item of items) {
-      const t = String(item?.ticker ?? item ?? '').toUpperCase();
+      const t = String(item?.key ?? item?.ticker ?? item ?? '').toUpperCase();
       if (!t || wanted.includes(t)) continue;
       wanted.push(t);
       // Names accumulate across scopes rather than being replaced: the news search needs a name for
       // any company it may walk, and a company can leave the current scope while its name stays
       // true. The list is per-scope; the lookup is not.
       if (item?.name) state.names.set(t, String(item.name));
+      if (item && typeof item === 'object') state.identities.set(t, item);
     }
     state.wanted = wanted;
     return wanted;
@@ -513,6 +553,7 @@ export function createFeed(kind) {
     // The scheduled capture may have moved since this page loaded, and that costs one conditional
     // GET rather than forty. Do it first, so the walk only asks about what the file still lacks.
     await seedFromSnapshot({ replace: true });
+    if (kind === 'insider') await seedFromDevice([...state.rows.keys()]);
     // FOR A DATE-INDEXED FEED, RE-READING THE FILE *IS* THE REFRESH. There is no per-company route
     // behind it to ask again, and walking one would be forty requests against an upstream this feed
     // no longer uses. `checked` reports the companies the file covers, because that is what was
@@ -546,12 +587,35 @@ export function createFeed(kind) {
   async function refreshSnapshot() {
     const before = state.capturedAt;
     const available = await seedFromSnapshot({ replace: true });
+    if (kind === 'insider') await seedFromDevice([...state.rows.keys()]);
     state.loaded = true;
     emit();
     return { available, changed: !!state.capturedAt && state.capturedAt !== before, capturedAt: state.capturedAt };
   }
 
   const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
+
+  function addHeaders(headers = []) {
+    if (kind === 'insider') state.headers = mergeInsiderHeaders(state.headers, headers);
+    else if (headers.length && !state.headers.length) state.headers = headers;
+  }
+
+  function storeRows(ticker, incoming) {
+    const list = kind === 'insider'
+      ? mergeInsiderTrades(state.rows.get(ticker) || [], incoming, { from: daysAgo(WINDOW_DAYS.insider), to: iso(Date.now()) })
+      : incoming;
+    state.rows.set(ticker, list);
+    if (kind === 'insider') {
+      addHeaders(list.flatMap((row) => Object.keys(row.cells || {})));
+      if (list.length) state.askedEmpty.delete(ticker);
+    }
+    return list;
+  }
+
+  function saveInsiderHistory(ticker) {
+    // The history's write time is never used as a server confirmation time.
+    void writeEntry(KEYS.insiderHistory(ticker), { value: { trades: state.rows.get(ticker) || [], headers: state.headers } });
+  }
 
   /**
    * Everything this device already holds for the wanted companies, in ONE store transaction.
@@ -564,7 +628,11 @@ export function createFeed(kind) {
     if (!tickers.length) return;
     let entries;
     try {
+<<<<<<< HEAD
       entries = await readEntries(tickers.map((t) => KEYS.filingRow(kind, t, state.requestWindowDays)));
+=======
+      entries = await readEntries(tickers.flatMap((t) => [KEYS.filingRow(kind, t), ...(kind === 'insider' ? [KEYS.insiderHistory(t)] : [])]));
+>>>>>>> upstream/main
     } catch {
       return;
     }
@@ -574,16 +642,28 @@ export function createFeed(kind) {
     // file was captured, which is the normal case for anything the reader has refreshed.
     const capturedAt = Date.parse(state.capturedAt || '') || 0;
     for (const t of tickers) {
+<<<<<<< HEAD
       const hit = entries.get(KEYS.filingRow(kind, t, state.requestWindowDays));
+=======
+      if (kind === 'insider') {
+        const history = entries.get(KEYS.insiderHistory(t))?.value;
+        if (Array.isArray(history?.trades)) {
+          addHeaders(history.headers || []);
+          storeRows(t, history.trades);
+        }
+      }
+      const hit = entries.get(KEYS.filingRow(kind, t));
+>>>>>>> upstream/main
       const body = hit?.value;
       if (!body || body.ok === false) continue;
       const savedAt = hit.savedAt || 0;
       const newerThanFile = savedAt > capturedAt;
-      if (!state.rows.has(t) || newerThanFile) {
-        state.rows.set(t, rowsIn(body));
+      if (kind === 'insider' || !state.rows.has(t) || newerThanFile) {
+        addHeaders(body.headers || []);
+        storeRows(t, rowsIn(body));
         if (newerThanFile) state.fromSnapshot.delete(t);
       }
-      if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
+      if (Array.isArray(body.headers)) addHeaders(body.headers);
       // `savedAt` is when the SERVER's bytes were written here, so it is a real confirmation time
       // rather than this tab vouching for itself.
       if (savedAt) {
@@ -594,6 +674,7 @@ export function createFeed(kind) {
         state.confirmedWindow.set(t, state.requestWindowDays);
       }
     }
+    if (kind === 'insider') for (const t of tickers) if (state.rows.has(t)) saveInsiderHistory(t);
     state.snapshotCount = state.fromSnapshot.size;
   }
 
@@ -628,22 +709,46 @@ export function createFeed(kind) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
     }
-    if (Array.isArray(body.headers) && body.headers.length) state.headers = body.headers;
+    if (Array.isArray(body.headers) && body.headers.length) {
+      if (kind === 'insider') addHeaders(body.headers);
+      else state.headers = body.headers;
+    }
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
     state.coversUniverse = body.coversUniverse === true;
     state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;
     state.unnamedRows = Number.isFinite(body.unnamedRows) ? body.unnamedRows : 0;
     state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;
+    state.coverageFrom = /^\d{4}-\d{2}-\d{2}$/.test(body.coverageFrom || '') ? body.coverageFrom : null;
+    state.retention = body.retention || null;
+    state.archive = body.archive || null;
+    state.portfolioLines = Number.isFinite(body.portfolioLines) ? body.portfolioLines : null;
+    state.portfolioEntities = Number.isFinite(body.portfolioEntities) ? body.portfolioEntities : null;
+    state.tickerlessPortfolioLines = Number.isFinite(body.tickerlessPortfolioLines) ? body.tickerlessPortfolioLines : null;
+    state.tickerlessPortfolioEntities = Number.isFinite(body.tickerlessPortfolioEntities) ? body.tickerlessPortfolioEntities : null;
+    state.queryCoverage = body.queryCoverage && typeof body.queryCoverage === 'object' ? body.queryCoverage : null;
+    if (kind === 'news') {
+      for (const entity of Array.isArray(body.entities) ? body.entities : []) {
+        const key = String(entity?.key || entity?.ticker || entity?.entityId || '').toUpperCase();
+        if (!key) continue;
+        state.identities.set(key, entity);
+        if (entity.name) state.names.set(key, entity.name);
+      }
+    }
     if (replace && !newer) return state.rows.size > 0;
 
     if (newer) {
-      // A replacement snapshot is a replacement, not an additive merge. Companies that aged out
+      // News/announcements snapshots replace rows. Companies that aged out
       // of the rolling window or answered empty in the new run must lose yesterday's rows now,
       // without waiting for a page reload. Preserve only companies read live in this session —
       // those bytes are newer than the bulk file by definition.
-      for (const t of state.fromSnapshot) {
-        if (!state.confirmedHere.has(t)) state.rows.delete(t);
+      if (kind === 'insider') {
+        // A smaller response cannot retract a disclosure. Only the retention window expires it.
+        for (const t of state.rows.keys()) storeRows(t, []);
+      } else {
+        for (const t of state.fromSnapshot) {
+          if (!state.confirmedHere.has(t)) state.rows.delete(t);
+        }
       }
       state.fromSnapshot.clear();
       state.askedEmpty.clear();
@@ -659,8 +764,14 @@ export function createFeed(kind) {
       const t = ticker.toUpperCase();
       // On the initial seed the device's copy has already been placed and is newer; on a refresh a
       // newer capture wins unless this session confirmed the company AFTER the capture was made.
+<<<<<<< HEAD
       if (state.rows.has(t) && !(newer && snapshotWins(t))) continue;
       state.rows.set(t, kind === 'news' ? dedupeArticles(englishOnly(list)) : list);
+=======
+      if (kind !== 'insider' && state.rows.has(t) && !(newer && snapshotWins(t))) continue;
+      storeRows(t, kind === 'news' ? dedupeArticles(list) : list);
+      if (kind === 'insider' && state.confirmedHere.has(t) && !snapshotWins(t)) continue;
+>>>>>>> upstream/main
       state.fromSnapshot.add(t);
       if (newer) {
         state.confirmedHere.delete(t);
@@ -677,12 +788,14 @@ export function createFeed(kind) {
       // says the company is empty in the current window.
       const wins = !newer || snapshotWins(ticker);
       if (newer && wins) {
-        state.rows.delete(ticker);
+        if (kind === 'insider') storeRows(ticker, []);
+        else state.rows.delete(ticker);
         state.fromSnapshot.delete(ticker);
         state.confirmedHere.delete(ticker);
         state.confirmedAt.delete(ticker);
       }
-      if (wins) state.askedEmpty.add(ticker);
+      if (wins && (kind !== 'insider' || !state.rows.get(ticker)?.length)) state.askedEmpty.add(ticker);
+      else if (wins && kind === 'insider') state.fromSnapshot.add(ticker);
     }
     // Companies the capture ASKED and could not read. A third answer again, distinct from having
     // rows and from having none: the pill turns amber for these, the coverage sentence names them
@@ -690,7 +803,8 @@ export function createFeed(kind) {
     // over a company that has since been read live — that answer is newer than the file's.
     for (const [ticker, info] of Object.entries(body.failed || {})) {
       const t = String(ticker || '').toUpperCase();
-      if (t && !state.rows.has(t) && !state.failures.has(t)) state.failures.set(t, { ...info, fromSnapshot: true });
+      const unresolved = kind === 'insider' ? snapshotWins(t) : !state.rows.has(t);
+      if (t && unresolved && !state.failures.has(t)) state.failures.set(t, { ...info, fromSnapshot: true });
     }
     state.snapshotCount = state.fromSnapshot.size;
     return state.rows.size > 0 || state.askedEmpty.size > 0;
@@ -723,6 +837,7 @@ export function createFeed(kind) {
   async function loadOne(key, { force = false } = {}) {
     const t = String(key || '').toUpperCase();
     if (!force && !stale(t)) return state.rows.get(t) || [];
+    if (kind === 'insider') await seedFromDevice([t]);
     state.asked.add(t);
 
     // THE WINDOW IS A PARAMETER ON THE REQUEST, WHICH IS WHY THE CONTROL CAN DO MORE THAN FILTER.
@@ -769,9 +884,22 @@ export function createFeed(kind) {
       return null;
     }
 
-    if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
-    const list = rowsIn(body);
-    state.rows.set(t, list);
+    if (Array.isArray(body.headers)) addHeaders(body.headers);
+    const identity = state.identities.get(t);
+    const incoming = kind === 'news' && identity
+      ? rowsIn(body).map((row) => ({
+          ...row,
+          ticker: identity.ticker || null,
+          entityId: identity.entityId || row.entityId || null,
+          company: identity.name || row.company || null,
+        }))
+      : rowsIn(body);
+    const list = storeRows(t, incoming);
+    if (kind === 'insider') {
+      // Never attach the upstream ETag to merged bytes: a subsequent 304 must replay only the
+      // actual response. This separate entry preserves live-only additions across page reloads.
+      saveInsiderHistory(t);
+    }
     state.fromSnapshot.delete(t);
     state.failures.delete(t);
     state.confirmedAt.set(t, res?.checkedAt || Date.now());
@@ -810,5 +938,5 @@ export function createFeed(kind) {
 // One instance per feed, module-level so a second visit to the tab repaints instantly instead of
 // re-walking. Same reasoning as the super-investor feed.
 export const news = createFeed('news');
-export const announcements = createFeed('announcements');
-export const insider = createFeed('insider');
+export const announcements = withAnnouncementLookups(withFilingArchive(createFeed('announcements'), 'announcements'));
+export const insider = withFilingArchive(createFeed('insider'), 'insider');
