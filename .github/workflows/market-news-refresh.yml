@@ -63,8 +63,13 @@ on:
 # for ever.
 run-name: Market news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
 
+# SHARED WITH `rss-news-refresh.yml`, WHICH IS THE POINT. Both jobs merge into the same capture —
+# public/data/market-news.json and the shards beside it — so two of them running at once would have
+# each read the file, added its own publishers and written back, and whichever finished second would
+# silently drop the other's stories. Queuing them is the whole fix, and `cancel-in-progress: false`
+# is what makes it a queue rather than a race with extra steps.
 concurrency:
-  group: market-news-refresh
+  group: market-news-capture
   cancel-in-progress: false
 
 jobs:
@@ -116,7 +121,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/market-news.json
+          # THE ARCHIVE DIRECTORY TOO. The capture is two files now — a bounded head and a shard per
+          # month — and staging only the head would commit a head that names archive months no
+          # deployment has ever received. The reader would scroll to the end and get a failed fetch
+          # for every one of them.
+          git add public/data/market-news.json public/data/market-news
           if git diff --cached --quiet; then
             echo "No new stories."
             exit 0

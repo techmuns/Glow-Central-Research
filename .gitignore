@@ -12,3 +12,8 @@
 # tree, wrangler and playwright are invoked through npx and installed nowhere. The directory is
 # wrangler's scratch space, not ours, so it is ignored rather than committed.
 node_modules/
+
+# `scripts/scrape-twitter.py` is the one Python script here (see hard rule 2 in CLAUDE.md for why
+# it is the exception), and running it leaves a bytecode cache beside it. Machine-local, never read
+# by anything, and it must not travel to a runner.
+__pycache__/

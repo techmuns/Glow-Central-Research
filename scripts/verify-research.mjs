@@ -21,7 +21,7 @@ Object.defineProperty(globalThis, 'localStorage', {
     removeItem: (key) => memoryStorage.delete(key),
   },
 });
-const { DASHBOARD_RESEARCH_SOURCES, RESEARCH_EVIDENCE_CHAR_BUDGET, ROW_RESERVE_SHARE, fitEvidenceToBudget, queryPlan } = await import('../public/js/research/estate.js');
+const { DASHBOARD_RESEARCH_SOURCES, RESEARCH_EVIDENCE_CHAR_BUDGET, ROW_RESERVE_SHARE, fitEvidenceToBudget, queryPlan, chooseRows, screenerInsightRow, insightCompaniesForScope } = await import('../public/js/research/estate.js');
 const { providerEvidenceChars } = await import('../public/js/research/evidence-shared.js');
 const estateSource = readFileSync(new URL('../public/js/research/estate.js', import.meta.url), 'utf8');
 const askResearchSource = readFileSync(new URL('../public/js/tabs/ask-research.js', import.meta.url), 'utf8');
@@ -40,6 +40,7 @@ const requestFor = (body) => new Request('https://dashboard.example/api/research
 const parseEvents = async (response) =>
   (await response.text()).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 
+<<<<<<< HEAD
 // GLOW DIVERGENCE: upstream Sattva names the `portfolio` source's tab 'Portfolio Analytics' — the
 // hidden workspace over the illustrative FIFO ledger. Here that source is the REAL family office
 // book (public/data/book.json, synced daily from techmuns/GlowVentures) and its tab is the visible
@@ -49,15 +50,65 @@ const parseEvents = async (response) =>
 ok('the runtime research catalog covers every evidence-bearing research tab, the Family Book included', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
   for (const title of ['AI Alerts', 'General Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades', 'Family Book']) {
+=======
+ok('company-specific question hits precede unrelated company rows before the sampling limit', () => {
+  const rows = Array.from({ length: 20 }, (_, i) => ({ ticker: 'TEST', metric: `Operating metric ${i}` }));
+  rows.push({ ticker: 'TEST', metric: 'Pellet production' });
+  const plan = { tickers: new Set(['TEST']), names: [], tokens: ['pellet', 'production'] };
+  const selected = chooseRows(rows, plan, (row) => row);
+  assert.equal(selected.rows[0].metric, 'Pellet production');
+  assert.equal(selected.rows.length, 14);
+  assert.equal(chooseRows(rows, { ...plan, tokens: [] }, (row) => row).rows[0].metric, 'Operating metric 0', 'generic company questions retain source order');
+});
+
+ok('Insights keeps comparable periods, requested years, provenance and retained-data health within a bounded row', () => {
+  const company = { ticker: 'TEST', name: 'Test', checkedAt: '2020-01-01', companyUrl: 'https://www.screener.in/company/TEST/', inPortfolio: true };
+  const row = { metric: 'Pellet production', unit: 'MT', periodicity: 'quarterly', values: [
+    '2024-03-31', '2024-06-30', '2024-09-30', '2024-12-31', '2025-03-31', '2025-06-30', '2025-09-30', '2025-12-31', '2026-03-31', '2026-06-30',
+  ].map((period) => ({ period, label: period, value: '100' })) };
+  const normal = screenerInsightRow(company, row);
+  assert.deepEqual(normal.values.map((point) => point.period), ['2025-06-30', '2026-03-31', '2026-06-30']);
+  assert.equal(normal.sourceHealth, 'stale');
+  assert.equal(normal.values[0].source.url, company.companyUrl);
+  const historical = screenerInsightRow(company, row, { tokens: ['2024'] });
+  assert(historical.values.some((point) => point.period === '2024-03-31'));
+  assert.equal(historical.availablePoints, 10);
+  assert(historical.includedPoints <= 8);
+});
+
+ok('Insights portfolio membership follows the current book, including verified tickerless ISINs', () => {
+  const companies = [
+    { ticker: 'EXITED', inPortfolio: true },
+    { ticker: 'NEW', inPortfolio: false },
+    { ticker: null, isin: 'INE000000001', inPortfolio: true },
+    { ticker: null, inPortfolio: true },
+  ];
+  const holdings = [{ ticker: 'NEW' }, { ticker: null, isin: 'INE000000001' }];
+  assert.deepEqual(insightCompaniesForScope(companies, 'portfolio', holdings), companies.slice(1, 3));
+  assert.equal(insightCompaniesForScope(companies, 'portfolio', []).length, 0);
+  assert.equal(insightCompaniesForScope(companies, 'universe', []).length, 4);
+});
+
+ok('the runtime research catalog covers every visible research tab, and nothing that is not one', () => {
+  const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
+  for (const title of ['AI Alerts', 'All Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Insider Trades']) {
+>>>>>>> upstream/main
     assert.equal(tabs.has(title), true, title);
+  }
+  // The mock ledger was the fifteenth source and cited itself as "Portfolio Analytics", linking
+  // into a hidden workspace with no way back. Both are deleted: an evidence source must be a tab
+  // the reader can actually open, and no source may route outside Research Central.
+  assert.equal(tabs.has('Portfolio Analytics'), false);
+  for (const source of DASHBOARD_RESEARCH_SOURCES) {
+    assert.match(source.route, /^#\/research\//, source.id);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
 });
 
-ok('earnings calendar evidence stays a paginated all-exchange schedule, separate from filed results', () => {
+ok('earnings calendar evidence keeps paginated results and upcoming calls separate from filed results', () => {
   assert.match(
     estateSource,
-    /id: 'earnings-calendar',[\s\S]*?read\(\{ plan \}\)[\s\S]*?scheduledRows[\s\S]*?All exchanges[\s\S]*?every published pagination page/
+    /id: 'earnings-calendar',[\s\S]*?read\(\{ plan \}\)[\s\S]*?scheduledRows[\s\S]*?Moneycontrol scheduled results plus Screener upcoming[\s\S]*?Result rows use Moneycontrol All exchanges[\s\S]*?every page of Screener/
   );
   const block = estateSource.match(/\n    id: 'earnings-calendar',\n    read[\s\S]*?\n  \},\n  \{\n    id: 'concall'/)?.[0] || '';
   assert.doesNotMatch(block, /earningsLive\.(?:load|dateRange|reportedOn)/);
@@ -75,7 +126,7 @@ ok('Public Chatter evidence preserves failure state and separately samples unres
 ok('saved web-researched answers retain their historical provenance after the provider migration', () => {
   assert.match(askResearchSource, /webResearch: message\.webResearch === true/);
   assert.match(askResearchSource, /message\.webResearch \? 'Dashboard \+ web research' : 'Dashboard research'/);
-  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, scope: evidence\.scope, webResearch: false/);
+  assert.match(askResearchSource, /body: JSON\.stringify\(\{ question, requirePortfolio: true, scope: evidence\.scope, webResearch: false/);
 });
 
 ok('configuration accepts the dedicated or existing Muns session-token bindings', () => {
