@@ -1,0 +1,16 @@
+{
+  "note": "Source-verified coverage supplements, not a live issuer crawler or an X buzz feed. Filing dates are document dates, not the date of this check.",
+  "issuers": [
+    {
+      "company_name": "EAAA India Alternatives Limited",
+      "aliases": ["EAAA", "Edelweiss Alternative Asset Advisors", "Edelweiss Alternatives"],
+      "checked_at": "2026-09-04",
+      "note": "Absent from the DRHP repository's saved weekly windows. The issuer's IPO page confirms the January draft and its disclaimer identifies the August addendum. Offer dates and current approval/listing status have not been verified here. Customer-reported X buzz is not independently captured.",
+      "sources": {"issuer_ipo_page": "https://www.eaaa.in/ipo-page/", "sebi_drhp_page": "https://www.sebi.gov.in/filings/public-issues/jan-2026/eaaa-india-alternatives-limited-drhp_99257.html"},
+      "filings": [
+        {"company_name": "EAAA India Alternatives Limited", "filing_date": "2026-01-19", "filing_type": "DRHP", "financials": {}, "sources": {"issuer_ipo_page": "https://www.eaaa.in/ipo-page/", "sebi_url": "https://www.sebi.gov.in/filings/public-issues/jan-2026/eaaa-india-alternatives-limited-drhp_99257.html"}},
+        {"company_name": "EAAA India Alternatives Limited", "filing_date": "2026-08-13", "filing_type": "Addendum", "financials": {}, "sources": {"issuer_ipo_page": "https://www.eaaa.in/ipo-page/", "addendum_notice": "https://www.eaaa.in/drhp-disclaimer/"}}
+      ]
+    }
+  ]
+}

@@ -7,13 +7,18 @@ import { setData, setDataError, setDeferredData } from './core/state.js';
 import { revalidatedJson } from './core/store.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
-import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
+<<<<<<< HEAD
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeBook } from './data/book.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
+=======
+import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
+import { loadCompanyCaptureIndex } from './data/company-captures.js';
+>>>>>>> upstream/main
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
+import { startWatchlistCapture } from './data/watchlist-capture.js';
 // Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
 // SDK client at import time, so pulling it in from the bootstrap is what guarantees the client
 // exists — and its window listener is attached — before the host can post `host:init`.
@@ -38,15 +43,16 @@ import { startHostCapture } from './core/host-capture.js';
 //   and each consumer awaits the module that owns it. Every one of those modules already had its
 //   own idempotent `load()`; priming them from here is an optimisation, not the mechanism.
 const CRITICAL_SOURCES = {
-  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols. This is
-  // what the Portfolio/Universe toggle filters the research tabs by. It is NOT the ledger:
-  // portfolio.json is, and the two are different questions. See js/data/coverage.js.
+  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols, synced
+  // from techmuns/Sattva-Family. This is what the scope toggle filters the research tabs by, and
+  // it is the ONLY portfolio information this dashboard holds: names and sectors, no quantities,
+  // no costs, no valuations. See js/data/coverage.js.
   portfolioCompanies: 'data/portfolio-companies.json',
 };
 
 const DEFERRED_SOURCES = {
-  portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
+<<<<<<< HEAD
   // The broad market universe the filings feeds walk — ~1,900 companies above a market-cap floor,
   // ordered by market cap. Deferred: only the filings tabs read it, and only when a walk runs, by
   // which point the deferred pass has long landed. See js/data/tracked-universe.js.
@@ -60,6 +66,11 @@ const DEFERRED_SOURCES = {
   // GLOW: the real family office book, synced daily from techmuns/GlowVentures. Read by the
   // Family Book tab and by Ask Research's portfolio source; 385KB, so deferred.
   book: 'data/book.json',
+=======
+  // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
+  // read by exactly one sub-view.
+  filedHoldings: 'data/institution-holdings.json',
+>>>>>>> upstream/main
 };
 
 async function fetchAll(sources) {
@@ -77,6 +88,7 @@ async function fetchAll(sources) {
 async function loadCritical() {
   const data = await fetchAll(CRITICAL_SOURCES);
   primeCoverage(data.portfolioCompanies);
+  await restoreLastGood();
   return data;
 }
 
@@ -102,17 +114,11 @@ function loadDeferred(data) {
       data.universeRaw = data.universe;
       data.universe = adaptUniverse(data.universeRaw);
 
-      // Same pattern for earnings. The rich payload primes js/data/earnings.js (so it never
-      // refetches), and `ctx.data.earnings` keeps the flat one-row-per-company summary that
-      // Breakouts → Earnings Surprise was written against.
-      data.earningsRaw = data.earnings;
-      primeEarnings(data.earningsRaw, data.earningsCalendar);
-      data.earnings = adaptLegacySummary(data.earningsRaw);
-
       // Institutions: filed shareholdings and AMC portfolios. The Superstar half of that tab loads
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
 
+<<<<<<< HEAD
       // The filings tracking universe (Corporate Announcements, Insider Trades, company News).
       primeTrackedUniverse(data.trackedUniverse);
 
@@ -125,6 +131,12 @@ function loadDeferred(data) {
       // GLOW: the family office book. The module falls back to fetching the file itself if this
       // pass failed, so a bad deferred load costs a second request rather than an empty tab.
       primeBook(data.book);
+=======
+      // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
+      // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,
+      // which no reader could reach by clicking. Both the workspace and those files are gone; the
+      // only portfolio input left is the BOOK above, and it is the one thing the shell blocks on.
+>>>>>>> upstream/main
       return data;
     })
     .catch((err) => {
@@ -168,7 +180,19 @@ async function boot() {
   // GitHub schedules are best-effort. One small timestamp request checks every committed capture
   // after first paint and dispatches only the ones outside their real operating window. The Worker
   // declines duplicate runs across readers; landed files repaint any feed already on screen.
+  void loadCompanyCaptureIndex();
   startCaptureWatchdog();
+  startWatchlistCapture();
+
+  // Install the public app/data cache only after the dashboard is interactive.
+  // It warms the complete module graph for future tab switches and repeat visits,
+  // while the service worker explicitly excludes authenticated and no-store reads.
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    const register = () => navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch((err) => console.warn('[app] repeat-visit cache unavailable', err));
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(register, { timeout: 2000 });
+    else setTimeout(register, 0);
+  }
 }
 
 boot();

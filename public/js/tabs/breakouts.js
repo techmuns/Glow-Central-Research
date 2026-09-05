@@ -20,7 +20,6 @@ import * as technicals from '../data/technicals.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
-import { whenDeferredData } from '../core/state.js';
 
 export const meta = {
   id: 'breakouts',
@@ -40,6 +39,7 @@ let renderToken = 0;
 
 export function render(ctx) {
   const token = ++renderToken;
+  if (ctx.subview === 'earnings-surprise') { renderEarningsSurprise(ctx); return; }
   ctx.root.innerHTML = loadingHtml();
 
   technicals
@@ -79,17 +79,6 @@ function paint(ctx) {
     'earnings-surprise': renderEarningsSurprise,
   }[ctx.subview] || renderStrongBreakouts;
 
-  // Earnings Surprise is the one sub-view here whose left-hand columns come off `ctx.data`, and
-  // that corpus is no longer in front of the shell's first paint (see js/app.js). Waiting for it
-  // costs this sub-view alone and only on a cold visit — the other three render at once, as they
-  // did. Rendering it early instead would show "0 results joined", which is a claim, not a wait.
-  if (view === renderEarningsSurprise && !ctx.data?.earnings) {
-    const token = renderToken;
-    whenDeferredData().then(() => {
-      if (token === renderToken) renderEarningsSurprise(ctx, rows);
-    });
-    return;
-  }
   view(ctx, rows);
 }
 
@@ -850,6 +839,7 @@ function deliveryCell(v) {
 
 // ---- (d) Earnings Surprise -------------------------------------------------------------------
 
+<<<<<<< HEAD
 function renderEarningsSurprise(ctx, rows) {
   // The honest join: mock earnings on the left, the REAL technical score on the right.
   // Deliberately NOT blended into a composite — the two sides have different provenance.
@@ -911,22 +901,17 @@ function renderEarningsSurprise(ctx, rows) {
     exportName: `glow-earnings-surprise-${todayStamp()}`,
   });
 
+=======
+function renderEarningsSurprise(ctx) {
+>>>>>>> upstream/main
   ctx.root.innerHTML = `
-    ${sectionHead({
-      title: meta.title,
-      description: 'Earnings surprise against the live technical score for the same company.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() })}</div>`,
-    })}
-    <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
-      <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
-      <span>Earnings figures are <strong>mock</strong>. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
-    </div>
-    ${table.html}
-    ${legendStrip()}
-  `;
-
-  pill.wire(ctx.root);
-  table.wire(ctx.root);
+    ${sectionHead({ title: 'Earnings Surprise', description: 'Analyst consensus estimates are not connected.' })}
+    <div class="rounded-2xl bg-white p-6 text-sm text-slate-600 ring-1 ring-slate-200">
+      <p>Beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable.
+         Filing PDFs provide published documents; they do not provide analyst consensus estimates.</p>
+      <p class="mt-3"><a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}">View reported results</a>
+        · <a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}&view=filings">Browse company filings</a></p>
+    </div>`;
 }
 
 function tagPill(tag) {

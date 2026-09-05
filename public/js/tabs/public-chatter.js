@@ -43,11 +43,25 @@ let paintDisposers = [];
 let tableViews = { covered: null, other: null };
 let chatterSection = 'coverage';
 let mentionRequestToken = 0;
+// A company deep-link from a General Alerts chatter row: `?company=TICKER&open=mentions`. Tracked at
+// module level so a live repaint (chatter.onChange) does not re-open the popup on every tick, and a
+// scope toggle — which re-renders with the same params — does not re-open it either. Both reset on
+// destroy so a fresh navigation always honours the link again.
+let routeCompany = null;
+let openedFor = null;
 
 const SECTIONS = [
   { id: 'coverage', label: 'Coverage' },
   { id: 'not-in-coverage', label: 'Not in coverage' },
 ];
+
+function windowLabel(window = '30d') {
+  const days = String(window).match(/^(\d+)d$/);
+  return days ? `${Number(days[1])} ${Number(days[1]) === 1 ? 'day' : 'days'}` : String(window);
+}
+
+const description = (window = '30d') =>
+  `Company mentions across ValuePickr, TradingQnA and Google News over the last ${windowLabel(window)}. Select a company to read the mentions.`;
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -56,6 +70,20 @@ const SECTIONS = [
 export function render(ctx) {
   const token = ++renderToken;
   cleanup();
+
+  // A COMPANY DEEP-LINK, USUALLY FROM A GENERAL ALERTS CHATTER ROW. Seed the covered table's search
+  // to that company and switch to the Coverage section (a resolved ticker always lives there), so
+  // the row is in view behind the popup. `cleanup()` above has just reset `tableViews`, so this must
+  // come after it. Only a NEW company reseeds — a scope toggle repaints with the same param and must
+  // leave whatever the reader has since typed alone, exactly as companySeededView does elsewhere.
+  const requestedCompany = String(ctx?.params?.company || '').trim().toUpperCase();
+  const wantMentions = ctx?.params?.open === 'mentions';
+  if (requestedCompany && requestedCompany !== routeCompany) {
+    chatterSection = 'coverage';
+    tableViews = { covered: { q: requestedCompany }, other: tableViews.other };
+  }
+  routeCompany = requestedCompany || null;
+
   ctx.root.innerHTML = loadingHtml();
 
   // PAINT ON THE CHATTER FEED ALONE. This used to await the technicals feed as well, which the tab
@@ -68,6 +96,18 @@ export function render(ctx) {
     .then(() => {
       if (token !== renderToken) return;
       paint(ctx);
+      // OPEN THE MENTIONS POPUP THE ALERT ASKED FOR — once per deep-link. The chatter alert's whole
+      // content is this popup, not the row, so a click that only landed on the tab left the reader
+      // to find the company and click again. Guarded on `openedFor` so a live repaint or a scope
+      // toggle does not reopen it, and searched off the full covered set (not the scoped view) so it
+      // still opens for a holding even if the current scope would have filtered the row away.
+      if (wantMentions && requestedCompany && requestedCompany !== openedFor) {
+        const entry = (chatter.companies() || []).find((e) => String(e.ticker || '').toUpperCase() === requestedCompany);
+        if (entry) {
+          openMentions(entry);
+          openedFor = requestedCompany;
+        }
+      }
       disposers.push(chatter.startLive(ctx.live));
       disposers.push(
         chatter.onChange(() => {
@@ -82,6 +122,10 @@ export function destroy() {
   renderToken++;
   cleanup();
   chatterSection = 'coverage';
+  // Forget the deep-link so returning to the same company from another chatter alert re-seeds and
+  // re-opens rather than being silently ignored as "unchanged".
+  routeCompany = null;
+  openedFor = null;
 }
 
 function cleanup() {
@@ -118,8 +162,7 @@ function clearPaint() {
 const loadingHtml = () => `
   ${sectionHead({
     title: 'Public Chatter',
-    description:
-      'Mention counts and sentiment across ValuePickr, TradingQnA and Google News, computed by SentimentDash over a rolling 30 days. The counts and the sentiment are theirs; the NSE symbol is ours.',
+    description: description(),
   })}
   <div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">
     Loading chatter…
@@ -171,7 +214,7 @@ function paint(ctx) {
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Public Chatter',
-      description: `Mention counts and sentiment over a rolling ${escapeHtml(m.window)}, computed by SentimentDash across ValuePickr, TradingQnA and Google News. The counts and the sentiment are theirs; the NSE symbol is ours.`,
+      description: description(m.window),
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`,
     })}
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-chatter-section-tabs>
@@ -389,16 +432,20 @@ function buildTopCards(rows) {
   const ranked = rows.filter((r) => r.mentions > 0).slice(0, 10);
   if (ranked.length < 3) return null;
   return topCards({
-    title: 'Most discussed — companies we cover',
+    title: 'Most discussed companies',
+    compact: true,
     items: ranked.map((r) => ({
       key: r.slug,
       name: r.name,
       sub: `${r.ticker} · ${r.sentiment.labelText}`,
-      value: r.mentions,
+      value: formatNumber(r.mentions),
+      unit: r.mentions === 1 ? 'mention' : 'mentions',
+      caption: `Last ${windowLabel(chatter.meta()?.window)}`,
+      actionLabel: 'Read mentions',
       tone: 'neutral',
     })),
     valueFormat: 'metric',
-    onSelect: (slug) => openMentions(rows.find((r) => r.slug === slug)),
+    onSelect: (item) => openMentions(rows.find((r) => r.slug === item.key)),
   });
 }
 
@@ -463,7 +510,11 @@ function buildCoveredTable(rows) {
     key: (r) => r.ticker,
     name: (r) => r.name,
     sub: (r) => `${r.ticker}${r.matchedName && r.matchedName !== r.name ? ` · ${r.matchedName}` : ''}`,
-    searchable: true,
+    // A FUNCTION, not `true`. `scoreTable` calls `searchable(row)` to build the haystack (screener.js),
+    // so a bare `true` threw "searchable is not a function" the moment a query was applied — which
+    // never happened while nothing pre-seeded the search, and started happening the instant a
+    // General Alerts chatter deep-link arrived with the company already typed in.
+    searchable: (r) => `${r.name} ${r.ticker} ${r.matchedName || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     initialSort: { key: 'Mentions', dir: 'desc' },
@@ -544,7 +595,9 @@ function buildOtherTable(rows) {
     watchKey: () => null,
     name: (r) => r.name,
     sub: (r) => r.slug,
-    searchable: true,
+    // A function, not `true` — see the covered table above; `scoreTable` calls it to build the
+    // search haystack, so a bare `true` throws the moment anyone types in this box.
+    searchable: (r) => `${r.name || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     showAvatar: false,

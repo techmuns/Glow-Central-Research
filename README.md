@@ -1,25 +1,69 @@
 # Glow Central Research
 
-An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (AI and general alerts, Ask Research, earnings, con-calls, public chatter, technical breakouts,
-superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
-allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
-toggle that applies to every tab.
+An Indian-equities research dashboard: thirteen tabs — Ask Research, AI and general alerts,
+earnings, con-calls, public chatter, technical breakouts, superstar investors, news, corporate
+announcements, IPOs, NSE filings and insider trades — under a global **Portfolio · Watchlist · Universe**
+scope toggle that applies to every one of them.
+
+**The public Portfolio snapshot is a list of company names, not a ledger.** The Portfolio scope filters the
+research tabs by Family Office's active shared workbook, through a protected names-only export.
+It refreshes on load, every minute while visible, and on Refresh; failed reads retain the saved
+book. Sources shows the portfolio connection as Connected or Not connected. See [active holdings setup](docs/ACTIVE-FAMILY-HOLDINGS.md).
+There are no quantities, costs or valuations in this public snapshot.
+A Portfolio Analytics workspace over an illustrative ledger used to exist and was
+deleted; it is in git history at `d3bba30` if a real ledger is ever wired.
+
+**Portfolio-aware Ask Research** stays in Central Research. An authenticated,
+hidden Family connector revalidates the uploaded book and refreshes quotes for
+every question. All held listed ISINs, sectors and listed-market-value weights
+accompany the dated question-specific reading, including fund units and unresolved
+symbols. An expired session can be unlocked inside Research; no second dashboard
+is needed. Missing access or a failed archive recheck stops the answer. Existing
+public conversation history remains visible; portfolio-connected conversations
+stay in memory only, with no private data in public assets or localStorage.
+See [the integration contract](docs/PORTFOLIO-INTEGRATION.md).
 
 **Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
 portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
 real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
 its internal ordering; cards show evidence and a next action without exposing score arithmetic.
-Stale feeds are penalised and named in a compact header warning. **General Alerts** keeps the complete
-newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
-Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
-importance and feed filters. Both views reuse the same feeds and add no source of their own.
+The shared company evidence graph also inspects every company-linked record in All Alerts—twenty
+feed categories in the current registry—and adds at most one concise, zero-score context line when
+time/topic proximity genuinely helps. Routine schedules, snapshots and documents can explain an
+alert but cannot create one. Screener's source-backed yearly/quarterly operating series use the same
+context-only boundary.
+Search covers company names, symbols, summaries and all underlying events, including evidence
+beyond the first page, within the selected scope and priority/archive filter. Each card shows its
+latest source signal date (not an AI generation timestamp, which is not recorded). Source times
+appear only when the newest day has complete time precision. Relative ages follow the current
+IST calendar and the seven-day window re-ranks at midnight or when a sleeping tab returns.
+Inside Sattva Family, AI Alerts reads the refreshed active book and orders surfaced alerts by
+holding size within the selected filter. Cards show each stock's share of listed portfolio market
+value, aggregated across entities. The book date and quote limitations remain visible. Standalone
+Research has no private sizes and retains evidence-priority ordering; no portfolio values are
+copied into public files or browser storage.
+Alert evidence loads alongside holding-size checks. Completed AI Alerts remain visible during
+background refreshes and return visits, with search and pagination preserved; a completed refresh
+replaces the view together. All Alerts retains each source's existing records while it rechecks.
+After the first complete collection, AI Alerts also keeps a seven-day public-event snapshot in
+IndexedDB so a hard reload can restore useful cards before the sources answer. That snapshot is
+deliberately universe-wide and is narrowed against the current in-memory scope on read; it contains
+no holding weights, Family replies, source records or private document-feed metadata.
+Temporary Family Office failures retain the last verified company list and quietly keep the latest
+available AI Alerts without exposing technical outage banners; expired access clears the private
+session. Private holding sizes remain in memory only.
+Stale feeds are penalised and named in a compact header warning. **All Alerts** keeps the complete
+newest-first, internally scrollable history from all twenty normalized feed categories—material
+signals plus raw filings, schedules, snapshots, documents and posts—with date, direction,
+importance and feed filters. AI Alerts reuses that pool and adds no event of its own.
 
 **Ask Research** is a conversational workspace that assembles a bounded evidence
 packet from every dashboard data module, reports source coverage and provenance, and keeps its
 conversation library on the reader's device. The Worker sends the bounded packet to Muns' hosted
 LLM router and forwards each NDJSON text chunk immediately, so answers render progressively without
-exposing the session token or waiting for the complete model response.
+exposing the session token or waiting for the complete model response. The same deterministic
+company correlations, authenticated holding weights and Screener operating context supplied to AI
+Alerts travel in the packet, so the two surfaces cannot produce competing attention models.
 
 **Two macro tabs lead the bar.** *Macro Research* (commodities, global indices, currencies, rates and bonds, with a returns table, overlay charts and the US yield curve) and *Economy & Macro* (the indicator grid and the data release calendar) are ported from the GlowVentures cockpit; every figure on them is read from a series store harvested there and copied here daily — nothing is scored or recomputed.
 
@@ -34,6 +78,9 @@ dashboard is a downstream of Sattva*.
 
 Static runtime, no bundler, no framework, no npm dependencies for the app itself.
 Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
+After first paint, a service worker warms the complete same-origin module graph. Repeat visits and
+tab switches therefore use the local app shell immediately while mutable public data revalidates in
+the background. Authenticated, `no-store` and `/api/*` responses are never put in that cache.
 
 ![Earnings Hub](docs/screenshots/earnings-hub.png)
 
@@ -53,16 +100,14 @@ deploy notes and the known gaps.
 daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
 [a GitHub Action](.github/workflows/technicals-refresh.yml).
 
-*Portfolio Analytics* marks every position to market from that same feed, and builds its equity
-curve and drawdown from **735 trading days of real closing prices** — because a max drawdown from
-an invented price series looks exactly like a measured one and nobody could check it. The trade
-ledger behind it is synthetic, but every execution price in it is a real close on a real trading
-day, so the curve never steps at a trade. The split ribbon on that workspace states both halves.
-
-**Two full scoring/analysis systems sit on mock-but-real-shaped data.** The Earnings Hub scores
-every result against a 15-rule, 21-point quality-and-growth model; the Con-call tab scans real
-transcript text for user-editable keywords, at runtime, in the browser. Both are wired exactly as
-they will be when the feeds land — swapping the JSON is the only change needed.
+**Earnings and con-call scans use real feeds.** Earnings Reported uses Moneycontrol; Earnings
+Calendar combines Moneycontrol's scheduled results with Screener's complete upcoming con-call
+invitation list, keeping the two event types labelled and filtering both through Portfolio,
+Watchlist or Universe. Con-call uses StockScans plus Screener's retained document history. Earnings
+Hub → Company Filings adds on-demand annual reports, earnings reports and transcripts from
+Screener.in through Muns. The old synthetic earnings corpus is no longer
+served or loaded. Analyst consensus estimates remain **not connected**, so Earnings Surprise
+shows an unavailable state instead of invented beat/miss figures.
 
 The Sources modal in the header lists every feed with an honest live / real / mock / pending
 status. What each tab does *not* do is recorded in `docs/SPEC.md` under its "Still to come" —
@@ -152,13 +197,18 @@ public/
     research/         bounded cross-dashboard evidence catalog + safe answer renderer
     tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                       super-investors, news, corp-announcements, insider-trades
+<<<<<<< HEAD
     portfolio/        overview, position-by, transactions, drawdown
   data/               portfolio-companies.json (the Portfolio scope's book, rebuilt daily from techmuns/GlowVentures), portfolio.json (the ledger),
                       universe.json, technicals.json, mock/*.json
+=======
+  data/               portfolio-companies.json (the book, synced from techmuns/Sattva-Family — names
+                      and sectors only, the ONLY portfolio data here), universe.json, technicals.json
+>>>>>>> upstream/main
 worker/index.js       asset serving + live read-through APIs + the Ask Research stream
 worker/research.mjs   server-only streaming Muns LLM bridge and request limits
 docs/SPEC.md          product spec, nav model, per-tab features, roadmap
-docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
+docs/HANDOFF.md       live-vs-mock inventory, architecture, deploy, known gaps
 docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source
 CLAUDE.md             working rules, module contract, design tokens, where-to-look index
 ```
@@ -184,18 +234,17 @@ TECH_LIMIT=15 node scripts/scrape-technicals.mjs   # smoke run -> technicals.smo
 A capped run writes to a sibling file and skips the ATR accumulator, so it can never truncate
 the committed feed or poison the volatility-trend history.
 
-## Regenerate the mock earnings set
+## Regenerate the earnings test fixtures
 
 ```bash
 node scripts/gen-mock-earnings.mjs
 ```
 
 Seeded, so the output is byte-stable — a diff means a real change. Writes
-`public/data/mock/earnings.json` and `public/data/mock/earnings-calendar.json`. Company names,
-tickers, sectors and market caps come from `universe.json` and are real; **every financial figure
-is synthetic**, and the dashboard says so on every surface that shows one. Swapping in the real
-filings feed is a three-file change — see *Wiring the real feed* in
-[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md).
+`scripts/fixtures/mock-earnings.json` and `scripts/fixtures/mock-earnings-calendar.json`.
+These synthetic figures are test inputs outside the served assets. The dashboard rejects them.
+See [Domestic company filings](docs/DATA-CONTRACTS.md#domestic-company-filings) for the real
+document endpoint; PDFs do not populate analyst estimates or structured financial history.
 
 ## Regenerate the mock con-calls
 
@@ -235,7 +284,10 @@ Seeded, so output is byte-stable.
 python3 -m http.server 8080 -d public &
 node scripts/verify-calendar.mjs
 node scripts/verify-research.mjs
+node scripts/verify-ai-alerts.mjs
+node scripts/verify-ai-alerts-ui.mjs
 node scripts/verify-ui.mjs
+node scripts/verify-navigation.mjs
 ```
 
 Drives the site with Playwright and walks CLAUDE.md's checklist — every route in both scopes,
@@ -253,11 +305,3 @@ elsewhere) rather than adding an npm dependency.
 | Strong Breakouts | FII Accumulation |
 | --- | --- |
 | ![Strong Breakouts](docs/screenshots/strong-breakouts.png) | ![FII Accumulation](docs/screenshots/fii-accumulation.png) |
-
-| Portfolio Overview — live marks, FIFO basis, reconciliation strip | Drawdown — 735 real trading days |
-| --- | --- |
-| ![Portfolio Overview](docs/screenshots/portfolio-overview.png) | ![Drawdown](docs/screenshots/portfolio-drawdown.png) |
-
-| The FIFO working behind a sell | Grouped by lot, not by position |
-| --- | --- |
-| ![FIFO drill](docs/screenshots/portfolio-fifo-drill.png) | ![Position By](docs/screenshots/portfolio-position-by.png) |

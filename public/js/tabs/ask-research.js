@@ -1,12 +1,16 @@
+import { pauseFamilySession } from '../data/family-session.js';
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
 
 import { authHeaders } from '../core/host-context.js';
 import { empty, el } from '../core/dom.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
+import { state, subscribe } from '../core/state.js';
+import * as notifications from '../ui/notifications.js';
 import { scopeLabel } from '../data/scope.js';
 import { buildResearchEvidence, researchSuggestions, resolveQuestionCompanies, DASHBOARD_RESEARCH_SOURCES } from '../research/estate.js';
 import { renderResearchAnswer, renderResearchSources } from '../research/renderer.js';
+import { connectPortfolio, portfolioConnected, privatePortfolioContext, readPortfolio, onPortfolioInvalidation, portfolioConnectionState, onPortfolioConnection, unlockPortfolio, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
 
 export const meta = {
   id: 'ask-research',
@@ -28,6 +32,14 @@ let uiDispose = null;
 let configState = null;
 let configPromise = null;
 const generations = new Map();
+onPortfolioInvalidation((version) => {
+  for (const generation of generations.values()) {
+    if (generation.portfolio && generation.portfolio.archiveVersion !== version) {
+      generation.portfolioChanged = true;
+      generation.controller.abort();
+    }
+  }
+});
 
 function makeId() {
   return globalThis.crypto?.randomUUID?.() || `research-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -41,6 +53,7 @@ function newSession() {
     createdAt: now,
     updatedAt: now,
     messages: [],
+    private: privatePortfolioContext(),
     draft: '',
     webResearch: false,
     status: 'idle',
@@ -71,16 +84,31 @@ function normaliseSession(raw) {
           webSources: Array.isArray(message.webSources) ? message.webSources.slice(0, 12) : [],
         }))
     : [];
+
+  // A QUESTION THE PAGE CLOSED ON IS GIVEN BACK, NOT LEFT DANGLING. The question is pushed into
+  // the transcript before the answer starts, so a reload mid-answer leaves a user message with
+  // nothing under it — a conversation that looks like the assistant ignored it. There is no stream
+  // to resume (the connection died with the page) and re-asking costs a real model run, so it is
+  // never re-sent automatically: the question goes back into the composer exactly as an abort puts
+  // it back, and the phase line says why it is there.
+  let draft = typeof raw.draft === 'string' ? raw.draft.slice(0, 1500) : '';
+  let interrupted = false;
+  if (messages.length && messages.at(-1).role === 'user') {
+    const pending = messages.pop().text;
+    if (!draft.trim()) draft = pending.slice(0, 1500);
+    interrupted = true;
+  }
+
   return {
     id: raw.id,
     title: String(raw.title || 'Research conversation').slice(0, 120),
     createdAt: raw.createdAt || new Date().toISOString(),
     updatedAt: raw.updatedAt || raw.createdAt || new Date().toISOString(),
     messages,
-    draft: '',
+    draft,
     webResearch: false,
     status: 'idle',
-    phase: '',
+    phase: interrupted ? 'That question stopped when the page closed. Send it again when you are ready.' : '',
     error: null,
     streamText: '',
     streamSources: [],
@@ -100,8 +128,11 @@ function loadSessions() {
 }
 
 function persistSessions() {
+  // Existing public history remains visible. New private conversations and
+  // continued sessions using portfolio readings stay in memory only.
   try {
     const payload = sessions
+      .filter((session) => !session.private)
       .slice()
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
       .slice(0, MAX_SESSIONS)
@@ -111,6 +142,9 @@ function persistSessions() {
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
         webResearch: session.webResearch,
+        // The typed-but-unsent question is the reader's work too, so it survives a reload the same
+        // way the conversation does.
+        draft: typeof session.draft === 'string' ? session.draft.slice(0, 1500) : '',
         messages: session.messages.slice(-MAX_MESSAGES),
       }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -151,8 +185,54 @@ function isBusy(session) {
   return generations.has(session.id);
 }
 
+/**
+ * AN ANSWER IN FLIGHT OUTLIVES THE TAB IT WAS ASKED FROM.
+ *
+ * `destroy()` used to abort every running generation, so pressing Send and then looking at another
+ * tab — the obvious thing to do while an answer that reads fifteen sources is being written —
+ * cancelled it. The abort path puts the question back in the composer and takes the user message
+ * back out of the transcript, so what the reader saw on returning was their own question sitting
+ * unsent and nothing else: the work looked like it had never happened.
+ *
+ * A generation is module state, not DOM state, and nothing it does needs the tab to be mounted:
+ * every paint is already guarded on `ctxRef`, and the finished answer is written to the session and
+ * to the device. So it keeps running, and the reader gets the answer whenever they come back.
+ *
+ * What must still cancel it is a change to the EVIDENCE UNIVERSE, and that is the reason each
+ * generation records the scope it was assembled under. An answer built from the book must never
+ * land in a workspace labelled Watchlist. Those changes can now happen while this tab is
+ * unmounted, so they are watched at module level rather than in `wire()`, whose subscriptions die
+ * with the mount — a watchlist edit made from the header while Ask Research was off screen used to
+ * invalidate nothing at all.
+ */
+function abortGenerations(match = () => true) {
+  for (const generation of generations.values()) {
+    if (match(generation)) generation.controller.abort();
+  }
+}
+
 function abortActiveGenerations() {
-  for (const generation of generations.values()) generation.controller.abort();
+  abortGenerations();
+}
+
+/** Anything assembled under a different scope from the one now in force. */
+function abortOtherScopeGenerations(scope) {
+  abortGenerations((generation) => generation.scope !== scope);
+}
+
+let stopInvalidation = null;
+function watchEvidenceInvalidation() {
+  if (stopInvalidation) return;
+  const stops = [
+    subscribe((reason, current) => {
+      if (reason === 'scope') abortOtherScopeGenerations(current.scope);
+    }),
+    // Scope editors postpone the shell remount until they close, so the stores are the only signal
+    // that the company set behind an in-flight packet has moved.
+    watchlist.onChange(() => abortGenerations((generation) => generation.scope === 'watchlist')),
+    scopeLists.onChange((scope) => abortGenerations((generation) => generation.scope === scope)),
+  ];
+  stopInvalidation = () => stops.forEach((stop) => stop());
 }
 
 function template(scope) {
@@ -167,6 +247,7 @@ function template(scope) {
             <h2 class="font-display text-xl font-extrabold text-slate-900">Ask Research</h2>
           </div>
           <p class="mt-1 text-sm text-slate-500">One answer across every dashboard tab in ${scopeLabel(scope)} scope.</p>
+          <p class="mt-1 text-sm text-slate-500" data-portfolio-connection></p>
         </div>
         <span class="research-estate-chip">
           <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
@@ -188,7 +269,7 @@ function template(scope) {
           </div>
           <div class="research-session-list scrollbar-thin" data-research-sessions></div>
           <div class="border-t border-slate-100 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
-            Conversation history stays on this device. Each question and a bounded dashboard evidence packet are sent securely for the answer.
+            ${privatePortfolioContext() ? 'Portfolio-connected conversations stay in memory only and disappear when this page closes.' : 'Conversation history stays on this device.'} Each question and bounded source readings are sent to the Muns-hosted model for the answer.
           </div>
         </aside>
 
@@ -217,24 +298,47 @@ function template(scope) {
 export function render(ctx) {
   cleanupUi();
   // A scope change changes the evidence universe. Do not let an answer assembled under the old
-  // scope land inside a workspace now labelled as the new one.
-  if (ctxRef && ctxRef.scope !== ctx.scope) {
-    abortActiveGenerations();
-  }
+  // scope land inside a workspace now labelled as the new one. The module-level watcher above
+  // catches this the moment the scope moves, mounted or not; this is the same question asked of
+  // the ctx actually being painted, so a generation can never outlive the scope on screen.
+  abortOtherScopeGenerations(ctx.scope);
   ctxRef = ctx;
   ensureSession();
   ctx.root.innerHTML = template(ctx.scope);
   uiDispose = wire(ctx.root);
   paintAll();
+  paintPortfolioConnection();
+  connectPortfolio().then(() => { if (ctxRef === ctx) paintPortfolioConnection(); });
   ensureConfig().then(() => {
     if (ctxRef === ctx) paintComposer();
   });
 }
 
+onPortfolioConnection(() => paintPortfolioConnection());
+
+function paintPortfolioConnection() {
+  const mount = ctxRef?.root.querySelector('[data-portfolio-connection]');
+  if (!mount) return;
+  empty(mount);
+  if (portfolioConnected()) {
+    mount.textContent = 'Portfolio connected · refreshed with every question';
+  } else {
+    const status = portfolioConnectionState();
+    if (status === 'locked') {
+      mount.append('Portfolio access needs sign-in · ');
+      const unlock = el('button', { type: 'button', class: 'research-cite' }, 'Unlock portfolio');
+      unlock.onclick = unlockPortfolio;
+      mount.appendChild(unlock);
+    } else mount.textContent = status === 'connecting' ? 'Connecting your portfolio…' : 'Portfolio connection unavailable · try again shortly';
+  }
+}
+
 export function destroy() {
+  // Deliberately does NOT abort: an answer the reader asked for keeps being written while they
+  // look at another tab, and lands in the conversation when they come back. See
+  // `abortGenerations` above for what does cancel one.
   cleanupUi();
   ctxRef = null;
-  abortActiveGenerations();
 }
 
 function cleanupUi() {
@@ -248,15 +352,6 @@ function cleanupUi() {
 
 function wire(root) {
   const input = root.querySelector('[data-research-input]');
-  // Scope editors intentionally postpone the shell remount until they close. Listen to the stores
-  // as well as render() so a response cannot finish and enter conversation history while an open
-  // editor has already changed the company set behind its evidence packet.
-  const stopWatchlist = watchlist.onChange(() => {
-    if (ctxRef?.scope === 'watchlist') abortActiveGenerations();
-  });
-  const stopScopeLists = scopeLists.onChange((scope) => {
-    if (ctxRef?.scope === scope) abortActiveGenerations();
-  });
   const onClick = (event) => {
     const sessionButton = event.target.closest('[data-research-session]');
     const deleteButton = event.target.closest('[data-research-delete]');
@@ -283,12 +378,17 @@ function wire(root) {
       submitCurrent();
     }
   };
+  let draftSave = null;
   const onInput = () => {
     const session = currentSession();
     if (!session) return;
     session.draft = input.value;
     autoSize(input);
     syncSendState();
+    // Written to the device on a trailing timer rather than on every keystroke: the draft only has
+    // to survive leaving the page, and localStorage is synchronous.
+    clearTimeout(draftSave);
+    draftSave = setTimeout(persistSessions, 400);
   };
   const onKeydown = (event) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
@@ -302,8 +402,10 @@ function wire(root) {
     root.removeEventListener('click', onClick);
     input.removeEventListener('input', onInput);
     input.removeEventListener('keydown', onKeydown);
-    stopWatchlist();
-    stopScopeLists();
+    // Leaving the tab is exactly when an unsaved draft would be lost, so flush rather than
+    // dropping a pending timer.
+    clearTimeout(draftSave);
+    persistSessions();
   };
 }
 
@@ -473,7 +575,7 @@ function openingState(scope) {
 
   const promises = el('div', { class: 'research-opening-promises' });
   for (const item of [
-    ['Every tab', 'Earnings, calls, chatter, technicals, filings, investor books and portfolio analytics.'],
+    ['Every tab', 'Earnings, calls, chatter, technicals, filings, investor books and both alert feeds.'],
     ['Traceable', 'Material figures name the dashboard page they came from.'],
     ['Evidence-led', 'Answers stay grounded in the dashboard packet sent with each question.'],
   ]) {
@@ -506,15 +608,51 @@ function openingState(scope) {
  * title first (what the model is told to cite) and by source id second; a name that matches no
  * registered source resolves to nothing, and the renderer leaves it as text.
  */
+/**
+ * A `[Dashboard: …]` citation names a TAB, so it opens the TAB — not one contributor's sub-view.
+ *
+ * THIS IS THE FIX FOR A LINK THAT WENT SOMEWHERE ELSE, and the failure is worth keeping because
+ * nothing about it looked broken. Four tab names are shared by two sources each — Earnings Hub,
+ * Breakouts / Technical, Super Investors and News — and this resolver used `.find()`, so the FIRST
+ * entry in the catalog silently won every time. On Breakouts that first entry is `technicals`,
+ * whose route is `…/breakouts/technical-scanner`; so a question about strong breakouts produced a
+ * correct answer, a correctly named citation, and a click that landed on the Technical Scanner. The
+ * reader then had to find the sub-view picker and switch to Strong Breakouts themselves — which is
+ * the tab's own FIRST sub-view, and therefore exactly where a bare tab route lands.
+ *
+ * So the destination is the tab's landing route, derived from the documented route shape
+ * (`#/ws/tab/subview`) by dropping the sub-view. That does two things at once: it sends the reader
+ * where the citation says, and it makes the collision harmless — every source sharing a tab now
+ * resolves to one href, so there is no longer a first-match to get wrong.
+ *
+ * The per-source links under an answer are NOT changed: those name a specific source rather than a
+ * tab, so they keep their own sub-view. See `renderResearchSources` below.
+ */
 function citeResolver(companies = []) {
   const scope = ctxRef?.scope || 'portfolio';
   const company = companies.length === 1 ? companies[0] : null;
   return (name) => {
     const wanted = String(name || '').trim().toLowerCase();
+    if (wanted === 'ask sattva' || wanted === 'sattva family') return { href: `${FAMILY_ORIGIN}/ask`, title: 'Open the portfolio source in Sattva Family', label: 'Ask Sattva' };
     const source = DASHBOARD_RESEARCH_SOURCES.find((item) => item.tab.toLowerCase() === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
     if (!source) return null;
-    return { href: dashboardHref(source.route, scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
+    return { href: dashboardHref(tabRoute(source.route), scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
   };
+}
+
+/**
+ * `#/ws/tab/subview` -> `#/ws/tab`. Anything shorter is returned untouched.
+ *
+ * The shell resolves a tab with no sub-view to that tab's FIRST sub-view, which is the same rule
+ * that makes the WORKSPACES array the landing page (see CLAUDE.md). So this lands a reader on the
+ * view the tab itself opens on, rather than on whichever sub-view one contributing source happens
+ * to belong to.
+ */
+function tabRoute(route) {
+  const [path, query = ''] = String(route || '#').split('?');
+  const segments = path.replace(/^#\/?/, '').split('/').filter(Boolean);
+  if (segments.length < 3) return route;
+  return `#/${segments.slice(0, 2).join('/')}${query ? `?${query}` : ''}`;
 }
 
 function dashboardHref(route, scope, company) {
@@ -540,6 +678,19 @@ function messageNode(message) {
   const companies = message.companies || [];
   renderResearchAnswer(body, message.text, { cite: citeResolver(companies) });
   article.appendChild(body);
+  if (message.portfolio) {
+    const p = message.portfolio;
+    const checked = new Date(p.checkedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    const quotes = p.quotes?.asOf ? `${p.quotes.asOf} (${p.quotes.freshness === 'partial-or-stale' ? 'partial or stale' : 'per-symbol freshness unverified'})` : 'unavailable — workbook marks only';
+    article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Portfolio book: ${p.bookAsOf}. Quotes: ${quotes}. Checked ${checked} IST. Snapshot for this answer, not a live refresh.`));
+    if (p.sourceErrors?.length) article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Sources not read: ${p.sourceErrors.join(', ')}.`));
+    const details = el('details');
+    details.appendChild(el('summary', { class: 'research-cite' }, 'Portfolio source reading · Ask Sattva'));
+    const reading = el('div', { class: 'research-answer-body' });
+    renderResearchAnswer(reading, p.answer, { cite: citeResolver() });
+    details.appendChild(reading);
+    article.appendChild(details);
+  }
   const sources = el('div', { class: 'research-sources' });
   const company = companies.length === 1 ? companies[0] : null;
   renderResearchSources(sources, {
@@ -634,6 +785,7 @@ async function submitCurrent() {
   if (!question) return;
 
   const originalDraft = session.draft;
+  session.private = session.private || privatePortfolioContext();
   const userMessage = { role: 'user', text: question };
   session.messages.push(userMessage);
   if (session.messages.filter((message) => message.role === 'user').length === 1) session.title = shortTitle(question);
@@ -645,12 +797,23 @@ async function submitCurrent() {
   session.streamSources = [];
   session.streamDashboard = [];
 
-  const generation = { controller: new AbortController(), paintQueued: false };
+  // The scope is captured here, once. Everything downstream reads `generation.scope` rather than
+  // `ctxRef`, which is null the moment the reader looks at another tab — and a packet built under
+  // "whatever scope is mounted right now" would change meaning mid-answer.
+  const generation = { controller: new AbortController(), paintQueued: false, scope: ctxRef?.scope || state.scope, question };
   generations.set(session.id, generation);
+  watchEvidenceInvalidation();
   setPhase(session, 'Opening every dashboard source…');
   paintAll();
+  persistSessions();
 
+  const resumePortfolioSync = pauseFamilySession();
   try {
+    setPhase(session, 'Refreshing your portfolio…');
+    const family = await readPortfolio(question, generation.controller.signal);
+    if (generation.controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+
+    generation.portfolio = family.holdings ? family.reading : null;
     // A cancellation takes effect NOW, not when the evidence build happens to finish. The build
     // can take ten seconds on a cold page, and a scope change during it used to leave the
     // composer empty and the phase running until then — the reader's question looked lost.
@@ -660,7 +823,9 @@ async function submitCurrent() {
     const evidence = await Promise.race([
       buildResearchEvidence({
         question,
-        scope: ctxRef?.scope || 'portfolio',
+        scope: generation.scope,
+        portfolio: family.reading,
+        portfolioPositions: { sizes: family.sizes, holdings: family.holdings },
         onProgress: ({ completed, total, source }) => {
           if (!generation.controller.signal.aborted) setPhase(session, `Reading ${source} · ${completed} of ${total}`);
         },
@@ -676,7 +841,7 @@ async function submitCurrent() {
     const response = await fetch('api/research', {
       method: 'POST',
       headers: { accept: 'application/x-ndjson', 'content-type': 'application/json', ...authHeaders('api/research') },
-      body: JSON.stringify({ question, scope: evidence.scope, webResearch: false, history, evidence }),
+      body: JSON.stringify({ question, requirePortfolio: true, scope: evidence.scope, webResearch: false, history, evidence }),
       signal: generation.controller.signal,
     });
     if (!response.ok) {
@@ -693,15 +858,30 @@ async function submitCurrent() {
     session.streamSources = [];
     session.streamDashboard = [];
     session.streamCompanies = [];
-    session.status = error?.name === 'AbortError' ? 'idle' : 'needs-attention';
-    session.error = error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
+    session.status = error?.name === 'AbortError' && !generation.portfolioChanged ? 'idle' : 'needs-attention';
+    session.error = generation.portfolioChanged ? 'The Family workbook changed while this answer was being written. Send the question again to read the new book.' : error?.name === 'AbortError' ? null : error?.message || 'Research could not be completed.';
     session.phase = '';
     persistSessions();
   } finally {
+    resumePortfolioSync();
     generations.delete(session.id);
     if (session.status === 'answering') session.status = 'idle';
     if (activeId === session.id && ctxRef) paintAll();
     else if (ctxRef) paintSidebar();
+    // AN ANSWER THAT ARRIVED WHILE THE READER WAS ELSEWHERE HAS TO SAY SO, or keeping it running
+    // is a feature nobody can see. This is a fact that arrived and one the reader asked for by
+    // name, which is exactly what the alert stack is for; `key` is the session and the message
+    // count, so a repaint cannot re-announce it. Nothing is pushed for a cancellation, and nothing
+    // while the tab is on screen — the transcript is already showing it.
+    if (!ctxRef && session.messages.at(-1)?.role === 'assistant') {
+      notifications.push({
+        key: `research:${session.id}:${session.messages.length}`,
+        kind: 'research',
+        title: 'Research answer ready',
+        detail: session.title,
+        href: `#/research/ask-research?scope=${encodeURIComponent(generation.scope)}`,
+      });
+    }
   }
 }
 
@@ -758,6 +938,7 @@ async function consumeStream(stream, session, generation) {
     dashboardSources: session.streamDashboard,
     webSources: session.streamSources,
     companies: session.streamCompanies || [],
+    portfolio: generation.portfolio,
   });
   session.messages = session.messages.slice(-MAX_MESSAGES);
   session.updatedAt = new Date().toISOString();
