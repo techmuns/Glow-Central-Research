@@ -1,7 +1,7 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "864e777",
+ "builtFrom": "57a9cca",
  "asOf": "2026-08-29",
  "summary": {
   "asOf": "2026-08-29",
