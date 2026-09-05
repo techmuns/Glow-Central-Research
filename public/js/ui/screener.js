@@ -184,15 +184,16 @@ export function statStrip(cards = []) {
 // ---------------------------------------------------------------------------------------
 
 /**
- * topCards({ title, items, valueFormat, onSelect, limit })
+ * topCards({ title, items, valueFormat, onSelect, limit, compact })
  *
  *  title        e.g. "Top 10 by Earnings Surprise" (a 🏆 is prepended)
- *  items        [{ name, sub?, value, max?, tone?, warn?, payload? }]
+ *  items        [{ name, sub?, value, unit?, caption?, actionLabel?, max?, tone?, warn?, payload? }]
  *  valueFormat  'score'  → renders `value/max` and colours by tier (needs `max`)
  *               'metric' → renders `value` verbatim, coloured by `tone`
  *  tone         for 'metric': 'positive' | 'negative' | 'caution' | 'neutral' | 'brand'
  *  onSelect     (item, index) => void — fired on card click, wire up the drill panel here
  *  limit        default 10
+ *  compact      omit decorative avatars and numeric ranks; allow company names to wrap
  */
 const METRIC_TONE = {
   positive: 'text-emerald-600',
@@ -272,14 +273,14 @@ export function rankedList({ key, title, note = '', items = [], limit = 5, empty
   return { html, wire, shown };
 }
 
-export function topCards({ title, items = [], valueFormat = 'metric', onSelect = null, limit = 10 }) {
+export function topCards({ title, items = [], valueFormat = 'metric', onSelect = null, limit = 10, compact = false }) {
   const shown = items.slice(0, limit);
 
   const html = `
     <section class="mb-8" data-top-cards>
       <div class="mb-3 flex items-center justify-between">
         <h2 class="font-display flex items-center gap-2 text-lg font-bold text-slate-900">
-          <span class="text-amber-500">🏆</span> ${escapeHtml(title)}
+          ${compact ? '' : '<span class="text-amber-500">🏆</span>'} ${escapeHtml(title)}
         </h2>
       </div>
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -295,22 +296,23 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
             const caption = isScore ? tierLabel(tier) : item.caption || '';
             return `
               <button type="button" data-top-idx="${i}"
-                class="group relative overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-                <div class="absolute right-3 top-3 text-xs font-bold text-slate-400">#${i + 1}</div>
+                class="group relative overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                ${compact ? '' : `<div class="absolute right-3 top-3 text-xs font-bold text-slate-400">#${i + 1}</div>`}
                 <div class="mb-3 flex items-center gap-3">
-                  <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-sm font-bold text-white shadow-md">${escapeHtml(initials)}</div>
-                  <div class="min-w-0 flex-1 pr-6">
-                    <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
+                  ${compact ? '' : `<div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-sm font-bold text-white shadow-md">${escapeHtml(initials)}</div>`}
+                  <div class="min-w-0 flex-1${compact ? '' : ' pr-6'}">
+                    <div class="${compact ? 'break-words' : 'truncate'} text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
                     ${item.sub ? `<div class="truncate text-xs text-slate-500">${escapeHtml(item.sub)}</div>` : ''}
                   </div>
                 </div>
                 <div class="flex items-end justify-between">
                   <div class="min-w-0">
-                    <div class="truncate text-3xl font-bold tabular-nums ${valueClass}">${valueHtml}</div>
+                    <div class="${item.unit && !isScore ? 'flex flex-wrap items-baseline gap-x-1.5' : 'truncate'} text-3xl font-bold tabular-nums ${valueClass}">${valueHtml}${item.unit && !isScore ? ` <span class="text-sm font-medium text-slate-500">${escapeHtml(item.unit)}</span>` : ''}</div>
                     ${caption ? `<div class="mt-0.5 truncate text-xs text-slate-500">${escapeHtml(caption)}</div>` : ''}
                   </div>
                   ${item.warn ? `<div class="flex-shrink-0 text-xl text-rose-500" title="${escapeHtml(item.warn)}">⚠</div>` : ''}
                 </div>
+                ${onSelect && item.actionLabel ? `<span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">${escapeHtml(item.actionLabel)} <span aria-hidden="true">→</span></span>` : ''}
               </button>`;
           })
           .join('')}
@@ -364,6 +366,7 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
  *  fillMode      'idle' (default) eventually paints every row; 'scroll' appends adaptive pages
  *                only as the reader approaches the bottom of the table.
+ *  scrollLabel   accessible name for the keyboard-focusable table scroller.
  *
  * Sorting, search, watchlist-only and the filter select are all handled internally; the table
  * re-renders its own tbody without the tab getting involved.
@@ -439,6 +442,7 @@ export function scoreTable(config) {
     // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
     // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
     fillMode = 'idle',
+<<<<<<< HEAD
     // TURN THE SEARCH BOX INTO A COMPANY MULTI-SELECT. `[{ ticker, name, count }]` — the companies
     // this table may be narrowed to, which is the tab's scope list rather than anything derived
     // from the rows: a company in scope with nothing in this capture is still a company the reader
@@ -470,6 +474,12 @@ export function scoreTable(config) {
     // all of which pass `watchKey: () => null` today, and none of which asked for that change. A
     // table that wants it gone says so; every other table keeps exactly what it has.
     showWatchFilter = true,
+=======
+    showWatchFilter = true,
+    initialRowCount = 40,
+    initialRowKey = null,
+    scrollLabel = `${nameLabel} data table`,
+>>>>>>> upstream/main
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -520,6 +530,7 @@ export function scoreTable(config) {
       });
     }
   }
+  if (!showWatchFilter) view.watchOnly = false;
 
   const totalCount = rows.length;
   const countText = (visible) => {
@@ -733,12 +744,11 @@ export function scoreTable(config) {
   // holding every visible row, and Ctrl-F, screenshots and "N of M shown" behave as they did. The
   // section carries `data-rows-pending` until the fill completes, so a test (or anything else)
   // can wait for the settled table rather than racing it.
-  const FIRST_PAINT_ROWS = 40; // comfortably more than any viewport shows
   // The old adaptive ceiling reached 800 rows. HTML insertion looked cheap, but the style/layout
   // work landed on the next frame: traces showed 40–88ms layout blocks while a table filled. Keep
   // each background batch below a screenful so loading can never monopolise an interaction frame.
-  const MIN_SLICE = 20;
-  const MAX_SLICE = 80;
+  const MIN_SLICE = fillMode === 'scroll' ? 16 : 20;
+  const MAX_SLICE = fillMode === 'scroll' ? 40 : 80;
 
   // requestIdleCallback where it exists, with a timeout so a busy or backgrounded tab still
   // finishes. Safari has no rIC, hence the fallback — a slower fill is fine, a stalled one is not.
@@ -754,6 +764,8 @@ export function scoreTable(config) {
         };
 
   const initialList = visibleRows();
+  const anchorIndex = initialRowKey === null ? -1 : initialList.findIndex((row) => String(key(row)) === initialRowKey);
+  const FIRST_PAINT_ROWS = Math.max(40, Math.min(initialList.length, Math.max(Number(initialRowCount) || 40, anchorIndex + 40)));
 
   // ONE BOX, TWO JOBS. With `companyOptions` the search input becomes a company multi-select that
   // still searches text; without it the plain input is unchanged, so every other table in the
@@ -807,15 +819,23 @@ export function scoreTable(config) {
                  </select>`
             )
             .join('')}
+<<<<<<< HEAD
           ${
             // Absent on a table that opted out — see `showWatchFilter` above.
             showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
+=======
+          ${showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
+>>>>>>> upstream/main
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
+<<<<<<< HEAD
           </button>` : ''
           }
+=======
+          </button>` : ''}
+>>>>>>> upstream/main
         </div>
         <div class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
@@ -828,7 +848,7 @@ export function scoreTable(config) {
         </div>
       </div>
 
-      <div class="scrollbar-thin overflow-x-auto" data-table-scroll ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto"` : ''}>
+      <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto"` : ''}>
         <table class="w-full text-sm">
           <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]' : 'bg-slate-50/70'}">${headHtml()}</thead>
           <tbody data-table-body>${bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
@@ -884,7 +904,7 @@ export function scoreTable(config) {
       // Adapt inside the strict ceiling above: the cost per row swings by an order of magnitude
       // between a three-column table and a thirteen-column one.
       const ms = performance.now() - started;
-      if (ms > 12) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
+      if (ms > (fillMode === 'scroll' ? 8 : 12)) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
       else if (ms < 4) slice = Math.min(MAX_SLICE, slice * 2);
       if (filled < current.length) {
         if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
@@ -938,7 +958,15 @@ export function scoreTable(config) {
         scrollQueued = false;
         const last = body.lastElementChild;
         if (filled >= current.length || !last) return;
-        if (last.getBoundingClientRect().top < window.innerHeight * 2) {
+        // Internal table scrollers should fill from their own geometry, not from the viewport's.
+        // The old viewport-only test could wait until the reader hit the painted edge, then append
+        // a large slice during the gesture. Keeping roughly 1.5 table viewports buffered makes the
+        // history feel continuous while retaining scroll-paged DOM bounds.
+        const internalNearEnd = scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < Math.max(480, scroller.clientHeight * 1.5);
+        const pageNearEnd = !scroller || scroller.scrollHeight <= scroller.clientHeight
+          ? last.getBoundingClientRect().top < window.innerHeight * 2
+          : false;
+        if (internalNearEnd || pageNearEnd) {
           if (fillMode === 'scroll') pumpFill();
           else flush();
         }
@@ -1012,7 +1040,10 @@ export function scoreTable(config) {
       }
 
       countEl.textContent = countText(current);
+<<<<<<< HEAD
       // Absent on a table that opted out of the filter; see `showWatchFilter`.
+=======
+>>>>>>> upstream/main
       if (watchCount) watchCount.textContent = String(watchlist.size());
     }
 
@@ -1136,7 +1167,10 @@ export function scoreTable(config) {
       })
     );
 
+<<<<<<< HEAD
     // Absent on a table that opted out of the filter; see `showWatchFilter`.
+=======
+>>>>>>> upstream/main
     watchBtn?.addEventListener('click', () => {
       view.watchOnly = !view.watchOnly;
       rowHtmlCache.clear(); // star styling is baked into the cached markup

@@ -67,7 +67,7 @@
 // re-read control in the Live pill's modal, and it asks for everything again.
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
-import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2 } from './finology-shared.js';
+import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2, filedPair, isFiledQuarter } from './finology-shared.js';
 
 const LIST_PATH = 'api/super-investors';
 const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
@@ -836,7 +836,10 @@ function derived() {
     const investor = displayName(b);
     for (const q of b.quarters) if (!seenQuarters.includes(q)) seenQuarters.push(q);
 
-    const [latest] = b.quarters;
+    // THE LATEST *FILED* QUARTER, NOT THE LATEST COLUMN. An open "Filing Due" period carries a
+    // figure for a handful of early filers and a blank for everyone else, so reading `pct` off it
+    // blanked the current stake of most of the book — see `isFiledQuarter` in finology-shared.js.
+    const [latest] = filedPair(b.quarters);
     for (const h of b.holdings) {
       holdings.push({
         investor,
@@ -929,7 +932,11 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
   const all = derived().moves;
   const moves = include ? all.filter((m) => include(m.company)) : all;
 
-  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
+  // `awaiting` is counted so an outstanding filing is VISIBLE rather than merely absent. It is not
+  // a move and never joins a buy or exit group; the head prints it as its own clause, because
+  // "three positions have not filed yet" and "three positions were sold" are different answers and
+  // the reader is owed the first rather than a quietly shorter list.
+  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0, awaiting: 0 };
   for (const m of moves) if (counts[m.action] != null) counts[m.action] += 1;
 
   // Grouped on the company, carrying who did what — the roll-up a reader would otherwise do by
@@ -1001,7 +1008,7 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
 export function overlaps() {
   const byCompany = new Map();
   for (const b of state.books.values()) {
-    const [latest] = b.quarters;
+    const [latest] = filedPair(b.quarters);
     if (!latest) continue;
     for (const h of b.holdings) {
       if (h.quarterlyHoldings[latest] == null) continue;
@@ -1029,7 +1036,12 @@ export function quarterLabels() {
   return derived().quarters;
 }
 
-/** The newest quarter any loaded book publishes — what "this quarter" means across the feed. */
+/**
+ * The newest FILED quarter any loaded book publishes — what "this quarter" means across the feed.
+ *
+ * An open period is a column, not a quarter: it exists as soon as one company files into it, so
+ * taking it would have the whole feed announce itself as of a quarter almost nobody has filed.
+ */
 export function latestQuarter() {
-  return derived().quarters[0] || null;
+  return derived().quarters.find((q) => isFiledQuarter(q)) || null;
 }

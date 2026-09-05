@@ -259,6 +259,7 @@ export const isLoaded = () => !!cache;
 export const all = () => (cache ? cache.entries : []);
 export const companies = () => (cache ? cache.companies : []);
 export const uncovered = () => (cache ? cache.uncovered : []);
+export const loadedPosts = () => [...postsCache.values()];
 export const overview = () => (cache ? cache.overview : null);
 export const meta = () => (cache ? cache.meta : null);
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
@@ -303,6 +304,7 @@ async function fetchPosts(slug) {
   const normalised = normalisePosts(body);
   const result = { ...normalised, slug: normalised.slug || slug, endpoint: url };
   postsCache.set(slug, result);
+  for (const fn of listeners) fn();
   return result;
 }
 
@@ -361,7 +363,7 @@ export function startLive(live) {
       }
     }
   });
-  live.start(LIVE_ID);
+  live.start(LIVE_ID, { fresh: true });
   return () => {
     off();
     live.stop(LIVE_ID);
