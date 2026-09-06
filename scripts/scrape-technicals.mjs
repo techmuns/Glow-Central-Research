@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { loadActivePortfolio } from './lib/active-portfolio.mjs';
 // Technicals scraper: pulls daily OHLC for every company we cover (and the Nifty
 // 500 index) from Yahoo Finance, computes the technical indicators the client's
 // scoring framework needs, and writes a single public/data/technicals.json that
@@ -91,7 +92,7 @@ run().catch((err) => {
 // ---------- main ----------
 async function run() {
   const screenerRows = JSON.parse(readFileSync(COMPANIES_PATH, "utf8"));
-  const bookRows = bookCompaniesNotInScreener(screenerRows);
+  const bookRows = await bookCompaniesNotInScreener(screenerRows);
   const allCompanies = [...screenerRows, ...bookRows];
   console.log(`Loaded ${screenerRows.length} companies from universe.json`);
   console.log(`Added ${bookRows.length} held companies that are not in it — ${allCompanies.length} in the universe`);
@@ -372,11 +373,12 @@ function extractTicker(url) {
  * travels with the row so the dashboard can say why the columns are empty instead of leaving the
  * reader to guess whether it means "no institutional buying" or "we never had the figure".
  */
-function bookCompaniesNotInScreener(screenerRows) {
+async function bookCompaniesNotInScreener(screenerRows) {
   let book;
   try {
-    book = JSON.parse(readFileSync(BOOK_PATH, "utf8"));
-  } catch {
+    book = await loadActivePortfolio(BOOK_PATH);
+  } catch (error) {
+    if (process.env.FAMILY_HOLDINGS_LIVE === 'true') throw error;
     console.log("portfolio-companies.json not found — scraping the screener export only.");
     return [];
   }

@@ -259,6 +259,7 @@ export const isLoaded = () => !!cache;
 export const all = () => (cache ? cache.entries : []);
 export const companies = () => (cache ? cache.companies : []);
 export const uncovered = () => (cache ? cache.uncovered : []);
+export const loadedPosts = () => [...postsCache.values()];
 export const overview = () => (cache ? cache.overview : null);
 export const meta = () => (cache ? cache.meta : null);
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
@@ -303,6 +304,7 @@ async function fetchPosts(slug) {
   const normalised = normalisePosts(body);
   const result = { ...normalised, slug: normalised.slug || slug, endpoint: url };
   postsCache.set(slug, result);
+  for (const fn of listeners) fn();
   return result;
 }
 
@@ -330,7 +332,7 @@ export function startLive(live) {
       // A tick that fails leaves whatever is on screen alone. The tab reported the failure the
       // first time it happened; replacing a good table with an error because one poll missed
       // would be worse than saying nothing.
-      if (!feed.ok) return null;
+      if (!feed.ok) throw Error('Public Chatter could not be revalidated.');
       if (feed.fromStore) {
         // Revalidated, unchanged. Move "last checked" and nothing else — that is a different fact
         // from "last scraped", and conflating them would age the data backwards.
@@ -361,7 +363,7 @@ export function startLive(live) {
       }
     }
   });
-  live.start(LIVE_ID);
+  live.start(LIVE_ID, { fresh: true });
   return () => {
     off();
     live.stop(LIVE_ID);
