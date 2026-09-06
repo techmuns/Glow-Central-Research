@@ -243,12 +243,16 @@
     "isin:INE0N0J01014|Concord Control Systems": {
       "lastAttemptAt": "2026-09-06T23:06:31+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE532F01054|Edelweiss Financial Services": {
+      "lastAttemptAt": "2026-09-06T23:59:01+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 229,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-06T23:06:31.215470+00:00"
+    "checkedAt": "2026-09-06T23:59:01.222495+00:00"
   }
 }
