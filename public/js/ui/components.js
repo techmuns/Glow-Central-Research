@@ -7,6 +7,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.js';
 import { scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
+import { resultLabel } from '../core/refresh.js';
 
 // Semantic tones (positive/negative/caution) describe a data outcome; brand/accent are the
 // indigo→purple chrome colours. Never use a semantic tone to mean "branded".
@@ -92,47 +93,137 @@ export function scopeSummary({ scope, count, noun = 'companies', book = null }) 
   return pill({ label: `${label} · ${formatNumber(count)} of ${formatNumber(book.count)} ${noun}`, tone, title: why });
 }
 
-// Horizontal top-level tabs with an animated underline indicator (scaleX-style slide via translateX + width).
-export function tabBar({ tabs, activeId, onSelect }) {
-  // The active indicator is pure CSS (`.tab-btn::after`, defined in index.html): a springy
-  // indigo→purple bar that scales in from the centre. No JS measurement, so nothing can
-  // overflow the viewport when the bar scrolls horizontally on narrow screens.
+// Scrollable tabs with explicit overflow controls and manual keyboard activation.
+export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
+  let list = null;
+  let revealActive = () => {};
   const html = `
-    <div class="scrollbar-thin flex items-center gap-1 overflow-x-auto border-b border-slate-200" role="tablist" data-tab-list>
+    <div class="tab-bar" data-tab-bar>
+      <div class="tab-list" role="tablist" aria-label="${escapeHtml(label)}" data-tab-list>
       ${tabs
         .map(
           (t) => `
         <button type="button" role="tab" data-tab-id="${escapeHtml(t.id)}" aria-selected="${t.id === activeId}"
-          class="tab-btn -mb-px flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold transition-colors ${
-            t.id === activeId ? 'is-active text-indigo-600' : 'text-slate-500 hover:text-slate-700'
-          }">
+          tabindex="${t.id === activeId ? 0 : -1}" class="tab-btn${t.id === activeId ? ' is-active' : ''}">
           ${escapeHtml(t.label)}
         </button>`
         )
         .join('')}
+      </div>
+      <div class="tab-scroll-controls" data-tab-scroll-controls hidden>
+        <button type="button" class="tab-scroll-btn" data-tab-scroll="-1" aria-label="Scroll tabs left" title="Scroll tabs left">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+        <button type="button" class="tab-scroll-btn" data-tab-scroll="1" aria-label="Scroll tabs right" title="Scroll tabs right">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+      </div>
     </div>`;
 
   function wire(root) {
-    const list = root.querySelector('[data-tab-list]');
+    const bar = root.querySelector('[data-tab-bar]');
+    list = bar.querySelector('[data-tab-list]');
+    const buttons = [...list.querySelectorAll('[data-tab-id]')];
+    const controls = bar.querySelector('[data-tab-scroll-controls]');
+    const previous = bar.querySelector('[data-tab-scroll="-1"]');
+    const next = bar.querySelector('[data-tab-scroll="1"]');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    let frame = 0;
 
-    list.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-tab-id]');
-      if (btn) onSelect(btn.dataset.tabId);
-    });
+    const scrollTo = (left, animate = true) => list.scrollTo({ left, behavior: animate && !motion.matches ? 'smooth' : 'instant' });
+    const reveal = (button, animate = true) => {
+      if (!button) return;
+      const bounds = list.getBoundingClientRect();
+      const target = button.getBoundingClientRect();
+      // Long labels on small screens take priority over the decorative edge fades.
+      const inset = Math.max(0, Math.min(14, (bounds.width - target.width) / 2));
+      if (target.left < bounds.left + inset) scrollTo(list.scrollLeft + target.left - bounds.left - inset, animate);
+      else if (target.right > bounds.right - inset) scrollTo(list.scrollLeft + target.right - bounds.right + inset, animate);
+    };
+    const syncEdges = () => {
+      const maxScroll = list.scrollWidth - list.clientWidth;
+      previous.disabled = list.scrollLeft <= 1;
+      next.disabled = list.scrollLeft >= maxScroll - 1;
+      bar.dataset.canScrollLeft = String(!previous.disabled);
+      bar.dataset.canScrollRight = String(!next.disabled);
+    };
+    const measure = () => {
+      // Compare against the FULL available width, including the space controls would release.
+      // Otherwise controls can keep themselves visible after the viewport grows to fit all tabs.
+      controls.hidden = list.scrollWidth <= bar.clientWidth - 12 + 1;
+      const focused = buttons.includes(document.activeElement) ? document.activeElement : null;
+      reveal(focused || buttons.find((button) => button.dataset.tabId === activeId), false);
+      syncEdges();
+    };
+    revealActive = () => {
+      reveal(buttons.find((button) => button.dataset.tabId === activeId));
+      syncEdges();
+    };
+    const tabStop = (button) => buttons.forEach((item) => { item.tabIndex = item === button ? 0 : -1; });
+    const onClick = (event) => {
+      const button = event.target.closest('[data-tab-id]');
+      if (!button) return;
+      tabStop(button);
+      onSelect(button.dataset.tabId);
+    };
+    const onKeydown = (event) => {
+      const index = buttons.indexOf(event.target);
+      if (index < 0 || event.altKey || event.ctrlKey || event.metaKey) return;
+      let target;
+      if (event.key === 'ArrowRight') target = buttons[(index + 1) % buttons.length];
+      else if (event.key === 'ArrowLeft') target = buttons[(index - 1 + buttons.length) % buttons.length];
+      else if (event.key === 'Home') target = buttons[0];
+      else if (event.key === 'End') target = buttons.at(-1);
+      else return; // Enter/Space activate the native button; arrows only move focus.
+      event.preventDefault();
+      tabStop(target);
+      target.focus({ preventScroll: true });
+      reveal(target);
+    };
+    const onScrollClick = (event) => {
+      const button = event.target.closest('[data-tab-scroll]');
+      if (button) scrollTo(list.scrollLeft + Number(button.dataset.tabScroll) * list.clientWidth * 0.75);
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(syncEdges);
+    };
 
-    // On narrow screens the active tab may start outside the scrolled view — pull it in.
-    requestAnimationFrame(() => {
-      const active = list.querySelector(`[data-tab-id="${cssEscape(activeId)}"]`);
-      if (!active) return;
-      if (active.offsetLeft < list.scrollLeft || active.offsetLeft + active.offsetWidth > list.scrollLeft + list.clientWidth) {
-        list.scrollTo({ left: Math.max(0, active.offsetLeft - 16), behavior: 'smooth' });
-      }
-    });
+    list.addEventListener('click', onClick);
+    list.addEventListener('keydown', onKeydown);
+    list.addEventListener('scroll', onScroll, { passive: true });
+    controls.addEventListener('click', onScrollClick);
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    // Font loading can change the content width without changing the container's width.
+    buttons.forEach((button) => observer.observe(button));
+    measure();
 
-    return () => {};
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      list.removeEventListener('click', onClick);
+      list.removeEventListener('keydown', onKeydown);
+      list.removeEventListener('scroll', onScroll);
+      controls.removeEventListener('click', onScrollClick);
+      revealActive = () => {};
+      list = null;
+    };
   }
 
-  return { html, wire };
+  function update(nextActiveId) {
+    activeId = nextActiveId;
+    if (!list) return;
+    for (const button of list.querySelectorAll('[data-tab-id]')) {
+      const selected = button.dataset.tabId === activeId;
+      button.setAttribute('aria-selected', String(selected));
+      button.classList.toggle('is-active', selected);
+      button.tabIndex = selected ? 0 : -1;
+    }
+    revealActive();
+  }
+
+  return { html, wire, update };
 }
 
 // Scope segmented control with a sliding brand thumb.
@@ -171,7 +262,7 @@ export function segmentedToggle({ options, activeValue, onChange }) {
 
 // Sortable, sticky-header data table. Horizontal-scrolls inside its own container so the page
 // body never scrolls sideways. Zebra-free — rows differentiate on hover only.
-export function dataTable({ columns, rows, sortable = true, initialSort = null, emptyMessage = 'No data yet.' }) {
+export function dataTable({ columns, rows, sortable = true, initialSort = null, emptyMessage = 'No data yet.', scrollLabel = 'Scrollable data table' }) {
   function cellValue(row, col) {
     return col.render ? col.render(row) : escapeHtml(row[col.key] ?? '—');
   }
@@ -191,7 +282,7 @@ export function dataTable({ columns, rows, sortable = true, initialSort = null, 
   }
 
   const html = `
-    <div class="overflow-x-auto rounded-2xl ring-1 ring-slate-100" data-table-wrap>
+    <div class="table-scroll-surface overflow-x-auto rounded-2xl ring-1 ring-slate-100" data-table-wrap tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}">
       <table class="w-full min-w-max border-collapse text-sm">
         <thead class="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
           <tr>
@@ -450,7 +541,7 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
  *
  * `onRefresh` returns `{ announced }` so the button can report a result instead of just spinning.
  */
-export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null }) {
+export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = null, getRefreshKey = () => 'view', subscribeContext = null }) {
   const html = `
     <div class="flex items-center gap-1.5">
       <span data-status-pill title="Most recent server confirmation from an active feed"
@@ -463,12 +554,12 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
         <span class="text-emerald-300">·</span>
         <span data-live-time class="tabular-nums font-medium text-emerald-600">—</span>
       </span>
-      <button type="button" data-header-refresh title="Check every live feed for new data now"
+      <button type="button" data-header-refresh aria-label="Refresh" title="Refresh the current view from its latest available sources"
         class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 disabled:cursor-wait disabled:opacity-60">
         <svg data-header-refresh-icon width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
         </svg>
-        <span data-header-refresh-label>Refresh</span>
+        <span data-header-refresh-label role="status" aria-live="polite">Refresh</span>
       </button>
     </div>`;
 
@@ -486,61 +577,61 @@ export function statusControl({ getTimestamp, subscribeTick = null, onRefresh = 
     const interval = setInterval(refresh, 15000);
     const unsubscribe = subscribeTick ? subscribeTick(refresh) : null;
 
-    // A REFRESH THAT NEVER RETURNS IS THE EXACT FAILURE THIS BUTTON EXISTS TO PREVENT.
-    //
-    // `refreshAll()` awaits every running poller's fetcher, and an upstream that accepts the
-    // connection without answering leaves that promise pending for ever. The button was then
-    // stuck on "Checking…" AND disabled — no result, no retry, and the one control on the page
-    // whose whole job is to say whether the data was confirmed saying nothing at all.
-    //
-    // So the wait is bounded, and both failure modes report themselves. "Couldn't check" is a
-    // result; a spinner is not. What must never happen is the third option the old code took on
-    // the error path: printing "Up to date" after a check that did not complete, which claims a
-    // freshness nothing confirmed — the same rule that governs `meta.checkedAt`.
-    const REFRESH_TIMEOUT_MS = 15000;
-    const TIMED_OUT = Symbol('timeout');
-    let resetTimer = null;
-    async function doRefresh() {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      clearTimeout(resetTimer);
-      icon.classList.add('spin-slow');
-      label.textContent = 'Checking…';
-      let announced = 0;
-      let pending = false;
-      let failed = false;
-      let timer = null;
-      try {
-        const outcome = await Promise.race([
-          Promise.resolve(onRefresh?.()),
-          new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), REFRESH_TIMEOUT_MS); }),
-        ]);
-        if (outcome === TIMED_OUT) failed = true;
-        // `pending` is a THIRD outcome and not a failure: the per-company feeds are one request per
-        // company, so a walk can still be running perfectly well when the button's patience runs
-        // out. Saying "Couldn't check" about work that is proceeding is the same class of lie as
-        // saying "Up to date" about a check that did not complete.
-        else ({ announced = 0, pending = false } = outcome || {});
-      } catch (err) {
-        console.error('[status] refresh failed', err);
-        failed = true;
-      } finally {
-        clearTimeout(timer);
-      }
-      icon.classList.remove('spin-slow');
-      // Say what happened. "Up to date" is a real answer and the common one — a spinner that
-      // vanishes leaves the reader unsure whether anything was checked at all.
-      label.textContent = failed ? 'Couldn’t check' : pending ? 'Still reading…' : announced ? `${announced} new` : 'Up to date';
+    const attempts = new Map();
+    let disposed = false;
+    const draw = () => {
+      if (disposed) return;
+      const attempt = attempts.get(getRefreshKey());
+      btn.disabled = !!attempt?.running;
+      btn.setAttribute('aria-busy', String(!!attempt?.running));
+      icon.classList.toggle('spin-slow', !!attempt?.running);
+      label.textContent = attempt?.label || 'Refresh';
+      btn.title = attempt?.detail || 'Refresh the current view from its latest available sources';
       refresh();
-      btn.disabled = false;
-      resetTimer = setTimeout(() => { label.textContent = 'Refresh'; }, 4000);
+    };
+    const offContext = subscribeContext?.(draw);
+    async function doRefresh() {
+      const key = getRefreshKey();
+      if (attempts.get(key)?.running) return;
+      const attempt = { running: true, label: 'Checking…', timer: null };
+      attempts.set(key, attempt);
+      draw();
+      // The page stays interactive during a long capture. Keep its real promise
+      // and show the eventual outcome; a timeout of our patience is not success.
+      attempt.timer = setTimeout(() => {
+        attempt.label = 'Still updating…';
+        attempt.detail = 'Sources are still updating. Existing data remains available; new captures will appear automatically.';
+        draw();
+      }, 12000);
+      try {
+        const outcome = await onRefresh?.() || {};
+        attempt.label = resultLabel(outcome);
+        attempt.detail = outcome.failed || outcome.partial
+          ? 'Some sources could not be fully refreshed. Retained data remains visible; check the source dates in this view.'
+          : 'Latest available data loaded. Source timestamps show when each publisher was checked; scheduled and end-of-day data keep their own dates.';
+      } catch (err) {
+        attempt.label = 'Couldn’t refresh';
+        attempt.detail = 'The refresh could not finish. Existing data remains available. Please retry.';
+        console.warn('[status] refresh failed', err);
+      } finally {
+        clearTimeout(attempt.timer);
+        attempt.running = false;
+        draw();
+        if (!disposed && /^(Latest available|\d+ new)$/.test(attempt.label)) attempt.timer = setTimeout(() => {
+          if (attempts.get(key) === attempt) attempts.delete(key);
+          draw();
+        }, 8000);
+      }
     }
     btn.addEventListener('click', doRefresh);
 
     return () => {
+      disposed = true;
       clearInterval(interval);
-      clearTimeout(resetTimer);
+      for (const attempt of attempts.values()) clearTimeout(attempt.timer);
+      btn.removeEventListener('click', doRefresh);
       unsubscribe?.();
+      offContext?.();
     };
   }
 
@@ -604,11 +695,4 @@ export function tooltip({ trigger, content, position = 'top' }) {
         ${escapeHtml(content)}
       </span>
     </span>`;
-}
-
-// Minimal CSS.escape polyfill fallback (CSS.escape is supported everywhere we target, but this
-// keeps attribute selectors safe even if a ticker/id ever contains a quote-breaking character).
-function cssEscape(value) {
-  if (window.CSS && CSS.escape) return CSS.escape(String(value));
-  return String(value).replace(/["\\]/g, '\\$&');
 }

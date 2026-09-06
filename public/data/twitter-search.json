@@ -1,0 +1,26 @@
+{
+  "queries": {
+    "isin:INE423A01024|Adani Enterprises": {
+      "lastAttemptAt": "2026-09-05T18:28:19+00:00",
+      "error": "search-unavailable"
+    },
+    "isin:INE423A01024|ADANIENT": {
+      "lastAttemptAt": "2026-09-05T20:35:14+00:00",
+      "error": "search-unavailable"
+    },
+    "isin:INE674K01013|Aditya Birla Capital": {
+      "lastAttemptAt": "2026-09-05T22:29:10+00:00",
+      "error": "search-unavailable"
+    },
+    "isin:INE674K01013|ABCAPITAL": {
+      "lastAttemptAt": "2026-09-06T00:08:05+00:00",
+      "error": "search-unavailable"
+    }
+  },
+  "coverage": {
+    "planned": 229,
+    "attempted": 1,
+    "incomplete": 229,
+    "checkedAt": "2026-09-06T00:08:05.678077+00:00"
+  }
+}

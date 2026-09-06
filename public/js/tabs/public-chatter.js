@@ -27,27 +27,56 @@ import { formatDate, formatNumber, formatRelativeTime, formatTime } from '../cor
 import { exportRows, todayStamp } from '../ui/export.js';
 import * as chatter from '../data/chatter-live.js';
 import * as coverage from '../data/coverage.js';
+import * as telegram from '../data/telegram-posts.js';
 
 export const meta = {
   id: 'public-chatter',
   title: 'Public Chatter',
   subtitle: 'What retail is actually discussing, across ValuePickr, TradingQnA and Google News.',
-  // No shell sub-view picker: Coverage and Not in coverage are simple tabs inside this page.
-  // They remain one feed and one provenance.
+  // No shell sub-view picker: Coverage, Not in coverage and Telegram are simple tabs inside this
+  // page.
   subviews: [],
+  // TWO OF THIS TAB'S THREE SECTIONS CARRY NO COMPANY AT ALL, so an empty watchlist is not an
+  // empty page. Without this the shell replaces the whole tab with its zero-watchlist panel and
+  // states, in those words, that "Public Chatter has nothing to show in this scope" — while the
+  // Telegram section holds a hundred-odd posts and the uncovered section holds every entry that
+  // resolved to no symbol, neither of which the scope can narrow. That is a false claim made by
+  // the chrome about content it is hiding, and it is the same reason Ask Research and IPOs declare
+  // this. The Coverage section keeps its own scope-aware empty state, which names the watchlist
+  // explicitly rather than blaming a filter the reader never set.
+  allowEmptyScope: true,
 };
 
 let renderToken = 0;
 let disposers = [];
 let paintDisposers = [];
-let tableViews = { covered: null, other: null };
+let tableViews = { covered: null, other: null, telegram: null };
 let chatterSection = 'coverage';
 let mentionRequestToken = 0;
+// A company deep-link from a General Alerts chatter row: `?company=TICKER&open=mentions`. Tracked at
+// module level so a live repaint (chatter.onChange) does not re-open the popup on every tick, and a
+// scope toggle — which re-renders with the same params — does not re-open it either. Both reset on
+// destroy so a fresh navigation always honours the link again.
+let routeCompany = null;
+let openedFor = null;
 
 const SECTIONS = [
   { id: 'coverage', label: 'Coverage' },
   { id: 'not-in-coverage', label: 'Not in coverage' },
+  // A THIRD SECTION OVER A SECOND, INDEPENDENT FEED. The first two are two readings of one chatter
+  // payload; this one is a committed capture of a public Telegram channel and shares nothing with
+  // them but the page. That independence is load-bearing in `paint()`: either feed may be down
+  // without taking the other's section with it.
+  { id: 'telegram', label: 'Telegram' },
 ];
+
+function windowLabel(window = '30d') {
+  const days = String(window).match(/^(\d+)d$/);
+  return days ? `${Number(days[1])} ${Number(days[1]) === 1 ? 'day' : 'days'}` : String(window);
+}
+
+const description = (window = '30d') =>
+  `Company mentions across ValuePickr, TradingQnA and Google News over the last ${windowLabel(window)}. Select a company to read the mentions.`;
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -56,6 +85,20 @@ const SECTIONS = [
 export function render(ctx) {
   const token = ++renderToken;
   cleanup();
+
+  // A COMPANY DEEP-LINK, USUALLY FROM A GENERAL ALERTS CHATTER ROW. Seed the covered table's search
+  // to that company and switch to the Coverage section (a resolved ticker always lives there), so
+  // the row is in view behind the popup. `cleanup()` above has just reset `tableViews`, so this must
+  // come after it. Only a NEW company reseeds — a scope toggle repaints with the same param and must
+  // leave whatever the reader has since typed alone, exactly as companySeededView does elsewhere.
+  const requestedCompany = String(ctx?.params?.company || '').trim().toUpperCase();
+  const wantMentions = ctx?.params?.open === 'mentions';
+  if (requestedCompany && requestedCompany !== routeCompany) {
+    chatterSection = 'coverage';
+    tableViews = { covered: { q: requestedCompany }, other: tableViews.other, telegram: tableViews.telegram };
+  }
+  routeCompany = requestedCompany || null;
+
   ctx.root.innerHTML = loadingHtml();
 
   // PAINT ON THE CHATTER FEED ALONE. This used to await the technicals feed as well, which the tab
@@ -68,6 +111,18 @@ export function render(ctx) {
     .then(() => {
       if (token !== renderToken) return;
       paint(ctx);
+      // OPEN THE MENTIONS POPUP THE ALERT ASKED FOR — once per deep-link. The chatter alert's whole
+      // content is this popup, not the row, so a click that only landed on the tab left the reader
+      // to find the company and click again. Guarded on `openedFor` so a live repaint or a scope
+      // toggle does not reopen it, and searched off the full covered set (not the scoped view) so it
+      // still opens for a holding even if the current scope would have filtered the row away.
+      if (wantMentions && requestedCompany && requestedCompany !== openedFor) {
+        const entry = (chatter.companies() || []).find((e) => String(e.ticker || '').toUpperCase() === requestedCompany);
+        if (entry) {
+          openMentions(entry);
+          openedFor = requestedCompany;
+        }
+      }
       disposers.push(chatter.startLive(ctx.live));
       disposers.push(
         chatter.onChange(() => {
@@ -76,12 +131,34 @@ export function render(ctx) {
       );
     });
 
+  // THE TELEGRAM CAPTURE SETTLES ON ITS OWN CLOCK AND IS NEVER AWAITED WITH THE CHATTER FEED.
+  // `Promise.all` over two independent reads is head-of-line blocking with a tidy syntax — the
+  // General Alerts timeline sat blank for as long as its slowest feed until that was unpicked, and
+  // the two feeds here are even less related: one is a cross-origin call to somebody else's API,
+  // the other a committed file on our own origin. Whichever answers first paints, and a reader who
+  // opened the Telegram section is not made to wait on an API that section does not read.
+  telegram
+    .load()
+    .catch(() => null)
+    .then(() => {
+      if (token !== renderToken) return;
+      paint(ctx);
+      disposers.push(
+        telegram.onChange(() => {
+          if (token === renderToken) paint(ctx);
+        }),
+      );
+    });
 }
 
 export function destroy() {
   renderToken++;
   cleanup();
   chatterSection = 'coverage';
+  // Forget the deep-link so returning to the same company from another chatter alert re-seeds and
+  // re-opens rather than being silently ignored as "unchanged".
+  routeCompany = null;
+  openedFor = null;
 }
 
 function cleanup() {
@@ -93,7 +170,7 @@ function cleanup() {
       console.error('[chatter] cleanup failed', err);
     }
   }
-  tableViews = { covered: null, other: null };
+  tableViews = { covered: null, other: null, telegram: null };
 }
 
 function clearPaint() {
@@ -118,8 +195,7 @@ function clearPaint() {
 const loadingHtml = () => `
   ${sectionHead({
     title: 'Public Chatter',
-    description:
-      'Mention counts and sentiment across ValuePickr, TradingQnA and Google News, computed by SentimentDash over a rolling 30 days. The counts and the sentiment are theirs; the NSE symbol is ours.',
+    description: description(),
   })}
   <div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">
     Loading chatter…
@@ -132,20 +208,24 @@ const loadingHtml = () => `
 function paint(ctx) {
   clearPaint();
   const m = chatter.meta();
-
-  // A failed read is not an empty result. `unavailablePanel` names the state and, where an
-  // operator can fix it, the command that does — the same split the Superstar Investors view
-  // makes between "configure this" and "wait for this".
-  if (!m?.ok) {
-    ctx.root.innerHTML = `
-      ${sectionHead({ title: 'Public Chatter', description: meta.subtitle })}
-      ${unavailablePanel(m?.reason, m?.url)}`;
-    return;
-  }
-
-  const covered = chatter.forScope(ctx.scope);
-  const other = chatter.uncovered();
+  const chatterOk = !!m?.ok;
+  // A THIRD STATE, AND IT ONLY BECAME NECESSARY WITH THE SECOND FEED. `chatter.meta()` is null
+  // until its cache is built, so `!ok` means BOTH "could not be read" and "has not answered yet".
+  // That was harmless while paint() ran only after the chatter load settled; now the Telegram
+  // capture — a local file — routinely settles first and paints, and the chatter sections would
+  // flash "the feed could not be reached" over a request still in flight. A half-finished read
+  // must not be allowed to give a finished answer.
+  const chatterPending = !chatterOk && !chatter.isLoaded() && !m;
   const activeSection = SECTIONS.some((item) => item.id === chatterSection) ? chatterSection : SECTIONS[0].id;
+  const onTelegram = activeSection === 'telegram';
+
+  // THE TAB NO LONGER DIES WITH ONE FEED, AND THAT IS THE WHOLE REASON THIS FUNCTION WAS
+  // RESTRUCTURED. It used to return early on `!m.ok` and render the unavailable panel as the entire
+  // page. With a second, unrelated feed on the tab that would mean the chatter API being down took
+  // the Telegram section down with it — an outage in one upstream reported as an absence in
+  // another, which is the error class this codebase keeps closing. The section tabs are therefore
+  // painted unconditionally, and a failure is scoped to the sections that actually read the feed
+  // that failed.
   const sectionTabs = tabBar({
     tabs: SECTIONS,
     activeId: activeSection,
@@ -156,36 +236,56 @@ function paint(ctx) {
       ctx.root.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.focus();
     },
   });
-  const cards = activeSection === 'coverage' ? buildTopCards(covered) : null;
-  const coveredTable = activeSection === 'coverage' ? buildCoveredTable(covered) : null;
-  const otherTable = activeSection === 'not-in-coverage' ? buildOtherTable(other) : null;
-  const panel =
-    activeSection === 'coverage'
-      ? `${cards ? cards.html : ''}${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}`
-      : `${sectionHead({
-          title: 'Not in our coverage',
-          description:
-            'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in every scope, because a holding cannot be filtered out of a list that has no tickers.',
-        })}${otherTable.html}`;
+
+  const covered = chatterOk ? chatter.forScope(ctx.scope) : [];
+  const other = chatterOk ? chatter.uncovered() : [];
+
+  const cards = chatterOk && activeSection === 'coverage' ? buildTopCards(covered) : null;
+  const coveredTable = chatterOk && activeSection === 'coverage' ? buildCoveredTable(covered) : null;
+  const otherTable = chatterOk && activeSection === 'not-in-coverage' ? buildOtherTable(other) : null;
+  const telegramTable = onTelegram ? buildTelegramTable() : null;
+
+  let panel;
+  if (onTelegram) {
+    maybeAutoRefreshTelegram();
+    panel = telegramPanel(telegramTable);
+  } else if (chatterPending) {
+    panel = `<div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">Loading chatter…</div>`;
+  } else if (!chatterOk) {
+    panel = unavailablePanel(m?.reason, m?.url);
+  } else if (activeSection === 'coverage') {
+    panel = `${cards ? cards.html : ''}${coveredTable ? coveredTable.html : emptyCovered(ctx.scope)}`;
+  } else {
+    panel = `${sectionHead({
+      title: 'Not in our coverage',
+      description:
+        'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in every scope, because a holding cannot be filtered out of a list that has no tickers.',
+    })}${otherTable.html}`;
+  }
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Public Chatter',
-      description: `Mention counts and sentiment over a rolling ${escapeHtml(m.window)}, computed by SentimentDash across ValuePickr, TradingQnA and Google News. The counts and the sentiment are theirs; the NSE symbol is ours.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`,
+      description: onTelegram ? telegramDescription() : chatterOk ? description(m.window) : meta.subtitle,
+      meta: onTelegram
+        ? telegramHeadMeta()
+        : chatterOk
+          ? `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}${scopeSummary({ scope: ctx.scope, count: covered.length, noun: `mentioned · ${m.window}`, book: coverage.meta() })}</div>`
+          : '',
     })}
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-chatter-section-tabs>
       ${sectionTabs.html}
     </div>
     <div role="tabpanel" aria-label="${escapeHtml(SECTIONS.find((item) => item.id === activeSection)?.label || '')}" data-chatter-panel="${escapeHtml(activeSection)}">
       ${panel}
-      ${chatterFootnotes(m)}
+      ${onTelegram ? telegramFootnotes() : chatterOk ? chatterFootnotes(m) : ''}
     </div>`;
 
   paintDisposers.push(sectionTabs.wire(ctx.root.querySelector('[data-chatter-section-tabs]')));
   if (cards) cards.wire(ctx.root);
   if (coveredTable) paintDisposers.push(coveredTable.wire(ctx.root));
   if (otherTable) paintDisposers.push(otherTable.wire(ctx.root));
+  if (telegramTable) paintDisposers.push(telegramTable.wire(ctx.root));
 }
 
 /**
@@ -389,16 +489,20 @@ function buildTopCards(rows) {
   const ranked = rows.filter((r) => r.mentions > 0).slice(0, 10);
   if (ranked.length < 3) return null;
   return topCards({
-    title: 'Most discussed — companies we cover',
+    title: 'Most discussed companies',
+    compact: true,
     items: ranked.map((r) => ({
       key: r.slug,
       name: r.name,
       sub: `${r.ticker} · ${r.sentiment.labelText}`,
-      value: r.mentions,
+      value: formatNumber(r.mentions),
+      unit: r.mentions === 1 ? 'mention' : 'mentions',
+      caption: `Last ${windowLabel(chatter.meta()?.window)}`,
+      actionLabel: 'Read mentions',
       tone: 'neutral',
     })),
     valueFormat: 'metric',
-    onSelect: (slug) => openMentions(rows.find((r) => r.slug === slug)),
+    onSelect: (item) => openMentions(rows.find((r) => r.slug === item.key)),
   });
 }
 
@@ -463,7 +567,11 @@ function buildCoveredTable(rows) {
     key: (r) => r.ticker,
     name: (r) => r.name,
     sub: (r) => `${r.ticker}${r.matchedName && r.matchedName !== r.name ? ` · ${r.matchedName}` : ''}`,
-    searchable: true,
+    // A FUNCTION, not `true`. `scoreTable` calls `searchable(row)` to build the haystack (screener.js),
+    // so a bare `true` threw "searchable is not a function" the moment a query was applied — which
+    // never happened while nothing pre-seeded the search, and started happening the instant a
+    // General Alerts chatter deep-link arrived with the company already typed in.
+    searchable: (r) => `${r.name} ${r.ticker} ${r.matchedName || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     initialSort: { key: 'Mentions', dir: 'desc' },
@@ -544,7 +652,9 @@ function buildOtherTable(rows) {
     watchKey: () => null,
     name: (r) => r.name,
     sub: (r) => r.slug,
-    searchable: true,
+    // A function, not `true` — see the covered table above; `scoreTable` calls it to build the
+    // search haystack, so a bare `true` throws the moment anyone types in this box.
+    searchable: (r) => `${r.name || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
     showAvatar: false,
@@ -574,6 +684,134 @@ function buildOtherTable(rows) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------------------
+// Telegram — retained posts with source dates and collection progress.
+// The timestamp is from Telegram's embed. Missing content is a linked post, never invented text.
+const TELEGRAM_UNCHANGED_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
+export function telegramFreshness(capturedAt, now = Date.now()) {
+  if (!capturedAt || !Number.isFinite(Date.parse(capturedAt))) return { state: 'unknown', ageMs: null };
+  const ageMs = now - Date.parse(capturedAt);
+  return { state: ageMs <= TELEGRAM_UNCHANGED_AFTER_MS ? 'captured' : 'unchanged', ageMs };
+}
+const postLabel = (r) => r.text || r.attachments?.map((a) => a.name).join(', ') ||
+  (r.mediaType ? `${r.mediaType[0].toUpperCase()}${r.mediaType.slice(1)} post` : 'Content available in Telegram');
+const TELEGRAM_DATE_FORMAT = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata',
+});
+const telegramDate = (value) => value ? TELEGRAM_DATE_FORMAT.format(new Date(value)) : 'Date not captured yet';
+function telegramDescription() {
+  const t = telegram.meta();
+  return `Posts from ${escapeHtml(t.channel ? `@${t.channel}` : 'the public Telegram channel')}, newest first, with original publication dates in IST. ` +
+    'Read captured text here and open reports or restricted content in Telegram. Posts appear in every portfolio scope.';
+}
+function telegramHeadMeta() {
+  const t = telegram.meta();
+  const failed = t.reason || ['failed', 'partial'].includes(t.lastRun?.status);
+  const stale = t.lastCheckedAt && Date.now() - Date.parse(t.lastCheckedAt) > 6 * 3600000;
+  const warning = failed || stale;
+  const state = failed ? 'partial' : t.lastCheckedAt ? (stale ? 'stale' : 'checked') : 'unknown';
+  const label = failed ? 'Collection needs attention' : t.lastCheckedAt ? `Checked ${formatRelativeTime(new Date(t.lastCheckedAt))}` : 'Check time unavailable';
+  return `<div class="flex flex-wrap items-center gap-2">
+    <span data-telegram-live data-telegram-freshness="${state}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${warning ? 'bg-amber-50 text-amber-700 ring-amber-100' : 'bg-slate-50 text-slate-600 ring-slate-200'}">
+      ${escapeHtml(formatNumber(t.count || 0))} posts · ${escapeHtml(label)}
+    </span>
+  </div>`;
+}
+function telegramPanel(table) {
+  const t = telegram.meta();
+  if (!t.loaded) return '<div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400">Loading Telegram posts…</div>';
+  if (!t.ok) return '<div data-telegram-unavailable class="rounded-2xl bg-white p-8 text-sm text-slate-600">Telegram posts are not available. The archive could not be read; returning to this tab will retry.</div>';
+  if (!t.count) return '<div data-telegram-empty class="rounded-2xl bg-white p-8 text-sm text-slate-600">No posts have been captured yet.</div>';
+  return table?.html || '';
+}
+function openTelegramPost(r) {
+  openModal(`<div data-telegram-post-dialog class="scrollbar-thin max-h-[82vh] overflow-y-auto p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div><h2 class="font-display text-xl font-bold text-slate-900">Telegram · Message ${r.id}</h2>
+      <p class="mt-1 text-xs text-slate-500">${escapeHtml(telegramDate(r.publishedAt))}${r.publishedAt ? ' IST' : ''}</p></div>
+      <button type="button" data-modal-close aria-label="Close post" class="text-2xl text-slate-400">&times;</button>
+    </div>
+    <p class="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">${escapeHtml(r.text || 'Telegram confirms this post exists, but does not expose its text on the public web. Open the original to read it.')}</p>
+    ${r.attachments.map((a) => `<p class="mt-3 text-sm text-slate-600">${escapeHtml(a.name)}${a.size ? ` · ${escapeHtml(a.size)}` : ''}</p>`).join('')}
+    <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="mt-4 inline-flex font-semibold text-indigo-600">Open original in Telegram &rarr;</a>
+  </div>`, { size: 'wide' });
+}
+// A CAPTURE NOBODY REFRESHES IS A FEED THAT ROTS, AND NO CLOCK HERE CAN REFRESH IT.
+//
+// GitHub delivers 7-9 scheduled runs a DAY on this repository whatever the cron asks for. So the
+// half-hourly cadence this feed is meant to have cannot come from its schedule, and it comes from
+// the reader instead: opening the Telegram section on a capture older than the window asks the
+// runner to go and read the channel. That is the same narrowing of "nothing dispatches on its own"
+// that market news runs on, and the two reasons it is safe are unchanged — one request to a public
+// page on our own free runner, declined at the edge when a run is already going.
+const TELEGRAM_AUTO_AFTER_MS = 25 * 60 * 1000;
+let telegramAutoAt = 0;
+
+function maybeAutoRefreshTelegram() {
+  const at = Date.parse(telegram.meta().capturedAt || '');
+  if (!Number.isFinite(at) || Date.now() - at < TELEGRAM_AUTO_AFTER_MS) return;
+  // One attempt per window per page, so a dispatch that keeps failing cannot become a loop that
+  // re-fires on every repaint — the page-load walk this codebase removed, one layer up.
+  if (Date.now() - telegramAutoAt < TELEGRAM_AUTO_AFTER_MS) return;
+  telegramAutoAt = Date.now();
+  telegram.startScrape('auto').catch(() => {});
+}
+
+function buildTelegramTable() {
+  // A MESSAGE WITH NOTHING TO READ IS NOT A ROW. Slightly over half of this channel's messages are
+  // images and forwarded media posted without a caption — 170 of the 327 in the shipped capture —
+  // and a row whose only content is "Open in Telegram to read" is a row that answers nothing on a
+  // page whose whole point is the report headline. They stay in the ARCHIVE, because they are real
+  // messages, they carry the publication dates the ordering rests on, and the newest of them is
+  // what anchors the channel's head; they are simply not listed.
+  const rows = telegram.posts().filter((r) => r.text || r.attachments.length);
+  if (!rows.length) return null;
+  const table = scoreTable({
+    rows, key: (r) => r.key, watchKey: () => null, name: postLabel,
+    sub: (r) => `Message ${r.id}${r.contentStatus === 'telegram-only' ? ' · Open in Telegram to read' : r.mediaType ? ` · ${r.mediaType}` : ''}`,
+    searchable: (r) => `${postLabel(r)} ${r.id} ${r.publishedAt || ''} ${r.attachments.map((a) => a.name).join(' ')}`,
+    searchPlaceholder: 'Search posts, reports or message number…',
+    dense: true, wrapHeads: true, showAvatar: false, showRank: false, nameMaxPx: 620,
+    nameLabel: 'Post', emptyMessage: 'No posts match your search.', showWatchFilter: false,
+    initialView: tableViews.telegram, exportName: 'telegram-posts', onExport: exportTelegramRows,
+    stickyHead: 'max(320px, calc(100vh - 420px))', onRowClick: openTelegramPost,
+    columns: [
+      { label: 'Published (IST)', get: (r) => telegramDate(r.publishedAt), sortable: true, sortValue: (r) => r.publishedAt ? Date.parse(r.publishedAt) : null },
+      { label: 'Open', html: true, sortable: false, get: (r) => `<a data-stop href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-700">Telegram &rarr;</a>` },
+    ],
+  });
+  return { html: table.html, wire: (root) => { const off = table.wire(root); return () => { tableViews.telegram = table.view ?? tableViews.telegram; off?.(); }; } };
+}
+function telegramFootnotes() {
+  const t = telegram.meta();
+  if (!t.ok) return '';
+  const progress = t.historyComplete ? 'The historical scan has reached the start of the channel.' :
+    t.historyNextId ? `Older history is incomplete; the next collection continues below message ${formatNumber(t.historyNextId + 1)}.` : 'Older history has not been fully scanned.';
+  return `<div data-telegram-footnotes class="mt-4 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+    <p>Source: ${escapeHtml(t.channel ? `@${t.channel}` : 'Telegram')} public message pages and embeds. ${escapeHtml(progress)}
+    ${formatNumber(t.limited || 0)} messages in the archive are images or media with no caption and are not listed; ${formatNumber(t.pending || 0)} message lookups are awaiting retry.
+    ${t.undated ? `${formatNumber(t.undated)} older records are awaiting publication dates. ` : ''}
+    Gaps between message numbers are not treated as posts. Publication dates come from Telegram; collection and first-seen times are separate.
+    This archive retains captured posts and does not claim to include content Telegram withholds from the public web.</p>
+  </div>`;
+}
+function exportTelegramRows(rows) {
+  const t = telegram.meta();
+  const banner = { __banner: true, text: `Posts from @${t.channel}. Publication times come from Telegram (UTC in this export); first seen is the collector's time. Missing content must be opened in Telegram. History ${t.historyComplete ? 'scanned to the beginning' : 'still being collected'}. Last successful check: ${t.lastCheckedAt || 'not recorded'}.` };
+  const value = (r, fn) => r.__banner ? '' : fn(r);
+  return exportRows({ filename: `sattva-telegram-posts-${todayStamp()}`, sheetName: 'Telegram',
+    columns: [
+      { header: 'Post', key: 'text', width: 90, get: (r) => r.__banner ? r.text : postLabel(r) },
+      { header: 'Message', key: 'id', width: 12, get: (r) => value(r, (p) => p.id) },
+      { header: 'Published (UTC)', key: 'publishedAt', width: 28, get: (r) => value(r, (p) => p.publishedAt || '') },
+      { header: 'Content access', key: 'contentStatus', width: 22, get: (r) => value(r, (p) => p.contentStatus) },
+      { header: 'Attachments', key: 'attachments', width: 40, get: (r) => value(r, (p) => p.attachments.map((a) => a.name).join('; ')) },
+      { header: 'Link', key: 'url', width: 46, get: (r) => value(r, (p) => p.url) },
+      { header: 'First seen (collector)', key: 'firstSeenAt', width: 28, get: (r) => value(r, (p) => p.firstSeenAt || '') },
+    ], rows: [banner, ...rows] });
+}
+
 
 function unavailablePanel(reason, url) {
   // Every message here has to point at the thing that is actually wrong. The first version of this
