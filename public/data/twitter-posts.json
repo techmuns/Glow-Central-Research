@@ -9800,9 +9800,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-07T15:19:03.164Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-07T15:55:27.623Z",
     "lastSuccessAt": null
   }
 }

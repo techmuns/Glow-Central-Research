@@ -447,12 +447,16 @@
     "isin:INE622H01018|Indo Farm Equipment": {
       "lastAttemptAt": "2026-09-07T15:18:18+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE622H01018|INDOFARM": {
+      "lastAttemptAt": "2026-09-07T15:55:12+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
-    "attempted": 10,
+    "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T15:18:18.076878+00:00"
+    "checkedAt": "2026-09-07T15:55:12.214967+00:00"
   }
 }
