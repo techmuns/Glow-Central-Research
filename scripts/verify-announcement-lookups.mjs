@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker from '../worker/index.js';
 import { normaliseCorporateAnnouncements, announcementRange, announcementSourceUrls, mergeAnnouncements } from '../public/js/data/announcements-shared.js';
 import { withAnnouncementLookups } from '../public/js/data/announcements-extra.js';
@@ -60,6 +61,19 @@ assert.equal(mergeAnnouncements(
   [kisshtBse, { ...kisshtBse, time: '18:00:00', url: 'https://www.bseindia.com/second-filing.pdf', crossExchangeDocumentId: `sha256:${'8b'.repeat(32)}` }],
   [kisshtNse, { ...kisshtNse, time: '18:01:00', url: 'https://nsearchives.nseindia.com/corporate/second-filing.pdf', crossExchangeDocumentId: `sha256:${'8b'.repeat(32)}` }],
 ).length, 2, 'distinct same-day pairs survive even when their PDF bytes are identical');
+
+// Customer-reported OnEMI history must remain in the durable archive after later capture runs.
+const capturedKissht = JSON.parse(readFileSync(new URL('../public/data/filing-capture/announcements/KISSHT.json', import.meta.url), 'utf8'));
+for (const [date, documentHash] of [
+  ['2026-09-01', 'sha256:4c53840f1b4d242abc6000acea05b3c4327ae45156c37ec3cb26e7596cd1e51f'],
+  ['2026-08-31', 'sha256:41ede8673108b8c6ed6fc5d10e702039c7b6379910aa2df6f5771ecf621b8c10'],
+]) {
+  const rows = capturedKissht.rows.filter(row => row.date === date && row.documentHash === documentHash);
+  assert.equal(rows.length, 1, `${date} OnEMI filing remains one durable row`);
+  assert.deepEqual(rows[0].sources, ['BSE', 'NSE']);
+  assert.equal(rows[0].source, 'BSE / NSE');
+  assert.deepEqual(new Set(announcementSourceUrls(rows[0]).map(item => item.source)), new Set(['BSE', 'NSE']));
+}
 
 assert(CATEGORIES.includes('Insider Trading / SAST'));
 assert(CATEGORIES.includes('Others'));
