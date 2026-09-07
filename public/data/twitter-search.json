@@ -483,12 +483,16 @@
     "isin:INE168A01041|J&KBANK": {
       "lastAttemptAt": "2026-09-07T20:36:55+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0SMY01017|Jay Bee Laminations": {
+      "lastAttemptAt": "2026-09-07T21:12:56+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T20:36:55.186360+00:00"
+    "checkedAt": "2026-09-07T21:12:56.645140+00:00"
   }
 }
