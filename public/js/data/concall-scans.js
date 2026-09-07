@@ -38,18 +38,22 @@
 //   and attributed. We add no scoring of our own here — deliberately. See worker/stockscans.mjs.
 
 import { resultTierOf, sentimentTierOf, docUrl, fingerprint, mergeScans } from './stockscans-shared.js';
+import { validateScreenerUpcomingRows } from './screener-upcoming-shared.js';
 import { filterByScope } from './scope.js';
-import { KEYS, conditionalJson, readEntry, revalidatedJson, isPersistent } from '../core/store.js';
+import { KEYS, conditionalJson, readEntry, writeEntry, revalidatedJson, isPersistent } from '../core/store.js';
 
 const SNAPSHOT_PATH = 'data/concall-scans.json';
 const LIVE_ENDPOINT = 'api/concalls';
 const STORE_KEY = KEYS.concalls;
+const SCHEDULE_KEY = KEYS.concallPortfolioUpcoming;
 
 export const LIVE_ID = 'concall-scans';
 export const POLL_MS = 30000;
 
 let loadPromise = null;
 let cache = null; // { rows, byTicker, upcoming, today, meta }
+// The last portfolio calendar anybody actually read: { rows, checkedAt, savedAt }. See `ingest`.
+let heldSchedule = null;
 let seenKeys = null; // key -> hadAnalysis, so "analysis landed" counts as an arrival
 let arrivals = [];
 const listeners = new Set();
@@ -98,6 +102,18 @@ export function load() {
 }
 
 async function build() {
+  // 0. The retained portfolio calendar, BEFORE anything is ingested. Without it a reload during an
+  //    S Screen outage repaints an empty Upcoming view from the stored response, which is the
+  //    version of this failure that looks permanent — see `ingest`. Validated on the way in: these
+  //    rows came from an upstream, and bytes off the device are not a reason to stop checking.
+  try {
+    const saved = await readEntry(SCHEDULE_KEY);
+    const rows = saved?.value?.rows;
+    if (Array.isArray(rows) && rows.length) {
+      heldSchedule = { rows: validateScreenerUpcomingRows(rows), checkedAt: saved.value.checkedAt || null, savedAt: saved.savedAt };
+    }
+  } catch { heldSchedule = null; }
+
   // 1. Whatever this device already holds, on screen with no network at all.
   const stored = await readEntry(STORE_KEY);
   if (stored?.value?.rows?.length) ingest(stored.value, { live: true, origin: 'store', checkedAt: stored.savedAt });
@@ -144,8 +160,43 @@ function markChecked(origin, at) {
   cache.meta = { ...cache.meta, origin, checkedAt: at || Date.now() };
 }
 
+/**
+ * THE PORTFOLIO CALENDAR IS A SECOND UPSTREAM, AND ITS ABSENCE IS NOT AN EMPTY CALENDAR.
+ *
+ * `/api/concalls` assembles two independent sources: StockScans' analysed rows, and the
+ * authenticated S Screen dashboard captured into an immutable Actions artifact. Either fails on
+ * its own — a GitHub artifact read that times out, an expired collector token — and when
+ * StockScans is the one that fails the Worker serves the committed snapshot, which is a capture
+ * of StockScans alone and has never carried a calendar at all.
+ *
+ * Both used to arrive here as `[]`, which this module wrote straight over a good calendar; and
+ * because the response is stored under the server's own ETag, the emptiness then survived every
+ * reload until a healthy 200 happened to land. All Alerts' Upcoming view went to zero rows on an
+ * outage in a feed it does not read.
+ *
+ * So a payload that carries no array retains what we hold. `[]` is a different claim — a
+ * successful read of a dashboard with nothing on it — and does clear. Same rule as `failed`
+ * rather than empty books in the investor snapshot, and as retained NSE rows beneath a shrinking
+ * live window.
+ */
+function scheduleFrom(payload) {
+  if (!Array.isArray(payload?.portfolioUpcoming)) return null;
+  return payload.portfolioUpcoming.slice().sort(
+    (a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.time || '99:99').localeCompare(String(b.time || '99:99')),
+  );
+}
+
 function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   const rows = assignRowIds((payload?.rows || []).map(decorate).sort(byNewest));
+  const schedule = scheduleFrom(payload);
+  const screener = payload?.meta?.screener || null;
+  if (schedule) {
+    heldSchedule = { rows: schedule, checkedAt: screener?.checkedAt || null, savedAt: Date.now() };
+    // Its own entry, never a patched copy of the response: `core/store.js` holds the server's own
+    // bytes under the server's own tag, and that pairing is the whole basis for trusting a 304.
+    void writeEntry(SCHEDULE_KEY, { value: { rows: schedule, checkedAt: heldSchedule.checkedAt } });
+  }
+  const retained = !schedule && !!heldSchedule?.rows.length;
 
   const isFirst = seenKeys === null;
   if (isFirst) {
@@ -171,9 +222,7 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
     rows,
     byTicker,
     upcoming: (payload?.upcoming || []).slice().sort((a, b) => String(a.when || '').localeCompare(String(b.when || ''))),
-    portfolioUpcoming: (payload?.portfolioUpcoming || []).slice().sort(
-      (a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.time || '99:99').localeCompare(String(b.time || '99:99')),
-    ),
+    portfolioUpcoming: schedule || heldSchedule?.rows || [],
     today: payload?.today || { day: null, rows: [] },
     meta: {
       ...(payload?.meta || {}),
@@ -188,6 +237,12 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
       // 304 moves the second and not the first.
       origin,
       checkedAt,
+      // The portfolio calendar's own provenance, deliberately separate from `checkedAt` above:
+      // these rows can be older than the response that carried the rest of this payload, and a
+      // surface that prints one time for both would date a retained calendar to a check that
+      // never reached it. `retained` is what makes the Upcoming view say so out loud.
+      portfolioUpcomingRetained: retained,
+      portfolioUpcomingCheckedAt: (schedule ? screener?.checkedAt : heldSchedule?.checkedAt) || null,
       persisted: isPersistent(),
     },
   };
@@ -285,8 +340,12 @@ function hasChanged(payload) {
   if (!cache) return true;
   if ((payload.rows?.length ?? 0) !== cache.meta.count) return true;
   if (!!payload.degraded !== !!cache.meta.degraded) return true;
-  const schedule = (rows) => JSON.stringify((rows || []).map((row) => [row.id, row.date, row.time, row.eventType, row.sourceUrl]));
-  if (schedule(payload.portfolioUpcoming) !== schedule(cache.portfolioUpcoming)) return true;
+  // Only a calendar the payload actually carried can be a change. A payload with none leaves the
+  // retained rows on screen, so reporting a change here would repaint every consumer — and empty
+  // All Alerts' feed cache — over an upstream failure that altered nothing they can see.
+  const schedule = (rows) => JSON.stringify(rows.map((row) => [row.id, row.date, row.time, row.eventType, row.sourceUrl]));
+  const incoming = scheduleFrom(payload);
+  if (incoming && schedule(incoming) !== schedule(cache.portfolioUpcoming)) return true;
   return fingerprint(payload.rows) !== fingerprint(cache.rows);
 }
 

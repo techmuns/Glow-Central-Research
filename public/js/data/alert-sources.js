@@ -116,7 +116,8 @@ export const ADDITIONAL_SOURCES = [
     what: 'Upcoming AGMs, postal ballots, results, calls and other scheduled events shown for the exact S Screen portfolio watchlist. Scheduled, not completed.',
     load: () => concalls.load(),
     read: ({ day }) => {
-      const source = concalls.meta()?.screener;
+      const meta = concalls.meta();
+      const source = meta?.screener;
       return {
         events: concalls.portfolioUpcoming().map((r) => record({
           id: `screener-upcoming:${screenerUpcomingKey(r)}`,
@@ -133,11 +134,17 @@ export const ADDITIONAL_SOURCES = [
           portfolioOnly: true,
           companyUrl: r.companyUrl,
         })),
+        // A RETAINED CALENDAR IS DATED TO ITS OWN CAPTURE, NOT TO THE CHECK THAT FAILED.
+        // The S Screen artifact is a separate upstream to the con-call rows beside it, so its read
+        // can fail on its own; the rows above are then the last calendar anybody read, and they
+        // stay on screen rather than being reported as an empty day. `asOf` is that capture's time
+        // — stamping it with the failed check would be the retained copy claiming a freshness
+        // nothing vouched for — and the feed stays `failed`, so the coverage chip says so.
         ...confirmed(
-          source?.checkedAt,
+          meta?.portfolioUpcomingCheckedAt || source?.checkedAt,
           day,
           source?.status !== 'ok' || source?.collectorLatestFailed === true || source?.portfolioUpcomingAvailable === false,
-          'Authenticated S Screen dashboard calendar for the synchronized portfolio watchlist.',
+          `Authenticated S Screen dashboard calendar for the synchronized portfolio watchlist.${meta?.portfolioUpcomingRetained ? ' The latest check could not read the dashboard; these are the retained rows from the last successful capture, not a confirmation that they are still scheduled.' : ''}`,
         ),
       };
     } },

@@ -944,6 +944,33 @@ ticker. It must never be broadened into Universe or a personal Watchlist. When a
 contains the same company/date/type, All Alerts' Upcoming view renders one entry and prefers this
 portfolio row's source link.
 
+**`portfolioUpcoming` IS `null` WHERE IT COULD NOT BE READ, AND `[]` ONLY WHERE IT GENUINELY IS.**
+This half of the route comes from an entirely different upstream to `rows` — an immutable Actions
+artifact behind the GitHub API — and it fails on its own: a timeout, a rate limit, an expired
+collector token. When StockScans is instead the half that fails, the route serves the committed
+`concall-scans.json` snapshot, which is a capture of StockScans alone and has never carried a
+calendar at all; that branch states `portfolioUpcoming: null` explicitly rather than leaving the
+key merely missing. Both used to arrive as `[]` inside an `ok: true` 200, and
+`js/data/concall-scans.js` wrote that straight over a good calendar — so **an outage in a feed
+All Alerts does not read emptied its Upcoming view**, and because the response is stored under the
+server's own ETag the emptiness survived every reload until a healthy 200 happened to land.
+
+So the browser retains a calendar the payload did not carry, under its own device key
+(`concalls:portfolio-upcoming`) rather than as a patched copy of the response — the store holds the
+server's own bytes under the server's own tag, and that pairing is the whole basis for trusting a
+304. `meta.portfolioUpcomingRetained` says the rows on screen are a retained capture and
+`meta.portfolioUpcomingCheckedAt` dates them to their own read, never to the check that failed;
+All Alerts' Portfolio calendar feed stays `failed` and says so in its coverage note. A **successful**
+read still clears the calendar, and a shorter one still shrinks it — a forward calendar loses its
+events as their dates pass, so retention may never become a merge. `scripts/verify-portfolio-calendar.mjs`
+asserts all six branches, including that an empty successful read is not treated as a failure.
+
+`readCachedScreenerCollector` caches the failure too, but for `CONCALL_SCREENER_FAIL_TTL_S` (15s)
+rather than the success window: every reader sits behind one edge entry, so an uncached failure
+costs each of them their own 15-second timeout, while caching it for a minute pins a degraded
+schedule on every screen long after the artifact is readable again. Same split, same reason, as the
+Finology client's 15s `ok: false` window.
+
 The body carries **no "served at" stamp**, deliberately: it would differ on every request while
 the content did not, so the ETag would never match and the 304 this route depends on would never
 fire. `meta.fetchedAt` — when StockScans was actually read — is the honest freshness signal, and

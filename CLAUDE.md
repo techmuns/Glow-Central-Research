@@ -1693,6 +1693,55 @@ comparing two columns of anybody's data, ask what has to be true for both to be 
 where the source itself answers that question, in words or in a figure, read its answer instead of
 inferring one.
 
+### ONE ROUTE, TWO UPSTREAMS — an absent half is not an empty half
+
+`/api/concalls` assembles two things that have nothing to do with each other: StockScans' analysed
+con-call rows, and the authenticated S Screen dashboard's portfolio calendar, captured into an
+immutable Actions artifact and read back through the GitHub API. They fail independently, and for
+a long time each one's failure emptied the other's feed.
+
+**Both failures arrived as `[]` inside an `ok: true` 200.** The artifact read has its own timeout,
+rate limit and token, and `readCachedScreenerCollector` catches every one of them and returns
+`capture: null` — which the payload turned into `portfolioUpcoming: []`. And when *StockScans* was
+the half that failed, the route fell back to the committed `concall-scans.json` snapshot, which is
+a capture of StockScans alone and **has never carried a calendar at all** — so the key was simply
+missing, and `|| []` in the browser finished the job. All Alerts' Upcoming view went from 52 rows
+to zero on an outage in a feed it does not read.
+
+**And the emptiness persisted, which is what made it look like a bug in the calendar rather than in
+its neighbour.** The response is stored in IndexedDB under the server's own ETag, so a reload
+repainted the empty calendar and every subsequent poll 304'd against it. Nothing threw, no count
+was wrong, the failure WAS reported in `meta.screener.status` — and the rows were gone anyway.
+
+Four rules, and the first is the one this codebase already had written down three other ways:
+
+1. **A read that did not happen is absent; only a successful read may be empty.** The route sends
+   `portfolioUpcoming: null` where the capture is unavailable, and the snapshot-fallback branch
+   states that `null` explicitly rather than leaving the key missing. The browser retains what it
+   holds when the payload carries no array. Same rule as `failed` rather than empty books in the
+   investor snapshot, `empty: []` beside `failed: []` in the filings captures, and `null` versus a
+   Set from `scopeTickers()`.
+2. **The retained copy lives in its own device entry**, `concalls:portfolio-upcoming`, never as a
+   patched copy of the response — `core/store.js` holds the server's own bytes under the server's
+   own tag, and that pairing is the entire basis for trusting a 304. Same arrangement, same reason,
+   as `nse-filings:history` beneath the shrinking live NSE window.
+3. **A retained calendar is dated to its own capture and says it is retained.**
+   `meta.portfolioUpcomingRetained` and `meta.portfolioUpcomingCheckedAt` are separate from the
+   response's `checkedAt`, because these rows can be older than the payload that carried the rest
+   of the page; the All Alerts feed stays `failed` and its coverage note says the latest check
+   could not read the dashboard. Restamping them would be the retained copy claiming a freshness
+   nothing vouched for.
+4. **Retention is not a merge, and an empty successful read must still clear.** A forward calendar
+   legitimately shrinks as its dates pass, so a successful read always replaces — a shorter one
+   included — and `[]` from a healthy capture means the dashboard has nothing scheduled, which is
+   an answer. `scripts/verify-portfolio-calendar.mjs` asserts both directions; a retention rule
+   that could never go back to nothing would be the mirror of the bug it fixed.
+
+The failure is cached too, at `CONCALL_SCREENER_FAIL_TTL_S` (15s) rather than the 60s success
+window: every reader sits behind one edge entry, so an uncached failure costs each of them their
+own timeout while a success-length one pins a degraded schedule on every screen long after the
+artifact is readable again. Same split as the Finology client's `ok: false` window.
+
 ### Triggering someone else's pipeline — the Deep Dive rule
 
 The Con-call table's last column dispatches a run on a **separate** analysis service, watches it,
@@ -3270,7 +3319,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which date the Earnings Calendar opens on | `defaultCalendarDate()` in `js/tabs/earnings-hub.js` — it is today, in **IST**, and `?date=` and the reader's own click both win over it |
 | Add or refresh an AMC portfolio | drop the workbook in `scripts/fixtures/`, add an entry to `FUNDS` in `scripts/import-amc-portfolio.mjs`, re-run it — read *Two disclosures that look identical* first |
 | Change how a company name resolves to a ticker | `scripts/lib/company-index.mjs` — `node scripts/lib/company-index.mjs "Some Name Ltd"` explains one match |
-| Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first |
+| Change the live con-call feed | `worker/stockscans.mjs` + `public/js/data/stockscans-shared.js`, then `/api/concalls` — read *Reproducing someone else's analysis* below first. `/api/concalls` is a UNION OF TWO UPSTREAMS: a half that could not be read travels as `null`, never `[]` — see *One route, two upstreams* below |
+| Change the portfolio calendar behind All Alerts' Upcoming view | `scheduleFrom()` / `ingest()` in `js/data/concall-scans.js` (retention), `handleConcalls` in `worker/index.js` (the `null`), and the `screener-portfolio-upcoming` entry in `js/data/alert-sources.js` (the note). `node scripts/verify-portfolio-calendar.mjs` is the test |
 | Change the Con-call tab | `js/concall/scans.js` — the whole tab is that one file |
 | Change the Deep Dive column or panel | `js/concall/deep-dive.js` (panel) + `js/data/deep-dive.js` (transport) — read *Triggering someone else's pipeline* below first |
 | Change what a Deep Dive report keeps on the device | the saved-report block in `js/data/deep-dive.js` + `KEYS.deepDiveReport` — a report costs a metered run, so read rule 5 there before shortening anything |
@@ -3356,6 +3406,7 @@ Then run the suite — ~410 Playwright assertions, exits non-zero at the end if 
 
 ```bash
 node scripts/verify-calendar.mjs
+node scripts/verify-portfolio-calendar.mjs
 node scripts/verify-research.mjs
 node scripts/verify-ui.mjs
 node scripts/verify-sdk.mjs
