@@ -104,6 +104,7 @@ const state = (page) => page.evaluate(() => ({
   dates: window.concalls.portfolioUpcoming().map((row) => `${row.ticker}|${row.date}`),
   rows: window.concalls.all().length,
   retained: window.concalls.meta()?.portfolioUpcomingRetained,
+  confirmed: window.concalls.meta()?.portfolioUpcomingConfirmed,
   supplied: window.concalls.meta()?.portfolioUpcomingSupplied,
   calendarAsOf: window.concalls.meta()?.portfolioUpcomingCheckedAt,
   screener: window.concalls.meta()?.screener?.status ?? null,
@@ -114,6 +115,7 @@ let now = await state(page);
 check('a healthy read paints the dashboard calendar and is not marked retained', () => {
   assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12']);
   assert.equal(now.retained, false);
+  assert.equal(now.confirmed, true);
   assert.equal(now.calendarAsOf, '2026-09-04T07:00:00Z');
 });
 
@@ -178,22 +180,31 @@ check('a successful read of an empty dashboard clears the calendar', () => {
 // A LIVE READ THAT NEVER HAPPENED IS NOT A CONFIRMATION. Reloading against an unreachable route
 // paints the stored response, whose own `meta.screener` said `ok` when it was written. Reporting
 // that as a current capture is the same class of claim as the empty calendar above, one layer on.
+// Its own device. Sharing the one above leaves its 2026-09-06 `emptied` capture held, and the
+// `full` fixture is dated 2026-09-04 — the staleness guard then correctly refuses to roll the
+// calendar backward onto it, which is that guard working rather than the case under test.
 mode = 'full';
-await page.evaluate(() => window.concalls.refresh().catch(() => null));
+const outageContext = await browser.newContext();
+const outagePage = await openPage(outageContext);
 routeDown = true;
-await page.reload();
-await page.waitForFunction(() => window.ready);
-now = await state(page);
+await outagePage.reload();
+await outagePage.waitForFunction(() => window.ready);
+now = await state(outagePage);
 check('a reload with an unreachable route serves the calendar as retained, not as confirmed', () => {
   assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'the stored calendar is still painted');
-  assert.equal(now.retained, true, 'bytes nobody confirmed in this session may not read as a fresh capture');
+  assert.equal(now.confirmed, false, 'bytes nobody confirmed in this session may not read as a fresh capture');
+  assert.equal(now.retained, true, 'and these rows really are ones we held');
 });
 routeDown = false;
+await outagePage.close();
+await outageContext.close();
 
 // AN AVAILABILITY TRANSITION IS ITSELF A CHANGE. `hasChanged` gates whether subscribers repaint,
 // and the coverage chip reads the retention flag — so a calendar going missing, or coming back
 // with the same rows, has to reach them rather than waiting for the next full collection.
-const page3 = await openPage();
+mode = 'full';
+const transitionContext = await browser.newContext();
+const page3 = await openPage(transitionContext);
 const changes = () => page3.evaluate(() => window.__calendarChanges || 0);
 await page3.evaluate(() => {
   window.__calendarChanges = 0;
@@ -218,6 +229,7 @@ check('and the same calendar coming back notifies them too', () => {
   assert.equal(recoveredState.supplied, true);
 });
 await page3.close();
+await transitionContext.close();
 
 // AN EMPTY CALENDAR NOBODY CONFIRMED IS STILL A CALENDAR NOBODY CONFIRMED. The last successful
 // read can legitimately return an empty dashboard; gating the retention mark on row count let
@@ -231,7 +243,7 @@ await page4.waitForFunction(() => window.ready);
 now = await state(page4);
 check('an unreachable route over a legitimately EMPTY calendar is still marked unconfirmed', () => {
   assert.deepEqual(now.dates, [], 'the empty capture is still what is painted');
-  assert.equal(now.retained, true, 'row count may not decide whether a failed check is reported');
+  assert.equal(now.confirmed, false, 'row count may not decide whether a failed check is reported');
 });
 
 routeDown = false;
@@ -262,16 +274,55 @@ routeDown = true;
 await page5.reload();
 await page5.waitForFunction(() => window.ready);
 const duringOutage = await state(page5);
-check('...which the outage marks retained', () => assert.equal(duringOutage.retained, true));
+check('...which the outage marks unconfirmed', () => {
+  assert.equal(duringOutage.confirmed, false);
+  assert.equal(duringOutage.retained, true);
+});
 routeDown = false;
 await page5.evaluate(() => window.concalls.refresh());
 now = await state(page5);
 check('an unchanged recovery clears the retention mark rather than leaving the feed failed for ever', () => {
-  assert.equal(now.retained, false, 'a 304 confirms the representation we hold, calendar included');
+  assert.equal(now.confirmed, true, 'a 304 confirms the representation we hold, calendar included');
+  assert.equal(now.retained, false);
   assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'and the rows are untouched');
 });
 await page5.close();
 await cleanContext.close();
+
+// A FIRST VISIT WITH NO CALENDAR EVER CAPTURED MAY NOT CLAIM A RETAINED ONE. `confirmed` is
+// false either way — nothing was checked — but the retention sentence would invent a capture this
+// device has never had.
+routeDown = true;
+const coldContext = await browser.newContext();
+const cold = await openPage(coldContext);
+now = await state(cold);
+check('a first visit with an unreachable route reports unconfirmed but claims no retained rows', () => {
+  assert.deepEqual(now.dates, []);
+  assert.equal(now.confirmed, false, 'nothing was checked');
+  assert.equal(now.retained, false, 'and there is no capture on this device to retain');
+});
+await cold.close();
+await coldContext.close();
+routeDown = false;
+
+// A POLL THAT FAILS ON AN OPEN TAB IS ALSO A CHECK THAT DID NOT HAPPEN. `refresh()` is the path
+// All Alerts' own control drives; `live.js` swallows the poller's error entirely, so nothing else
+// would ever say so.
+mode = 'full';
+const openTab = await browser.newContext();
+const openPageTab = await openPage(openTab);
+const before = await state(openPageTab);
+check('an open tab starts confirmed', () => assert.equal(before.confirmed, true));
+routeDown = true;
+await openPageTab.evaluate(() => window.concalls.refresh().catch(() => null));
+now = await state(openPageTab);
+check('a failing revalidation on an open tab marks the calendar unconfirmed', () => {
+  assert.equal(now.confirmed, false, 'an outage beginning after the page loaded must still be reported');
+  assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'without discarding the rows');
+});
+routeDown = false;
+await openPageTab.close();
+await openTab.close();
 
 await page.close();
 

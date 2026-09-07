@@ -969,12 +969,21 @@ it — `status: 'ok'`, its own `checkedAt`. Left alone it reads as a calendar co
 A confirmation is a 304, or a 200 whose rows were ingested, and nothing else: `conditionalJson`
 reports what the server actually said (`status: 0` only where the request never completed), so a
 503 arrives as 503 and testing for 0 alone would let every server-side failure through. Anything
-else marks the calendar retained — **unconditionally, never on row count**: a last successful read
-can legitimately have returned an empty dashboard, and an empty calendar nobody confirmed is still
-a calendar nobody confirmed. A **304 lifts the mark**, because it says the representation we hold
-is current, calendar included; without that, recovery through an unchanged ETag carries no content
-change and nothing would ever clear it. `screener.status` is deliberately left as the upstream
-reported it — it describes the artifact collector, not our ability to reach our own route.
+else clears `meta.portfolioUpcomingConfirmed`, on **every** revalidation path — the poller's own
+failures are swallowed by `live.js`, so marking only in `build()` would never report an outage that
+began after the page loaded. A **304 lifts the mark**, because it says the representation we hold is
+current, calendar included; without that, recovery through an unchanged ETag carries no content
+change and nothing would ever clear it. That branch notifies subscribers when and only when it
+lifted one. `screener.status` is deliberately left as the upstream reported it — it describes the
+artifact collector, not our ability to reach our own route.
+
+**`confirmed` is about the READ; `retained` is about the ROWS**, and one flag for both was wrong in
+both directions. Gated on row count it let a legitimately empty capture report a failed check as
+current; set unconditionally it claimed, on a first visit with an unreachable route, that an empty
+result was the retained rows from a capture this device had never made. The read's outcome gates the
+feed status; the rows' provenance gates the retention sentence. A **verified-empty calendar is
+restored from the device like any other** — an empty dashboard is an answer, and dropping it lets an
+older response resurrect events that were correctly cleared.
 
 **A supplied calendar older than the one held is not an update.** The response and the calendar are
 written under separate device keys, so a quota failure or aborted transaction on the large one

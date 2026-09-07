@@ -109,7 +109,10 @@ async function build() {
   try {
     const saved = await readEntry(SCHEDULE_KEY);
     const rows = saved?.value?.rows;
-    if (Array.isArray(rows) && rows.length) {
+    // `Array.isArray`, not `rows.length`: a successful read of a dashboard with nothing scheduled
+    // is an ANSWER, and one this device may hold as its newest. Gating on length dropped it, and
+    // the older combined response then resurrected events that had been correctly cleared.
+    if (Array.isArray(rows)) {
       heldSchedule = { rows: validateScreenerUpcomingRows(rows), checkedAt: saved.value.checkedAt || null, savedAt: saved.savedAt };
     }
   } catch { heldSchedule = null; }
@@ -172,8 +175,14 @@ function markChecked(origin, at) {
   // no content change is coming) and All Alerts reports the feed failed indefinitely while every
   // revalidation succeeds. It cannot clear a mark where the held representation supplied no
   // calendar: nothing has been confirmed about rows it never carried.
+  const lifts = cache.meta.portfolioUpcomingSupplied && cache.meta.portfolioUpcomingConfirmed === false;
   cache.meta = { ...cache.meta, origin, checkedAt: at || Date.now(),
+    portfolioUpcomingConfirmed: cache.meta.portfolioUpcomingSupplied ? true : cache.meta.portfolioUpcomingConfirmed,
     portfolioUpcomingRetained: cache.meta.portfolioUpcomingSupplied ? false : cache.meta.portfolioUpcomingRetained };
+  // Whether this 304 CHANGED anything a consumer renders. The poller returns null on an unchanged
+  // tick, so without this the lifted mark would sit in `meta` unread until All Alerts' own next
+  // collection — the label lagging the data, which is the failure this whole change is about.
+  return lifts;
 }
 
 /**
@@ -216,12 +225,14 @@ function scheduleFrom(payload) {
  * different failures. The retention flag is what the coverage note branches on.
  */
 function markScheduleUnconfirmed() {
-  if (!cache || cache.meta.portfolioUpcomingRetained) return;
-  // UNCONDITIONALLY, and not `!!rows.length`. A last successful read can legitimately have
-  // returned an empty dashboard, and an empty calendar nobody confirmed is still a calendar
-  // nobody confirmed — gating on row count let exactly that case report a failed check as a
-  // current capture, which is the state this function exists to prevent.
-  cache.meta = { ...cache.meta, portfolioUpcomingRetained: true };
+  if (!cache || cache.meta.portfolioUpcomingConfirmed === false) return;
+  // `confirmed` is about the READ and is cleared unconditionally: a last successful read can
+  // legitimately have returned an empty dashboard, and an empty calendar nobody checked is still
+  // a calendar nobody checked. `retained` is about the ROWS and may not be claimed where none
+  // were held — on a first visit with an unreachable route this device has never captured the
+  // calendar at all, and saying its empty result is "the retained rows from the last successful
+  // capture" would invent a capture that never happened. Two facts, two flags.
+  cache.meta = { ...cache.meta, portfolioUpcomingConfirmed: false, portfolioUpcomingRetained: !!heldSchedule };
 }
 
 function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
@@ -249,7 +260,7 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   // not the same and neither can be derived from the other: a payload that carried no calendar
   // while nothing was held supplies nothing and retains nothing.
   const supplied = !!schedule;
-  const retained = !adopted && !!heldSchedule?.rows.length;
+  const retained = !adopted && !!heldSchedule;
 
   const isFirst = seenKeys === null;
   if (isFirst) {
@@ -296,6 +307,9 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
       // never reached it. `retained` is what makes the Upcoming view say so out loud.
       portfolioUpcomingRetained: retained,
       portfolioUpcomingSupplied: supplied,
+      // This payload IS a read, so ingesting one confirms what it carried. `markScheduleUnconfirmed`
+      // clears it again where the read that was supposed to happen did not.
+      portfolioUpcomingConfirmed: true,
       portfolioUpcomingCheckedAt: (adopted ? suppliedAt : heldSchedule?.checkedAt) || null,
       persisted: isPersistent(),
     },
@@ -333,10 +347,14 @@ export function startLive(live) {
       // A conditional GET. On an unchanged tick this is a 304 with no body at all and `status`
       // tells us so without touching a single row — the 450KB payload never crosses the wire.
       const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
-      if (!out.value?.rows?.length) throw Error('Con-call source could not be revalidated.');
+      // A POLL THAT FAILED IS A CHECK THAT DID NOT HAPPEN, and this one is swallowed: `live.js`
+      // backs off and never surfaces the error, so without this the calendar on an open tab keeps
+      // reading as confirmed through an outage that began after the page loaded.
+      if (!out.value?.rows?.length) { markScheduleUnconfirmed(); throw Error('Con-call source could not be revalidated.'); }
       if (out.status === 304) {
-        markChecked('live', out.checkedAt);
-        return null;
+        // Notify only where the 304 lifted a retention mark — an ordinary unchanged tick still
+        // repaints nothing, which is what keeps a reader's sort and search intact.
+        return markChecked('live', out.checkedAt) ? cache : null;
       }
       // Always refresh the cache; only NOTIFY on a real change, so a repaint never throws away
       // the reader's sort and search for a tick that carried nothing new.
@@ -366,10 +384,13 @@ export function startLive(live) {
 export async function refresh() {
   await load();
   const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
-  if (!Array.isArray(out.value?.rows) || out.value?.ok === false) throw Error('Con-call revalidation failed; retained analysis is unchanged');
-  if (!out.value?.rows?.length) return cache;
+  if (!Array.isArray(out.value?.rows) || out.value?.ok === false) {
+    markScheduleUnconfirmed();
+    throw Error('Con-call revalidation failed; retained analysis is unchanged');
+  }
+  if (!out.value?.rows?.length) { markScheduleUnconfirmed(); return cache; }
   if (out.status === 304) {
-    markChecked('live', out.checkedAt);
+    if (markChecked('live', out.checkedAt)) for (const fn of listeners) { try { fn(cache); } catch (err) { console.error('[concall-scans] listener failed', err); } }
     return cache;
   }
   const changed = hasChanged(out.value);
