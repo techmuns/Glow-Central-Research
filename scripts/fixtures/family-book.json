@@ -2,13 +2,16 @@
   "_provenance": "The family office's listed direct-equity book, read from techmuns/Sattva-Family (src/data/sattvaData.ts) by scripts/sync-family-book.mjs. One line per equity ISIN across every holding entity; ETF and liquid-fund units are counted under excluded and not carried. Names are the custodian's own wording and may be truncated — the ISIN is the identity. No quantity, cost or value is carried on purpose. scripts/resolve-portfolio-companies.mjs reads this file and writes public/data/portfolio-companies.json.",
   "source": "techmuns/Sattva-Family · src/data/sattvaData.ts",
   "asOf": "2026-06-30",
-  "sourceCommit": null,
-  "fetchedAt": "2026-09-02T20:44:28.685Z",
+  "sourceCommit": {
+    "sha": "4dc9f970e8e64da84789ae8c6522fcff2d2287cb",
+    "date": "2026-07-27T15:21:39Z"
+  },
+  "fetchedAt": "2026-09-03T10:45:44.583Z",
   "positions": 333,
   "excluded": {
     "etf": 4,
-    "liquid": 2,
-    "other": 1
+    "liquid": 3,
+    "other": 0
   },
   "count": 142,
   "lines": [
