@@ -455,12 +455,16 @@
     "isin:INE084101034|Indo-Mim": {
       "lastAttemptAt": "2026-09-07T16:12:24+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE084101034|INDOMIM": {
+      "lastAttemptAt": "2026-09-07T17:01:44+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T16:12:24.421283+00:00"
+    "checkedAt": "2026-09-07T17:01:44.252976+00:00"
   }
 }
