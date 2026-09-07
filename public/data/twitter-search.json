@@ -307,12 +307,16 @@
     "isin:INE291A01017|GRWRHITECH": {
       "lastAttemptAt": "2026-09-07T10:33:45+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE741B01027|Glittke Granites": {
+      "lastAttemptAt": "2026-09-07T11:10:44+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
-    "planned": 229,
+    "planned": 230,
     "attempted": 1,
-    "incomplete": 224,
-    "checkedAt": "2026-09-07T10:33:45.107389+00:00"
+    "incomplete": 225,
+    "checkedAt": "2026-09-07T11:10:44.587446+00:00"
   }
 }
