@@ -259,6 +259,7 @@ export const isLoaded = () => !!cache;
 export const all = () => (cache ? cache.entries : []);
 export const companies = () => (cache ? cache.companies : []);
 export const uncovered = () => (cache ? cache.uncovered : []);
+export const loadedPosts = () => [...postsCache.values()];
 export const overview = () => (cache ? cache.overview : null);
 export const meta = () => (cache ? cache.meta : null);
 export const byTicker = (t) => (cache && t ? cache.byTicker.get(String(t).toUpperCase()) || null : null);
@@ -270,25 +271,25 @@ export const sourceLabel = (k) => SOURCE_LABEL[k] || k;
  * The detail endpoint is public and already linked by every dashboard row. A per-slug in-memory
  * cache keeps reopening a row instant without turning a table paint into hundreds of requests.
  */
-export function postsFor(slug) {
+export function postsFor(slug, { maxAgeMs = 60_000, timeoutMs = 8000 } = {}) {
   const key = String(slug || '').trim().toLowerCase();
   if (!key) return Promise.reject(new Error('No chatter topic was supplied.'));
-  if (postsCache.has(key)) return Promise.resolve(postsCache.get(key));
+  if (postsCache.has(key) && Date.now() - Date.parse(postsCache.get(key).checkedAt) < maxAgeMs) return Promise.resolve(postsCache.get(key));
   if (postsInFlight.has(key)) return postsInFlight.get(key);
 
-  const pending = fetchPosts(key).finally(() => postsInFlight.delete(key));
+  const pending = fetchPosts(key, timeoutMs).finally(() => postsInFlight.delete(key));
   postsInFlight.set(key, pending);
   return pending;
 }
 
-async function fetchPosts(slug) {
+async function fetchPosts(slug, timeoutMs) {
   const base = baseUrl();
   if (!/^https?:\/\//i.test(base)) throw new Error('The chatter feed has no usable address.');
 
   const url = `${base}/stocks/${encodeURIComponent(slug)}/posts?limit=1000&sort=newest`;
   let response;
   try {
-    response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-cache' });
+    response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-cache', signal: AbortSignal.timeout(timeoutMs) });
   } catch {
     throw new Error('The mentions could not be reached.');
   }
@@ -300,9 +301,12 @@ async function fetchPosts(slug) {
   } catch {
     throw new Error('The mentions endpoint returned an unreadable response.');
   }
+  if (!Array.isArray(body?.posts) || body.ticker && String(body.ticker).toLowerCase() !== slug) throw new Error('The mentions endpoint returned an unexpected topic or payload.');
   const normalised = normalisePosts(body);
-  const result = { ...normalised, slug: normalised.slug || slug, endpoint: url };
+  if (normalised.posts.length !== body.posts.length) throw new Error('The mentions endpoint returned incomplete post records.');
+  const result = { ...normalised, slug: normalised.slug || slug, endpoint: url, checkedAt: new Date().toISOString() };
   postsCache.set(slug, result);
+  for (const fn of listeners) fn();
   return result;
 }
 
@@ -330,7 +334,7 @@ export function startLive(live) {
       // A tick that fails leaves whatever is on screen alone. The tab reported the failure the
       // first time it happened; replacing a good table with an error because one poll missed
       // would be worse than saying nothing.
-      if (!feed.ok) return null;
+      if (!feed.ok) throw Error('Public Chatter could not be revalidated.');
       if (feed.fromStore) {
         // Revalidated, unchanged. Move "last checked" and nothing else — that is a different fact
         // from "last scraped", and conflating them would age the data backwards.
@@ -361,7 +365,7 @@ export function startLive(live) {
       }
     }
   });
-  live.start(LIVE_ID);
+  live.start(LIVE_ID, { fresh: true });
   return () => {
     off();
     live.stop(LIVE_ID);

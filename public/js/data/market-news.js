@@ -45,6 +45,7 @@ const SNAPSHOT = 'data/market-news.json';
 
 let state = fresh();
 let loading = null;
+let refreshing = null, reading = null, loadingArchive = null;
 const subscribers = new Set();
 const emit = () => subscribers.forEach((fn) => fn());
 
@@ -66,26 +67,127 @@ function fresh() {
     message: null,
     // 'snapshot' when painted from the committed file, 'store' when this device had it already.
     origin: null,
+    // Per publisher: when each was last read and whether that read worked. Carried through so the
+    // provenance panel can say "Mint could not be read 20 minutes ago" rather than leaving the
+    // reader to infer an outage from a story count, which cannot distinguish it from a quiet day.
+    sources: [],
+    // THE HEAD AND THE ARCHIVE ARE HELD APART, and `byId` above is the two of them merged.
+    //
+    // They have to be, because they move independently: the head is re-read every time the reader
+    // asks whether a newer capture exists, and if that read rebuilt `byId` from its own 600 stories
+    // alone it would silently throw away every older month the reader had scrolled back through.
+    // The screen would jump from four months of history to thirteen days with nothing having
+    // failed — the same shape as the subscription bug in CLAUDE.md, where nothing throws and only
+    // the paint is wrong.
+    head: new Map(),
+    older: new Map(),
+    // The manifest the head file carries, newest month first: [{ month, file, count, from, to }].
+    archive: [],
+    // Which shards this session has already fetched, by file. A shard is fetched once.
+    loadedShards: new Set(),
+    // How many stories exist across the head and every shard, as the capture reported it — the
+    // number the reader is scrolling through, which is NOT the number currently in memory.
+    archivedCount: 0,
+    loadingMore: false,
   };
 }
 
 const keyOf = (a) => String(a?.id || a?.url || '');
 
-/** Newest first, by the publisher's own id — which orders correctly even without a date. */
+/** A Moneycontrol id is the bare article number; every other publisher's is `<feed>:<url>`. */
+const mcId = (a) => (/^\d+$/.test(String(a?.id || '')) ? Number(a.id) : null);
+
+/**
+ * Newest first across every publisher.
+ *
+ * ONE LIST, SEVERAL PUBLISHERS, AND ONLY ONE OF THEM HAS A SORTABLE ID.
+ *   Moneycontrol's id is an article number that increases with publication, so it ordered their
+ *   list correctly even for the stories whose date the per-article budget never reached. That stops
+ *   working the moment a second publisher is in the list: `business-standard:www.…` does not compare
+ *   with `14021956`, and no ordering over the two of them together can come from an id.
+ *
+ * SO THE ORDER IS THE PUBLISHED TIME — AND `firstSeenAt` IS NOT AN ACCEPTABLE STAND-IN FOR IT.
+ *   That is the obvious fallback and it is measurably wrong here: all 303 undated stories in the
+ *   shipped capture carry one of two `firstSeenAt` values, both from a single backfill run on 29
+ *   August. Ordering by it would collapse half the archive into one instant and scramble stories
+ *   whose real order their ids still describe exactly.
+ *
+ * SO AN UNDATED MONEYCONTROL STORY IS ANCHORED TO ITS DATED NEIGHBOURS, BY ID.
+ *   An undated story takes the time of the nearest dated story above it in id order — falling back
+ *   to the nearest below, and only then to when we first saw it. The id tie-break then orders a run
+ *   of undated stories correctly among themselves, because they share their anchor's time and
+ *   differ only by id.
+ *
+ *   THE ID IS ONLY APPROXIMATELY MONOTONIC, WHICH IS WHY IT ANCHORS AND NEVER ORDERS. Measured on
+ *   the shipped capture: among the 296 stories that carry the publisher's own time, id order
+ *   disagrees with publication order **76 times** — a quarter of them — by a median of 48 minutes
+ *   and as much as 2.7 days. So the id was never the ordering it was taken for, and this list is
+ *   more faithful to the publisher than the pure id sort it replaces, not less. Where a real time
+ *   exists it decides; the id is used only to place stories that have none and to break exact ties.
+ *
+ * THIS IS AN ORDERING KEY AND IT IS NEVER A DISPLAYED TIME. The story's own `publishedAt` stays
+ * null, the card still reads "time not published", the export still leaves the cell blank, and the
+ * counts still say how many carry the publisher's time. Nothing derived here reaches the reader as
+ * though the publisher had said it.
+ */
 function sortRows(list) {
-  return [...list].sort((a, b) => {
-    const ai = a.id;
-    const bi = b.id;
-    if (ai && bi) return ai.length === bi.length ? bi.localeCompare(ai) : Number(bi) - Number(ai);
-    return String(b.publishedAt || b.firstSeenAt || '').localeCompare(String(a.publishedAt || a.firstSeenAt || ''));
+  const rows = [...list];
+  const at = new Map();
+  const time = (v) => {
+    const t = Date.parse(v || '');
+    return Number.isFinite(t) ? t : null;
+  };
+
+  const mc = rows.filter((r) => mcId(r) !== null).sort((a, b) => mcId(b) - mcId(a));
+  const anchorAbove = [];
+  let seen = null;
+  for (const r of mc) {
+    seen = time(r.publishedAt) ?? seen;
+    anchorAbove.push(seen);
+  }
+  let below = null;
+  for (let i = mc.length - 1; i >= 0; i -= 1) {
+    below = time(mc[i].publishedAt) ?? below;
+    at.set(mc[i], time(mc[i].publishedAt) ?? anchorAbove[i] ?? below ?? time(mc[i].firstSeenAt) ?? 0);
+  }
+  for (const r of rows) {
+    if (!at.has(r)) at.set(r, time(r.publishedAt) ?? time(r.firstSeenAt) ?? 0);
+  }
+
+  return rows.sort((a, b) => {
+    const d = at.get(b) - at.get(a);
+    if (d) return d;
+    // Same instant: Moneycontrol's own id where both have one — this is what keeps a run of
+    // undated stories sharing an anchor in the publisher's order rather than in Map order.
+    const am = mcId(a);
+    const bm = mcId(b);
+    if (am !== null && bm !== null) return bm - am;
+    if (am !== null) return -1;
+    if (bm !== null) return 1;
+    return String(a.id || '').localeCompare(String(b.id || ''));
   });
+}
+
+/** Rebuild the merged view. The head wins on a collision: it is the newer read of the same story. */
+function remerge() {
+  const merged = new Map(state.older);
+  for (const [k, a] of state.head) merged.set(k, a);
+  state.byId = merged;
+  state.articles = sortRows([...merged.values()]);
+  // COUNTED HERE, so a month landing moves them. These two describe the list on screen — the export
+  // banner and the provenance modal both print them against it — and leaving them on the head's own
+  // figures would have the page say "147 of 600 carry the publisher's time" over a list where 297
+  // do. Measured on the first archive load, which is how it was caught.
+  state.withPublishedAt = state.articles.filter((a) => a.publishedAt).length;
+  state.withoutPublishedAt = state.articles.length - state.withPublishedAt;
 }
 
 function absorb(body, { fromStore = false } = {}) {
   const list = Array.isArray(body?.articles) ? body.articles : [];
-  if (!list.length) return false;
+  if (!Array.isArray(body?.articles)) return false;
+  if (state.capturedAt && Date.parse(body.capturedAt) < Date.parse(state.capturedAt)) throw Error('Publisher capture regressed.');
 
-  const before = state.byId;
+  const before = state.head;
   const next = new Map();
   for (const a of list) {
     const k = keyOf(a);
@@ -103,19 +205,39 @@ function absorb(body, { fromStore = false } = {}) {
     if (added.length) state.arrivals = [...added.map((k) => next.get(k)), ...state.arrivals].slice(0, 80);
   }
 
-  state.byId = next;
-  state.articles = sortRows([...next.values()]);
+  // A moving head is a transport window, not a deletion instruction. Retain observations even
+  // before their archive month arrives; a valid empty capture is different from a failed read.
+  for (const [key, row] of state.head) if (!next.has(key)) state.older.set(key, row);
+  state.head = next;
+  state.sources = Array.isArray(body.sources) ? body.sources : [];
+  const nextArchive = Array.isArray(body.archive) ? body.archive : [];
+  const previousArchive = new Map(state.archive.map(part => [part.file, part]));
+  // Monthly descriptors do not carry content digests yet. A newer capture can correct an older
+  // article without changing the month's count, so its prior session check cannot prove equality.
+  if (body.capturedAt !== state.capturedAt) state.loadedShards.clear();
+  for (const part of nextArchive) {
+    if (JSON.stringify(previousArchive.get(part.file)) !== JSON.stringify(part)) state.loadedShards.delete(part.file);
+  }
+  state.archive = nextArchive;
+  // A capture written before the archive existed reports no total, and the honest fallback is what
+  // we can actually count rather than a zero that would read as "no history".
+  state.archivedCount = Number.isFinite(body.archivedCount) ? body.archivedCount : next.size;
+  remerge();
   state.capturedAt = body.capturedAt || null;
   state.newestId = body.newestId || state.articles[0]?.id || null;
-  state.withPublishedAt = Number.isFinite(body.withPublishedAt) ? body.withPublishedAt : state.articles.filter((a) => a.publishedAt).length;
-  state.withoutPublishedAt = Number.isFinite(body.withoutPublishedAt) ? body.withoutPublishedAt : state.articles.length - state.withPublishedAt;
   state.origin = fromStore ? 'store' : 'snapshot';
   state.reason = null;
   state.message = null;
   return true;
 }
 
-async function read() {
+function read() {
+  if (reading) return reading;
+  reading = readSnapshot().finally(() => { reading = null; });
+  return reading;
+}
+
+async function readSnapshot() {
   try {
     // No "force" needed: `conditionalJson` fetches with `cache: 'no-cache'`, which revalidates on
     // every call and reuses the bytes only when the server confirms them. A manual re-check and an
@@ -124,7 +246,8 @@ async function read() {
     // `fromStore` means the server answered 304 and these are bytes this device already held. The
     // check still happened, so `checkedAt` moves either way — that is the point of the two fields.
     state.checkedAt = Date.now();
-    if (res?.value) {
+    state.lastReadFailed = !Array.isArray(res?.value?.articles);
+    if (!state.lastReadFailed) {
       const changed = absorb(res.value, { fromStore: !!res.fromStore });
       return changed;
     }
@@ -135,6 +258,7 @@ async function read() {
     return false;
   } catch (err) {
     state.checkedAt = Date.now();
+    state.lastReadFailed = true;
     if (!state.articles.length) {
       state.reason = 'unreachable';
       state.message = String(err?.message || err);
@@ -161,7 +285,13 @@ export function load() {
  * so the tab's control says "check for a newer capture" rather than anything that implies this
  * reaches the publisher.
  */
-export async function refresh() {
+export function refresh() {
+  if (refreshing) return refreshing;
+  refreshing = refreshCapture().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+async function refreshCapture() {
   // COUNT THE IDS THAT ARE NEW, NEVER THE DIFFERENCE IN LENGTH.
   //
   // The capture is trimmed to KEEP (600). Once it is full, one story arriving pushes the oldest
@@ -174,11 +304,136 @@ export async function refresh() {
   const changed = await read();
   const added = [...state.byId.keys()].filter((k) => !before.has(k)).length;
   emit();
-  return { changed, added, total: state.articles.length, capturedAt: state.capturedAt };
+  return { changed, added, total: state.articles.length, capturedAt: state.capturedAt, checked: state.lastReadFailed ? 0 : 1, failed: state.lastReadFailed ? 1 : 0 };
 }
 
-/** The ids currently held, for a caller that needs to compare two moments rather than count one. */
-export const idsHeld = () => new Set(state.byId.keys());
+/**
+ * The ids in the HEAD, for a caller that needs to compare two moments rather than count one.
+ *
+ * The head and not the merged list, because the question this answers is "did the capture move".
+ * A reader scrolling back a month adds hundreds of ids to `byId` without a single story having been
+ * published, and a comparison over that set would report the scroll as news arriving.
+ */
+export const idsHeld = () => new Set(state.head.keys());
+
+// ---------------------------------------------------------------------------------------
+// SCROLLING PAST THE HEAD — the archive
+// ---------------------------------------------------------------------------------------
+//
+// The capture is two things: a bounded head every visitor downloads on arrival, and a shard per
+// month that nobody downloads until they have read to the end of the head. That split is what lets
+// the first paint stay at ~400 KB while the history behind it grows without limit.
+//
+// THREE RULES, and the third is the one that is easy to get wrong.
+//
+//   1. A SHARD IS FETCHED ONCE PER SESSION, and stored on the device under its own key, so a reader
+//      who scrolls back through four months and returns tomorrow revalidates four small files
+//      rather than downloading them again.
+//   2. NOTHING HERE RUNS ON ITS OWN. It is called by the reader reaching the end of the list, which
+//      is the demand signal — the same narrowing CLAUDE.md draws for the News tab's own fetch.
+//   3. A SHARD THAT ADDS NOTHING IS NOT THE END OF THE ARCHIVE. The head is a window onto the same
+//      stories, so the newest month or two are usually already held in full; a `loadMore` that
+//      stopped at the first shard adding zero would report "that is everything" with months still
+//      unread below it. It walks on until something lands or the manifest is spent — bounded, so
+//      one gesture can never turn into an unbounded run of requests.
+
+const SHARDS_PER_CALL = 3;
+
+/**
+ * The next shards worth fetching, newest month first.
+ *
+ * A shard the head already carries in FULL is skipped rather than downloaded, and the capture is
+ * what says so — `inHead` is counted by the writer, which is the only place holding both sets. On a
+ * young archive the head is a window onto every month there is, so this is the difference between
+ * the first scroll to the end costing 400 KB to add nothing and costing no request at all. A shard
+ * from a capture written before `inHead` existed reports undefined, which is not equal to `count`,
+ * so it is fetched — the safe direction.
+ */
+const pendingShards = () =>
+  state.archive.filter((a) => a && a.file && !state.loadedShards.has(a.file) && a.inHead !== a.count);
+
+export function archiveMeta() {
+  const pending = pendingShards();
+  return {
+    // Every story the capture says exists, head and archive together.
+    total: Math.max(state.archivedCount, state.articles.length),
+    held: state.articles.length,
+    months: state.archive.length,
+    monthsLoaded: state.loadedShards.size,
+    remaining: pending.length,
+    exhausted: pending.length === 0,
+    loading: state.loadingMore,
+    // The oldest date anything held actually carries, for a footer that says how far back you are.
+    oldest: state.articles.length
+      ? state.articles.reduce((min, a) => {
+          const d = a.publishedAt || a.firstSeenAt;
+          return d && (!min || d < min) ? d : min;
+        }, null)
+      : null,
+  };
+}
+
+/**
+ * Pull the next month (or three) of older stories in.
+ *
+ * Resolves to what actually happened rather than to a boolean, because the caller has three
+ * different things to say: stories landed, the archive is spent, or a shard could not be read —
+ * and "could not be read" must never be drawn as "there is nothing older", which is the same
+ * outage-as-absence error the filings snapshot rules exist to prevent.
+ */
+export function loadMore() {
+  // News and All Alerts share this reader. Both must await the same month, not interpret a
+  // concurrently busy loader as a missing archive or start duplicate requests.
+  if (loadingArchive) return loadingArchive;
+  loadingArchive = loadArchiveBatch().finally(() => { loadingArchive = null; });
+  return loadingArchive;
+}
+
+async function loadArchiveBatch() {
+  state.loadingMore = true;
+  emit();
+  let added = 0;
+  let failed = 0;
+  let reason = null;
+  try {
+    for (let i = 0; i < SHARDS_PER_CALL; i += 1) {
+      const next = pendingShards()[0];
+      if (!next) break;
+      try {
+        if (!/^market-news\/(?:\d{4}-\d{2}|undated)\.json$/.test(next.file)) throw Error('Invalid publisher archive path');
+        const res = await conditionalJson(`data/${next.file}`, { key: KEYS.marketNewsMonth(next.month), optional: true });
+        const list = Array.isArray(res?.value?.articles) ? res.value.articles : null;
+        if (!list || (Number.isInteger(next.count) && list.length !== next.count)) {
+          // A shard named by the manifest that will not load is a real failure, and it is recorded
+          // as one. It is NOT marked loaded: leaving it pending is what lets a later attempt — a
+          // reader scrolling again after the network came back — pick it up.
+          failed += 1;
+          reason = res?.status ? `HTTP ${res.status}` : 'unreachable';
+          break;
+        }
+        state.loadedShards.add(next.file);
+        for (const a of list) {
+          const k = keyOf(a);
+          // The head's copy of a story is the newer read of it, so it is never overwritten here.
+          if (k && !state.head.has(k)) {
+            if (!state.older.has(k)) added += 1;
+            state.older.set(k, a);
+          }
+        }
+        if (added) break;
+      } catch (err) {
+        failed += 1;
+        reason = String(err?.message || err);
+        break;
+      }
+    }
+    remerge();
+  } finally {
+    state.loadingMore = false;
+  }
+  emit();
+  return { added, failed, reason, exhausted: pendingShards().length === 0, busy: false };
+}
 
 export const isLoaded = () => state.loaded;
 export const rows = () => state.articles;
@@ -189,6 +444,7 @@ export const newArrivals = () => state.arrivals;
 
 export function meta() {
   return {
+    lastReadFailed: !!state.lastReadFailed,
     loaded: state.loaded,
     count: state.articles.length,
     withPublishedAt: state.withPublishedAt,
@@ -200,6 +456,11 @@ export function meta() {
     origin: state.origin,
     reason: state.reason,
     message: state.message,
+    // How many stories arrived in the first paint, kept apart from `count` — which grows as the
+    // reader scrolls back. The provenance modal needs both to describe the capture honestly.
+    headCount: state.head.size,
+    sources: state.sources,
+    archive: archiveMeta(),
   };
 }
 
@@ -414,11 +675,12 @@ export function startLive(live) {
     intervalMs: POLL_MS,
     fetcher: async () => {
       const changed = await read();
+      if (state.lastReadFailed) throw Error('Market-news capture could not be revalidated.');
       if (!changed) return null;
       emit();
       return state;
     },
   });
-  live.start(LIVE_ID);
+  live.start(LIVE_ID, { fresh: true });
   return () => live.stop(LIVE_ID);
 }

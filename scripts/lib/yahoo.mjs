@@ -1,9 +1,8 @@
 // lib/yahoo.mjs — the shared Yahoo Finance chart fetcher.
 //
-// Extracted from scrape-technicals.mjs so scrape-portfolio-history.mjs uses the same code
-// path rather than a second, subtly-different copy. Two fetchers against the same endpoint
-// drift: one gains a retry, the other keeps a bug, and the two feeds disagree about what a
-// close price is.
+// Extracted from scrape-technicals.mjs so every caller shares one code path rather than a
+// second, subtly-different copy. Two fetchers against the same endpoint drift: one gains a
+// retry, the other keeps a bug, and the two feeds disagree about what a close price is.
 //
 //   import { fetchBars, sleep } from './lib/yahoo.mjs';
 //   const bars = await fetchBars('RELIANCE.NS', new Date('2023-01-01'), new Date());

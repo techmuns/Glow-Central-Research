@@ -12,9 +12,9 @@
 // that exact contract.
 //
 // ---------------------------------------------------------------------------------------
-// Nine feeds are consolidated: price moves, earnings, con-calls, public chatter, investor changes,
-// announcements, insider activity, company news and market news. The module still introduces no
-// source and never walks companies; it reuses each owning tab's committed snapshot or cached route.
+// The registry includes every supported source category, including raw snapshots, schedules,
+// NSE/IPO history and session-only lookup records. See docs/GENERAL-ALERTS-POOL.md for retention
+// and on-demand limitations. Collection never walks companies or dispatches capture jobs.
 //
 // Every event carries TWO INDEPENDENT readings:
 //   direction   positive | negative | neutral
@@ -33,12 +33,10 @@
 // `reachesToday` for exactly that, and the tab prints it per feed rather than rendering an empty
 // bucket that reads as an all-clear.
 //
-// AND NOTHING IN HERE WALKS. Every load below is one conditional GET against a committed file or a
-// cached route. The three filings feeds are seeded through `feed.seed()`, which is the snapshot and
-// this device and no per-company request at all — see js/data/filings.js.
+// Bulk captures and their published archive shards are reused; no per-company requests.
 //
-// NOTHING HERE STARTS A POLLER. The owning modules may maintain cached/live routes on their own
-// tabs; this page takes one reading on mount and another only when the reader presses Refresh.
+// The data layer owns no poller. Its tab subscribes to changes and revalidates every 90 seconds
+// while visible; cached reassembly never fetches.
 
 import * as technicals from './technicals.js';
 import * as marketNews from './market-news.js';
@@ -46,10 +44,28 @@ import * as earnings from './earnings-live.js';
 import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as investors from './super-investors.js';
+import * as screenerInsights from './screener-insights.js';
+// ONE definition of what a filed-book change is — see `isMove` there. A negative filter here
+// (`action !== 'held'`) admitted every future state by default, which is how an outstanding
+// filing would have become a negative alert about a named investor.
+import { isMove } from './finology-shared.js';
 import { announcements, insider, news } from './filings.js';
-import { insiderTradeSourceUrl } from './filings-shared.js';
+import { insiderTradeSourceUrl, canonicalArticleUrl } from './filings-shared.js';
+import { classifyStory } from './news-keywords.js';
+import { announcementSignal } from './filing-signals.js';
+export { announcementSignal, BSE_CRITICAL_IS_MATERIAL } from './filing-signals.js';
 import { scopeMatcher } from './scope.js';
 import * as coverage from './coverage.js';
+import { ADDITIONAL_SOURCES, additionalSourceDependencies } from './alert-sources.js';
+import * as records from './alert-records.js';
+import { alertWindowCache } from './alert-window-cache.js';
+export { ALERT_WINDOW_CACHE_KEY } from './alert-window-cache.js';
+import { AI_ALERT_WINDOW_DAYS as ALERT_WINDOW_CACHE_DAYS } from '../core/alert-window.js';
+export { AI_ALERT_WINDOW_DAYS as ALERT_WINDOW_CACHE_DAYS } from '../core/alert-window.js';
+import { portfolioNewsEntities } from './company-news-identity.js';
+import { attributeNewsRow, attributionFor, newsSearchText } from './company-news-attribution.js';
+import { matchPortfolioNews, newsEventTopics } from './portfolio-news-matching.js';
+import { enrichmentCoverageIncomplete } from '../core/news-view-status.js';
 
 // ---------------------------------------------------------------------------------------
 // Today, in IST
@@ -62,6 +78,68 @@ import * as coverage from './coverage.js';
 const IST_OFFSET_MS = 5.5 * 3600 * 1000;
 
 export const today = (now = Date.now()) => new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10);
+
+// A compact, public-only materialized view for the one dashboard surface that
+// otherwise has to assemble every source before it can draw a useful card. It
+// deliberately carries no Family reply, holding weight, private document or
+// sourceRecord. Those stay memory-only; this cache is safe to survive a reload.
+
+function shiftDay(day, amount) {
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return day;
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+export function materializePublicAlertWindow(report) {
+  const firstDay = shiftDay(report.day, -(ALERT_WINDOW_CACHE_DAYS - 1));
+  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  return {
+    version: 1,
+    day: report.day,
+    feeds: (report.feeds || []).filter((feed) => !privateFeeds.has(feed.id)).map(({ events, count, todayCount, ...feed }) => feed),
+    events: (report.events || [])
+      .filter((event) => !event.private && !privateFeeds.has(event.feed) && (event.ticker || event.entityId) && event.day >= firstDay && event.day <= report.day)
+      .map(({ sourceRecord: _sourceRecord, private: _private, weightPct: _weightPct,
+        holdingWeightPct: _holdingWeightPct, ...event }) => event),
+  };
+}
+
+function validAlertWindow(value, throughDay) {
+  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  if (value?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.day || '') ||
+      !Array.isArray(value.events) || !Array.isArray(value.feeds)) return false;
+  const captured = Date.parse(`${value.day}T00:00:00Z`);
+  const through = Date.parse(`${throughDay}T00:00:00Z`);
+  return Number.isFinite(captured) && Number.isFinite(through) && captured <= through &&
+    through - captured < ALERT_WINDOW_CACHE_DAYS * 86_400_000 &&
+    value.feeds.every((feed) => !privateFeeds.has(feed?.id)) &&
+    value.events.every((event) => !event.private && !privateFeeds.has(event.feed) && event.sourceRecord == null &&
+      event.weightPct == null && event.holdingWeightPct == null &&
+      (typeof event.ticker === 'string' || typeof event.entityId === 'string') && typeof event.feed === 'string');
+}
+
+/** Restore a ready public alert window, narrowed against the current in-memory scope. */
+export async function readCachedAlertWindow({ scope = 'portfolio', holdings = null, day = today() } = {}) {
+  const entry = await alertWindowCache.read();
+  if (!validAlertWindow(entry?.value, day)) return null;
+  const wanted = scopeMatcher(scope, holdings || coverage.holdings());
+  const firstDay = shiftDay(day, -(ALERT_WINDOW_CACHE_DAYS - 1));
+  const entityIds = new Set(portfolioNewsEntities(holdings || coverage.holdings()).map(e => e.entityId));
+  const scopeContext = { scope, wanted, entityIds };
+  const events = entry.value.events.filter((event) => event.day >= firstDay && event.day <= day &&
+    matchesAlertScope(event, scopeContext));
+  const sameDay = entry.value.day === day;
+  return {
+    day,
+    scope,
+    includeHistory: true,
+    events,
+    feeds: entry.value.feeds.map((feed) => ({ ...feed, reachesToday: sameDay ? feed.reachesToday : false })),
+    pending: 0,
+    cacheSavedAt: entry.savedAt || null,
+  };
+}
 
 /** The IST clock time of an instant, as HH:MM, for a row that carries a real timestamp. */
 function istTime(value) {
@@ -83,17 +161,25 @@ function istDay(value) {
 // The thresholds and signal vocabulary this module states out loud
 // ---------------------------------------------------------------------------------------
 
-// A day move big enough to be worth a row. Stated here, printed on the tab, and written into row 1
-// of the export — a threshold the reader cannot see is a filter applied on their behalf in secret.
-//
-// It is the price-feed entry threshold. Changing it also changes that feed's importance rule, and
-// the tab, export and tests all read this constant rather than repeating it.
+// A material day move. This is an importance threshold, no longer a collection threshold:
+// below-threshold measurements remain in the pool and do not change the existing AI policy.
 export const MOVE_PCT = 5;
 export const INSIDER_HIGH_PCT = 1;
 export const INSIDER_HIGH_VALUE = 100_000_000; // ₹10 crore
 export const INVESTOR_HIGH_PP = 1;
 export const CHATTER_HIGH_MENTIONS = 10;
 export const CHATTER_HIGH_CHANGE_PCT = 100;
+
+// Today's traded volume against the company's own 20-day average. Two times is where participation
+// stops being ordinary: measured on the shipped capture, 40 of 603 companies clear 2x and 16 clear
+// 3x, so this surfaces a readable handful rather than a second copy of the universe.
+//
+// A VOLUME SPIKE IS NOT A PRICE MOVE AND HAS ITS OWN ROW. `MOVE_PCT` asks whether the price went
+// somewhere; this asks whether anyone was there. They answer different questions and routinely
+// disagree — a 6% move on ordinary volume is a thin tape, and 3x volume on a flat close is
+// accumulation or distribution nobody has priced yet — so folding one into the other would lose
+// whichever signal the other did not carry.
+export const VOLUME_X = 2;
 
 export const DIRECTION = { POSITIVE: 'positive', NEGATIVE: 'negative', NEUTRAL: 'neutral' };
 export const IMPORTANCE = { HIGH: 'high', LOW: 'low' };
@@ -123,53 +209,109 @@ const signal = (direction, importance, signalReason, importanceReason) => ({
   reason: signalReason,
 });
 
-const textOf = (...parts) => parts.filter(Boolean).join(' ').toLowerCase();
+/**
+ * A company-news story's reading: TOPIC AND MATERIALITY, NEVER DIRECTION.
+ *
+ * `tabs/news.js` carries no sentiment of ours and this does not change that — see the header of
+ * `js/data/news-keywords.js`. A tracked keyword says what a story is ABOUT, and "Lawsuit" is a
+ * topic a company can be on either side of, so the direction stays NEUTRAL exactly as it was.
+ *
+ * What a match changes is IMPORTANCE, which is the question the desk's thirty keywords were written
+ * to answer: is this one of the things we watch, or is it the name-collision noise that makes up
+ * three quarters of a search-built feed. The reason string says "matched the tracked keyword X" and
+ * never "the company won an order" — a word in a headline is not a verified event.
+ *
+ * Exported because it is the entry rule for this feed's high-importance rows, and a rule that only
+ * runs inside a collector can only be tested on the days the capture happens to contain one.
+ */
+export function newsSignal(row = {}) {
+  const reading = classifyStory(row);
+  const attribution = reading.attribution;
+  const identityReading = { attribution, aiEligible: attribution.status === 'confirmed', namesCompany: reading.namesCompany };
+  const eventTopics = newsEventTopics(row);
+  if (eventTopics.length && ['confirmed', 'related'].includes(attribution.status)) {
+    return { ...signal(DIRECTION.NEUTRAL, IMPORTANCE.HIGH,
+      'Reported topic; this classification does not verify the event, opinion or its financial impact.',
+      `High: ${eventTopics.join(', ')} in the headline or bounded article body. ${attribution.reason}`),
+      keywords: [...new Set([...reading.labels, ...eventTopics])], ...identityReading,
+      reviewContext: attribution.status === 'related' };
+  }
+  if (!reading.tracked) {
+    return {
+      ...signal(
+        DIRECTION.NEUTRAL,
+        IMPORTANCE.LOW,
+        'Publisher headline; not directionally graded.',
+        attribution.status !== 'confirmed'
+          ? `Low: no tracked keyword matched. ${attribution.reason}`
+          : 'Low: no tracked keyword matched, so this is general coverage rather than a watched event.'
+      ),
+      keywords: [],
+      // Attribution and topic are independent. The old early return lost this field precisely on
+      // the untracked rows that make up most search spillover, leaving All Alerts unable to tell
+      // “the article names the company” from “the search API filed it under the company”.
+      ...identityReading,
+    };
+  }
+  const labels = reading.labels;
+  const named = reading.namesCompany;
+  const where = reading.inTitle ? 'headline' : 'standfirst';
+  // Identity and topic are separate. Unknown identity stays visible in company search, but cannot
+  // promote an event or count as independent AI corroboration. Absence of a name is NOT a mismatch.
+  // AND THE KEYWORD HAS TO BE IN THE HEADLINE, NOT ONLY THE STANDFIRST.
+  //
+  // The publisher chose what to lead with; a standfirst is a paragraph that happened to contain the
+  // word. Measured on the shipped capture, the difference is not marginal — 3,278 stories carry a
+  // tracked keyword somewhere and 1,990 carry one in the headline — and the gap is mostly the
+  // upstream's chrome: several outlets' "summary" is a related-links strip, so ONE Business Today
+  // sidebar reading "…Hexaware shares tank 4% after CEO steps down…" was tagging unrelated stories
+  // about MCX and aircraft leasing as Resignation. Nothing was wrong with the pattern; the field it
+  // read was not this story's standfirst.
+  //
+  // The FILTER still matches both, and the chip says which — exploring a feed and asserting a
+  // company needs attention are different jobs, and only the second is a claim.
+  const bothHalves = named === true && reading.inTitle;
+  return {
+    ...signal(
+      DIRECTION.NEUTRAL,
+      bothHalves ? IMPORTANCE.HIGH : IMPORTANCE.LOW,
+      `Publisher headline; not directionally graded. Topic only: ${labels.join(', ')}.`,
+      bothHalves
+        ? `High: matched the tracked ${labels.length === 1 ? 'keyword' : 'keywords'} ${labels.join(', ')} in the ${where}` +
+          (named === true ? ', and the story names the company.' : '.')
+        : named !== true
+          ? `Low: matched the tracked ${labels.length === 1 ? 'keyword' : 'keywords'} ${labels.join(', ')}. ${attribution.reason}`
+          : `Low: matched the tracked ${labels.length === 1 ? 'keyword' : 'keywords'} ${labels.join(', ')} only in the standfirst, which several outlets fill with a related-links strip rather than this story's own summary. The headline is what the publisher chose to lead with.`
+    ),
+    keywords: labels,
+    keywordIds: reading.ids,
+    keywordGroups: reading.groups,
+    ...identityReading,
+  };
+}
 
-/** Conservative, visible rules over BSE's title/taxonomy. Neutral is the deliberate fallback. */
-export function announcementSignal(row = {}) {
-  const text = textOf(row.category, row.subCategory, row.title, row.headline);
-  const negative = [
-    ['rating downgrade', /\b(?:rating\s+)?downgrad(?:e|ed|ing)\b/],
-    ['default or insolvency', /\bdefault(?:ed)?\b|\binsolvenc\w*\b|\bbankrupt\w*\b|\bliquidat\w*\b|\bwinding[ -]?up\b/],
-    ['fraud or enforcement action', /\bfraud\w*\b|\bpenalt(?:y|ies)\b|\bfine\b|\bshow[ -]?cause\b|\btax demand\b|\bdemand notice\b/],
-    ['contract cancellation or suspension', /\b(?:order|contract)\s+(?:cancel\w*|terminat\w*)\b|\bsuspension\b/],
-    ['auditor resignation', /\bauditor\w*.{0,80}\bresign\w*\b|\bresign\w*.{0,80}\bauditor\w*\b/],
-  ].find(([, re]) => re.test(text));
-  // An approval is directional only when the filing also names a regulator or exchange. A client
-  // approving a drawing or an internal proposal is not the same event. BSE titles commonly put
-  // the noun first ("Receipt of In-Principle Approval from the Stock Exchanges"), so the action
-  // accepts both word orders while the context guard keeps the rule narrow.
-  const regulatoryApproval =
-    /\b(?:approval (?:received|granted)|approved by|receipt of.{0,80}\bapproval)\b/.test(text) &&
-    /\b(?:bse|nse|stock exchanges?|sebi|rbi|government|ministr(?:y|ies)|authorit(?:y|ies)|regulator\w*|nclt|courts?|drug controller|usfda|fda)\b/.test(text);
-  const positive = [
-    ['rating upgrade', /\b(?:rating\s+)?upgrad(?:e|ed|ing)\b/.test(text)],
-    ['shareholder distribution', /\bdividend\b|\bbonus (?:issue|share)\b|\bbuyback\b/.test(text)],
-    // A bare "order received" is also how adjudication, court and regulator notices are titled.
-    // Commercial context is required before that phrase can be called business won.
-    ['order or contract award', /\bcontract\s+(?:award\w*|won|received|secured)\b|\b(?:purchase|work|supply|export)\s+order\s+(?:award\w*|won|received|secured)\b|\border\s+(?:award\w*|won|secured)\b|\bawarded (?:an? )?(?:order|contract)\b/.test(text)],
-    ['regulatory approval or patent grant', regulatoryApproval || /\bpatent (?:granted|received)\b/.test(text)],
-    ['commercial production start', /\bcommercial production (?:commenc(?:ed|ement)|started|began)\b|\b(?:start|commencement) of (?:the )?commercial production\b/.test(text)],
-  ].find(([, matched]) => matched);
-  const matched = negative || positive;
-  const direction = negative ? DIRECTION.NEGATIVE : positive ? DIRECTION.POSITIVE : DIRECTION.NEUTRAL;
-  const importance = row.critical === true || matched ? IMPORTANCE.HIGH : IMPORTANCE.LOW;
-  return signal(
-    direction,
-    importance,
-    matched ? `Rule-derived from the filing text: ${matched[0]}.` : 'No directional announcement rule matched; shown as neutral.',
-    row.critical === true
-      ? 'High: BSE marked this filing critical.'
-      : matched
-        ? 'High: a stated material announcement rule matched.'
-        : 'Low: BSE did not mark it critical and no material rule matched.'
-  );
+/**
+ * The text All Alerts is allowed to match for one event.
+ *
+ * Confirmed and uncertain news retain company search recall. Only a reviewed mismatch loses the
+ * query identity from search; the article stays in the unassigned retained stream. The old rule
+ * excluded every missing-name result and hid real brand/spelling variants from company searches.
+ */
+export function eventSearchText(event = {}) {
+  const row = { ...event.sourceRecord, title: event.headline, company: event.company, ticker: event.ticker, attribution: event.attribution || event.sourceRecord?.attribution };
+  const identity = event.feed === 'news' ? newsSearchText(row) : `${event.company || ''} ${event.ticker || ''}`;
+  return `${event.day || ''} ${event.time || ''} ${identity} ${event.direction || ''} ${event.importance || ''} ${event.headline || ''} ${event.detail || ''} ${event.signalReason || ''} ${event.importanceReason || ''} ${event.feedLabel || ''}`;
 }
 
 const numeric = (value) => {
   if (value == null || value === '') return null;
-  const n = Number(String(value).replace(/[^0-9.+-]/g, ''));
-  return Number.isFinite(n) ? n : null;
+  const text = String(value).trim();
+  if (!/\d/.test(text)) return null;
+  const n = Number(text.replace(/[^0-9.+-]/g, ''));
+  if (!Number.isFinite(n)) return null;
+  if (/\b(?:crore|cr)\b/i.test(text)) return n * 10_000_000;
+  if (/\b(?:lakh|lac|lacs)\b/i.test(text)) return n * 100_000;
+  return n;
 };
 
 /** Transaction direction plus comparable, stated thresholds; unknown transaction words stay neutral. */
@@ -188,10 +330,10 @@ export function insiderSignal(cells = {}) {
   } else if (/\binvoke\w*\b/.test(transactionWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Pledge creation/invocation in the upstream transaction wording.';
-  } else if (/\b(?:disposal|dispose\w*|sell|sale)\b/.test(transactionWords)) {
+  } else if (/\b(?:disposal|dispose\w*|sell|sold|sale)\b/.test(transactionWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Disposal/sale in the upstream transaction wording.';
-  } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(transactionWords)) {
+  } else if (/\b(?:acquisition|acquire\w*|buy|bought|purchase)\b/.test(transactionWords)) {
     direction = DIRECTION.POSITIVE;
     basis = 'Acquisition/purchase in the upstream transaction wording.';
   } else if (/\bpledge\b/.test(transactionWords)) {
@@ -208,10 +350,10 @@ export function insiderSignal(cells = {}) {
   } else if (/\b(?:invoke\w*|creat\w*)\b.*\bpledge\b|\bpledge\b/.test(modeWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Pledge creation/invocation in the upstream mode wording.';
-  } else if (/\b(?:disposal|dispose\w*|sell|sale)\b/.test(modeWords)) {
+  } else if (/\b(?:disposal|dispose\w*|sell|sold|sale)\b/.test(modeWords)) {
     direction = DIRECTION.NEGATIVE;
     basis = 'Disposal/sale in the upstream mode wording.';
-  } else if (/\b(?:acquisition|acquire\w*|buy|purchase)\b/.test(modeWords)) {
+  } else if (/\b(?:acquisition|acquire\w*|buy|bought|purchase)\b/.test(modeWords)) {
     direction = DIRECTION.POSITIVE;
     basis = 'Acquisition/purchase in the upstream mode wording.';
   }
@@ -238,18 +380,97 @@ export function insiderSignal(cells = {}) {
 // ---------------------------------------------------------------------------------------
 
 export const FEEDS = [
-  { id: 'technicals', label: 'Price moves', tab: 'breakouts', what: `Companies whose last completed close moved more than ${MOVE_PCT}% against the close before it, dated to that session — never to the capture. Moves past the check threshold are re-derived from the Muns market-data endpoint where it answered.` },
+  { id: 'technicals', label: 'Price & volume', tab: 'breakouts', what: `Two readings of the last completed session, dated to it and never to the capture: a close that moved more than ${MOVE_PCT}% against the close before it, and participation — volume at ${VOLUME_X}x the company's own 20-day average, or a confirmed break above its consolidation base. Volume is reported neutral because the tape does not say whether heavy trading was accumulation or distribution. Moves past the check threshold are re-derived from the Muns market-data endpoint where it answered.` },
   { id: 'earnings', label: 'Earnings', tab: 'earnings-hub', what: 'Filed quarterly results, graded from the source revenue and net-profit comparison.' },
   { id: 'concalls', label: 'Con-calls', tab: 'concall', what: "Held con-calls, using StockScans' own result and sentiment bands." },
   { id: 'chatter', label: 'Public chatter', tab: 'public-chatter', what: "The source's rolling 30-day company sentiment snapshot, dated to its capture." },
   { id: 'investors', label: 'Investor activity', tab: 'super-investors', what: 'Quarter-over-quarter disclosed holding changes from Super Investors, dated to each current investor book confirmation.' },
-  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: 'Everything filed to BSE in the retained exchange-wide capture.' },
+  { id: 'announcements', label: 'Announcements', tab: 'corp-announcements', what: "Everything filed to BSE in the retained exchange-wide capture. Direction comes from a narrow rule over the filing's own text; high importance means the filing matched one of the thirty tracked keywords or that directional rule. BSE's own critical marker is reproduced on every row but does not gate importance — it covers routine AGM and board-meeting filings." },
   { id: 'insider', label: 'Insider trades', tab: 'insider-trades', what: 'Retained insider and promoter disclosures, under their broadcast dates.' },
-  { id: 'news', label: 'Company news', tab: 'news', what: 'Retained stories about a company in scope, under their published dates.' },
-  { id: 'market-news', label: 'Market news', tab: 'news', what: 'Retained market-wide stories. Carries no company, so it is Universe only.' },
+  { id: 'news', label: 'Company news', tab: 'news', what: 'Retained stories about a company in scope, under their published dates. High importance means the story matched one of the thirty tracked keywords the desk watches newsflow by; the reading is a TOPIC and never a direction, so every row here stays neutral.' },
+  { id: 'market-news', label: 'Market news', tab: 'news', what: 'Retained market-wide stories, tagged with the same tracked keywords for filtering. They carry no company, so importance stays low — a keyword is material ABOUT a company, and there is none on these rows — and they are Universe only.' },
+  ...ADDITIONAL_SOURCES.map(({ load, read, ...feed }) => feed),
 ];
 
 const feedById = new Map(FEEDS.map((f) => [f.id, f]));
+const loadingFeeds = new Map();
+const loadErrors = new Map();
+const loadedFeeds = new Set();
+const listeners = new Set();
+// One normalized snapshot per public feed, not per tab/scope/filter. Keep source subscriptions
+// alive while the tab is unmounted so a change elsewhere cannot resurrect an old snapshot.
+// No poller or durable storage here; private document feeds are always read directly.
+const normalizedFeeds = new Map();
+const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents']);
+let observingSources = false;
+function observeSources() {
+  if (observingSources) return;
+  observingSources = true;
+  const dependencies = [
+    [technicals, ['technicals']], [earnings, ['earnings']],
+    [concalls, ['concalls', 'scheduled-concalls', 'screener-portfolio-upcoming']],
+    [chatter, ['chatter', 'chatter-posts']], [investors, ['investors', 'investor-positions']],
+    [announcements, ['announcements']], [insider, ['insider']], [news, ['news']],
+    [marketNews, ['market-news']], [records, []], ...additionalSourceDependencies,
+  ];
+  for (const [source, ids] of dependencies) source.onChange?.(() => {
+    for (const id of ids) normalizedFeeds.delete(id);
+    listeners.forEach((fn) => fn());
+  });
+  // Some collectors resolve issuer names against the current in-memory portfolio.
+  coverage.onChange(({ changed }) => { if (changed) normalizedFeeds.clear(); });
+}
+
+function readFeed(feed, { day, includeHistory }) {
+  const cached = normalizedFeeds.get(feed.id);
+  if (cached?.day === day && cached.includeHistory === includeHistory) {
+    // Re-age the wall-clock discovery note without reclassifying thousands of unchanged stories.
+    return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day) } : cached.row;
+  }
+  const out = COLLECTORS[feed.id]({ day, includeHistory, scope: 'universe', wanted: null }) || {};
+  const row = toFeedRow(feed, { ...out,
+    events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
+  if (loadedFeeds.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, row });
+  return row;
+}
+
+function loadFeed(id, refresh) {
+  if (loadingFeeds.has(id)) return loadingFeeds.get(id);
+  const pending = Promise.resolve().then(() => LOADERS[id]?.(refresh)).then(
+    () => {
+      // A loader may update freshness without publishing row changes (e.g. HTTP 304).
+      if (refresh || !loadedFeeds.has(id)) normalizedFeeds.delete(id);
+      loadErrors.delete(id); loadedFeeds.add(id);
+    },
+    (error) => { loadErrors.set(id, String(error?.message || error)); throw error; },
+  ).finally(() => {
+    // The bulk calendar adapter owns a capture outside earnings-calendar's event store.
+    if (id === 'earnings-calendar') normalizedFeeds.delete(id);
+    loadingFeeds.delete(id); listeners.forEach((fn) => fn());
+  });
+  loadingFeeds.set(id, pending);
+  return pending;
+}
+
+/** Revalidate the evidence stores without building a large alerts report.
+ * Ask Research needs fresh inputs for the next question, not a discarded timeline. */
+export async function refreshSources() {
+  observeSources();
+  const context = screenerInsights.load({ refresh: true }).then(() => {
+    if (screenerInsights.meta()?.latestReadFailed) throw Error('Company insights could not be refreshed.');
+  });
+  const results = await Promise.allSettled([...FEEDS.map((feed) => loadFeed(feed.id, true)), context]);
+  return { checked: results.filter((r) => r.status === 'fulfilled').length,
+    failed: results.filter((r) => r.status === 'rejected').length };
+}
+
+/** Load the shared feed stores without assembling or sorting any timeline. */
+export async function prepareSources({ refresh = false, feedIds = null } = {}) {
+  observeSources();
+  const wanted = feedIds == null ? null : new Set(feedIds);
+  const selected = wanted ? FEEDS.filter(feed => wanted.has(feed.id)) : FEEDS;
+  return Promise.allSettled(selected.map(feed => loadFeed(feed.id, refresh)));
+}
 
 // ---------------------------------------------------------------------------------------
 // Collect
@@ -263,12 +484,38 @@ const feedById = new Map(FEEDS.map((f) => [f.id, f]));
  * nothing else. A failure becomes a `feeds[]` row saying so — the same rule as everywhere here, a
  * failed read is never an empty result.
  */
-export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, onPartial = null } = {}) {
+export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, load = true, onPartial = null, requestedCompanies = [] } = {}) {
+  observeSources();
   const book = holdings || coverage.holdings();
-  const wanted = scopeMatcher(scope, book);
-
   const settledFeeds = new Map(); // feed id -> the finished feed row
-  const build = () => assemble({ day, scope, includeHistory, settledFeeds });
+  // A warm estate can still require cold normalization. Do not make a tab click synchronously
+  // classify every source before the shell can paint. Yield between source-sized batches too;
+  // this changes scheduling only, never the records, coverage or private-data filtering.
+  const yieldForInput = () => typeof window === 'undefined' ? Promise.resolve()
+    : new Promise(resolve => setTimeout(resolve, 0));
+  await yieldForInput();
+  let batchStarted = performance.now();
+  // Start with every source's current in-memory records. Refreshing one source
+  // must not temporarily remove all the others from the timeline. The pending
+  // status still says these records have not been rechecked by this collection.
+  for (const feed of load ? FEEDS : []) {
+    try {
+      settledFeeds.set(feed.id, { ...readFeed(feed, { day, includeHistory }), status: 'pending' });
+    } catch { /* A source with no readable snapshot starts empty. */ }
+    if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
+  }
+  const build = () => assemble({ day, scope, holdings: book, includeHistory, settledFeeds, requestedCompanies });
+  // Feed promises often finish in one burst. Building/sorting the entire history after every
+  // promise made one cached refresh rebuild a 60k-row pool twenty times before yielding to input.
+  // Coalesce progress at the data boundary; throttling only the eventual DOM paint is too late.
+  let partialTimer = null;
+  const publishPartial = () => {
+    partialTimer = null;
+    try { onPartial?.(build()); } catch (err) { console.error('[daily-alerts] onPartial threw', err); }
+  };
+  const schedulePartial = () => {
+    if (load && onPartial && partialTimer === null) partialTimer = setTimeout(publishPartial, 80);
+  };
 
   // EACH FEED SETTLES ON ITS OWN AND THE PAGE PAINTS AS IT DOES.
   //
@@ -279,43 +526,83 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // page. `Promise.all` over independent reads is head-of-line blocking with a
   // tidy syntax.
   //
-  // So each feed loads, collects and reports independently, and `onPartial` fires every time one
-  // lands. Nothing rejects: a feed that throws becomes a row saying so, because a failed read is
+  // Each feed loads and collects independently; `onPartial` publishes a bounded cadence of
+  // progress while slower reads remain outstanding. Nothing rejects: a failed read is
   // never an empty result.
   await Promise.all(
     FEEDS.map(async (feed) => {
       let out;
+      // Collect once without company narrowing. Scope is a view over the same source records,
+      // never an ingestion filter. Unresolved rows survive in Universe.
+      const args = { day, scope: 'universe', wanted: null, includeHistory };
       try {
-        await LOADERS[feed.id](refresh);
-        out = COLLECTORS[feed.id]({ day, scope, wanted, includeHistory }) || {};
+        if (load) await loadFeed(feed.id, refresh);
+        await yieldForInput();
+        out = readFeed(feed, args);
+        if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
+        else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
-        out = { events: [], status: 'failed', reachesToday: false, asOf: null, note: String(err?.message || err) };
+        // A failed refresh must not erase a last-good capture or masquerade as an empty feed.
+        try { out = readFeed(feed, args); } catch { out = toFeedRow(feed, { events: [] }, day); }
+        out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
-      settledFeeds.set(feed.id, toFeedRow(feed, out, day));
-      try {
-        onPartial?.(build());
-      } catch (err) {
-        console.error('[daily-alerts] onPartial threw', err);
-      }
+      settledFeeds.set(feed.id, out);
+      schedulePartial();
     })
   );
 
-  return build();
+  if (partialTimer !== null) clearTimeout(partialTimer);
+  const completed = build();
+  if (load) {
+    // Materialize from the already-settled source records; this starts no second
+    // read. Universe is used so the same public snapshot can be narrowed against
+    // the current Portfolio or Watchlist after a reload without persisting either.
+    const allPublic = assemble({ day, scope: 'universe', holdings: book, includeHistory, settledFeeds });
+    void alertWindowCache.write(materializePublicAlertWindow(allPublic));
+  }
+  return completed;
 }
 
 const LOADERS = {
-  technicals: () => technicals.load(),
+  technicals: (refresh) => refresh ? technicals.refresh() : technicals.load(),
   earnings: (refresh) => refresh ? earnings.refresh() : earnings.load(),
   concalls: (refresh) => refresh ? concalls.refresh() : concalls.load(),
   chatter: (refresh) => refresh ? chatter.refresh() : chatter.load(),
   // One bulk snapshot only. `investors.refresh()` is a ninety-one-request upstream walk and belongs
   // to that tab's explicit "Re-read everything" control, not this consolidated header button.
   investors: (refresh) => refresh ? investors.refreshSnapshot() : investors.load(),
-  announcements: () => announcements.seed(),
-  insider: () => insider.seed(),
-  news: () => news.seed(),
-  'market-news': () => marketNews.load(),
+  announcements: (refresh) => refreshFilings(announcements, refresh),
+  insider: (refresh) => refreshFilings(insider, refresh),
+  news: (refresh) => refreshFilings(news, refresh),
+  'market-news': async (refresh) => {
+    await marketNews.load();
+    if (refresh) await marketNews.refresh();
+    while (marketNews.archiveMeta().remaining) {
+      const before = marketNews.archiveMeta().remaining;
+      const result = await marketNews.loadMore();
+      if (result.failed || marketNews.archiveMeta().remaining >= before) throw Error('Market-news archive could not be completely read');
+    }
+    if (marketNews.meta().lastReadFailed) throw Error('Market-news capture could not be revalidated');
+  },
+  ...Object.fromEntries(ADDITIONAL_SOURCES.map((s) => [s.id, s.load])),
+  'scheduled-concalls': (refresh) => loadFeed('concalls', refresh),
+  'investor-positions': (refresh) => loadFeed('investors', refresh),
+  'chatter-posts': (refresh) => loadFeed('chatter', refresh),
 };
+
+async function refreshFilings(feed, refresh) {
+  await feed.seed();
+  if (refresh && !(await feed.refreshSnapshot()).available) throw Error('Latest filings capture unavailable');
+  const m = feed.meta();
+  if (m.reason || m.failed || m.truncated) throw Error(m.message || 'Filings coverage is incomplete');
+}
+
+// Read-only source notifications; the tab reassembles loaded records without triggering fetches.
+export function onChange(fn) {
+  observeSources();
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
 
 const COLLECTORS = {
   technicals: fromTechnicals,
@@ -327,10 +614,17 @@ const COLLECTORS = {
   insider: fromInsider,
   news: fromCompanyNews,
   'market-news': fromMarketNews,
+  ...Object.fromEntries(ADDITIONAL_SOURCES.map((s) => [s.id, s.read])),
 };
 
 function toFeedRow(feed, out, day) {
-  const events = (out.events || []).map((event) => ({ ...event, day: eventDay(event) }));
+  const seen = new Set();
+  const events = (out.events || []).filter((event) => {
+    // Deduplicate exact records within a source, not independent exchange/publisher evidence.
+    const key = `${event.id}:${JSON.stringify(event.sourceRecord || event)}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).map((event) => ({ ...event, day: eventDay(event) }));
   const days = events.map((event) => event.day).filter(Boolean).sort();
   return {
     ...feed,
@@ -355,18 +649,124 @@ function toFeedRow(feed, out, day) {
  * half-finished read must never be allowed to say. It carries no count at all, so the totals below
  * are of what has actually been read rather than of what is eventually expected.
  */
-function assemble({ day, scope, includeHistory, settledFeeds }) {
-  const feeds = FEEDS.map(
-    (feed) => settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null }
-  );
+const discoveryMappings = new WeakMap();
+export function mapPortfolioDiscoveryEvents(feedId, events, portfolioEntities) {
+  if (!['market-news', 'twitter', 'ipos'].includes(feedId)) return events;
+  const signature = JSON.stringify(portfolioEntities);
+  const cached = discoveryMappings.get(events);
+  if (cached?.feedId === feedId && cached.signature === signature) return cached.value;
+  const value = events.flatMap(event => {
+    const row = { ...event.sourceRecord, title: feedId === 'ipos' ? `${event.company || ''}: ${event.headline}` : event.headline,
+      url: event.url, summary: event.sourceRecord?.summary };
+    const matches = matchPortfolioNews(row, portfolioEntities);
+    if (feedId === 'twitter') {
+      // A post may discuss the company only in an attached image/thread. Keep exact collector
+      // query context searchable as uncertain, without treating that query as article evidence.
+      for (const query of event.sourceRecord?.matchedQueries || []) {
+        const identity = portfolioEntities.find(e => e.entityId === query.entityId);
+        if (identity && !matches.some(m => m.entityId === identity.entityId)) matches.push(attributeNewsRow(row, identity));
+      }
+    }
+    if (!matches.length) return [event];
+    return matches.map(matched => ({ ...event, ...newsSignal(matched),
+      ...(feedId === 'twitter' ? { aiEligible: false, importance: IMPORTANCE.LOW } : {}),
+      id: `${event.id}:entity:${matched.entityId}`, entityId: matched.entityId, ticker: matched.ticker,
+      company: matched.company, issuer: feedId === 'ipos' ? event.company : null,
+      sourceRecord: matched,
+      detail: [event.detail, feedId === 'twitter' ? 'Unverified social discussion; open the post and corroborate against primary sources.' : null,
+        matched.attribution.reason].filter(Boolean).join(' · '),
+    }));
+  });
+  discoveryMappings.set(events, { feedId, signature, value });
+  return value;
+}
 
+/** One company/article can arrive through company search and the shared publisher projection.
+ * Collapse only that cross-route display overlap; never collapse different companies, unrelated
+ * Universe stories, or filings/social events. Source readers and their complete archives remain
+ * untouched. The preferred row retains its attribution and full source record, with compact
+ * provenance for every contributing route; feed counts and exports use this same unique view.
+ */
+export function dedupePublisherAlertFeeds(feeds, { day, entities = [] } = {}) {
+  const byTicker = new Map(entities.filter(entity => entity.ticker).map(entity => [String(entity.ticker).toUpperCase(), entity.entityId]));
+  const groups = new Map();
+  feeds.forEach((feed, feedIndex) => {
+    if (!['news', 'market-news'].includes(feed.id)) return;
+    feed.events.forEach((event, rowIndex) => {
+      const ticker = String(event.ticker || '').toUpperCase();
+      const identity = event.entityId && !event.entityId.startsWith('ticker:') ? event.entityId
+        : byTicker.get(ticker) || (ticker ? `ticker:${ticker}` : event.entityId);
+      if (!identity || !event.url) return;
+      const key = JSON.stringify([identity, canonicalArticleUrl(event.url)]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ event, feed, feedIndex, rowIndex });
+    });
+  });
+  const changes = new Map();
+  const quality = event => ({ confirmed: 3, related: 2, uncertain: 1, unrelated: 0 })[event.attribution?.status] ?? 0;
+  for (const group of groups.values()) {
+    if (new Set(group.map(item => item.feed.id)).size < 2) continue;
+    // Prefer stronger article/company evidence; equal evidence keeps the Company news route.
+    const winner = [...group].sort((a, b) => quality(b.event) - quality(a.event) || Number(b.feed.id === 'news') - Number(a.feed.id === 'news'))[0];
+    const provenance = group.flatMap(({ event, feed }) => event.newsProvenance || [{ feed: feed.id, eventId: event.id,
+      url: event.url, publisher: event.sourceRecord?.publisher || event.sourceRecord?.source || null,
+      discoverySource: event.sourceRecord?.discoverySource || null }]);
+    for (const item of group) changes.set(`${item.feedIndex}:${item.rowIndex}`, item === winner ? { ...winner.event,
+      newsProvenance: [...new Map(provenance.map(record => [JSON.stringify(record), record])).values()] } : null);
+  }
+  if (!changes.size) return feeds;
+  return feeds.map((feed, feedIndex) => {
+    const events = feed.events.flatMap((event, rowIndex) => {
+      const key = `${feedIndex}:${rowIndex}`;
+      return !changes.has(key) ? [event] : changes.get(key) ? [changes.get(key)] : [];
+    });
+    return { ...feed, events, count: events.length, todayCount: events.filter(event => event.day === day).length };
+  });
+}
+
+function assemble({ day, scope, holdings, includeHistory, settledFeeds, requestedCompanies = [] }) {
+  const scoped = scopeMatcher(scope, holdings);
+  const requested = new Set(requestedCompanies.map(company => company.ticker).filter(Boolean));
+  const requestedEntities = new Set(portfolioNewsEntities(requestedCompanies).map(entity => entity.entityId));
+  // Research can name a public issuer outside the selected view. The view still controls
+  // private portfolio-only feeds; public identity expansion must not change that boundary.
+  const wanted = { has: ticker => scoped.has(ticker) || requested.has(ticker) };
+  const portfolioEntities = portfolioNewsEntities([...holdings, ...requestedCompanies]);
+  const portfolioNewsIds = new Set(portfolioEntities.map((entity) => entity.entityId));
+  const scopeContext = { scope, wanted, entityIds: portfolioNewsIds, requestedEntities };
+  const scopedFeeds = FEEDS.map(
+    (feed) => settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null }
+  ).map((settled) => {
+    // Private results can be cleared while public reads are in flight. Never let an old partial
+    // report restore a previous account's rows after logout; read these memory-only feeds afresh.
+    let feed = settled;
+    if (['company-documents', 'drhp-documents'].includes(settled.id)) {
+      const current = COLLECTORS[settled.id]({ day });
+      current.events = current.events.filter((e) => includeHistory || eventDay(e) === day);
+      feed = toFeedRow(settled, current, day);
+    }
+    const all = mapPortfolioDiscoveryEvents(feed.id, feed.events, portfolioEntities);
+    // The S Screen calendar is already scoped by the exact synchronized portfolio membership.
+    // That fact lets BSE-only holdings survive even when they have no NSE ticker; it must not make
+    // the private portfolio schedule leak into Universe or the reader's personal watchlist.
+    // Company News has the same legitimate no-ticker case, but carries a stable ISIN entity id
+    // instead of being pre-scoped by its collector.
+    const events = all.filter(event => matchesAlertScope(event, scopeContext));
+    const unresolved = all.filter((event) => !event.ticker && !event.entityId).length;
+    const unscopable = feed.portfolioOnly && scope !== 'portfolio';
+    return { ...feed, events, count: events.length, todayCount: events.filter((e) => e.day === day).length,
+      sourceCount: all.length, unresolvedCount: unresolved, scopable: !unscopable,
+      note: [feed.note, scope !== 'universe' && unresolved ? `${unresolved} records have no resolved ticker and are available in Universe only.` : null].filter(Boolean).join(' ') || null };
+  });
+
+  const feeds = dedupePublisherAlertFeeds(scopedFeeds, { day, entities: portfolioEntities });
   const events = [];
   for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
   events.sort(byNewestFirst);
   ensureUniqueIds(events);
   const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
 
-  const done = feeds.filter((f) => f.status === 'ok' || f.status === 'failed');
+  const done = feeds.filter((f) => f.status !== 'pending');
   return {
     day,
     scope,
@@ -381,8 +781,12 @@ function assemble({ day, scope, includeHistory, settledFeeds }) {
       negative: events.filter((e) => e.direction === DIRECTION.NEGATIVE).length,
       neutral: events.filter((e) => e.direction === DIRECTION.NEUTRAL).length,
       highImportance: events.filter((e) => e.importance === IMPORTANCE.HIGH).length,
-      companies: new Set(events.map((e) => e.ticker).filter(Boolean)).size,
+      companies: new Set(events.map((e) => e.ticker || e.entityId).filter(Boolean)).size,
       days: eventDays.length,
+      undated: events.filter((e) => !e.day).length,
+      scheduled: events.filter((e) => e.kind === 'scheduled').length,
+      sourceRecords: feeds.reduce((n, f) => n + (f.sourceCount || 0), 0),
+      unresolvedRecords: feeds.reduce((n, f) => n + (f.unresolvedCount || 0), 0),
       oldestEventDay: eventDays[0] || null,
       newestEventDay: eventDays.at(-1) || null,
       // The FRESHEST feed and the STALEST feed, both, because one number cannot describe eight
@@ -396,6 +800,18 @@ function assemble({ day, scope, includeHistory, settledFeeds }) {
       moveThreshold: MOVE_PCT,
     },
   };
+}
+
+/** Match stable company identity OR ticker, exactly as Portfolio News does. A discovered BSE
+ * symbol or an older ticker must not veto the same held ISIN in another dashboard view. This
+ * affects visibility, not the article's attribution/AI materiality or the source's saved identity.
+ */
+export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEntities } = {}) {
+  if (event.portfolioOnly) return scope === 'portfolio';
+  if (event.entityId && requestedEntities?.has(event.entityId)) return true;
+  if (scope === 'portfolio' && event.entityId && entityIds?.has(event.entityId)) return true;
+  if (event.ticker) return !!wanted?.has(event.ticker);
+  return scope === 'universe';
 }
 
 /**
@@ -442,15 +858,16 @@ function byNewestFirst(a, b) {
 function eventDay(event) {
   if (event?.day && /^\d{4}-\d{2}-\d{2}$/.test(String(event.day))) return String(event.day);
   const at = event?.at;
-  if (typeof at === 'string' && /^\d{4}-\d{2}-\d{2}/.test(at)) return at.slice(0, 10);
+  if (typeof at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(at)) return at;
   return istDay(at);
 }
 
 /** One-day mode matches exactly; history mode includes every retained row through the report day. */
 function inRequestedWindow(value, day, includeHistory) {
-  const rowDay = typeof value === 'string' ? value.slice(0, 10) : eventDay({ at: value });
+  if (includeHistory) return true; // retain undated rows and future schedules; view filters are downstream
+  const rowDay = eventDay({ at: value });
   if (!rowDay) return false;
-  return includeHistory ? rowDay <= day : rowDay === day;
+  return rowDay === day;
 }
 
 const maxTime = (list) => latestConfirmation(...list);
@@ -529,6 +946,7 @@ function fromEarnings({ day, wanted, includeHistory }) {
         : `${basis}: revenue and net profit were mixed or flat; shown as neutral.`;
     return {
       id: `earnings:${r.scId || r.ticker}:${r.resultDate}:${basis}`,
+      sourceRecord: r,
       ...signal(direction, IMPORTANCE.HIGH, reading, 'High: a quarterly financial result was filed.'),
       time: null,
       at: r.resultDate,
@@ -556,7 +974,7 @@ function fromConcalls({ day, wanted, includeHistory }) {
   const degraded = !!m.degraded;
   const confirmedAt = degraded || m.origin === 'snapshot' ? m.fetchedAt : latestConfirmation(m.checkedAt, m.fetchedAt);
   const fetchedDay = istDay(confirmedAt);
-  const rows = concalls.all().filter((r) => inRequestedWindow(r.date || r.when, day, includeHistory) && inScope(wanted, r.ticker));
+  const rows = concalls.all().filter((r) => r.analysisTracked !== false && inRequestedWindow(r.date || r.when, day, includeHistory) && inScope(wanted, r.ticker));
   const events = rows.map((r) => {
     const sentiment = r.sentiment?.label || null;
     const direction = ['Bullish', 'Optimistic'].includes(sentiment)
@@ -571,6 +989,7 @@ function fromConcalls({ day, wanted, includeHistory }) {
     const result = r.resultTier?.label ? `${r.resultTier.label} result score ${Number(r.resultScore).toFixed(1)}` : 'result analysis pending';
     return {
       id: `concall:${concalls.rowUid(r)}`,
+      sourceRecord: r,
       ...signal(
         direction,
         importance,
@@ -582,7 +1001,7 @@ function fromConcalls({ day, wanted, includeHistory }) {
       ticker: r.ticker || null,
       company: r.name || r.ticker || '—',
       headline: `Con-call ${analysed ? 'analysis published' : 'held; analysis pending'}`,
-      detail: [result, ...(r.tags || []).slice(0, 2)].join(' · '),
+      detail: [result, ...(r.tags || [])].join(' · '),
       url: r.transcriptUrl || null,
     };
   });
@@ -602,7 +1021,7 @@ function fromChatter({ day, wanted, includeHistory }) {
   const m = chatter.meta() || {};
   const generatedDay = istDay(m.generatedAt);
   const inWindow = inRequestedWindow(generatedDay, day, includeHistory);
-  const rows = inWindow ? chatter.companies().filter((r) => inScope(wanted, r.ticker)) : [];
+  const rows = inWindow ? chatter.all().filter((r) => inScope(wanted, r.ticker)) : [];
   const events = rows.map((r) => {
     const label = String(r.sentiment?.label || 'neutral').toLowerCase();
     const direction = label === 'bullish' ? DIRECTION.POSITIVE : label === 'bearish' ? DIRECTION.NEGATIVE : DIRECTION.NEUTRAL;
@@ -616,7 +1035,8 @@ function fromChatter({ day, wanted, includeHistory }) {
       change != null && Math.abs(change) >= CHATTER_HIGH_CHANGE_PCT ? `${Math.abs(change).toFixed(0)}% mention change` : null,
     ].filter(Boolean);
     return {
-      id: `chatter:${r.ticker}:${m.generatedAt || generatedDay}`,
+      id: `chatter:${r.slug || r.ticker}:${m.generatedAt || generatedDay}`,
+      sourceRecord: r,
       ...signal(
         direction,
         importance,
@@ -682,7 +1102,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const moves = investors.allMoves().filter((move) => {
     const confirmedDay = istDay(confirmedAt(move));
     const ticker = investorTicker(move);
-    return move.action !== 'held'
+    return isMove(move.action)
       && inRequestedWindow(confirmedDay, day, includeHistory)
       && (ticker ? inScope(wanted, ticker) : scope === 'universe');
   });
@@ -703,6 +1123,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
     }[move.action] || move.action;
     return {
       id: `investor:${move.slug}:${move.companySlug}:${move.latest}:${move.action}`,
+      sourceRecord: move,
       ...signal(
         direction,
         importance,
@@ -721,6 +1142,13 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
       headline: `${move.investor}: ${actionText}`,
       detail: `${move.prior} → ${move.latest}${move.action === 'exited' ? ' · “No longer disclosed” does not prove a complete sale.' : ''}`,
       url: move.companySlug ? `https://ticker.finology.in/company/${encodeURIComponent(move.companySlug)}` : null,
+      // Machine-readable copies of what `actionText` already spells out. `deltaPp` stays
+      // NULL for `new` and `exited` exactly as `deriveMoves` leaves it — a first or last
+      // disclosure states a stake, never a change — so a card printing it can never invent
+      // a trade size for a position that simply appeared or disappeared.
+      action: move.action,
+      investor: move.investor,
+      deltaPp: move.action === 'added' || move.action === 'trimmed' ? move.deltaPp ?? null : null,
     };
   });
   // `meta().checkedAt` is deliberately the OLDEST confirmation behind the current set of books.
@@ -748,15 +1176,16 @@ function fromAnnouncements({ day, wanted, includeHistory }) {
   const capturedDay = istDay(m.capturedAt);
   const rows = announcements.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
-  const events = rows.map((r, i) => ({
-    id: `ann:${r.newsId || `${r.ticker}|${r.date}|${i}`}`,
+  const events = rows.map((r) => ({
+    id: `ann:${r.newsId || JSON.stringify([r.ticker, r.date, r.url, r.title, r.category])}`,
+    sourceRecord: r,
     ...announcementSignal(r),
     time: r.time ? String(r.time).slice(0, 5) : null,
     at: r.date,
     ticker: r.ticker || null,
     company: r.company || r.ticker || '—',
     headline: r.title || r.headline || 'Filing',
-    detail: [r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',
+    detail: [...(r.sources || [r.source]), r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',
     url: r.url || null,
   }));
 
@@ -767,7 +1196,8 @@ function fromAnnouncements({ day, wanted, includeHistory }) {
     // empty bucket means nobody looked, not that nobody filed.
     reachesToday: !!capturedDay && capturedDay >= day,
     asOf: m.capturedAt || null,
-    note: capturedDay && capturedDay >= day ? null : `The newest capture of the exchange's filings ran on ${capturedDay || 'an unknown date'}, so nothing here has looked at ${day}.`,
+    note: (capturedDay && capturedDay >= day ? '' : `The newest BSE capture ran on ${capturedDay || 'an unknown date'}. `) +
+      'Exchange-wide coverage and freshness refer to BSE. Additional NSE/DRHP rows cover only requested company/date lookups.',
   };
 }
 
@@ -777,13 +1207,14 @@ function fromInsider({ day, wanted, includeHistory }) {
   const capturedDay = istDay(m.capturedAt);
   const rows = insider.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
-  const events = rows.map((r, i) => {
+  const events = rows.map((r) => {
     const cells = r.cells || {};
     const pick = (...names) => names.map((n) => cells[n]).find((v) => v != null && v !== '');
     return {
       // Content-derived rather than position-derived: loading an older day must not rename every
       // row after it, or a refresh would report the whole timeline as newly arrived.
-      id: `insider:${r.ticker}|${r.date}|${[pick('Insider'), pick('Transaction', 'Acq/Disp', 'Mode'), pick('Trade Shares'), pick('From Date'), pick('To Date')].filter(Boolean).join('|') || i}`,
+      id: `insider:${r.ticker}|${r.date}|${JSON.stringify(cells)}`,
+      sourceRecord: r,
       ...insiderSignal(cells),
       time: null,
       at: r.date,
@@ -806,18 +1237,7 @@ function fromInsider({ day, wanted, includeHistory }) {
   };
 }
 
-/**
- * Companies that moved more than MOVE_PCT at today's close.
- *
- * A MOVE IS AN EVENT; A SCORE IS A STATE. The technicals feed also carries the model's hard fails
- * and its 24-point score, and neither belongs here: they describe how a company stands, not what
- * happened today, so a daily page would repeat the same rows every day until the reading changed.
- * `pct_change_today` is the one figure in that feed that is about today.
- *
- * The feed is end-of-day, so `reachesToday` is a real question: before the scrape runs, the newest
- * close is yesterday's, and reporting yesterday's moves under today's date would be the worst
- * available answer.
- */
+/** Complete technical readings, labelled as snapshots/measurements versus material signals. */
 function fromTechnicals({ day, wanted, includeHistory }) {
   const m = technicals.meta() || {};
   const generated = m.generated_at || null;
@@ -835,14 +1255,76 @@ function fromTechnicals({ day, wanted, includeHistory }) {
   const events = [];
   for (const s of technicals.all()) {
     const c = s.company || {};
-    const move = c.pct_change_today;
+    const move = numeric(c.pct_change_today);
+    const barDay = c.bar_date || priceDay;
+    if (!inScope(wanted, c.ticker) || !inRequestedWindow(barDay, day, includeHistory)) continue;
+    // Every scored or failed source row is retained, including below-threshold measurements.
+    // A technical reading is labelled as a snapshot, never invented as a breakout or trade.
+    events.push(records.record({ id: `technical-snapshot:${c.ticker || c.name}:${barDay}`, row: s,
+      at: barDay, ticker: c.ticker, company: c.name, headline: 'Technical session snapshot',
+      detail: `${barDay || 'Session date unavailable'} · ${s.tickerError ? 'Price data unavailable' : `Close ${c.cmp ?? 'not supplied'}; change ${move == null ? 'not supplied' : `${move}%`}; volume ratio ${c.volume_ratio_today ?? 'not supplied'}`}`,
+      url: c.screenerUrl, kind: 'snapshot' }));
+    // PARTICIPATION IS ITS OWN EVENT. `volume_ratio_today` is today's volume against the company's
+    // own 20-day average and `consolidation_breakout` is the feed's base-breakout reading; neither
+    // is a price move, and a company can trip either with the close barely changed. That is the
+    // case worth surfacing — volume arriving before the price does — so it is a row rather than a
+    // detail hidden inside a move that may not have happened.
+    //
+    // NEUTRAL, BECAUSE VOLUME HAS NO SIGN. Heavy trading is accumulation or distribution and the
+    // tape does not say which; calling it positive would be a judgement the data does not support.
+    // A confirmed break above a base IS directional, and only that branch is called positive.
+    const volX = numeric(c.volume_ratio_today);
+    const breakout = c.consolidation_breakout || {};
+    const brokeOut = breakout.breaks_out === true && (breakout.quality === 'strong' || breakout.quality === 'weak_base');
+    if ((Number.isFinite(volX) && volX >= VOLUME_X) || brokeOut) {
+      const barDay = c.bar_date || priceDay;
+      if (inScope(wanted, c.ticker) && inRequestedWindow(barDay, day, includeHistory)) {
+        const volText = Number.isFinite(volX) ? `${volX.toFixed(1)}x its 20-day average volume` : null;
+        events.push({
+          id: `vol:${c.ticker}:${barDay}`,
+          sourceRecord: s,
+          ...signal(
+            brokeOut ? DIRECTION.POSITIVE : DIRECTION.NEUTRAL,
+            IMPORTANCE.HIGH,
+            brokeOut
+              ? `Closed above its ${breakout.base_range_pct != null ? `${breakout.base_range_pct}% ` : ''}consolidation base on the ${barDay} session${breakout.volume_confirm ? ', with volume confirming' : ', without volume confirmation'} (the feed grades the base ${breakout.quality}).`
+              : `Traded ${volText} on the ${barDay} session. Volume is participation, not direction — the tape does not say whether it was accumulation or distribution.`,
+            brokeOut
+              ? 'High: the technicals feed reports a completed break above a consolidation base.'
+              : `High: today's volume reached the stated ${VOLUME_X}x threshold against the company's own 20-day average.`
+          ),
+          time: null,
+          at: barDay,
+          ticker: c.ticker || null,
+          company: c.name || c.ticker || '—',
+          headline: brokeOut
+            ? `Broke out of its base at the ${barDay} close`
+            : `Volume ${volX.toFixed(1)}x its 20-day average at the ${barDay} close`,
+          detail: [
+            volText,
+            move != null ? `close ${move >= 0 ? '+' : ''}${Number(move).toFixed(1)}%` : null,
+            c.delivery_trend_diff != null ? `delivery ${c.delivery_trend_diff > 0 ? '+' : ''}${Number(c.delivery_trend_diff).toFixed(1)} pp vs the prior fortnight` : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          url: c.screenerUrl || null,
+          kind: brokeOut ? 'breakout' : 'volume',
+          // THE SAME NUMBERS THE SENTENCE ABOVE ALREADY STATES, in a form a reader-facing
+          // card can print without parsing prose. No new fact: `volumeX` is the ratio this
+          // row's headline names and `movePct` the close it reports beside it. AI Alerts
+          // reads these for its metric strip — regexing a headline for a figure is how a
+          // reworded sentence silently becomes a missing number.
+          volumeX: Number.isFinite(volX) ? volX : null,
+          movePct: move != null && Number.isFinite(Number(move)) ? Number(move) : null,
+        });
+      }
+    }
     // THE ONE ALERT RULE ON THIS PAGE, asked of the exported predicate rather than re-implemented
     // here — the suite tests that predicate directly, and a second copy of the comparison is a
     // second thing that can drift from the number the tab prints.
     const severity = moveSeverity(move);
-    if (!severity) continue;
+    if (move == null) continue;
     if (!inScope(wanted, c.ticker)) continue;
-    const barDay = c.bar_date || priceDay;
     // A row priced on another session than the file's is still that session's move, dated so —
     // and, like every other feed's rows, it is reported only inside the requested window.
     if (!inRequestedWindow(barDay, day, includeHistory)) continue;
@@ -854,17 +1336,23 @@ function fromTechnicals({ day, wanted, includeHistory }) {
         : '';
     events.push({
       id: `tech:${c.ticker}:${barDay}`,
+      sourceRecord: s,
       ...signal(
-        down ? DIRECTION.NEGATIVE : DIRECTION.POSITIVE,
-        IMPORTANCE.HIGH,
-        `${down ? 'Down' : 'Up'} ${Math.abs(move).toFixed(1)}% between the ${c.prev_bar_date || c.move_prev_date || 'previous'} and ${barDay} closes, past the ${MOVE_PCT}% threshold this page states.${verified}`,
-        `High: the absolute day move reached the stated ${MOVE_PCT}% threshold.`
+        down ? DIRECTION.NEGATIVE : move > 0 ? DIRECTION.POSITIVE : DIRECTION.NEUTRAL,
+        severity ? IMPORTANCE.HIGH : IMPORTANCE.LOW,
+        `${down ? 'Down' : 'Up'} ${Math.abs(move).toFixed(1)}% between the ${c.prev_bar_date || c.move_prev_date || 'previous'} and ${barDay} closes.${verified}`,
+        severity ? `High: the absolute day move reached ${MOVE_PCT}%.` : `Low: below ${MOVE_PCT}%; retained in the complete pool.`
       ),
       time: null,
       at: barDay,
       ticker: c.ticker || null,
       company: c.name || c.ticker || '—',
       headline: `${down ? 'Fell' : 'Rose'} ${Math.abs(move).toFixed(1)}% at the ${barDay} close`,
+      // Named so the correlation layer in ai-alerts.js can tell a price move from a participation
+      // reading without re-deriving either. Both come off this feed and they are different events.
+      kind: severity ? 'move' : 'price-reading',
+      aiEligible: !!severity,
+      movePct: Number(move),
       detail: [c.cmp != null ? `Close ₹${Number(c.cmp).toFixed(2)}` : null, c.prev_bar_date ? `vs ${c.prev_bar_date}` : null, c.rsi14 != null ? `RSI ${c.rsi14}` : null, c.above_200dma === false ? 'below its 200-day average' : null].filter(Boolean).join(' · '),
       url: c.screenerUrl || null,
     });
@@ -880,32 +1368,58 @@ function fromTechnicals({ day, wanted, includeHistory }) {
 
 /** Company news published today. An editorial headline is not sentiment data, so it stays neutral. */
 function fromCompanyNews({ day, wanted, includeHistory }) {
-  const m = news.meta();
-  const capturedDay = istDay(m.capturedAt);
-  const rows = news.rows().filter((r) => inRequestedWindow(r.date, day, includeHistory) && inScope(wanted, r.ticker));
+  const rows = news.rows().filter((r) => inRequestedWindow(r.publishedAt || r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
-  const events = rows.map((r, i) => ({
+  const events = rows.map((r) => ({
     // THE TICKER IS PART OF THE IDENTITY. One story is returned by several companies' searches,
     // and a RELIANCE row and an HDFCBANK row about the same article are two rows, not one.
-    id: `news:${r.ticker || '?'}|${r.url || `${r.date}|${i}`}`,
-    ...signal(DIRECTION.NEUTRAL, IMPORTANCE.LOW, 'Publisher headline; not directionally graded.', 'Low: no structured materiality field is carried.'),
+    id: `news:${r.entityId || r.ticker || '?'}|${r.url || JSON.stringify([r.date, r.title, r.source])}`,
+    sourceRecord: r,
+    // THE TRACKED KEYWORDS ARE THIS FEED'S MATERIALITY RULE. Before them every story on the busiest
+    // feed here was low-importance and neutral, so 11,060 rows of name-matched search results —
+    // three quarters of it coverage of other companies that happen to share a word — carried the
+    // same weight as each other and none of it could ever surface. Direction is untouched and
+    // stays neutral; see `newsSignal`.
+    ...newsSignal(r),
     // `publishedAt`, NOT `raw.page_age` — `raw` is stripped before the snapshot is committed, so
     // reading the time off it worked on a live walk and returned undefined for every row that came
     // from the file. See `isoInstant` in filings-shared.js.
     time: istTime(r.publishedAt) || null,
-    at: r.date,
+    at: r.publishedAt || r.date,
     ticker: r.ticker || null,
-    company: r.ticker || '—',
+    entityId: r.entityId || null,
+    company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
-    detail: r.source ? `Published by ${r.source}` : 'Publisher not carried',
+    detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
+      attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,
   }));
 
+  return { events, ...companyNewsState(day) };
+}
+
+export function companyNewsState(day, m = news.meta(), now = Date.now()) {
+  const capturedDay = istDay(m.capturedAt);
+  const enrichmentAt = Date.parse(m.enrichmentCoverage?.capturedAt || '');
+  const enrichmentStale = !Number.isFinite(enrichmentAt) || enrichmentAt > now + 10 * 60_000 || now - enrichmentAt > 24 * 3600000;
+  const delivery = m.newsDelivery;
+  const sourceStates = ['core', 'publishers', 'tradingView'].map(key => delivery?.[key]).filter(Boolean);
+  const failed = sourceStates.some(source => ['partial', 'unavailable'].includes(source.status) || source.error || source.historyError) ||
+    !!m.newsHistory?.error || !!m.reason || !!m.failed || !!m.truncated || enrichmentCoverageIncomplete(m.enrichmentCoverage, now);
+  const pending = sourceStates.some(source => source.pending || source.status === 'pending' || source.historyPending) ||
+    !!m.newsHistory?.pending;
   return {
-    events,
-    reachesToday: !!capturedDay && capturedDay >= day,
+    // A successful TradingView subset cannot establish that the main news head, publisher feeds
+    // and every advertised history part reached the customer. Readiness and freshness differ.
+    status: failed ? 'failed' : pending ? 'pending' : 'ok',
+    reachesToday: !failed && !pending && !!m.enrichmentCoverage && !!capturedDay && capturedDay >= day,
     asOf: m.capturedAt || null,
-    note: capturedDay && capturedDay >= day ? null : `The newest company-news capture ran on ${capturedDay || 'an unknown date'}.`,
+    note: [m.newsHistory?.error,
+      delivery ? ['core', 'publishers', 'tradingView'].map(key => delivery[key] ? `${key === 'core' ? 'Company news' : key === 'publishers' ? 'Publisher feeds' : 'TradingView'}: ${delivery[key].status}.${delivery[key].error ? ` ${delivery[key].error}` : ''}${delivery[key].historyError ? ` ${delivery[key].historyError}` : ''}` : null).filter(Boolean).join(' ') : null,
+      capturedDay && capturedDay >= day ? null : `The newest company-news capture ran on ${capturedDay || 'an unknown date'}.`,
+      m.enrichmentCoverage ? `${enrichmentStale ? 'Global/IR discovery check time is stale or unverified. ' : ''}Last reported: ${Number(m.enrichmentCoverage.staleOrIncompleteQueries) || 0} stale or incomplete global queries; ${Number(m.enrichmentCoverage.pagesFailed) || 0} IR pages need recovery; ${Number(m.enrichmentCoverage.documentsPending) || 0} documents not yet read. Checked ${m.enrichmentCoverage.capturedAt || 'time not supplied'}.` : 'Global/IR enrichment has not reported coverage yet.',
+      m.tradingViewCoverage ? `TradingView public headlines: ${m.tradingViewCoverage.mappedCompanies}/${m.tradingViewCoverage.activeCompanies} companies mapped; ${m.tradingViewCoverage.staleOrFailedSymbols} stale/failed symbol reads; ${m.tradingViewCoverage.possibleGapSymbols} possible window gaps; ${m.tradingViewCoverage.restrictedHeadlines} restricted headlines not extracted. Checked ${m.tradingViewCoverage.checkedAt}.${m.tradingViewHealth?.ok === false ? ' TradingView coverage is stale or incomplete.' : ''}${m.tradingViewCoverage.portfolioError ? ' Portfolio changes could not be verified.' : ''}${m.tradingViewReadError ? ' Latest published snapshot could not be confirmed; retained headlines remain visible.' : ''}` : 'TradingView enrichment has not reported coverage yet.']
+      .filter(Boolean).join(' ') || null,
   };
 }
 
@@ -920,7 +1434,7 @@ function fromCompanyNews({ day, wanted, includeHistory }) {
 function fromMarketNews({ day, scope, includeHistory }) {
   const m = marketNews.meta();
   const capturedDay = istDay(m.capturedAt);
-  const scopable = scope === 'universe';
+  const scopable = true; // Reviewed portfolio matches are resolved centrally before scope filtering.
 
   const events = scopable
     ? marketNews
@@ -928,7 +1442,13 @@ function fromMarketNews({ day, scope, includeHistory }) {
         .filter((a) => inRequestedWindow(a.publishedAt, day, includeHistory))
         .map((a) => ({
           id: `mcnews:${a.id}`,
-          ...signal(DIRECTION.NEUTRAL, IMPORTANCE.LOW, 'Publisher headline; not directionally graded.', 'Low: no structured materiality field is carried.'),
+          sourceRecord: a,
+          // TAGGED WITH THE SAME KEYWORDS, BUT NOT PROMOTED BY THEM. The tags let the timeline and
+          // the news list filter market-wide stories by topic. Importance stays low because a
+          // keyword is material ABOUT a company and these rows carry none — "Fraud" on a story
+          // with no company attached names a subject, not an exposure.
+          ...signal(DIRECTION.NEUTRAL, IMPORTANCE.LOW, 'Publisher headline; not directionally graded.', 'Low: a market-wide story carries no company, so a tracked keyword on it names a subject rather than an exposure.'),
+          keywords: classifyStory(a).labels,
           time: istTime(a.publishedAt),
           at: a.publishedAt,
           ticker: null,
