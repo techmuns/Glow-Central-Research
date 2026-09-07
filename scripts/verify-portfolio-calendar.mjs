@@ -44,6 +44,9 @@ const MODES = {
 };
 let mode = 'full';
 let stockscansDown = false;
+// The Worker is unreachable entirely: a reload paints the stored response, and nothing in this
+// session has confirmed any of it.
+let routeDown = false;
 
 const html = `<!doctype html><html><body><script type="module">
 import * as concalls from '/js/data/concall-scans.js';
@@ -61,6 +64,7 @@ const server = createServer((req, res) => {
   try {
     if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
     if (url.pathname === '/api/concalls') {
+      if (routeDown) { res.writeHead(503); res.end('{}'); return; }
       // StockScans down: the Worker's own fallback branch, which serves the committed snapshot and
       // states `portfolioUpcoming: null` rather than leaving the key merely missing.
       if (stockscansDown) return json({ ...snapshot, ok: true, portfolioUpcoming: null,
@@ -100,6 +104,7 @@ const state = (page) => page.evaluate(() => ({
   dates: window.concalls.portfolioUpcoming().map((row) => `${row.ticker}|${row.date}`),
   rows: window.concalls.all().length,
   retained: window.concalls.meta()?.portfolioUpcomingRetained,
+  supplied: window.concalls.meta()?.portfolioUpcomingSupplied,
   calendarAsOf: window.concalls.meta()?.portfolioUpcomingCheckedAt,
   screener: window.concalls.meta()?.screener?.status ?? null,
 }));
@@ -169,6 +174,50 @@ check('a successful read of an empty dashboard clears the calendar', () => {
   assert.equal(now.retained, false);
   assert.equal(now.calendarAsOf, '2026-09-06T07:00:00Z');
 });
+
+// A LIVE READ THAT NEVER HAPPENED IS NOT A CONFIRMATION. Reloading against an unreachable route
+// paints the stored response, whose own `meta.screener` said `ok` when it was written. Reporting
+// that as a current capture is the same class of claim as the empty calendar above, one layer on.
+mode = 'full';
+await page.evaluate(() => window.concalls.refresh().catch(() => null));
+routeDown = true;
+await page.reload();
+await page.waitForFunction(() => window.ready);
+now = await state(page);
+check('a reload with an unreachable route serves the calendar as retained, not as confirmed', () => {
+  assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'the stored calendar is still painted');
+  assert.equal(now.retained, true, 'bytes nobody confirmed in this session may not read as a fresh capture');
+});
+routeDown = false;
+
+// AN AVAILABILITY TRANSITION IS ITSELF A CHANGE. `hasChanged` gates whether subscribers repaint,
+// and the coverage chip reads the retention flag — so a calendar going missing, or coming back
+// with the same rows, has to reach them rather than waiting for the next full collection.
+const page3 = await openPage();
+const changes = () => page3.evaluate(() => window.__calendarChanges || 0);
+await page3.evaluate(() => {
+  window.__calendarChanges = 0;
+  window.concalls.onChange(() => { window.__calendarChanges += 1; });
+});
+mode = 'artifact-failed';
+await page3.evaluate(() => window.concalls.refresh());
+const afterLoss = await changes();
+const lostState = await state(page3);
+check('a calendar going missing notifies subscribers even though its rows are unchanged', () => {
+  assert.equal(afterLoss, 1, `expected one change notification, saw ${afterLoss}`);
+  assert.equal(lostState.retained, true);
+  assert.equal(lostState.supplied, false);
+});
+mode = 'full';
+await page3.evaluate(() => window.concalls.refresh());
+const afterRecovery = await changes();
+const recoveredState = await state(page3);
+check('and the same calendar coming back notifies them too', () => {
+  assert.equal(afterRecovery, 2, `expected a second change notification, saw ${afterRecovery}`);
+  assert.equal(recoveredState.retained, false);
+  assert.equal(recoveredState.supplied, true);
+});
+await page3.close();
 
 await page.close();
 

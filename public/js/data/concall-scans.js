@@ -123,6 +123,11 @@ async function build() {
   //    this representation. Deliberately optional: a missing Worker (plain `python3 -m http.server`)
   //    must not stop the tab rendering.
   const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
+  // A CONFIRMATION IS A 304 OR A 200 WE ACTUALLY INGESTED, and nothing else. `conditionalJson`
+  // reports what the server said — `status: 0` only for a request that never completed — so a 503
+  // arrives as 503 and a 404 as 404. Reading only for 0 would have let every server-side failure
+  // through as though the calendar had been checked.
+  const confirmedLive = out.status === 304 || (out.status === 200 && !!out.value?.rows?.length);
   if (out.status === 200 && out.value?.rows?.length) ingest(out.value, { live: true, origin: 'live', checkedAt: out.checkedAt });
   else if (out.status === 304) markChecked('live', out.checkedAt);
 
@@ -132,6 +137,10 @@ async function build() {
     const snapshot = await revalidatedJson(SNAPSHOT_PATH, { optional: !!cache });
     if (snapshot?.rows?.length && isNewerThanHeld(snapshot)) ingest(snapshot, { live: false, origin: 'snapshot', checkedAt: Date.now() });
   }
+
+  // The live route confirmed nothing, so neither did anything on screen — the calendar included.
+  // Say so rather than serving the stored payload's own account of itself.
+  if (!confirmedLive) markScheduleUnconfirmed();
 
   if (!cache) throw new Error(`${SNAPSHOT_PATH} could not be loaded and no cached copy exists.`);
   return cache;
@@ -186,6 +195,24 @@ function scheduleFrom(payload) {
   );
 }
 
+/**
+ * A LIVE READ THAT DID NOT HAPPEN IS NOT A CONFIRMATION OF WHAT IS ON SCREEN.
+ *
+ * Reloading with an unreachable Worker paints the stored response, and that response carries the
+ * `meta.screener` of whichever read produced it — `status: 'ok'`, its own `checkedAt`. Left alone,
+ * All Alerts reads that as a calendar confirmed just now, which is the exact claim this whole
+ * change exists to stop being made: bytes off the device that no read has vouched for in this
+ * session are RETAINED, whoever last wrote them and whatever they said at the time.
+ *
+ * `screener.status` is deliberately left as the upstream reported it — it describes the artifact
+ * collector, not our ability to reach our own route, and overwriting it would conflate two
+ * different failures. The retention flag is what the coverage note branches on.
+ */
+function markScheduleUnconfirmed() {
+  if (!cache || cache.meta.portfolioUpcomingRetained) return;
+  cache.meta = { ...cache.meta, portfolioUpcomingRetained: !!cache.portfolioUpcoming.length };
+}
+
 function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   const rows = assignRowIds((payload?.rows || []).map(decorate).sort(byNewest));
   const schedule = scheduleFrom(payload);
@@ -196,6 +223,10 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
     // bytes under the server's own tag, and that pairing is the whole basis for trusting a 304.
     void writeEntry(SCHEDULE_KEY, { value: { rows: schedule, checkedAt: heldSchedule.checkedAt } });
   }
+  // `supplied` is a fact about the RESPONSE; `retained` is the claim made to a reader. They are
+  // not the same and neither can be derived from the other: a payload that carried no calendar
+  // while nothing was held supplies nothing and retains nothing.
+  const supplied = !!schedule;
   const retained = !schedule && !!heldSchedule?.rows.length;
 
   const isFirst = seenKeys === null;
@@ -242,6 +273,7 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
       // surface that prints one time for both would date a retained calendar to a check that
       // never reached it. `retained` is what makes the Upcoming view say so out loud.
       portfolioUpcomingRetained: retained,
+      portfolioUpcomingSupplied: supplied,
       portfolioUpcomingCheckedAt: (schedule ? screener?.checkedAt : heldSchedule?.checkedAt) || null,
       persisted: isPersistent(),
     },
@@ -340,9 +372,14 @@ function hasChanged(payload) {
   if (!cache) return true;
   if ((payload.rows?.length ?? 0) !== cache.meta.count) return true;
   if (!!payload.degraded !== !!cache.meta.degraded) return true;
-  // Only a calendar the payload actually carried can be a change. A payload with none leaves the
-  // retained rows on screen, so reporting a change here would repaint every consumer — and empty
-  // All Alerts' feed cache — over an upstream failure that altered nothing they can see.
+  // A CALENDAR ARRIVING OR GOING MISSING IS ITSELF A CHANGE, even when its rows are identical.
+  // The coverage chip reads `portfolioUpcomingRetained`, so a transition nobody is told about
+  // leaves All Alerts printing the previous answer — a retained calendar still labelled
+  // confirmed, or a recovered one still labelled retained — until its own next collection.
+  if (!!scheduleFrom(payload) !== cache.meta.portfolioUpcomingSupplied) return true;
+  // Beyond that, only a calendar the payload actually carried can be a row change. A payload with
+  // none leaves the retained rows on screen, so comparing against them would repaint every
+  // consumer over an upstream failure that altered nothing they can see.
   const schedule = (rows) => JSON.stringify(rows.map((row) => [row.id, row.date, row.time, row.eventType, row.sourceUrl]));
   const incoming = scheduleFrom(payload);
   if (incoming && schedule(incoming) !== schedule(cache.portfolioUpcoming)) return true;

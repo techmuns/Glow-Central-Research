@@ -960,7 +960,24 @@ So the browser retains a calendar the payload did not carry, under its own devic
 server's own bytes under the server's own tag, and that pairing is the whole basis for trusting a
 304. `meta.portfolioUpcomingRetained` says the rows on screen are a retained capture and
 `meta.portfolioUpcomingCheckedAt` dates them to their own read, never to the check that failed;
-All Alerts' Portfolio calendar feed stays `failed` and says so in its coverage note. A **successful**
+All Alerts' Portfolio calendar feed reads that flag as its OWN leg of the incomplete predicate and
+says so in its coverage note.
+
+**`retained` also covers a live read that never happened.** A reload against an unreachable Worker
+paints the stored response, and that response carries the `meta.screener` of whichever read wrote
+it — `status: 'ok'`, its own `checkedAt`. Left alone it reads as a calendar confirmed just now.
+A confirmation is a 304, or a 200 whose rows were ingested, and nothing else: `conditionalJson`
+reports what the server actually said (`status: 0` only where the request never completed), so a
+503 arrives as 503 and testing for 0 alone would let every server-side failure through. Anything
+else marks the calendar retained. `screener.status` is deliberately left as the upstream reported
+it — it describes the artifact collector, not our ability to reach our own route.
+
+**`meta.portfolioUpcomingSupplied` is a fact about the response; `retained` is the claim made to a
+reader.** Neither derives from the other — a payload carrying no calendar while nothing is held
+supplies nothing and retains nothing — and `hasChanged` compares `supplied`, so a calendar going
+missing or coming back **notifies subscribers even when its rows are identical**. Without that the
+coverage chip keeps printing the previous answer (a retained calendar still labelled confirmed, or
+a recovered one still labelled retained) until All Alerts' own next collection. A **successful**
 read still clears the calendar, and a shorter one still shrinks it — a forward calendar loses its
 events as their dates pass, so retention may never become a merge. `scripts/verify-portfolio-calendar.mjs`
 asserts all six branches, including that an empty successful read is not treated as a failure.

@@ -1713,7 +1713,7 @@ its neighbour.** The response is stored in IndexedDB under the server's own ETag
 repainted the empty calendar and every subsequent poll 304'd against it. Nothing threw, no count
 was wrong, the failure WAS reported in `meta.screener.status` — and the rows were gone anyway.
 
-Four rules, and the first is the one this codebase already had written down three other ways:
+Five rules, and the first is the one this codebase already had written down three other ways:
 
 1. **A read that did not happen is absent; only a successful read may be empty.** The route sends
    `portfolioUpcoming: null` where the capture is unavailable, and the snapshot-fallback branch
@@ -1728,14 +1728,26 @@ Four rules, and the first is the one this codebase already had written down thre
 3. **A retained calendar is dated to its own capture and says it is retained.**
    `meta.portfolioUpcomingRetained` and `meta.portfolioUpcomingCheckedAt` are separate from the
    response's `checkedAt`, because these rows can be older than the payload that carried the rest
-   of the page; the All Alerts feed stays `failed` and its coverage note says the latest check
-   could not read the dashboard. Restamping them would be the retained copy claiming a freshness
-   nothing vouched for.
+   of the page; the All Alerts feed reads that flag as its own leg of the incomplete predicate and
+   its coverage note says the latest check could not read the dashboard. Restamping them would be
+   the retained copy claiming a freshness nothing vouched for. **A live read that never happened
+   is not a confirmation either**: a reload against an unreachable Worker paints the stored
+   response, whose own `meta.screener` said `ok` when it was written, so anything short of a 304
+   or an ingested 200 marks the calendar retained. Test for that positively —
+   `conditionalJson` reports the server's real status and reserves `0` for a request that never
+   completed, so a 503 arrives as 503 and a `status === 0` guard lets every server-side failure
+   through.
 4. **Retention is not a merge, and an empty successful read must still clear.** A forward calendar
    legitimately shrinks as its dates pass, so a successful read always replaces — a shorter one
    included — and `[]` from a healthy capture means the dashboard has nothing scheduled, which is
    an answer. `scripts/verify-portfolio-calendar.mjs` asserts both directions; a retention rule
    that could never go back to nothing would be the mirror of the bug it fixed.
+5. **An availability transition is itself a change.** `meta.portfolioUpcomingSupplied` is a fact
+   about the response and `retained` is the claim made to a reader; neither derives from the other,
+   and `hasChanged` compares `supplied` so a calendar going missing — or coming back with the same
+   rows — reaches subscribers. Otherwise the coverage chip keeps printing the previous answer until
+   All Alerts' own next collection, which is a stale label on a correct feed: the failure mode this
+   whole section is about, one layer up.
 
 The failure is cached too, at `CONCALL_SCREENER_FAIL_TTL_S` (15s) rather than the 60s success
 window: every reader sits behind one edge entry, so an uncached failure costs each of them their
