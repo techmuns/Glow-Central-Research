@@ -8,7 +8,7 @@ import { companyCaptureStatus, loadCompanyCaptureIndex } from '../public/js/data
 import { withFilingArchive } from '../public/js/data/filing-archives.js';
 import { clearAll } from '../public/js/core/store.js';
 import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
-import { enrichCrossExchangeDocumentHashes } from './lib/announcement-document-hashes.mjs';
+import { enrichCrossExchangeDocumentHashes, expandCrossExchangeObservations } from './lib/announcement-document-hashes.mjs';
 
 const scratch = mkdtempSync(join(tmpdir(), 'sattva-capture-'));
 const originalFetch = globalThis.fetch;
@@ -235,6 +235,7 @@ try {
   const exactHash = `sha256:${'4c'.repeat(32)}`;
   let preparedUrls;
   const hashed = await captureCompanySources({ ...options, dir: hashDir, companies: [kissht], maxRequests: 1,
+    expandAnnouncements: expandCrossExchangeObservations,
     prepareAnnouncements: async rows => {
       preparedUrls = rows.map(row => row.url);
       const durableBeforeHashing = readJson(join(hashDir, 'announcements/KISSHT.json')).rows;
@@ -273,6 +274,7 @@ try {
     fetcher: async () => new Response(pdf, { headers: { 'content-length': String(pdf.length) } }),
   });
   await captureCompanySources({ ...options, dir: incrementalHashDir, companies: [kissht], maxRequests: 1,
+    expandAnnouncements: expandCrossExchangeObservations,
     prepareAnnouncements: prepareIncremental,
     request: async () => ({ ok: true, announcements: [firstNse], skipped: 0,
       bse: { ok: true, announcements: [firstBse], skipped: 0, declared: 1, collected: 1, pages: 1, requests: 1 } }) });
@@ -283,6 +285,7 @@ try {
   const refreshedNse = { ...firstNse, category: 'NEW CATEGORY',
     providers: ['Muns corporate announcements', 'NEW PROVIDER'] };
   const incremental = await captureCompanySources({ ...options, dir: incrementalHashDir, companies: [kissht], maxRequests: 2,
+    expandAnnouncements: expandCrossExchangeObservations,
     prepareAnnouncements: prepareIncremental,
     request: async kind => kind === 'domestic' ? { ok: true, documents: [], skipped: 0 } :
       ({ ok: true, announcements: [refreshedNse], skipped: 0,
@@ -300,6 +303,7 @@ try {
 
   const hashFailureDir = join(scratch, 'hash-failure');
   const hashFailure = await captureCompanySources({ ...options, dir: hashFailureDir, companies: [{ ticker: 'A' }], maxRequests: 1,
+    expandAnnouncements: expandCrossExchangeObservations,
     prepareAnnouncements: async () => { throw new Error('private document failure'); },
     request: async () => ({ ok: true, announcements: [ann], skipped: 0 }) });
   assert(hashFailure.sources.announcements.A.lastSuccessAt, 'hashing failure cannot fail a successful source read');

@@ -7,7 +7,7 @@ import { refreshNseIdentities } from './lib/nse-identities.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { loadCaptureRegistrations } from './lib/capture-registrations.mjs';
 import { fetchCompanyAnnouncements } from '../worker/bse-ann.mjs';
-import { enrichCrossExchangeDocumentHashes } from './lib/announcement-document-hashes.mjs';
+import { enrichCrossExchangeDocumentHashes, expandCrossExchangeObservations } from './lib/announcement-document-hashes.mjs';
 
 const dataDir = fileURLToPath(new URL('../public/data/', import.meta.url));
 const base = (process.env.FILINGS_BASE || 'https://sattva-central-research.tech-441.workers.dev').replace(/\/+$/, '');
@@ -68,6 +68,7 @@ const result = await captureCompanySources({
   prepareAnnouncements: (rows, { pairOffset } = {}) => enrichCrossExchangeDocumentHashes(rows, {
     cache: announcementHashCache, pairOffset,
   }),
+  expandAnnouncements: expandCrossExchangeObservations,
   request: async (kind, ticker, range, company, { bseRange, bseCode } = {}) => {
     if (kind === 'domestic') return proxyRequest(kind, ticker, range, company);
     // Both reads settle before the company checkpoint is handled. A failed authenticated proxy

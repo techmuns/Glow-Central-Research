@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { announcementSourceUrls, announcementSources, mergeAnnouncements } from '../../public/js/data/announcements-shared.js';
 import { documentUrl } from '../../public/js/data/domestic-filings-shared.js';
 import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from '../../public/js/data/announcement-identity.js';
-import { expandCrossExchangeObservations } from './announcement-document-hashes.mjs';
 
 export const day = (time) => new Date(time).toISOString().slice(0, 10);
 const shift = (date, days) => day(Date.parse(date) + days * 86400000);
@@ -141,7 +140,10 @@ export function captureCompanies(dataDir, { announcements = false, holdings = nu
 export async function captureCompanySources({ dir, companies, unresolved = [], portfolio = null, registration = null, identitySources = null, request, now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), budgetMs = 20 * 60000,
   spacingMs = 2500, concurrency = 3, backfillDays = 365, maxRequests = Infinity,
-  prepareAnnouncements = null, onProgress = () => {} }) {
+  prepareAnnouncements = null, expandAnnouncements = null, onProgress = () => {} }) {
+  if (prepareAnnouncements && (typeof prepareAnnouncements !== 'function' || typeof expandAnnouncements !== 'function')) {
+    throw new TypeError('Announcement preparation requires its source-observation expander.');
+  }
   const start = now(), to = day(start);
   const indexPath = join(dir, 'index.json');
   const index = readJson(indexPath, { version: 1, sources: {} });
@@ -357,7 +359,7 @@ export async function captureCompanySources({ dir, companies, unresolved = [], p
             // Re-expand a stored pair before merging fresh rows so repeat observations update the
             // correct exchange constituent. Otherwise top-level merged metadata would replace the
             // source observations used for re-clustering and silently disappear after enrichment.
-            const retained = prepareAnnouncements ? expandCrossExchangeObservations(previous.rows) : previous.rows;
+            const retained = prepareAnnouncements ? expandAnnouncements(previous.rows) : previous.rows;
             let rows = mergeAnnouncements(retained, clean);
             // Save the source records and their independent completion states before optional PDF
             // comparison. A slow or interrupted enrichment can never lose an exchange response or
