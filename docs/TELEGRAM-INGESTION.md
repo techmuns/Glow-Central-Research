@@ -102,6 +102,10 @@ Inclusive `catchupRanges` retain unscanned intervals found by forward discovery 
 of the older-history cursor, so a new gap cannot overwrite existing backfill progress.
 The recent phase publishes before history; historical progress never advances the most
 recent successful source-check time or masks an incomplete recent check.
+Reaching the local phase deadline checkpoints unfinished work without treating the
+planned cutoff as a Telegram failure. The unfinished ID remains resumable; an incomplete
+recent scan still cannot advance its success time. Actual HTTP and request-timeout failures
+remain errors even if the phase budget subsequently prevents another retry.
 HTTP 429 and 403 stop all public requests immediately. A retained `publicSafety` deadline
 respects `Retry-After` plus one minute, with minimum waits of thirty minutes for rate limits
 and one hour for refusal. Subsequent runs wait before making any public request. A successful
