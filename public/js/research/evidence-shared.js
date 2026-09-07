@@ -17,6 +17,15 @@
 
 const UI_ONLY_SOURCE_FIELDS = new Set(['route', 'description']);
 
+// A column schema removes five repeated JSON keys per holding without sampling
+// away any ISIN, unresolved symbol, fund or weight from the complete denominator.
+export function providerPositions(positions) {
+  if (!Array.isArray(positions?.holdings)) return positions;
+  const columns = ['isin', 'ticker', 'name', 'sector', 'weightPct'];
+  return { sizes: positions.sizes, columns,
+    holdings: positions.holdings.map(holding => columns.map(key => holding[key] ?? null)) };
+}
+
 /**
  * The provider-facing packet: everything analytical, none of the browser's chrome.
  *
@@ -31,9 +40,16 @@ export function providerEvidence(evidence = {}) {
     generatedAt: evidence?.generatedAt,
     scope: evidence?.scope,
     scopeDefinition: evidence?.scopeDefinition,
+    portfolio: evidence?.portfolio,
+    portfolioPositions: providerPositions(evidence?.portfolioPositions),
+    businessContext: evidence?.businessContext,
     selection: {
       tokens: Array.isArray(selection.tokens) ? selection.tokens : [],
+      business: selection.business,
       companies: Array.isArray(selection.companies) ? selection.companies : [],
+      topics: selection.topics,
+      window: selection.window,
+      searchScope: selection.searchScope,
       sourcesRegistered: selection.sourcesRegistered,
       sourcesReady: selection.sourcesReady,
       sourcesUnavailable: selection.sourcesUnavailable,
@@ -48,4 +64,10 @@ export function providerEvidence(evidence = {}) {
 /** The number the budget and the Worker bound are both stated in. */
 export function providerEvidenceChars(evidence) {
   return JSON.stringify(providerEvidence(evidence)).length;
+}
+
+/** Full holdings have a separate bound so they cannot crowd out research rows. */
+export const PORTFOLIO_POSITIONS_MAX_CHARS = 60_000;
+export function researchEvidenceChars(evidence) {
+  return providerEvidenceChars({ ...evidence, portfolioPositions: undefined });
 }

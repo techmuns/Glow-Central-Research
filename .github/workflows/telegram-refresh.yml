@@ -1,0 +1,136 @@
+name: Telegram collection
+
+on:
+  schedule:
+    # Best effort. Active readers also request overdue checks through the existing POST route.
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: 'Older messages/IDs to collect this run (0 disables history)'
+        required: false
+        default: '180'
+      resume_api:
+        description: 'Resume API collection once after reviewing a pause (operator only)'
+        type: boolean
+        default: false
+      head_hint:
+        description: 'Optional verified message number for the public-page fallback'
+        required: false
+        default: '0'
+      source:
+        description: 'Who requested this run'
+        required: false
+        default: 'manual'
+
+run-name: Telegram collection (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+concurrency:
+  group: telegram-account-collection
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  collect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Restore retained collection independently of archive PRs
+        id: restore
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3; do
+            if node scripts/telegram-artifact.mjs restore public/data/telegram-posts.json "$RUNNER_TEMP/telegram-posts.json"; then exit 0; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep 5
+          done
+      - name: Detect official API connection
+        id: connection
+        env:
+          TELEGRAM_CREDENTIALS: ${{ secrets.TELEGRAM_CREDENTIALS }}
+        run: |
+          if [ -n "$TELEGRAM_CREDENTIALS" ]; then
+            echo 'api=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v6
+        if: steps.connection.outputs.api == 'true'
+        with:
+          python-version: '3.12'
+      - name: Install official API client outside the repository
+        if: steps.connection.outputs.api == 'true'
+        run: pip install --disable-pip-version-check telethon==1.44.0
+      - name: Collect recent public posts before historical work
+        id: recent
+        if: steps.connection.outputs.api != 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_OUT: ${{ runner.temp }}/telegram-posts.json
+          TELEGRAM_PHASE: recent
+          TELEGRAM_BUDGET_MS: '180000'
+          TELEGRAM_BACKFILL: '0'
+          TELEGRAM_DISCOVERY: '0'
+          TELEGRAM_HEAD_HINT: ${{ inputs.head_hint || '0' }}
+        run: node scripts/scrape-telegram.mjs
+      - name: Preserve a failed recent source check
+        if: steps.recent.outcome == 'failure'
+        run: node scripts/telegram-artifact.mjs failed "$RUNNER_TEMP/telegram-posts.json"
+      - name: Package the recent public checkpoint
+        if: steps.connection.outputs.api != 'true'
+        run: node scripts/telegram-artifact.mjs pack "$RUNNER_TEMP/telegram-posts.json" "$RUNNER_TEMP/telegram-head-v1.json.gz"
+      - name: Deliver recent posts while history continues
+        if: steps.connection.outputs.api != 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/telegram-head-v1.json.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+      - name: Collect channel through official API or public fallback
+        id: collect
+        if: steps.connection.outputs.api == 'true' || steps.recent.outcome == 'success'
+        continue-on-error: true
+        env:
+          TELEGRAM_CREDENTIALS: ${{ secrets.TELEGRAM_CREDENTIALS }}
+          TELEGRAM_API_REVIEWED_RESUME: ${{ inputs.resume_api == true && '1' || '0' }}
+          TELEGRAM_OUT: ${{ runner.temp }}/telegram-posts.json
+          TELEGRAM_BACKFILL: ${{ inputs.backfill || '180' }}
+          TELEGRAM_HEAD_HINT: ${{ inputs.head_hint || '0' }}
+          TELEGRAM_PHASE: history
+          TELEGRAM_BUDGET_MS: '360000'
+        run: |
+          if [ -n "$TELEGRAM_CREDENTIALS" ]; then
+            python scripts/collect-telegram.py
+          else
+            node scripts/scrape-telegram.mjs
+          fi
+      - name: Preserve a failed source check explicitly
+        if: steps.collect.outcome == 'failure'
+        run: node scripts/telegram-artifact.mjs failed "$RUNNER_TEMP/telegram-posts.json"
+      - name: Validate and package only public channel data
+        id: package
+        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
+        run: node scripts/telegram-artifact.mjs pack "$RUNNER_TEMP/telegram-posts.json" "$RUNNER_TEMP/telegram-posts-v1.json.gz"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        with:
+          path: ${{ runner.temp }}/telegram-posts-v1.json.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 90
+      # Publish retained rows and safety state first, then make source failures fail the job.
+      # A valid final artifact remains readable even if the workflow ends with this health error.
+      - name: Collection health
+        if: ${{ always() && (steps.collect.outcome == 'failure' || steps.recent.outcome == 'failure') }}
+        run: |
+          echo '::error::Telegram source check failed. Retained posts and safety state were packaged before this health failure.'
+          exit 1

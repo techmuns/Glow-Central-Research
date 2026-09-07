@@ -11,8 +11,16 @@
   // nothing reads it, and where it would look like it had been set correctly.
   "name": "glow-central-research",
   "compatibility_date": "2026-05-23",
-  "main": "worker/index.js",
+  "main": "worker/entry.js",
   "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CAPTURE_REGISTRY", "class_name": "CaptureRegistry" },
+      // Alias the existing namespace; the channel timer uses a distinct fixed object name.
+      { "name": "TELEGRAM_SCHEDULER", "class_name": "CaptureRegistry" }
+    ]
+  },
+  "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
 
   // WHICH REPOSITORY THE NEWS REFRESH BUTTON MAY START A RUN IN.
   //
@@ -33,6 +41,8 @@
     // Ask Research streams the low-latency model through Muns' query router. The session credential
     // is a Worker secret: prefer `MUNS_LLM_TOKEN`, with existing Muns tokens as fallbacks.
     "MUNS_LLM_BASE": "https://fastapi.muns.io",
+    // Compact prompts use the local route; research.mjs automatically routes larger
+    // complete-portfolio prompts to hosted_llm before overflowing the small context.
     "MUNS_LLM_TYPE": "local_llm",
     // The operator confirmed this old binding now contains a Muns token, not an Anthropic key.
     // Remove this migration opt-in after `MUNS_LLM_TOKEN` is installed.
@@ -44,6 +54,11 @@
   // a paid upstream, not billing-grade accounting; Cloudflare rate limits are intentionally
   // permissive and local to a location.
   "ratelimits": [
+    {
+      "name": "CAPTURE_REGISTRATION_LIMITER",
+      "namespace_id": "1702",
+      "simple": { "limit": 6, "period": 60 }
+    },
     {
       "name": "RESEARCH_RATE_LIMITER",
       // Distinct from the Sattva deployment's (1701) on the same Cloudflare account, so the two
