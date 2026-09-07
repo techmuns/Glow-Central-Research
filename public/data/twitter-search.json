@@ -295,12 +295,16 @@
     "isin:INE935Q01015|Future Supply Chain Solutions": {
       "lastAttemptAt": "2026-09-07T08:59:48+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE18UN01038|Gaja Alternative Asset Management": {
+      "lastAttemptAt": "2026-09-07T09:48:52+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 229,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-07T08:59:48.570100+00:00"
+    "checkedAt": "2026-09-07T09:48:52.727823+00:00"
   }
 }
