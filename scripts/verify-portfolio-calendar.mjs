@@ -138,6 +138,10 @@ check('an unreadable S Screen artifact retains the calendar instead of emptying 
   assert.deepEqual(now.dates, ['RELIANCE|2026-09-12']);
   assert.equal(now.screener, 'failed', 'the failure must still be reported');
   assert.equal(now.retained, true, 'and the rows must be labelled as retained');
+  // A 200 that carried no calendar is still a read that did not confirm one. This must not
+  // depend on `screener.status` happening to say so beside it — two independent signals, and
+  // only this one is about whether the rows on screen were vouched for.
+  assert.equal(now.confirmed, false, 'a payload carrying no calendar confirms nothing about the rows it left');
 });
 check('a retained calendar keeps its own capture time, not the failed check', () => {
   assert.equal(now.calendarAsOf, '2026-09-05T07:00:00Z');

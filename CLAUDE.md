@@ -1713,7 +1713,7 @@ its neighbour.** The response is stored in IndexedDB under the server's own ETag
 repainted the empty calendar and every subsequent poll 304'd against it. Nothing threw, no count
 was wrong, the failure WAS reported in `meta.screener.status` — and the rows were gone anyway.
 
-Seven rules, and the first is the one this codebase already had written down three other ways:
+Eight rules, and the first is the one this codebase already had written down three other ways:
 
 1. **A read that did not happen is absent; only a successful read may be empty.** The route sends
    `portfolioUpcoming: null` where the capture is unavailable, and the snapshot-fallback branch
@@ -1743,7 +1743,15 @@ Seven rules, and the first is the one this codebase already had written down thr
    no content change, so nothing else would ever clear it and the feed would report failed while
    every poll succeeded; the 304 branch therefore notifies subscribers **when and only when it
    lifted one**, since an ordinary unchanged tick must still repaint nothing.
-4. **`confirmed` is about the READ; `retained` is about the ROWS.** One flag for both was wrong in
+4. **Only an ADOPTED calendar is a confirmed one, and every correction must reach subscribers.**
+   `confirmed` answers one question — did this read vouch for what is now painted — so a payload
+   carrying no calendar, and one whose calendar was refused as stale, both leave it false. Setting
+   it on any successful response let the older response certify the newer held rows it had just
+   been refused for. And a correction nobody is told about is the correction not happening:
+   `live.js` catches the poller's throw without invoking subscribers, so the failure path notifies
+   directly, and `hasChanged` compares the collector's own rendered health (`status`,
+   `collectorLatestFailed`, `portfolioUpcomingAvailable`) as well as the rows.
+5. **`confirmed` is about the READ; `retained` is about the ROWS.** One flag for both was wrong in
    both directions. Gated on `rows.length` it let a legitimately empty capture report a failed
    check as current; set unconditionally it claimed, on a first visit with an unreachable route,
    that an empty result was "the retained rows from the last successful capture" — inventing a
@@ -1751,18 +1759,18 @@ Seven rules, and the first is the one this codebase already had written down thr
    provenance gates the sentence, and a verified-empty calendar is restored from the device like
    any other: an empty dashboard is an answer, and dropping it lets an older response resurrect
    events that were correctly cleared.
-5. **A supplied calendar older than the one held is not an update.** The response and the calendar
+6. **A supplied calendar older than the one held is not an update.** The response and the calendar
    are written to the device under separate keys, so a quota failure on the large one leaves a
    newer calendar beside an older response and the next reload would adopt the older over it —
    and write it back. Compare only where both sides date themselves; an undated capture cannot be
    ordered and is taken as given, exactly as `isNewerThanHeld` refuses to rank an unstamped
    snapshot.
-6. **Retention is not a merge, and an empty successful read must still clear.** A forward calendar
+7. **Retention is not a merge, and an empty successful read must still clear.** A forward calendar
    legitimately shrinks as its dates pass, so a successful read always replaces — a shorter one
    included — and `[]` from a healthy capture means the dashboard has nothing scheduled, which is
    an answer. `scripts/verify-portfolio-calendar.mjs` asserts both directions; a retention rule
    that could never go back to nothing would be the mirror of the bug it fixed.
-7. **An availability transition is itself a change.** `meta.portfolioUpcomingSupplied` is a fact
+8. **An availability transition is itself a change.** `meta.portfolioUpcomingSupplied` is a fact
    about the response and `retained` is the claim made to a reader; neither derives from the other,
    and `hasChanged` compares `supplied` so a calendar going missing — or coming back with the same
    rows — reaches subscribers. Otherwise the coverage chip keeps printing the previous answer until

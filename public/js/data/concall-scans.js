@@ -224,6 +224,20 @@ function scheduleFrom(payload) {
  * collector, not our ability to reach our own route, and overwriting it would conflate two
  * different failures. The retention flag is what the coverage note branches on.
  */
+/** Every listener, in one place — the poller's failure path needs them as much as `refresh` does. */
+function emit() {
+  for (const fn of listeners) {
+    try { fn(cache); } catch (err) { console.error('[concall-scans] listener failed', err); }
+  }
+}
+
+/** Mark unconfirmed and report whether that actually changed the rendered metadata. */
+function notifyIfScheduleUnconfirmed() {
+  const before = cache?.meta.portfolioUpcomingConfirmed;
+  markScheduleUnconfirmed();
+  return !!cache && before !== cache.meta.portfolioUpcomingConfirmed;
+}
+
 function markScheduleUnconfirmed() {
   if (!cache || cache.meta.portfolioUpcomingConfirmed === false) return;
   // `confirmed` is about the READ and is cleared unconditionally: a last successful read can
@@ -307,9 +321,13 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
       // never reached it. `retained` is what makes the Upcoming view say so out loud.
       portfolioUpcomingRetained: retained,
       portfolioUpcomingSupplied: supplied,
-      // This payload IS a read, so ingesting one confirms what it carried. `markScheduleUnconfirmed`
-      // clears it again where the read that was supposed to happen did not.
-      portfolioUpcomingConfirmed: true,
+      // ONLY AN ADOPTED CALENDAR IS A CONFIRMED ONE, and `true` here was wrong twice. A payload
+      // that carried none confirms nothing about the rows it left on screen; and a payload whose
+      // calendar was REFUSED as stale certifies rows it did not supply — which would let the older
+      // response vouch for the newer held ones, and let a later 304 clear their retention mark on
+      // the strength of `supplied`. `confirmed` answers one question: did this read vouch for what
+      // is now painted.
+      portfolioUpcomingConfirmed: !!adopted,
       portfolioUpcomingCheckedAt: (adopted ? suppliedAt : heldSchedule?.checkedAt) || null,
       persisted: isPersistent(),
     },
@@ -350,7 +368,14 @@ export function startLive(live) {
       // A POLL THAT FAILED IS A CHECK THAT DID NOT HAPPEN, and this one is swallowed: `live.js`
       // backs off and never surfaces the error, so without this the calendar on an open tab keeps
       // reading as confirmed through an outage that began after the page loaded.
-      if (!out.value?.rows?.length) { markScheduleUnconfirmed(); throw Error('Con-call source could not be revalidated.'); }
+      if (!out.value?.rows?.length) {
+        // And it has to REACH them. `live.js` catches this throw without invoking subscribers, so
+        // marking `meta` alone leaves an open All Alerts view rendering its previous healthy status
+        // until its own next collection — the flag corrected and nobody told, which is the same
+        // failure as never correcting it.
+        if (notifyIfScheduleUnconfirmed()) emit();
+        throw Error('Con-call source could not be revalidated.');
+      }
       if (out.status === 304) {
         // Notify only where the 304 lifted a retention mark — an ordinary unchanged tick still
         // repaints nothing, which is what keeps a reader's sort and search intact.
@@ -385,12 +410,15 @@ export async function refresh() {
   await load();
   const out = await conditionalJson(LIVE_ENDPOINT, { key: STORE_KEY, optional: true });
   if (!Array.isArray(out.value?.rows) || out.value?.ok === false) {
-    markScheduleUnconfirmed();
+    if (notifyIfScheduleUnconfirmed()) emit();
     throw Error('Con-call revalidation failed; retained analysis is unchanged');
   }
-  if (!out.value?.rows?.length) { markScheduleUnconfirmed(); return cache; }
+  if (!out.value?.rows?.length) {
+    if (notifyIfScheduleUnconfirmed()) emit();
+    return cache;
+  }
   if (out.status === 304) {
-    if (markChecked('live', out.checkedAt)) for (const fn of listeners) { try { fn(cache); } catch (err) { console.error('[concall-scans] listener failed', err); } }
+    if (markChecked('live', out.checkedAt)) emit();
     return cache;
   }
   const changed = hasChanged(out.value);
@@ -420,6 +448,11 @@ function hasChanged(payload) {
   // leaves All Alerts printing the previous answer — a retained calendar still labelled
   // confirmed, or a recovered one still labelled retained — until its own next collection.
   if (!!scheduleFrom(payload) !== cache.meta.portfolioUpcomingSupplied) return true;
+  // The collector's own health is rendered too — `alert-sources.js` treats `collectorLatestFailed`
+  // as its own leg of the incomplete predicate — so a workflow failing while its previous artifact
+  // stays readable changes what is displayed without changing a single row.
+  const health = (m) => JSON.stringify([m?.status ?? null, m?.collectorLatestFailed ?? null, m?.portfolioUpcomingAvailable ?? null]);
+  if (health(payload?.meta?.screener) !== health(cache.meta.screener)) return true;
   // Beyond that, only a calendar the payload actually carried can be a row change. A payload with
   // none leaves the retained rows on screen, so comparing against them would repaint every
   // consumer over an upstream failure that altered nothing they can see.
