@@ -263,12 +263,16 @@
     "isin:INE532F01054|EDELWEISS": {
       "lastAttemptAt": "2026-09-07T04:56:28+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE1C6T01020|Emmvee Photovoltaic Power": {
+      "lastAttemptAt": "2026-09-07T05:05:43+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 229,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-07T04:56:28.578111+00:00"
+    "checkedAt": "2026-09-07T05:05:43.475957+00:00"
   }
 }
