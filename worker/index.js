@@ -1146,16 +1146,23 @@ async function handleConcalls(request, env, ctx) {
     return { value, fresh: true };
   };
 
+  // SETTLED ON ITS OWN, OUTSIDE THE `Promise.all` BELOW. The S Screen artifact is a different
+  // upstream to StockScans, and a `Promise.all` that rejects on the first failure would throw its
+  // result away with the rest — so a StockScans outage would empty a portfolio calendar that had
+  // been read perfectly well, which is the failure this whole route was just fixed for. On a cold
+  // device there is no retained copy to fall back to, so the loss would reach the screen.
+  const screenerRead = readCachedScreenerCollector(request, env, ctx).catch(() => null);
+
   try {
-    const [head, tail, sched, screener] = await Promise.all([
+    const [head, tail, sched] = await Promise.all([
       cached('head', CONCALL_HEAD_TTL_S, () => fetchConcallScans({ pages: 1 })),
       cached('tail', CONCALL_TAIL_TTL_S, () => fetchConcallScans({ pages: 'all', startOffset: PAGE_SIZE })),
       cached('schedule', CONCALL_SCHEDULE_TTL_S, async () => {
         const [upcoming, today] = await Promise.all([fetchUpcoming(), fetchToday()]);
         return { upcoming, today };
       }),
-      readCachedScreenerCollector(request, env, ctx),
     ]);
+    const screener = (await screenerRead) || { value: { capture: null, source: null } };
 
     const stockscansRows = mergeScans(head.value.rows, tail.value.rows);
     if (!stockscansRows.length) throw new Error('upstream returned no rows');
@@ -1206,14 +1213,17 @@ async function handleConcalls(request, env, ctx) {
     if (!fallback) {
       return json({ ok: false, degraded: `StockScans is unreachable and no snapshot is available: ${String(err.message || err)}`, rows: [] }, 502);
     }
+    // The calendar read is carried INTO the fallback. The committed snapshot is a capture of
+    // StockScans alone and has never held a portfolio calendar, so without this a StockScans
+    // outage reads to the browser as the S Screen dashboard having nothing on it — one upstream's
+    // failure emptying an unrelated one's feed, on a cold device with nothing retained to soften
+    // it. `null` where the artifact genuinely could not be read; its rows where it could.
+    const screener = (await screenerRead) || { value: { capture: null, source: null } };
     const { body, tag } = withTag({
       ...fallback,
       ok: true,
-      // The committed snapshot is a capture of StockScans alone and carries no portfolio calendar.
-      // Say so explicitly: without it the key is merely missing, and a StockScans outage would
-      // read to the browser as the S Screen dashboard having nothing on it — one upstream's
-      // failure emptying an unrelated one's feed.
-      portfolioUpcoming: null,
+      portfolioUpcoming: Array.isArray(screener.value?.capture?.portfolioUpcoming) ? screener.value.capture.portfolioUpcoming : null,
+      meta: { ...(fallback.meta || {}), screener: screener.value?.source || fallback.meta?.screener || null },
       degraded: `StockScans is unavailable (${String(err.message || err)}) — showing the last committed snapshot.`,
     });
     return revalidate(request, tagged(body, tag, 15), 'fallback'); // retry sooner than a normal window

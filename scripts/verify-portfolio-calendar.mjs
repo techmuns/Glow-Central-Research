@@ -44,6 +44,8 @@ const MODES = {
 };
 let mode = 'full';
 let stockscansDown = false;
+// What the Worker's fallback branch carries: the artifact's own rows where it was readable.
+let stockscansDownCalendar = null;
 // The Worker is unreachable entirely: a reload paints the stored response, and nothing in this
 // session has confirmed any of it.
 let routeDown = false;
@@ -65,10 +67,13 @@ const server = createServer((req, res) => {
     if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
     if (url.pathname === '/api/concalls') {
       if (routeDown) { res.writeHead(503); res.end('{}'); return; }
-      // StockScans down: the Worker's own fallback branch, which serves the committed snapshot and
-      // states `portfolioUpcoming: null` rather than leaving the key merely missing.
-      if (stockscansDown) return json({ ...snapshot, ok: true, portfolioUpcoming: null,
-        degraded: 'StockScans is unavailable — showing the last committed snapshot.' }, '"snapshot-fallback"');
+      // StockScans down: the Worker's own fallback branch. It serves the committed snapshot, and
+      // CARRIES THE CALENDAR READ INTO IT — the artifact is a different upstream and settles on its
+      // own, so a healthy calendar survives a StockScans outage. `null` only where the artifact
+      // itself could not be read.
+      if (stockscansDown) return json({ ...snapshot, ok: true,
+        portfolioUpcoming: stockscansDownCalendar, meta: { ...snapshot.meta, screener: MODES[mode].screener },
+        degraded: 'StockScans is unavailable — showing the last committed snapshot.' }, `"snapshot-fallback-${mode}"`);
       const { portfolioUpcoming, screener } = MODES[mode];
       return json({ ...snapshot, portfolioUpcoming, meta: { ...snapshot.meta, screener } }, `"${mode}"`);
     }
@@ -327,6 +332,23 @@ check('a failing revalidation on an open tab marks the calendar unconfirmed', ()
 routeDown = false;
 await openPageTab.close();
 await openTab.close();
+
+// A COLD DEVICE HAS NOTHING TO RETAIN, so the route carrying the calendar into its fallback is the
+// only thing between a StockScans outage and an empty Upcoming view for a healthy S Screen read.
+mode = 'full';
+stockscansDown = true;
+stockscansDownCalendar = FULL;
+const coldFallbackContext = await browser.newContext();
+const coldFallback = await openPage(coldFallbackContext);
+now = await state(coldFallback);
+check('a StockScans outage on a COLD device still paints a healthy calendar', () => {
+  assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'the artifact was readable, so its rows must arrive');
+  assert.equal(now.confirmed, true, 'and they were confirmed by this read');
+});
+await coldFallback.close();
+await coldFallbackContext.close();
+stockscansDown = false;
+stockscansDownCalendar = null;
 
 await page.close();
 

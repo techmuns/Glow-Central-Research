@@ -950,7 +950,10 @@ artifact behind the GitHub API — and it fails on its own: a timeout, a rate li
 collector token. When StockScans is instead the half that fails, the route serves the committed
 `concall-scans.json` snapshot, which is a capture of StockScans alone and has never carried a
 calendar at all; that branch states `portfolioUpcoming: null` explicitly rather than leaving the
-key merely missing. Both used to arrive as `[]` inside an `ok: true` 200, and
+key merely missing — and **carries the artifact read into the fallback where it succeeded**. The
+collector read therefore settles OUTSIDE the route's `Promise.all`: one that rejects on the first
+failure would discard a healthy calendar along with the StockScans error, and a cold device has no
+retained copy to soften that. Both used to arrive as `[]` inside an `ok: true` 200, and
 `js/data/concall-scans.js` wrote that straight over a good calendar — so **an outage in a feed
 All Alerts does not read emptied its Upcoming view**, and because the response is stored under the
 server's own ETag the emptiness survived every reload until a healthy 200 happened to land.
