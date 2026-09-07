@@ -3,7 +3,8 @@
 //
 //   Category Performance   the weekly workbook — every category's published median beside the index
 //                          the workbook pairs it with, then a drill into that category's schemes
-//   All Schemes            the daily AmfiBeas feed — ~3,400 schemes, each ranked in its own cohort
+//   All Schemes            the daily AmfiBeas feed — every scheme's return beside its own category's
+//                          published median, and its rank inside its own cohort
 //
 // IT USED TO BE A SUB-VIEW OF SUPER INVESTORS AND IT SHOULD NOT HAVE BEEN. That tab is about WHO
 // HOLDS WHAT — a superstar investor's filed book, an institution's shareholding, an AMC's portfolio.
@@ -20,31 +21,61 @@
 //   --------------- | ----------------------------- | ---------------------------------------
 //   source          | weekly workbook, committed    | AmfiBeas, read live from the browser
 //   as on           | its own stated date           | its own, later, date
-//   schemes         | ~620 curated direct plans     | ~3,400, every plan and option
-//   category median | PUBLISHED by the workbook     | none — the payload has no median
-//   benchmark       | PUBLISHED per category        | none — AMFI's NAV snapshot has none
+//   schemes         | ~620 curated direct plans     | ~1,850, the direct plan of each
+//   category median | PUBLISHED by the workbook     | PUBLISHED per cohort, on its own date
+//   benchmark       | a PUBLISHED INDEX per category| the scheme's own CATEGORY — no index exists
 //   peer rank       | none                          | published, within its own cohort
 //
 // So the two sub-views never share a row, a column, a total or a comparison. Putting the workbook's
 // 14-August index return beside an AmfiBeas 2-September fund return would be a comparison nobody
 // measured — the same error as dating a price move by the capture rather than the session
 // (CLAUDE.md, "A close is a claim about a SESSION"). Each sub-view prints its own as-on date on its
-// own face, and the tab says in words that they are different snapshots.
+// own face, and each provenance panel says in words that they are different snapshots.
 //
-// THE MEDIANS, THE INDEX RETURNS AND THE PEER RANKS ARE ALL THEIRS. Reproduced, never recomputed —
-// the con-call rule, applied to a third feed. Exactly two things here are derived, and both are
-// labelled wherever they surface:
+// ============================================================================================
+// EVERY RETURN ON THIS TAB CARRIES ITS BENCHMARK, AND THE BENCHMARK IS ALWAYS SOMEBODY ELSE'S
+// ============================================================================================
 //
-//   1. THE GAP, in percentage POINTS: a return minus its category median, or minus its benchmark.
-//      Subtraction of two of their own percentages. Never shown where either side is absent.
+// A return with nothing beside it answers nothing: +14% over a year is a good year or a poor one
+// entirely according to what the thing it should be compared with did. So no figure here is shown
+// alone — a category's median sits over its index, a scheme's return over its category median, and
+// on All Schemes every return sits over the median the source publishes for its own cohort.
+//
+// ONE SHEET IN THE WORKBOOK PRINTS NO INDEX ROW (Smart Beta Strategy Funds), and it is the one
+// place this tab shows a comparator the source did not choose. The index comes from the workbook's
+// OWN master index sheet, defaults to the one the workbook itself prints first under all eleven
+// sectoral and thematic sheets, is changeable by the reader, and is marked "not the workbook's
+// pairing" on the benchmark cell, in the reference row, in the picker, in the provenance panel and
+// in row 1 of the export. The rule that survives is the labelling, not the absence.
+//
+// THE MEDIANS, THE INDEX RETURNS, THE COHORT MEDIANS AND THE PEER RANKS ARE ALL THEIRS. Reproduced,
+// never recomputed — the con-call rule, applied to a third feed. Exactly two things here are
+// derived, and both are labelled wherever they surface:
+//
+//   1. THE GAP, in percentage POINTS, on the WORKBOOK half: a return minus its category median, or
+//      minus its benchmark. Subtraction of two of their own percentages, never shown where either
+//      side is absent. (On All Schemes even this is theirs — `excessVsMedian` is published.)
 //   2. THE SHADE. The figure in a cell is always the source's; only its background is added here,
-//      and js/ui/mf-heatmap.js's legend states what it means on the same screen it appears on.
+//      and js/ui/mf-heatmap.js's legend states what it means, in the provenance panel.
 //
 // THE HIERARCHY IS A READING AID OVER SOMEBODY ELSE'S CATEGORY, NOT A NEW CATEGORY. Both feeds
 // publish a flat bucket — a sheet name, or an "Equity : Large Cap" string — and js/data/mf-taxonomy.js
 // groups them into asset class -> group -> category for both. Nothing is renamed or merged, every
 // scheme keeps the bucket its source put it in, and a bucket nothing anticipated is `Unclassified`
-// and visible rather than folded into whichever group looked closest.
+// and visible rather than folded into whichever group looked closest. All Schemes offers all three
+// levels, because there the third one is invisible until a control names it; Category Performance
+// offers two, because there the third level IS the row.
+//
+// AND THERE IS A FOURTH READING THAT IS NOT PART OF THE TREE. Neither source classifies a momentum
+// or a quality fund as one — AmfiBeas file all 645 passive equity schemes as `Index`, `Index Funds`
+// or `ETFs` and stop there — so the strategy chips read the word out of the SCHEME'S OWN NAME,
+// which is where the tracked index is stated, say so on their own face, and change no scheme's
+// classification. See FACTORS in js/data/mf-taxonomy.js.
+//
+// NOTHING ON THIS TAB SHOWS A REGULAR PLAN. The workbook is direct-plan only by construction; the
+// live feed returns both, so js/data/fund-returns.js keeps the direct plan of every scheme and the
+// single plan of every scheme that has one — an ETF has no plan to choose, and a blanket "drop
+// regular" would have deleted all 234 of them.
 //
 // SCOPE DOES NOT APPLY, AND THE HEAD SAYS SO. These are schemes, not companies: the Portfolio /
 // Watchlist / Universe toggle narrows nothing here, no row carries a watchlist star, and
@@ -59,13 +90,13 @@ import { peerHeat, gapHeat, HEAT_LEGEND } from '../ui/mf-heatmap.js';
 import { renderFundReturns } from '../investors/fund-returns.js';
 import * as weekly from '../data/mf-weekly.js';
 import * as fundReturns from '../data/fund-returns.js';
-import { buildTree, classifyLive } from '../data/mf-taxonomy.js';
+import { buildTree, classifyLive, FACTORS, factorsOf, factorLabel } from '../data/mf-taxonomy.js';
 
 export const meta = {
   id: 'mutual-funds',
   title: 'Mutual Funds',
   subtitle:
-    'Every mutual-fund category against the index it is benchmarked to, its published median, and each scheme inside it — plus every tracked scheme’s daily return and peer rank.',
+    'Every mutual-fund category against the index it is benchmarked to, its published median, and each scheme inside it — plus every tracked scheme’s daily return beside its own category’s median and its peer rank.',
   subviews: [
     { id: 'category-performance', label: 'Category Performance' },
     { id: 'all-schemes', label: 'All Schemes' },
@@ -94,8 +125,13 @@ let allSchemesView = null;
 // The hierarchy filter, shared by both sub-views: null means "every asset class".
 let assetClass = null;
 let group = null;
-// The reader's own benchmark choice, per category id. Only ever one of the indices the workbook
-// prints under THAT category — never one borrowed from the master sheet.
+// The third level — the source's own category — offered on All Schemes, where the row is a scheme
+// rather than a category. Null means "every category in this group".
+let categoryId = null;
+// The strategy the scheme's own NAME states. A separate axis from the three above; null means "any".
+let strategy = null;
+// The reader's own benchmark choice, per category id — one of the indices the workbook prints under
+// THAT category, or, for the one sheet it prints none under, one from its own master index sheet.
 let chosenBenchmark = {};
 
 // WHICH READINGS EACH LEVEL OFFERS, and the reason the two lists differ.
@@ -116,7 +152,15 @@ const SCHEME_MEASURES = [
   ['vs-benchmark', 'vs Benchmark', 'The scheme’s return minus the benchmark’s return for the same period, in percentage points. Derived here.'],
   ['vs-median', 'vs Median', 'The scheme’s return minus its category’s published median for the same period, in percentage points. Derived here.'],
 ];
-const measuresFor = (level) => (level === 'category' ? CATEGORY_MEASURES : SCHEME_MEASURES);
+// ALL SCHEMES HAS NO INDEX TO OFFER, so its second reading is the excess over the scheme's own
+// category median — and that one is not derived here either: it is the source's own
+// `excessVsMedian`, on the same NAV date as the return above it.
+const LIVE_MEASURES = [
+  ['return', 'Return', 'The source’s own return for the period, with its category’s published median beneath it.'],
+  ['vs-benchmark', 'vs Category', 'The source’s own excess over its category median for the same period, in percentage points. Their subtraction, not one done here.'],
+];
+const MEASURES_BY_LEVEL = { category: CATEGORY_MEASURES, scheme: SCHEME_MEASURES, live: LIVE_MEASURES };
+const measuresFor = (level) => MEASURES_BY_LEVEL[level] || SCHEME_MEASURES;
 /** A measure the current level does not offer falls back to the source's own figure. */
 const measureFor = (level) => (measuresFor(level).some(([id]) => id === measure) ? measure : 'return');
 
@@ -149,6 +193,8 @@ export function destroy() {
   allSchemesView = null;
   assetClass = null;
   group = null;
+  categoryId = null;
+  strategy = null;
   chosenBenchmark = {};
 }
 
@@ -215,10 +261,7 @@ function comparisonPanel(m, repaint) {
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
       controls: `${hierarchyControls(weekly.categories())}${measureControls('category')}`,
     })}
-    ${coverageNote(m, cats)}
     ${table.html}
-    ${heatLegend(HEAT_LEGEND.gap)}
-    ${derivationNote(m)}
   `;
 
   return {
@@ -262,12 +305,15 @@ function comparisonTable(cats, m, periods) {
         label: 'Benchmark',
         html: true,
         get: (c) => {
-          const { benchmark, reason } = weekly.benchmarkFor(c, chosenBenchmark[c.id]);
-          // A CATEGORY THE WORKBOOK PUBLISHES NO INDEX FOR SAYS SO. Nothing is borrowed from the
-          // master index sheet to fill the gap: pairing a category with an index the source did not
-          // pair it with would be this dashboard's judgement wearing the workbook's clothes.
+          const { benchmark, reason, paired } = weekly.benchmarkFor(c, chosenBenchmark[c.id]);
           if (!benchmark) {
             return `<span class="text-xs text-slate-400" title="${escapeHtml(reason)}">none published</span>`;
+          }
+          // A CATEGORY THE WORKBOOK PRINTS NO INDEX UNDER SAYS SO ON THE FACE OF THE CELL. The
+          // comparator is still shown — a return with nothing beside it answers nothing — but it is
+          // never allowed to read as the workbook's own pairing, here or anywhere else it surfaces.
+          if (!paired) {
+            return `<span class="text-xs text-slate-600" title="${escapeHtml(reason)}">${escapeHtml(benchmark.name)}<span class="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-100">not the workbook’s pairing</span></span>`;
           }
           return `<span class="text-xs text-slate-600" title="${escapeHtml(reason)}">${escapeHtml(benchmark.name)}</span>`;
         },
@@ -302,8 +348,8 @@ function comparisonTable(cats, m, periods) {
         label: 'All benchmarks',
         options: [
           { value: 'all', label: 'All benchmarks' },
-          { value: 'published', label: 'Has a published index' },
-          { value: 'none', label: 'No index published' },
+          { value: 'published', label: 'Index published by the workbook' },
+          { value: 'none', label: 'Comparator is a stated fallback' },
         ],
         match: (c, v) => (v === 'all' ? true : v === 'published' ? c.benchmarks.length > 0 : c.benchmarks.length === 0),
       },
@@ -381,7 +427,7 @@ function schemePanel(m, repaint) {
     openCategory = null;
     return comparisonPanel(m, repaint);
   }
-  const { benchmark, reason, alternatives = [], chosen } = weekly.benchmarkFor(cat, chosenBenchmark[cat.id]);
+  const { benchmark, reason, alternatives = [], chosen, paired } = weekly.benchmarkFor(cat, chosenBenchmark[cat.id]);
   const periods = m.periods;
   const table = schemeTable(cat, benchmark, m, periods);
   schemeView = table.view;
@@ -391,14 +437,18 @@ function schemePanel(m, repaint) {
       title: `${cat.label} — every scheme`,
       description:
         `${cat.funds.length} scheme${cat.funds.length === 1 ? '' : 's'} in the workbook’s ${cat.sheet} sheet, each direct-plan growth. ` +
-        `Every return is the workbook’s own; the reference row below carries the category’s published median and ${benchmark ? `the ${benchmark.name}` : 'the fact that no index is published here'}.`,
+        `Every return is the workbook’s own; the reference row below carries the category’s published median and ${
+          benchmark
+            ? paired
+              ? `the ${benchmark.name}`
+              : `the ${benchmark.name} — a stated fallback from the workbook’s master index sheet, because it prints no index row under this one`
+            : 'the fact that no index is published here'
+        }.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
       controls: `${backControl(cat)}${measureControls('scheme')}`,
     })}
-    ${referenceStrip(cat, benchmark, reason, alternatives, periods, chosen)}
+    ${referenceStrip(cat, benchmark, reason, alternatives, periods, chosen, paired)}
     ${table.html}
-    ${heatLegend(measureFor('scheme') === 'return' ? HEAT_LEGEND.peer : HEAT_LEGEND.gap)}
-    ${derivationNote(m)}
   `;
 
   return {
@@ -423,7 +473,18 @@ function schemePanel(m, repaint) {
         el.addEventListener('click', on);
         disposers.push(() => el.removeEventListener('click', on));
       });
-      wireProvenance(root, m);
+      // The master-sheet picker, for a category the workbook prints no index under. A <select>
+      // rather than 36 chips: the same choice, at a width the head can hold.
+      const pickSelect = root.querySelector('[data-mf-benchmark-select]');
+      if (pickSelect) {
+        const onPick = () => {
+          chosenBenchmark = { ...chosenBenchmark, [cat.id]: pickSelect.value };
+          repaint();
+        };
+        pickSelect.addEventListener('change', onPick);
+        disposers.push(() => pickSelect.removeEventListener('change', onPick));
+      }
+      wireProvenance(root, m, 'scheme');
     },
   };
 }
@@ -441,14 +502,14 @@ function schemeTable(cat, benchmark, m, periods) {
     showWatchFilter: false,
     name: (f) => f.scheme,
     nameLabel: 'Scheme',
-    sub: (f) => [f.house, f.plan !== 'unknown' ? cap(f.plan) : null, f.option !== 'unknown' ? cap(f.option) : null].filter(Boolean).join(' · '),
+    sub: (f) => [f.house, factorsOf(f.scheme).map(factorLabel).join(' · ') || null, f.option !== 'unknown' ? cap(f.option) : null].filter(Boolean).join(' · '),
     showRank: false,
     showAvatar: false,
     dense: true,
     wrapHeads: true,
     nameMaxPx: 300,
     stickyHead: 'max(320px, calc(100vh - 420px))',
-    searchable: (f) => `${f.scheme} ${f.house || ''}`,
+    searchable: (f) => `${f.scheme} ${f.house || ''} ${factorsOf(f.scheme).join(' ')}`,
     searchPlaceholder: 'Search scheme or fund house...',
     initialSort: { key: 'name', dir: 'asc' },
     initialView: schemeView,
@@ -471,21 +532,18 @@ function schemeTable(cat, benchmark, m, periods) {
         sortValue: (f) => (typeof f.aumCr === 'number' ? f.aumCr : null),
       },
       {
+        // ONLY THE DIRECT EXPENSE RATIO. Every return on this sheet is a direct-plan return, so the
+        // regular figure beside it belonged to a scheme none of these rows describe — and this
+        // dashboard now shows the direct plan on both sub-views, so a regular figure has nowhere it
+        // could be read against.
         label: 'Expense direct',
         align: 'right',
         html: true,
         get: (f) => expenseCell(f.expense?.direct, 'direct'),
         sortValue: (f) => (typeof f.expense?.direct === 'number' ? f.expense.direct : null),
       },
-      {
-        label: 'Expense regular',
-        align: 'right',
-        html: true,
-        get: (f) => expenseCell(f.expense?.regular, 'regular'),
-        sortValue: (f) => (typeof f.expense?.regular === 'number' ? f.expense.regular : null),
-      },
     ],
-    filters: houseFilter(cat),
+    filters: [houseFilter(cat), strategyFilter(cat.funds, (f) => factorsOf(f.scheme))].filter(Boolean),
     countNoun: 'schemes',
     exportName: `glow-mf-${cat.id}-${todayStamp()}`,
     onExport: (visible) => exportSchemes(cat, benchmark, m, periods, visible),
@@ -548,6 +606,24 @@ function expenseCell(v, which) {
   return `<span class="tabular-nums text-slate-600" title="${escapeHtml(`The workbook’s quoted ${which}-plan expense ratio. The returns in this row are the direct plan’s.`)}">${escapeHtml(v.toFixed(2))}%</span>`;
 }
 
+/**
+ * The strategy the scheme's own name states, as a filter for a table that has no chip row of its
+ * own. Same reading as `strategyControls()` and the same caveat: read from the name, never a
+ * classification either source publishes.
+ */
+function strategyFilter(rows, factorsOfRow) {
+  const present = FACTORS.map((f) => ({ ...f, count: rows.filter((r) => factorsOfRow(r).includes(f.id)).length })).filter((f) => f.count > 0);
+  if (present.length < 2) return null;
+  return {
+    label: 'Any strategy',
+    options: [
+      { value: 'all', label: 'Any strategy in the name' },
+      ...present.map((f) => ({ value: f.id, label: `${f.label} · ${f.count}` })),
+    ],
+    match: (r, v) => factorsOfRow(r).includes(v),
+  };
+}
+
 function houseFilter(cat) {
   const houses = [...new Set(cat.funds.map((f) => f.house).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   if (houses.length < 2) return null;
@@ -563,7 +639,7 @@ function houseFilter(cat) {
  * pairs it with, and the gap between them — the same three facts the comparison view shows, for the
  * one category being read.
  */
-function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = false) {
+function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = false, paired = true) {
   const row = (label, sub, get, cls = '') => `
     <tr class="border-t border-slate-100">
       <td class="px-3 py-2">
@@ -589,7 +665,7 @@ function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = 
           })}
           ${
             benchmark
-              ? row(benchmark.name, reason, (p) => {
+              ? row(paired ? benchmark.name : `${benchmark.name} — not the workbook’s pairing`, reason, (p) => {
                   const v = weekly.benchmarkReturn(benchmark, p);
                   return v == null ? dash(`${benchmark.name} has no ${p} return in this workbook`) : `<span class="font-semibold ${toneOf(v)}">${escapeHtml(fmtPct(v))}</span>`;
                 })
@@ -607,18 +683,42 @@ function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = 
           }
         </tbody>
       </table>
-      ${
-        alternatives.length
-          ? `<div class="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500" data-mf-bench-picker>
-              <span class="font-semibold text-slate-600">Compare against:</span>
-              ${cat.benchmarks
-                .map((b) => chipBtn(`data-mf-benchmark="${escapeHtml(b.id)}"`, b.name + (b.tri ? '' : ' · price'), b === benchmark,
-                  b.tri ? 'A Total Return Index — dividends reinvested, like a NAV.' : 'A price index. It excludes dividends, so a gap measured against it is not on the same scale as one measured against a Total Return Index.'))
-                .join('')}
-              <span class="ml-1">${escapeHtml(chosen ? 'Your choice, from the indices this workbook prints under this category.' : 'The workbook’s own default. Every option here is an index it prints under this category — none is borrowed from the master sheet.')}</span>
-            </div>`
-          : ''
-      }
+      ${benchmarkPicker(cat, benchmark, alternatives, chosen, paired)}
+    </div>`;
+}
+
+/**
+ * WHICH INDEX THIS CATEGORY IS HELD AGAINST, and who chose it.
+ *
+ * For a category the workbook pairs with indices, the options are exactly those and the picker says
+ * whose choice is showing — the workbook's default or the reader's. For the one sheet the workbook
+ * prints NO index row under, the options are the workbook's own 36-index master sheet, offered as a
+ * <select> because thirty-six chips is not a control, and every label around it says the pairing is
+ * not the workbook's. Nothing outside this workbook is ever offered.
+ */
+function benchmarkPicker(cat, benchmark, alternatives, chosen, paired) {
+  if (!benchmark) return '';
+  if (paired) {
+    if (!alternatives.length) return '';
+    return `<div class="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500" data-mf-bench-picker>
+        <span class="font-semibold text-slate-600">Compare against:</span>
+        ${cat.benchmarks
+          .map((b) => chipBtn(`data-mf-benchmark="${escapeHtml(b.id)}"`, b.name + (b.tri ? '' : ' · price'), b === benchmark,
+            b.tri ? 'A Total Return Index — dividends reinvested, like a NAV.' : 'A price index. It excludes dividends, so a gap measured against it is not on the same scale as one measured against a Total Return Index.'))
+          .join('')}
+        <span class="ml-1">${escapeHtml(chosen ? 'Your choice, from the indices this workbook prints under this category.' : 'The workbook’s own default. Every option here is an index it prints under this category — none is borrowed from the master sheet.')}</span>
+      </div>`;
+  }
+  const options = weekly.benchmarkOptions(cat);
+  return `<div class="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500" data-mf-bench-picker>
+      <span class="font-semibold text-slate-600">Compare against:</span>
+      <select data-mf-benchmark-select
+        class="rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+        ${options.map((b) => `<option value="${escapeHtml(b.id)}"${b === benchmark ? ' selected' : ''}>${escapeHtml(b.name)}${b.tri ? '' : ' · price'}</option>`).join('')}
+      </select>
+      <span class="ml-1">${escapeHtml(
+        `The workbook prints no index row under this sheet, so ${chosen ? 'this is your choice' : 'this is a stated fallback'} from its own master sheet of ${options.length} indices — not a pairing the workbook makes.`,
+      )}</span>
     </div>`;
 }
 
@@ -643,13 +743,21 @@ function renderAllSchemes(ctx) {
       disposers,
       repaint: paint,
       rows,
-      headHtml: hierarchyControls(null, tree, { coverage: false }),
+      // THE THIRD LEVEL IS OFFERED HERE AND NOT ON CATEGORY PERFORMANCE, because there the third
+      // level IS the row: a chip per category above a table of categories is the same control
+      // twice. Here the categories are invisible until something names them, which is how "ETFs"
+      // and "Index" — words the source itself uses — had no control at all.
+      headHtml: `${hierarchyControls(null, tree, { coverage: false, depth: 3 })}${strategyControls(fundReturns.all(), (f) => f.factors)}${measureControls('live')}`,
       view: allSchemesView,
       onView: (v) => { allSchemesView = v; },
+      measure: measureFor('live'),
+      extraProvenance: twoFeedsProvenance(m),
     });
-    ctx.root.innerHTML = `${allSchemesHead(m, rows)}${panel.html}`;
+    ctx.root.innerHTML = panel.html;
     panel.wire(ctx.root);
     wireHierarchy(ctx.root, paint);
+    wireStrategy(ctx.root, paint);
+    wireMeasure(ctx.root, paint);
   };
 
   if (fundReturns.isLoaded()) {
@@ -666,38 +774,44 @@ function liveTree() {
   return buildTree(fundReturns.all(), (f) => classifyLive(f.classification));
 }
 
-/** The live feed under the same asset-class / group filter the chips show. One predicate, one truth. */
+/**
+ * The live feed under the chips above it — asset class, group, category and strategy. ONE PREDICATE,
+ * used by the rows, the counts and the export, so no number on screen can describe a wider set than
+ * the table beneath it.
+ */
 function liveScoped(all) {
-  if (!assetClass && !group) return all;
+  if (!assetClass && !group && !categoryId && !strategy) return all;
   return all.filter((f) => {
     const t = classifyLive(f.classification);
-    return (!assetClass || t.assetClass === assetClass) && (!group || t.group === group);
+    return (!assetClass || t.assetClass === assetClass)
+      && (!group || t.group === group)
+      && (!categoryId || t.categoryId === categoryId)
+      && (!strategy || f.factors?.includes(strategy));
   });
 }
 
 /**
- * The head above the live feed's own panel. It exists to say ONE thing the feed's own pill cannot:
- * that this is a different snapshot from the one on the other sub-view, taken on a different day,
- * and that nothing crosses between them.
+ * THE ONE THING THE FEED'S OWN PILL CANNOT SAY: that this is a different snapshot from the other
+ * sub-view, taken on a different day, and that nothing crosses between them.
+ *
+ * It used to be a full-width paragraph above the table. It is the same sentences, now inside the
+ * provenance modal the Live pill opens — the resolution this codebase takes whenever a caveat
+ * competes with the content it qualifies. The claim is not deleted, it is one click away from every
+ * screen, and the pill on the face of the page still carries the date.
  */
-function allSchemesHead(m, rows) {
+function twoFeedsProvenance(m) {
   // A FAILED LIVE READ GETS NO TWO-DATES PARAGRAPH. Printing "as on 14 Aug" beside a panel that has
-  // no figures at all puts the workbook's date on a screen the workbook is not on — the reader sees
-  // one date and one empty table and has every reason to read the first as belonging to the second.
-  // The failure panel below says what went wrong; this says nothing over it.
+  // no figures at all puts the workbook's date on a screen the workbook is not on.
   if (!m || m.reason) return '';
   const live = m.asOfDate;
   const bookDate = weekly.meta()?.asOf || null;
-  const narrowed = rows && rows.length !== fundReturns.all().length
-    ? ` Showing <span class="font-semibold text-slate-600">${escapeHtml(formatNumber(rows.length))}</span> of ${escapeHtml(formatNumber(fundReturns.all().length))} schemes under the classification chosen above.`
-    : '';
   return `
-    <div class="mb-4 rounded-2xl bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 shadow-sm ring-1 ring-slate-100" data-mf-two-feeds>
-      <span class="font-semibold text-slate-600">A different snapshot from Category Performance.</span>
-      This is the daily AmfiBeas feed${live ? `, as on <span class="font-semibold text-slate-600">${escapeHtml(live)}</span>` : ''} — every plan and option, each scheme ranked inside its own cohort.
-      Category Performance reads the weekly workbook${bookDate ? `, as on <span class="font-semibold text-slate-600">${escapeHtml(bookDate)}</span>` : ''}, which is the only one of the two that publishes a category median or a benchmark.
+    <div class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-100" data-mf-two-feeds>
+      <span class="font-semibold">A different snapshot from Category Performance.</span>
+      This is the daily AmfiBeas feed${live ? `, as on <span class="font-semibold">${escapeHtml(live)}</span>` : ''} — every scheme ranked inside its own cohort, benchmarked against its own category median on that same date.
+      Category Performance reads the weekly workbook${bookDate ? `, as on <span class="font-semibold">${escapeHtml(bookDate)}</span>` : ''}, which is the only one of the two that publishes an index return.
       ${live && bookDate && live !== bookDate ? 'They are dated different days, so no figure from one is compared with, summed with, or used as a benchmark for the other.' : 'Neither figure is combined with the other.'}
-      This feed carries no index and no median of its own; where a benchmark is needed, Category Performance is where it lives.${narrowed}
+      This feed carries no index of its own; where an index benchmark is needed, Category Performance is where it lives.
     </div>`;
 }
 
@@ -714,7 +828,7 @@ function allSchemesHead(m, rows) {
  * null and a full Set, for the same reason: the two look identical until a category appears or
  * disappears. The counts on a chip describe the TAXONOMY, so they do not move when you press one.
  */
-function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {}) {
+function hierarchyControls(all, tree = weekly.tree(all), { coverage = true, depth = 2 } = {}) {
   const classChips = tree
     .map((n) => chipBtn(`data-mf-class="${escapeHtml(n.assetClass)}"`, `${n.assetClass} · ${n.count}`, assetClass === n.assetClass))
     .join('');
@@ -722,6 +836,15 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {
   const groupChips = active
     ? `<span class="mx-1 h-4 w-px bg-slate-200"></span>${chipBtn('data-mf-group=""', 'All groups', !group)}${active.groups
         .map((g) => chipBtn(`data-mf-group="${escapeHtml(g.group)}"`, `${g.group} · ${g.count}`, group === g.group))
+        .join('')}`
+    : '';
+  // THE THIRD LEVEL IS THE SOURCE'S OWN CATEGORY, and until it was offered a reader had no way to
+  // ask for "ETFs" or "Index" — words the source itself prints on 645 equity schemes. Only shown
+  // where the third level is not already the row (see the call site on All Schemes).
+  const activeGroup = depth >= 3 && active ? active.groups.find((g) => g.group === group) : null;
+  const categoryChips = activeGroup
+    ? `<span class="mx-1 h-4 w-px bg-slate-200"></span>${chipBtn('data-mf-category=""', 'All categories', !categoryId)}${activeGroup.categories
+        .map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}"`, `${c.label} · ${c.items.length}`, categoryId === c.id))
         .join('')}`
     : '';
   // `coverage: false` on All Schemes. The note names what the WEEKLY WORKBOOK does not publish;
@@ -734,6 +857,7 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {
       ${chipBtn('data-mf-class=""', 'All', !assetClass)}
       ${classChips}
       ${groupChips}
+      ${categoryChips}
       ${
         uncovered.length
           ? `<span class="ml-1 cursor-help text-[11px] text-slate-400" title="${escapeHtml(uncovered.map((c) => c.note).join(' '))}">${escapeHtml(uncovered.map((c) => c.label).join(', '))} not covered here</span>`
@@ -742,11 +866,38 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {
     </div>`;
 }
 
+/**
+ * THE STRATEGY ROW — momentum, quality, value, low volatility, alpha, equal weight, dividend yield.
+ *
+ * NEITHER SOURCE CLASSIFIES A MOMENTUM FUND AS ONE. AmfiBeas file all 645 passive equity schemes as
+ * `Index`, `Index Funds` or `ETFs` and stop there; the workbook files all 70 of them as one Smart
+ * Beta sheet. So the question "which of these are the momentum funds" had no control on either
+ * sub-view and could only be answered by typing the word into a search box and hoping.
+ *
+ * IT READS THE SCHEME'S OWN NAME, WHICH IS WHERE THE TRACKED INDEX IS STATED, and the row says so
+ * on its own face. It is a SEPARATE axis from the classification chips beside it: a momentum fund's
+ * classification is still `Equity : Index`, nothing here moves it, and a scheme matching no pattern
+ * is simply not in a strategy rather than placed in the nearest one. `All` is null rather than every
+ * chip pressed, and the counts describe the FEED, so they do not move when you press one.
+ */
+function strategyControls(all, factorsOf) {
+  const present = FACTORS.map((f) => ({ ...f, count: all.filter((r) => factorsOf(r)?.includes(f.id)).length })).filter((f) => f.count > 0);
+  if (present.length < 2) return '';
+  return `
+    <div class="flex flex-wrap items-center gap-1.5" data-mf-strategies>
+      <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400" title="Read from each scheme’s own name, where the tracked index is stated. Neither source publishes this as a classification.">Strategy in the name</span>
+      ${chipBtn('data-mf-strategy=""', 'Any', !strategy)}
+      ${present.map((f) => chipBtn(`data-mf-strategy="${escapeHtml(f.id)}"`, `${f.label} · ${f.count}`, strategy === f.id,
+        `Schemes whose own name states ${f.label.toLowerCase()}. Read from the name, not from a classification — no source publishes one.`)).join('')}
+    </div>`;
+}
+
 function wireHierarchy(root, repaint) {
   root.querySelectorAll('[data-mf-class]').forEach((el) => {
     const on = () => {
       assetClass = el.dataset.mfClass || null;
       group = null;
+      categoryId = null;
       openCategory = null;
       repaint();
     };
@@ -756,7 +907,28 @@ function wireHierarchy(root, repaint) {
   root.querySelectorAll('[data-mf-group]').forEach((el) => {
     const on = () => {
       group = el.dataset.mfGroup || null;
+      categoryId = null;
       openCategory = null;
+      repaint();
+    };
+    el.addEventListener('click', on);
+    disposers.push(() => el.removeEventListener('click', on));
+  });
+  root.querySelectorAll('[data-mf-category]').forEach((el) => {
+    const on = () => {
+      categoryId = el.dataset.mfCategory || null;
+      openCategory = null;
+      repaint();
+    };
+    el.addEventListener('click', on);
+    disposers.push(() => el.removeEventListener('click', on));
+  });
+}
+
+function wireStrategy(root, repaint) {
+  root.querySelectorAll('[data-mf-strategy]').forEach((el) => {
+    const on = () => {
+      strategy = el.dataset.mfStrategy || null;
       repaint();
     };
     el.addEventListener('click', on);
@@ -825,37 +997,48 @@ const scopeChip = () =>
  * A missing asset class and a category with no index are the two gaps here, and both are the kind
  * that read as a broken fetch when they are silent.
  */
-function coverageNote(m, shown) {
+/**
+ * WHAT THIS VIEW COVERS AND WHAT IT DOES NOT — stated, never left to be read off an absence.
+ *
+ * IT LIVES BEHIND THE AS-ON PILL RATHER THAN ABOVE THE TABLE. Three blocks used to close and open
+ * this view — a coverage paragraph, the shade legend and a five-sentence derivation note — and
+ * between them they were the tallest thing on a screen whose point is the table. That is the
+ * resolution this codebase has taken four times now (the Earnings Hub ribbon, Portfolio's four-line
+ * provenance block, the market-news freshness card, the con-call schedule chips): move the
+ * explanation behind a control that still states the claim, and never delete the claim. Every
+ * sentence below is the one that was on the page, and the pill is one click away from every screen.
+ */
+function coverageSentences(m, shown = weekly.categories()) {
   const uncovered = (m.coverage || []).filter((c) => !c.covered).map((c) => c.label);
-  const noBench = shown.filter((c) => !c.benchmarks.length).map((c) => c.label);
+  const noBench = weekly.unpairedCategories(shown).map((c) => c.label);
   const total = weekly.categories().length;
   const parts = [
     `${shown.length}${shown.length === total ? '' : ` of ${total}`} categories, ${formatNumber(shown.reduce((n, c) => n + c.funds.length, 0))} schemes.`,
   ];
   if (uncovered.length) parts.push(`This workbook publishes no ${uncovered.join(', ').toLowerCase()} sheet, so ${uncovered.length === 1 ? 'that asset class is' : 'those asset classes are'} absent here rather than empty — the daily feed on All Schemes does carry them, on its own date.`);
-  if (noBench.length) parts.push(`${noBench.join(', ')} ${noBench.length === 1 ? 'carries' : 'carry'} no index row in the workbook, so no benchmark is shown for ${noBench.length === 1 ? 'it' : 'them'} and none is substituted.`);
+  if (noBench.length) parts.push(`${noBench.join(', ')} ${noBench.length === 1 ? 'carries' : 'carry'} no index row in the workbook, so the index shown against ${noBench.length === 1 ? 'it' : 'them'} is a stated fallback from the workbook’s own master sheet and is labelled as not the workbook’s pairing.`);
   // A PRICE INDEX AND A TOTAL RETURN INDEX ARE NOT ON ONE SCALE, and their gaps share one sortable
   // column. Roughly a point a year separates them — the width of a shade step — so the categories
   // measured on the narrower basis are named rather than left to be discovered from a tooltip.
   const priceBasis = weekly.priceBasisCategories(shown).map((c) => c.label);
   if (priceBasis.length) parts.push(`${priceBasis.join(', ')} ${priceBasis.length === 1 ? 'is' : 'are'} compared against a price index rather than a total-return one, because the workbook prints no TRI under ${priceBasis.length === 1 ? 'that sheet' : 'those sheets'} — a price index excludes dividends, so ${priceBasis.length === 1 ? 'that gap is' : 'those gaps are'} not on the same scale as the rest of the column.`);
-  return `<p class="mb-3 text-xs leading-relaxed text-slate-500">${parts.map((p) => escapeHtml(p)).join(' ')}</p>`;
+  return parts;
 }
 
-function derivationNote(m) {
-  return `
-    <p class="mt-3 rounded-2xl bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 shadow-sm ring-1 ring-slate-100">
-      <span class="font-semibold text-slate-600">The returns, the medians and the index figures are the workbook’s</span> — reproduced unchanged, as on ${escapeHtml(m.asOf || 'its stated date')}.
-      <span class="font-semibold text-slate-600">3Y and 5Y are annualised</span>; the shorter windows are simple point-to-point returns, and <span class="font-semibold text-slate-600">Since inception</span> spans a different length for every scheme, so it is not comparable across rows.
-      A cell reading <span class="font-mono">—</span> means the source publishes no figure for that period — a scheme younger than the window, or an index the workbook does not quote that far — <span class="font-semibold text-slate-600">never a zero</span>.
-      Exactly two things are derived here: the <span class="font-semibold text-slate-600">gap</span>, in percentage points, and the <span class="font-semibold text-slate-600">shade</span>, explained in the legend above.
-      AUM is as at ${escapeHtml(weekly.categories()[0]?.aumLabel || 'the workbook’s stated month')}, which is not the return date.
-    </p>`;
+function derivationSentences(m) {
+  return [
+    `The returns, the medians and the index figures are the workbook’s — reproduced unchanged, as on ${m.asOf || 'its stated date'}.`,
+    '3Y and 5Y are annualised; the shorter windows are simple point-to-point returns, and Since inception spans a different length for every scheme, so it is not comparable across rows.',
+    'A cell reading — means the source publishes no figure for that period, a scheme younger than the window or an index the workbook does not quote that far. Never a zero.',
+    'Exactly two things are derived here: the gap, in percentage points, and the shade, explained below.',
+    `AUM is as at ${weekly.categories()[0]?.aumLabel || 'the workbook’s stated month'}, which is not the return date.`,
+  ];
 }
 
+/** The shade legend, for the provenance modal. `data-mf-legend` follows it there. */
 function heatLegend(legend) {
   return `
-    <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100" data-mf-legend>
+    <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100" data-mf-legend>
       <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(legend.title)}</span>
       <div class="flex flex-wrap items-center gap-2">
         ${legend.steps
@@ -866,22 +1049,25 @@ function heatLegend(legend) {
     </div>`;
 }
 
-function wireProvenance(root, m) {
+function wireProvenance(root, m, level = 'category') {
   const btn = root.querySelector('[data-mf-info]');
   if (!btn) return;
-  const on = () => openProvenance(m);
+  const on = () => openProvenance(m, level);
   btn.addEventListener('click', on);
   disposers.push(() => btn.removeEventListener('click', on));
 }
 
-function openProvenance(m) {
+function openProvenance(m, level = 'category') {
   const cats = weekly.categories();
-  const noBench = cats.filter((c) => !c.benchmarks.length);
+  const noBench = weekly.unpairedCategories(cats);
   const uncovered = (m.coverage || []).filter((c) => !c.covered);
+  const shown = scopedCategories();
   openModal(
     `
     <div class="p-6">
       <h3 class="font-display text-lg font-bold text-slate-900">Where these figures come from</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">${escapeHtml(coverageSentences(m, shown).join(' '))}</p>
+      ${heatLegend(level === 'scheme' && measureFor('scheme') === 'return' ? HEAT_LEGEND.peer : HEAT_LEGEND.gap)}
       <dl class="mt-4 space-y-3 text-sm text-slate-600">
         <div><dt class="font-semibold text-slate-800">Source</dt>
           <dd>${escapeHtml(m.source || 'Weekly mutual fund performance workbook')} — a weekly point-to-point performance sheet, one tab per category, imported by <code class="rounded bg-slate-100 px-1 text-xs">scripts/import-mf-weekly.mjs</code> into <code class="rounded bg-slate-100 px-1 text-xs">public/data/mf-weekly.json</code>.</dd></div>
@@ -900,11 +1086,13 @@ function openProvenance(m) {
         <div><dt class="font-semibold text-slate-800">Which index a category is compared with</dt>
           <dd>The one the workbook prints beneath that category. Where it prints more than one, the Total Return Index is used, because a fund's NAV carries reinvested dividends and a TRI is the like-for-like comparator; the others stay visible on the category page and in the export.${
             noBench.length
-              ? ` <strong>${escapeHtml(noBench.map((c) => c.label).join(', '))}</strong> ${noBench.length === 1 ? 'has' : 'have'} no index row at all, so no benchmark is shown and <strong>none is substituted</strong> from the master sheet — pairing a category with an index the source did not pair it with would be this dashboard's judgement wearing the workbook's.`
+              ? ` <strong>${escapeHtml(noBench.map((c) => c.label).join(', '))}</strong> ${noBench.length === 1 ? 'has' : 'have'} <strong>no index row at all</strong>. A return with nothing beside it answers nothing, so ${noBench.length === 1 ? 'it is' : 'they are'} shown against <strong>Nifty 500 TRI</strong> — the index the workbook itself prints first under every sectoral and thematic sheet — drawn from the workbook's own master sheet and <strong>labelled everywhere as a stated fallback, not the workbook's pairing</strong>: on the benchmark cell, in the reference row, in the picker and in row 1 of the export. Nothing is imported from outside this workbook, and the reader can change it to any index on its master sheet.`
               : ''
           }</dd></div>
+        <div><dt class="font-semibold text-slate-800">How to read a cell</dt>
+          <dd>${escapeHtml(derivationSentences(m).join(' '))}</dd></div>
         <div><dt class="font-semibold text-slate-800">Not the same snapshot as All Schemes</dt>
-          <dd>The other sub-view reads the daily AmfiBeas feed, which is a different date and a different universe and carries no median or benchmark at all. No figure crosses between the two.</dd></div>
+          <dd>The other sub-view reads the daily AmfiBeas feed, which is a <strong>different date</strong> and a different universe, and whose benchmark is each scheme’s own <em>category</em> rather than an index. No figure crosses between the two: nothing from one is compared with, summed with, or used as a benchmark for the other.</dd></div>
         <div><dt class="font-semibold text-slate-800">Files</dt>
           <dd><code class="rounded bg-slate-100 px-1 text-xs">${escapeHtml(m.sourceFile || 'scripts/fixtures/mf-weekly.xlsx')}</code> · <code class="rounded bg-slate-100 px-1 text-xs">public/data/mf-weekly.json</code> · <code class="rounded bg-slate-100 px-1 text-xs">public/js/data/mf-weekly.js</code> · <code class="rounded bg-slate-100 px-1 text-xs">public/js/data/mf-taxonomy.js</code> · <code class="rounded bg-slate-100 px-1 text-xs">public/js/ui/mf-heatmap.js</code></dd></div>
       </dl>
@@ -964,7 +1152,10 @@ function exportBanner(m) {
     `A blank return means the source publishes none for that period — a scheme younger than the window, or an index it does not quote that far — never a zero. ` +
     `3Y and 5Y are annualised; Since inception spans a different length for every scheme and is not comparable across rows. ` +
     `AUM is as at the workbook's own stated month, not the return date. ` +
-    `This is NOT the same snapshot as the All Schemes view, which reads a daily feed on a different date; no figure here may be compared with one from there.`
+    `EVERY RETURN IN THIS WORKBOOK IS A DIRECT-PLAN RETURN, and the expense ratio quoted beside it is the direct plan's. ` +
+    `A "Strategy in name" column is read from the SCHEME'S OWN NAME, where the tracked index is stated — it is not a classification the workbook publishes and it changes no category. ` +
+    `WHERE THE BENCHMARK COLUMN IS MARKED "not the workbook's pairing", the workbook prints NO index row under that sheet: the index shown is a stated fallback drawn from the workbook's own master index sheet, chosen here or by the reader, and the workbook makes no such pairing. ` +
+    `This is NOT the same snapshot as the All Schemes view, which reads a daily feed on a different date and benchmarks each scheme against its own CATEGORY rather than an index; no figure here may be compared with one from there.`
   );
 }
 
@@ -982,7 +1173,11 @@ function exportCategories(cats, m) {
           { header: 'Category', width: 26, get: (c) => c.label },
           { header: 'Workbook sheet', width: 22, get: (c) => c.sheet },
           { header: 'Schemes', width: 10, get: (c) => c.funds.length },
-          { header: 'Benchmark', width: 30, get: (c) => weekly.benchmarkFor(c, chosenBenchmark[c.id]).benchmark?.name ?? 'none published' },
+          { header: 'Benchmark', width: 30, get: (c) => {
+            const { benchmark, paired } = weekly.benchmarkFor(c, chosenBenchmark[c.id]);
+            if (!benchmark) return 'none published';
+            return paired ? benchmark.name : `${benchmark.name} (NOT the workbook's pairing — stated fallback from its master index sheet)`;
+          } },
           ...periods.flatMap((p) => [
             { header: `Median ${p}`, width: 13, get: (c) => weekly.medianOf(c, p) },
             { header: `Benchmark ${p}`, width: 15, get: (c) => weekly.benchmarkReturn(weekly.benchmarkFor(c, chosenBenchmark[c.id]).benchmark, p) },
@@ -1007,11 +1202,22 @@ function exportCategories(cats, m) {
 function exportSchemes(cat, benchmark, m, periods, visible) {
   const reference = [
     { scheme: 'CATEGORY MEDIAN (published by the workbook)', house: '', returns: cat.median.returns, aumCr: null, expense: {} },
-    ...(benchmark ? [{ scheme: `BENCHMARK — ${benchmark.name} (published by the workbook)`, house: '', returns: benchmark.returns, aumCr: null, expense: {} }] : []),
+    ...(benchmark
+      ? [{
+          scheme: cat.benchmarks.length
+            ? `BENCHMARK — ${benchmark.name} (published by the workbook under this category)`
+            : `BENCHMARK — ${benchmark.name} (STATED FALLBACK from the workbook's master index sheet — NOT its pairing for this category)`,
+          house: '', returns: benchmark.returns, aumCr: null, expense: {},
+        }]
+      : []),
   ];
   exportSheets({
     filename: `glow-mf-${cat.id}-${todayStamp()}`,
-    banner: `${exportBanner(m)} Category: ${cat.label} (${cat.sheet}). ${benchmark ? `Benchmark: ${benchmark.name}.` : 'The workbook prints no index row for this category, so no benchmark is stated and none is substituted.'}`,
+    banner: `${exportBanner(m)} Category: ${cat.label} (${cat.sheet}). ${
+      benchmark
+        ? `Benchmark: ${benchmark.name}.${cat.benchmarks.length ? '' : " THE WORKBOOK PRINTS NO INDEX ROW UNDER THIS SHEET — this index is a stated fallback from the workbook's own master index sheet and is NOT a pairing the workbook makes."}`
+        : 'The workbook prints no index row for this category and its master index sheet is empty, so no benchmark is stated.'
+    }`,
     sheets: [
       {
         name: cat.label.slice(0, 28),
@@ -1023,7 +1229,7 @@ function exportSchemes(cat, benchmark, m, periods, visible) {
           ...periods.map((p) => ({ header: `vs category median ${p} (pp, derived)`, width: 26, get: (f) => weekly.relativeTo(f.returns?.[p], cat.median.returns?.[p]) })),
           { header: 'AUM ₹Cr', width: 14, get: (f) => f.aumCr },
           { header: 'Expense direct %', width: 16, get: (f) => f.expense?.direct ?? null },
-          { header: 'Expense regular %', width: 17, get: (f) => f.expense?.regular ?? null },
+          { header: 'Strategy in name (read from the name)', width: 30, get: (f) => factorsOf(f.scheme).map(factorLabel).join(' · ') },
         ],
         rows: [...reference, ...(visible || cat.funds)],
       },

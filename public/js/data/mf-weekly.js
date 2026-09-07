@@ -8,11 +8,14 @@
 //   category(id)        one category
 //   tree()              asset class -> group -> category, off js/data/mf-taxonomy.js
 //   benchmarkIndex()    the workbook's own 36-index master sheet
-//   benchmarkFor(cat, id?)  the index that category is compared against, why that one, and what
-//                       else the workbook printed under it. `id` is the reader's own pick.
+//   benchmarkFor(cat, id?)  the index that category is compared against, why that one, whether the
+//                       WORKBOOK paired them (`paired`), and what else it could be. `id` is the
+//                       reader's own pick.
+//   benchmarkOptions(cat)   every index the reader may pick for a category
 //   medianOf(cat, p)    the PUBLISHED median for a period — reproduced, never recomputed
 //   relativeTo(a, b)    a - b in percentage POINTS, or null if either side is absent
 //   priceBasisCategories()  the categories whose index is a PRICE index, not a total-return one
+//   unpairedCategories()    the categories the workbook prints no index row under
 //
 // THIS IS A COMMITTED SNAPSHOT, NOT A LIVE FEED, and the difference is the whole reason it exists
 // beside `js/data/fund-returns.js`:
@@ -23,8 +26,8 @@
 //   as on            | one stated date for every sheet     | its own, later, date
 //   schemes          | ~620 curated direct-plan schemes    | ~3,400, every plan and option
 //   periods          | 1W 1M 3M 6M 1Y 3Y 5Y + inception    | 1M 3M 6M 1Y 3Y 5Y 10Y
-//   category median  | PUBLISHED by the workbook           | none — the payload has no median
-//   benchmark        | PUBLISHED per category              | none — AMFI's NAV snapshot has none
+//   category median  | PUBLISHED by the workbook           | PUBLISHED per cohort, same NAV date
+//   benchmark        | PUBLISHED index, per category       | the CATEGORY — no index is published
 //   peer rank        | none                                | published, within its own cohort
 //
 // THEY ARE DATED DIFFERENT DAYS, SO NOTHING CROSSES BETWEEN THEM. Not a benchmark, not a median,
@@ -160,10 +163,51 @@ export function tree(list = categories()) {
  * the gap: pairing a category with an index the source did not pair it with would be this
  * dashboard's judgement wearing the workbook's clothes.
  */
+/**
+ * The index a category with NO published index row is compared against, and the fact that the
+ * workbook did not choose it.
+ *
+ * THE WORKBOOK PRINTS NO INDEX UNDER ONE SHEET — Smart Beta Strategy Funds — and a return with
+ * nothing beside it answers nothing: +14% over a year is a good year or a poor one entirely
+ * according to what the market did. So a comparator is offered, and the whole weight of the rule
+ * this used to follow moves onto the LABEL rather than onto the absence: `paired: false` travels
+ * with it, the benchmark cell, the reference row, the picker and row 1 of the export all say the
+ * workbook does not pair this category with an index, and the master sheet it comes from is the
+ * workbook's own — nothing is fetched, computed or imported from anywhere else.
+ *
+ * The default is the index the workbook itself uses as its broad-equity comparator: Nifty 500 TRI
+ * is the FIRST index printed under all eleven sectoral and thematic sheets and under Contra, ELSS,
+ * Arbitrage, BAF and Equity Savings. It is a stated fallback, not a pairing, and the reader can
+ * change it to any index on the master sheet.
+ */
+const UNPAIRED_DEFAULT_ID = 'nifty-500-tri';
+
+/** Every index the reader may compare a category against: its own, or the master sheet where it has none. */
+export function benchmarkOptions(cat) {
+  if (!cat) return [];
+  return cat.benchmarks.length ? cat.benchmarks : benchmarkIndex();
+}
+
 export function benchmarkFor(cat, chosenId = null) {
-  if (!cat) return { benchmark: null, reason: 'No category selected.', alternatives: [], chosen: false };
+  if (!cat) return { benchmark: null, reason: 'No category selected.', alternatives: [], chosen: false, paired: false };
   if (!cat.benchmarks.length) {
-    return { benchmark: null, reason: cat.benchmarkNote || 'The workbook prints no index row for this category, so it states no benchmark. None is substituted.', alternatives: [], chosen: false };
+    const master = benchmarkIndex();
+    const picked = chosenId ? master.find((x) => x.id === chosenId) : null;
+    const b = picked || master.find((x) => x.id === UNPAIRED_DEFAULT_ID) || master.find((x) => x.tri) || master[0] || null;
+    const note = cat.benchmarkNote || 'The workbook prints no index row for this category, so it states no benchmark of its own.';
+    if (!b) return { benchmark: null, reason: `${note} The master index sheet is empty too, so there is nothing to compare against.`, alternatives: [], chosen: false, paired: false };
+    return {
+      benchmark: b,
+      // The reason is the label. It says the pairing is not the workbook's on every surface that
+      // shows this benchmark, which is what keeps the comparison honest rather than the absence.
+      reason: picked
+        ? `${note} ${b.name} is YOUR choice, from the workbook's own master index sheet — the workbook does not pair this category with any index.`
+        : `${note} ${b.name} is shown as a stated fallback from the workbook's own master index sheet — it is the index the workbook prints first under every sectoral and thematic sheet, and it is NOT the workbook's pairing for this category. Change it below.`,
+      alternatives: master.filter((x) => x !== b),
+      chosen: !!picked,
+      paired: false,
+      basis: b.tri ? 'tri' : 'price',
+    };
   }
   // A READER'S OWN CHOICE IS HONOURED AND LABELLED AS THEIRS — and only ever from among the indices
   // the workbook printed under THIS category. Never the master sheet: that would pair a category
@@ -181,6 +225,9 @@ export function benchmarkFor(cat, chosenId = null) {
     reason: why,
     alternatives: cat.benchmarks.filter((x) => x !== b),
     chosen: !!picked,
+    // The workbook printed this index UNDER this category. `false` means the comparison was chosen
+    // here or by the reader, and every surface that shows it has to say so.
+    paired: true,
     // A PRICE INDEX AND A TOTAL RETURN INDEX ARE NOT ON ONE SCALE, and a gap measured against each
     // sits in the same sortable column. The one category whose sheet prints no TRI (Large Cap, which
     // lists Nifty 100 and Nifty 50) is therefore compared on a basis the other twenty-five are not —
@@ -193,6 +240,11 @@ export function benchmarkFor(cat, chosenId = null) {
 /** Categories whose benchmark is a PRICE index — not comparable, point for point, with a TRI gap. */
 export function priceBasisCategories(list = categories()) {
   return list.filter((c) => c.benchmarks.length && !benchmarkFor(c).benchmark?.tri);
+}
+
+/** Categories the workbook prints no index row under — the ones whose comparator is a fallback. */
+export function unpairedCategories(list = categories()) {
+  return list.filter((c) => !c.benchmarks.length);
 }
 
 /** The PUBLISHED median for a period, or null. Never recomputed — see the header. */

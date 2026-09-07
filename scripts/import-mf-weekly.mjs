@@ -281,7 +281,7 @@ function readCategory(sheet, rows) {
     // Stated rather than left to be inferred from an empty array — the tab prints this sentence.
     benchmarkNote: benchmarks.length
       ? null
-      : 'The workbook prints no index row under this sheet, so it states no benchmark for this category. None is substituted.',
+      : 'The workbook prints no index row under this sheet, so it states no benchmark of its own for this category.',
   };
 }
 
@@ -407,7 +407,7 @@ function main() {
   }
   console.log(`  ${new Set(categories.flatMap((c) => c.funds.map((f) => f.house)).filter(Boolean)).size} fund houses resolved from FUND_HOUSES`);
   if (houseless.length) console.log(`  ${houseless.length} schemes match no known house (left unattributed): ${houseless.slice(0, 5).join(' · ')}`);
-  if (noBench.length) console.log(`  no index row published for: ${noBench.map((c) => c.sheet).join(', ')} — said in those words, never substituted`);
+  if (noBench.length) console.log(`  no index row published for: ${noBench.map((c) => c.sheet).join(', ')} — said in those words; the tab shows a stated fallback from this workbook's own master index sheet, labelled as not the workbook's pairing`);
 }
 
 main();

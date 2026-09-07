@@ -505,35 +505,58 @@ benchmark. Clicking a category opens its schemes, with the category's median, it
 derived gap between them pinned above the table.
 
 **All Schemes** is the daily AmfiBeas feed: every tracked scheme, its point-to-point return per
-period and its rank inside its own cohort.
+period, **the median its own category returned over the same period**, and its rank inside its own
+cohort. The return and its category median sit in one cell, shaded by the gap between them — the
+same shape as Category Performance, so no return on this tab appears without something to read it
+against.
 
 **The two are different snapshots on different dates and no figure crosses between them.** The
-workbook is weekly and is the only source here that publishes a category median or a benchmark; the
-AmfiBeas payload has neither. Each sub-view prints its own as-on date, and All Schemes says in words
-that a benchmark lives only on the other view. Putting the workbook's index return beside a live
-fund return would be a comparison nobody measured.
+workbook is weekly and is the only source here that publishes an **index** return; the AmfiBeas
+payload publishes a **category** median instead, on its own later date. Each sub-view prints its own
+as-on date and each provenance panel says in words that an index benchmark lives only on the other
+view. Putting the workbook's index return beside a live fund return would be a comparison nobody
+measured.
+
+**One row per scheme.** The live feed returns a regular and a direct row for every fund, differing
+only by the distributor's trail baked into one NAV, so the table shows the direct plan wherever the
+source lists one — and **keeps a scheme that has only one plan**, which is every exchange-traded
+fund. Nothing on the tab shows a regular-plan figure; the workbook half was direct-plan already.
 
 **A hierarchical classification drills over both** — asset class → group → category, from
 `js/data/mf-taxonomy.js`, over the workbook's 26 sheets and the live feed's 56 classification
 strings alike. It is a reading aid over somebody else's category, not a new one: nothing is renamed
-or merged. An asset class the workbook does not publish (debt, commodities, fund of funds) is
-**named with the reason** rather than drawn as an empty group.
+or merged. All Schemes offers all three levels, because there the third is invisible until a control
+names it; Category Performance offers two, because there the third level *is* the row. Exchange-
+traded funds are their own group; a classification the source leaves as a bare asset class is
+*Not sub-classified* rather than *Other*. An asset class the workbook does not publish (debt,
+commodities, fund of funds) is **named with the reason** rather than drawn as an empty group.
+
+**A strategy row answers what no classification can.** Neither source says which factor a passive
+scheme follows — 645 of them arrive as *Index*, *Index Funds* or *ETFs* — so momentum, quality,
+value, low volatility, alpha, equal weight and dividend yield are read from **the scheme's own
+name**, where the tracked index is stated, and the control says so on its face. It is a separate
+axis: no scheme's classification is changed, and a scheme matching nothing is simply not in a
+strategy.
 
 **The heatmap shades, and the shading explains itself.** A scheme's cell is tinted by where it sits
 among the schemes in its own category over that period — a count, not a model — and a category's by
-the size of its gap to its own index. Emerald above, rose below; a legend beside the table says
-which. The figure printed is always the source's; only the background is added here.
+the size of its gap to its own index. Emerald above, rose below; a legend in the provenance panel
+says which. The figure printed is always the source's; only the background is added here.
 
-**Exactly two figures are derived**, and both say so wherever they surface: the gap (a return minus
-its category median or its benchmark, in percentage **points**, absent the moment either side is),
-and the shade. The medians and index returns are reproduced unchanged — the import refuses to write
-the file unless every published median reconciles against the scheme rows it parsed.
+**Exactly two figures are derived on the workbook half**, and both say so wherever they surface: the
+gap (a return minus its category median or its benchmark, in percentage **points**, absent the
+moment either side is), and the shade. The medians and index returns are reproduced unchanged — the
+import refuses to write the file unless every published median reconciles against the scheme rows it
+parsed. On the live half even the gap is the source's own `excessVsMedian`.
 
 **The benchmark is the workbook's choice and the reader may change it**, from the indices the
-workbook prints under *that* category and never from the 36-index master sheet. Where a sheet lists
-a price index and its own TRI the TRI is used — the same index measured the way a NAV is — and where
-a category is compared against a price index, that is flagged, because its gap is not on the same
-scale as a TRI gap.
+workbook prints under *that* category. Where a sheet lists a price index and its own TRI the TRI is
+used — the same index measured the way a NAV is — and where a category is compared against a price
+index, that is flagged, because its gap is not on the same scale as a TRI gap. **One sheet prints no
+index row at all** (Smart Beta): rather than leave 70 schemes with nothing to be read against, it
+falls back to an index from the workbook's **own** master sheet, defaulting to the Nifty 500 TRI the
+workbook prints first under every sectoral sheet — marked *not the workbook's pairing* on the cell,
+the reference row, the picker, the provenance panel and the export, and changeable to any of the 36.
 
 Scope does not apply: these are schemes, not companies. No row carries a watchlist star and the head
 says so.
@@ -542,6 +565,9 @@ Still to come:
 - Rolling-period and calendar-year returns, if the workbook ever publishes them
 - Risk measures (standard deviation, Sharpe, max drawdown) — no source here carries them today
 - Debt categories on Category Performance, which need a workbook that publishes them
+- An **index** benchmark on All Schemes, which needs a source publishing index levels on AMFI's NAV
+  dates; today the only index returns available are the workbook's, on its own earlier day
+- A published smart-beta index per category, which would retire the stated fallback above
 
 ### Overview — `overview`
 Sub-views: **Positions · Allocation · Realised P&L**

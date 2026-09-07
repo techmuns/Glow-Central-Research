@@ -27,8 +27,12 @@ Two workspaces, fifteen tabs:
 merged from `techmuns/Sattva-Central-Research` by `.github/workflows/sync-upstream.yml` (daily, and
 on demand); Glow owns only the brand, the deployment, the data under `public/data/` and its own
 features — the **Mutual Funds** tab (`js/tabs/mutual-funds.js`: a weekly workbook of category
-medians and benchmarks in `public/data/mf-weekly.json`, plus the AmfiBeas returns-and-peer-rank feed
-it renders through `js/investors/fund-returns.js`) and the **~1,900-company tracked universe** the
+medians and published index benchmarks in `public/data/mf-weekly.json`, plus the AmfiBeas
+returns / category-median / peer-rank feed it renders through `js/investors/fund-returns.js`; the two
+are **different dates and no figure crosses between them**, the live half shows **one row per
+scheme** — the direct plan, and the single plan a listed fund has — and a **strategy** control reads
+momentum / quality / value out of each scheme's own name, which is the only place either source
+states it) and the **~1,900-company tracked universe** the
 company-news and insider-trades walks cover (`public/data/tracked-universe.json`). Read *This dashboard is a
 downstream of Sattva* in `CLAUDE.md` before changing anything, and §7 for what the Glow Worker
 needs configured.

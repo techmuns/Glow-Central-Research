@@ -797,35 +797,97 @@ figure cross between them.
 | --- | --- | --- |
 | source | `public/data/mf-weekly.json`, a committed weekly workbook | AmfiBeas, read live from the browser |
 | as on | its own stated date | its own, **later**, date |
-| schemes | ~620 curated direct-plan growth | ~3,400, every plan and option |
-| category median | **published by the workbook** | none — the payload has no median |
-| benchmark | **published per category** | none — AMFI's NAV snapshot has none |
+| schemes | ~620 curated direct-plan growth | ~1,850 — the direct plan of each (see below) |
+| category median | **published by the workbook** | **published per cohort**, on its own date |
+| benchmark | a **published INDEX**, per category | the scheme's own **CATEGORY** — no index exists |
 | peer rank | none | published, within its own cohort |
 
-**A 14-August index return under a 2-September fund return is a comparison nobody measured.** It is
+**A 14-August index return under a 4-September fund return is a comparison nobody measured.** It is
 the same error as dating a price move by the capture rather than the session, and it is the one that
-would be easiest to commit here, because the obvious feature request is "put the benchmark on the
-All Schemes table too". There is no benchmark to put there. So the two live on separate sub-views,
-each printing its own as-on date on its own face, and the All Schemes head says in words that they
-are different snapshots and that a benchmark lives only on the other one.
+would be easiest to commit here, because the obvious feature request is "put the *benchmark* on the
+All Schemes table too" — and there is no *index* to put there. So the two live on separate
+sub-views, each printing its own as-on date on its own face, and each provenance panel says in words
+that they are different snapshots and that an index benchmark lives only on the other one.
 
-Everything else follows the rules this file already runs on, and three are worth naming:
+**BUT "NO INDEX" IS NOT "NOTHING TO COMPARE WITH", AND FOR A LONG TIME THIS TAB READ THEM AS THE
+SAME THING.** All Schemes showed fifteen columns of returns and ranks with no comparator at all, on
+the reasoning above — which was right about the workbook's index and wrong about the feed, because
+AmfiBeas publish `categoryAverage`, `categoryMedian` and `excessVsMedian` **per cohort, on the same
+NAV date**, and the view was simply asking for `fields=compact`, which omits them. A return with
+nothing beside it is a figure the reader cannot act on: +3.9% over three months is a good quarter or
+a bad one entirely according to what the rest of the category did. **When a comparison looks
+impossible, check whether the source already publishes it before concluding the reader cannot have
+one** — the cost here was one query parameter (`fields=full`, ~610 KB gzipped against ~205 KB) and
+the answer had been in the payload the whole time.
+
+Everything else follows the rules this file already runs on, and four are worth naming:
 
 1. **The medians are the workbook's; recomputing them is the PARSE CHECK, not the output.**
    `scripts/import-mf-weekly.mjs` recalculates every published median from the scheme rows it
    parsed and **refuses to write the file** if one has moved — a dropped or double-counted row moves
    the middle, so a median that still reconciles is a check on every row above it. All 208
-   reconcile on the shipped workbook. The number that ships is always the published one.
-2. **A category the workbook prints no index for says so, and nothing is substituted.** Smart Beta
-   is the one. The workbook also ships a master sheet of 36 indices, and borrowing one from it to
-   fill the gap would be this dashboard's judgement wearing the source's clothes — the same line the
-   con-call rules draw. Where a sheet prints several indices the **TRI** is used, because a fund's
-   NAV carries reinvested dividends and a Total Return Index is the like-for-like comparator; that
-   is a stated choice, printed in the benchmark cell's own title.
+   reconcile on the shipped workbook. The number that ships is always the published one. The same
+   rule holds on the live half, one step further: even the *gap* is theirs (`excessVsMedian`), so a
+   rounding of ours cannot disagree with the two figures printed beside it.
+2. **A category the workbook prints no index for is COMPARED ANYWAY, and the whole weight of the
+   rule moves onto the label.** Smart Beta is the one — 70 schemes, no index row. This used to show
+   *"none published"* and no comparison, which is honest and answers nothing; a reader cannot tell a
+   good year from a bad one without something beside the number. So `benchmarkFor()` falls back to
+   an index from **the workbook's own master sheet**, defaulting to the Nifty 500 TRI it prints
+   first under all eleven sectoral and thematic sheets, changeable by the reader to any of the 36.
+   **`paired: false` travels with it and every surface that shows it says the workbook makes no such
+   pairing**: the benchmark cell, the reference row above the schemes, the picker, the provenance
+   panel and row 1 of the export. Nothing is fetched, computed or imported from outside that
+   workbook. The failure to watch for is a comparator that reads as the source's own — which is why
+   the suite asserts the four labels rather than the comparison. Where a sheet prints several
+   indices the **TRI** is used, because a fund's NAV carries reinvested dividends and a Total Return
+   Index is the like-for-like comparator; that is a stated choice, printed in the cell's own title.
 3. **An asset class the workbook does not cover is NAMED, not drawn empty.** It publishes no debt,
    commodities or fund-of-funds sheet. An empty "Debt" group reads as a claim about the market
    rather than about a spreadsheet — the same rule as the book's nineteen lines with no NSE symbol.
-   The live feed does cover them, on its own date, and the note says where.
+   The live feed does cover them, on its own date, and the provenance panel says where.
+4. **NOTHING ON THE TAB SHOWS A REGULAR PLAN, AND AN ETF IS NOT A DUPLICATE.** The workbook is
+   direct-plan by construction; the live feed returns both plans of every scheme, so the table
+   listed each fund twice under two NAVs differing only by the distributor's trail. `directOnly()`
+   in `js/data/fund-returns.js` keeps the direct row of each `(fundName, option, classification)`
+   group — all three **exact**, because a key that stripped "Reg"/"Direct" out of the text folds
+   *Aditya Birla SL **Regular** Savings Fund* into *Aditya Birla SL Savings Fund*, two different
+   funds. **The obvious spelling of this rule — "drop every regular row" — deletes all 234 ETFs**,
+   which the source files as `regular` because a listed unit has no plan to choose. So the rule is
+   *direct where the source lists one*: a group with no direct member is kept as it is. Same shape
+   as `dedupeGroup` in the family book — the duplicate goes, the row that exists only once does not.
+   **Two more things the source's own labelling makes necessary, and both are visible on screen
+   without them**: it lists 31 schemes twice under two ids with every figure identical (both are
+   direct, so both survived and painted one under the other — `foldIdenticalRows()` keeps one, and
+   only ever folds rows identical in *every rendered figure*), and it names hundreds of direct-plan
+   rows `…-Reg(G)`, the regular plan's label on the direct plan's row, against its own `plan` field
+   — the trailing **plan** marker is dropped from the displayed name and nothing else, with
+   `sourceName` keeping the string as it arrived. `meta()` carries `total`, `universe`,
+   `hiddenRegular`, `singlePlan` and `foldedDuplicates` as five separate fields, none reached by
+   subtracting another, and the toolbar offers **no plan filter**: it could only answer with
+   "direct" and an empty "regular".
+
+**AND "WHICH OF THESE ARE THE MOMENTUM FUNDS" IS A REAL QUESTION NEITHER SOURCE CAN ANSWER.**
+AmfiBeas file all 645 passive equity schemes as `Equity : Index`, `Equity : Index Funds` or
+`Equity : ETFs` and stop there; the workbook files all 70 of them as one Smart Beta sheet. So the
+classification tree — however deep — cannot surface momentum, quality, value, low volatility, alpha
+or equal weight, and for a while the only way to find them was to type the word into a search box.
+`FACTORS` / `factorsOf()` in `js/data/mf-taxonomy.js` read the word out of **the scheme's own name**,
+which is where SEBI requires the tracked index to be stated, and the chip row says so on its own
+face. Three things keep that admissible: it is a **separate axis** (a momentum fund's classification
+is untouched and the suite asserts it), a scheme matching nothing is **not in a strategy** rather
+than in a nearest one, and `Growth` is deliberately **not** a factor — it is the option suffix on
+nearly every name in both feeds, so a pattern for it would match the universe and say nothing.
+
+**THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
+because there the third level **is** the row: a chip per category above a table of categories is the
+same control twice. On All Schemes the categories are invisible until a control names them, which is
+how *ETFs* and *Index* — words the source itself prints on 645 schemes — had no control at all.
+Exchange-traded funds are their own group rather than a corner of `Index & smart beta`, because
+listed-versus-open-ended is a distinction the source draws and because 25 gold ETFs under a heading
+about equity factor strategies is a heading that is simply wrong. A bare head with no tail (`Debt`,
+`Hybrid` — 360 schemes) is **`Not sub-classified`**, not `Other`: the second reads as a bucket the
+source chose, the first as the absence it is.
 
 **THE HEATMAP'S CLASS STRINGS MUST BE WRITTEN OUT IN FULL.** `js/ui/mf-heatmap.js` picks a cell
 background from a small set of Tailwind classes, and the stylesheet is precompiled by **scanning the
@@ -834,11 +896,17 @@ stylesheet. The cell renders with no background, nothing throws, no test fails, 
 simply invisible. Every class is a literal in an array for that reason; adding a step means writing
 the whole class and rebuilding the stylesheet (hard rule 4).
 
-**And the shade is the only derived reading on the tab, so it explains itself on the same screen.**
+**And the shade is the only derived reading on the tab, so it explains itself one click away.**
 A scheme's cell is shaded by where it sits among the schemes in its own category over that period —
 a count, not a model, the same kind of reading as the peer rank on the other sub-view — and a
 category's cell by the size of its gap to its own index, in the stated `GAP_BAND_PP` bands. The
-legend beside the table says which, in words. A percentile is used rather than a distance from the
+legend says which, in words, **in the provenance panel behind the as-on pill** rather than in a
+block under the table: three blocks used to bracket this view — a coverage paragraph, the legend and
+a five-sentence derivation note — and between them they were the tallest thing on a screen whose
+point is the table. That is the resolution this file has taken four times (the Earnings Hub ribbon,
+Portfolio's provenance block, the market-news freshness card, the con-call schedule chips): **move
+the explanation behind a control that still states the claim, and never delete the claim.** Every
+sentence is still there and the suite asserts each one is one click away. A percentile is used rather than a distance from the
 median because the distances are not comparable between periods: a week's spread across a category
 is a fraction of a point and five years' is tens of points, so one set of percentage-point
 thresholds would paint every 1W cell neutral and every 5Y cell saturated — a heatmap brightest
@@ -3156,9 +3224,10 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change My Managers, or what a manager's card and workspace show | `js/investors/my-managers.js` (the view) + `js/data/managers.js` (the roll-up) — read *The family's managers* first; the `// GLOW` hunks in `live.js` and `tabs/super-investors.js` only place it |
 | Refresh the family's managers, or change how a statement is read into them | `GLOWVENTURES_DIR=… node scripts/build-managers.mjs` — it rides the daily GlowVentures copy beside the book; `SAME_MANAGER` folds two provider names into one fund, `FINOLOGY_INVESTORS` is the hand-checked cross-link, and `STATEMENTS_KEPT` is a bytes ceiling |
 | Change the Mutual Funds tab | `js/tabs/mutual-funds.js` — the whole tab is that one file. Read *Two fund feeds on two dates* below first: the two sub-views are different snapshots and **no figure may cross between them** |
-| Change the All Schemes table | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html`. It carries **no benchmark and no median** |
+| Change the All Schemes table | `js/investors/fund-returns.js` (the table) + `js/data/fund-returns.js` (the AmfiBeas transport) — read *`GET /api/returns-ranking`* in `docs/DATA-CONTRACTS.md` first; it is called DIRECT from the browser, base is `window.AMFIBEAS_API_BASE` in `index.html`. It carries **no index**; its benchmark is each scheme's own published **category median**, and the view shows **one row per scheme** — read *One row per scheme* there before touching `directOnly()` |
+| Change what a scheme's strategy is read from, or add one | `FACTORS` / `factorsOf()` in `js/data/mf-taxonomy.js` — **one module, two consumers**; it reads the SCHEME'S OWN NAME and is a separate axis from the classification tree. Read *"which of these are the momentum funds"* below first |
 | Refresh the weekly fund workbook | drop it over `scripts/fixtures/mf-weekly.xlsx`, run `node scripts/import-mf-weekly.mjs`, commit `public/data/mf-weekly.json`. The run refuses to write unless every published median reconciles |
-| Change the fund classification hierarchy | `js/data/mf-taxonomy.js` — **one module, two consumers** (the browser and the import script), the `finology-shared.js` arrangement. A new sheet needs a `WORKBOOK_TAXONOMY` entry or the import fails |
+| Change the fund classification hierarchy | `js/data/mf-taxonomy.js` — **one module, two consumers** (the browser and the import script), the `finology-shared.js` arrangement. A new sheet needs a `WORKBOOK_TAXONOMY` entry or the import fails. The live feed's groups are `GROUPS_BY_CLASS`; the chip depth is `hierarchyControls(..., { depth })` in `js/tabs/mutual-funds.js` |
 | Change the performance heatmap | `js/ui/mf-heatmap.js` — read the note about literal class strings first; a composed class renders as no background at all and nothing throws |
 | Change which companies the filings feeds track | re-export from Screener over `scripts/fixtures/tracked-universe.csv`, run `node scripts/import-tracked-universe.mjs` (`UNIVERSE_FLOOR_CR=1000` to raise the floor), commit `public/data/tracked-universe.json`. Both `js/data/tracked-universe.js` and `scripts/scrape-filings.mjs` read it |
 | Pull the latest upstream code into this repo | run **Sync from Sattva** under Actions (it also runs daily); on a conflict it opens a PR instead of pushing — read *This dashboard is a downstream of Sattva* first |
