@@ -73,6 +73,73 @@ function candidate(row, index) {
     : null;
 }
 
+function validatePairObservations(row, pairId, values) {
+  if (!Array.isArray(values) || values.length !== 2) return null;
+  const observations = values.map(value => {
+    if (!value || typeof value !== 'object') return null;
+    const { crossExchangeDocumentId, crossExchangeObservations, ...observation } = value;
+    return observation;
+  });
+  if (observations.some(value => !value)) return null;
+  const candidates = observations.map((value, index) => candidate(value, index));
+  if (candidates.some(value => !value)) return null;
+  const bySource = new Map(candidates.map(value => [value.source, value]));
+  const left = bySource.get('BSE'), right = bySource.get('NSE');
+  if (!left || !right || bySource.size !== 2 || left.ticker !== right.ticker || left.date !== right.date
+    || left.ticker !== String(row?.ticker || '').trim().toUpperCase() || left.date !== row?.date
+    || !left.digest || left.digest !== right.digest || left.digest !== digestValue(row?.documentHash)
+    || pairIdentity(left.digest, left, right) !== pairId) return null;
+  return observations;
+}
+
+function legacyPairObservations(row, pairId) {
+  const digest = digestValue(row?.documentHash);
+  if (!digest) return null;
+  const base = storedObservation(row);
+  const observations = ['BSE', 'NSE'].map(source => {
+    const url = rowPdfUrl(row, source);
+    if (!url) return null;
+    const providers = (Array.isArray(row.providers) ? row.providers : []).filter(provider => source === 'BSE'
+      ? /\bBSE\b/i.test(provider) : !/\bBSE\b/i.test(provider));
+    const observation = { ...base, source, sources: [source], url,
+      sourceUrls: [{ source, url }], providers, documentHash: digest };
+    if (source !== 'BSE') {
+      for (const field of ['scripCode', 'newsId', 'headline', 'subject', 'subCategory', 'critical']) delete observation[field];
+    }
+    return observation;
+  });
+  return observations.some(value => !value) ? null : validatePairObservations(row, pairId, observations);
+}
+
+function pairObservations(row) {
+  const pairId = digestValue(row?.crossExchangeDocumentId);
+  const sources = announcementSources(row).map(value => String(value).toUpperCase());
+  if (!pairId || sources.length !== 2 || sources[0] !== 'BSE' || sources[1] !== 'NSE') return null;
+  if (row?.crossExchangeObservations != null) {
+    return validatePairObservations(row, pairId, row.crossExchangeObservations);
+  }
+  // Rows created before source observations were introduced still carry a cryptographic pair ID,
+  // the shared digest and both official links. Reconstruct only when those fields recompute the
+  // exact stored ID; otherwise leave the row untouched and fail closed.
+  return legacyPairObservations(row, pairId);
+}
+
+export function expandCrossExchangeObservations(rows) {
+  if (!Array.isArray(rows)) throw TypeError('Announcement rows must be an array');
+  const output = [];
+  for (const row of rows) {
+    const observations = pairObservations(row);
+    if (observations) output.push(...observations.map(value => ({ ...value })));
+    else output.push(row && typeof row === 'object' ? { ...row } : row);
+  }
+  return output;
+}
+
+function storedObservation(row) {
+  const { crossExchangeDocumentId, crossExchangeObservations, ...observation } = row;
+  return observation;
+}
+
 function comparisonCandidates(candidates, matchWindowMs) {
   const groups = new Map();
   for (const item of candidates) {
@@ -226,7 +293,10 @@ export async function enrichCrossExchangeDocumentHashes(rows, {
   if (typeof now !== 'function') throw TypeError('Hash budget clock must be a function');
   if (!cache?.get || !cache?.set) throw TypeError('Document digest cache must be Map-like');
 
-  const output = rows.map(row => row && typeof row === 'object' ? { ...row } : row);
+  // A displayed/stored cross-exchange row retains its two source observations. Reconstruct them
+  // before every comparison so a later third filing can turn an earlier unique pair into an
+  // ambiguous cluster without losing either original exchange record.
+  const output = expandCrossExchangeObservations(rows);
   const allCandidates = output.map(candidate).filter(Boolean);
   const { candidates, edges } = comparisonCandidates(allCandidates, matchWindowMs);
   // A prior pass may have selected a pair before another same-digest row arrived. Single-source
@@ -314,6 +384,9 @@ export async function enrichCrossExchangeDocumentHashes(rows, {
     const id = pairIdentity(digest, left, right);
     output[left.index].crossExchangeDocumentId = id;
     output[right.index].crossExchangeDocumentId = id;
+    const observations = [storedObservation(output[left.index]), storedObservation(output[right.index])];
+    output[left.index].crossExchangeObservations = observations;
+    output[right.index].crossExchangeObservations = observations;
     paired.add(left.index); paired.add(right.index);
     matched++;
   }

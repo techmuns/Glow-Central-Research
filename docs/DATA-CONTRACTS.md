@@ -3404,7 +3404,11 @@ downloaded bytes. Cross-exchange rows collapse only when their
 `crossExchangeDocumentId`. The pair ID includes both source URLs, preventing separate same-day
 filings that reuse identical PDF bytes from collapsing together. The merged row keeps ordered `sources`, every retrieval
 provider and `sourceUrls: [{ source, url }]`, so the table says `BSE / NSE` and the export retains
-both original documents. Different, ambiguous, oversized or unreadable documents remain distinct.
+both original documents. It also retains the validated single-exchange observations behind a
+matched pair. Every later capture reconstructs and re-clusters those observations, so a late third
+filing with the same bytes makes the group ambiguous and restores all source records instead of
+leaving an arrival-order-dependent merge. Legacy pairs are reconstructed only when their digest,
+official links and pair ID validate together. Different, ambiguous, oversized or unreadable documents remain distinct.
 Rows without a document ID preserve their maximum observed multiplicity across responses. Manual
 lookups remain device-retained alongside scheduled shared company histories, which may include dates
 older than the BSE base window.

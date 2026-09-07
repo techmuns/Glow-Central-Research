@@ -8,6 +8,7 @@ import { companyCaptureStatus, loadCompanyCaptureIndex } from '../public/js/data
 import { withFilingArchive } from '../public/js/data/filing-archives.js';
 import { clearAll } from '../public/js/core/store.js';
 import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
+import { enrichCrossExchangeDocumentHashes } from './lib/announcement-document-hashes.mjs';
 
 const scratch = mkdtempSync(join(tmpdir(), 'sattva-capture-'));
 const originalFetch = globalThis.fetch;
@@ -172,6 +173,7 @@ try {
   const pairedNse = { ...nseRow, providers: ['Muns corporate announcements'], documentHash: correctionHash,
     crossExchangeDocumentId: correctionPair };
   const wrongMerged = mergeAnnouncements([wrongDirect], [pairedNse])[0];
+  wrongMerged.crossExchangeObservations = [wrongDirect, pairedNse].map(({ crossExchangeDocumentId, ...row }) => row);
   writeJson(join(correctedDir, 'announcements/KISSHT.json'), { ticker: 'KISSHT', kind: 'announcements', rows: [wrongDirect, wrongMerged, nseRow] });
   writeJson(join(correctedDir, 'index.json'), { version: 1, sources: { announcements: { KISSHT: {
     queryTicker: 'KISSHT', rowCount: 3, ranges: [{ from: '2025-09-01', to: dayForTest(clock) }],
@@ -188,6 +190,8 @@ try {
   assert.equal(correctedRows.length, 2);
   assert(correctedRows.some(row => row.url === pairedNse.url && row.source === 'NSE' && !row.providers.includes('BSE company index')),
     'a corrected BSE code strips its evidence while retaining an independently captured NSE half');
+  assert(correctedRows.every(row => row.crossExchangeObservations == null),
+    'identity correction also removes stored pair observations that could restore invalid evidence');
   assert(correctedRows.some(row => row.url === nseRow.url), 'unrelated retained rows survive a BSE code correction');
 
   const correctedTickerDir = join(scratch, 'corrected-query-ticker');
@@ -255,6 +259,44 @@ try {
     'the enriched file gets a second revision even within one source attempt');
   assert.equal(hashed.sources.announcements.KISSHT.documentHashes.matched, 1);
   assert.equal(hashed.sources.announcements.KISSHT.documentHashes.failureReasons, undefined, 'only controlled numeric hash diagnostics persist');
+
+  const incrementalHashDir = join(scratch, 'official-bse-incremental-hash');
+  const incrementalDate = dayForTest(clock);
+  const firstBse = { ...bseRow, date: incrementalDate, time: '10:00:00',
+    url: 'https://www.bseindia.com/xml-data/corpfiling/AttachLive/incremental-first.pdf' };
+  const firstNse = { ...nseRow, date: incrementalDate, time: '10:01:00',
+    url: 'https://nsearchives.nseindia.com/corporate/incremental-first.pdf', providers: ['Muns corporate announcements'] };
+  const lateBse = { ...firstBse, time: '10:02:00',
+    url: 'https://www.bseindia.com/xml-data/corpfiling/AttachLive/incremental-late.pdf' };
+  const pdf = Buffer.from(`%PDF-1.7\nincremental shared bytes\n${'.'.repeat(80)}\n%%EOF\n`);
+  const prepareIncremental = rows => enrichCrossExchangeDocumentHashes(rows, {
+    fetcher: async () => new Response(pdf, { headers: { 'content-length': String(pdf.length) } }),
+  });
+  await captureCompanySources({ ...options, dir: incrementalHashDir, companies: [kissht], maxRequests: 1,
+    prepareAnnouncements: prepareIncremental,
+    request: async () => ({ ok: true, announcements: [firstNse], skipped: 0,
+      bse: { ok: true, announcements: [firstBse], skipped: 0, declared: 1, collected: 1, pages: 1, requests: 1 } }) });
+  const initiallyPaired = readJson(join(incrementalHashDir, 'announcements/KISSHT.json')).rows;
+  assert.equal(initiallyPaired.length, 1);
+  assert.equal(initiallyPaired[0].crossExchangeObservations.length, 2);
+  clock += 86400000;
+  const refreshedNse = { ...firstNse, category: 'NEW CATEGORY',
+    providers: ['Muns corporate announcements', 'NEW PROVIDER'] };
+  const incremental = await captureCompanySources({ ...options, dir: incrementalHashDir, companies: [kissht], maxRequests: 2,
+    prepareAnnouncements: prepareIncremental,
+    request: async kind => kind === 'domestic' ? { ok: true, documents: [], skipped: 0 } :
+      ({ ok: true, announcements: [refreshedNse], skipped: 0,
+        bse: { ok: true, announcements: [lateBse], skipped: 0, declared: 1, collected: 1, pages: 1, requests: 1 } }) });
+  const reconsidered = readJson(join(incrementalHashDir, 'announcements/KISSHT.json')).rows;
+  assert.equal(reconsidered.length, 3,
+    'capture accepts safe row growth when a late filing makes an earlier cross-exchange pair ambiguous');
+  assert(reconsidered.every(row => row.crossExchangeDocumentId == null));
+  const refreshed = reconsidered.find(row => row.url === firstNse.url);
+  assert.equal(refreshed.category, 'NEW CATEGORY');
+  assert(refreshed.providers.includes('NEW PROVIDER'),
+    'fresh constituent metadata survives pair expansion and ambiguity re-clustering');
+  assert.equal(incremental.sources.announcements.KISSHT.documentHashes.ambiguous, 3);
+  assert.equal(incremental.sources.announcements.KISSHT.bse.rowCount, 2);
 
   const hashFailureDir = join(scratch, 'hash-failure');
   const hashFailure = await captureCompanySources({ ...options, dir: hashFailureDir, companies: [{ ticker: 'A' }], maxRequests: 1,

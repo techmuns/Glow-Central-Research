@@ -36,10 +36,50 @@ const response = value => new Response(bytes(value), {
   assert.equal(result.rows[1].documentHash, result.rows[0].documentHash);
   assert.match(result.rows[0].crossExchangeDocumentId, /^sha256:[0-9a-f]{64}$/);
   assert.equal(result.rows[1].crossExchangeDocumentId, result.rows[0].crossExchangeDocumentId);
+  assert.equal(result.rows[0].crossExchangeObservations.length, 2);
   assert.equal(input[0].documentHash, undefined, 'enrichment never mutates the caller records');
   const merged = mergeAnnouncements(result.rows);
   assert.equal(merged.length, 1, 'equal exchange documents can be presented once');
   assert.deepEqual(merged[0].sources, ['BSE', 'NSE']);
+}
+
+{
+  const first = await enrichCrossExchangeDocumentHashes([
+    row('INCREMENTAL', 'BSE', '10:00:00', bse('incremental-first')),
+    row('INCREMENTAL', 'NSE', '10:01:00', nse('incremental-first')),
+  ], { fetcher: async () => response('incremental shared bytes') });
+  const previouslyMerged = mergeAnnouncements(first.rows);
+  assert.equal(previouslyMerged.length, 1);
+  assert.equal(previouslyMerged[0].crossExchangeObservations.length, 2,
+    'a merged row retains both independently reconstructable source observations');
+
+  let calls = 0;
+  const reconsidered = await enrichCrossExchangeDocumentHashes([
+    ...previouslyMerged,
+    row('INCREMENTAL', 'BSE', '10:02:00', bse('incremental-late-third')),
+  ], { fetcher: async () => { calls++; return response('incremental shared bytes'); } });
+  assert.equal(calls, 1, 'the retained source observations reuse their hashes; only the late PDF is read');
+  assert.equal(reconsidered.rows.length, 3, 'the old merged pair is reconstructed before the late row is compared');
+  assert.equal(reconsidered.candidatePairs, 2);
+  assert.equal(reconsidered.matched, 0);
+  assert.equal(reconsidered.ambiguous, 3);
+  assert(reconsidered.rows.every(value => value.crossExchangeDocumentId == null));
+  const final = mergeAnnouncements(reconsidered.rows);
+  assert.equal(final.length, 3,
+    'a late same-digest filing makes the cluster ambiguous and restores all three source records');
+  assert.deepEqual(final.map(value => value.sources), [['BSE'], ['NSE'], ['BSE']]);
+
+  const legacyMerged = { ...previouslyMerged[0] };
+  delete legacyMerged.crossExchangeObservations;
+  const legacy = await enrichCrossExchangeDocumentHashes([
+    legacyMerged,
+    row('INCREMENTAL', 'BSE', '10:02:00', bse('incremental-legacy-late-third')),
+  ], { fetcher: async () => response('incremental shared bytes') });
+  assert.equal(legacy.rows.length, 3);
+  assert.equal(legacy.matched, 0);
+  assert.equal(legacy.ambiguous, 3);
+  assert.equal(mergeAnnouncements(legacy.rows).length, 3,
+    'cryptographically valid legacy pairs are also reconstructed when a late filing arrives');
 }
 
 {

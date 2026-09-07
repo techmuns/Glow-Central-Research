@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { announcementSourceUrls, announcementSources, mergeAnnouncements } from '../../public/js/data/announcements-shared.js';
 import { documentUrl } from '../../public/js/data/domestic-filings-shared.js';
 import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from '../../public/js/data/announcement-identity.js';
+import { expandCrossExchangeObservations } from './announcement-document-hashes.mjs';
 
 export const day = (time) => new Date(time).toISOString().slice(0, 10);
 const shift = (date, days) => day(Date.parse(date) + days * 86400000);
@@ -48,6 +49,10 @@ function purgeProviderEvidence(dir, ticker, provider, keepSource) {
     const next = { ...row, providers, sources, source: sources.join(' / '), sourceUrls,
       url: sourceUrls[0]?.url || (fellBackToOtherProvider ? row.url : null) };
     delete next.crossExchangeDocumentId;
+    // A paired row can retain its original per-exchange observations for later ambiguity checks.
+    // Once one provider's identity is corrected, those observations are stale evidence and must
+    // not be allowed to restore the provider half that was just removed.
+    delete next.crossExchangeObservations;
     if (!sources.includes('BSE')) {
       for (const field of ['scripCode', 'newsId', 'headline', 'category', 'subCategory', 'critical']) delete next[field];
     }
@@ -349,7 +354,11 @@ export async function captureCompanySources({ dir, companies, unresolved = [], p
             const path = join(dir, companyPath(kind, ticker));
             const previous = readJson(path, { rows: [] });
             const clean = incoming.map(({ raw, ...row }) => ({ ...row, ticker }));
-            let rows = mergeAnnouncements(previous.rows, clean);
+            // Re-expand a stored pair before merging fresh rows so repeat observations update the
+            // correct exchange constituent. Otherwise top-level merged metadata would replace the
+            // source observations used for re-clustering and silently disappear after enrichment.
+            const retained = prepareAnnouncements ? expandCrossExchangeObservations(previous.rows) : previous.rows;
+            let rows = mergeAnnouncements(retained, clean);
             // Save the source records and their independent completion states before optional PDF
             // comparison. A slow or interrupted enrichment can never lose an exchange response or
             // make the next run repeat an already completed source window.
@@ -364,7 +373,17 @@ export async function captureCompanySources({ dir, companies, unresolved = [], p
               try {
                 const result = await prepareAnnouncements(rows, { ticker,
                   pairOffset: Number.isSafeInteger(entry.documentHashes?.nextPairOffset) ? entry.documentHashes.nextPairOffset : 0 });
-                if (!Array.isArray(result?.rows) || result.rows.length !== rows.length) throw new Error('Invalid prepared announcement rows');
+                const priorLinks = new Set(rows.flatMap(row => announcementSourceUrls(row)
+                  .map(item => `${item.source}|${item.url}`)));
+                const preparedLinks = new Set((result?.rows || []).flatMap(row => announcementSourceUrls(row)
+                  .map(item => `${item.source}|${item.url}`)));
+                // Reconsidering a stored BSE/NSE pair can safely expand one displayed row back to
+                // its two source observations. Reject shrinkage, malformed rows and any result
+                // that loses an exchange link from the durable pre-enrichment checkpoint.
+                const validRows = Array.isArray(result?.rows) && result.rows.length >= rows.length
+                  && result.rows.every(row => row && typeof row === 'object' && row.ticker === ticker)
+                  && [...priorLinks].every(link => preparedLinks.has(link));
+                if (!validRows) throw new Error('Invalid prepared announcement rows');
                 rows = mergeAnnouncements(result.rows);
                 preparation = hashStats(result, attemptedAt);
               } catch {
