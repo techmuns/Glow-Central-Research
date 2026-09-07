@@ -459,12 +459,16 @@
     "isin:INE084101034|INDOMIM": {
       "lastAttemptAt": "2026-09-07T17:01:44+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE00M901018|Interarch Building Products": {
+      "lastAttemptAt": "2026-09-07T17:51:58+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T17:01:44.252976+00:00"
+    "checkedAt": "2026-09-07T17:51:58.998339+00:00"
   }
 }
