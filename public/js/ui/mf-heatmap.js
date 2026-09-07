@@ -96,7 +96,7 @@ export function peerHeat(value, peers, { period = null } = {}) {
 // They widen with the window because a week and a year are not the same distance, and 3Y/5Y are
 // ANNUALISED in this workbook, so a point of annualised excess is a large gap rather than a small
 // one — which is why they are tighter than 1Y rather than wider.
-export const GAP_BAND_PP = { '1W': 0.25, '1M': 0.75, '3M': 1.5, '6M': 2, '1Y': 2.5, '3Y': 1.5, '5Y': 1.5, SI: 2 };
+export const GAP_BAND_PP = { '1W': 0.25, '1M': 0.75, '3M': 1.5, '6M': 2, '1Y': 2.5, '3Y': 1.5, '5Y': 1.5, '10Y': 1.5, SI: 2 };
 
 /**
  * A category-vs-benchmark cell: shaded by how far the category's published median sits from the
@@ -146,7 +146,7 @@ export const HEAT_LEGEND = {
   },
   gap: {
     title: 'Shaded by the gap to the benchmark',
-    body: 'Each category’s published median is compared with the index the workbook prints beneath that category, and the difference is shaded in percentage points — green where the category median is ahead of its index, red where it is behind. One shade step per band, up to three.',
+    body: 'A return is compared with the benchmark published beside it — the index the workbook prints beneath that category, or on All Schemes the scheme’s own category median — and the difference is shaded in percentage points, green where the return is ahead and red where it is behind. One shade step per band, up to three.',
     steps: [
       { className: ABOVE[2], label: 'Three bands ahead or more' },
       { className: ABOVE[1], label: 'Two bands ahead' },

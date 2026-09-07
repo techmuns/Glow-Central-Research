@@ -14632,7 +14632,7 @@
       },
       "benchmarks": [],
       "primaryBenchmarkId": null,
-      "benchmarkNote": "The workbook prints no index row under this sheet, so it states no benchmark for this category. None is substituted."
+      "benchmarkNote": "The workbook prints no index row under this sheet, so it states no benchmark of its own for this category."
     }
   ],
   "benchmarkIndex": [

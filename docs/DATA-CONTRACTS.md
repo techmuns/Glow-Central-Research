@@ -2299,15 +2299,24 @@ and every category with no published index.
 
 ## `GET /api/returns-ranking` — LIVE, fund returns & peer ranking (AmfiBeas)
 
-The **Mutual Funds → All Schemes** sub-view. Every tracked mutual fund and ETF,
-its point-to-point return for each period, and its rank **within its own cohort**. Computed by
-**AmfiBeas** over AMFI's daily NAV snapshot; refreshed daily. Public, unauthenticated, **CORS-open**,
-so it is called **straight from the browser** — the same arrangement as SentimentDash below, and for
-the same reasons (no credential to hold; a same-account Worker proxy is refused by Cloudflare, error
-1042). **Every return and every rank is theirs, reproduced unchanged** — nothing here re-bands,
-re-ranks or recomputes. See `js/data/fund-returns.js` (transport), `js/investors/fund-returns.js`
-(the view) and `js/tabs/mutual-funds.js` (the tab it now sits on). **It carries no benchmark and no
-category median** — those live only in `mf-weekly.json` above, on a different date.
+The **Mutual Funds → All Schemes** sub-view. Every tracked mutual fund and ETF, its point-to-point
+return for each period, **the median its own category returned over the same period**, and its rank
+**within its own cohort**. Computed by **AmfiBeas** over AMFI's daily NAV snapshot; refreshed daily.
+Public, unauthenticated, **CORS-open**, so it is called **straight from the browser** — the same
+arrangement as SentimentDash below, and for the same reasons (no credential to hold; a same-account
+Worker proxy is refused by Cloudflare, error 1042). **Every return, every category figure and every
+rank is theirs, reproduced unchanged** — nothing here re-bands, re-ranks or recomputes; even the
+excess beneath a return is their `excessVsMedian` rather than a subtraction done in the browser. See
+`js/data/fund-returns.js` (transport), `js/investors/fund-returns.js` (the view) and
+`js/tabs/mutual-funds.js` (the tab it now sits on).
+
+**THE BENCHMARK HERE IS A CATEGORY, NOT AN INDEX, AND THAT IS A PROPERTY OF THE SOURCE.** AMFI's
+daily NAV snapshot carries no index level, so AmfiBeas publish no index return and **none is
+invented, and none is borrowed from `mf-weekly.json` above** — that workbook's index returns are
+dated its own, earlier day, and a 14-August index return under a 4-September fund return is a
+comparison nobody measured. The index comparison lives on Category Performance; this feed's
+comparator is the scheme's own cohort, on the same NAV date as the return it sits under, and the
+column heading, the provenance panel and row 1 of the export all say so.
 
 **The host is set in one place.** `window.AMFIBEAS_API_BASE` in `public/index.html` names it —
 `https://amfibeas.tech-441.workers.dev`, the same `*.tech-441.workers.dev` account convention as the
@@ -2319,8 +2328,16 @@ the host"*), never a broken table — which is exactly what shipped before the h
 Query params (all optional): `classification`, `cohort`, `plan` (`regular`/`direct`/`unknown`),
 `option` (`growth`/`idcw`/`unknown`), `q`/`search`, `period` (comma list of the seven below;
 default all), `fields` (`compact`/`standard`/`full`, default `standard`), `format` (`json`/`csv`),
-`limit`, `offset`. **The view requests `?fields=compact`** — only `{ return, rank, peerCount }` per
-period, which is all the table needs, so the ~3,400-scheme payload stays small.
+`limit`, `offset`.
+
+**The view requests `?fields=full`, and the reason is the benchmark.** `compact` carries
+`{ return, rank, peerCount }` and nothing to compare a return against, which is why this table had
+no benchmark column at all; `standard` adds `percentile` and `quartile` but still no category
+figure. Only `full` carries `categoryAverage`, `categoryMedian`, `excessVsAverage` and
+`excessVsMedian`. It costs **~5.8 MB against ~1.9 MB** (about **610 KB against 205 KB** over the
+wire, gzipped) — paid once per visit, on a tab nobody opens by accident, and kept in the device
+store. **`plan` is deliberately NOT sent**: the view needs the whole universe to know which regular
+rows have a direct twin (see *One row per scheme* below), so it filters in the browser.
 
 ```jsonc
 {
@@ -2333,13 +2350,19 @@ period, which is all the table needs, so the ~3,400-scheme payload stays small.
   "funds": [{
     "schemecode": "119551",          // stable id — the row key, never a positional index
     "fundName": "Axis Bluechip Fund - Direct Plan - Growth",
-    "classification": "Equity: Large Cap",
+    "classification": "Equity : Large Cap",
     "plan": "direct", "option": "growth",
-    "cohortKey": "equity-large-cap",
+    "cohortKey": "Equity : Large Cap | direct | growth",   // classification | plan | option
     "returns": {
-      "1M":  { "return": 3.4852, "rank": 38, "peerCount": 149 },  // return is a PERCENT already → +3.5%
-      "3Y":  { "return": 21.07,  "rank": 4,  "peerCount": 121 },  // 3Y/5Y/10Y are CAGRs
-      "10Y": { "return": null,   "rank": null, "peerCount": null } // null return / null rank → em dash
+      "1M": {                        // return is a PERCENT already → +3.5%
+        "return": 3.4852, "rank": 38, "peerCount": 149,
+        "percentile": 74.5, "quartile": "Q2", "statsAvailable": true,
+        "categoryAverage": 2.61, "categoryMedian": 2.74,   // THE BENCHMARK — their figure, same date
+        "excessVsAverage": 0.875, "excessVsMedian": 0.745  // THEIR subtraction, in percentage POINTS
+      },
+      "3Y":  { "return": 21.07, "rank": 4, "peerCount": 121, "categoryMedian": 15.4, "excessVsMedian": 5.67 },
+      "10Y": { "return": null, "rank": null, "peerCount": null, "categoryMedian": null,
+               "statsAvailable": false, "reason": "fund has no return for this period" }
     }
   }]
 }
@@ -2351,13 +2374,63 @@ period, which is all the table needs, so the ~3,400-scheme payload stays small.
   1M/3M/6M/1Y and a *CAGR* for 3Y/5Y/10Y. The view renders it **one decimal, sign-prefixed**, green
   above zero and rose below. A `null` return is *"no return for that period"* and renders an em dash
   — **never a zero**.
+- `categoryMedian` / `categoryAverage` are **the cohort's own figures for that period**, published
+  by the source on the same NAV date, and identical for every scheme in one cohort. The median is
+  what renders **beneath the return, in the same cell** — the same shape as Category Performance,
+  and for the same reason: an answer showing one side of the comparison makes the reader hold the
+  other in their head. `excessVsMedian` is **their subtraction**, in percentage **points**, and is
+  what the shade is computed from; nothing here recomputes `return − categoryMedian`.
+  `statsAvailable: false` with a `reason` is a cohort too small for the source to publish
+  statistics: the median renders an em dash **beside a real return**, never a zero, and no gap is
+  shown.
 - `rank`/`peerCount` is the scheme's rank **within its cohort**, rendered `rank/peerCount`
   (`38/149`). A `null` rank means *"the cohort was too small to rank"* and **may sit beside a
-  non-null return** — it renders an em dash, not a zero.
+  non-null return** — it renders an em dash, not a zero. `percentile` and `quartile` ride in the
+  cell's tooltip rather than as two more columns on a table that already carries fourteen.
 - **Column labels:** `1M, 3M, 6M, 1Y, 3Y CAGR, 5Y CAGR, 10Y CAGR`, each with a Returns and a
   Ranking sub-column. **A period whose return AND rank are null for every scheme is hidden** — that
   is the only display choice the view makes; it is not a new number. Rows are **alphabetical by
   `fundName`**, exactly as the source lists them.
+
+**ONE ROW PER SCHEME — THE DIRECT PLAN, AND THE SINGLE PLAN A LISTED FUND HAS.** The source returns
+both plans of every scheme (1,822 regular and 1,617 direct on the shipped snapshot), so the table
+listed each fund twice under two NAVs that differ only by the distributor's trail baked into one of
+them. `directOnly()` in `js/data/fund-returns.js` groups on the source's own `(fundName, option,
+classification)` — all three **exact**, because a looser key that stripped "Reg"/"Direct" out of the
+text folds *Aditya Birla SL **Regular** Savings Fund* into *Aditya Birla SL Savings Fund*, which are
+two different funds — and keeps the direct row where the group has one.
+
+**AN ETF HAS NO PLAN TO CHOOSE, AND "KEEP DIRECT" WOULD HAVE DELETED EVERY ONE OF THEM.** A listed
+unit has one NAV and one expense ratio, and AmfiBeas file all 234 of them (`Equity : ETFs`,
+`Metal : ETFs`, `Debt : ETFs`) as **`plan: "regular"`** with no direct twin anywhere in the payload.
+So the rule is *direct where the source lists one*, not *drop regular*: a group with no direct
+member is kept as it is, which is 232 rows on the shipped snapshot.
+
+**TWO MORE THINGS THE SOURCE'S OWN LABELLING MAKES NECESSARY, and both are visible on screen without
+them.** It lists **31 schemes twice, under two ids** — an AMFI code and a synthetic one, e.g.
+`30046-D` and `d-360-one-11-D` — with the same name bar a plan suffix and **every figure
+identical**; both survive the plan rule (both are direct) and painted one under the other.
+`foldIdenticalRows()` keeps one, and the identity is deliberately the strictest available — the
+displayed name, the option, the classification **and every rendered return, rank and category
+median** — so a pair differing in any figure is two schemes and both stay. And it names hundreds of
+**direct-plan rows `…-Reg(G)`**, the regular plan's label on the direct plan's row, contradicting
+the payload's own `plan` field: `displayNameOf()` drops the trailing **plan** marker and nothing
+else (the option suffix stays, no scheme is renamed), `sourceName` keeps the string as it arrived,
+and the export carries both in their own columns.
+
+`meta()` carries `total` (what the tab lists, 1,819), `universe` (every row the source returned,
+3,439), `hiddenRegular`, `singlePlan` and `foldedDuplicates` — five different claims, so five
+fields, none reached by subtracting another. **There is no plan filter in the toolbar**: it could
+only ever offer "direct" and an empty "regular".
+
+**`factors` IS READ FROM THE SCHEME'S OWN NAME AND IS NOT A CLASSIFICATION.** Neither this feed nor
+the weekly workbook says which factor a passive scheme follows — 645 equity schemes arrive as
+`Equity : Index`, `Equity : Index Funds` or `Equity : ETFs` and stop there — so `factorsOf()` in
+`js/data/mf-taxonomy.js` reads *momentum*, *quality*, *value*, *low volatility*, *alpha*, *equal
+weight* and *dividend yield* out of `fundName`, which is where SEBI requires the tracked index to be
+stated. It is a **separate axis**: a momentum fund's `classification` is untouched, a scheme may
+carry two factors and is counted under each, and a scheme matching none is simply not in a strategy.
+`Growth` is deliberately not a factor — it is the option suffix on nearly every name in both feeds.
 - Every failure is a **named state carried on `meta().reason`** (`no-url`, `not-found`,
   `unreachable`, `upstream`, `shape`), never a thrown error or an empty table. The requested URL
   travels with it, and the panel offers a **Try again** that calls `reload()`.
@@ -2375,9 +2448,11 @@ pill reads *Live* / *Cached* accordingly and never claims a freshness it has not
 `cache-control: public, max-age=300, s-maxage=3600` but **no `ETag`** and no
 `access-control-expose-headers`. `conditionalJson` can therefore never 304 it, so each view mount
 is a fresh full read (origin stays `live`, never `store`). That is acceptable here — this feed is
-loaded once per visit, not polled every 30s like the earnings feed — but if the upstream ever adds
-a content ETag and exposes it via `access-control-expose-headers`, the device cache starts saving
-the download for free with no client change.
+loaded once per visit, not polled every 30s like the earnings feed — but it is also what makes the
+`compact` → `full` switch above cost real bytes on every mount rather than only the first, and it is
+**the single cheapest improvement available to this feed**: if the upstream adds a content ETag and
+exposes it via `access-control-expose-headers`, a return visit becomes a bodyless 304 with no client
+change at all.
 
 ---
 

@@ -361,25 +361,130 @@ console.log('\n— shell and routing —');
 const AMFI_PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
 let amfiMode = 'ok';
 let amfiSeq = 0;
+
+// THE FIXTURE HAS TO MODEL THE THINGS THE CODE IS THERE TO HANDLE, or the check passes for the same
+// wrong reason the code would. Three of them here, and none of the first version's 44 rows had any:
+//
+//   1. THE SAME SCHEME UNDER BOTH PLANS. The source returns a regular and a direct row per scheme,
+//      identical but for the trail baked into the NAV, and the view shows one. A fixture whose rows
+//      all have distinct names produces no duplicate to drop and would pass whatever the code did.
+//   2. AN ETF, WHICH HAS NO PLAN TO CHOOSE. Every listed fund is filed `regular` with no direct
+//      twin, so "drop every regular row" deletes all of them. That is the failure the rule exists
+//      to avoid, and only a single-plan row in the fixture can catch it.
+//   3. THE COHORT STATISTICS THE SOURCE PUBLISHES. `categoryAverage` / `categoryMedian` and the
+//      excess over each are computed per cohort below rather than invented per row, so the check
+//      that the excess is THEIR subtraction is checking arithmetic that could actually disagree.
+//
+//   4. A SCHEME THE SOURCE LISTS TWICE UNDER TWO IDS. 31 of them arrive with the same name bar a
+//      plan suffix and every figure identical; both survive the plan rule, so both were painted one
+//      under the other. `Alpha Large Cap Fund` below is listed a second time as
+//      `Alpha Large Cap Fund-Reg(G)`, which is also the fifth thing:
+//   5. A DIRECT-PLAN ROW THE SOURCE NAMES `…-Reg(G)`. The regular plan's label on the direct plan's
+//      row, contradicting the payload's own `plan` field — the one string the table must not print
+//      verbatim when it shows nothing but direct plans.
+//
+// A few names carry a strategy word, because the strategy control reads the scheme's own name.
+// COHORTS ARE `classification | plan | option`, so they have to be BIG ENOUGH TO BE RANKED — the
+// real feed's run from ten to a hundred and fifty. The two `idcw` rows are the exception on
+// purpose: theirs is a cohort of two, below the source's own `minPeerCount`, which is the state a
+// return with NO median has to survive.
+const AMFI_SCHEMES = [
+  ['Alpha Large Cap Fund', 'Equity : Large Cap', 'growth'],
+  ['Corona Large Cap Fund', 'Equity : Large Cap', 'growth'],
+  ['Oscar Large Cap Fund', 'Equity : Large Cap', 'growth'],
+  ['Romeo Large Cap Fund', 'Equity : Large Cap', 'growth'],
+  ['Zebra Large Cap Fund', 'Equity : Large Cap', 'growth'],
+
+  ['Bluechip Momentum 30 Index Fund', 'Equity : Index', 'growth'],
+  ['Echo Nifty 200 Momentum 30 Index Fund', 'Equity : Index', 'growth'],
+  ['Foxtrot Quality 30 Index Fund', 'Equity : Index', 'growth'],
+  ['India Value 50 Index Fund', 'Equity : Index', 'growth'],
+  ['Kilo Low Volatility 30 Index Fund', 'Equity : Index', 'growth'],
+  ['Mike Equal Weight Index Fund', 'Equity : Index', 'growth'],
+  ['Sierra Momentum 50 Index Fund', 'Equity : Index', 'growth'],
+
+  ['Delta Small Cap Fund', 'Equity : Small Cap', 'growth'],
+  ['Juliett Small Cap Fund', 'Equity : Small Cap', 'growth'],
+  ['Lima Small Cap Fund', 'Equity : Small Cap', 'growth'],
+  ['Quebec Small Cap Fund', 'Equity : Small Cap', 'growth'],
+  ['Victor Small Cap Fund', 'Equity : Small Cap', 'growth'],
+
+  ['Golf Short Duration Fund', 'Debt : Short Duration', 'growth'],
+  ['November Short Duration Fund', 'Debt : Short Duration', 'growth'],
+  ['Tango Short Duration Fund', 'Debt : Short Duration', 'growth'],
+  ['Uniform Short Duration Fund', 'Debt : Short Duration', 'growth'],
+  ['Whisky Short Duration Fund', 'Debt : Short Duration', 'growth'],
+
+  // A cohort of two, below the source's own minPeerCount: a real return with NO category median
+  // beside it, which is the state the em dash has to survive.
+  ['Hotel Large Cap Fund', 'Equity : Large Cap', 'idcw'],
+  ['Papa Large Cap Fund', 'Equity : Large Cap', 'idcw'],
+];
+// Listed funds: one plan, filed `regular`, no direct twin anywhere in the payload.
+const AMFI_ETFS = [
+  'Whiskey Nifty 50 ETF', 'Xray Momentum 30 ETF', 'Yankee Gold ETF',
+  'Zulu Nifty Bank ETF', 'Anchor Quality 30 ETF', 'Beacon Low Volatility ETF',
+];
+
 const amfiPayload = () => {
-  const classes = ['Equity: Large Cap', 'Equity: Mid Cap', 'Equity: Small Cap', 'Debt: Short Duration'];
-  const funds = [];
-  for (let i = 0; i < 44; i++) {
-    const cls = classes[i % classes.length];
+  const rows = [];
+  let code = 1000;
+  const push = (fundName, classification, plan, option) => {
+    const seed = fundName.length + plan.length * 3 + option.length;
     const returns = {};
     for (const p of AMFI_PERIODS) {
-      if (p === '10Y') { returns[p] = { return: null, rank: null, peerCount: null }; continue; } // empty for all → column hidden
-      const base = ((i * 7 + p.length * 3) % 44) - 16;
-      const rankNull = i % 10 === 0;
-      returns[p] = { return: Number((base + 0.5).toFixed(4)), rank: rankNull ? null : ((i % 30) + 1), peerCount: rankNull ? null : 149 };
+      if (p === '10Y') { returns[p] = { return: null, rank: null, peerCount: null, percentile: null, quartile: null, statsAvailable: false, reason: 'fund has no return for this period', categoryAverage: null, categoryMedian: null, excessVsAverage: null, excessVsMedian: null }; continue; }
+      returns[p] = { return: Number((((seed * 7 + p.length * 11) % 44) - 16 + 0.5).toFixed(4)), rank: null, peerCount: null, percentile: null, quartile: null, statsAvailable: true, categoryAverage: null, categoryMedian: null, excessVsAverage: null, excessVsMedian: null };
     }
-    funds.push({
-      schemecode: `SC${1000 + i}`,
-      fundName: `${String.fromCharCode(90 - (i % 26))}${i} ${cls.split(':')[0]} Fund`, // deliberately NOT pre-sorted
-      classification: cls, plan: i % 2 ? 'direct' : 'regular', option: i % 3 ? 'growth' : 'idcw', cohortKey: cls, returns,
-    });
+    rows.push({ schemecode: `SC${code++}`, fundName, classification, plan, option, cohortKey: `${classification} | ${plan} | ${option}`, returns });
+  };
+  // Deliberately NOT pre-sorted, so the view's own alphabetical ordering is exercised.
+  for (const [name, cls, opt] of [...AMFI_SCHEMES].reverse()) { push(name, cls, 'regular', opt); push(name, cls, 'direct', opt); }
+  for (const name of AMFI_ETFS) push(name, 'Equity : ETFs', 'regular', 'unknown');
+  // The same scheme again, under a second id and the source's other label for it. Same figures —
+  // `push` seeds them from the name, so this pair is seeded from the FIRST scheme's name to make
+  // them identical rather than merely similar.
+  const twinOf = rows.find((r) => r.fundName === 'Alpha Large Cap Fund' && r.plan === 'direct');
+  rows.push({ ...twinOf, schemecode: 'd-alpha-1-D', fundName: 'Alpha Large Cap Fund-Reg(G)', returns: JSON.parse(JSON.stringify(twinOf.returns)) });
+
+  // The cohort statistics, computed ONCE PER COHORT the way the source does — so every row in a
+  // cohort carries the same median and the excess beside it is a real subtraction. The duplicate
+  // listing above is deliberately excluded: it is the same scheme, and counting it as a peer would
+  // move the median it is then compared against.
+  const cohorts = new Map();
+  for (const r of rows) {
+    if (r.schemecode === 'd-alpha-1-D') continue;
+    if (!cohorts.has(r.cohortKey)) cohorts.set(r.cohortKey, []);
+    cohorts.get(r.cohortKey).push(r);
   }
-  return { asOfDate: '2026-08-25', generatedAt: new Date().toISOString(), source: 'AmfiBeas daily NAV snapshot (AMFI)', periods: AMFI_PERIODS, total: 3439, count: funds.length, funds };
+  for (const [, members] of cohorts) {
+    for (const p of AMFI_PERIODS) {
+      const vals = members.map((r) => r.returns[p].return).filter((v) => v != null).sort((a, b) => a - b);
+      if (!vals.length) continue;
+      const mid = vals.length >> 1;
+      const median = vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+      const average = Number((vals.reduce((n, v) => n + v, 0) / vals.length).toFixed(4));
+      // A tiny cohort is not ranked and publishes no statistics — the state a null median has to
+      // survive, and the reason the ETF cohort is left without one.
+      const ranked = vals.length >= 5;
+      members.forEach((r) => {
+        const cell = r.returns[p];
+        if (cell.return == null) return;
+        if (!ranked) { cell.statsAvailable = false; return; }
+        cell.categoryMedian = median;
+        cell.categoryAverage = average;
+        cell.excessVsMedian = Number((cell.return - median).toFixed(4));
+        cell.excessVsAverage = Number((cell.return - average).toFixed(4));
+        cell.rank = vals.length - vals.indexOf(cell.return);
+        cell.peerCount = vals.length;
+        cell.percentile = Number((((vals.length - cell.rank) / vals.length) * 100).toFixed(2));
+        cell.quartile = `Q${Math.min(4, Math.floor((cell.rank - 1) / (vals.length / 4)) + 1)}`;
+      });
+    }
+  }
+  const twin = rows.find((r) => r.schemecode === 'd-alpha-1-D');
+  if (twin && twinOf) twin.returns = JSON.parse(JSON.stringify(twinOf.returns));
+  return { asOfDate: '2026-08-25', generatedAt: new Date().toISOString(), source: 'AmfiBeas daily NAV snapshot (AMFI)', periods: AMFI_PERIODS, total: rows.length, count: rows.length, funds: rows };
 };
 
 // THE AmfiBeas STUB IS INSTALLED HERE, BEFORE THE SWEEP, not beside its own checks in section 9a.
@@ -4307,14 +4412,17 @@ if (frRendered) {
 
   // Cell formatting: returns are one-decimal, sign-prefixed % coloured green/red; ranks are
   // rank/peerCount; a null return or rank is an em dash, NEVER a zero.
+  // A RETURN CELL NOW CARRIES TWO LINES — the scheme's return over its category's median — so the
+  // format check reads the SPANS rather than the cell's text, which is `"+3.5%\n+2.7%"`.
   const frCells = await page.evaluate(() => {
     const tds = [...document.querySelectorAll('#content-host tbody tr')].slice(0, 30).flatMap((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText.trim()));
     const spans = [...document.querySelectorAll('#content-host tbody td span')];
+    const lines = spans.map((sp) => sp.textContent.trim());
     return {
-      oneDecimalSigned: tds.some((t) => /^[+-]\d+\.\d%$/.test(t)),
-      twoDecimal: tds.some((t) => /^[+-]\d+\.\d\d%$/.test(t)),
+      oneDecimalSigned: lines.some((t) => /^[+-]\d+\.\d%$/.test(t)),
+      twoDecimal: lines.some((t) => /^[+-]\d+\.\d\d%$/.test(t)),
       rankPair: tds.some((t) => /^\d+\/\d+$/.test(t)),
-      dash: tds.some((t) => t === '—'),
+      dash: tds.some((t) => t.includes('—')),
       posEmerald: !!spans.find((s) => /^\+/.test(s.innerText) && /emerald/.test(s.className)),
       negRose: !!spans.find((s) => /^-\d/.test(s.innerText) && /rose/.test(s.className)),
     };
@@ -4404,8 +4512,12 @@ if (hasRetry) {
 //   2. A NULL IS NOT A ZERO — on a return, on a median, and on a gap whose other side is missing.
 //   3. THE MEDIAN THAT SHIPS IS THE PUBLISHED ONE. Recomputing it is the import's parse check, and
 //      the check asserts the file records that reconciliation rather than trusting it.
-//   4. A CATEGORY WITH NO PUBLISHED INDEX SAYS SO AND NOTHING IS SUBSTITUTED, even though the file
-//      carries a master sheet of 36 indices that would make substituting one trivial.
+//   4. A CATEGORY WITH NO PUBLISHED INDEX SAYS SO ON EVERY SURFACE ITS COMPARATOR REACHES. The
+//      workbook prints no index row under one sheet; a return with nothing beside it answers
+//      nothing, so an index from the workbook's OWN master sheet is shown — and the whole weight
+//      of the rule moves onto the label. `paired: false` travels with it and the cell, the
+//      reference row, the picker, the provenance panel and the export all say the workbook makes
+//      no such pairing. The failure to catch is a comparator that reads as the source's own.
 //   5. THE HEATMAP IS ACTUALLY PAINTED. A composed Tailwind class compiles to nothing, renders with
 //      no background and throws nothing — so this asserts a real computed background colour, not a
 //      class name.
@@ -4441,8 +4553,16 @@ const mfFile = await page.evaluate(async () => {
     indices: meta.benchmarkCount, medianCheck: meta.medianCheck, coverage: meta.coverage,
     checked, agree, gapNullWhenEitherMissing,
     noBenchLabels: noBench.map((c) => c.label),
-    // A category with no index must resolve to NO benchmark — never one borrowed from the master sheet.
-    noBenchResolvesToNull: noBench.every((c) => m.benchmarkFor(c).benchmark === null && !!m.benchmarkFor(c).reason),
+    // A category with no published index still gets a comparator — and it must NEVER read as the
+    // workbook's own. `paired: false`, a reason that says so in words, and the index it falls back
+    // to must come from the workbook's own master sheet rather than from anywhere else.
+    noBenchIsLabelled: noBench.every((c) => {
+      const b = m.benchmarkFor(c);
+      return b.paired === false && /not the workbook/i.test(b.reason) && (b.benchmark === null || m.benchmarkIndex().includes(b.benchmark));
+    }),
+    // ...and a category the workbook DID pair says so, so the flag is a real distinction rather
+    // than a constant.
+    pairedIsTrueWhereItShouldBe: cats.filter((c) => c.benchmarks.length).every((c) => m.benchmarkFor(c).paired === true),
     // THE WORKBOOK'S OWN ORDER, with one upgrade: where a sheet prints a price index AND ITS OWN
     // TRI, the TRI is used — not a different index, the same one measured the way a NAV is. A
     // blanket "prefer any TRI" would be wrong on the sectoral sheets, which list the broad market
@@ -4469,9 +4589,12 @@ ok('...and the file records that reconciliation rather than leaving it to be tru
   JSON.stringify(mfFile.medianCheck));
 ok('a period the workbook printed "--" for is ABSENT, never stored as a zero', mfFile.absentPeriodsOmitted);
 ok('a gap is null the moment either side is absent, never 0', mfFile.gapNullWhenEitherMissing);
-ok('a category with no published index resolves to NO benchmark and a stated reason',
-  mfFile.noBenchResolvesToNull, mfFile.noBenchLabels.join(', ') || 'every category has one');
-ok('...and none is substituted from the master index sheet, which is right there', mfFile.noBenchResolvesToNull);
+ok('a category with no published index is labelled as not the workbook’s pairing, in words',
+  mfFile.noBenchIsLabelled, mfFile.noBenchLabels.join(', ') || 'every category has one');
+ok('...and its fallback comes from the workbook’s OWN master index sheet, nothing else',
+  mfFile.noBenchIsLabelled, mfFile.noBenchLabels.join(', ') || 'every category has one');
+ok('...while a category the workbook DID pair reports paired, so the flag distinguishes rather than decorates',
+  mfFile.pairedIsTrueWhereItShouldBe);
 ok('the benchmark is the index the workbook LISTS FIRST, upgraded only to that same index’s own TRI',
   mfFile.firstListedOrOwnTri);
 ok('...so a sector index the sheet lists second is still reachable rather than dropped', mfFile.sectorIndicesKept);
@@ -4483,6 +4606,24 @@ ok('an asset class this workbook does not publish is named with a reason', mfUnc
 const mfHead = await hostText();
 ok('...and the tab says so in words rather than showing an empty group',
   mfUncovered.every((c) => new RegExp(c.label, 'i').test(mfHead)), mfUncovered.map((c) => c.label).join(', '));
+
+// THE EXPLANATION MOVED BEHIND THE PILL; THE CLAIM DID NOT MOVE OFF THE PAGE. Three blocks used to
+// bracket this table — a coverage paragraph, the shade legend and a five-sentence derivation note.
+// The check that matters is not that they are gone but that every sentence is still ONE CLICK away
+// and that nothing on the page has quietly stopped being said.
+ok('the coverage paragraph and the derivation note are no longer stacked around the table',
+  !/reproduced unchanged, as on/i.test(mfHead) && (await page.locator('#content-host [data-mf-legend]').count()) === 0);
+await page.locator('[data-mf-info]').first().click();
+await page.waitForTimeout(500);
+const mfMovedModal = await page.locator('#modal-content').innerText();
+ok('...and the provenance panel carries the coverage sentence, the derivation note and the shade legend',
+  /categories,/.test(mfMovedModal) && /reproduced unchanged, as on/i.test(mfMovedModal)
+    && (await page.locator('#modal-content [data-mf-legend]').count()) === 1,
+  mfMovedModal.slice(0, 100));
+ok('...including the asset classes this workbook does not publish',
+  mfUncovered.every((c) => new RegExp(c.label, 'i').test(mfMovedModal)), mfUncovered.map((c) => c.label).join(', '));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
 
 // EVERY CATEGORY RETURN HAS ITS BENCHMARK RETURN BESIDE IT, on the face of the cell.
 const mfCell = await page.evaluate(() => {
@@ -4507,7 +4648,13 @@ const mfPaint = await page.evaluate(() => {
 });
 ok('the heatmap classes resolve to a real background colour', mfPaint.total > 20 && mfPaint.painted === mfPaint.total,
   `${mfPaint.painted}/${mfPaint.total} painted · ${mfPaint.sample}`);
-ok('...and the legend on screen says what the shading means', (await page.locator('[data-mf-legend]').count()) === 1);
+// THE SHADE IS STILL EXPLAINED — in the provenance panel rather than in a block under the table.
+// It may never go unexplained: it is the one derived reading on this view.
+await page.locator('[data-mf-info]').first().click();
+await page.waitForTimeout(500);
+ok('...and the legend behind the pill says what the shading means', (await page.locator('#modal-content [data-mf-legend]').count()) === 1);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
 
 // THE SHADING RULES ARE ASSERTED DIRECTLY, because the shipped workbook cannot produce every band.
 // Same reason `moveSeverity` and `freshnessOf` are exported and tested as predicates rather than
@@ -4639,7 +4786,9 @@ if (mfPicks > 1) {
   }, mfOpenLabel);
   ok('every benchmark offered is one the workbook prints under THIS category', !!mfCatBenchNames &&
     mfPickNames.every((label) => mfCatBenchNames.some((n) => label.startsWith(n))), `${mfPickNames.join(' | ')} vs ${mfCatBenchNames?.join(' | ')}`);
-  // ...and specifically NOT one borrowed from the 36-index master sheet, which is right there.
+  // ...and specifically NOT one borrowed from the 36-index master sheet, which is right there. That
+  // sheet is only ever reachable for a category the workbook prints NO index row under — checked
+  // separately below, where every surface that shows it says the workbook makes no such pairing.
   const mfMasterOnly = await page.evaluate(async (names) => {
     const m = await import('/js/data/mf-weekly.js');
     const own = new Set(names);
@@ -4656,6 +4805,74 @@ if (mfPicks > 1) {
   ok('...and says the choice is the reader’s, not the workbook’s', /Your choice/i.test(mfRefAfter), mfRefAfter.slice(0, 120));
   await page.locator('[data-mf-benchmark]').first().click();
   await page.waitForTimeout(900);
+}
+
+// ==== THE ONE CATEGORY THE WORKBOOK PAIRS WITH NOTHING ====
+//
+// A return with nothing beside it answers nothing, so this category is shown against an index from
+// the workbook's OWN master sheet — and the whole honesty of it is in the label. What is asserted
+// is not the comparison but the four places it has to be marked: the benchmark cell on the
+// comparison table, the reference row above the schemes, the picker under it and the provenance
+// panel. A comparator that reads as the source's own pairing is the failure to catch, and nothing
+// in a class name or a figure would show it.
+//
+// THE ROUTE IS RESET THROUGH THE OTHER SUB-VIEW FIRST, not by re-navigating to this one. A hash
+// change that keeps the same sub-view is a same-document navigation: the tab re-renders with the
+// drill it already had open, so `go()` to the same sub-view under a different scope leaves the
+// previous category's schemes on screen and every selector below then reads the wrong table.
+const mfUnpairedLabel = await page.evaluate(async () => {
+  const m = await import('/js/data/mf-weekly.js');
+  const c = m.categories().find((x) => !x.benchmarks.length);
+  return c ? c.label : null;
+});
+if (mfUnpairedLabel) {
+  await go('/#/research/mutual-funds/all-schemes?scope=universe', 1600);
+  await go('/#/research/mutual-funds/category-performance?scope=universe', 2600);
+  const mfUnpairedCell = await page.evaluate((label) => {
+    const tr = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')]
+      .find((r) => r.innerText.includes(label));
+    return tr ? tr.innerText.replace(/\s+/g, ' ') : null;
+  }, mfUnpairedLabel);
+  ok('the comparison table marks an unpaired benchmark on the face of the cell',
+    !!mfUnpairedCell && /not the workbook’s pairing/i.test(mfUnpairedCell), (mfUnpairedCell || '(row not found)').slice(0, 120));
+  ok('...and still shows the comparison rather than leaving the row without one',
+    !!mfUnpairedCell && /[+-]\d+\.\d\d%/.test(mfUnpairedCell), (mfUnpairedCell || '(row not found)').slice(0, 120));
+
+  await page.locator('#content-host [data-table-search]').fill(mfUnpairedLabel);
+  await page.waitForTimeout(900);
+  const mfUnpairedRows = await rowCount();
+  ok('...and the category is reachable by name', mfUnpairedRows >= 1, `${mfUnpairedRows} rows for "${mfUnpairedLabel}"`);
+  if (mfUnpairedRows >= 1) {
+    await page.locator('#content-host tbody tr[data-row-key]').first().click();
+    await page.waitForTimeout(1600);
+    const mfUnpairedDrill = await hostText();
+    ok('...the reference row above its schemes says the same thing',
+      /not the workbook’s pairing/i.test(mfUnpairedDrill) && /stated fallback/i.test(mfUnpairedDrill), mfUnpairedDrill.slice(0, 100));
+    const mfMasterPicker = await page.locator('[data-mf-benchmark-select]').count();
+    ok('...and the picker offers the workbook’s own master sheet, labelled as not a pairing it makes',
+      mfMasterPicker === 1 && /not a pairing the workbook makes/i.test(mfUnpairedDrill));
+    const mfMasterOptions = await page.evaluate(async () => {
+      const sel = document.querySelector('[data-mf-benchmark-select]');
+      const m = await import('/js/data/mf-weekly.js');
+      const names = new Set(m.benchmarkIndex().map((b) => b.name));
+      return sel ? { all: [...sel.options].every((o) => names.has(o.text.replace(/ · price$/, ''))), n: sel.options.length } : null;
+    });
+    ok('...every option on it comes from this workbook and nowhere else',
+      !!mfMasterOptions && mfMasterOptions.all && mfMasterOptions.n > 10, JSON.stringify(mfMasterOptions));
+
+    // A REGULAR-PLAN FIGURE HAS NOWHERE TO BE READ AGAINST, so the scheme table no longer carries
+    // one: every return in this workbook is a direct-plan return, and the other sub-view now shows
+    // the direct plan too.
+    const mfExpenseHeads = await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim()));
+    ok('the scheme table quotes the direct expense ratio and no regular one',
+      mfExpenseHeads.some((h) => /Expense direct/i.test(h)) && !mfExpenseHeads.some((h) => /Expense regular/i.test(h)),
+      mfExpenseHeads.slice(-3).join(' | '));
+
+    // MOMENTUM IS FINDABLE ON THIS HALF TOO, from the same reading of the scheme's own name.
+    const mfSchemeStrategy = await page.$$eval('#content-host select', (sels) => sels.map((s) => s.options[0]?.text || ''));
+    ok('...and the scheme table offers the strategy its schemes state in their own names',
+      mfSchemeStrategy.some((t) => /strategy in the name/i.test(t)), mfSchemeStrategy.join(' | '));
+  }
 }
 
 // THE PROVENANCE PANEL carries the whole claim, the way the con-call and portfolio pills do.
@@ -4675,17 +4892,129 @@ const mfDates = await page.evaluate(async () => {
   const w = await import('/js/data/mf-weekly.js');
   const l = await import('/js/data/fund-returns.js');
   await w.load();
-  return { weekly: w.meta()?.asOf || null, live: l.meta()?.asOfDate || null,
-    liveHasBenchmark: l.all().some((f) => 'benchmark' in f || 'median' in f) };
+  const rows = l.all();
+  const workbookNames = new Set(w.benchmarkIndex().map((b) => b.name));
+  // EVERY BENCHMARK FIGURE ON THIS FEED HAS TO BE THE FEED'S OWN. The failure this closes is the
+  // one the whole tab is built around: a 14-August index return under a 4-September fund return.
+  // So no row may carry an index at all, and every category figure it does carry must sit in a
+  // cell the source itself filled.
+  const cells = rows.flatMap((f) => Object.values(f.returns || {}));
+  return {
+    weekly: w.meta()?.asOf || null,
+    live: l.meta()?.asOfDate || null,
+    liveHasIndex: rows.some((f) => 'benchmark' in f || 'index' in f)
+      || cells.some((c) => Object.values(c).some((v) => typeof v === 'string' && workbookNames.has(v))),
+    basis: l.meta()?.benchmarkBasis || null,
+    withMedian: cells.filter((c) => c.categoryMedian != null).length,
+    withReturn: cells.filter((c) => c.return != null).length,
+    // Their own subtraction, never one done here — asserted to the paisa against their two figures.
+    excessIsTheirs: cells.filter((c) => c.excessVsMedian != null)
+      .every((c) => c.return != null && c.categoryMedian != null && Math.abs((c.return - c.categoryMedian) - c.excessVsMedian) < 0.01),
+    // A cohort too small for statistics carries a return and NO median — never a zero.
+    noZeroMedians: cells.every((c) => c.categoryMedian == null || typeof c.categoryMedian === 'number'),
+    medianNeverStandsInForAbsence: cells.every((c) => !(c.return == null && c.excessVsMedian != null)),
+  };
 });
 ok('the two fund feeds carry different as-of dates', !!mfDates.weekly && !!mfDates.live && mfDates.weekly !== mfDates.live,
   `workbook ${mfDates.weekly} · live ${mfDates.live}`);
-ok('...and the live feed carries no benchmark or median of its own to confuse them with', !mfDates.liveHasBenchmark);
-const mfTwoFeeds = await page.locator('[data-mf-two-feeds]').innerText().catch(() => '');
-ok('the All Schemes head says it is a different snapshot from Category Performance', /different snapshot/i.test(mfTwoFeeds), mfTwoFeeds.slice(0, 100));
+ok('...and not one workbook index reaches the live feed, which is the comparison nobody measured',
+  !mfDates.liveHasIndex);
+ok('EVERY live return carries a benchmark, and the benchmark is the SOURCE’S OWN category median',
+  mfDates.basis === 'category' && mfDates.withMedian > 0 && mfDates.withMedian / mfDates.withReturn > 0.9,
+  `${mfDates.withMedian} of ${mfDates.withReturn} return cells carry one`);
+// ...and the ones that do not are a cohort the SOURCE declined to publish statistics for, not a
+// gap of ours. A fixture where every cell had one would never exercise the em dash.
+ok('...and a cohort too small for the source to rank carries a return with NO median, never a zero',
+  mfDates.withMedian < mfDates.withReturn, `${mfDates.withReturn - mfDates.withMedian} cells`);
+ok('...and the excess beside it is their subtraction rather than one done here', mfDates.excessIsTheirs);
+ok('...with no gap standing in where the return itself is absent', mfDates.medianNeverStandsInForAbsence && mfDates.noZeroMedians);
+
+// A RETURN AND ITS BENCHMARK ARE IN ONE CELL, on the face of the table — the same shape as the
+// category view, and for the same reason: an answer showing one side makes the reader hold the
+// other in their head.
+const mfLiveCell = await page.evaluate(() => {
+  const tr = document.querySelector('#content-host tbody tr[data-row-key]');
+  if (!tr) return null;
+  const twoLine = [...tr.querySelectorAll('td')].filter((td) => td.querySelectorAll('span.block').length === 2);
+  return { twoLine: twoLine.length, sample: twoLine[0]?.innerText.replace(/\s+/g, ' ').trim() || '' };
+});
+ok('every live return carries its benchmark in the same cell', mfLiveCell && mfLiveCell.twoLine >= 3,
+  `${mfLiveCell?.twoLine} two-line cells · ${mfLiveCell?.sample}`);
+
+// THE EXPLANATION MOVED BEHIND THE PILL AND THE CLAIM DID NOT MOVE OFF THE PAGE.
+const mfLiveBody = await hostText();
+ok('the two-feeds paragraph no longer sits above the table', !/different snapshot/i.test(mfLiveBody));
+await page.locator('[data-fund-returns-info]').click();
+await page.waitForTimeout(600);
+const mfTwoFeeds = await page.locator('#modal-content [data-mf-two-feeds]').innerText().catch(() => '');
+ok('...and the provenance panel says it is a different snapshot from Category Performance', /different snapshot/i.test(mfTwoFeeds), mfTwoFeeds.slice(0, 100));
 ok('...naming both dates so neither can be read as the other',
   mfTwoFeeds.includes(mfDates.weekly) && mfTwoFeeds.includes(mfDates.live), mfTwoFeeds.slice(0, 160));
 ok('...and saying no figure is compared across the two', /no figure from one is compared/i.test(mfTwoFeeds) || /neither figure is combined/i.test(mfTwoFeeds));
+const mfLiveModal = await page.locator('#modal-content').innerText();
+ok('...and that the benchmark here is a CATEGORY, not an index', /not an index/i.test(mfLiveModal));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+
+// ==== ONE ROW PER SCHEME, AND AN ETF IS NOT A DUPLICATE ====
+//
+// The source returns both plans of every scheme, so the table listed each fund twice under two NAVs
+// that differ only by a distributor's trail. Dropping every regular row is the obvious fix and it
+// would delete every exchange-traded fund, which the source files as `regular` because a listed
+// unit has no plan to choose. So the rule is "direct WHERE THE SOURCE LISTS ONE", and both halves
+// are asserted: no scheme appears twice, and the ETFs are all still here.
+const mfPlans = await page.evaluate(async () => {
+  const l = await import('/js/data/fund-returns.js');
+  const rows = l.all();
+  const seen = new Map();
+  for (const r of rows) {
+    const k = `${r.fundName}|${r.option}|${r.classification || ''}`;
+    seen.set(k, (seen.get(k) || 0) + 1);
+  }
+  const dupGroups = [...seen.values()].filter((n) => n > 1).length;
+  const etfsShown = rows.filter((r) => /:\s*ETFs$/.test(r.classification || '')).length;
+  const etfsInFeed = l.allPlans().filter((r) => /:\s*ETFs$/.test(r.classification || '')).length;
+  const regularWithDirectTwin = rows.filter((r) => r.plan === 'regular')
+    .filter((r) => l.allPlans().some((x) => x.plan === 'direct' && x.fundName === r.fundName && x.option === r.option && x.classification === r.classification)).length;
+  const plans = {};
+  rows.forEach((r) => { plans[r.plan] = (plans[r.plan] || 0) + 1; });
+  return { rows: rows.length, universe: l.meta().universe, dupGroups, etfsShown, etfsInFeed, regularWithDirectTwin, plans };
+});
+ok('the table lists one row per scheme rather than one per plan',
+  mfPlans.rows < mfPlans.universe && mfPlans.dupGroups === 0, `${mfPlans.rows} of ${mfPlans.universe}, ${mfPlans.dupGroups} repeated`);
+ok('...and not one regular row that HAS a direct twin survived', mfPlans.regularWithDirectTwin === 0);
+ok('...while every exchange-traded fund is still here, because a listed unit has no plan to choose',
+  mfPlans.etfsShown === mfPlans.etfsInFeed && mfPlans.etfsShown > 0, `${mfPlans.etfsShown} of ${mfPlans.etfsInFeed}`);
+// TWO ROWS THE READER CANNOT TELL APART ARE ONE SCHEME LISTED TWICE — and both survive the plan
+// rule above, because both are direct. Only rows identical in every rendered figure are folded, so
+// this asserts BOTH halves: the duplicate is gone, and nothing else was.
+const mfFold = await page.evaluate(async () => {
+  const l = await import('/js/data/fund-returns.js');
+  const rows = l.all();
+  const raw = l.allPlans();
+  const sig = (r) => `${r.fundName.toLowerCase()}|${r.option}|${r.classification || ''}`;
+  const seen = new Map();
+  rows.forEach((r) => seen.set(sig(r), (seen.get(sig(r)) || 0) + 1));
+  return {
+    folded: l.meta().foldedDuplicates,
+    repeated: [...seen.values()].filter((n) => n > 1).length,
+    // NO ROW STILL WEARS A PLAN LABEL ITS OWN `plan` FIELD CONTRADICTS.
+    planLabelled: rows.filter((r) => /[-–]\s*(Reg|Regular|Dir|Direct)\b/i.test(r.fundName)).length,
+    // ...and the source's own string is kept beside it rather than thrown away.
+    keepsSourceName: rows.every((r) => typeof r.sourceName === 'string' && r.sourceName.length > 0),
+    // ...and the source's own string is still there, on `sourceName`, so this is a display choice
+    // rather than data thrown away. `allPlans()` carries the display name too, hence `sourceName`.
+    sourceStillHasIt: raw.some((r) => /[-–]\s*Reg\b/i.test(r.sourceName || '')),
+  };
+});
+ok('a scheme the source lists twice with every figure identical is shown once',
+  mfFold.folded > 0 && mfFold.repeated === 0, `${mfFold.folded} folded, ${mfFold.repeated} still repeated`);
+ok('...and no row still wears a plan label its own plan field contradicts',
+  mfFold.planLabelled === 0 && mfFold.sourceStillHasIt, `${mfFold.planLabelled} labelled`);
+ok('...with the source’s own name kept beside ours rather than thrown away', mfFold.keepsSourceName);
+
+ok('...so the toolbar offers no plan control, which could only answer with an empty table',
+  !/Regular & Direct/i.test(mfLiveBody) && !/\bRegular\b/.test(await page.$eval('#content-host', (el) => [...el.querySelectorAll('select option')].map((o) => o.text).join(' | ')).catch(() => '')));
 
 // THE CLASSIFICATION DRILLS OVER BOTH SUB-VIEWS, AND ON THIS ONE IT MUST ACTUALLY NARROW THE FEED.
 // A chip row that renders and binds nothing is the failure to close here: it looks wired, the call
@@ -4698,10 +5027,65 @@ if (mfLiveChips > 1 && mfLiveBefore > 0) {
   await page.waitForTimeout(1400);
   const mfLiveAfter = await rowCount();
   ok('...and pressing it narrows the feed rather than only the chip', mfLiveAfter > 0 && mfLiveAfter < mfLiveBefore, `${mfLiveBefore} → ${mfLiveAfter}`);
-  const mfLiveHead = await page.locator('[data-mf-two-feeds]').innerText();
-  ok('...with the head reporting the narrowed count, never a wider one', new RegExp(`Showing\\s+${mfLiveAfter}\\b`).test(mfLiveHead.replace(/,/g, '')), mfLiveHead.slice(-90));
+  const mfLiveCount = await page.locator('#content-host [data-row-count]').innerText().catch(() => '');
+  ok('...with the toolbar reporting the narrowed count, never a wider one',
+    mfLiveCount.replace(/,/g, '').includes(String(mfLiveAfter)), mfLiveCount);
+
+  // THE THIRD LEVEL IS THE SOURCE'S OWN CATEGORY, and until it was offered a reader had no way to
+  // ask for "ETFs" or "Index" — words the source itself prints on 645 equity schemes. It is offered
+  // HERE and not on Category Performance, where the third level is already the row.
+  const mfGroupChipsLive = await page.locator('[data-mf-hierarchy] [data-mf-group]').count();
+  if (mfGroupChipsLive >= 2) {
+    await page.locator('[data-mf-hierarchy] [data-mf-group]').nth(1).click();
+    await page.waitForTimeout(1600);
+    const mfCatChips = await page.locator('[data-mf-hierarchy] [data-mf-category]').count();
+    ok('choosing a group reveals the source’s own categories beneath it', mfCatChips >= 2, `${mfCatChips} category chips`);
+    const mfBeforeCat = await rowCount();
+    await page.locator('[data-mf-hierarchy] [data-mf-category]').nth(1).click();
+    await page.waitForTimeout(1600);
+    const mfAfterCat = await rowCount();
+    ok('...and pressing one narrows the feed to that category', mfAfterCat > 0 && mfAfterCat <= mfBeforeCat, `${mfBeforeCat} → ${mfAfterCat}`);
+  }
   await page.locator('[data-mf-hierarchy] [data-mf-class]').first().click();
   await page.waitForTimeout(1200);
+}
+
+// ==== MOMENTUM IS A REAL QUESTION AND NEITHER SOURCE CLASSIFIES IT ====
+//
+// AmfiBeas file all 645 passive equity schemes as `Index`, `Index Funds` or `ETFs` and stop there;
+// the workbook files all 70 of them as one Smart Beta sheet. So "which of these are the momentum
+// funds" had no control at all, and the answer is read from the SCHEME'S OWN NAME — which is where
+// the tracked index is stated. What has to hold is that it narrows, that it says where it read the
+// word, and that it changes nobody's classification.
+const mfStrategyChips = await page.locator('[data-mf-strategies] [data-mf-strategy]').allInnerTexts();
+ok('the strategy the scheme’s own name states is offered as its own control',
+  mfStrategyChips.some((t) => /Momentum/i.test(t)), mfStrategyChips.join(' | '));
+ok('...labelled as read from the name rather than as a classification',
+  /Strategy in the name/i.test(await page.locator('[data-mf-strategies]').innerText().catch(() => '')));
+if (mfStrategyChips.length > 1) {
+  const mfBeforeStrategy = await rowCount();
+  const mfMomIdx = mfStrategyChips.findIndex((t) => /Momentum/i.test(t));
+  await page.locator('[data-mf-strategies] [data-mf-strategy]').nth(mfMomIdx).click();
+  await page.waitForTimeout(1800);
+  const mfMomRows = await rowCount();
+  ok('...and pressing Momentum narrows the feed to the momentum schemes',
+    mfMomRows > 0 && mfMomRows < mfBeforeStrategy, `${mfBeforeStrategy} → ${mfMomRows}`);
+  const mfMomAgree = await page.evaluate(async () => {
+    const l = await import('/js/data/fund-returns.js');
+    const t = await import('/js/data/mf-taxonomy.js');
+    const mom = l.all().filter((r) => t.factorsOf(r.fundName).includes('momentum'));
+    return {
+      count: mom.length,
+      everyNameSaysIt: mom.every((r) => /momentum/i.test(r.fundName)),
+      // The classification is untouched: a momentum fund is still whatever the source filed it as.
+      classificationsUntouched: mom.every((r) => !/momentum/i.test(r.classification || '')),
+    };
+  });
+  ok('...every one of which states it in its own name', mfMomAgree.everyNameSaysIt && mfMomRows === mfMomAgree.count,
+    `${mfMomRows} on screen, ${mfMomAgree.count} in the feed`);
+  ok('...and not one of their classifications was rewritten to say so', mfMomAgree.classificationsUntouched);
+  await page.locator('[data-mf-strategies] [data-mf-strategy]').first().click();
+  await page.waitForTimeout(1400);
 }
 // A SCHEME IS NOT A COMPANY, so no row carries a star and no watchlist filter is offered.
 ok('an All Schemes row files no scheme code into the company watchlist', (await page.locator('#content-host [data-watch-toggle]').count()) === 0);
