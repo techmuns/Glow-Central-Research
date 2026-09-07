@@ -487,12 +487,16 @@
     "isin:INE0SMY01017|Jay Bee Laminations": {
       "lastAttemptAt": "2026-09-07T21:12:56+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0SMY01017|JAYBEE-SM": {
+      "lastAttemptAt": "2026-09-07T21:50:54+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T21:12:56.645140+00:00"
+    "checkedAt": "2026-09-07T21:50:54.195852+00:00"
   }
 }
