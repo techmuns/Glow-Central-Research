@@ -467,12 +467,16 @@
     "isin:INE00M901018|INTERARCH": {
       "lastAttemptAt": "2026-09-07T18:29:26+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE858B01029|ISGEC Heavy Engineering": {
+      "lastAttemptAt": "2026-09-07T19:03:58+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T18:29:26.022962+00:00"
+    "checkedAt": "2026-09-07T19:03:58.372674+00:00"
   }
 }
