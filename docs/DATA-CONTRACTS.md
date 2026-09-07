@@ -990,7 +990,22 @@ written under separate device keys, so a quota failure or aborted transaction on
 leaves a newer calendar beside an older response, and the next reload would adopt the older over it
 and write that back. Capture times are compared only where both sides carry one; an undated capture
 cannot be ordered and is taken as given, exactly as `isNewerThanHeld` refuses to rank an unstamped
-snapshot.
+snapshot. `portfolioUpcomingConfirmed` is `!!adopted` and not "this response arrived": a calendar
+refused as stale must not certify the newer rows it was rejected in favour of, and a payload that
+carried none confirms nothing about the rows it left on screen.
+
+**The opposite write failure is accepted rather than coordinated, and this is why.** If the
+calendar-specific write fails while the combined response persists, retention is not durable, and a
+later response carrying `portfolioUpcoming: null` can leave neither entry holding the last good
+rows. Two things make that acceptable: every later ingest carrying a calendar rewrites the entry —
+including the one in `build()` that reads the stored response — so a transient failure is corrected
+by the next response that could have populated it at all; and a persistent failure means the device
+cannot write, which no coordination fixes. `core/store.js` already falls back to an in-memory Map
+and reports `isPersistent()`, surfaced as `meta.persisted`. The outcome in that case is the
+behaviour from before this contract existed — the calendar emptying on a failure — reached through
+a rare pair of failures instead of every one, so it narrows the fault rather than adding one. **If
+the calendar is ever seen emptying on a device reporting `persisted: false`, reopen this**; that is
+the evidence that would change the decision.
 
 **`meta.portfolioUpcomingSupplied` is a fact about the response; `retained` is the claim made to a
 reader.** Neither derives from the other — a payload carrying no calendar while nothing is held
