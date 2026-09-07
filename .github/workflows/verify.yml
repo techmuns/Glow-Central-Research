@@ -28,11 +28,15 @@ jobs:
       - name: Verify permanent company-news identities and archive
         run: node scripts/verify-company-news-archive.mjs
       - name: Verify lossless news parts and deployable asset sizes
-        run: node scripts/verify-news-publication.mjs && node scripts/partition-news-data.mjs
+        run: node scripts/verify-news-publication.mjs && node scripts/verify-news-maintenance.mjs && node scripts/partition-news-data.mjs
+      - name: Verify direct publisher delivery, OnEMI identity and open-app upgrades
+        run: node scripts/verify-publisher-news-delivery.mjs && node scripts/verify-onemi-news-delivery.mjs && node scripts/verify-app-updates.mjs
       - name: Verify recall-safe company-news attribution
         run: node scripts/verify-company-news-attribution.mjs
       - name: Verify incremental company-news capture
         run: node scripts/verify-company-news-capture.mjs
+      - name: Verify lossless publication across competing data updates
+        run: node scripts/verify-company-news-publish.mjs && node scripts/verify-company-news-publish-git.mjs
       - name: Verify portfolio discovery, customer misses and source recovery
         run: node scripts/verify-portfolio-news-discovery.mjs && node scripts/verify-news-country.mjs && python3 scripts/verify-twitter-search.py
       - name: Verify public TradingView ingestion and automatic portfolio membership
@@ -99,7 +103,7 @@ jobs:
         run: node scripts/verify-capture-registry-runtime.mjs && node scripts/verify-telegram-scheduler-runtime.mjs
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -161,6 +165,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-general-alerts-ui.mjs
+      - name: Verify publisher filters, delayed news delivery and exact OnEMI regression
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-news-publisher-ui.mjs && node scripts/verify-onemi-news-delivery-ui.mjs && node scripts/verify-news-customer-delivery.mjs
       - name: Verify clean corporate stream, automatic history and live scope updates
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

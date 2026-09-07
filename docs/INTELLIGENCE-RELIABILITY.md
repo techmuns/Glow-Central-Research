@@ -110,6 +110,79 @@ corroboration, and duplicate links/subjects are counted once.
 
 ## Operational checks
 
+### News delivery integrity (7 September 2026)
+
+The company News reader joins the dedicated publisher head and retained monthly archive directly,
+using reviewed portfolio identities. It does not wait for the three-hour company-enrichment run.
+The underlying publisher records stay in the market-wide archive, including unmatched stories.
+Portfolio additions are matched against retained records automatically; exiting a company changes
+scope, not the archive. Company/URL duplicates are combined without deduplicating across companies.
+All Alerts also combines the same company's article when both the company-news and publisher
+routes deliver it, retaining both routes' provenance and using the unique rows for counts/export.
+Publisher publication instants without a separate calendar date use the Indian calendar day.
+
+News uses its existing two-minute visible snapshot check for company search, publisher captures
+and TradingView together. All Alerts and AI Alerts revalidate every 90 seconds while visible and
+on overdue focus/visibility/online return. These are checks of published captures, **not** 90-second
+upstream ingestion guarantees. Existing source collection schedules and source availability still
+determine when new reporting can arrive. Head records can appear while other sources/history load.
+Incomplete or failed reads retain usable records and expose a partial state, rather than claiming
+the source has no news. Actual source-check times and browser revalidation times remain separate.
+
+Outlet choices include every publisher present in the loaded company records; there is no
+40-publisher truncation. Reviewed display aliases combine equivalent names (for example Economic
+Times and The Economic Times), without rewriting stored publisher values or source headlines.
+Moneycontrol is named in News. An absent outlet does not itself prove that collection failed:
+the current scope/filter may contain no matching articles, so source health is checked separately.
+
+The official OnEMI Technology / KISSHT identity is a permanent regression case. The 4 September
+Economic Times JM Financial initiation story must remain searchable in Portfolio News and All
+Alerts. Explicit brokerage coverage/rating/target changes are eligible material research events;
+they do not invent a directional judgment or automatically receive the highest priority. AI
+Alerts keeps its 14-day material-evidence window; All Alerts is the broader retained view.
+An optional company-relationship filter separates possible matches without deleting them.
+
+Large news parts are integrity-checked and read three at a time with a per-part timeout. A
+transient network/502/503/504 failure gets one bounded retry; access denials and corrupt parts do
+not. Response-body size is bounded before decoding. No incomplete manifest replaces the last
+good cache. Open documents check the app version every five visible minutes and on overdue
+return, with the existing upgrade mechanism deferring reload during paid research streams.
+The first service-worker claim does not reload fresh modules, but is remembered so later
+deployments also upgrade documents that originally opened without a controlling worker.
+
+Normal company-news capture runs `compact-news-data.mjs --write` before publication. This is
+representation maintenance, not retention deletion: only identical source content is combined,
+with first/last observations and query provenance retained. Corrections at the same URL and
+distinct unlinked text survive. Source timestamps are not advanced by compaction. The audit-only
+mode and `check-news-capacity.mjs` never change data. Obsolete generated transport parts may be
+removed only after a verified replacement; historical stories are not automatically deleted.
+
+Company-news publication starts queued runs from current branch code. If main changes during
+collection, the normal publisher combines distinct captured records with the latest main data
+in a disposable worktree; it does not text-rebase generated news parts. Source corrections,
+query checkpoints, observation ranges and history survive reconciliation. Capture-start identity
+and checkpoint baselines distinguish portfolio changes from stale snapshots; without that
+baseline, reviewed artifact recovery keeps the target's active registry authoritative. Publication
+allows at most four ordinary fast-forward attempts. A refusal without a competing main update
+fails immediately; exhausted attempts leave the original capture and uploaded artifact intact.
+The publication wrapper is restricted to the normal main-branch Actions workspace; local Git
+tests use an isolated bare repository and cannot target hosted remotes.
+
+The capacity report checks physical file count, the 25 MiB per-asset ceiling and client-load
+size independently. It warns at 80% of a conservative 20,000-file budget and at 50 MiB of
+distinct content in one logical news capture. The latter is an engineering planning threshold,
+not a Cloudflare limit. Cloudflare documents 20,000 static files on Workers Free and 100,000 on
+Workers Paid, with 25 MiB per file on both; the account subscription is not inferred from this
+audit. See [current platform limits](https://developers.cloudflare.com/workers/platform/limits/).
+Plan a company/time-indexed archive reader or storage migration before client growth becomes a
+problem; buying a larger file allowance alone does not solve browser memory or transfer costs.
+
+Half-hourly, the publication health workflow also runs a read-only browser delivery probe against deployed
+static modules and data. API calls, external requests and non-GET requests are blocked. It follows
+portfolio news into All Alerts and checks the known OnEMI search and age-eligible AI evidence.
+Transport, source completeness and customer delivery remain separate checks. This does not
+certify exhaustive upstream reporting or test authenticated holdings/private research generation.
+
 The existing read-only `/api/filings-health` endpoint and half-hourly health workflow now inspect
 the permanent company-news index. Every active legal-name and alias query is checked, including
 companies without NSE tickers. Missing checks, failed authentication, failed/newer unfinished
@@ -118,7 +191,10 @@ an updated index or retained archive cannot conceal missing queries. Historical 
 not treated as proof of current coverage.
 
 The company-news workflow saves captured progress before running its health gate. An incomplete
-capture consequently retains its useful history and fails the operational check. Reports contain
+capture consequently retains its useful history and fails the operational check. On main, the
+gate reads the exact reconciled, published commit's index before removing its temporary worktree;
+a healthy original capture cannot certify new aliases or companies introduced during collection.
+The report records the publication commit separately from its coverage result. Reports contain
 controlled diagnostic codes and identity keys, never upstream credential/error bodies. The health
 endpoint reads static assets only and returns HTTP 503 for critical core-source findings. GitHub
 notification delivery still depends on the operator's notification settings and scheduler; there
