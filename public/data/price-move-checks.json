@@ -1,9 +1,16 @@
 {
  "source": "fastapi.muns.io/market_data",
  "keep_days": 10,
- "updated_at": "2026-09-07T04:39:17.780Z",
- "count": 21,
+ "updated_at": "2026-09-07T05:30:07.958Z",
+ "count": 23,
  "checks": {
+  "ACMESOLAR@2026-09-04": {
+   "pct": 4.005973214237578,
+   "close": 418,
+   "prevClose": 401.8999938964844,
+   "prevDate": "2026-09-03",
+   "checkedAt": "2026-09-07T05:30:07.958Z"
+  },
   "AFFLE@2026-09-04": {
    "pct": 6.404690097117896,
    "close": 1616.5,
@@ -17,6 +24,13 @@
    "prevClose": 1078,
    "prevDate": "2026-09-03",
    "checkedAt": "2026-09-07T04:34:42.137Z"
+  },
+  "FINCABLES@2026-09-04": {
+   "pct": -3.4575577496682643,
+   "close": 1220.199951171875,
+   "prevClose": 1263.9000244140625,
+   "prevDate": "2026-09-03",
+   "checkedAt": "2026-09-07T05:29:36.829Z"
   },
   "HEROMOTOCO@2026-09-02": {
    "pct": -4.59045904590459,
