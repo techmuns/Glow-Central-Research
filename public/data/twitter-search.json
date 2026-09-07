@@ -247,12 +247,16 @@
     "isin:INE532F01054|Edelweiss Financial Services": {
       "lastAttemptAt": "2026-09-06T23:59:01+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE532F01054|EAAA India Alternatives": {
+      "lastAttemptAt": "2026-09-07T00:30:08+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 229,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-06T23:59:01.222495+00:00"
+    "checkedAt": "2026-09-07T00:30:08.928610+00:00"
   }
 }
