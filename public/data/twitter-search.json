@@ -279,12 +279,16 @@
     "isin:INE758T01015|ETERNAL": {
       "lastAttemptAt": "2026-09-07T06:50:34+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0EDU01014|Finbud Financial Services": {
+      "lastAttemptAt": "2026-09-07T07:23:37+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 229,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-07T06:50:34.889536+00:00"
+    "checkedAt": "2026-09-07T07:23:37.157542+00:00"
   }
 }
