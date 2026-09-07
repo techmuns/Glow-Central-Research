@@ -495,12 +495,16 @@
     "isin:INE854B01010|Jayaswal Neco Industries": {
       "lastAttemptAt": "2026-09-07T22:26:43+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE854B01010|Jayaswal Neco": {
+      "lastAttemptAt": "2026-09-07T22:55:02+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-07T22:26:43.556473+00:00"
+    "checkedAt": "2026-09-07T22:55:02.613830+00:00"
   }
 }
