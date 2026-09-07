@@ -969,8 +969,19 @@ it — `status: 'ok'`, its own `checkedAt`. Left alone it reads as a calendar co
 A confirmation is a 304, or a 200 whose rows were ingested, and nothing else: `conditionalJson`
 reports what the server actually said (`status: 0` only where the request never completed), so a
 503 arrives as 503 and testing for 0 alone would let every server-side failure through. Anything
-else marks the calendar retained. `screener.status` is deliberately left as the upstream reported
-it — it describes the artifact collector, not our ability to reach our own route.
+else marks the calendar retained — **unconditionally, never on row count**: a last successful read
+can legitimately have returned an empty dashboard, and an empty calendar nobody confirmed is still
+a calendar nobody confirmed. A **304 lifts the mark**, because it says the representation we hold
+is current, calendar included; without that, recovery through an unchanged ETag carries no content
+change and nothing would ever clear it. `screener.status` is deliberately left as the upstream
+reported it — it describes the artifact collector, not our ability to reach our own route.
+
+**A supplied calendar older than the one held is not an update.** The response and the calendar are
+written under separate device keys, so a quota failure or aborted transaction on the large one
+leaves a newer calendar beside an older response, and the next reload would adopt the older over it
+and write that back. Capture times are compared only where both sides carry one; an undated capture
+cannot be ordered and is taken as given, exactly as `isNewerThanHeld` refuses to rank an unstamped
+snapshot.
 
 **`meta.portfolioUpcomingSupplied` is a fact about the response; `retained` is the claim made to a
 reader.** Neither derives from the other — a payload carrying no calendar while nothing is held

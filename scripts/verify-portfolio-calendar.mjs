@@ -90,8 +90,8 @@ const check = (label, fn) => {
   catch (error) { failures++; console.log(`FAIL  ${label}\n      ${error.message}`); }
 };
 
-const openPage = async () => {
-  const page = await context.newPage();
+const openPage = async (target = context) => {
+  const page = await target.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
   await page.route('**/*', (route) => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
@@ -218,6 +218,60 @@ check('and the same calendar coming back notifies them too', () => {
   assert.equal(recoveredState.supplied, true);
 });
 await page3.close();
+
+// AN EMPTY CALENDAR NOBODY CONFIRMED IS STILL A CALENDAR NOBODY CONFIRMED. The last successful
+// read can legitimately return an empty dashboard; gating the retention mark on row count let
+// that case report a failed check as a current capture.
+const page4 = await openPage();
+mode = 'emptied';
+await page4.evaluate(() => window.concalls.refresh());
+routeDown = true;
+await page4.reload();
+await page4.waitForFunction(() => window.ready);
+now = await state(page4);
+check('an unreachable route over a legitimately EMPTY calendar is still marked unconfirmed', () => {
+  assert.deepEqual(now.dates, [], 'the empty capture is still what is painted');
+  assert.equal(now.retained, true, 'row count may not decide whether a failed check is reported');
+});
+
+routeDown = false;
+await page4.close();
+
+// AND AN UNCHANGED RECOVERY LIFTS THE MARK. Driven from a NON-EMPTY calendar so the retention
+// mark under test is the one an outage sets, not the empty-calendar case above: with that fixed,
+// asserting this on an empty calendar would pass for the wrong reason.
+//
+// The route comes back serving the same representation, so its ETag matches what this browser
+// stored and `conditionalJson` reports 304 — no content change is coming, so nothing else would
+// ever clear the flag and the feed would report failed while every poll succeeded. (A same-ETag
+// 200 is how a 304 reaches this module: `cache: 'no-cache'` lets the browser resolve the real
+// 304 itself and hand back the cached body.)
+// Its own browser context, so it starts with an empty device store. Sharing one would leave the
+// `emptied` capture (2026-09-06) held from the block above, and `full` is dated 2026-09-04 — the
+// stale guard would correctly refuse to roll the calendar backward onto it, which is the guard
+// working, not the case under test.
+mode = 'full';
+const cleanContext = await browser.newContext();
+const page5 = await openPage(cleanContext);
+const beforeOutage = await state(page5);
+check('the recovery case starts from a confirmed, non-empty calendar', () => {
+  assert.deepEqual(beforeOutage.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12']);
+  assert.equal(beforeOutage.retained, false);
+});
+routeDown = true;
+await page5.reload();
+await page5.waitForFunction(() => window.ready);
+const duringOutage = await state(page5);
+check('...which the outage marks retained', () => assert.equal(duringOutage.retained, true));
+routeDown = false;
+await page5.evaluate(() => window.concalls.refresh());
+now = await state(page5);
+check('an unchanged recovery clears the retention mark rather than leaving the feed failed for ever', () => {
+  assert.equal(now.retained, false, 'a 304 confirms the representation we hold, calendar included');
+  assert.deepEqual(now.dates, ['STLTECH|2026-09-10', 'RELIANCE|2026-09-12'], 'and the rows are untouched');
+});
+await page5.close();
+await cleanContext.close();
 
 await page.close();
 

@@ -166,7 +166,14 @@ function isNewerThanHeld(payload) {
  */
 function markChecked(origin, at) {
   if (!cache) return;
-  cache.meta = { ...cache.meta, origin, checkedAt: at || Date.now() };
+  // AND IT LIFTS A RETENTION MARK. A 304 says the representation we hold is current — calendar
+  // included — so an outage that marked it unconfirmed is over the moment one arrives. Without
+  // this, recovery through an unchanged ETag never clears the flag (the bytes are identical, so
+  // no content change is coming) and All Alerts reports the feed failed indefinitely while every
+  // revalidation succeeds. It cannot clear a mark where the held representation supplied no
+  // calendar: nothing has been confirmed about rows it never carried.
+  cache.meta = { ...cache.meta, origin, checkedAt: at || Date.now(),
+    portfolioUpcomingRetained: cache.meta.portfolioUpcomingSupplied ? false : cache.meta.portfolioUpcomingRetained };
 }
 
 /**
@@ -210,24 +217,39 @@ function scheduleFrom(payload) {
  */
 function markScheduleUnconfirmed() {
   if (!cache || cache.meta.portfolioUpcomingRetained) return;
-  cache.meta = { ...cache.meta, portfolioUpcomingRetained: !!cache.portfolioUpcoming.length };
+  // UNCONDITIONALLY, and not `!!rows.length`. A last successful read can legitimately have
+  // returned an empty dashboard, and an empty calendar nobody confirmed is still a calendar
+  // nobody confirmed — gating on row count let exactly that case report a failed check as a
+  // current capture, which is the state this function exists to prevent.
+  cache.meta = { ...cache.meta, portfolioUpcomingRetained: true };
 }
 
 function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
   const rows = assignRowIds((payload?.rows || []).map(decorate).sort(byNewest));
   const schedule = scheduleFrom(payload);
   const screener = payload?.meta?.screener || null;
-  if (schedule) {
-    heldSchedule = { rows: schedule, checkedAt: screener?.checkedAt || null, savedAt: Date.now() };
+  const suppliedAt = screener?.checkedAt || null;
+  // A SUPPLIED CALENDAR OLDER THAN THE ONE WE HOLD IS NOT AN UPDATE. The two entries are written
+  // separately — the large response through `conditionalJson`, this calendar under its own key —
+  // so a quota failure or aborted transaction on the big one leaves a NEWER calendar beside an
+  // OLDER response. The next reload restores the newer calendar first and would then adopt the
+  // older response's copy over it, and write that back, rolling the calendar backward until some
+  // later content change happened to correct it. Compare only where both sides date themselves:
+  // an undated capture cannot be ordered and is taken as given, exactly as `isNewerThanHeld`
+  // refuses to rank a snapshot carrying no stamp.
+  const stale = !!schedule && !!suppliedAt && !!heldSchedule?.checkedAt && suppliedAt < heldSchedule.checkedAt;
+  const adopted = schedule && !stale ? schedule : null;
+  if (adopted) {
+    heldSchedule = { rows: adopted, checkedAt: suppliedAt, savedAt: Date.now() };
     // Its own entry, never a patched copy of the response: `core/store.js` holds the server's own
     // bytes under the server's own tag, and that pairing is the whole basis for trusting a 304.
-    void writeEntry(SCHEDULE_KEY, { value: { rows: schedule, checkedAt: heldSchedule.checkedAt } });
+    void writeEntry(SCHEDULE_KEY, { value: { rows: adopted, checkedAt: suppliedAt } });
   }
   // `supplied` is a fact about the RESPONSE; `retained` is the claim made to a reader. They are
   // not the same and neither can be derived from the other: a payload that carried no calendar
   // while nothing was held supplies nothing and retains nothing.
   const supplied = !!schedule;
-  const retained = !schedule && !!heldSchedule?.rows.length;
+  const retained = !adopted && !!heldSchedule?.rows.length;
 
   const isFirst = seenKeys === null;
   if (isFirst) {
@@ -253,7 +275,7 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
     rows,
     byTicker,
     upcoming: (payload?.upcoming || []).slice().sort((a, b) => String(a.when || '').localeCompare(String(b.when || ''))),
-    portfolioUpcoming: schedule || heldSchedule?.rows || [],
+    portfolioUpcoming: adopted || heldSchedule?.rows || [],
     today: payload?.today || { day: null, rows: [] },
     meta: {
       ...(payload?.meta || {}),
@@ -274,7 +296,7 @@ function ingest(payload, { live, origin = 'live', checkedAt = Date.now() }) {
       // never reached it. `retained` is what makes the Upcoming view say so out loud.
       portfolioUpcomingRetained: retained,
       portfolioUpcomingSupplied: supplied,
-      portfolioUpcomingCheckedAt: (schedule ? screener?.checkedAt : heldSchedule?.checkedAt) || null,
+      portfolioUpcomingCheckedAt: (adopted ? suppliedAt : heldSchedule?.checkedAt) || null,
       persisted: isPersistent(),
     },
   };
