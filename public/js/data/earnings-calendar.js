@@ -1,4 +1,4 @@
-// data/earnings-calendar.js — the LIVE results calendar: who is scheduled to report, and when.
+// data/earnings-calendar.js — the LIVE earnings calendar: scheduled results and upcoming calls.
 //
 //   await loadDate('2026-08-13');   // strip + that date's companies
 //   strip()                         // [{ date, displayDate, count }], newest date first
@@ -6,25 +6,28 @@
 //   stripHas(iso) / scheduledCountFor(iso)
 //   defaultDate()                   // the nearest date that actually has companies on it
 //
-// TWO ENDPOINTS, ONE MATCHED ALL-EXCHANGE PAYLOAD
-//   The per-date COUNT comes from Moneycontrol's calendar JSON API and is complete. The company
-//   LIST comes from the widget and pagination endpoints used by the linked public calendar. The
-//   Worker follows all twenty-row pages. Both calls use `indexId=All`, so BSE-only companies are
-//   included and `scheduledCount` describes the same population as `rows`.
+// TWO SCHEDULES, ONE EVENT-TYPED PAYLOAD
+//   Scheduled result counts and rows come from Moneycontrol's All-exchange JSON/widget feeds. The
+//   Worker follows every twenty-row page. Upcoming con-calls come from Screener's authenticated,
+//   complete invitation index, collected every fifteen minutes. `scheduledCount` is Results plus
+//   Con-calls for the selected day, and every row says which event type it is.
 //
-//   This module answers scheduled results for every date. Filed results are deliberately kept in
-//   the adjacent Earnings Reported view; a past date does not change this calendar's meaning.
+//   Filed results are deliberately kept in the adjacent Earnings Reported view; a past date does
+//   not change this calendar's meaning.
 //
 // THE SNAPSHOT FALLBACK IS THE WORKER'S, NOT THIS MODULE'S
 //   There is a committed capture (public/data/earnings-calendar.json) and the Worker serves from it
 //   when Akamai blocks the live page — but it arrives stamped, with `listSource: 'snapshot'` and
 //   `listCapturedAt`, and the pill says *Captured* rather than *Live*. The original objection still
 //   holds — a stale schedule looks exactly like a fresh one — and the answer to it is the stamp,
-//   not the absence of a fallback. Nothing in this module invents a schedule of its own.
+//   not the absence of a fallback. The browser can retain a previously received response during
+//   a route outage, with its original source timestamps and a visible failed-refresh state.
 
-import { KEYS, conditionalJson } from '../core/store.js';
+import { KEYS, conditionalJson, readEntry } from '../core/store.js';
 
 const ENDPOINT = 'api/earnings-calendar';
+const LIVE_ID = 'earnings-calendar';
+const POLL_MS = 60_000;
 
 // Keyed by date AND by which representation was asked for: a strip-only answer must never be
 // handed to a caller that wanted the company list, or the empty `rows` would read as "nobody
@@ -39,6 +42,14 @@ const inflight = new Map(); // "iso|list" -> promise, so a double-click is one f
 // Per-date also means one bad date does not stop the reader trying another.
 const failures = new Map(); // iso -> message
 let lastError = null;
+let generation = 0;
+const subscribers = new Set();
+export const onChange = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
+function notify() {
+  for (const fn of subscribers) {
+    try { fn(); } catch (err) { console.error('[earnings-calendar] repaint failed', err); }
+  }
+}
 
 export function strip() {
   return stripCache;
@@ -67,7 +78,7 @@ export function stripHas(iso) {
   return stripCache.some((d) => d.date === iso);
 }
 
-/** The number Moneycontrol's calendar gives for one date, or null if the strip has not got it. */
+/** The combined number of scheduled result and con-call events for one date. */
 export function scheduledCountFor(iso) {
   const hit = stripCache.find((d) => d.date === iso);
   return hit && hit.count > 0 ? hit.count : null;
@@ -81,9 +92,50 @@ export function scheduledCountFor(iso) {
  *   key and `listRequested: false`, so no consumer can read its empty `rows` as "no companies".
  */
 export function loadDate(iso, { from, to, list = 'full' } = {}) {
+  return readDate(iso, { from, to, list });
+}
+
+function payloadFingerprint(payload) {
+  if (!payload) return null;
+  return JSON.stringify({
+    degraded: payload.degraded || null,
+    complete: payload.complete === true,
+    listSource: payload.listSource || null,
+    listCapturedAt: payload.listCapturedAt || null,
+    countSource: payload.countSource || null,
+    countsCapturedAt: payload.countsCapturedAt || null,
+    screenerUpcomingSource: payload.screenerUpcomingSource || null,
+    screenerUpcomingCheckedAt: payload.screenerUpcomingCheckedAt || null,
+    days: (payload.days || []).map((day) => [day.date, day.displayDate || null, day.resultCount ?? null, day.concallCount ?? null, day.count ?? null]),
+    rows: (payload.rows || []).map((row) => [
+      row.eventId || row.scId,
+      row.eventType || null,
+      row.name || null,
+      row.ticker || null,
+      row.resultDate,
+      row.quarter || null,
+      row.time || null,
+      row.exchange || null,
+      row.noticeUrl || null,
+      row.ltp ?? null,
+      row.changePct ?? null,
+      row.marketCap ?? null,
+    ]),
+  });
+}
+
+async function readDate(iso, { from, to, list = 'full' } = {}, { refresh = false } = {}) {
   const ck = cacheKey(iso, list);
-  if (byDate.has(ck)) return Promise.resolve(byDate.get(ck));
+  if (!refresh && byDate.has(ck)) return Promise.resolve(byDate.get(ck));
   if (inflight.has(ck)) return inflight.get(ck);
+  const token = generation;
+  const key = KEYS.calendar(iso, list);
+  const validate = (payload) => {
+    if (!payload?.ok || payload.date !== iso || !Array.isArray(payload.rows) || !Array.isArray(payload.days) ||
+        (list === 'full' && payload.listRequested === false)) {
+      throw new Error(payload?.degraded || 'calendar feed returned no valid schedule');
+    }
+  };
 
   const qs = new URLSearchParams({ date: iso });
   if (from) qs.set('from', from);
@@ -92,27 +144,71 @@ export function loadDate(iso, { from, to, list = 'full' } = {}) {
 
   // Conditional, and persisted per date: a schedule changes on the order of hours, so revisiting a
   // date already seen on this device costs a 304 rather than the whole day's list again.
-  const p = conditionalJson(`${ENDPOINT}?${qs}`, { key: KEYS.calendar(iso, list) })
+  const p = conditionalJson(`${ENDPOINT}?${qs}`, { key, validate: (payload) => {
+    // An old visit must not overwrite either the active view or its persisted response.
+    if (token !== generation) throw new Error('Calendar visit ended');
+    validate(payload);
+  } })
     .then((out) => {
       const payload = out.value;
-      if (!payload?.ok) throw new Error(payload?.degraded || 'calendar feed returned no data');
+      if (token !== generation) return payload;
       // The strip covers a window around whichever date was asked for, so later loads widen it
       // rather than replacing it — clicking around the strip must not make dates disappear.
+      const previous = byDate.get(ck);
+      // First success after a 503 and unchanged recovery are changes in the visible state too.
+      const changed = !previous || failures.has(iso) || payloadFingerprint(previous) !== payloadFingerprint(payload);
       mergeStrip(payload.days || []);
       byDate.set(ck, payload);
       failures.delete(iso);
       lastError = null;
+      if (changed) notify();
       return payload;
     })
-    .catch((err) => {
+    .catch(async (err) => {
+      if (token !== generation) throw err;
+      // Reopening during an outage still has a usable per-date response on this device. Do not
+      // manufacture a fresh check or combine another date/representation with these rows.
+      const stored = !byDate.has(ck) ? await readEntry(key) : null;
+      if (token !== generation) throw err;
+      if (stored?.value) {
+        try {
+          validate(stored.value);
+          byDate.set(ck, stored.value);
+          mergeStrip(stored.value.days);
+        } catch { /* Invalid saved data is unavailable, never a verified empty schedule. */ }
+      }
+      const changed = failures.get(iso) !== String(err.message || err) || !!stored?.value;
       lastError = String(err.message || err);
       failures.set(iso, lastError);
+      if (changed) notify();
       throw err;
     })
-    .finally(() => inflight.delete(ck));
+    .finally(() => { if (inflight.get(ck) === p) inflight.delete(ck); });
 
   inflight.set(ck, p);
   return p;
+}
+
+/**
+ * Keep the selected schedule current while its tab is mounted.
+ *
+ * The shared live engine pauses hidden pages, re-checks immediately on return and preserves the
+ * last good response across a failed tick. `current()` is evaluated per tick so a date clicked
+ * after registration becomes the one that is refreshed; no poller remains pinned to an old day.
+ */
+export function startLive(live, current) {
+  if (!live || typeof current !== 'function') return () => {};
+  live.register(LIVE_ID, {
+    intervalMs: POLL_MS,
+    fetcher: async () => {
+      const request = current();
+      if (!request?.date) return null;
+      await readDate(request.date, { from: request.from, to: request.to, list: 'full' }, { refresh: true });
+      return null;
+    },
+  });
+  live.start(LIVE_ID);
+  return () => live.stop(LIVE_ID);
 }
 
 function mergeStrip(days) {
@@ -140,6 +236,7 @@ export function defaultDate(today = new Date().toISOString().slice(0, 10)) {
 
 /** Drop everything. Used when the tab unmounts so a stale schedule cannot outlive the visit. */
 export function reset() {
+  generation++;
   stripCache = [];
   byDate.clear();
   inflight.clear();

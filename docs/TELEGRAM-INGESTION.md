@@ -1,0 +1,250 @@
+# Telegram ingestion
+
+Public Chatter reads retained posts from **@researchreportss**. Publication dates come
+from Telegram. The source-check time is separate; September 4 publications may still be
+the newest on September 6. Public-page probing cannot establish that they are the newest.
+
+## Delivery
+
+`telegram-refresh.yml` first spends up to three minutes checking recent public posts and
+publishes `telegram-head-v1.json.gz`, then spends up to six minutes continuing history.
+The final immutable `telegram-posts-v1.json.gz` contains the retained capture and source
+health. `/api/telegram/posts` reads these artifacts with the existing Worker
+`GH_DISPATCH_TOKEN`. It validates the source repository, workflow, branch, artifact
+SHA-256, download host and public-data schema. No Telegram credentials reach the Worker
+or browser. One-minute edge caching and ETags bound repeated reads.
+
+The browser restores validated saved captures before reading the static
+`public/data/telegram-posts.json`. Public Chatter polls the artifact once a minute while
+mounted and visible, retaining newer data if an older static file or failed response
+arrives. Validation precedes cache replacement, so malformed successful HTTP responses
+cannot destroy the saved archive. Reloads during an outage retain rows with an explicit
+failure state; a cache timestamp never certifies a successful source check.
+The additive `telegram-retained-v1` browser archive is separate from HTTP response/ETag
+caches, so a valid older fallback cannot erase newer saved posts. Browser storage is
+device-local and can be evicted; the server capture and daily backup remain necessary.
+The production `POST /api/telegram/refresh` starts a persistent
+Cloudflare Durable Object timer for this channel and coordinates reader requests with
+that timer. Its alarms request a collection every ten minutes without an open browser.
+GitHub's own ten-minute schedule remains a fallback. Recent and active runs are checked
+before dispatch; the requested cadence is not a guarantee of runner start/completion time.
+Quiet checks use `lastRun.at` rather than content-change time. This is polling,
+**not instantaneous streaming**, and public-source completeness remains a separate limit.
+
+The timer uses a separate named object in the existing SQLite `CaptureRegistry` namespace,
+available on the existing Workers Free plan; it consumes no cron-trigger slot and requires
+no namespace migration. Company shards never arm timers and share no data with the channel
+object. A durable attempt claim and the next alarm are written before
+external requests, preventing immediate duplicates after a restart or an ambiguous POST.
+Failures back off from ten minutes to an hour, keeping the next alarm scheduled. Neither
+GitHub credentials nor Telegram credentials are persisted in the timer. Only the fixed
+repository, `main` branch and Telegram collection workflow can be dispatched. Preview
+hosts cannot activate collection. The initial ordinary dashboard auto-refresh arms the
+timer; deployment alone does not prove it has started. `GET /api/telegram/schedule` is a
+read-only report of activation, the actual stored alarm, next attempt, active run and last
+result, and never starts work. A run queued or active for over thirty minutes is overdue;
+the timer does not cancel it or start a competing collector.
+The existing GitHub token can still expire or be revoked; the status then reports failure.
+An operator can disable the timer with Worker variable `TELEGRAM_SCHEDULER_DISABLED=true`;
+the next request/alarm cancels recurrence. Changing production configuration requires the
+operator's authorization.
+
+Collection no longer waits for an archive PR, CI or a site deployment. A separate daily
+`telegram-archive.yml` backs the artifact up through `codex/telegram-capture`, verifies
+its exact commit, and merges only through the existing review/check gates. A conflicted
+backup PR cannot stop fresh collection. Each normal backup starts from current `main`,
+retains validated data from an existing archive-only PR at its exact commit, and combines
+it with the latest readable artifact before updating that PR. This lets outdated test or
+deployment code recover without losing records held only in the unmerged backup. It does
+not dismiss review feedback or bypass required checks. Artifacts retain the whole preceding capture,
+expire after 90 days, and are renewed by each successful workflow. A prolonged outage
+beyond retention falls back to the committed backup. Payload size limits fail visibly
+without truncation. Resolve an unattended backup PR before relying on it as permanent
+storage. The daily backup can retain a validated early or older artifact without reading
+Telegram, preserving active safety pauses and marking degraded delivery as partial.
+
+Delivery checks at most three candidate runs, keeping the latest successful baseline in
+that bounded recovery window. It prefers final artifacts and accepts early head artifacts
+while history continues. A corrupt or failed newer capture can leave older posts readable,
+with degraded delivery exposed. A failed source check is packaged before the workflow is
+marked failed; a successful artifact upload cannot turn source failure into success.
+
+Collection restoration is stricter than display fallback: an unknown newer source pause
+cannot be discarded. Within the ten most recent runs it can skip an artifact-free failure
+only when authenticated first-attempt job steps prove that no source collection started.
+It cannot jump over an unchecked intervening run. A cancelled runner that leaves only an early checkpoint, an unreadable
+final checkpoint, expired credentials or unavailable provider can require operator attention.
+These boundaries prevent unsafe retries; this is not an uninterruptible service. GitHub
+reruns reuse an artifact identity and cannot bypass this gate. A reviewed recovery should
+use a newly dispatched run, subject to the production-action authorization rule.
+
+The existing half-hourly operational-health workflow independently reads both published
+posts and timer status. It detects source checks older than thirty minutes, failed or
+degraded delivery, active pauses, missing/overdue alarms and stalled runs. Publication age,
+incomplete history and an unverified public head are coverage limits rather than evidence
+that collection has stopped. Reports contain controlled diagnostic codes and no credentials.
+GitHub notification delivery still depends on the operator's notification settings, and
+a GitHub-wide outage can also delay this watchdog.
+
+## Source modes
+
+Without `TELEGRAM_CREDENTIALS`, the dependency-free Node collector combines documented
+public embeds with permalink Open Graph text. A matching message identity and source
+timestamp are required. Missing IDs are not interpreted as documents or deletions.
+The collector first attempts to verify a known archived message. If the three
+newest archived posts are missing, the collector tries the newest text post and a small
+sample spread through retained history, with at most eight distinct control IDs. This
+prevents a removed batch from blocking newer posts. Control probes use at most twenty
+percent of the phase budget, capped at thirty seconds. A valid newly discovered message
+can also establish that the public route is working when older controls have disappeared.
+A source refusal, rate limit or time
+budget still stops requests, and an unconfirmed source does not advance the success time.
+Forward sampling and resumable historical scans help discovery but cannot prove the
+latest channel message has been found. The UI explicitly says it has not been verified.
+Atomic local checkpoints preserve recent arrivals and progress between request batches.
+Inclusive `catchupRanges` retain unscanned intervals found by forward discovery independently
+of the older-history cursor, so a new gap cannot overwrite existing backfill progress.
+The recent phase publishes before history; historical progress never advances the most
+recent successful source-check time or masks an incomplete recent check.
+Reaching the local phase deadline checkpoints unfinished work without treating the
+planned cutoff as a Telegram failure. The unfinished ID remains resumable; an incomplete
+recent scan still cannot advance its success time. Actual HTTP and request-timeout failures
+remain errors even if the phase budget subsequently prevents another retry.
+HTTP 429 and 403 stop all public requests immediately. A retained `publicSafety` deadline
+respects `Retry-After` plus one minute, with minimum waits of thirty minutes for rate limits
+and one hour for refusal. Subsequent runs wait before making any public request. A successful
+check after that deadline clears the pause; waiting and failed checks do not refresh the
+last successful source-check time. Captured history is retained throughout.
+
+With `TELEGRAM_CREDENTIALS`, `collect-telegram.py` uses Telethon 1.44.0 and the official
+MTProto API. It asks for the newest 100 messages directly, re-reads recent edits, catches
+up oldest-first after its last confirmed position, and resumes older history separately.
+Large bursts and interrupted requests preserve their position. `latestVerifiedAt` is set
+only when the capture has caught up to the observed API head. History can remain incomplete
+while the newest messages are current. A failed source check preserves prior posts and
+is published as failed health, even though uploading that health artifact succeeds.
+
+The integration reads only the configured public broadcast channel, with no joins,
+sending, contact access, read receipts, private-group export or file downloads. Text,
+publication dates, document filenames/sizes and original links are retained. Captionless
+messages remain visible as dated original Telegram links. The UI distinguishes the newest
+captured publication from the newest readable report; it does not invent unavailable text.
+
+### Reading captured content
+
+Public Chatter opens with **All posts**, keeping the newest captured publications visible
+even when only their dates and links are available. The Content filter also offers
+**Readable here** (captured text/captions) and **Open in Telegram** (no captured text).
+No archive records are removed. The archive count, newest captured publication, source-check
+time and missing-text notice remain visible in every view, and search/export follow the selected
+filter. A named file without a caption is a filename, not a readable report. Files remain
+in Telegram and are not downloaded or rendered by this integration.
+Rows, post dialogs and exports explicitly label known **Image**, **Video** and **Document**
+media. A captured caption is readable here even though its media opens in Telegram.
+**Type unavailable** means no media type or filename was exposed; an unsupported public
+widget alone is not evidence that a post contains an image. Media labels are searchable.
+
+Posts with neither text nor a known media type say **Post link captured** and **Type unavailable**,
+with the notice explicitly stating that no readable text was captured.
+On 8 September, public message 102978 returned a matching publication date but an unsupported
+media notice and an empty permalink description; 102977's description was also empty.
+Public collection cannot reproduce content those responses do not contain. These observations
+do not establish the media type or a permanent channel restriction.
+
+Browser refreshes retain existing text and attachment names when newer responses contain
+only metadata. Older captures can fill missing content without replacing newer non-empty
+text or newer collection health. Enriched records survive an offline reload through the
+existing retained cache. These safeguards do not invent missing text or guarantee future
+public availability; reconnecting an account is a separate operational decision.
+
+The app cache combines the shared release marker with a Telegram content revision.
+Install, reads and eviction use that same full key. Local browser verification holds
+the next module download to confirm that the previous cache remains available until
+the new graph activates, including when a later release changes the shared marker.
+
+### Account safeguards
+
+Telegram can restrict unofficial API clients; read-only collection cannot guarantee an
+account will never be banned. If protecting a primary account requires avoiding that
+residual risk, leave it disconnected and use public-page collection. A separate account
+isolates the primary account's session but does not remove Telegram's restrictions.
+The session is an account credential with broader capabilities than this collector uses;
+it is **not a read-only-scoped token**.
+
+API runs are restricted to `main` and share one concurrency group. Each run reads at most
+100 recent messages, 300 catch-up messages and 200 historical messages (180 by default).
+History waits until head catch-up is complete. Additional history pages are spaced by two
+seconds. There is a persisted five-minute minimum between successful collection runs;
+the requested scheduled interval is ten minutes. These are conservative implementation
+limits, not a Telegram guarantee of account safety.
+
+Automatic request retries and flood-wait sleeps are disabled. A Telegram flood wait is
+saved in `apiSafety.nextAttemptAt` with 60 seconds of grace. Later runs check the saved
+gate **before connecting or reading credentials**. Connection failures back off from
+15 minutes up to six hours. Revoked, duplicated, unauthorized, restricted or invalid
+sessions pause indefinitely for operator review. Existing posts and checkpoints survive;
+the UI shows the pause. No automatic login or replacement session is created.
+
+After diagnosing an account pause, an operator can explicitly authorize a production
+workflow dispatch with `resume_api: true`. That input clears only an account-review pause;
+it cannot bypass a pending flood wait. The dashboard cannot send this input. Never run
+the same session concurrently on another machine. Missing or invalid published archives
+fail closed rather than discarding the persisted pause.
+
+## Connect the free official API
+
+The API is free **but requires a Telegram user account**, your own API ID/hash and a
+revocable account session. A bot token is not a substitute for channel-history access.
+
+1. Sign in to [Telegram API development tools](https://my.telegram.org/apps) and create
+   your own application. Do not paste credentials, login codes or passwords into chat.
+2. Prepare a local runtime outside the repository:
+
+   ```sh
+   python3 -m venv "$HOME/.local/share/sattva-telegram-venv"
+   "$HOME/.local/share/sattva-telegram-venv/bin/pip" install telethon==1.44.0
+   "$HOME/.local/share/sattva-telegram-venv/bin/python" scripts/connect-telegram.py
+   ```
+
+   The helper hides credential/login input and saves
+   `~/.config/sattva-telegram/credentials.json` with owner-only permissions. It does not
+   upload anything or activate production. The session is sensitive and can be revoked
+   under Telegram Settings → Devices.
+3. Once the operator explicitly authorizes **activating this connection in production**,
+   store the single bundle through stdin (never command-line argument values):
+
+   ```sh
+   gh secret set TELEGRAM_CREDENTIALS --repo techmuns/Sattva-Central-Research < "$HOME/.config/sattva-telegram/credentials.json"
+   ```
+
+   The next regular collection selects MTProto automatically. An immediate manual
+   production dispatch is a separate authorized action. Never commit the bundle or
+   upload a session as an Actions artifact.
+
+No account has been connected by merely merging this implementation. Until that step,
+public-page collection continues, with its limitations visible.
+
+## Local verification
+
+- `node scripts/verify-telegram.mjs`: public parsing, gaps, retention and checkpoints.
+- `python3 scripts/verify-telegram-api.py`: API head/history, large bursts, quiet checks,
+  interrupted catch-up, documents, the public-channel boundary and no-connection pause
+  enforcement, including operator-resume flood-wait protection. No network/login.
+- `node scripts/verify-telegram-artifact.mjs`: artifact trust/digest/host/size boundaries,
+  credential stripping, persisted account waits, actual Worker route, conditional caching
+  and failure handling.
+- `node scripts/verify-telegram-publishing.mjs`: archive-only PR scope and review/check gates.
+- `node scripts/verify-telegram-scheduler.mjs`: durable claims, recent/active run exclusion,
+  outage recovery, preview boundaries and read-only status.
+- `node scripts/verify-telegram-scheduler-runtime.mjs`: actual local workerd RPC, concurrent
+  claims, storage/alarm persistence across restart and a recurring alarm without readers.
+- `node scripts/verify-telegram-health.mjs`: stale source clocks, expected head publication,
+  degraded artifacts, pauses, actual alarms and stalled runs through read-only requests.
+- `PLAYWRIGHT_ROOT=/path/to/playwright node scripts/verify-telegram-ui.mjs`: static fallback,
+  artifact arrival without deployment, dates, restricted rows, search/export, malformed
+  responses, cached reloads through outages and mobile layout.
+
+Official references: [Telegram API credentials](https://core.telegram.org/api/obtaining_api_id),
+[Telegram API errors and required waits](https://core.telegram.org/api/errors),
+[history API](https://core.telegram.org/method/messages.getHistory),
+[Telethon sessions](https://docs.telethon.dev/en/stable/concepts/sessions.html).

@@ -1,0 +1,537 @@
+#!/usr/bin/env node
+// Actual AI ranking and tab UI over deterministic local event fixtures. No production reads.
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const feeds = ['earnings', 'announcements', 'insider'];
+const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) => ({
+  id: `${ticker}-${feed}`, ticker, company, day, time: ['09:15', '11:10', '14:42'][i], feed, feedLabel: feed,
+  headline: `${company}: material risk ${i + 1}`, direction: 'negative', importance: 'high', tab: 'daily-alerts',
+}));
+const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padStart(2, '0')}`, i === 10 ? 'Zenith Manufacturing' : `Company ${String(i).padStart(2, '0')}`)).flat();
+events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
+events.find((e) => e.ticker === 'A01').time = null;
+events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
+events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
+events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
+events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
+const holdings = [...new Map(events.map(e => [e.ticker, { ticker: e.ticker, name: e.company }])).values()]
+  .map((h, i, list) => ({ ...h, isin: `INE${String(i).padStart(9, '0')}`, sector: 'Test', weightPct: 100 / list.length }));
+const familyOrigin = 'https://sattva-family.pages.dev';
+const familyHtml = `<script>
+window.book=${JSON.stringify(holdings)}; window.holdPositions=true; window.failed=false; window.version=1;
+window.book=window.book.map(h=>({...h,weightPct:h.ticker==='A09'?60:40/(window.book.length-1)}));
+const send=data=>parent.postMessage({channel:'sattva-portfolio-v1',...data},'*');
+window.invalidate=()=>send({type:'invalidated',version:++window.version});
+window.ready=()=>send({type:'positions-ready',version:window.version});
+window.lock=()=>send({type:'auth-required'});
+addEventListener('message',e=>{
+ if(e.source!==parent || e.data.channel!=='sattva-portfolio-v1') return;
+ const {id,type}=e.data;
+ if(type==='hello') {send({id,type:'ready',capabilities:['position-sizes']}); return;}
+ if(type!=='positions') return;
+ const reply=()=>window.failed ? send({id,type:'error',message:'Fixture workbook unavailable'}) : send({id,type:'result',holdings:window.book,
+ sizes:{basis:'listed-market-value',complete:true,bookAsOf:'2026-08-31',checkedAt:new Date().toISOString(),archiveVersion:window.version,quotes:{}}});
+ if(window.holdPositions) window.releasePositions=()=>{window.holdPositions=false;window.releasePositions=null;reply();}; else reply();
+});
+</script>`;
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head><body style="padding:24px;background:#f6f4fb;font-family:Arial,sans-serif"><main id="root" class="mx-auto max-w-7xl"></main>
+<script>window.fixtureEvents=${JSON.stringify(events)};window.reads=0;window.holdStart=new URLSearchParams(location.search).has('hold');</script>
+<script type="module">
+import * as tab from '/js/tabs/ai-alerts.js';
+import * as coverage from '/js/data/coverage.js';
+import * as refresh from '/js/core/refresh.js';
+import { currentDay } from '/js/ui/ai-alert-utils.js';
+coverage.prime({holdings:${JSON.stringify(holdings)}});
+window.primeCoverage=coverage.prime;
+window.currentDay=currentDay;
+window.show=(scope='portfolio')=>tab.render({root:document.querySelector('#root'),scope,params:{}});
+window.dispose=()=>tab.destroy();
+window.refreshAlerts=()=>refresh.refreshAll();
+window.show(new URLSearchParams(location.search).get('scope') || 'portfolio');
+</script></body></html>`;
+const fixtureModule = `
+const listeners=new Set(); export const onChange=fn=>{listeners.add(fn);return()=>listeners.delete(fn);}; window.feedChanged=()=>listeners.forEach(fn=>fn());
+export { currentDay as today } from '../ui/ai-alert-utils.js';
+import { currentDay } from '../ui/ai-alert-utils.js';
+import { readEntry, writeEntry } from '../core/store.js';
+const cacheKey='ai-alerts:public-window:v1';
+export async function readCachedAlertWindow({scope,holdings,day=currentDay()}){
+  if(new URLSearchParams(location.search).has('cacheRace')) await new Promise(done=>window.releaseCache=done);
+  const saved=await readEntry(cacheKey); if(!saved?.value)return null;
+  const wanted=new Set(holdings.map(h=>h.ticker));
+  return {...saved.value,day,scope,events:saved.value.events.filter(e=>scope==='universe'||wanted.has(e.ticker)),cacheSavedAt:saved.savedAt};
+}
+export async function collect({scope,onPartial,holdings,load=true}) {
+  if(load) window.reads++;
+  if(load && window.holdStart) await new Promise(done=>window.releaseStart=done);
+  const wanted=new Set(holdings.map(h=>h.ticker));
+  const events=window.fixtureEvents.filter(e=>scope==='universe' || wanted.has(e.ticker));
+  const report=()=>({day:currentDay(),scope,events,feeds:${JSON.stringify(feeds.map((id) => ({ id, status: 'ok', reachesToday: true })))}.map(feed=>({...feed,status:window.failedFeed===feed.id?'failed':feed.status})),pending:0});
+  const params=new URLSearchParams(location.search);
+  if(load && (params.has('emptyFirst') || params.has('cacheRace'))) {
+    onPartial?.({...report(),events:[],pending:2});
+    await new Promise(done=>window.releaseUseful=done);
+    window.holdRead=true;
+  }
+  if(!params.has('completeOnly')) onPartial?.({...report(),events:window.partialEvents || events,pending:1});
+  if(load && window.holdRead) await new Promise(done=>window.releaseRead=done);
+  const complete=report();
+  if(load)writeEntry(cacheKey,{value:{...complete,scope:'universe',events:window.fixtureEvents.filter(e=>e.ticker),feeds:complete.feeds}});
+  return complete;
+}`;
+const server = createServer((req, res) => {
+  const pathname = new URL(req.url, 'http://localhost').pathname;
+  try {
+    if (pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (pathname === '/js/data/daily-alerts.js') { res.setHeader('content-type', 'text/javascript'); res.end(fixtureModule); return; }
+    if (pathname === '/js/data/capture-watchdog.js') {
+      res.setHeader('content-type', 'text/javascript');
+      res.end(`const listeners=new Set(); export const onCaptureLanded=fn=>{listeners.add(fn);return()=>listeners.delete(fn);}; window.landCapture=()=>listeners.forEach(fn=>fn('announcements'));`);
+      return;
+    }
+    const path = resolve(root, '.' + pathname);
+    if (!path.startsWith(root + sep)) throw Error('Invalid path');
+    res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(path)] || 'application/octet-stream');
+    res.end(readFileSync(path));
+  } catch { res.writeHead(404); res.end('{}'); }
+});
+await new Promise((done) => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+// A browser in California must still roll the Indian market date at 18:30 UTC.
+const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Los_Angeles' });
+const errors = [];
+page.on('pageerror', (error) => errors.push(error.message));
+await page.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+  ? route.fulfill({ contentType:'text/html', body:familyHtml })
+  : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+// Browser clocks are paused for midnight tests; poll postMessage completion with
+// the test runner's real clock rather than a frozen requestAnimationFrame loop.
+const waitFor = async (target, condition) => {
+  const deadline = Date.now() + 10000;
+  while (!await target.evaluate(condition)) {
+    assert(Date.now() < deadline, `Timed out: ${condition}`);
+    await new Promise(done => setTimeout(done, 20));
+  }
+};
+const settled = () => waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+const card = (ticker) => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
+try {
+  // Empty sources often settle before a useful feed. Neither that early empty
+  // report nor a slow context/positions request may hold useful cards offscreen.
+  const loadingContext = await browser.newContext();
+  const loadingPage = await loadingContext.newPage();
+  loadingPage.on('pageerror', error => errors.push(error.message));
+  let releaseInsights;
+  await loadingPage.route('**/*', async route => {
+    const url = route.request().url();
+    if(url === `${origin}/api/screener-insights`) {
+      await new Promise(done => { releaseInsights = done; });
+      return route.fulfill({ status: 503, body: '{}' });
+    }
+    return url === `${familyOrigin}/research-bridge` ? route.fulfill({ contentType:'text/html', body:familyHtml })
+      : url.startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' });
+  });
+  await loadingPage.clock.install({ time: '2026-09-04T08:00:00Z' });
+  await loadingPage.goto(`${origin}/?emptyFirst=1`);
+  await waitFor(loadingPage, () => !!window.releaseUseful);
+  const usefulStarted = Date.now();
+  await loadingPage.evaluate(() => window.releaseUseful());
+  await loadingPage.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
+  assert(await loadingPage.evaluate(() => !!window.releaseRead), 'useful partial appears while another feed remains pending');
+  console.log(`PASS: useful cards appear ${Date.now() - usefulStarted}ms after an empty first feed, with slow sources still pending.`);
+  await loadingPage.evaluate(() => { window.holdRead=false; window.releaseRead(); });
+  await waitFor(loadingPage, async () => {
+    const store = await import('/js/core/store.js');
+    const entry = await store.readEntry('ai-alerts:public-window:v1');
+    if (!entry) return false;
+    await store.writeEntry('ai-alerts:public-window:v1', entry);
+    return true;
+  });
+  releaseInsights?.();
+  await loadingPage.goto(`${origin}/?cacheRace=1`);
+  await waitFor(loadingPage, () => !!window.releaseUseful && !!window.releaseCache);
+  const cacheStarted = Date.now();
+  await loadingPage.evaluate(() => window.releaseCache());
+  await loadingPage.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
+  console.log(`PASS: disk-cached cards restore in ${Date.now() - cacheStarted}ms even after an empty live partial.`);
+  releaseInsights?.();
+  await loadingContext.close();
+
+  const coldContext = await browser.newContext();
+  const coldPage = await coldContext.newPage();
+  coldPage.on('pageerror', error => errors.push(error.message));
+  await coldPage.clock.install({ time: '2026-09-04T08:00:00Z' });
+  await coldPage.route('**/*', async route => {
+    const url = route.request().url();
+    if(url === `${origin}/api/screener-insights`) {
+      await new Promise(done => { releaseInsights = done; });
+      return route.fulfill({ status:503, body:'{}' });
+    }
+    return url === `${familyOrigin}/research-bridge` ? route.fulfill({ contentType:'text/html', body:familyHtml })
+      : url.startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' });
+  });
+  await coldPage.goto(`${origin}/?completeOnly=1`);
+  await coldPage.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
+  assert(!await coldPage.evaluate(async () => (await import('/js/data/screener-insights.js')).isLoaded()),
+    'completed public evidence appears before optional Insights answers');
+  releaseInsights?.();
+  await coldContext.close();
+  console.log('PASS: a completed feed burst paints before context and holding sizes finish.');
+
+  await page.clock.install({ time: '2026-09-04T18:29:00Z' });
+  await page.clock.pauseAt('2026-09-04T18:29:58Z');
+  await page.goto(origin);
+  await page.locator('[data-ai-card]').first().waitFor();
+  await page.clock.runFor(300);
+  const peer = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await waitFor(peer, () => !!window.releasePositions);
+  assert.equal(await page.locator('[data-ai-card]').count(), 8, 'cold-load evidence does not wait for holding sizes');
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
+  await peer.evaluate(() => window.releasePositions());
+  await settled();
+  assert.equal(await page.locator('[data-ai-card]').count(), 8);
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00', 'weights arriving cannot silently change newest-first order');
+  await page.locator('[data-ai-notebook-event] [data-bookmark-key]').first().click();
+  await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().length === 1);
+  const savedEvidence = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all()[0]);
+  assert(savedEvidence.title && savedEvidence.eventDate, 'AI evidence is independently saved with its source date');
+  await page.locator('[data-ai-notebook-card] [data-bookmark-key]').first().click();
+  await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().length === 2);
+  const savedCard = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all().find(entry => entry.kind === 'AI Alerts'));
+  assert(savedCard.body && savedCard.details.length, 'The AI insight preserves its evidence after archiving');
+  assert(!Object.hasOwn(savedCard, 'holdingWeightPct'), 'No private position object is copied into a saved insight');
+  const sortControl = page.getByRole('combobox', { name: 'Sort AI Alerts' });
+  assert.equal(await sortControl.inputValue(), 'newest');
+  const readsBeforeSort = await page.evaluate(() => window.reads);
+  await sortControl.selectOption('holdings');
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09');
+  assert.match(await card('A09').locator('[data-ai-holding-size]').innerText(), /60%/);
+  await sortControl.selectOption('priority');
+  await sortControl.selectOption('newest');
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
+  assert.equal(await page.evaluate(() => window.reads), readsBeforeSort, 'sort changes are instant local views with no network reads');
+  assert.equal(await page.evaluate(() => localStorage.getItem('sattva:ai-alerts:sort:v1')), 'newest');
+  assert.match(await card('A00').locator('[data-ai-context]').innerText(), /Related context/);
+  assert.equal(await card('A00').locator('[data-ai-context]').getAttribute('title'), 'Context only; it does not add alert priority.');
+  assert.equal(await card('A10').count(), 0, 'target starts beyond the first page');
+  const search = page.getByRole('searchbox', { name: 'Search AI Alerts' });
+  await search.fill('lithium supply');
+  assert.equal(await page.locator('[data-ai-card]').count(), 1);
+  assert.equal(await card('A10').count(), 1, 'search finds hidden evidence beyond page one');
+  assert(!(await card('A10').locator('[data-ai-evidence]').innerText()).includes('Lithium'), 'match is outside the evidence preview');
+  assert(await search.evaluate((el) => el === document.activeElement));
+  await search.fill('ZENITH MANUFACTURING');
+  assert.equal(await card('A10').count(), 1, 'case-insensitive company search');
+  await card('A10').locator('[data-ai-mute]').click();
+  assert.equal(await card('A10').count(), 0);
+  await page.locator('[data-ai-filter="archived"]').click();
+  assert.equal(await card('A10').count(), 1, 'same search reaches archived cards');
+  await page.evaluate(async () => {
+    const old = window.fixtureEvents.find(e => e.ticker === 'A10');
+    window.fixtureEvents.push({ ...old, id: 'new-neutral-disclosure', feed: 'announcements',
+      headline: 'New investor day presentation', direction: 'neutral', url: 'https://example.test/investor-day.pdf' });
+    await window.refreshAlerts();
+  });
+  await settled();
+  assert.equal(await card('A10').count(), 0, 'new material evidence leaves the archived view');
+  await page.locator('[data-ai-filter="all"]').click();
+  assert.equal(await card('A10').count(), 1, 'new weaker disclosure revives the existing card');
+  await card('A10').locator('[data-ai-mute]').click();
+  await page.locator('[data-ai-filter="archived"]').click();
+  await card('A10').locator('[data-ai-unmute]').click();
+  await page.locator('[data-ai-filter="all"]').click();
+  assert.equal(await card('A10').count(), 1);
+  await page.locator('[data-ai-filter="important"]').click();
+  assert.equal(await page.locator('[data-ai-card]').count(), 0, 'search composes with priority');
+  await page.locator('[data-ai-clear]').click();
+  assert.equal(await card('ZIMP').count(), 1);
+  await page.locator('[data-ai-filter="all"]').click();
+  await search.fill('<img src=x onerror=alert(1)>');
+  assert.equal(await page.locator('[data-ai-empty] img').count(), 0, 'search is escaped in the empty state');
+  await page.locator('[data-ai-empty-clear]').click();
+  assert.equal(await search.inputValue(), '');
+  assert.equal(await page.locator('[data-ai-card]').count(), 8);
+  console.log('PASS: search beyond pagination and preview, priority, archive/restore and clear search.');
+
+  await page.evaluate(() => {
+    window.savedFixture = window.fixtureEvents;
+    window.fixtureEvents = [...window.fixtureEvents, { ...window.fixtureEvents.find(e => e.ticker === 'A09'),
+      id:'latest-material-event', time:'18:00', headline:'A09 new material disclosure', url:'https://example.test/newest.pdf' }];
+    window.holdRead = true;
+    void window.refreshAlerts();
+  });
+  await waitFor(page, () => !!window.releaseRead);
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09', 'newest material event reaches the top before a slow feed finishes');
+  assert.match(await card('A09').locator('[data-ai-evidence] li').first().innerText(), /A09 new material disclosure/, 'the new event is visible in the preview');
+  assert.equal(await card('A00').count(), 1, 'new live evidence does not erase the previous card');
+  await page.evaluate(() => { window.holdRead = false; window.releaseRead(); });
+  await settled();
+  await page.evaluate(async () => { window.fixtureEvents = window.savedFixture; await window.refreshAlerts(); });
+  await settled();
+  console.log('PASS: newest-first default, explicit persistent size/priority sorting and smooth live arrivals.');
+
+  await page.evaluate(() => {
+    window.originalCard = document.querySelector('[data-ai-card]');
+    window.holdRead = true; window.partialEvents = [];
+    void window.refreshAlerts();
+  });
+  await waitFor(page, () => !!window.releaseRead);
+  assert.equal(await page.locator('[data-ai-card]').count(), 8, 'empty refresh partials cannot clear the last completed view');
+  assert(await page.evaluate(() => document.querySelector('[data-ai-card]') === window.originalCard), 'unchanged cards keep their DOM during refresh');
+  await search.fill('A00');
+  await search.evaluate((el) => { el.setSelectionRange(1, 2); window.inputBefore = el; });
+  await page.evaluate(() => { window.holdRead = false; window.partialEvents = null; window.releaseRead(); });
+  await settled();
+  assert.deepEqual(await search.evaluate((el) => [el === window.inputBefore, el === document.activeElement, el.selectionStart, el.selectionEnd]), [true, true, 1, 2]);
+  assert.equal(await search.inputValue(), 'A00', 'feed completion preserves query and input');
+  const sourceReads = await page.evaluate(() => window.reads);
+  await page.evaluate(() => {
+    window.fixtureEvents = window.fixtureEvents.map(e => e.id === 'A00-announcements' ? { ...e, headline: 'Newly captured company announcement' } : e);
+    window.landCapture();
+  });
+  await page.clock.runFor(120);
+  await settled();
+  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Newly captured company announcement/);
+  assert.equal(await page.evaluate(() => window.reads), sourceReads, 'a landed source updates AI Alerts without re-reading every feed');
+  assert.equal(await search.inputValue(), 'A00', 'source arrival preserves the active search');
+  await page.evaluate(() => {
+    window.fixtureEvents = window.fixtureEvents.map(e => e.id === 'A00-announcements' ? { ...e, headline: 'Live source company announcement' } : e);
+    window.feedChanged();
+  });
+  await page.clock.runFor(120);
+  await settled();
+  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Live source company announcement/);
+  assert.equal(await page.evaluate(() => window.reads), sourceReads, 'active source notifications use already loaded evidence');
+  assert((await card('A00').locator('[data-ai-date]').innerText()).includes('04 Sept 2026 · 14:42 IST'));
+  assert.equal(await card('A00').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04T14:42:00+05:30');
+  await search.fill('A01');
+  assert(!(await card('A01').locator('[data-ai-date]').innerText()).includes('IST'), 'mixed day precision does not invent a latest clock');
+  assert.equal(await card('A01').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04');
+  await page.locator('[data-ai-clear]').click();
+  await page.locator('[data-ai-more]').click();
+  assert.equal(await card('OLD').count(), 1, 'day-14 evidence remains available before midnight');
+  assert.match(await page.locator('#root').innerText(), /14-day window/);
+  await search.fill('A00');
+  // A calendar-only refresh reuses the recent, verified in-memory position
+  // snapshot instead of asking Family for the same book again.
+  await page.clock.runFor(2100);
+  await settled();
+  assert.equal(await peer.evaluate(() => !!window.releasePositions), false, 'midnight re-age does not duplicate a fresh position read');
+  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '1d');
+  assert.deepEqual(await card('A00').locator('[data-ai-evidence] [data-ai-age]').allTextContents(), ['1d', '1d', '1d']);
+  assert.equal(await search.inputValue(), 'A00');
+  await search.fill('OLD');
+  assert.equal(await card('OLD').count(), 0, 'expired evidence leaves the rolling window at IST midnight');
+  // Simulate a laptop sleeping past the next midnight; visibility return must re-age immediately.
+  await search.fill('A00');
+  await page.clock.setSystemTime('2026-09-05T18:31:00Z');
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await settled();
+  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '2d');
+  console.log('PASS: stable input during feed updates, source time precision, midnight rollover, stale window expiry and resume after sleep.');
+
+  await page.locator('[data-ai-clear]').click();
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 1100 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `no page overflow at ${width}px`);
+    const inputBox = await search.boundingBox();
+    assert(inputBox.width > 120 && inputBox.x >= 0 && inputBox.x + inputBox.width <= width);
+    if (process.env.AI_ALERT_SCREENSHOT && [1440, 390].includes(width)) await page.screenshot({ path: `${process.env.AI_ALERT_SCREENSHOT}-${width}.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await search.fill('A00');
+  await peer.evaluate(() => { window.holdPositions = true; window.invalidate(); });
+  assert.equal(await card('A00').count(), 1, 'archive invalidation keeps the existing card');
+  await peer.evaluate(() => window.ready());
+  await waitFor(peer, () => !!window.releasePositions);
+  assert.equal(await card('A00').count(), 1, 'card remains throughout a slow holding-size check');
+  assert.equal(await search.inputValue(), 'A00');
+  await peer.evaluate(() => window.releasePositions());
+  await settled();
+  assert.equal(await card('A00').count(), 1);
+  await peer.evaluate(() => { window.failed = true; });
+  const failed = await page.evaluate(() => window.refreshAlerts());
+  assert(failed.results.some(r => /Fixture workbook unavailable/.test(r.error)), 'header Refresh reports the failure');
+  assert.equal(await card('A00').count(), 1, 'a portfolio outage keeps alert evidence visible');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'unverified sizes are removed');
+  assert.equal(await page.locator('[data-ai-error]').count(), 0, 'portfolio outages do not show customer-facing error banners');
+  assert.equal(await page.locator('[data-ai-feed-status]').innerText(), 'Latest available');
+  assert.doesNotMatch(await page.locator('#root').innerText(), /temporarily unavailable|refresh unavailable|could not be checked|showing available alerts|try again|holding sizes unavailable/i);
+  assert.equal(await page.evaluate(async () => (await import('/js/data/coverage.js')).meta().syncStatus), 'family-unavailable');
+  // Background rechecks may send invalidated and then fail without ever sending
+  // positions-ready. Repeated failures keep a settled, quiet fallback rather than a stuck spinner.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await peer.evaluate(() => window.invalidate());
+    await waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'pending');
+    await page.evaluate(async () => { try { await (await import('/js/research/portfolio-bridge.js')).readPositionSizes(); } catch {} });
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'complete');
+    assert.equal(await page.locator('[data-ai-feed-status]').innerText(), 'Latest available');
+    assert.equal(await card('A00').count(), 1, 'a repeated background failure preserves the evidence');
+  }
+  await peer.evaluate(() => { window.failed = false; });
+  await page.evaluate(() => window.refreshAlerts());
+  await settled();
+  assert.equal(await page.locator('[data-ai-error]').count(), 0);
+  // Clear the short-lived position cache so the existing late-reply/scope-race
+  // check still exercises a genuine read.
+  await peer.evaluate(() => { window.holdPositions = true; window.invalidate(); });
+  await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; window.show(); });
+  assert.equal(await card('A00').count(), 1, 'return visits immediately restore the last view');
+  assert.equal(await search.inputValue(), 'A00');
+  await waitFor(peer, () => !!window.releasePositions);
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  await peer.evaluate(() => window.releasePositions());
+  assert.match(await page.locator('[data-ai-heading]').innerText(), /Universe/);
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'late portfolio replies cannot overwrite another scope');
+  await page.evaluate(() => window.show());
+  await settled();
+  await peer.evaluate(() => {
+    window.book = window.book.filter(h => h.ticker !== 'A00').map((h, _, list) => ({ ...h, weightPct:100/list.length }));
+    window.invalidate(); window.ready();
+  });
+  await waitFor(page, () => !document.querySelector('[data-ai-card][data-ticker="A00"]'));
+  await settled();
+  assert.equal(await card('A00').count(), 0, 'a verified exit removes the old holding');
+  await search.fill('A00');
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  assert(!/in portfolio/i.test(await card('A00').innerText()), 'the active private book excludes the exited company');
+  await peer.evaluate(() => window.lock());
+  await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
+  await settled();
+  assert(/in portfolio/i.test(await card('A00').innerText()), 'sign-out recomputes Universe membership from the public book');
+  await page.evaluate(() => window.show());
+  await settled();
+  await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
+  await peer.evaluate(() => { window.holdPositions = true; window.lock(); });
+  await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
+  await page.evaluate(() => { window.holdStart = true; window.show(); window.cardsAtReturn = document.querySelectorAll('[data-ai-card]').length; });
+  assert.equal(await page.evaluate(() => window.cardsAtReturn), 0, 'sign-out revokes the cached view even while unmounted');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0);
+  assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('weightPct')), false);
+  console.log('PASS: cold load, atomic refresh, archive recheck, failure/recovery, return visits, scope races, verified exits and sign-out.');
+  await page.evaluate(() => { window.dispose(); window.holdStart = false; window.releaseStart(); });
+  const reads = await page.evaluate(() => window.reads);
+  await page.clock.runFor(86_400_000);
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.equal(await page.evaluate(() => window.reads), reads, 'destroy removes calendar timer and listeners');
+  await page.waitForFunction(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('sattva-cache'); r.onsuccess = () => resolve(r.result); });
+    const saved = await new Promise(resolve => { const r = db.transaction('payloads').objectStore('payloads').get('ai-alerts:public-window:v1'); r.onsuccess = () => resolve(r.result); });
+    db.close(); return !!saved;
+  });
+  const persisted = await page.evaluate(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('sattva-cache'); r.onsuccess = () => resolve(r.result); });
+    const saved = await new Promise(resolve => { const r = db.transaction('payloads').objectStore('payloads').get('ai-alerts:public-window:v1'); r.onsuccess = () => resolve(r.result); });
+    db.close(); return JSON.stringify(saved);
+  });
+  assert(!/weightPct|company-documents|drhp-documents/.test(persisted), 'ready snapshot excludes private holdings and private lookup metadata');
+  await page.evaluate(() => localStorage.setItem('sattva:ai-alerts:sort:v1', 'holdings'));
+  await page.goto(`${origin}/?hold=1`);
+  await page.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
+  assert.equal(await page.getByRole('combobox', { name: 'Sort AI Alerts' }).inputValue(), 'holdings', 'sort preference survives a full reload');
+  await page.getByRole('combobox', { name: 'Sort AI Alerts' }).selectOption('newest');
+  assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Ready/i);
+  assert.equal(await page.evaluate(() => !!window.releaseStart), true, 'live collection is still blocked while cached cards are ready');
+  console.log('PASS: reload restores a ready privacy-safe alert view before live collection completes.');
+  await page.evaluate(() => {
+    window.holdStart = false; window.releaseStart(); window.dispose();
+    const currentDay = window.currentDay;
+    const holdings = [{ name: 'Private Robotics', ticker: null, isin: 'INE000009999' },
+      { name: 'Quiet Signals', ticker: 'QUIET', isin: 'INE000009998' }];
+    window.primeCoverage({ holdings });
+    window.fixtureEvents = [
+      { id: 'private-disclosure', ticker: null, entityId: 'isin:INE000009999', company: 'Private Robotics',
+        headline: 'Private Robotics investor day presentation', importance: 'high', direction: 'neutral',
+        feed: 'announcements', day: currentDay(), url: 'https://example.test/private.pdf' },
+      { id: 'quiet-reading', ticker: 'QUIET', company: 'Quiet Signals', headline: 'Routine quarterly reading',
+        importance: 'low', direction: 'neutral', feed: 'earnings', day: currentDay() },
+    ];
+    window.show('universe');
+  });
+  await settled();
+  await page.locator('[data-ai-filter="all"]').click();
+  await search.fill('');
+  assert.equal(await card('QUIET').count(), 0, 'low-ranking cards do not enter the default briefing');
+  await search.fill('Quiet Signals');
+  assert.equal(await card('QUIET').count(), 1, 'company search reaches eligible below-threshold cards');
+  assert.match(await card('QUIET').innerText(), /Company update/i);
+  assert.match(await page.locator('[data-ai-filter="important"]').innerText(), /0/, 'below-threshold search results do not inflate the Important count');
+  await search.fill('Private Robotics');
+  const privateCard = page.locator('[data-ai-card][data-entity-id="isin:INE000009999"]');
+  assert.equal(await privateCard.count(), 1);
+  assert.equal(await privateCard.getAttribute('data-ticker'), '');
+  assert.equal(await privateCard.locator('[data-open-general]').last().getAttribute('data-ticker'), 'Private Robotics');
+  await privateCard.locator('[data-ai-mute]').click();
+  assert.equal(await privateCard.count(), 0);
+  await page.locator('[data-ai-filter="archived"]').click();
+  assert.equal(await privateCard.count(), 1, 'tickerless dismissal uses its own stable entity identity');
+  await privateCard.locator('[data-ai-unmute]').click();
+  console.log('PASS: below-threshold company search and tickerless cards, links and dismissal.');
+  const capacityContext = await browser.newContext();
+  const capacityPage = await capacityContext.newPage();
+  capacityPage.on('pageerror', error => errors.push(error.message));
+  await capacityPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });
+  await capacityPage.goto(`${origin}/?scope=universe`);
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  await capacityPage.evaluate(() => {
+    window.dispose();
+    window.primeCoverage({ holdings: Array.from({ length: 600 }, (_, i) => ({ ticker: `CAP${i}`, name: `Capacity Company ${i}` })) });
+    window.fixtureEvents = Array.from({ length: 100_005 }, (_, i) => ({
+      id: `capacity:${i}`, ticker: `CAP${i % 600}`, company: `Capacity Company ${i % 600}`, day: window.currentDay(), time: '08:00',
+      headline: i === 100_004 ? 'Tail evidence needle beyond the old cache ceiling' : `Material contract ${i}`,
+      feed: 'announcements', importance: 'high', direction: 'neutral', url: `https://example.test/capacity/${i}`,
+    }));
+    window.show('universe');
+  });
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  assert.equal(await capacityPage.locator('[data-ai-card]').count(), 8, 'large evidence windows keep the initial DOM bounded');
+  await capacityPage.locator('[data-ai-more]').click();
+  assert.equal(await capacityPage.locator('[data-ai-card]').count(), 16);
+  await capacityPage.locator('[data-ai-search]').fill('Tail evidence needle');
+  assert.equal(await capacityPage.locator('[data-ai-card][data-ticker="CAP404"]').count(), 1,
+    'search evaluates the 100,005th event, not only paginated cards or the evidence preview');
+  const beforeVisible = await capacityPage.evaluate(() => window.reads);
+  await capacityPage.clock.fastForward(90_001);
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 1, 'visible AI Alerts revalidates published sources after 90 seconds');
+  await capacityPage.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, value: true }));
+  await capacityPage.clock.fastForward(90_001);
+  assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 1, 'hidden views do not poll');
+  await capacityPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); window.dispatchEvent(new Event('focus')); });
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 2, 'returning from inactivity checks immediately');
+  await capacityPage.evaluate(() => window.dispatchEvent(new Event('online')));
+  assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 2, 'nearby wake signals do not duplicate checks');
+  await capacityPage.evaluate(() => {
+    const old = window.fixtureEvents.at(-1);
+    window.fixtureEvents = [{ ...old, id: 'capacity:new-arrival', url: 'https://example.test/capacity/new-arrival', headline: 'New same-company material event', time: '23:59' }];
+    window.holdRead = true; window.failedFeed = 'earnings';
+    void window.refreshAlerts();
+  });
+  await waitFor(capacityPage, () => !!window.releaseRead && document.querySelector('[data-ai-card][data-ticker="CAP404"]')?.textContent.includes('New same-company material event'));
+  await capacityPage.evaluate(() => { window.holdRead = false; window.releaseRead(); });
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'partial');
+  assert.equal(await capacityPage.locator('[data-ai-card][data-ticker="CAP404"]').count(), 1,
+    'a failed source retains old tail evidence used by the active search and shows the new same-company arrival');
+  await capacityPage.evaluate(() => window.dispose());
+  const disposedReads = await capacityPage.evaluate(() => window.reads);
+  await capacityPage.clock.fastForward(180_001);
+  await capacityPage.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+  assert.equal(await capacityPage.evaluate(() => window.reads), disposedReads, 'destroy removes freshness intervals and wake listeners');
+  await capacityContext.close();
+  console.log('PASS: 100,005-event UI, bounded pagination, tail search, same-company partial/failure arrivals, 90-second visible rechecks, inactivity resume and cleanup.');
+  assert.deepEqual(errors, []);
+  console.log('PASS: responsive search/cards at 320–1440px, calendar cleanup and zero application errors.');
+} catch (error) {
+  console.error('Browser errors:', errors, (await page.locator('body').innerText()).slice(0, 2000));
+  throw error;
+} finally { await browser.close(); await new Promise((done) => server.close(done)); }

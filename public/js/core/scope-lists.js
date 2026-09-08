@@ -1,4 +1,4 @@
-// core/scope-lists.js — DEVICE-LOCAL EDITS TO PORTFOLIO AND UNIVERSE.
+// core/scope-lists.js — DEVICE-LOCAL UNIVERSE EDITS AND LEGACY PORTFOLIO MIGRATION.
 //
 // The committed files remain the defaults. A reader's edits are an overlay kept in localStorage:
 // base entries can be removed, and companies found through the Muns search can be added. This is
@@ -9,7 +9,9 @@
 // legacy migration; the scope editor delegates to it directly.
 
 const STORAGE_KEY = 'sattva:scope-lists:v1';
-const EDITABLE = new Set(['portfolio', 'universe']);
+import * as watchlist from './watchlist.js';
+
+const EDITABLE = new Set(['universe']);
 
 const subscribers = new Set();
 const emit = (scope) => subscribers.forEach((fn) => fn(scope));
@@ -56,7 +58,7 @@ function read() {
     return emptyState();
   }
   const out = emptyState();
-  for (const scope of EDITABLE) {
+  for (const scope of ['portfolio', 'universe']) {
     const src = parsed?.[scope] || {};
     const seenAdded = new Set();
     const seenRemoved = new Set();
@@ -188,3 +190,16 @@ export function onChange(fn) {
 }
 
 export const storageKey = () => STORAGE_KEY;
+
+/** Preserve manual selections as Watchlist entries before retiring the old
+ * overlay. Failed storage writes leave the legacy additions available to retry. */
+export function migratePortfolioToWatchlist() {
+  const state = read();
+  const legacy = state.portfolio;
+  for (const entry of legacy.added) {
+    if (watchlist.isSymbolShaped(entry.ticker)) watchlist.add(entry.ticker, entry.name);
+  }
+  legacy.added = legacy.added.filter(entry => !watchlist.has(entry.ticker));
+  legacy.removed = []; // A browser exclusion cannot sell a Family holding.
+  write(state, 'portfolio');
+}

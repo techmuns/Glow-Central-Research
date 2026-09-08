@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/scrape-bse-announcements.mjs — corporate announcements for the WHOLE exchange, by date.
 //
-//   node scripts/scrape-bse-announcements.mjs               the last ANN_DAYS days (default 1)
+//   node scripts/scrape-bse-announcements.mjs               the last ANN_DAYS days (default 1, with a two-day overlap)
 //   ANN_DAYS=30 node scripts/scrape-bse-announcements.mjs   backfill a month
 //   ANN_FROM=2026-08-01 ANN_TO=2026-08-19 node …            an explicit window
 //   ANN_MERGE=0 node …                                      replace rather than merge
@@ -15,8 +15,8 @@
 //   snapshot covered 118 companies. Narrowing the date window would not have helped: the range is a
 //   PARAMETER on a per-company request, so one day for 603 companies is still 603 requests.
 //
-//   BSE index the same filings by DATE. Measured on 19 Aug 2026: 886 announcements across every
-//   listed company in about two dozen requests. Whole universe, no credential, no expiry.
+//   BSE index filings by DATE. Measured on 19 Aug 2026: 886 announcements across the configured
+//   categories and every listed company in about two dozen requests. No credential, no expiry.
 //
 // MERGING IS THE DEFAULT, AND IT IS WHY THE WINDOW DOES NOT SHRINK.
 //   A daily run fetches one day and merges it into what is already committed, so the file keeps its
@@ -32,6 +32,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { archiveFilings } from './lib/filing-archive.mjs';
+import { fetchBseIdentityMaster, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -44,12 +46,16 @@ const DAYS = Number(process.env.ANN_DAYS || 1);
 // How many days the merged file keeps. THIS IS A SIZE LIMIT, NOT AN EDITORIAL ONE, and it is why
 // the daily job stays cheap while the file stays servable: a weekday carries ~900 announcements
 // across the exchange, so a month would be ~22,000 rows and roughly 16 MB of committed JSON that
-// every visitor downloads. Older filings are not less true — they are simply not worth that, and
-// BSE still hold them, so widening the window is one environment variable and one re-run.
+// every visitor downloads. Older filings stay in monthly archive files and load through the history control.
 // Three days, not one, so that a Monday morning is not an empty page: the primary view is still
 // today's filings, and Saturday and Sunday cost almost nothing because the exchange is shut.
 const KEEP_DAYS = Number(process.env.ANN_KEEP_DAYS || 3);
-const FROM = process.env.ANN_FROM || daysAgo(Math.max(0, DAYS - 1));
+const previousCapture = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
+const lastCompleteTo = previousCapture?.lastCompleteTo || (!previousCapture?.shortfall?.length ? previousCapture?.to : null);
+// Overlap late filings and recover dates missed while a scheduled job did not run.
+const defaultFrom = daysAgo(Math.max(2, DAYS - 1));
+const recoveryFrom = lastCompleteTo ? iso(Date.parse(lastCompleteTo) - 2 * 86400000) : defaultFrom;
+const FROM = process.env.ANN_FROM || (recoveryFrom < defaultFrom ? recoveryFrom : defaultFrom);
 const TO = process.env.ANN_TO || iso(Date.now());
 const MERGE = process.env.ANN_MERGE !== '0';
 
@@ -83,13 +89,9 @@ async function buildScripIndex() {
   }
   const confirmed = byCode.size;
 
-  const url = 'https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w?Group=&Scripcode=&industry=&segment=Equity&status=Active';
-  const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) throw new Error(`BSE scrip master answered HTTP ${res.status}`);
-  const master = await res.json();
-  if (!Array.isArray(master) || master.length < 1000) {
-    throw new Error(`BSE scrip master returned ${Array.isArray(master) ? master.length : typeof master} rows — that is not the master.`);
-  }
+  const identityPath = DATA('announcement-identities.json');
+  const previousIdentities = existsSync(identityPath) ? JSON.parse(readFileSync(identityPath, 'utf8')) : null;
+  const master = await fetchBseIdentityMaster(previousIdentities, { headers: HEADERS });
   for (const s of master) {
     const code = String(s?.SCRIP_CD || '').trim();
     if (!code || byCode.has(code)) continue;
@@ -97,7 +99,9 @@ async function buildScripIndex() {
     byCode.set(code, { ticker: id || null, name: s?.Scrip_Name || null, source: id ? 'bse' : null });
   }
 
-  return { byCode, confirmed, masterRows: master.length };
+  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
+  const identities = buildAnnouncementIdentities(master, mc);
+  return { byCode, confirmed, masterRows: master.length, identities };
 }
 
 function loadExisting() {
@@ -117,7 +121,7 @@ function loadExisting() {
 async function main() {
   console.log(`BSE corporate announcements — ${FROM} to ${TO} (${MERGE ? 'merging into' : 'replacing'} the committed file)`);
 
-  const { byCode, confirmed, masterRows } = await buildScripIndex();
+  const { byCode, confirmed, masterRows, identities } = await buildScripIndex();
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
 
   const started = Date.now();
@@ -152,6 +156,8 @@ async function main() {
     process.exit(1);
   }
 
+  writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
+
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a
   // position in the list.
@@ -179,6 +185,7 @@ async function main() {
     const key = r.newsId || `${r.scripCode || ''}|${r.date || ''}|${r.headline || ''}`;
     merged.set(key, r);
   }
+  archiveFilings(DATA('announcements-archive'), 'announcements', [...merged.values()]);
   const cutoff = iso(Date.now() - (KEEP_DAYS - 1) * 86400000);
   const kept = [...merged.values()].filter((r) => !r.date || r.date >= cutoff);
   const pruned = merged.size - kept.length;
@@ -206,7 +213,8 @@ async function main() {
   }
 
   const dates = all.map((r) => r.date).filter(Boolean).sort();
-  const windowFrom = existing.from && existing.from < FROM ? existing.from : FROM;
+  const retainedFrom = existing.from && existing.from < FROM ? existing.from : FROM;
+  const windowFrom = retainedFrom < cutoff ? cutoff : retainedFrom;
   const payload = {
     _provenance:
       'Corporate announcements as filed with BSE, read from their date-indexed feed (AnnSubCategoryGetData) rather than one request per company. ' +
@@ -221,10 +229,13 @@ async function main() {
     windowDays: Math.max(1, Math.round((Date.parse(TO) - Date.parse(windowFrom)) / 86400000) + 1),
     dateRangeInFile: dates.length ? { first: dates[0], last: dates[dates.length - 1] } : null,
     scope: 'exchange',
-    // THE POINT OF THIS FILE. Every company on the exchange was covered, because the question asked
-    // was "what was filed on these dates" rather than "what did these companies file". A company
-    // with no rows here filed nothing in the window — it was not skipped for want of budget.
-    coversUniverse: true,
+    // Every company is covered on the company axis for the named category requests. This endpoint
+    // exposes no independently verified category inventory, so that separate limitation is explicit.
+    coversUniverse: shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
+    categoryCoverage: 'configured',
+    categoryInventoryVerified: false,
+    categories: CATEGORIES,
+    lastCompleteTo: shortfall.length || Object.keys(unknownCategories).length ? lastCompleteTo : TO,
     exchangeCompanies: masterRows,
     companies: Object.keys(byTicker).length,
     namedCompanies: Object.keys(byTicker).filter((k) => !k.startsWith('BSE:') && k !== 'UNKNOWN').length,
@@ -247,7 +258,7 @@ async function main() {
   writeFileSync(OUT, `${JSON.stringify(payload)}\n`);
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`\n  ${num(all.length)} announcements · ${num(payload.companies)} companies (${num(payload.namedCompanies)} named) · ${requests} requests · ${secs}s`);
-  console.log(`  window in file: ${payload.dateRangeInFile?.first} .. ${payload.dateRangeInFile?.last} (keeping ${KEEP_DAYS} days${pruned ? `, pruned ${num(pruned)} older rows` : ''})`);
+  console.log(`  window in file: ${payload.dateRangeInFile?.first} .. ${payload.dateRangeInFile?.last} (keeping ${KEEP_DAYS} days${pruned ? `, archived ${num(pruned)} older rows` : ''})`);
   console.log(`  wrote ${OUT}`);
 }
 
