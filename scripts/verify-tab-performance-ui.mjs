@@ -109,9 +109,9 @@ try {
       await new Promise(requestAnimationFrame);
       const elapsed = performance.now() - start;
       const current = document.querySelector(selector);
-      if (current) {
-        current.value = '';
-        current.dispatchEvent(new Event('input', { bubbles: true }));
+      for (const input of new Set([el, current].filter(Boolean))) {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
       }
       return elapsed;
     });
