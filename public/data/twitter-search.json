@@ -755,12 +755,16 @@
     "isin:INE546Y01022|PRAXIS": {
       "lastAttemptAt": "2026-09-08T23:03:56+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE811K01011|Prestige Estate Projects": {
+      "lastAttemptAt": "2026-09-08T23:37:59+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-08T23:03:56.010585+00:00"
+    "checkedAt": "2026-09-08T23:37:59.279315+00:00"
   }
 }
