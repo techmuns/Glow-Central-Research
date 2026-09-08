@@ -635,12 +635,16 @@
     "isin:INE12F801023|OnEMI Technology": {
       "lastAttemptAt": "2026-09-08T17:58:18+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE12F801023|KISSHT": {
+      "lastAttemptAt": "2026-09-08T18:49:29+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T17:58:18.862959+00:00"
+    "checkedAt": "2026-09-08T18:49:29.606270+00:00"
   }
 }
