@@ -12,6 +12,7 @@ import { handleConcallSummaries } from '../worker/concall-summaries.mjs';
 import { summaryId, summaryIdsForRow, validateSummaryBody, summaryStateMessage, summaryScheduleMessage, SUMMARY_WINDOW_MS, SUMMARY_ORIGIN, SUMMARY_WORKFLOW, SUMMARY_INVENTORY_BATCH, SUMMARY_TRANSPORT_LIMIT } from '../public/js/data/concall-summaries-shared.js';
 import { buildSummaryInventory } from './lib/concall-summary-inventory.mjs';
 import { summaryResponseError, summaryNavigationGate } from './lib/read-screener-summary.mjs';
+import { SUMMARY_INTERVAL_MS, SUMMARY_CRON_OFFSET_MS } from '../public/js/data/concall-summaries-shared.js';
 import { runSummaryCollection, summaryCollectorClient } from './collect-screener-summaries.mjs';
 
 const START = Date.parse('2026-09-10T06:00:00Z');
@@ -107,6 +108,7 @@ test('saved bodies survive real SQLite reopen, portfolio exits, repeat publicati
     assert.equal(store.status().holdings.some(h=>h.isin===isin(1)),false);
     assert.deepEqual(store.status().readyIds,['1'],'saved IDs remain readable after a portfolio exit');
     assert.equal(store.read(['1'])[0].status,'ready');
+    assert.equal(store.read(['1'])[0].active,false,'portfolio exits stop eligibility without removing the saved body');
     assert.equal(store.reserve('1:1',randomUUID()).target.id,'6');
     store.discoveryFailed(); assert.equal(store.status().discoveryStatus,'failed'); assert.equal(store.read(['1'])[0].status,'ready');
     now+=6*60000; assert.equal(store.reserve('1:1',randomUUID()).reason,'inventory-unavailable');
@@ -139,6 +141,18 @@ test('one newest note per company precedes its older history; duplicates do not 
   const capture={fullHistory:true,checkedAt:iso(START),rows:[source(1,'1'),source(1,'1'),source(1,'11','2026-08-01'),source(2,'2','2026-08-30')]};
   const plan=buildSummaryInventory(book(2),capture,{now:START});
   assert.deepEqual(plan.targets.map(t=>t.id),['1','2','11']);
+});
+
+test('private readers receive actual deferred eligibility and no invented date for untracked IDs', () => {
+  const backing=storage(), store=new ConcallSummaryStore(backing,{now:()=>START});
+  try {
+    store.sync(inventory());
+    const claim=store.reserve('1:1',randomUUID());complete(store,claim,'not-published');
+    const deferred=store.read([claim.target.id])[0];
+    assert.equal(deferred.active,true);assert.equal(deferred.status,'not-published');
+    assert.equal(deferred.nextAttemptAt,iso(START+7*SUMMARY_WINDOW_MS));
+    assert.deepEqual(store.read(['999'])[0],{id:'999',status:'not-collected',active:false,nextAttemptAt:null});
+  } finally {backing.db.close();}
 });
 
 test('reader access requires verified owner identity and never uses the caller as a deployment fallback', async () => {
@@ -198,6 +212,8 @@ test('durable timer is read-only until armed and keeps recovery after dispatch f
 
 test('workflow is opt-in, main-only and has no public summary artifact or source-text publication', () => {
   const yaml=readFileSync(new URL('../.github/workflows/screener-summaries-refresh.yml',import.meta.url),'utf8');
+  assert(yaml.includes(`cron: '${SUMMARY_CRON_OFFSET_MS/60000},${(SUMMARY_CRON_OFFSET_MS+SUMMARY_INTERVAL_MS)/60000} * * * *'`),
+    'reader check-back times follow the actual independent workflow cadence');
   assert.match(yaml,/vars\.SCREENER_SUMMARIES_ENABLED == 'true'/);assert.match(yaml,/github.ref == 'refs\/heads\/main'/);
   assert.match(yaml,/family-book-updated/);assert.match(yaml,/cancel-in-progress: false/);assert(!yaml.includes('upload-artifact'));
 });

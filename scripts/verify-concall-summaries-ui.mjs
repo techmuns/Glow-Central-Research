@@ -23,9 +23,12 @@ const body = {title:'Concall Summary - Summary fixture company - Sep 2026',block
 ]};
 let enabled = true, denied = false, delayed = null, pendingId = null, timerReason = 'recent-run';
 let savedIds=['123','124'], discoveryStatus='ok', cooldownUntil=null;
+let pendingActive=true, pendingNextAttemptAt=null;
+let readBudget=Infinity;
+let alarmAt=Date.now()+1800000;
 let getCount=0, postCount=0;
 const state = () => ({ok:true,enabled,ready:savedIds.length,readyIds:savedIds,pending:1,discoveryStatus,cooldownUntil,portfolioCheckedAt:new Date().toISOString(),sourceCheckedAt:new Date().toISOString(),
-  schedule:{started:true,reason:timerReason,alarmAt:Date.now()+1800000,lastAttemptAt:Date.now()},
+  schedule:{started:true,reason:timerReason,alarmAt,lastAttemptAt:Date.now()},
   holdings:[{isin:'INE000000001',name:'Summary fixture company',ready:2,pending:1,discovery:'matched'},
     {isin:'INE000000002',name:'New portfolio holding',ready:0,pending:0,discovery:'no-published-summary'}]});
 const server = createServer(async (req,res) => {
@@ -41,7 +44,9 @@ const server = createServer(async (req,res) => {
       let raw='';for await(const chunk of req) raw+=chunk;
       if(delayed) await delayed;
       if(denied) {res.statusCode=401;return res.end('{"ok":false,"reason":"access"}');}
-      return res.end(JSON.stringify({ok:true,records:JSON.parse(raw).ids.map(id=> id===pendingId ? {id,status:'queued'} :
+      if(readBudget--<=0) {res.statusCode=503;return res.end('{"ok":false,"reason":"unavailable"}');}
+      return res.end(JSON.stringify({ok:true,records:JSON.parse(raw).ids.map(id=> pendingId==='all'||id===pendingId
+        ? {id,status:!pendingActive?'not-collected':pendingNextAttemptAt?'not-published':'queued',active:pendingActive,nextAttemptAt:pendingNextAttemptAt} :
         {id,status:'ready',name:row.name,kind:id==='124'?'Recording':'Transcript',publishedDate:'2026-09-04',fetchedAt:new Date().toISOString(),body:{...body,title:body.title+(id==='124'?' - recording':'')}})}));
     }
     return res.end('{"ok":false,"error":"Local fixture"}');
@@ -103,11 +108,45 @@ try {
   }
   discoveryStatus='ok';cooldownUntil=null;
   await page.keyboard.press('Escape');
+  // An empty reader shows only a check-back day/time, and follows changed cooldowns live.
+  pendingId='all';savedIds=[];
+  const tomorrow=new Date(Date.now()+86400000);tomorrow.setUTCHours(18,10,0,0);alarmAt=tomorrow.getTime();
+  cooldownUntil=new Date(alarmAt+10*60000).toISOString();
+  await page.evaluate(async()=>{const s=await import('/js/data/concall-summaries.js');s.clear();await s.refresh({force:true});});
+  await button.click();await page.locator('[data-summary-check-back]').waitFor();
+  const checkBack=await page.locator('[data-summary-check-back]').innerText();
+  assert.match(checkBack,/^Please check back — .+ IST\.$/);
+  assert.equal(await page.locator('#modal-content p').count(),1,'pending popup is a single message');
+  assert.doesNotMatch(await page.locator('#modal-content').innerText(),/Screener|source|collection|allowance|saved/i);
+  const expectedCheck = new Date(alarmAt+31*60000);
+  const oldDay=expectedCheck.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long'});
+  assert(checkBack.includes(oldDay),'the check-back date uses the Indian calendar day');
+  assert.equal(checkBack,`Please check back — ${expectedCheck.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true})} IST.`,
+    'a cooldown between timer runs allows both the next alarm and :41 cron slot, including the Indian date rollover');
+  cooldownUntil=new Date(Date.parse(cooldownUntil)+86400000).toISOString();
+  await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
+  await page.waitForFunction(old=>document.querySelector('[data-summary-check-back]')?.textContent!==old,checkBack);
+  assert.equal(postCount,3,'status changes reread private saved state only');
+  pendingActive=false;
+  await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
+  await page.waitForFunction(()=>document.querySelector('[data-summary-check-back]')?.textContent==='Please check back later.');
+  pendingActive=true;pendingNextAttemptAt=new Date(alarmAt+6*86400000+10*60000).toISOString();
+  await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
+  const deferredDay=new Date(alarmAt+6*86400000+31*60000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long'});
+  await page.waitForFunction(day=>document.querySelector('[data-summary-check-back]')?.textContent.includes(day),deferredDay);
+  pendingId='124';savedIds=['123'];pendingNextAttemptAt=null;readBudget=1;
+  await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
+  await page.locator('[data-summary-body]').waitFor();
+  assert((await page.locator('[data-summary-body]').innerText()).includes(body.title),'the first saved report is shown even if subsequent reads fail');
+  assert.equal(await page.locator('[data-summary-check-back]').count(),0,'a saved report replaces the open pending message');
+  assert.equal(postCount,6,'partial readiness renders the returned records without rereading pending IDs');
+  assert.equal(external.some(url=>url.includes('/concalls/summary/')),false,'pending updates never visit the source');
+  await page.keyboard.press('Escape');cooldownUntil=null;readBudget=Infinity;savedIds=['123','124'];
   // A pending note is requested again once collected, never cached as permanently unavailable.
   pendingId='123';await page.evaluate(async()=>{const s=await import('/js/data/concall-summaries.js');s.clear();await s.refresh({force:true});});
   await button.click();await page.locator('[data-summary-reader]').waitFor();assert.equal(await page.locator('[data-summary-version]').count(),0);
   pendingId=null;await page.keyboard.press('Escape');await button.click();await page.locator('[data-summary-version]').waitFor();
-  assert.equal(postCount,3);
+  assert.equal(postCount,8);
   await page.keyboard.press('Escape');
   body.blocks.push(...Array.from({length:35},()=>({type:'paragraph',text})));
   await page.evaluate(async()=>{const s=await import('/js/data/concall-summaries.js');s.clear();await s.refresh({force:true});});
@@ -136,7 +175,7 @@ try {
   await page.evaluate(()=>{window.fixtureSession(null);window.fixtureSession('local-test-token');});
   denied=true;
   const result=await page.evaluate(async()=>{try {await (await import('/js/data/concall-summaries.js')).read(['123']);return 'leaked';}catch{return 'refused';}});
-  assert.equal(result,'refused');assert.equal(postCount,5);
+  assert.equal(result,'refused');assert.equal(postCount,10);
   denied=false;enabled=false;savedIds=['123'];
   await page.evaluate(()=>location.hash='#/research/concall?scope=universe');
   await page.locator('[data-summary-coverage]').waitFor();
@@ -153,7 +192,7 @@ try {
   enabled=true;savedIds=['123','124'];await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
   await button.waitFor();
   let release;delayed=new Promise(done=>release=done);await button.click();
-  await page.waitForFunction(()=>document.querySelector('#modal-content')?.textContent.includes('Loading saved'));
+  await page.waitForFunction(()=>document.querySelector('#modal-content')?.textContent.includes('Loading summary'));
   await page.evaluate(()=>window.fixtureSession(null));release();delayed=null;
   await page.waitForFunction(()=>document.querySelector('#modal-overlay').classList.contains('hidden'));
   assert.equal(await page.locator('[data-summary-body]').count(),0,'late prior-session content cannot reopen the reader');

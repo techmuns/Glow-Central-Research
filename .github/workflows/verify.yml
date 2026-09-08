@@ -229,19 +229,21 @@ jobs:
         run: node scripts/verify-source-connections-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
-    # Full retained news now exceeds 150k observations. Keep all 426 current portfolio cases;
-    # the former 15-minute limit stopped a healthy run at case 400 before final assertions.
-    timeout-minutes: 20
+    # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the
+    # complete evidence suite still gets 30 minutes, plus bounded checkout/setup headroom.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Install pinned browser test runtime
+        timeout-minutes: 15
         run: |
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
+        timeout-minutes: 30
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs
