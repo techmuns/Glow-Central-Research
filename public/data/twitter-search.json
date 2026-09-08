@@ -527,12 +527,16 @@
     "isin:INE303R01014|Kalyan Jewellers India": {
       "lastAttemptAt": "2026-09-08T02:47:33+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE303R01014|KALYANKJIL": {
+      "lastAttemptAt": "2026-09-08T03:36:43+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T02:47:33.001112+00:00"
+    "checkedAt": "2026-09-08T03:36:43.660481+00:00"
   }
 }
