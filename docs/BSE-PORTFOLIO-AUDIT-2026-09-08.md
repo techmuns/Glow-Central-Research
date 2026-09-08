@@ -55,6 +55,19 @@ directory: Future Consumer retains its successful NSE target while adding BSE co
 eligibility is evaluated after the trade lane so elapsed collection time or a trade failure cannot
 silently suppress due company work.
 
+**A less-specific duplicate could erase a portfolio checkpoint.** A read-only follow-up at
+`2026-09-08T06:27:18.439Z` found that normal collection had published a run completed at
+`2026-09-08T05:25:40.689Z`. All 110 mapped portfolio issuers now had BSE checkpoints, 109 had
+successful BSE checks and 108 had recent-period checks in that run. KISSHT retained its earlier
+successful checkpoint; Ashika had not been attempted. Ashika's portfolio ISIN resolved to
+`ASHIKAG` / `543766`, but an unresolved universe row reused the storage ticker `ASHIKA` under
+a different identity key. That later row reset the query ticker and priority every run. Scope
+construction now retains the verified portfolio identity for such less-specific duplicates;
+explicitly conflicting issuers sharing a storage ticker fail before capture. A local check of
+the real scope returned 599 companies with no duplicate storage tickers. The regression also
+checks that the resolved source symbol, BSE code, priority and successful watermark survive
+a subsequent run. This correction still awaits normal production collection.
+
 ## Verification and remaining limits
 
 Local regressions cover overdue dispatch recovery, interrupted/corrupt/future checkpoints,

@@ -4543,6 +4543,11 @@ resume even if this one has no budget left. Valid removals lose portfolio priori
 remain retained and companies still in Universe continue to be captured. Entries without a usable
 ticker remain explicitly unresolved.
 
+Collection has one checkpoint/file per storage ticker. If a verified portfolio ISIN supplies a
+source-symbol alias, a later unresolved universe row using the same ticker cannot overwrite its
+identity, priority or coverage. Conflicting explicit identities sharing a storage ticker stop scope
+construction before capture rather than repeatedly resetting or mixing the issuer's history.
+
 Watchlist additions now enroll public company identities through `POST /api/capture-registration`.
 The request contains only ticker symbols; the server resolves ISINs and names from the verified BSE/NSE
 directories. It stores no account, device identifier, ownership, personal watchlist name or quantities.
