@@ -109,6 +109,9 @@ try {
   writeJson(join(aliasDir, 'universe.json'), [{ ticker: 'ASHIKA', isin: 'INE000000099' }]);
   assert.throws(() => captureCompanies(aliasDir, { announcements: true, holdings: aliasHoldings }), /Conflicting company identities/,
     'an explicitly different issuer cannot overwrite a shared capture ticker');
+  writeJson(join(aliasDir, 'universe.json'), [{ ticker: 'ASHIKA', bseCode: '500099' }]);
+  assert.throws(() => captureCompanies(aliasDir, { announcements: true, holdings: aliasHoldings }), /Conflicting company identities/,
+    'an unrecognized explicit BSE code is not a less-specific ticker alias');
 
   const priorityDir = join(scratch, 'priority');
   const recentEntry = { lastAttemptAt: recent, lastSuccessAt: recent, recentCheckedAt: recent,

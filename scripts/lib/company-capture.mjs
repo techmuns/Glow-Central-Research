@@ -134,7 +134,7 @@ export function captureCompanies(dataDir, { announcements = false, holdings = nu
     // of letting the later, less-specific row reset its query symbol, history and priority.
     const stored = storageTickers.get(ticker);
     if (stored && stored.key !== key) {
-      if (!identity && !c.isin && stored.company.isin) {
+      if (!identity && !c.isin && !c.bseCode && !c.scripCode && stored.company.isin) {
         stored.company.priority ||= !!c.priority;
         continue;
       }
