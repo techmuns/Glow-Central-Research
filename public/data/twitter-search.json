@@ -539,12 +539,24 @@
     "isin:INE415I01015|KIRIINDUS": {
       "lastAttemptAt": "2026-09-08T04:51:51+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE082A01010|Kopran": {
+      "lastAttemptAt": "2026-09-08T05:22:53+00:00",
+      "error": "search-unavailable"
+    },
+    "isin:INE082A01010|KOPRAN": {
+      "lastAttemptAt": "2026-09-08T05:28:01+00:00",
+      "error": "search-unavailable"
+    },
+    "isin:INE237A01036|Kotak Mahindra Bank": {
+      "lastAttemptAt": "2026-09-08T05:58:52+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T04:51:51.013271+00:00"
+    "checkedAt": "2026-09-08T05:58:52.461855+00:00"
   }
 }
