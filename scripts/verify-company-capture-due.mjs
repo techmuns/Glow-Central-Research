@@ -6,13 +6,24 @@ import { join } from 'node:path';
 import { companyCaptureDue, COMPANY_CAPTURE_INTERVAL_MS } from './check-company-capture-due.mjs';
 
 const now = Date.parse('2026-09-08T06:00:00Z');
-const checkpoint = (age) => ({ version: 1, companies: [{ ticker: 'TCS' }], sources: { announcements: {} },
+const checkpoint = (age) => ({ version: 1, companies: [{ ticker: 'TCS' }], sources: { announcements: {}, domestic: {} },
   lastRunAt: new Date(now - age).toISOString(), lastRunFinishedAt: new Date(now - age + 20 * 60000).toISOString() });
 assert.equal(companyCaptureDue(checkpoint(3600000), { now }).due, false, 'frequent trade runs do not repeat recent company collection');
 assert.equal(companyCaptureDue(checkpoint(COMPANY_CAPTURE_INTERVAL_MS), { now }).due, true, 'two-hour boundary is eligible');
 assert.equal(companyCaptureDue(checkpoint(6 * 3600000), { now }).due, true, 'missed cron recovers on the next dispatch');
 for (const value of [null, {}, { ...checkpoint(3600000), companies: [] }]) {
   assert.equal(companyCaptureDue(value, { now }).reason, 'missing-checkpoint');
+}
+for (const kind of ['announcements', 'domestic']) {
+  for (const invalid of [undefined, null, [], 'invalid', true, 1]) {
+    const recent = checkpoint(3600000);
+    recent.sources[kind] = invalid;
+    assert.equal(companyCaptureDue(recent, { now }).due, true,
+      `a malformed or missing ${kind} source map cannot make a recent combined checkpoint fresh`);
+  }
+}
+for (const invalid of [undefined, null, [], 'invalid', true]) {
+  assert.equal(companyCaptureDue({ ...checkpoint(3600000), sources: invalid }, { now }).due, true);
 }
 for (const field of ['lastRunAt', 'lastRunFinishedAt']) {
   for (const value of [null, 'invalid', new Date(now + 1000).toISOString()]) {
