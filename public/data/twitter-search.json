@@ -571,12 +571,16 @@
     "isin:INE818H01020|LTFOODS": {
       "lastAttemptAt": "2026-09-08T08:45:22+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE101A01026|Mahindra & Mahindra": {
+      "lastAttemptAt": "2026-09-08T09:21:28+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T08:45:22.395832+00:00"
+    "checkedAt": "2026-09-08T09:21:28.082734+00:00"
   }
 }
