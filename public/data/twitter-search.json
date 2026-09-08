@@ -623,12 +623,16 @@
     "isin:INE310A01015|NILKAMAL": {
       "lastAttemptAt": "2026-09-08T16:20:47+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE12F801023|OnEMI Technology Solutions": {
+      "lastAttemptAt": "2026-09-08T16:52:22+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T16:20:47.850776+00:00"
+    "checkedAt": "2026-09-08T16:52:22.624635+00:00"
   }
 }
