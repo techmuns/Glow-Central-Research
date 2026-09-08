@@ -9664,9 +9664,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-08T19:20:45.315Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-08T20:35:11.599Z",
     "lastSuccessAt": null
   }
 }
