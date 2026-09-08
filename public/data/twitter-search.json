@@ -639,12 +639,104 @@
     "isin:INE12F801023|KISSHT": {
       "lastAttemptAt": "2026-09-08T18:49:29+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE881D01027|Oracle Financial Services Software": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 9,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE881D01027|OFSS": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 108,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-09-08T19:20:14+00:00",
+      "pending": [
+        {
+          "from": "2026-08-30T19:20:14.371302+00:00",
+          "to": "2026-09-04T07:20:14.185651+00:00"
+        },
+        {
+          "from": "2026-09-04T07:20:14.185651+00:00",
+          "to": "2026-09-08T19:20:14+00:00"
+        }
+      ]
+    },
+    "isin:INE0BYP01024|Oswal Pumps": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 37,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE0BYP01024|OSWALPUMPS": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 14,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE119201023|Park Medi World": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 25,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE119201023|PARKHOSPS": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 9,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE417T01026|PB Fintech": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 89,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE417T01026|POLICYBZR": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 32,
+      "error": null,
+      "lastSuccessAt": "2026-09-08T19:20:14+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE15B701018|Pine Labs": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastResultCount": 106,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-09-08T19:20:14+00:00",
+      "pending": [
+        {
+          "from": "2026-08-30T19:20:14.371302+00:00",
+          "to": "2026-09-04T07:20:14.185651+00:00"
+        },
+        {
+          "from": "2026-09-04T07:20:14.185651+00:00",
+          "to": "2026-09-08T19:20:14+00:00"
+        }
+      ]
+    },
+    "isin:INE15B701018|PINELABS": {
+      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
-    "attempted": 1,
-    "incomplete": 221,
-    "checkedAt": "2026-09-08T18:49:29.606270+00:00"
+    "attempted": 10,
+    "incomplete": 214,
+    "checkedAt": "2026-09-08T19:20:14.371302+00:00"
   }
 }
