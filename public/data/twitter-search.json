@@ -739,12 +739,16 @@
     "isin:INE572E01012|PNBHOUSING": {
       "lastAttemptAt": "2026-09-08T20:43:13+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE722B01019|Praveg": {
+      "lastAttemptAt": "2026-09-08T21:14:17+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 214,
-    "checkedAt": "2026-09-08T20:43:13.757185+00:00"
+    "checkedAt": "2026-09-08T21:14:17.302218+00:00"
   }
 }
