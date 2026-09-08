@@ -338,6 +338,61 @@ export function normaliseArticle(r, query = null) {
   };
 }
 
+/** One story at its desktop/mobile/AMP addresses is still one publisher article. */
+export function canonicalArticleUrl(raw) {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/^(www|m|amp|mobile)\./, '');
+    const path = url.pathname.replace(/\/amp\/?$/i, '').replace(/\/+$/, '');
+    return `${host}${path}${url.search}`;
+  } catch {
+    return String(raw || '');
+  }
+}
+
+/**
+ * Exact article deduplication within one company.
+ *
+ * Independent publishers are retained even when their headlines match. The company identity is
+ * deliberately outside this function: one article returned for two portfolio companies remains
+ * visible under both of them.
+ */
+// Full-content identity only for records without a publisher URL/headline identity. Discovery
+// bookkeeping may differ between observations; actual text, links and attribution may not.
+const articleObservationKeys = new Set(['firstSeenAt', 'lastSeenAt', 'query', 'matchedQueries']);
+export function anonymousArticleContentKey(row) {
+  if (row === null || typeof row !== 'object') return JSON.stringify(row);
+  const content = Object.fromEntries(Object.entries(row).filter(([key]) => !articleObservationKeys.has(key)));
+  return JSON.stringify(content, (key, item) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(name => [name, item[name]])) : item);
+}
+
+export function dedupeArticles(list = []) {
+  const seenUrl = new Set();
+  const seenStory = new Set();
+  const seenAnonymous = new Set();
+  return list.filter((row) => {
+    const url = row?.url ? canonicalArticleUrl(row.url) : null;
+    if (url) {
+      if (seenUrl.has(url)) return false;
+      seenUrl.add(url);
+    }
+    const story = row?.title && row?.source
+      ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
+      : null;
+    if (story) {
+      if (seenStory.has(story)) return false;
+      seenStory.add(story);
+    }
+    if (!url && !story) {
+      const content = anonymousArticleContentKey(row);
+      if (seenAnonymous.has(content)) return false;
+      seenAnonymous.add(content);
+    }
+    return true;
+  });
+}
+
 /**
  * The insider-trades payload, whichever form it arrives in.
  *

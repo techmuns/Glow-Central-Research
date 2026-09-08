@@ -1,0 +1,61 @@
+name: Filings operational health
+
+# Read-only check of published captures, independent of whether a capture job finishes.
+# GitHub's own scheduler is best-effort: an external monitor should also read /api/filings-health.
+# Workflow notification delivery depends on the operator's GitHub notification settings.
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: filings-operational-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Check published source captures
+        env:
+          FILINGS_HEALTH_BASE: https://sattva-central-research.tech-441.workers.dev
+          FILINGS_HEALTH_REPORT: ${{ runner.temp }}/filings-health.json
+        run: node scripts/check-filings-health.mjs
+      - name: Check independently published TradingView headlines
+        if: always()
+        env:
+          FILINGS_HEALTH_BASE: https://sattva-central-research.tech-441.workers.dev
+          TRADINGVIEW_HEALTH_REPORT: ${{ runner.temp }}/tradingview-health.json
+        run: node scripts/check-tradingview-news-health.mjs
+      - name: Check Telegram delivery and the independent collection timer
+        if: always()
+        env:
+          FILINGS_HEALTH_BASE: https://sattva-central-research.tech-441.workers.dev
+          TELEGRAM_HEALTH_REPORT: ${{ runner.temp }}/telegram-health.json
+        run: node scripts/check-telegram-health.mjs
+      - name: Check scheduled collectors and build pipelines
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WORKFLOW_HEALTH_REPORT: ${{ runner.temp }}/workflow-health.json
+        run: node scripts/check-workflow-health.mjs
+      - name: Upload operational health report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: filings-health
+          path: |
+            ${{ runner.temp }}/filings-health.json
+            ${{ runner.temp }}/tradingview-health.json
+            ${{ runner.temp }}/workflow-health.json
+            ${{ runner.temp }}/telegram-health.json
+          if-no-files-found: warn
