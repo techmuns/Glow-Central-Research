@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCorporateAnnouncementsFeed, nseAnnouncement, LIVE_ID, POLL_MS } from '../public/js/data/corporate-announcements.js';
 import { createAnnouncementIdentity, filingTicker } from '../public/js/data/announcement-identity.js';
-import { BSE_MASTER_URL, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
+import { BSE_MASTER_URL, buildAnnouncementIdentities, fetchBseIdentityMaster } from './lib/announcement-identities.mjs';
 import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
 
 const identityRows = [{ isin: 'INEKAMATS001', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' }];
@@ -30,7 +30,23 @@ assert.equal(completeIdentity.find({ isin: 'INE220J01025' }).bseCode, '533400', 
 assert.equal(completeIdentity.find({ isin: 'INE143A01010' }).bseCode, '539290', 'an old code cannot replace the active code');
 assert.equal(completeIdentity.key({ scripCode: '500063' }), completeIdentity.key({ scripCode: '539290' }), 'historical codes retain issuer attribution');
 assert.equal(completeIdentity.find({ ticker: 'OLDOSWAL' }).bseCode, '539290', 'historical symbols remain exact aliases');
+const historicalFiling = completeIdentity.row({ scripCode: '500063', ticker: 'OLDOSWAL', url: 'https://example.test/old-code.pdf' });
+assert.equal(historicalFiling.scripCode, '500063', 'an original filing code survives normalization and export');
+assert.equal(historicalFiling.isin, 'INE143A01010');
+assert.equal(completeIdentity.key(historicalFiling), completeIdentity.key({ scripCode: '539290' }));
 assert.equal(completeIdentity.find({ scripCode: '500011' }), null, 'invalid ISINs cannot create guessed companies');
+const directoryFixture = Array.from({ length: 1002 }, (_, i) => ({ SCRIP_CD: String(500000 + i),
+  ISIN_NUMBER: `INE${String(i).padStart(9, '0')}`, scrip_id: `ISSUER${i}`, Scrip_Name: `Issuer ${i}`,
+  Status: ['Active', 'Suspended', 'Delisted'][i % 3] }));
+const previousDirectory = buildAnnouncementIdentities(directoryFixture);
+assert.equal((await fetchBseIdentityMaster(previousDirectory, { fetcher: async () => Response.json(directoryFixture) })).length, 1002);
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => Response.json(directoryFixture.map(row => ({ ...row, Status: 'Active' }))) }), /required trading statuses/);
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => Response.json(directoryFixture.slice(1)) }), /previously verified security/,
+  'a parseable truncation above the old 1000-row threshold cannot erase known mappings');
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => Response.json(directoryFixture.map((row, i) => i ? row : { ...row, ISIN_NUMBER: 'NA' })) }), /previously verified security/);
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => Response.json({ message: 'unavailable' }) }), /incomplete/);
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => new Response('', { status: 503 }) }), /HTTP 503/);
+await assert.rejects(fetchBseIdentityMaster(previousDirectory, { fetcher: async () => new Response(' '.repeat(8 * 1024 * 1024 + 1)) }), /size limit/);
 assert.equal(mergeAnnouncements([{ ticker: 'ALPEXSOLAR-SM', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row),
   [{ ticker: 'ALPEXSOLAR', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row)).length, 1, 'quote aliases cannot duplicate the same announcement');
 

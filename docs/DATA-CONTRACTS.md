@@ -3388,6 +3388,14 @@ eligible for company history capture; status is metadata, not a filter. For exam
 directory identifies Future Consumer as `INE220J01025` / `533400`, with status `Suspended`.
 When multiple codes share an ISIN, active codes take precedence over suspended and delisted codes.
 Historical codes and symbols remain exact aliases so earlier announcements retain their issuer.
+The original code on each filing remains source data even when its issuer now has a different
+primary code. Suspended/delisted identities retain the historical marker used to preserve an
+already successful NSE news target; their new BSE identity adds coverage without replacing it.
+Directory reads have a 20-second/8-MiB bound and must include active, suspended and delisted rows.
+Previously verified directory codes must remain present with valid ISINs; otherwise publication
+fails and retains the previous directory. Manually sourced off-directory supplements are exempt
+from that presence check. This catches missing status groups and loss of known mappings, without
+claiming the upstream can never omit a previously unseen listing.
 
 **`corp-announcements.json` remains the BSE date-indexed base capture.** Direct BSE scrip-code and
 Muns company/date histories are stored additively in the company capture; they never overwrite that
@@ -4512,7 +4520,8 @@ saved-document retention and synthetic-data rejection checks.
 
 `scripts/capture-company-filings.mjs` runs in the existing `insider-trades-refresh.yml` workflow,
 with a two-hour collection interval on all days. Every workflow run, including watchdog dispatches,
-checks the latest branch checkpoint with `check-company-capture-due.mjs`. A missing, invalid or
+checks the latest branch checkpoint with `check-company-capture-due.mjs` immediately after the
+trade lane, including when that lane fails. A missing, invalid or
 interrupted checkpoint is due immediately; a completed recent run is skipped. Eligibility does not
 depend on one particular cron event, so a missed scheduler tick can recover on the next ordinary
 run. This interval controls collection attempts, not proof of successful checks for every company.

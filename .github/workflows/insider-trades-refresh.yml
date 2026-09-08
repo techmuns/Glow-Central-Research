@@ -43,10 +43,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Check whether company filings are due
-        id: company_due
-        run: node scripts/check-company-capture-due.mjs
-
       - name: Install pinned Screener browser client
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
@@ -67,6 +63,11 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/scrape-screener-trades.mjs
+
+      - name: Check whether company filings are due
+        id: company_due
+        if: ${{ !cancelled() }}
+        run: node scripts/check-company-capture-due.mjs
 
       - name: Capture company announcements and domestic filings
         id: company

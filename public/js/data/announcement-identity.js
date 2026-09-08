@@ -51,8 +51,9 @@ export function createAnnouncementIdentity(entries = []) {
   };
   const row = value => {
     const hit = find(value);
+    const observedCode = String(value.scripCode || value.bseCode || '');
     return { ...value, ticker: hit?.ticker || hit?.bseSymbol || filingTicker(value.ticker) || null,
-      ...(hit ? { isin: hit.isin, scripCode: hit.bseCode } : {}) };
+      ...(hit ? { isin: hit.isin, scripCode: /^\d{6}$/.test(observedCode) ? observedCode : hit.bseCode } : {}) };
   };
   return { find, key, row };
 }

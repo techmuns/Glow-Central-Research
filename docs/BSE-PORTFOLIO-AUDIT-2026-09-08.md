@@ -8,6 +8,8 @@ completeness guarantee.
 
 - The most recently verified active portfolio contained 118 holding lines, checked at
   `2026-09-07T22:58:13.678Z`. Two warrant lines refer to equity issuers already in the portfolio.
+  A read-only live Family check at `2026-09-08T05:27:29.025Z` confirmed the same revision and
+  holding membership, with no additions or removals.
 - The deployed identity directory mapped 110 distinct portfolio issuers to BSE codes.
 - Direct, fully paginated BSE company queries for **every one of those 110 issuers** covered
   **6–7 September 2026**. All queries succeeded: 35 filings across 23 issuers, with 87 verified
@@ -45,6 +47,13 @@ resolved **111 distinct BSE issuers** in the active portfolio, adding Future Con
 changing any previously resolved portfolio BSE code. Five other issuers have no BSE code in this
 directory; their existing NSE/company-source identities remain registered. Older BSE codes and
 symbols sharing the same ISIN remain aliases, while active codes take precedence for collection.
+
+Directory validation rejects missing trading-status groups and loss of previously verified codes
+before publication. Historical filing codes remain unchanged on the source rows. A local comparison
+against the real saved TradingView checkpoints found no target losses after applying the expanded
+directory: Future Consumer retains its successful NSE target while adding BSE coverage. Company
+eligibility is evaluated after the trade lane so elapsed collection time or a trade failure cannot
+silently suppress due company work.
 
 ## Verification and remaining limits
 

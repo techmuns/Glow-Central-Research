@@ -11,6 +11,10 @@ const checkpoint = (age) => ({ version: 1, companies: [{ ticker: 'TCS' }], sourc
 assert.equal(companyCaptureDue(checkpoint(3600000), { now }).due, false, 'frequent trade runs do not repeat recent company collection');
 assert.equal(companyCaptureDue(checkpoint(COMPANY_CAPTURE_INTERVAL_MS), { now }).due, true, 'two-hour boundary is eligible');
 assert.equal(companyCaptureDue(checkpoint(6 * 3600000), { now }).due, true, 'missed cron recovers on the next dispatch');
+const beforeLongTrade = checkpoint(90 * 60000);
+assert.equal(companyCaptureDue(beforeLongTrade, { now }).due, false);
+assert.equal(companyCaptureDue(beforeLongTrade, { now: now + 45 * 60000 }).due, true,
+  'a company capture becoming due during the trade lane must run when that lane finishes');
 for (const value of [null, {}, { ...checkpoint(3600000), companies: [] }]) {
   assert.equal(companyCaptureDue(value, { now }).reason, 'missing-checkpoint');
 }
@@ -56,4 +60,7 @@ assert.match(companyStep, /steps\.company_due\.outputs\.due == 'true'/);
 assert(!companyStep.includes('github.event'), 'company recovery is eligible for cron and watchdog/manual dispatch alike');
 assert.match(workflow, /ref: \$\{\{ github\.ref \}\}/, 'queued runs read the current branch checkpoint before deciding');
 assert(workflow.indexOf('node scripts/check-company-capture-due.mjs') < workflow.indexOf('- name: Capture company announcements'));
+const dueStep = workflow.slice(workflow.indexOf('- name: Check whether company filings are due'), workflow.indexOf('- name: Capture company announcements'));
+assert(workflow.indexOf('- name: Check whether company filings are due') > workflow.indexOf('node scripts/scrape-screener-trades.mjs'));
+assert(dueStep.includes('if: ${{ !cancelled() }}'), 'trade failure cannot prevent the independent company eligibility check');
 console.log('PASS company capture cadence, missed-cron dispatch recovery, interrupted/corrupt/future checkpoints, CLI output and workflow eligibility');
