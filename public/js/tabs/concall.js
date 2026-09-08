@@ -1,10 +1,10 @@
 // tabs/concall.js — the Con-call tab.
 //
-// ONE VIEW, ONE PROVENANCE.
-//   Every earnings call held this quarter, live from StockScans, with their result score,
-//   sentiment tier and highlight bullets. The schedule of calls not yet held opens as an overlay
-//   off that table — "Upcoming Concalls", the same shape StockScans give it. Everything this tab
-//   renders lives in js/concall/scans.js; this module is the mount, the poller and the errors.
+// ONE VIEW, TWO EXPLICITLY SEPARATED PROVENANCES.
+//   Screener's authenticated market-wide document index supplies retained transcripts, recordings,
+//   presentations and summaries. StockScans supplies its current-quarter result score, sentiment
+//   tier and highlight bullets. The Worker joins them before this module receives the rows;
+//   js/concall/scans.js labels document-only history separately from analysis pending.
 //
 // WHAT USED TO BE HERE, AND WHY IT IS NOT
 //   This tab carried six sub-views behind a left rail. Two were live; the other four — Live Feed,
@@ -26,11 +26,13 @@ import { escapeHtml } from '../core/dom.js';
 import * as scans from '../concall/scans.js';
 import { stopDeepDive } from '../concall/deep-dive.js';
 import * as feed from '../data/concall-scans.js';
+import * as summaries from '../data/concall-summaries.js';
+import { stopSummary, summaryStatusHtml, updateSummaryButtons } from '../concall/summary.js';
 
 export const meta = {
   id: 'concall',
   title: 'Con-call',
-  subtitle: 'Every earnings call held this quarter, with independent third-party analysis — and what is scheduled next.',
+  subtitle: 'The complete Screener concall document index, enriched with current-quarter third-party analysis.',
   // No sub-views: the shell hides the rail entirely when this is empty and the table spans the
   // full width. The schedule is an overlay, not a second page.
   subviews: [],
@@ -48,7 +50,7 @@ let unsubscribe = null;
 let tableView = null;
 let routeCompany = null;
 
-export function render(ctx) {
+function renderFeed(ctx) {
   const token = ++renderToken;
   cleanup();
   const seeded = companySeededView(ctx, routeCompany, tableView);
@@ -60,12 +62,19 @@ export function render(ctx) {
     .load()
     .then(() => {
       if (token !== renderToken) return;
-      paint(ctx);
+      paint(ctx, token);
       unsubscribe = feed.onChange(() => {
         if (token !== renderToken) return;
-        paint(ctx);
+        paint(ctx, token);
       });
       mountDisposers.push(feed.startLive(ctx.live));
+      mountDisposers.push(summaries.onChange(() => {
+        if (token !== renderToken) return;
+        const note = ctx.root.querySelector('[data-summary-coverage]');
+        if (note) note.outerHTML = summaryStatusHtml();
+        updateSummaryButtons(ctx.root);
+      }));
+      mountDisposers.push(summaries.start());
     })
     .catch((err) => {
       if (token !== renderToken) return;
@@ -80,7 +89,7 @@ export function render(ctx) {
     });
 }
 
-export function destroy() {
+function destroyFeed() {
   renderToken++;
   cleanup();
   // Leaving the tab is a deliberate exit; coming back should be a clean table rather than last
@@ -96,6 +105,7 @@ function cleanup() {
   // The shell closes overlays on route change with `{ silent: true }`, which skips the workspace's
   // own onClose — so the Deep Dive poller has to be stopped from here or it outlives its panel.
   stopDeepDive();
+  stopSummary();
   disposePanel();
   mountDisposers.forEach((d) => d && d());
   mountDisposers = [];
@@ -106,11 +116,20 @@ function disposePanel() {
   panelDisposers = [];
 }
 
-function paint(ctx) {
+function paint(ctx, token = renderToken) {
   // `renderScans` rebuilds the panel, so its listeners go with it — dispose before repainting or
   // every live tick would stack another set on the new DOM.
   disposePanel();
-  scans.renderScans(ctx, { disposers: panelDisposers, tableView, onView: (v) => (tableView = v) });
+  scans.renderScans(ctx, {
+    disposers: panelDisposers,
+    tableView,
+    onView: (v) => (tableView = v),
+    // The free Deep Dive index arrives after first paint. Repaint once so exact, transcript-backed
+    // result/view/headline fields can fill without waiting for the 30-second con-call tick.
+    onInsights: () => {
+      if (token === renderToken && ctx.root.isConnected) paint(ctx, token);
+    },
+  });
 }
 
 function loadingHtml() {
@@ -118,3 +137,6 @@ function loadingHtml() {
     ${sectionHead({ title: meta.title, description: meta.subtitle })}
     <div class="skeleton-shimmer h-[520px] rounded-2xl bg-slate-100"></div>`;
 }
+
+export const render = renderFeed;
+export const destroy = destroyFeed;

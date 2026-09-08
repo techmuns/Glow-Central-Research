@@ -1,0 +1,241 @@
+// Permanent portfolio-company news capture.
+//
+// `public/data/news.json` remains the bounded, fast first paint. Every portfolio article is filed
+// here before it can leave that head:
+//
+//   public/data/company-news/index.json       identities, query watermarks and shard manifest
+//   public/data/company-news/YYYY-MM.json     every discovered article for that month
+//   public/data/company-news/undated.json     source rows without a readable publication date
+//
+// A scheduled response is additive. An empty response says only that this overlapping poll found
+// nothing; it never retracts an article captured earlier. Filtering and materiality do not appear
+// in this module—the capture retains every usable row returned by every reviewed identity query.
+
+import { join } from 'node:path';
+import { canonicalArticleUrl, anonymousArticleContentKey } from '../../public/js/data/filings-shared.js';
+import { readNewsJson as readJson, writeNewsJson as writeJson } from './news-json-storage.mjs';
+
+export const COMPANY_NEWS_ARCHIVE_VERSION = 1;
+export const DEFAULT_OVERLAP_HOURS = 48;
+export const DEFAULT_BACKFILL_DAYS = 30;
+
+const clean = (value) => String(value || '').trim();
+const iso = (value) => new Date(value).toISOString();
+const day = (value) => iso(value).slice(0, 10);
+const uniq = (values) => [...new Set((values || []).map(clean).filter(Boolean))];
+const tradingViewAddress = value => {
+  try { return /(^|\.)tradingview\.com$/i.test(new URL(value).hostname); } catch { return false; }
+};
+
+const storyKey = (row) => row?.title && row?.source
+  ? `${clean(row.date || row.publishedAt).slice(0, 10)} :: ${clean(row.source).toLowerCase()} :: ${clean(row.title).toLowerCase()}`
+  : null;
+
+// Some providers return an empty normalized row with only discovery metadata. Without a URL
+// or headline these observations used to double on each seed/merge. Keep a stable fallback
+// identity for ALL remaining content; only observation times and query bookkeeping may vary.
+export function companyArticleKey(row = {}) {
+  const entity = clean(row.entityId) || `ticker:${clean(row.ticker).toUpperCase()}`;
+  const url = row.url ? canonicalArticleUrl(row.url) : null;
+  return `${entity}|${url ? `url:${url}` : `story:${storyKey(row) || JSON.stringify([row.date, row.title, row.source, row.summary])}`}`;
+}
+
+/** Merge observations without allowing an empty or smaller search response to retract history. */
+export function mergeCompanyNewsArticles(previous = [], incoming = []) {
+  const rows = [];
+  const byUrl = new Map();
+  const byStory = new Map();
+  const byTradingViewId = new Map();
+  const byAnonymousContent = new Map();
+
+  const add = (value) => {
+    const row = { ...value };
+    const entity = clean(row.entityId) || `ticker:${clean(row.ticker).toUpperCase()}`;
+    if (!entity || entity === 'ticker:') throw new Error('A company-news article has no company identity.');
+    row.entityId = entity;
+    const urlKey = row.url ? `${entity}|${canonicalArticleUrl(row.url)}` : null;
+    const headlineKey = storyKey(row) ? `${entity}|${storyKey(row)}` : null;
+    const tradingViewKey = row.tradingViewId ? `${entity}|${row.tradingViewId}` : null;
+    const fallbackKey = !urlKey && !headlineKey && !tradingViewKey ? anonymousArticleContentKey(row) : null;
+    const existingIndex = (tradingViewKey && byTradingViewId.get(tradingViewKey)) ?? (urlKey && byUrl.get(urlKey)) ??
+      (headlineKey && byStory.get(headlineKey)) ?? (fallbackKey && byAnonymousContent.get(fallbackKey));
+    if (existingIndex != null) {
+      const existing = rows[existingIndex];
+      const firstSeenAt = [existing.firstSeenAt, row.firstSeenAt].filter(Boolean).sort()[0] || null;
+      const lastSeenAt = [existing.lastSeenAt, row.lastSeenAt].filter(Boolean).sort().at(-1) || null;
+      const matchedQueries = uniq([
+        ...(existing.matchedQueries || []), existing.query,
+        ...(row.matchedQueries || []), row.query,
+      ]);
+      // A corrected publication date may move a TradingView observation between shards.
+      // Shard traversal order cannot let the older observation undo its corrected headline.
+      const olderTradingViewObservation = (existing.tradingViewId || row.tradingViewId) &&
+        Date.parse(row.lastSeenAt || row.firstSeenAt || '') < Date.parse(existing.lastSeenAt || existing.firstSeenAt || '');
+      const [base, preferred] = olderTradingViewObservation ? [row, existing] : [existing, row];
+      rows[existingIndex] = {
+        ...base,
+        ...Object.fromEntries(Object.entries(preferred).filter(([, field]) => field !== null && field !== undefined && field !== '')),
+        firstSeenAt,
+        lastSeenAt,
+        matchedQueries,
+        query: existing.query || row.query || null,
+        ...(existing.tradingViewId || row.tradingViewId ? {
+          ...(existing.url && !tradingViewAddress(existing.url) && tradingViewAddress(row.url) ? { url: existing.url } : {}),
+          discoverySources: uniq([...(existing.discoverySources || []), existing.discoverySource,
+            ...(row.discoverySources || []), row.discoverySource]),
+          sourceUrls: uniq([...(existing.sourceUrls || []), existing.url, existing.tradingViewUrl,
+            ...(row.sourceUrls || []), row.url, row.tradingViewUrl]),
+          relatedSymbols: uniq([...(existing.relatedSymbols || []), ...(row.relatedSymbols || [])]),
+        } : {}),
+      };
+      if (urlKey) byUrl.set(urlKey, existingIndex);
+      if (headlineKey) byStory.set(headlineKey, existingIndex);
+      if (tradingViewKey) byTradingViewId.set(tradingViewKey, existingIndex);
+      if (fallbackKey) byAnonymousContent.set(fallbackKey, existingIndex);
+      return;
+    }
+    const index = rows.length;
+    row.matchedQueries = uniq([...(row.matchedQueries || []), row.query]);
+    rows.push(row);
+    if (urlKey) byUrl.set(urlKey, index);
+    if (headlineKey) byStory.set(headlineKey, index);
+    if (tradingViewKey) byTradingViewId.set(tradingViewKey, index);
+    if (fallbackKey) byAnonymousContent.set(fallbackKey, index);
+  };
+
+  previous.forEach(add);
+  incoming.forEach(add);
+  return rows.sort((a, b) => String(b.publishedAt || b.date || b.firstSeenAt || '').localeCompare(String(a.publishedAt || a.date || a.firstSeenAt || '')));
+}
+
+export function archiveMonth(row) {
+  const value = clean(row.publishedAt || row.date || row.firstSeenAt);
+  return /^\d{4}-(0[1-9]|1[0-2])/.test(value) ? value.slice(0, 7) : 'undated';
+}
+
+const shardPath = (dir, month) => join(dir, `${month}.json`);
+
+export function readCompanyNewsIndex(dir) {
+  return readJson(join(dir, 'index.json'), {
+    version: COMPANY_NEWS_ARCHIVE_VERSION,
+    createdAt: null,
+    updatedAt: null,
+    overlapHours: DEFAULT_OVERLAP_HOURS,
+    entities: [],
+    queries: {},
+    archive: [],
+    articleCount: 0,
+  });
+}
+
+export function readCompanyNewsShard(dir, month) {
+  return readJson(shardPath(dir, month), { month, articles: [] });
+}
+
+export function companyNewsArchiveRows(dir) {
+  const index = readCompanyNewsIndex(dir);
+  // A later discovered publication date can place a new observation in an older month. Both
+  // observations stay archived, but readers see one canonical article with the resolved fields.
+  return mergeCompanyNewsArticles((index.archive || []).flatMap((item) => readCompanyNewsShard(dir, item.month).articles || []));
+}
+
+/**
+ * File every supplied observation, then rewrite only the shards it touched.
+ * Existing shards absent from this run are retained and remain in the manifest.
+ */
+export function commitCompanyNewsArchive({ dir, articles = [], entities = [], capturedAt = new Date().toISOString(), queries = null, overlapHours = DEFAULT_OVERLAP_HOURS, archivePrefix = 'company-news' }) {
+  const previous = readCompanyNewsIndex(dir);
+  const buckets = new Map();
+  for (const row of articles) {
+    const month = archiveMonth(row);
+    if (!buckets.has(month)) buckets.set(month, []);
+    buckets.get(month).push(row);
+  }
+
+  for (const [month, incoming] of buckets) {
+    const saved = readCompanyNewsShard(dir, month);
+    const merged = mergeCompanyNewsArticles(saved.articles || [], incoming);
+    const dates = merged.map((row) => row.publishedAt || row.date || row.firstSeenAt).filter(Boolean).sort();
+    writeJson(shardPath(dir, month), {
+      _provenance:
+        'Permanent portfolio-company news captured from reviewed company-name and alias searches. Headlines, standfirsts, outlets and dates are the publishers\' own. Rows are retained before topic, materiality or scope filters are applied. The article remains on the publisher site.',
+      generator: 'scripts/lib/company-news-archive.mjs',
+      month,
+      articleCount: merged.length,
+      from: dates[0] || null,
+      to: dates.at(-1) || null,
+      articles: merged,
+    });
+  }
+
+  const known = new Set([...(previous.archive || []).map((item) => item.month), ...buckets.keys()]);
+  const archive = [...known].map((month) => {
+    const shard = readCompanyNewsShard(dir, month);
+    return {
+      month,
+      file: `${archivePrefix}/${month}.json`,
+      count: (shard.articles || []).length,
+      from: shard.from || null,
+      to: shard.to || null,
+    };
+  }).sort((a, b) => b.month.localeCompare(a.month));
+
+  const index = {
+    ...previous,
+    version: COMPANY_NEWS_ARCHIVE_VERSION,
+    _provenance:
+      'Permanent portfolio-company news archive. The entity registry covers every active portfolio company, including companies without an NSE ticker. Query watermarks produce overlapping incremental reads; successful empty reads never delete an earlier article.',
+    generator: 'scripts/lib/company-news-archive.mjs',
+    createdAt: previous.createdAt || capturedAt,
+    updatedAt: capturedAt,
+    overlapHours,
+    entities,
+    queries: queries || previous.queries || {},
+    archive,
+    articleCount: archive.reduce((sum, item) => sum + item.count, 0),
+  };
+  writeJson(join(dir, 'index.json'), index);
+  return index;
+}
+
+/** A 48-hour overlap, expressed as inclusive calendar dates for the upstream contract. */
+export function incrementalNewsRange(queryState, now = Date.now(), { overlapHours = DEFAULT_OVERLAP_HOURS, backfillDays = DEFAULT_BACKFILL_DAYS } = {}) {
+  const last = Date.parse(queryState?.lastSuccessAt || '');
+  const fromMs = Number.isFinite(last)
+    ? last - overlapHours * 3600000
+    : now - backfillDays * 86400000;
+  return { from: day(fromMs), to: day(now), incremental: Number.isFinite(last) };
+}
+
+/** Attach the company identity and observation times before an article reaches any view filter. */
+export function observedCompanyArticles(rows, entity, query, observedAt) {
+  return (rows || [])
+    .map(({ raw, ...row }) => ({
+      ...row,
+      ticker: entity.ticker || null,
+      entityId: entity.entityId,
+      company: entity.name,
+      query: row.query || query,
+      matchedQueries: uniq([...(row.matchedQueries || []), query]),
+      firstSeenAt: row.firstSeenAt || observedAt,
+      lastSeenAt: observedAt,
+    }))
+    .filter((row) => Object.entries(row).some(([key, value]) => !['query', 'matchedQueries', 'ticker', 'entityId', 'company', 'firstSeenAt', 'lastSeenAt',
+      'discoverySource', 'discoverySources', 'relatedSymbols'].includes(key) && value !== null && value !== undefined && value !== '' &&
+      (!Array.isArray(value) || value.length > 0)));
+}
+
+/** Seed the permanent store with portfolio rows already present in the legacy 30-day snapshot. */
+export function articlesFromNewsSnapshot(snapshot, entities, observedAt = snapshot?.capturedAt || new Date().toISOString()) {
+  const rows = [];
+  for (const entity of entities) {
+    const saved = snapshot?.byTicker?.[entity.key] || snapshot?.byTicker?.[entity.ticker] || [];
+    rows.push(...observedCompanyArticles(saved, entity, entity.queries[0] || entity.name, observedAt));
+  }
+  return rows;
+}
+
+/** The bounded first-paint rows are derived from archive history, not used as its authority. */
+export function recentArchivedCompanyNews(dir, from) {
+  return companyNewsArchiveRows(dir).filter((row) => !row.date || row.date >= from);
+}

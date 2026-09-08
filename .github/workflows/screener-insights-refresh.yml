@@ -1,0 +1,73 @@
+name: Screener Insights collection
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Who requested this run'
+        required: false
+        type: string
+        default: 'manual'
+      full:
+        description: 'Reconcile the full inventory; fresh records and persisted cooldowns are always respected'
+        required: false
+        type: boolean
+        default: false
+
+run-name: Screener Insights collection (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: screener-insights-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/screener-insights-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/screener-insights-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Collect portfolio and universe Insights
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-insights-browser/node_modules/playwright
+          SCREENER_FULL_REFRESH: ${{ inputs.full == true }}
+          DEBUG: ''
+          PWDEBUG: ''
+        run: node scripts/collect-screener-insights.mjs "$RUNNER_TEMP/screener-insights-v1.json.gz" "$RUNNER_TEMP/screener-insights-state-v1.json.gz"
+      - name: Preserve collection state and cooldown even after failure
+        if: ${{ always() && steps.collect.outcome != 'skipped' && steps.collect.outcome != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screener-insights-state-v1.json.gz
+          path: ${{ runner.temp }}/screener-insights-state-v1.json.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish validated immutable public-data capture
+        if: ${{ always() && steps.collect.outcome != 'skipped' && steps.collect.outcome != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screener-insights-v1.json.gz
+          path: ${{ runner.temp }}/screener-insights-v1.json.gz
+          archive: false
+          # A failure before the first successful company has state, not fabricated company data.
+          if-no-files-found: ignore
+          retention-days: 30
