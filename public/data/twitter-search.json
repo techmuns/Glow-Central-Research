@@ -607,12 +607,16 @@
     "isin:INE071D01033|MENONBE": {
       "lastAttemptAt": "2026-09-08T14:01:27+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE338I01027|Motilal Oswal Financial Services": {
+      "lastAttemptAt": "2026-09-08T14:36:25+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T14:01:27.886527+00:00"
+    "checkedAt": "2026-09-08T14:36:25.998050+00:00"
   }
 }
