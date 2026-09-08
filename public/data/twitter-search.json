@@ -543,12 +543,16 @@
     "isin:INE082A01010|Kopran": {
       "lastAttemptAt": "2026-09-08T05:22:53+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE082A01010|KOPRAN": {
+      "lastAttemptAt": "2026-09-08T05:28:01+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T05:22:53.049360+00:00"
+    "checkedAt": "2026-09-08T05:28:01.063562+00:00"
   }
 }
