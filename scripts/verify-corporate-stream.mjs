@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCorporateAnnouncementsFeed, nseAnnouncement, LIVE_ID, POLL_MS } from '../public/js/data/corporate-announcements.js';
 import { createAnnouncementIdentity, filingTicker } from '../public/js/data/announcement-identity.js';
-import { buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
+import { BSE_MASTER_URL, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
 import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
 
 const identityRows = [{ isin: 'INEKAMATS001', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' }];
@@ -18,6 +18,19 @@ assert.equal(issuers.find({ isin: 'INE564S13022' }).ticker, 'KAMATS', 'warrants 
 assert.equal(issuers.find({ isin: 'INE0R4713012' }).ticker, 'ALPEXSOLAR');
 assert.equal(issuers.find({ isin: 'INE935Q01015' }).ticker, 'FSC', 'delisted holdings retain their verified historical filing identity');
 assert.equal(issuers.key({ scripCode: '540798' }), issuers.key({ isin: 'INE935Q01015' }));
+assert.equal(new URL(BSE_MASTER_URL).searchParams.get('status'), '', 'the directory includes suspended and delisted issuers');
+const completeMaster = buildAnnouncementIdentities([
+  { ISIN_NUMBER: 'INE220J01025', SCRIP_CD: '533400', scrip_id: 'FCONSUMER', Scrip_Name: 'Future Consumer Ltd', Status: 'Suspended' },
+  { ISIN_NUMBER: 'INE143A01010', SCRIP_CD: '500063', scrip_id: 'OLDOSWAL', Scrip_Name: 'Old Oswal', Status: 'Delisted' },
+  { ISIN_NUMBER: 'INE143A01010', SCRIP_CD: '539290', scrip_id: 'OSWALGREEN', Scrip_Name: 'Oswal Greentech Ltd', Status: 'Active' },
+  { ISIN_NUMBER: 'NA', SCRIP_CD: '500011', scrip_id: 'INVALID', Status: 'Delisted' },
+]);
+const completeIdentity = createAnnouncementIdentity(completeMaster.entries);
+assert.equal(completeIdentity.find({ isin: 'INE220J01025' }).bseCode, '533400', 'suspended holdings enter BSE capture');
+assert.equal(completeIdentity.find({ isin: 'INE143A01010' }).bseCode, '539290', 'an old code cannot replace the active code');
+assert.equal(completeIdentity.key({ scripCode: '500063' }), completeIdentity.key({ scripCode: '539290' }), 'historical codes retain issuer attribution');
+assert.equal(completeIdentity.find({ ticker: 'OLDOSWAL' }).bseCode, '539290', 'historical symbols remain exact aliases');
+assert.equal(completeIdentity.find({ scripCode: '500011' }), null, 'invalid ISINs cannot create guessed companies');
 assert.equal(mergeAnnouncements([{ ticker: 'ALPEXSOLAR-SM', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row),
   [{ ticker: 'ALPEXSOLAR', date: '2026-09-04', url: 'https://example.test/a.pdf' }].map(issuers.row)).length, 1, 'quote aliases cannot duplicate the same announcement');
 

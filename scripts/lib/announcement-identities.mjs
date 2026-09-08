@@ -1,7 +1,8 @@
 import { filingTicker } from '../../public/js/data/announcement-identity.js';
 
-export const BSE_MASTER_URL = 'https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w?Group=&Scripcode=&industry=&segment=Equity&status=Active';
-// Verified issuers absent from the active BSE master, with primary sources in DATA-CONTRACTS.md.
+// Include suspended/delisted issuers: trading status must not erase filing history or coverage.
+export const BSE_MASTER_URL = 'https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w?Group=&Scripcode=&industry=&segment=Equity&status=';
+// Verified issuers absent from the BSE master, with primary sources in DATA-CONTRACTS.md.
 const OFF_DIRECTORY = [
   { isin: 'INE0R4701017', ticker: 'ALPEXSOLAR', name: 'Alpex Solar Limited' },
   { isin: 'INE0SMY01017', ticker: 'JAYBEE', name: 'Jay Bee Laminations Limited' },
@@ -14,9 +15,23 @@ const OFF_DIRECTORY = [
 export function buildAnnouncementIdentities(master, mcMap = {}, capturedAt = new Date().toISOString()) {
   const tickers = new Map(Object.values(mcMap).filter(e => e.bseId && e.ticker)
     .map(e => [String(e.bseId), filingTicker(e.ticker)]));
-  const entries = master.filter(s => /^IN[A-Z0-9]{10}$/.test(s.ISIN_NUMBER || '') && /^\d{6}$/.test(String(s.SCRIP_CD)))
-    .map(s => ({ isin: s.ISIN_NUMBER, bseCode: String(s.SCRIP_CD), bseSymbol: s.scrip_id || null,
-      ticker: tickers.get(String(s.SCRIP_CD)) || s.scrip_id || null, name: s.Scrip_Name }))
+  const byIsin = new Map();
+  for (const s of master.filter(s => /^IN[A-Z0-9]{10}$/.test(s.ISIN_NUMBER || '') && /^\d{6}$/.test(String(s.SCRIP_CD)))) {
+    if (!byIsin.has(s.ISIN_NUMBER)) byIsin.set(s.ISIN_NUMBER, []);
+    byIsin.get(s.ISIN_NUMBER).push(s);
+  }
+  const statusRank = s => s.Status === 'Active' ? 0 : s.Status === 'Suspended' ? 1 : 2;
+  const entries = [...byIsin.values()].map(list => {
+    // Prefer the current code when old codes share its ISIN; keep old codes/symbols as aliases.
+    const [s] = list.sort((a, b) => statusRank(a) - statusRank(b) || String(a.SCRIP_CD).localeCompare(String(b.SCRIP_CD)));
+    const bseCode = String(s.SCRIP_CD), ticker = tickers.get(bseCode) || s.scrip_id || null;
+    const bseCodes = [...new Set(list.map(row => String(row.SCRIP_CD)))];
+    const aliases = [...new Set(list.flatMap(row => [tickers.get(String(row.SCRIP_CD)), row.scrip_id]).filter(Boolean))]
+      .filter(value => value !== ticker && value !== s.scrip_id);
+    return { isin: s.ISIN_NUMBER, bseCode, bseSymbol: s.scrip_id || null, ticker, name: s.Scrip_Name,
+      ...(s.Status ? { status: s.Status } : {}), ...(bseCodes.length > 1 ? { bseCodes } : {}),
+      ...(aliases.length ? { aliases } : {}) };
+  })
     .sort((a, b) => a.bseCode.localeCompare(b.bseCode));
   for (const entry of OFF_DIRECTORY) if (!entries.some(e => e.isin === entry.isin)) entries.push(entry);
   return { version: 1, source: BSE_MASTER_URL, symbolSource: 'mc-ticker-map by BSE code, falling back to BSE scrip_id', capturedAt, entries };

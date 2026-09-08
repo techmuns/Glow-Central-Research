@@ -3383,6 +3383,12 @@ confirms `FSC` / `INE935Q01015` and retains delisting/insolvency announcements; 
 confirms BSE code `540798` on page 1. The supplement records these sources and its verification date.
 It permits history capture and matching without relabelling the holding as currently traded.
 
+The BSE equity directory is read across all trading statuses. Suspended and delisted issuers remain
+eligible for company history capture; status is metadata, not a filter. For example, the official
+directory identifies Future Consumer as `INE220J01025` / `533400`, with status `Suspended`.
+When multiple codes share an ISIN, active codes take precedence over suspended and delisted codes.
+Historical codes and symbols remain exact aliases so earlier announcements retain their issuer.
+
 **`corp-announcements.json` remains the BSE date-indexed base capture.** Direct BSE scrip-code and
 Muns company/date histories are stored additively in the company capture; they never overwrite that
 exchange-wide file.
@@ -3399,7 +3405,7 @@ public/data/corp-announcements.json          written by scripts/scrape-bse-annou
   "coversUniverse": true,        // THE FIELD THAT SWITCHES THE PER-COMPANY WALK OFF
   "categoryCoverage": "configured", "categoryInventoryVerified": false,
   "categories": ["Company Update", "Board Meeting", "Corp. Action", "Result", "AGM/EGM", "New Listing", "Insider Trading / SAST", "Insurance", "Integrated Filing", "Others"],
-  "exchangeCompanies": 5122,     // active equity listings the date index spans
+  "exchangeCompanies": 10861,    // equity directory rows, including suspended/delisted codes
   "companies": 526, "namedCompanies": 515, "unnamedRows": 11,
   "rowCount": 722, "keepDays": 3, "prunedRows": 0, "requests": 19,
   "byCategory": { "Company Update": { "declared": 482, "collected": 482, "pages": 10 }, … },
@@ -4505,7 +4511,12 @@ saved-document retention and synthetic-data rejection checks.
 ## Automatic company capture and permanent filing history
 
 `scripts/capture-company-filings.mjs` runs in the existing `insider-trades-refresh.yml` workflow,
-now scheduled every two hours on all days. With `FAMILY_HOLDINGS_LIVE=true`, it reads the current
+with a two-hour collection interval on all days. Every workflow run, including watchdog dispatches,
+checks the latest branch checkpoint with `check-company-capture-due.mjs`. A missing, invalid or
+interrupted checkpoint is due immediately; a completed recent run is skipped. Eligibility does not
+depend on one particular cron event, so a missed scheduler tick can recover on the next ordinary
+run. This interval controls collection attempts, not proof of successful checks for every company.
+With `FAMILY_HOLDINGS_LIVE=true`, it reads the current
 shared Family portfolio on every run and combines it with the raw Screener universe and technicals.
 The last verified names/identifiers-only portfolio is retained in `filing-capture/portfolio.json`;
 the reviewed `portfolio-companies.json` remains the initial fallback. A source outage, stale response,

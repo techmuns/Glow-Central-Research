@@ -28,7 +28,7 @@ export function createAnnouncementIdentity(entries = []) {
   };
   for (const entry of entries) {
     unique(isins, upper(entry.isin), entry);
-    unique(codes, String(entry.bseCode || ''), entry);
+    for (const code of [entry.bseCode, ...(entry.bseCodes || [])]) unique(codes, String(code || ''), entry);
     for (const symbol of [entry.ticker, entry.bseSymbol, ...(entry.aliases || [])]) unique(symbols, filingTicker(symbol), entry);
     unique(names, nameKey(entry.name), entry);
   }
