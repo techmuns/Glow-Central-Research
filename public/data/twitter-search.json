@@ -615,12 +615,16 @@
     "isin:INE338I01027|MOTILALOFS": {
       "lastAttemptAt": "2026-09-08T15:12:53+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE310A01015|Nilkamal": {
+      "lastAttemptAt": "2026-09-08T15:44:33+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-08T15:12:53.135376+00:00"
+    "checkedAt": "2026-09-08T15:44:33.204392+00:00"
   }
 }
