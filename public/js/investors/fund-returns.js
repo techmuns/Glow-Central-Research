@@ -52,7 +52,7 @@ import { fundSearch } from '../ui/fund-search.js';
  */
 export function renderFundReturns(ctx, {
   disposers = [], repaint = null, rows = null, headHtml = '', view = null, onView = null,
-  measure = 'return', extraProvenance = '',
+  measure = 'return', extraProvenance = '', onSearchChange = null,
 } = {}) {
   const m = fundReturns.meta();
   // `rows` lets the OWNING TAB narrow the set — the Mutual Funds tab's asset-class / group chips
@@ -68,7 +68,7 @@ export function renderFundReturns(ctx, {
   }
 
   const visiblePeriods = periodsWithData(funds, m.periods);
-  const table = buildTable(funds, m, visiblePeriods, view, measure);
+  const table = buildTable(funds, m, visiblePeriods, view, measure, onSearchChange);
 
   // ONE TABLE AND NOTHING ELSE, the way the filed view and the Earnings Hub are built. No stat strip,
   // no ranking grid: this is a listing the reader scans and sorts. The provenance is one click away
@@ -92,7 +92,7 @@ export function renderFundReturns(ctx, {
       if (off) disposers.push(off);
       // The reader's own search / filter / sort, handed back so a repaint (a chip press) can seed
       // the next instance with it rather than discarding what they had set up.
-      onView?.(table.view);
+      onView?.(table.view, table.matchesSearch);
       root.querySelector('[data-fund-returns-info]')?.addEventListener('click', () => openProvenance(m, extraProvenance));
     },
   };
@@ -120,8 +120,11 @@ function periodsWithData(funds, periods) {
 // The table
 // ---------------------------------------------------------------------------------------
 
-function buildTable(funds, m, visiblePeriods, view = null, measure = 'return') {
-  const search = fundSearch({ rows: funds, selected: view?.fundSearch?.categories, q: view?.q });
+function buildTable(funds, m, visiblePeriods, view = null, measure = 'return', onSearchChange = null) {
+  const search = fundSearch({
+    rows: funds, selected: view?.fundSearch?.categories, q: view?.q,
+    onFilterChange: (matches) => onSearchChange?.(table.view, matches),
+  });
   const table = scoreTable({
     rows: funds,
     // The scheme code is the stable, content-derived id — never a row index (see the perf notes in
@@ -164,6 +167,7 @@ function buildTable(funds, m, visiblePeriods, view = null, measure = 'return') {
   });
   // Keep category selections alongside the table's query and sort when a chip or measure repaints it.
   table.view.fundSearch = search.view;
+  table.matchesSearch = search.matches;
   return table;
 }
 
