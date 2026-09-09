@@ -3161,6 +3161,13 @@ Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links r
 Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
 bootstrap, Ask Research evidence and the source registry; keep it out of active customer views.
 
+**Glow shares the technical filter chips across all three views.** Technical Scanner and FII
+Accumulation reuse Strong Breakouts' Volume Confirm, 52W Proximity and Trend Filter definitions,
+defaulting each to All. Counts hold the other chip groups fixed within the current scope; FII's
+holding filters are included. Keep search and score selections across chip repaints, and keep
+scanner cards, exports and price-refresh candidates within the selected chips. The fixture in
+`scripts/verify-technical-filters-ui.mjs` covers boundary values, missing data and empty intersections.
+
 ---
 
 ## Running inside the Munshot host — the SDK integration

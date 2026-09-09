@@ -16,6 +16,7 @@
 // shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
 import { readFileSync } from 'node:fs';
+import { verifyTechnicalFiltersUI } from './verify-technical-filters-ui.mjs';
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -2837,6 +2838,10 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
 }
 
 // ---------------------------------------------------------------------------------------
+// Shared technical filters use an isolated fixture so boundaries and zero-count combinations
+// remain covered regardless of what the latest market capture contains.
+await verifyTechnicalFiltersUI(browser, { base: BASE });
+
 // 4c. The live-quote refresh — every branch, stubbed.
 //
 // This route used to fail for every reader, every time, and the tab said only "Live quote refresh

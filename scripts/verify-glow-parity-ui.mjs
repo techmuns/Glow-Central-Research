@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyChangesUI } from './verify-investor-changes-ui.mjs';
+import { verifyTechnicalFiltersUI } from './verify-technical-filters-ui.mjs';
 import { handleGlowPortfolio } from '../worker/glow-portfolio.mjs';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
@@ -185,6 +186,7 @@ try {
   assert.equal(await page.locator('[data-fund-search-menu]').count(), 0, 'leaving the table removes the category portal');
   assert.deepEqual(foreignPortfolio, []);
   await verifyChangesUI(page, { base: origin });
+  await verifyTechnicalFiltersUI(browser, { base: origin });
   assert.deepEqual(errors, []);
   console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, desktop/mobile, mismatch rejection and recovery.`);
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }
