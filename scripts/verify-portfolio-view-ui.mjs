@@ -300,8 +300,8 @@ try {
     const normal = await measure();
     assert(normal.pageWidth <= normal.width + 2, `no horizontal page clipping at ${size.width}px`);
     assert(normal.toolbar <= (size.width >= 1024 ? 66 : 165), `search, watchlist and all filters retain a compact row budget: ${JSON.stringify(normal)}`);
-    await frame.locator('[data-table-search]').waitFor({ state: 'visible' });
-    assert((await frame.locator('[data-table-search]').boundingBox()).width >= 160, 'company search remains a usable text field, not a collapsed icon');
+    // Source arrivals can replace the field between waitFor and boundingBox. Read atomically.
+    await frame.waitForFunction(() => (document.querySelector('[data-table-search]')?.getBoundingClientRect().width || 0) >= 160, null, { timeout: 30000 });
     const clipped = await frame.evaluate(() => [...document.querySelectorAll('[data-alerts-workspace] button, [data-sources-summary], [data-table-search], [data-table-filter]')]
       .filter(node => !node.closest('tbody') && node.getBoundingClientRect().width > 0)
       .filter(node => node.getBoundingClientRect().left < 0 || node.getBoundingClientRect().right > innerWidth + 1)

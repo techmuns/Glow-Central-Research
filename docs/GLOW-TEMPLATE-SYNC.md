@@ -19,8 +19,9 @@ history rather than replaying years of changes.
   repository ID `1339395437`. Durable Objects are local to this Worker. All shared edge-cache keys include a Glow deployment prefix. Rate-limit namespaces
   `1801` and `1802` are distinct from Sattva's `1701` and `1702`.
 - Glow palette, wordmark, Family Book, My Managers, Mutual Funds and macro research remain.
-  Glow PR #18’s Changes view retains its manager/investor audiences, five periods and separate
-  trade and holdings-comparison evidence. Glow PRs #20, #21, #22, #23, #25 and #26 also remain: compact technicals,
+  Glow PR #18’s Changes view retains its manager/investor audiences, eight periods and separate
+  trade and holdings-comparison evidence. Glow PRs #20, #21, #22, #23, #25, #26 and #27 also remain: compact technicals,
+  Indian-calendar short activity windows and shareable Bulk/Block period selection,
   shared technical/volume/proximity/trend filters, official NSE/BSE reports and artifact delivery, investor/manager coverage audits, verified
   associated-entity evidence, and retirement of the mock Earnings Surprise view.
   Unknown source cells remain unconfirmed; explicit non-disclosure can establish a disclosure

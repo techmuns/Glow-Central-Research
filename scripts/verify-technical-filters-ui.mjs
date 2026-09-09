@@ -49,6 +49,8 @@ export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0
     });
     const page = await context.newPage();
     page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
+    const failedRequests = [];
+    page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
     const chip = (group, id) => page.locator(`[data-chip-group="${group}"][data-chip-id="${id}"]`);
     const count = async (group, id) => Number(await chip(group, id).locator('span').last().innerText());
     const expectRows = async (expected) => {
@@ -56,7 +58,9 @@ export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0
         const actual = [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey).sort();
         return JSON.stringify(actual) === JSON.stringify(expected);
       }, [...expected].sort()); } catch (error) {
-        console.error(JSON.stringify(await page.evaluate(() => ({ url: location.href, rows: [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey), text: document.querySelector('#content-host')?.innerText?.slice(0, 1200) }))));
+        console.error(JSON.stringify(await page.evaluate(() => ({ url: location.href, rows: [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey), text: (document.querySelector('#content-host') || document.body)?.innerText?.slice(0, 1800), ready: document.readyState, scripts: [...document.scripts].map(s => s.src).filter(Boolean) }))));
+        console.error(JSON.stringify({ failedRequests }));
+        await page.screenshot({ path: '/tmp/glow-technical-filter-failure.png' });
         throw error;
       }
     };

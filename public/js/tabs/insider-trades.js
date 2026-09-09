@@ -19,6 +19,7 @@ import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
 import { insiderTradeSourceUrl, pickField } from '../data/filings-shared.js';
 import { matchesNewsPeriod, NEWS_PERIODS } from '../data/news-window.js';
+import { parseRange, inRange } from '../data/date-range.js';
 
 export { insiderTradeSourceUrl };
 
@@ -87,7 +88,14 @@ const filterCell = (row, keys) => {
   return value == null ? null : String(value).trim() || null;
 };
 
+const RANGE_TO_PERIOD = { '1m': '30', '3d': '3', '7d': '7', '14d': '14' };
+const PERIOD_TO_RANGE = { '30': '1m', '3': '3d', '7': '7d', '14': '14d' };
+const TRADE_PERIODS = [...NEWS_PERIODS,
+  { value: '3m', label: 'Last 3 months' }, { value: '6m', label: 'Last 6 months' },
+  { value: '1y', label: 'Last year' }, { value: 'all', label: 'All captured' }];
+
 function tradeFilters(rows) {
+  const longRanges = new Map(['3m', '6m', '1y'].map(id => [id, parseRange(id)]));
   const fields = FILTER_FIELDS.map((field) => {
     // A numeric/date-only value under Transaction or Mode is a ragged upstream markdown row, not
     // a transaction choice. It remains visible under "All" but is not promoted into a misleading
@@ -108,8 +116,9 @@ function tradeFilters(rows) {
       label: 'Trade period',
       value: '30',
       maxWidthPx: 180,
-      options: [...NEWS_PERIODS, { value: 'all', label: 'All captured' }],
-      match: (row, value) => matchesNewsPeriod(row, value),
+      options: TRADE_PERIODS,
+      match: (row, value) => longRanges.has(value)
+        ? inRange(row.date, longRanges.get(value)) : matchesNewsPeriod(row, value),
     },
   ];
 }
@@ -132,6 +141,24 @@ const tab = makeFilingsTab({
   // key builder in filings-tab.js for what that cost the News tab.
   keyFor: (r) => `${r.ticker || ''}|${r.date || ''}|${Object.values(r.cells || {}).join('|')}`,
   filters: tradeFilters,
+  // Keep the template's compact period selector and the Glow link/reload contract.
+  // Range selection changes only the displayed rows; automatic capture retains its full history.
+  prepareView: (ctx, previous) => {
+    const raw = ctx.params?.range;
+    if (!raw) return previous;
+    const period = RANGE_TO_PERIOD[raw] || raw;
+    if (!TRADE_PERIODS.some(option => option.value === period)) return previous;
+    const filters = [...(previous?.filters || FILTER_FIELDS.map(() => 'all'))];
+    filters[FILTER_FIELDS.length] = period;
+    return { ...previous, filters };
+  },
+  wireAboveTable: (root, ctx) => {
+    const select = root.querySelector('[data-table-filter][aria-label="Trade period"]');
+    if (!select) return;
+    const changed = () => ctx.setParamsQuiet({ ...ctx.params, range: PERIOD_TO_RANGE[select.value] || select.value });
+    select.addEventListener('change', changed);
+    return () => select.removeEventListener('change', changed);
+  },
   // The shared renderer's separate Link column is disabled. Insider Trades owns one Source column:
   // an arrow to the row's evidence, never a repeated provider label plus a second arrow.
   link: false,

@@ -5,8 +5,34 @@ import { join } from 'node:path';
 import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, identityIndex, preserveBulkDeals } from '../public/js/data/investor-changes.js';
 import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
 import { syncBulkDeals } from './sync-bulk-deals.mjs';
+import { parseRange, applyRange, indiaDay, rangeParam, describeRange, dayGap } from '../public/js/data/date-range.js';
 
-assert.equal(PERIODS.length, 5);
+assert.deepEqual(PERIODS.map((p) => p.id), ['today', '3d', '7d', 'month', 'quarter', '6m', 'year', 'itd']);
+// Indian calendar boundaries: before UTC midnight, across a year and across leap day.
+for (const [stamp, today, threeFrom, sevenFrom] of [
+  ['2026-09-08T18:29:59Z', '2026-09-08', '2026-09-06', '2026-09-02'],
+  ['2026-09-08T18:30:00Z', '2026-09-09', '2026-09-07', '2026-09-03'],
+  ['2025-12-31T20:00:00Z', '2026-01-01', '2025-12-30', '2025-12-26'],
+  ['2024-02-29T20:00:00Z', '2024-03-01', '2024-02-28', '2024-02-24'],
+]) {
+  const now = Date.parse(stamp);
+  assert.equal(indiaDay(now), today);
+  for (const [id, from, days] of [['today', today, 1], ['3d', threeFrom, 3], ['7d', sevenFrom, 7], ['month', `${today.slice(0, 7)}-01`, Number(today.slice(8))]]) {
+    const range = parseRange(id, now);
+    assert.deepEqual(periodRange(id, today), { from, to: today });
+    assert.deepEqual(range, { id, from, to: today, days, custom: false });
+    assert.equal(dayGap(from, today) + 1, days, 'the named number of days includes today');
+    assert.equal(rangeParam(range), id, 'preset survives a shared URL');
+    const rows = ['2020-01-01', from, today, '2030-01-01', null].map((date) => ({ date }));
+    assert.deepEqual(applyRange(rows, range).rows, [rows[1], rows[2]]);
+    assert.deepEqual(rows.filter((row) => inPeriod(row, periodRange(id, today))), [rows[1], rows[2]]);
+  }
+}
+assert.equal(describeRange(parseRange('today')), 'today');
+assert.equal(describeRange(parseRange('month')), 'this month');
+assert.equal(describeRange(parseRange('3d')), 'the last 3 days');
+assert.equal(parseRange(null).id, 'all', 'existing filings default is preserved');
+assert.equal(parseRange('2026-09-09..2026-09-01').from, '2026-09-01', 'custom dates still work');
 assert.deepEqual(periodRange('month', '2026-09-09'), { from: '2026-09-01', to: '2026-09-09' });
 assert.deepEqual(periodRange('quarter', '2026-01-02'), { from: '2026-01-01', to: '2026-01-02' });
 assert.equal(periodRange('6m', '2026-08-31').from, '2026-02-28');

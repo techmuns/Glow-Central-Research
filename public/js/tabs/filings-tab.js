@@ -131,7 +131,7 @@ export function makeFilingsTab(cfg) {
     disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
-    view = seeded.view;
+    view = cfg.prepareView?.(ctx, seeded.view) ?? seeded.view;
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -346,7 +346,7 @@ export function makeFilingsTab(cfg) {
                 : 'companies';
         return `${formatNumber(visible.length)} ${rowNoun} from ${formatNumber(companies)} ${companyNoun}`;
       },
-      exportName: `sattva-${cfg.id}`,
+      exportName: `glow-${cfg.id}`,
       onExport: (visible) => cfg.onExport(visible, cfg.preserveReadingPosition ? cfg.feed.meta() : m),
       // AN EMPTY TABLE MUST NOT OVERSTATE WHAT WAS ASKED. With companies still outstanding, "no
       // articles in the last 30 days" is a claim about the upstream that nobody measured — these
