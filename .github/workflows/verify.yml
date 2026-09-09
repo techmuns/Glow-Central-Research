@@ -27,6 +27,8 @@ jobs:
         run: node scripts/verify-refresh.mjs
       - name: Verify personal notebook snapshot and backup contracts
         run: node scripts/verify-bookmarks.mjs
+      - name: Verify shared technical filter boundaries and counts
+        run: node scripts/verify-technical-filters.mjs
       - name: Verify variable-height virtual list geometry
         run: node scripts/verify-windowed-geometry.mjs
       - name: Verify Glow portfolio and template isolation
@@ -143,10 +145,17 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-theme-ui.mjs
+<<<<<<< HEAD
       - name: Verify the real Glow statement bridge and retained family-office tabs
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-glow-parity-ui.mjs
+=======
+      - name: Verify technical and institutional filters across scopes and refreshes
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-technical-filters-ui.mjs
+>>>>>>> sattva/main
       - name: Verify inline private summary reader and source parser offline
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

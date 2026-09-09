@@ -3156,6 +3156,7 @@ ever has one age, so the stale branch cannot be produced by the fixture, exactly
 cannot be produced by a day with no big faller in it. A feed with **no** capture time is a third
 state, `unknown`: never "live", never "stale".
 
+<<<<<<< HEAD
 **Glow removes Earnings Surprise until real data is available.** Breakouts offers only Strong
 Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Strong
 Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
@@ -3167,6 +3168,12 @@ defaulting each to All. Counts hold the other chip groups fixed within the curre
 holding filters are included. Keep search and score selections across chip repaints, and keep
 scanner cards, exports and price-refresh candidates within the selected chips. The fixture in
 `scripts/verify-technical-filters-ui.mjs` covers boundary values, missing data and empty intersections.
+=======
+**Earnings Surprise is removed because analyst consensus estimates are not connected.** Breakouts
+has three views: Strong Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise
+links resolve to Strong Breakouts through the normal sub-view fallback. Research keeps the missing
+consensus limitation with Earnings Hub; reported growth must not be presented as an earnings surprise.
+>>>>>>> sattva/main
 
 ---
 
