@@ -907,12 +907,16 @@
     "isin:INE1NPP01017|ENRIN": {
       "lastAttemptAt": "2026-09-09T23:18:54+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE01IU01018|Sky Gold": {
+      "lastAttemptAt": "2026-09-09T23:24:33+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-09T23:18:54.918097+00:00"
+    "checkedAt": "2026-09-09T23:24:33.021837+00:00"
   }
 }
