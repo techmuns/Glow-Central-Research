@@ -409,6 +409,13 @@ picker and so the view the tab opens on — then **Technical Scanner** (the full
 **FII Accumulation** (shareholding changes joined to the score). Earnings Surprise is removed
 until a real data feed is available; its mock corpus is excluded from startup and Ask Research.
 
+Volume Confirm, 52W Proximity and Trend Filter are available in all three technical views.
+Each starts on **All**. Volume uses today's volume divided by the prior 30-session base average;
+proximity includes the exact 5%, 10% and 20% boundaries. Chip counts reflect the current scope
+and the other chip selections, including FII's institutional-side and holding-change filters.
+Scanner cards, table rows, exports and price-refresh candidates follow the selected chips.
+Search, score filters and sort survive a chip change; chip selections remain in the URL.
+
 Every Strong Breakouts filter group leads with **All** and defaults to it, so the sub-view opens on
 the widest answer it can give. The trend filter used to ship on *Above 200 DMA only*, which meant a
 breakout below the primary trend line was absent from a table that gave no sign it was withholding

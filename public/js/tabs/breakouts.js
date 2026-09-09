@@ -10,7 +10,7 @@
 // list — nothing below refetches or rescores.
 
 import { authHeaders } from '../core/host-context.js';
-import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { topCards, scoreTable, sectionHead, openModal, companySeededView } from '../ui/screener.js';
 import { legendStrip } from '../ui/visual.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
@@ -35,9 +35,27 @@ export const meta = {
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
 let renderToken = 0;
+// Chip changes rebuild the panel; preserve the table's search, score filter and sort within
+// that view, and reset them when the reader chooses another view or leaves the tab.
+let tableView = null;
+let tableSubview = null;
+let routeCompany = null;
 
 export function render(ctx) {
   const token = ++renderToken;
+  // A filter repaint replaces the table that an outstanding quote request would update.
+  inFlight?.abort();
+  inFlight = null;
+  if (tableSubview !== ctx.subview) {
+    tableView = null;
+    routeCompany = null;
+    tableSubview = ctx.subview;
+  }
+  if (ctx.subview === 'technical-scanner') {
+    const seeded = companySeededView(ctx, routeCompany, tableView);
+    routeCompany = seeded.company;
+    tableView = seeded.view;
+  }
   ctx.root.innerHTML = loadingHtml();
 
   technicals
@@ -132,9 +150,10 @@ const scoreOf = (s) => ({
 });
 const signalsOf = (s) => s.breakdown.map((b) => ({ label: `${b.label} (${fmtPoints(b.points)}/${b.max})`, status: b.status }));
 
-// scoreTable accessors are shared across all four sub-views.
+// scoreTable accessors are shared across all three sub-views.
 const tableBase = (rows, ctx) => ({
   rows,
+  initialView: tableView,
   key: (s) => s.company.ticker,
   name: (s) => s.company.name || s.company.ticker,
   sub: (s) => [s.company.ticker, s.company.sector].filter(Boolean).join(' · '),
@@ -358,7 +377,9 @@ function scoringHelpModalBody() {
 
 function renderScanner(ctx, rows) {
   const m = technicals.meta();
-  const scored = rows.filter((s) => !s.tickerError);
+  const state = readChipState(ctx.params || {}, TECHNICAL_DEFAULTS, TECHNICAL_FILTERS);
+  const { filtered, counts } = applyChipFilters(rows, TECHNICAL_FILTERS, state);
+  const scored = filtered.filter((s) => !s.tickerError);
   const maxPoints = scored[0]?.totalMax ?? 24;
 
   const pill = livePill({
@@ -385,9 +406,7 @@ function renderScanner(ctx, rows) {
   });
 
   const table = scoreTable({
-    ...tableBase(rows, ctx),
-    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
-    initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
+    ...tableBase(filtered, ctx),
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -425,14 +444,16 @@ function renderScanner(ctx, rows) {
     exportName: `glow-technicals-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
+  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: meta.title,
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'companies', book: coverage.meta() })}</div>`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'companies', book: coverage.meta() })}</div>`,
     })}
     ${refreshBar()}
+    ${chipBar(TECHNICAL_FILTERS, state, counts)}
     ${cards.html}
     ${table.html}
     ${legendStrip({ note: `Scored from ${m?.source || 'Yahoo Finance'} daily OHLCV plus NSE delivery data. ${m?.failures || 0} of ${m?.company_count || 0} companies have no usable price history and score 0 of 0.` })}
@@ -441,7 +462,10 @@ function renderScanner(ctx, rows) {
   pill.wire(ctx.root);
   cards.wire(ctx.root);
   table.wire(ctx.root);
-  wireRefreshBar(ctx, table);
+  wireRefreshBar(ctx, table, filtered);
+  wireChipBar(ctx.root, TECHNICAL_FILTERS, state, (param, next) => {
+    ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
+  });
 }
 
 // ---- (b) Strong Breakouts ------------------------------------------------------------------
@@ -511,7 +535,7 @@ const BREAKOUT_FILTERS = {
       if (!id || id === 'all') return true;
       const p = s.company.high_proximity_pct;
       if (p == null) return false;
-      return (1 - p) * 100 <= Number(id);
+      return p >= 1 - Number(id) / 100;
     },
   },
   trend: {
@@ -531,19 +555,42 @@ const BREAKOUT_FILTERS = {
   },
 };
 
+// GLOW: use the same three market filters in every technical view. Volume confirmation reads
+// today's volume against the prior 30-session base, including companies without a breakout.
+const TECHNICAL_FILTERS = {
+  volume: BREAKOUT_FILTERS.volume,
+  proximity: BREAKOUT_FILTERS.proximity,
+  trend: BREAKOUT_FILTERS.trend,
+};
+const TECHNICAL_DEFAULTS = { vol: 'all', near: 'all', dma: 'all' };
 // Defaults: all of everything. Nothing on this sub-view is narrowed until the reader narrows it.
-const BREAKOUT_DEFAULTS = { bo: 'all', vol: 'all', near: 'all', dma: 'all' };
+const BREAKOUT_DEFAULTS = { bo: 'all', ...TECHNICAL_DEFAULTS };
 
 function readChipState(params, defaults, groups = null) {
-  const aliasFor = (param) => Object.values(groups || {}).find((g) => g.param === param)?.aliases || null;
   const state = {};
   for (const [key, def] of Object.entries(defaults)) {
     const raw = params[key];
     const ids = raw == null || raw === '' ? def.split(',') : String(raw).split(',');
-    const alias = aliasFor(key);
-    state[key] = alias ? ids.map((id) => alias[id] || id) : ids;
+    const group = Object.values(groups || {}).find((g) => g.param === key);
+    const canonical = ids.map((id) => group?.aliases?.[id] || id);
+    const valid = group ? canonical.filter((id) => group.options.some((o) => o.id === id)) : canonical;
+    state[key] = valid.length ? (group?.multi ? valid : valid.slice(0, 1)) : def.split(',');
   }
   return state;
+}
+
+function applyChipFilters(rows, groups, state) {
+  const definitions = Object.values(groups);
+  const matches = (row, selected) => definitions.every((g) => g.test(row, selected[g.param]));
+  const counts = {};
+  for (const g of definitions) {
+    counts[g.param] = {};
+    for (const o of g.options) {
+      const trial = { ...state, [g.param]: [o.id] };
+      counts[g.param][o.id] = rows.filter((row) => matches(row, trial)).length;
+    }
+  }
+  return { filtered: rows.filter((row) => matches(row, state)), counts };
 }
 
 function chipBar(groups, state, counts) {
@@ -552,13 +599,13 @@ function chipBar(groups, state, counts) {
       ${Object.entries(groups)
         .map(
           ([groupKey, g]) => `
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="${escapeHtml(g.label)}">
           <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(g.label)}</span>
           ${g.options
             .map((o) => {
               const active = state[g.param].includes(o.id);
               const n = counts?.[g.param]?.[o.id];
-              return `<button type="button" data-chip-group="${escapeHtml(groupKey)}" data-chip-id="${escapeHtml(o.id)}"
+              return `<button type="button" data-chip-group="${escapeHtml(groupKey)}" data-chip-id="${escapeHtml(o.id)}" aria-pressed="${active}"
                 class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                   active ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }">
@@ -600,21 +647,9 @@ function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
 
-  // Live counts per chip: how many rows would remain if that chip alone were toggled on,
-  // holding the other groups at their current setting.
-  const counts = {};
-  for (const [groupKey, g] of Object.entries(BREAKOUT_FILTERS)) {
-    counts[g.param] = {};
-    for (const o of g.options) {
-      const trial = { ...state, [g.param]: [o.id] };
-      counts[g.param][o.id] = withBreakout.filter((s) =>
-        Object.entries(BREAKOUT_FILTERS).every(([k2, g2]) => g2.test(s, trial[g2.param]))
-      ).length;
-    }
-  }
-
-  const filtered = withBreakout
-    .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
+  // Each chip counts its result with every other group held at the current selection.
+  const { filtered, counts } = applyChipFilters(withBreakout, BREAKOUT_FILTERS, state);
+  filtered
     // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
     // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
     // columns left on screen once the Quality column came off. The quality is still what the chip
@@ -663,6 +698,7 @@ function renderStrongBreakouts(ctx, rows) {
     exportName: `glow-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
+  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
@@ -734,25 +770,16 @@ const FII_FILTERS = {
       return f != null && f > Number(ids[0] ?? 0);
     },
   },
+  ...TECHNICAL_FILTERS,
 };
-const FII_DEFAULTS = { side: 'fii', mag: '0' };
+const FII_DEFAULTS = { side: 'fii', mag: '0', ...TECHNICAL_DEFAULTS };
 
 function renderFiiAccumulation(ctx, rows) {
   const state = readChipState(ctx.params || {}, FII_DEFAULTS, FII_FILTERS);
   const withHold = rows.filter((s) => !s.tickerError && (s.company.chg_fii_hold != null || s.company.chg_dii_hold != null));
 
-  const counts = {};
-  for (const g of Object.values(FII_FILTERS)) {
-    counts[g.param] = {};
-    for (const o of g.options) {
-      const trial = { ...state, [g.param]: [o.id] };
-      counts[g.param][o.id] = withHold.filter((s) => Object.values(FII_FILTERS).every((g2) => g2.test(s, trial[g2.param]))).length;
-    }
-  }
-
-  const filtered = withHold
-    .filter((s) => Object.values(FII_FILTERS).every((g) => g.test(s, state[g.param])))
-    .sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+  const { filtered, counts } = applyChipFilters(withHold, FII_FILTERS, state);
+  filtered.sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
 
   const exiting = withHold.filter((s) => (s.company.chg_fii_hold ?? 0) < -2).length;
   const avgFii = withHold.length ? withHold.reduce((s, r) => s + (r.company.chg_fii_hold ?? 0), 0) / withHold.length : 0;
@@ -788,6 +815,7 @@ function renderFiiAccumulation(ctx, rows) {
     exportName: `glow-fii-accumulation-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
+  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
@@ -891,21 +919,20 @@ let inFlight = null;
 // We do NOT probe for it on mount — an unsolicited request that 404s in a static preview is
 // just console noise. The button starts enabled; if the first click finds no endpoint we
 // disable it and explain, so the failure is stated once and never repeated.
-function wireRefreshBar(ctx, table) {
+function wireRefreshBar(ctx, table, rows) {
   const btn = ctx.root.querySelector('[data-refresh-btn]');
   const note = ctx.root.querySelector('[data-refresh-note]');
   const label = ctx.root.querySelector('[data-refresh-label]');
   if (!btn) return;
 
-  const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const scored = rows.filter((s) => !s.tickerError);
   const byTicker = new Map(scored.map((s) => [s.company.ticker, s.company]));
   const tickers = scored.slice(0, 60).map((s) => s.company.ticker);
 
-  btn.disabled = false;
+  btn.disabled = tickers.length === 0;
   btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
-  btn.title = `Fetch live quotes for the top ${tickers.length} names on screen`;
-  note.textContent = `EOD data below. Live quotes for the top ${tickers.length} names on demand.`;
+  btn.title = tickers.length ? `Fetch live quotes for the top ${tickers.length} names on screen` : 'No matching companies to refresh';
+  note.textContent = tickers.length ? `EOD data below. Live quotes for the top ${tickers.length} names on demand.` : 'No matching companies to refresh.';
   btn.addEventListener('click', () => doRefresh({ btn, note, label, tickers, byTicker, table }));
 }
 
@@ -1085,6 +1112,9 @@ export function destroy() {
   // Invalidate any in-flight load so it can't paint after we're gone. The parsed+scored
   // technicals cache is intentionally kept — that's what makes tab re-entry instant.
   renderToken++;
+  tableView = null;
+  tableSubview = null;
+  routeCompany = null;
   // A quote refresh can take twenty seconds. Abandoning one mid-flight would otherwise leave it
   // to resolve against a table that has been torn down, and to write its note into detached DOM.
   inFlight?.abort();
