@@ -131,6 +131,15 @@ try {
   await fundInput.waitFor();
   const fundRows = page.locator('#content-host tr[data-row-key]');
   assert.equal(await fundRows.count(), 5);
+  const categoryBar = page.locator('[data-mf-categories]');
+  assert(await categoryBar.isVisible());
+  await categoryBar.locator('[data-mf-category="equity-large-cap"]').click();
+  assert.equal(await fundRows.count(), 2, 'direct category selection works before classification/group selection');
+  await categoryBar.locator('[data-mf-category="equity-flexi-cap"]').click();
+  assert.equal(await fundRows.count(), 1, 'selecting another category replaces the direct choice');
+  await categoryBar.locator('[data-mf-category=""]').click();
+  assert.equal(await fundRows.count(), 5);
+
   await fundInput.fill('debt short duration');
   await page.locator('[data-fund-category="Debt : Short Duration"]').waitFor({ state: 'visible' });
   await fundInput.press('Enter');
