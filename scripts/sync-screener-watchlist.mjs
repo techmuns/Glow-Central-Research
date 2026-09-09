@@ -7,6 +7,7 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { assertGlowWatchlist } from './lib/screener-upcoming.mjs';
 import {
   additionsCsv,
   matchRemovalButtons,
@@ -19,6 +20,7 @@ const ORIGIN = 'https://www.screener.in';
 const WATCHLIST_ID = process.env.SCREENER_WATCHLIST_ID;
 if (!/^\d+$/.test(WATCHLIST_ID || '') || !process.env.SCREENER_WATCHLIST_NAME) throw Error('Configure Glow Screener watchlist identity before syncing');
 const WATCHLIST_NAME = process.env.SCREENER_WATCHLIST_NAME;
+assertGlowWatchlist();
 const WATCHLIST_PATH = `/watchlist/${WATCHLIST_ID}/`;
 const MANAGE_PATH = `/user/stocks/${WATCHLIST_ID}/`;
 const IMPORT_PATH = `/watchlist/import/${WATCHLIST_ID}/`;

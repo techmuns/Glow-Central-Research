@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 env:
-  # Historical saved-page fixtures only; collectors use this repository's variables.
-  SCREENER_WATCHLIST_ID: '10850427'
-  SCREENER_WATCHLIST_NAME: 'S Screen'
+  # Inert saved-page fixtures only; collectors use this repository's variables.
+  SCREENER_WATCHLIST_ID: '99000001'
+  SCREENER_WATCHLIST_NAME: 'Glow test watchlist'
 jobs:
   contracts:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
       - name: Verify variable-height virtual list geometry
         run: node scripts/verify-windowed-geometry.mjs
       - name: Verify Glow portfolio and template isolation
-        run: node scripts/verify-glow-parity.mjs && node scripts/check-book.mjs
+        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-review-gates.mjs && node scripts/check-book.mjs
       - name: Verify filings snapshot recovery
         run: node scripts/verify-filings-snapshot.mjs
       - name: Verify permanent company-news identities and archive

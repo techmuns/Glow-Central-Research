@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 12
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     env:
       FAMILY_HOLDINGS_LIVE: 'true'
     steps:
@@ -39,24 +41,20 @@ jobs:
           name: tradingview-news-data
           path: public/data/tradingview-news/
           if-no-files-found: warn
-      - name: Publish independent news capture
+      - name: Open reviewed tradingview news data PR
         # Successful checkpoints survive a later collector failure or artifact-service outage.
         # The final gate still reports that failed collection; publishing is not approval.
         if: ${{ !cancelled() && steps.capture.outcome != 'skipped' && github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           node scripts/partition-news-data.mjs
           git add public/data/tradingview-news/
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "TradingView portfolio news ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh tradingview news data"
+
       # Partial capture and Retry-After are durable before reporting failure, so the next
       # scheduled run can recover without discarding news or hammering a refusing source.
       - name: Check TradingView coverage

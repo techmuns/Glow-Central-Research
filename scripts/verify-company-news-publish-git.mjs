@@ -86,7 +86,7 @@ function advanceMain(fixture, sequence) {
   git(fixture.competing, 'push', 'origin', 'HEAD:refs/heads/main');
   return git(fixture.competing, 'rev-parse', 'HEAD');
 }
-const remoteText = (fixture, path) => git(fixture.remote, 'show', `refs/heads/main:${path}`);
+const remoteText = (fixture, path) => git(fixture.remote, 'show', `refs/heads/${fixture.proposal || 'main'}:${path}`);
 const remoteHead = fixture => JSON.parse(remoteText(fixture, 'public/data/news.json'));
 const urls = rows => rows.map(row => row.url).sort();
 
@@ -115,16 +115,19 @@ try {
         assert.match(readFileSync(join(worktree, 'worker/index.js'), 'utf8'), /latest-main-1/);
       }
     } });
-  assert.equal(published.outcome, 'published'); assert.equal(published.attempts, 2);
+  assert.equal(published.outcome, 'review-pending'); assert.equal(published.published, false); race.proposal = published.branch; assert.equal(published.attempts, 2);
   assert.equal(published.ok, true); assert.equal(published.health.ok, true);
   assert.equal(published.health.publicationCommit, published.commit, 'health is bound to the actual successfully published commit');
   assert.deepEqual(attempts, [1, 2]); assert.equal(checks.length, 2, 'each semantic merge is verified before its push');
-  assert.equal(git(race.remote, 'rev-parse', 'refs/heads/main^'), competingCommit, 'published data is a descendant of current main');
+  assert.equal(git(race.remote, 'rev-parse', 'refs/heads/main'), competingCommit, 'the publisher does not write main');
+  assert.equal(git(race.remote, 'rev-parse', `refs/heads/${published.branch}^`), competingCommit, 'published data is a descendant of current main');
   assert.deepEqual(urls(remoteHead(race).byTicker.KISSHT), urls([article('base'), article('captured'), article('competing-1')]));
   assert.deepEqual(urls(JSON.parse(remoteText(race, 'public/data/company-news/2026-09.json')).articles), urls([article('base'), article('captured'), article('competing-1')]));
   assert.match(remoteText(race, 'worker/index.js'), /latest-main-1/, 'latest application code is preserved');
   assert.equal(JSON.parse(remoteText(race, 'public/data/other-source.json')).version, 'latest-main-1', 'other writers retain their data');
   assert.deepEqual(preservation(race), beforeRace, 'publication never rewrites the original capture workspace or uploaded artifact');
+  // Simulate the later approved PR merge in the isolated bare fixture only.
+  git(race.remote, 'update-ref', 'refs/heads/main', published.commit);
   const mergedCommit = git(race.remote, 'rev-parse', 'refs/heads/main');
   const unchanged = await publishCompanyNews({ repoDir: race.checkout, fixtureRoot: race.root, healthNow });
   assert.equal(unchanged.outcome, 'already-retained', 'retrying the same retained capture is idempotent');
@@ -178,15 +181,17 @@ try {
       git(partial.competing, 'commit', '-m', 'Concurrent reviewed alias awaiting capture');
       git(partial.competing, 'push', 'origin', 'HEAD:refs/heads/main');
     } });
-  assert.equal(partialResult.published, true); assert.equal(partialResult.outcome, 'published');
+  assert.equal(partialResult.published, false); assert.equal(partialResult.outcome, 'review-pending'); partial.proposal = partialResult.branch;
   assert.equal(partialResult.ok, false, 'publication success is not a healthy coverage result');
   assert.equal(partialResult.health.ok, false);
   assert.equal(partialResult.attempts, 2, 'a healthy stale checkout cannot determine the retried publication health');
   assert(partialResult.health.findings.some(f => f.code === 'company-never-checked'));
-  assert.equal(partialResult.health.publicationCommit, git(partial.remote, 'rev-parse', 'refs/heads/main'));
+  assert.equal(partialResult.health.publicationCommit, git(partial.remote, 'rev-parse', `refs/heads/${partialResult.branch}`));
+  assert.notEqual(git(partial.remote, 'rev-parse', 'refs/heads/main'), partialResult.commit);
   assert.deepEqual(urls(remoteHead(partial).byTicker.KISSHT), urls([article('base'), article('captured'), article('competing-1')]),
     'partial merged coverage is published, not discarded when the health result fails');
   assert.deepEqual(preservation(partial), beforePartial, 'partial health preserves the original healthy checkout and artifact');
+  git(partial.remote, 'update-ref', 'refs/heads/main', partialResult.commit);
   const partialRetained = await publishCompanyNews({ repoDir: partial.checkout, fixtureRoot: partial.root, healthNow });
   assert.equal(partialRetained.outcome, 'already-retained'); assert.equal(partialRetained.ok, false,
     'an idempotent already-retained publication still checks its reconciled incomplete index');
@@ -194,8 +199,8 @@ try {
   const commands = calls();
   assert(commands.every(call => !['reset', 'rebase', 'checkout'].includes(call.args[0])), 'no reset, rebase or checkout can discard the capture');
   const pushes = commands.filter(call => call.args[0] === 'push');
-  assert(pushes.length >= 7);
-  assert(pushes.every(call => JSON.stringify(call.args) === JSON.stringify(['push', 'origin', 'HEAD:refs/heads/main'])), 'only ordinary fast-forward pushes; no --force, +refspec or branch overwrite');
+  assert(pushes.length >= 3);
+  assert(pushes.every(call => call.args.length === 3 && call.args[1] === 'origin' && /^HEAD:refs\/heads\/codex\/data-\d+-\d+-news-\d+$/.test(call.args[2])), 'only review branches; never main, force pushes or branch overwrite');
   assert(commands.every(call => call.cwd.startsWith(scratch + '/')), 'every Git operation stayed in the isolated local fixture');
   console.log('PASS local bare Git: competing-main retry preserves latest code and both news captures; idempotent publication; four-race exhaustion and unchanged-main refusal retain capture checkout/artifact; scoped normal pushes and worktree cleanup.');
 } finally {

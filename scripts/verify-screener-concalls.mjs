@@ -37,7 +37,7 @@ const html = `<!doctype html><table id="result_list"><tbody>
 
 const parsed = parseScreenerConcallPage(html, observedAt);
 const rows = addResolvedTickers(parsed.rows, (name) => (name === 'Leap India' ? 'LEAPIND' : null));
-const portfolioUpcomingHtml = `<!doctype html><aside class="sidebar-panel"><h2>Upcoming</h2><div>S Screen</div>
+const portfolioUpcomingHtml = `<!doctype html><aside class="sidebar-panel"><h2>Upcoming</h2><div>Glow test watchlist</div>
   <ul class="bg-base list-style-none">
     <li><strong>Today</strong></li>
     <li class="flex"><a href="/company/GAEL/consolidated/"><span class="ink-900">Guj. Ambuja Exp</span></a><div><span class="badge sub">AGM</span></div></li>
@@ -84,7 +84,7 @@ test('authenticated page parser keeps every document and its fixed Screener iden
   validateScreenerConcallCapture(capture, Date.parse(observedAt));
 });
 
-test('S Screen parser keeps today, times, event types and year rollover without inventing a BSE ticker', () => {
+test('Glow test watchlist parser keeps today, times, event types and year rollover without inventing a BSE ticker', () => {
   assert.equal(portfolioUpcoming.length, 4);
   assert.deepEqual(portfolioUpcoming.map((item) => [item.date, item.eventType, item.time]), [
     ['2026-09-05', 'AGM', null],

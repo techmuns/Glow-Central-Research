@@ -30,6 +30,8 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -65,8 +67,10 @@ jobs:
           path: public/data/corporate-actions.json
           if-no-files-found: error
 
-      - name: Commit corporate actions to main
+      - name: Open reviewed corporate actions data PR
         if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -75,16 +79,4 @@ jobs:
             echo "No corporate action changes to commit."
             exit 0
           fi
-          git commit -m "Corporate actions refresh ($(date -u +%Y-%m-%d))"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then
-              echo "Push succeeded on attempt $attempt."
-              exit 0
-            fi
-            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          echo "Push failed after 4 attempts."
-          exit 1
+          node scripts/data-pr.mjs "Refresh corporate actions data"

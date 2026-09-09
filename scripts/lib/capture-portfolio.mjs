@@ -40,5 +40,6 @@ export async function loadCapturePortfolio(dataDir, { live = process.env.FAMILY_
   }
   return { holdings: book.holdings,
     portfolio: { status: origin, liveRequested: live, error, attemptedAt: new Date(now()).toISOString(),
-      checkedAt: book.syncedAt || null, revision: book.sourceRevision || null, count: book.holdings.length } };
+      checkedAt: book.syncedAt || null, revision: book.sourceRevision || null, count: book.holdings.length,
+      unresolvedHoldings: book.holdings.filter(h => !h.ticker).map(h => ({ isin: h.isin, name: h.name })) } };
 }

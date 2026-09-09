@@ -34,6 +34,8 @@ jobs:
     timeout-minutes: 80
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -86,8 +88,10 @@ jobs:
             public/data/filing-capture/
           if-no-files-found: warn
 
-      - name: Commit filing and trade captures to main
+      - name: Open reviewed insider trades data PR
         if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -96,15 +100,7 @@ jobs:
             echo "No insider-trades changes to commit."
             exit 0
           fi
-          git commit -m "Insider trades refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh insider trades data"
 
       # Run after snapshot publication: a bad source must mark the job failed without discarding
       # useful rows and checkpoints already collected by the successful capture steps.

@@ -31,6 +31,8 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -48,7 +50,9 @@ jobs:
           MUNS_VERIFY_BUDGET_MS: "1500000"
         run: node scripts/verify-price-moves.mjs
 
-      - name: Commit verified moves to main
+      - name: Open reviewed price move verify data PR
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -57,15 +61,4 @@ jobs:
             echo "Nothing newly verified; nothing to commit."
             exit 0
           fi
-          git commit -m "Price-move verification ($(date -u +'%Y-%m-%d %H:%M UTC'))"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then
-              echo "Push succeeded on attempt $attempt."
-              exit 0
-            fi
-            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh price move verify data"

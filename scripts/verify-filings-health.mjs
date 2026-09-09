@@ -256,13 +256,15 @@ try {
     'news health gate preserves progress before failing incomplete captures');
   assert(newsWorkflow.includes("if: success() && github.ref != 'refs/heads/main'"),
     'main cannot certify the unreconciled original checkout after publishing a different index');
-  const publishStep = newsWorkflow.slice(newsWorkflow.indexOf('name: Publish company news and check reconciled health'), newsPublish);
+  const publishStep = newsWorkflow.slice(newsWorkflow.indexOf('name: Open company-news data PR and check reconciled health'), newsPublish);
   assert(publishStep.includes('FILINGS_HEALTH_REPORT:'), 'main publishes the reconciled commit-bound health artifact');
   const announcementsWorkflow = readFileSync(new URL('../.github/workflows/announcements-refresh.yml', import.meta.url), 'utf8');
-  assert(announcementsWorkflow.indexOf('Check operational capture health') > announcementsWorkflow.indexOf('git push origin HEAD:main'), 'announcement health gate runs after preserving/publishing captured progress');
+  assert(announcementsWorkflow.includes('node scripts/data-pr.mjs'));
+  assert(announcementsWorkflow.indexOf('Check operational capture health') > announcementsWorkflow.indexOf('node scripts/data-pr.mjs'), 'announcement health gate runs after preserving/publishing captured progress');
   const insiderWorkflow = readFileSync(new URL('../.github/workflows/insider-trades-refresh.yml', import.meta.url), 'utf8');
+  assert(insiderWorkflow.includes('node scripts/data-pr.mjs'));
   for (const gate of ['Check trade capture health', 'Check filing and trade capture health']) {
-    assert(insiderWorkflow.indexOf(gate) > insiderWorkflow.indexOf('git push origin HEAD:main'), `${gate} runs after preserving/publishing captured progress`);
+    assert(insiderWorkflow.indexOf(gate) > insiderWorkflow.indexOf('node scripts/data-pr.mjs'), `${gate} runs after preserving/publishing captured progress`);
   }
 } finally { await new Promise((resolve) => server.close(resolve)); rmSync(scratch, { recursive: true, force: true }); }
 console.log('PASS source health failures, fixed initial grace, stale checks, retained-data incidents, HTTP 503, read-only caching and workflow gate ordering');

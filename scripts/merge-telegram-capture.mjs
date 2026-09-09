@@ -36,9 +36,14 @@ const pages = (path) => json('api', path, '--paginate', '--slurp').flat();
 const reviews = pages(`repos/${repo}/pulls/${number}/reviews`);
 const inline = pages(`repos/${repo}/pulls/${number}/comments`);
 const comments = pages(`repos/${repo}/issues/${number}/comments`);
+const completedReview = comments.some(c => c.user?.login === 'chatgpt-codex-connector[bot]' && c.body.includes('codex-pull-request-review-summary') && c.body.includes('Completed') && c.body.includes('`' + pr.headRefOid.slice(0, 7) + '`'));
+if (!completedReview) {
+  console.log('Automated review is pending or unavailable; the archive PR remains open.');
+  process.exit(0);
+}
 const informational = (comment) =>
   (comment.user?.login === 'cloudflare-workers-and-pages[bot]' && comment.body.startsWith('## Deploying with')) ||
-  (comment.user?.login === 'chatgpt-codex-connector[bot]' && comment.body.startsWith('You have reached your Codex usage limits for code reviews.'));
+  (comment.user?.login === 'chatgpt-codex-connector[bot]' && (comment.body.startsWith('You have reached your Codex usage limits for code reviews.') || comment.body.includes('codex-pull-request-review-summary')));
 if (reviews.some((r) => ['CHANGES_REQUESTED', 'COMMENTED'].includes(r.state)) || inline.length || comments.some((c) => !informational(c))) {
   console.log('Review feedback is present; leaving the archive PR open for review.');
   process.exit(0);

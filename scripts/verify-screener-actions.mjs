@@ -77,4 +77,4 @@ assert.doesNotMatch(collector, /context\.request/, 'every history page retains t
 assert.match(collector, /failureCatalogue.*failurePage.*failureCode/s, 'safe operational logs identify the rejected fixed catalogue page');
 assert.match(collector, /row\.exDate < requestedFrom/, 'a full crawl stops only after crossing the retained rolling-window boundary');
 
-console.log('PASS Screener action parsing, retained fields, conservative cross-source deduplication and refresh schedule');
+console.log('PASGlow test watchlister action parsing, retained fields, conservative cross-source deduplication and refresh schedule');

@@ -16,7 +16,7 @@ history rather than replaying years of changes.
 
 - Worker: `glow-central-research`; repository: `techmuns/Glow-Central-Research`.
 - Research dispatch and authenticated Actions artifacts use Glow's repository and immutable
-  repository ID `1339395437`. Durable Objects are local to this Worker. Rate-limit namespaces
+  repository ID `1339395437`. Durable Objects are local to this Worker. All shared edge-cache keys include a Glow deployment prefix. Rate-limit namespaces
   `1801` and `1802` are distinct from Sattva's `1701` and `1702`.
 - Glow palette, wordmark, Family Book, My Managers, Mutual Funds and macro research remain.
 - The portfolio producer is **techmuns/GlowVentures**, not Sattva-Family. Daily `series-refresh`
@@ -41,6 +41,11 @@ weights. Null costs/P&L stay unknown, duplicate reports count once, and the ring
 holding remains outside consolidated totals. Family Book retains the original detailed book
 and supplies its own dated research evidence. This does not change the pre-existing publication
 of Glow's book assets; no new authenticated/private-archive access is claimed.
+
+The filing index uses Glow's book for portfolio priority: 167 capture identities are resolved,
+with three unresolved holdings explicitly named. Existing archived documents, check times and
+watermarks remain unchanged. Upstream saved registrations are excluded; only Glow's own registry
+can enroll additional capture companies. Building a new book also reconciles this metadata.
 
 The legacy `sync-family-book.mjs` / `resolve-portfolio-companies.mjs` workbook fixture utilities
 are retained for upstream regression tests. Their CLI cannot overwrite Glow's portfolio.
@@ -87,6 +92,23 @@ Configure repository secrets/variables in
 [Glow Actions settings](https://github.com/techmuns/Glow-Central-Research/settings/secrets/actions)
 and Worker settings for `glow-central-research` in the Tech Cloudflare account. Never put
 credentials in repository files, frontend assets, PR text or chat.
+
+## Generated-data publication
+
+Scheduled repository writers commit on `codex/data-*` branches and open PRs with an explicit
+Verify dispatch and automated review request. Company-news publication still reconciles captured
+records with the latest main in disposable worktrees, preserving competing records and source
+health. It reports `review-pending` until the PR merges; a capture or PR is not deployed data.
+The review controller reads trusted main-branch code, checks the exact proposed SHA and only
+merges data-only PRs with successful verification and completed review without feedback.
+
+A failed check, conflicting update, review finding or unavailable reviewer leaves the PR open.
+Codex review quota was exhausted during this migration; future generated-data PRs need completed
+review after availability returns, or a disclosed local review by an operator following the
+repository workflow. A quota notice is never approval. Captures stay in their review branches
+(and the company-news workflow's uploaded artifact) while publication is pending. Repository
+Actions must permit PR creation; no extra publication PAT is required because CI is explicitly
+dispatched with `GITHUB_TOKEN`.
 
 ## Future upgrades
 

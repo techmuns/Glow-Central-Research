@@ -305,3 +305,9 @@ console.log(
   `portfolio-companies.json: ${companies.count} direct-equity lines (${companies.resolved} with an NSE symbol, ${companies.unresolved} unresolved, ${companies.unlisted} not listed equity) ` +
     `from ${equityRows.length} equity rows; excluded ${Object.entries(excluded).map(([k, v]) => `${k} ${v}`).join(', ')} → ${COMPANIES_OUT}`
 );
+
+// Portfolio metadata must follow a new Glow book even if external collectors are unavailable.
+if (OUT === join(ROOT, 'public/data/book.json') && COMPANIES_OUT === join(ROOT, 'public/data/portfolio-companies.json')) {
+  const { rebuildGlowCaptureIndex } = await import('./rebuild-glow-capture-index.mjs');
+  await rebuildGlowCaptureIndex(join(ROOT, 'public/data'));
+}

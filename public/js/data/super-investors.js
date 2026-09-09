@@ -500,6 +500,19 @@ async function seedFromSnapshot(gen) {
  * the committed snapshot genuinely cannot — an investor added or dropped upstream. It confirms no
  * BOOK, so `meta().origin` keeps saying `snapshot` / `store`, which is what it should say.
  */
+function recordCredentialFailure(body) {
+  if (body?.ok !== false || !['no-token', 'unauthorised'].includes(body.reason)) return false;
+  state.listOk = false;
+  state.reason = body.reason;
+  state.message = body.message || 'The investor source credential needs attention.';
+  state.stale = true;
+  state.staleReason = state.message;
+  for (const investor of state.investors) state.unconfirmed.add(investor.slug);
+  bump();
+  emit({ now: true });
+  return true;
+}
+
 async function confirmList() {
   const gen = generation;
   let res;
@@ -510,13 +523,16 @@ async function confirmList() {
   }
   if (!current(gen)) return;
   const body = res?.value;
+  if (recordCredentialFailure(body)) return;
   if (!body || body.ok === false || !Array.isArray(body.investors)) return;
+  const recovered = !state.listOk;
+  state.listOk = true; state.reason = null; state.message = null;
   state.checkedAt = res.checkedAt;
   state.dropped = body.dropped || 0;
   if (body.fetchedAt) state.fetchedAt = body.fetchedAt;
   state.stale = body.stale === true;
   state.staleReason = body.stale === true ? body.staleReason || null : null;
-  if (JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
+  if (recovered || JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
     state.investors = body.investors;
     bump();
     emit({ now: true });
@@ -545,7 +561,11 @@ async function revalidate({ ignoreWindow = false } = {}) {
     }
     if (!current(gen)) return;
     const body = res?.value;
+    if (recordCredentialFailure(body)) return;
     if (body && body.ok !== false && Array.isArray(body.investors)) {
+      state.listOk = true;
+      state.reason = null;
+      state.message = null;
       state.checkedAt = res.checkedAt;
       state.dropped = body.dropped || 0;
       if (body.fetchedAt) state.fetchedAt = body.fetchedAt;
@@ -616,9 +636,9 @@ function needsRevalidation(slug) {
 /** Active-view lifecycle only; General Alerts' snapshot reads do not fan out over books. */
 export function watchFreshness() {
   const check = () => {
-    if (document.visibilityState !== 'visible' || !state.loaded || !state.listOk || state.revalidating) return;
+    if (document.visibilityState !== 'visible' || !state.loaded || state.revalidating) return;
     if (Date.now() - lastAutoAttempt < AUTO_RETRY_MS) return;
-    const listDue = !state.checkedAt || Date.now() - state.checkedAt >= REVALIDATE_MS;
+    const listDue = !state.listOk || !state.checkedAt || Date.now() - state.checkedAt >= REVALIDATE_MS;
     if (!listDue && !state.investors.some((i) => needsRevalidation(i.slug))) return;
     lastAutoAttempt = Date.now();
     void revalidate();

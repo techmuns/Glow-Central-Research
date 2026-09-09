@@ -65,7 +65,7 @@ jobs:
           # The custom merge driver alone does not protect one-sided changes.
           git ls-tree -rz --name-only "$base" -- public/data | \
             git restore --source="$base" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
-          for cache in public/data/filing-capture/portfolio.json public/data/tradingview-news/portfolio.json; do
+          for cache in public/data/filing-capture/portfolio.json public/data/tradingview-news/portfolio.json public/data/filing-capture/registrations.json; do
             if ! git cat-file -e "$base:$cache" 2>/dev/null; then git rm -f --ignore-unmatch "$cache"; fi
           done
           node scripts/adapt-glow-template.mjs
@@ -86,6 +86,7 @@ jobs:
         run: |
           npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
           node --experimental-vm-modules --no-warnings scripts/verify-syntax.mjs
+          node scripts/rebuild-glow-capture-index.mjs
           node scripts/verify-glow-parity.mjs
           node scripts/check-book.mjs
           npx --yes wrangler@4 deploy --dry-run

@@ -67,6 +67,9 @@ watch = []; assert.equal(collector.status().remaining.length, 0, 'unwatch remove
 const dir = mkdtempSync(join(tmpdir(), 'sattva-enrollment-'));
 try {
   writeJson(join(dir, 'portfolio-companies.json'), { holdings: [] });
+  writeJson(join(dir, 'filing-capture/registrations.json'), { companies: [{ ...companies[0], name: 'Foreign saved enrollment' }] });
+  const isolated = await loadCaptureRegistrations(dir, { live: false });
+  assert.equal(isolated.companies.length, 0, 'an upstream cache cannot enroll its companies into Glow');
   const fetcher = () => handleCaptureRegistration(new Request('https://test.example/api/capture-registration'), env);
   let enrolled = await loadCaptureRegistrations(dir, { live: true, fetcher });
   assert.equal(enrolled.companies.length, 2);
@@ -85,7 +88,7 @@ try {
   enrolled = await loadCaptureRegistrations(dir, { live: true, fetcher: async () => Response.json({ ok: true, version: 1, checkedAt: new Date().toISOString(), count: 0, companies: [] }) });
   assert.equal(enrolled.companies.length, 2, 'an unexpectedly empty registry cannot retract previous enrollments');
   assert(enrolled.registration.error);
-  writeJson(join(dir, 'filing-capture/registrations.json'), { companies: null });
+  writeJson(join(dir, 'filing-capture/registrations.json'), { deployment: 'glow-central-research', companies: null });
   enrolled = await loadCaptureRegistrations(dir, { live: false });
   assert(enrolled.registration.error, 'invalid cache data is reported without aborting portfolio capture');
   enrolled = await loadCaptureRegistrations(dir, { live: true, fetcher });

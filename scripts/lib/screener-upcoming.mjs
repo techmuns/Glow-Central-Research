@@ -13,6 +13,7 @@ export const SCREENER_PORTFOLIO_DASHBOARD = `https://www.screener.in/dash/${SCRE
 export function assertGlowWatchlist() {
   if (!/^\d+$/.test(SCREENER_PORTFOLIO_WATCHLIST_ID) || !SCREENER_PORTFOLIO_WATCHLIST_NAME.trim())
     throw Error('Configure the Glow SCREENER_WATCHLIST_ID and SCREENER_WATCHLIST_NAME before collection');
+  if (SCREENER_PORTFOLIO_WATCHLIST_ID === '10850427') throw Error('Sattva’s watchlist cannot be used by Glow');
 }
 
 const MONTHS = new Map(

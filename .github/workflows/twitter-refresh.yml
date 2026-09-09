@@ -40,6 +40,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -91,8 +93,10 @@ jobs:
           TWITTER_EXIT_CODE: ${{ steps.collect.outputs.code }}
         run: node scripts/record-twitter-status.mjs
 
-      - name: Commit the capture
+      - name: Open reviewed twitter data PR
         if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -104,15 +108,7 @@ jobs:
             echo "No new posts."
             exit 0
           fi
-          git commit -m "Twitter refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh twitter data"
 
       - name: Report unexpected collector failure
         if: vars.X_CAPTURE_ENABLED != 'false' && steps.collect.outputs.code != '0' && steps.collect.outputs.code != '2' && steps.collect.outputs.code != '3'

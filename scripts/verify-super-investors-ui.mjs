@@ -11,7 +11,7 @@ const at = '2026-09-06T00:00:00Z';
 const h = (company, companySlug, latest, prior, valueCr = 10) => ({ company, companySlug,
   quarterlyHoldings: { 'Aug 2026': 'Filing Due', 'Jun 2026': latest, 'Mar 2026': prior }, valueCr });
 const b = (slug, holdings) => ({ ...normalisePortfolio({ name: slug, slug, quarters: ['Aug 2026', 'Jun 2026', 'Mar 2026'], holdings }, slug), ok: true, fetchedAt: at });
-let fail = false;
+let fail = false, credentialFailure = null;
 const books = {
   one: b('one', [h('Aavas Financiers Ltd.', 'AAVAS', 2.13, 1.65), h('Portfolio Only Ltd.', 'ONLY', 1.2, 1), h('Pending Ltd.', 'PENDING', 'Filing Due', 1, 0)]),
   two: b('two', [h('Aavas Financiers Limited', 'AAVAS', 1.1, null), h('Portfolio Only Other Ltd.', 'OTHER', 1.5, 1)]),
@@ -44,7 +44,7 @@ const server = createServer((req, res) => {
   const json = value => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
   if (path === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
   if (path === '/data/super-investors.json') return json(snapshot);
-  if (path === '/api/super-investors') return json({ ok: true, investors, fetchedAt: at });
+  if (path === '/api/super-investors') return json(credentialFailure ? { ok: false, reason: credentialFailure, message: 'MUNS_TOKEN needs attention' } : { ok: true, investors, fetchedAt: at });
   if (path.startsWith('/api/super-investors/')) return json(fail ? { ok: false, reason: 'fixture outage' } : books[path.split('/').at(-1)] || { ok: false, reason: 'missing fixture' });
   const file = resolve(root, `.${path}`);
   if (!file.startsWith(root + sep)) { res.writeHead(404); res.end(); return; }
@@ -103,6 +103,16 @@ try {
   await page.waitForFunction(() => !!window.testSI);
   assert.equal(await page.evaluate(() => testSI.feed.books().length), 3, 'repeat visit restores validated device books');
   assert.equal(await page.evaluate(() => testSI.feed.book('one').holdings.find(h => h.companySlug === 'PENDING').quarterlyNotes['Jun 2026']), 'Filing Due');
+  for (const reason of ['no-token', 'unauthorised']) {
+    credentialFailure = reason;
+    await page.reload();
+    await page.waitForFunction(r => window.testSI?.feed.meta().reason === r, reason);
+    assert.equal(await page.evaluate(() => testSI.feed.meta().ok), false, 'snapshot-first list confirmation surfaces credential failures');
+    assert.equal(await page.evaluate(() => testSI.feed.books().length), 3, 'saved disclosures remain available as evidence');
+    credentialFailure = null;
+    await page.evaluate(() => testSI.feed.refresh());
+    assert.equal(await page.evaluate(() => testSI.feed.meta().ok), true, 'a repaired credential recovers the feed');
+  }
   books.one.holdings.find(h => h.companySlug === 'ONLY').quarterlyHoldings['Jun 2026'] = 1.8;
   await page.clock.setSystemTime(new Date(Date.parse(at) + 7 * 3600000));
   await page.evaluate(() => window.dispatchEvent(new Event('online')));

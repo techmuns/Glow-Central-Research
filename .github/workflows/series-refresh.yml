@@ -37,6 +37,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
 
@@ -122,25 +124,19 @@ jobs:
             echo "::warning title=Price gap-fill failed::The new holdings have no technicals row yet. The book is still correct and is committed; technicals-refresh.yml will fill them on its next run."
           fi
 
-      - name: Commit the refreshed store and book to main
+      - name: Open reviewed series data PR
         if: env.SRC_SHA != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # technicals.json is staged because the step above may have filled prices for holdings
           # this very run added. It is a no-op on the ordinary day when the book did not grow.
-          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json
+          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json public/data/filing-capture/index.json
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          git commit -m "GlowVentures sync ($(date -u +%Y-%m-%d)) — series store and family book from techmuns/GlowVentures@${SRC_SHA}"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh series data"

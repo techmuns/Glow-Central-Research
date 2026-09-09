@@ -1314,6 +1314,7 @@ const ERROR_TTL_S = 15;
 const INVESTOR_SOURCE = 'Ticker Finology, via devde.muns.io';
 
 function handleInvestorList(request, env, ctx) {
+  if (!env.MUNS_TOKEN) return json({ ok: false, reason: 'no-token', message: 'Configure the MUNS_TOKEN Worker secret.', investors: [], count: 0 });
   return investorRoute(request, ctx, 'super-investors', () => fetchInvestorList(fetch, env.MUNS_TOKEN, env.MUNS_BASE), {
     count: 0,
     investors: [],
@@ -1324,6 +1325,7 @@ function handleInvestorPortfolio(request, env, ctx, slug) {
   if (!isSlug(slug)) {
     return json({ ok: false, error: 'bad-slug', message: 'An investor slug may only contain a-z, 0-9 and hyphens.' }, 400);
   }
+  if (!env.MUNS_TOKEN) return json({ ok: false, reason: 'no-token', message: 'Configure the MUNS_TOKEN Worker secret.', slug, quarters: [], holdings: [] });
   return investorRoute(request, ctx, `super-investors/${slug}`, () => fetchInvestorPortfolio(fetch, env.MUNS_TOKEN, slug, env.MUNS_BASE), {
     slug,
     quarters: [],
@@ -1374,7 +1376,7 @@ async function investorRoute(request, ctx, key, load, empty) {
     // is a service condition, so neither may serve a stale copy or be cached as one.
     if (reason === 'not-found') return json({ ok: false, reason, message: String(err?.message || err), ...empty }, 404);
 
-    const stale = await readLastGood(cache, lastGoodKey);
+    const stale = ['no-token', 'unauthorised'].includes(reason) ? null : await readLastGood(cache, lastGoodKey);
     const { body, tag } = stale
       ? withTag({
           ...stale,
@@ -2119,7 +2121,9 @@ function json(obj, status = 200) {
 
 /** Cache keys live on a hostname that cannot resolve, so an entry can never be confused for a fetch. */
 function edgeKey(path) {
-  return new Request(`https://cache.invalid/${path}`, { method: 'GET' });
+  // caches.default is shared across same-account Workers. Every caller, including
+  // helpers without an inbound request, must stay in this deployment's namespace.
+  return new Request(`https://cache.invalid/glow-central-research/${path}`, { method: 'GET' });
 }
 
 // Fresh immutable captures do not wait for an archive PR or a static-site rebuild.

@@ -78,6 +78,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -116,8 +118,10 @@ jobs:
       # `if: success()` matters: the scraper exits non-zero when it read pages and parsed nothing,
       # which means the markup changed rather than the news being quiet. Committing then would
       # replace a good capture with an empty one that still looks valid.
-      - name: Commit the capture
+      - name: Open reviewed market news data PR
         if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -132,12 +136,4 @@ jobs:
             echo "No new stories."
             exit 0
           fi
-          git commit -m "Market news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh market news data"

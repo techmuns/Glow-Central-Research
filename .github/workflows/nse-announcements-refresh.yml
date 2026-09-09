@@ -39,6 +39,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -62,8 +64,10 @@ jobs:
           fi
           exit $code
 
-      - name: Commit the snapshot and captured history
+      - name: Open reviewed nse announcements data PR
         if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -72,12 +76,4 @@ jobs:
             echo "No change."
             exit 0
           fi
-          git commit -m "NSE announcements refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh nse announcements data"
