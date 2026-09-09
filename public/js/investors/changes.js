@@ -29,7 +29,9 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
   let host, disposed = false, ready = false, tableDisposers = [];
   function rememberSources() {
     const sources = host?.querySelector('[data-changes-sources]');
-    if (sources) { state.sourcesOpen = sources.open; onView(state); }
+    // Update the shared view object without publishing it during disposal: the
+    // parent may already have reset its selected period for a navigation.
+    if (sources) state.sourcesOpen = sources.open;
   }
   function paint(focus = null) {
     if (disposed || !host?.isConnected) return;
@@ -142,7 +144,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     });
     host.querySelector('[data-changes-holdings]').addEventListener('toggle', (e) => { state.holdingsOpen = e.target.open; onView(state); });
     host.querySelector('[data-changes-sources]').addEventListener('toggle', (e) => {
-      if (!disposed && e.currentTarget.isConnected) rememberSources();
+      if (!disposed && e.currentTarget.isConnected) { rememberSources(); onView(state); }
     });
     if (focus) host.querySelector(focus === 'period' ? '[data-changes-period]' : '[data-changes-audience] [aria-selected="true"]')?.focus();
   }
