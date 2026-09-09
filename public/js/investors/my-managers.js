@@ -7,24 +7,10 @@
 //   managerSummaryBlock(ctx)      the period roll-up shown above the superstar one on Quarterly Changes
 //   openManager(id)               one manager, as a workspace
 //
-// THE ASK, verbatim: "what my managers are doing, can I see that? I'm more interested in the
-// portfolio managers I have access to." So under Portfolio this is the FIRST in-page tab, ahead of
-// ninety public investors the family has no relationship with, and the same roll-up the tab already
-// does for those investors is done here for the family's own mandates — from their statements.
-//
-// THE DESIGN IS THE SUPERSTAR INVESTORS DESIGN, deliberately: the same card, the same click-to-
-// expand workspace, the same six ranked lists, the same vocabulary (new / added / trimmed / no longer
-// on the statement / held), so a reader who has learned one half of the tab has learned the other.
-// What differs is stated on every surface: these are the manager's OWN statements to the family,
-// not exchange filings, so a move is a change in QUANTITY (the statement's primitive) rather than
-// in a disclosed percentage, and an exit here really is a sale or a corporate action rather than
-// "no longer disclosed".
-//
-// SCOPE. Portfolio and Universe both show the whole set — the family's managers are the family's,
-// and there is no wider universe of them to widen to — but only Portfolio puts the section first.
-// Watchlist narrows every move to the starred symbols and says so. Universe does not offer the
-// section at all: that scope means every tracked investor, and "mine" is what the toggle's first
-// position is for.
+// NAVIGATION. Changes leads the in-page bar, followed by My Managers and All Investors.
+// Changes has its own audience switch and date filters (changes.js). This module owns the
+// manager directory and workspaces. Portfolio/Universe include every family manager;
+// Watchlist narrows activity to starred symbols.
 //
 // Every figure is a statement's or a disclosure's; the derived ones — weight of the mandate, its
 // change, the family's share of a fund's underlying — are headed as derived. Nothing is scored.
@@ -39,14 +25,12 @@ import * as watchlist from '../core/watchlist.js';
 
 export const SECTION = { id: 'my-managers', label: 'My Managers' };
 
-/** First under Portfolio, last under Watchlist, absent under Universe — see the header. */
+/** Changes leads in every scope; the two audiences are always reachable. */
 export function sectionsFor(scope, base = []) {
-  if (scope === 'portfolio') return [SECTION, ...base];
-  if (scope === 'watchlist') return [...base, SECTION];
-  return base;
+  return [...base.filter((s) => s.id === 'quarterly-changes'), SECTION, ...base.filter((s) => s.id !== 'quarterly-changes')];
 }
 
-export const defaultSection = (scope) => (scope === 'portfolio' ? SECTION.id : 'investors');
+export const defaultSection = () => 'quarterly-changes';
 
 // ---------------------------------------------------------------------------------------
 // Formatting — rupees as the statements print them, in the unit a reader would say aloud
@@ -822,7 +806,6 @@ async function exportManager(m) {
  * whole set; Watchlist narrows through the same predicate the cards use.
  */
 export function managerSummaryBlock(ctx) {
-  if (ctx.scope === 'universe') return null;
   if (!managers.isLoaded()) {
     const html = `<section class="mb-6" data-manager-summary data-manager-summary-loading><div class="skeleton-shimmer h-24 rounded-2xl bg-slate-100"></div></section>`;
     return {
