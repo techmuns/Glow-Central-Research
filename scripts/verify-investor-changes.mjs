@@ -26,9 +26,9 @@ assert.equal(matchedDeals([variant({ Transaction: 'Pledge' })], people).length, 
 assert.equal(matchedDeals([deal], [...people, { id: 'two', name: people[0].name }]).length, 0);
 assert.equal(identityIndex([{ id: 'one', name: 'Example', aliases: ['example'] }]).get('example').id, 'one');
 const grouped = matchedDeals([deal, variant({ 'Trade Category': 'Block deal' })], people);
-assert.equal(grouped.length, 1);
-assert.equal(grouped[0].evidence.length, 2);
-assert.equal(grouped[0].source, 'Bulk / block deal');
+assert.equal(grouped.length, 2, 'bulk and block are different report types');
+assert.equal(matchedDeals([deal, deal], people)[0].evidence.length, 2);
+assert.equal(grouped[0].source, 'Bulk deal');
 assert.equal(matchedDeals([deal, variant({ Transaction: 'Sell' })], people).length, 2);
 assert.equal(matchedDeals([deal, variant({ 'Trade Shares': '20,000' })], people).length, 2);
 

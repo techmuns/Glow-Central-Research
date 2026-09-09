@@ -5,7 +5,7 @@ import { comparisonPeriods, summarise, disclosureStatus, periodEnd } from './fin
 export const POLICY = { investorHours: 30, managerSyncHours: 36, bulkHours: 72, pmsDays: 40, mfDays: 45, entityReviewDays: 90 };
 const ageDays = (value, now) => Number.isFinite(Date.parse(value)) ? Math.max(0, (Date.parse(now) - Date.parse(value)) / 86400000) : Infinity;
 
-export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, evidence = {}, now = new Date().toISOString() } = {}) {
+export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, exchange = null, evidence = {}, now = new Date().toISOString() } = {}) {
   const rows = [];
   for (const investor of snapshot.investors || []) {
     const book = snapshot.books?.[investor.slug], issues = [];
@@ -53,7 +53,10 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, evide
   const sourceIssues = [];
   if (!(snapshot.investors || []).length) sourceIssues.push('Investor list unavailable');
   if (!(managers.managers || []).length) sourceIssues.push('Manager list unavailable');
-  if (ageDays(deals.bulkDeals?.capturedAt, now) * 24 > POLICY.bulkHours || deals.bulkDeals?.error) sourceIssues.push('Bulk/block feed overdue or failed');
+  if (exchange) {
+    if (ageDays(exchange.checkedAt, now) * 24 > POLICY.bulkHours || exchange.sources?.length !== 4 || exchange.sources.some((s) => s.ok !== true)) sourceIssues.push('NSE/BSE bulk/block feed overdue or failed');
+    if (exchange.deliveryError) sourceIssues.push('NSE/BSE live delivery unavailable; saved reports retained');
+  } else if (ageDays(deals.bulkDeals?.capturedAt, now) * 24 > POLICY.bulkHours || deals.bulkDeals?.error) sourceIssues.push('Bulk/block feed overdue or failed');
   // No automatic primary-source reconciliation is connected yet. Manual evidence is dated and
   // limited; adding a verified row must never flip the entire portfolio to exchange-verified.
   sourceIssues.push('Full exchange reconciliation is not connected');

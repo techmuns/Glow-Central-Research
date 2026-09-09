@@ -12,3 +12,6 @@
 # tree, wrangler and playwright are invoked through npx and installed nowhere. The directory is
 # wrangler's scratch space, not ours, so it is ignored rather than committed.
 node_modules/
+
+# Local output of the direct exchange capture; scheduled runs upload it as an artifact.
+tmp/exchange-capture/

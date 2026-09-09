@@ -22,6 +22,8 @@ jobs:
         run: node scripts/verify-investor-changes.mjs
       - name: Verify holdings integrity and snapshot retention
         run: node scripts/verify-holdings-integrity.mjs
+      - name: Verify direct exchange capture and delivery
+        run: node scripts/verify-exchange-deals.mjs
       - name: Syntax-check JavaScript
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle

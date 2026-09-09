@@ -16,7 +16,7 @@ export function wireIntegrity(root, disposers, openInvestor, openManager) {
     const report = assessCoverage({ snapshot: { investors: investors.list(),
       books: Object.fromEntries(investors.books().map((b) => [b.slug, b])),
       failed: Object.fromEntries(investors.list().filter((i) => investors.failureFor(i.slug)).map((i) => [i.slug, investors.failureFor(i.slug)])) },
-      managers: { ...managers.meta(), managers: managers.all() }, deals: { bulkDeals: insider.meta().bulkDeals }, evidence: evidence() });
+      managers: { ...managers.meta(), managers: managers.all() }, deals: { bulkDeals: insider.meta().bulkDeals }, exchange: insider.meta().exchanges, evidence: evidence() });
     const rows = report.rows.filter((r) => `${r.name} ${r.kind} ${r.issues.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
     host.innerHTML = `<details class="mb-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-amber-200" ${expanded ? 'open' : ''}>
       <summary class="cursor-pointer font-semibold">Coverage &amp; unresolved gaps · ${report.attention} of ${report.total} books need attention</summary>

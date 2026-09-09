@@ -88,7 +88,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     state.holdingsView = holdingTable.view;
     onView(state);
     const dates = activity.map((r) => r.date).filter(Boolean).sort();
-    const bulk = insider.meta().bulkDeals;
+    const bulk = insider.meta().bulkDeals, exchanges = insider.meta().exchanges;
     const buys = events.filter((r) => r.action === 'buy').length;
     const sells = events.filter((r) => r.action === 'sell').length;
     const earliest = dates[0], latest = dates.at(-1);
@@ -109,6 +109,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
           <span class="text-xs text-slate-500">${buys} buys · ${sells} sells · ${new Set(events.map((r) => r.personId)).size} ${mine ? 'managers' : 'investors'}</span>
         </div>
         <p class="mb-3 text-xs text-slate-500">${range.from ? `${esc(date(range.from))} – ${esc(date(range.to))}` : 'ITD · all available captured history'} · ${mine ? 'PMS statement trades and matched bulk/block deals' : 'Matched bulk/block deals'}. Click a row for evidence.</p>
+        <p class="mb-3 text-xs text-slate-500" data-exchange-status>${esc(exchanges?.summary || 'NSE / BSE reports are loading.')}</p>
         <div data-changes-activity>${table.html}</div>
         <p class="my-3 text-xs text-slate-500" data-changes-coverage>${ready ? (earliest ? `Matching trade records: ${esc(date(earliest))} – ${esc(date(latest))}. ` : 'No matching trade records loaded. ') : 'Loading source records. '}${mine ? 'PMS activity covers the family’s accounts; public deals are at the named manager/fund level. ' : ''}ITD covers retained records, not necessarily inception. Deals do not establish total allocation.</p>
         <details class="mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-100" data-changes-holdings ${state.holdingsOpen ? 'open' : ''}>
@@ -120,7 +121,9 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
           <summary class="cursor-pointer font-semibold">Sources &amp; coverage</summary>
           <div class="mt-2 space-y-2 leading-relaxed">
             <p>${mine ? `PMS holdings and transactions come from the manager statements in GlowVentures. Only two holdings statements per account are retained here; the transaction archive can cover a longer period. AIF/fund-house activity appears only where a public deal matches the reported legal name. Manager data as of ${esc(date(managers.meta()?.asOf))}.` : `Holdings come from Ticker Finology’s retained quarterly disclosures. Public trading between reports is visible only where a captured bulk/block deal matches a tracked investor’s name. ${investors.meta().failed || 0} investor books could not be read.`}</p>
-            <p>Bulk/block deals reuse the Bulk/Block Deal tab’s records. Exact full-name matches allow punctuation and equivalent legal suffixes; ambiguous and unmatched names are excluded. ${bulk ? `Bulk/block source captured ${esc(date(bulk.capturedAt))}; ${bulk.rows} retained deal records. ${esc(bulk.error || '')}` : 'Bulk/block coverage metadata is unavailable.'} ${insider.meta().failed ? `${insider.meta().failed} company lookups could not be read.` : ''}</p>
+            <p>Bulk/block deals come from the full NSE exports and BSE historical reports, shared with the Bulk/Block Deal tab. The capture checks every 30 minutes on weekdays during the day and evening; this view checks for updates every minute while visible. These are published disclosures, not streaming trades. Official records replace overlapping Screener coverage. Exact full-name matches allow punctuation and equivalent legal suffixes; ambiguous and unmatched names are excluded. ${bulk ? `Supplementary Screener capture: ${esc(date(bulk.capturedAt))}; ${bulk.rows} retained records before overlap removal. ${esc(bulk.error || '')}` : 'Bulk/block coverage metadata is unavailable.'} ${insider.meta().failed ? `${insider.meta().failed} company lookups could not be read.` : ''}</p>
+            ${exchanges ? `<ul>${exchanges.sources.map((s) => `<li>${esc(s.id.toUpperCase())}: ${s.coverage.map((w) => `${esc(date(w.from))} – ${esc(date(w.to))}`).join(', ') || 'No successful capture'} · ${s.ok ? 'read successfully' : esc(s.error || 'unavailable')}; latest reported deal ${esc(date(s.latestDate))}.</li>`).join('')}</ul>` : ''}
+            <p>Duplicate reports are removed within the same exchange and report type. BSE and NSE trades, and buy and sell sides, remain separate. Exchange trade values are estimates from reported quantity × weighted average price. Public deals do not show the manager’s complete portfolio allocation.</p>
             <a href="#/research/insider-trades" class="font-semibold text-indigo-600">Open Bulk/Block Deal →</a>
           </div>
         </details>

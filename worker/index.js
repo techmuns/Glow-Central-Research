@@ -49,6 +49,8 @@ import {
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
 import { handleEconCalendar } from './econ-calendar.mjs';
+import { handleExchangeDeals } from './exchange-deals.mjs';
+import { EXCHANGE_WORKFLOW } from './exchange-artifact.mjs';
 
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
@@ -117,6 +119,11 @@ export default {
     // is specific to the caller: these all share a URL-keyed edge cache.
     env = withCallerToken(env, request);
 
+    if (url.pathname === '/api/bulk-block-deals') return handleExchangeDeals(request, env, ctx);
+    if (url.pathname === '/api/bulk-block-deals/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, { workflow: EXCHANGE_WORKFLOW, cacheName: 'exchange-deals-dispatch', cooldownS: 1800 });
+    }
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
     }
