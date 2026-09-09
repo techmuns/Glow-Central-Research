@@ -1,248 +1,111 @@
 name: Sync from Sattva
-
-# THE UPSTREAM SYNC. This repository is a downstream of techmuns/Sattva-Central-Research — the code
-# is written there and merged here, so a bug fixed upstream is fixed here within a day and a feature
-# built there arrives without anyone porting it. Read CLAUDE.md, "This dashboard is a downstream of
-# Sattva", for who owns which files; this workflow is the mechanism that section describes.
-#
-# WHAT ONE RUN DOES
-#   1. Fetches Sattva's main. Nothing to do if it is already an ancestor of ours.
-#   2. Merges it. `.gitattributes` keeps THIS repository's copy of every generated file (the data
-#      captures under public/data/ and the compiled stylesheet) whenever both sides changed one, so
-#      those never conflict; the merge driver they name is configured below.
-#   3. On a CLEAN merge: rebuilds public/css/tailwind.css from tailwind.config.cjs (the palette is
-#      ours; the class names are upstream's), syntax-checks every JS file, runs the offline verify
-#      scripts and a wrangler dry-run, and pushes to main only if all of that passes. Checks failing
-#      on a clean merge push the merge to a branch and open a PR instead, so main never goes red.
-#   4. On a CONFLICT: commits the merge WITH ITS CONFLICT MARKERS on a branch and opens a PR that
-#      names every conflicted file. That PR's CI is red on purpose until a person — or a Claude
-#      session pointed at the PR — resolves it. Nothing conflicted ever reaches main from here.
-#
-# WHY A PR AND NOT A GUESS. Resolving a conflict as "theirs" would silently drop a Glow-only feature
-# from a shared file (super-investors.js wires Fund Returns in; sources.js carries its entry); "ours"
-# would silently drop an upstream fix. Neither is a decision a cron job should make.
-#
-# THE PUSH TOKEN — SYNC_PUSH_TOKEN — IS NEEDED THE MOMENT SATTVA CHANGES A WORKFLOW FILE. GitHub
-# refuses any push made with the default GITHUB_TOKEN that adds or edits `.github/workflows/*`
-# ("refusing to allow a GitHub App to create or update workflow … without `workflows` permission"),
-# and Sattva adds and edits workflows often — the first run of this job died exactly there, on
-# price-move-verify.yml. A fine-grained personal access token for THIS repository with
-# "Contents: read and write", "Workflows: read and write" and "Pull requests: read and write" is the
-# fix; add it under Settings → Secrets and variables → Actions as SYNC_PUSH_TOKEN. Without it the job
-# still syncs a merge that touches no workflow, and STOPS with that message — rather than a failed
-# push — when one does. The same token also lets a synced main trigger deploy.yml/verify.yml
-# (pushes made with GITHUB_TOKEN never trigger other workflows) and lets the conflict path open a PR.
-#
-# BRAND STRINGS ARE RENAMED, NOT FLAGGED. Every reader-facing string upstream writes as
-# 'Sattva Central Research' is what Glow calls 'Glow Central Research' — a mechanical rename, and
-# leaving it to a person would turn every upstream file that mentions the product into a red run.
-# So the check step renames the exact quoted brand string across public/js and worker, commits it,
-# and only then fails on anything the rename did not cover. Internal keys (`sattva:` storage keys,
-# `x-sattva-*` headers, `SATTVA_*` globals) do not contain that string and are deliberately untouched.
-
 on:
   schedule:
-    # Every six hours, so a PR merged in Sattva during the day is here the same day. A run that
-    # finds nothing new costs a checkout and exits. GitHub's scheduler is best-effort (see the note
-    # in wrangler.jsonc about how often it actually fires here), so the manual trigger below is the
-    # one to rely on when a fix is wanted now: Actions → "Sync from Sattva" → Run workflow.
-    - cron: "0 */6 * * *"
+    - cron: '0 */6 * * *'
   workflow_dispatch:
-
 permissions:
   contents: write
   pull-requests: write
-
 concurrency:
   group: sync-upstream
   cancel-in-progress: false
-
-env:
-  UPSTREAM_REPO: techmuns/Sattva-Central-Research
-  UPSTREAM_BRANCH: main
-
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
-          token: ${{ secrets.SYNC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
-
+          token: ${{ secrets.SYNC_PUSH_TOKEN || github.token }}
       - uses: actions/setup-node@v5
         with:
-          node-version: "22"
-
-      - name: Fetch upstream
-        id: fetch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # The `ours` merge driver named in .gitattributes: keep our copy, report success.
-          git config merge.ours.driver true
-          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch upstream "${UPSTREAM_BRANCH}"
-          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" HEAD; then
-            echo "Already up to date with ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}."
-            echo "behind=0" >> "$GITHUB_OUTPUT"
-          else
-            n=$(git rev-list --count "HEAD..upstream/${UPSTREAM_BRANCH}")
-            echo "behind=$n" >> "$GITHUB_OUTPUT"
-            echo "### ${n} upstream commit(s) to merge" >> "$GITHUB_STEP_SUMMARY"
-            git log --no-merges --format='- %h %s' "HEAD..upstream/${UPSTREAM_BRANCH}" | grep -v -E 'data refresh|news refresh|announcements refresh|trades refresh|snapshot refresh' | head -60 >> "$GITHUB_STEP_SUMMARY" || true
-          fi
-
-      - name: Merge
-        id: merge
-        if: steps.fetch.outputs.behind != '0'
-        run: |
-          set +e
-          git merge --no-ff --no-edit "upstream/${UPSTREAM_BRANCH}" \
-            -m "Sync from ${UPSTREAM_REPO} ($(date -u +%Y-%m-%d))"
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ]; then
-            echo "conflict=false" >> "$GITHUB_OUTPUT"
-          else
-            conflicted=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
-            echo "conflict=true" >> "$GITHUB_OUTPUT"
-            echo "conflicted=$conflicted" >> "$GITHUB_OUTPUT"
-            echo "Merge conflicts in: $conflicted"
-          fi
-
-      # ---- clean merge: rebuild, check, push ------------------------------------------------
-      - name: Stop early if the merge touches a workflow and no push token is set
-        if: steps.merge.outputs.conflict == 'false'
+          node-version: '22'
+      - name: Prepare the upstream merge on a review branch
+        id: prepare
         env:
-          HAS_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN != '' }}
+          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN || github.token }}
         run: |
-          changed=$(git diff --name-only ORIG_HEAD HEAD -- .github/workflows | tr '\n' ' ')
-          if [ -n "$changed" ] && [ "$HAS_TOKEN" != "true" ]; then
-            echo "::error title=SYNC_PUSH_TOKEN needed::This sync changes workflow files ($changed). GitHub refuses that push from the default GITHUB_TOKEN. Add a fine-grained PAT for this repository with Contents + Workflows + Pull requests read/write as the secret SYNC_PUSH_TOKEN, then re-run."
-            {
-              echo "### Stopped — SYNC_PUSH_TOKEN is needed"
-              echo ""
-              echo "Sattva's changes include workflow files (\`$changed\`), and GitHub refuses a push that touches \`.github/workflows/\` from the default token. Nothing was pushed."
-              echo ""
-              echo "Add the secret **SYNC_PUSH_TOKEN** under *Settings → Secrets and variables → Actions*: a fine-grained personal access token for this repository with **Contents: read and write**, **Workflows: read and write** and **Pull requests: read and write**. Then re-run this workflow."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+          git fetch https://github.com/techmuns/Sattva-Central-Research.git main:refs/remotes/sattva/main
+          if git merge-base --is-ancestor sattva/main HEAD; then
+            echo "Sattva's merged changes are already included." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
-
-      - name: Rename the brand strings that arrived with the merge
-        if: steps.merge.outputs.conflict == 'false'
-        run: |
-          grep -rl "Sattva Central Research" public/js worker --include='*.js' --include='*.mjs' | xargs -r sed -i 's/Sattva Central Research/Glow Central Research/g'
-          if ! git diff --quiet; then
-            git add -A public/js worker
-            git commit -q -m "Rename the brand strings that arrived with the sync"
-            echo "Renamed: $(git show --stat --format= HEAD | tail -1)"
+          upstream=$(git rev-parse sattva/main)
+          branch="codex/sattva-sync-${upstream:0:12}"
+          existing=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "An existing PR already covers this template revision: $existing" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          base=$(git rev-parse HEAD)
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config merge.ours.driver true
+          if ! git merge --no-ff --no-commit sattva/main; then
+            # Continue only for an actual conflicted merge, not an unrelated Git failure.
+            test -f "$(git rev-parse --git-path MERGE_HEAD)"
+          fi
+          # Keep every pre-existing Glow capture, including upstream-only modifications.
+          # The custom merge driver alone does not protect one-sided changes.
+          git ls-tree -rz --name-only "$base" -- public/data | \
+            git restore --source="$base" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
+          for cache in public/data/filing-capture/portfolio.json public/data/tradingview-news/portfolio.json; do
+            if ! git cat-file -e "$base:$cache" 2>/dev/null; then git rm -f --ignore-unmatch "$cache"; fi
+          done
+          node scripts/adapt-glow-template.mjs
+          conflicts=$(git diff --name-only --diff-filter=U)
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$conflicts" ]; then
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$conflicts" > "$RUNNER_TEMP/sattva-conflicts.txt"
           else
-            echo "No brand strings to rename."
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Rebuild the stylesheet with this deployment's palette
-        if: steps.merge.outputs.conflict == 'false'
-        run: |
-          npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
-          if ! git diff --quiet -- public/css/tailwind.css; then
-            git add public/css/tailwind.css
-            git commit -q -m "Rebuild the stylesheet after the upstream sync"
-          fi
-
-      - name: Check the merged tree
-        id: check
-        if: steps.merge.outputs.conflict == 'false'
+      - name: Validate a resolved merge
+        if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.conflict == 'false'
+        id: validate
         continue-on-error: true
         run: |
-          set -e
-          find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
-          # Parses every file the way the browser will; `--check` guesses CJS for some and passes them.
+          npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
           node --experimental-vm-modules --no-warnings scripts/verify-syntax.mjs
-          node scripts/verify-filings-snapshot.mjs
-          node scripts/verify-capture-watchdog.mjs
+          node scripts/verify-glow-parity.mjs
+          node scripts/check-book.mjs
           npx --yes wrangler@4 deploy --dry-run
-          # The brand and the deployment must still be ours after the merge.
-          grep -q '"name": "glow-central-research"' wrangler.jsonc
-          grep -q '"GH_REPO": "techmuns/Glow-Central-Research"' wrangler.jsonc
-          grep -q '<title>Glow Central Research</title>' public/index.html
-          # The scheduled filings walks read through THIS deployment's Worker (it holds the Muns token).
-          grep -q "FILINGS_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-filings.mjs
-          grep -q "SI_BASE || 'https://glow-central-research.tech-441.workers.dev'" scripts/scrape-super-investors.mjs
-          if grep -rn 'Sattva Central Research' public/js worker --include='*.js' --include='*.mjs'; then
-            echo "::error::An upstream brand string reached reader-facing code — rename it to Glow before this can ship."
+      - name: Publish the review branch and open a PR
+        if: steps.prepare.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN || github.token }}
+          BRANCH: ${{ steps.prepare.outputs.branch }}
+          UPSTREAM: ${{ steps.prepare.outputs.upstream }}
+          CONFLICT: ${{ steps.prepare.outputs.conflict }}
+          CHECKED: ${{ steps.validate.outcome }}
+        run: |
+          git add -A
+          git commit -m "Merge Sattva template ${UPSTREAM:0:12} into Glow"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          body="$RUNNER_TEMP/sattva-sync-pr.md"
+          {
+            echo "Imports the merged Sattva dashboard template at $UPSTREAM while preserving Glow's portfolio captures and deployment identity."
+            echo
+            echo "The full Verify workflow and reviewer feedback must be checked before merging. This workflow never pushes to main or bypasses a review gate."
+            if [ "$CONFLICT" = true ]; then
+              echo
+              echo "Resolve these merge conflicts before marking this draft ready:"
+              cat "$RUNNER_TEMP/sattva-conflicts.txt"
+            fi
+            if [ "$CHECKED" != success ]; then
+              echo
+              echo "Local merge checks did not complete successfully; inspect this workflow run."
+            fi
+          } > "$body"
+          draft=()
+          if [ "$CONFLICT" = true ] || [ "$CHECKED" != success ]; then draft=(--draft); fi
+          if ! gh pr create --base main --head "$BRANCH" --title "Sync Sattva template into Glow (${UPSTREAM:0:12})" --body-file "$body" "${draft[@]}"; then
+            echo "::error::SYNC_PUSH_TOKEN must allow Contents, Workflows and Pull requests read/write on Glow-Central-Research. The review branch is preserved; no main push was attempted."
             exit 1
           fi
-
-      # MAIN MOVES WHILE THIS RUNS. The data refreshes commit to main every twenty to thirty
-      # minutes, and the first dispatched run of this job was rejected at the push because two of
-      # them landed inside its thirty seconds. So the push retries: fetch main, MERGE it in — never
-      # rebase, which would flatten the upstream merge commit and cost the shared history every
-      # later sync depends on — and try again. A data commit merges cleanly (this side never
-      # changes public/data/; the sync resolves it as ours), so a genuine conflict here means
-      # somebody changed source on main mid-run; that aborts loudly and the next run starts fresh.
-      - name: Push to main
-        if: steps.merge.outputs.conflict == 'false' && steps.check.outcome == 'success'
-        run: |
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then
-              echo "### Synced and pushed to main" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            echo "Push rejected (attempt $attempt) — main moved during the run; merging it in and retrying..."
-            git fetch origin main
-            if ! git merge --no-edit origin/main; then
-              git merge --abort
-              echo "::error title=Sync could not catch up with main::main changed the same lines while this sync ran. Re-run the workflow; it merges from a fresh base."
-              exit 1
-            fi
-            sleep $((attempt * 3))
-          done
-          echo "::error title=main kept moving::Four pushes were rejected in a row. Re-run the workflow."
-          exit 1
-
-      # ---- a clean merge whose checks failed, or a conflicted merge: branch + PR -----------
-      - name: Open a PR for a person to finish
-        if: steps.merge.outputs.conflict == 'true' || (steps.merge.outputs.conflict == 'false' && steps.check.outcome != 'success')
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
-          CONFLICT: ${{ steps.merge.outputs.conflict }}
-          CONFLICTED: ${{ steps.merge.outputs.conflicted }}
-        run: |
-          branch="sync/sattva-$(date -u +%Y%m%d-%H%M)"
-          if [ "$CONFLICT" = "true" ]; then
-            # Commit the conflicted state as-is. The markers are the handoff: the PR's CI stays red
-            # until every file listed below is resolved.
-            git add -A
-            git -c core.hooksPath=/dev/null commit -q -m "WIP: sync from ${UPSTREAM_REPO} — conflicts to resolve" || true
-            title="Sync from Sattva ($(date -u +%Y-%m-%d)) — needs conflict resolution"
-            body=$(cat <<BODY
-          The daily sync from \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\` hit merge conflicts. This branch holds the merge **with its conflict markers committed**, so CI is red on purpose.
-
-          **Conflicted files:**
-          $(for f in $CONFLICTED; do echo "- \`$f\`"; done)
-
-          **How to resolve** (locally, or by starting a Claude Code session on this PR):
-          1. \`git checkout $branch\`
-          2. Resolve each file above — toward upstream for Sattva-owned code, toward this repo for the Glow-owned files listed in CLAUDE.md, *This dashboard is a downstream of Sattva*.
-          3. Rebuild the stylesheet: \`npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify\`
-          4. Run the checks in CLAUDE.md, *Verification checklist before pushing*.
-          5. Commit, push, merge this PR.
-
-          After a merge, re-check the three things a sync can quietly break: white text on the brand gradient, a one-argument \`edgeKey()\` in a new Worker route, and any new "Sattva Central Research" string in reader-facing copy.
-          BODY
-          )
-          else
-            title="Sync from Sattva ($(date -u +%Y-%m-%d)) — checks failed on a clean merge"
-            body=$(cat <<BODY
-          The daily sync from \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\` merged cleanly but the post-merge checks failed (syntax check, offline verify scripts, wrangler dry-run, or a brand/deployment guard). See the workflow run log for which one.
-
-          Fix it on this branch, run the checks in CLAUDE.md, *Verification checklist before pushing*, and merge.
-          BODY
-          )
-          fi
-          git push origin "HEAD:refs/heads/$branch"
-          gh pr create --base main --head "$branch" --title "$title" --body "$body"
-          echo "### Opened a PR on $branch — $title" >> "$GITHUB_STEP_SUMMARY"

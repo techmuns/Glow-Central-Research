@@ -17,7 +17,11 @@
 import { escapeHtml } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
-import { companyCombo } from './company-select.js';
+import { mountWindowedList } from './windowed-list.js';
+import { state } from '../core/state.js';
+import * as notebook from '../core/bookmarks.js';
+import { snapshotForRow, SECTION_LABELS } from '../core/bookmark-record.js';
+import { bookmarkButton, wireBookmarks } from './bookmark-button.js';
 
 // ---------------------------------------------------------------------------------------
 // Overlay focus management — shared by the drill, the modal and the workspace.
@@ -131,10 +135,10 @@ export function statStrip(cards = []) {
         .map((card, i) => {
           if (card.hero) {
             return `
-              <div class="stat-card rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 text-slate-900 shadow-lg">
-                <div class="text-xs font-medium uppercase tracking-wider opacity-75">${escapeHtml(card.label)}</div>
+              <div class="stat-card rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg">
+                <div class="text-xs font-medium uppercase tracking-wider opacity-90">${escapeHtml(card.label)}</div>
                 <div class="mt-1 text-2xl font-bold">${escapeHtml(card.value)}</div>
-                ${card.note ? `<div class="mt-0.5 text-xs opacity-75">${escapeHtml(card.note)}</div>` : ''}
+                ${card.note ? `<div class="mt-0.5 text-xs opacity-90">${escapeHtml(card.note)}</div>` : ''}
               </div>`;
           }
           if (card.help) helpRegistry.push({ index: i, ...card.help });
@@ -184,15 +188,16 @@ export function statStrip(cards = []) {
 // ---------------------------------------------------------------------------------------
 
 /**
- * topCards({ title, items, valueFormat, onSelect, limit })
+ * topCards({ title, items, valueFormat, onSelect, limit, compact })
  *
  *  title        e.g. "Top 10 by Earnings Surprise" (a 🏆 is prepended)
- *  items        [{ name, sub?, value, max?, tone?, warn?, payload? }]
+ *  items        [{ name, sub?, value, unit?, caption?, actionLabel?, max?, tone?, warn?, payload? }]
  *  valueFormat  'score'  → renders `value/max` and colours by tier (needs `max`)
  *               'metric' → renders `value` verbatim, coloured by `tone`
  *  tone         for 'metric': 'positive' | 'negative' | 'caution' | 'neutral' | 'brand'
  *  onSelect     (item, index) => void — fired on card click, wire up the drill panel here
  *  limit        default 10
+ *  compact      omit decorative avatars and numeric ranks; allow company names to wrap
  */
 const METRIC_TONE = {
   positive: 'text-emerald-600',
@@ -272,14 +277,14 @@ export function rankedList({ key, title, note = '', items = [], limit = 5, empty
   return { html, wire, shown };
 }
 
-export function topCards({ title, items = [], valueFormat = 'metric', onSelect = null, limit = 10 }) {
+export function topCards({ title, items = [], valueFormat = 'metric', onSelect = null, limit = 10, compact = false }) {
   const shown = items.slice(0, limit);
 
   const html = `
     <section class="mb-8" data-top-cards>
       <div class="mb-3 flex items-center justify-between">
         <h2 class="font-display flex items-center gap-2 text-lg font-bold text-slate-900">
-          <span class="text-amber-500">🏆</span> ${escapeHtml(title)}
+          ${compact ? '' : '<span class="text-amber-500">🏆</span>'} ${escapeHtml(title)}
         </h2>
       </div>
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -295,22 +300,23 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
             const caption = isScore ? tierLabel(tier) : item.caption || '';
             return `
               <button type="button" data-top-idx="${i}"
-                class="group relative overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-                <div class="absolute right-3 top-3 text-xs font-bold text-slate-400">#${i + 1}</div>
+                class="group relative overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                ${compact ? '' : `<div class="absolute right-3 top-3 text-xs font-bold text-slate-400">#${i + 1}</div>`}
                 <div class="mb-3 flex items-center gap-3">
-                  <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-sm font-bold text-white shadow-md">${escapeHtml(initials)}</div>
-                  <div class="min-w-0 flex-1 pr-6">
-                    <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
+                  ${compact ? '' : `<div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-sm font-bold text-white shadow-md">${escapeHtml(initials)}</div>`}
+                  <div class="min-w-0 flex-1${compact ? '' : ' pr-6'}">
+                    <div class="${compact ? 'break-words' : 'truncate'} text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
                     ${item.sub ? `<div class="truncate text-xs text-slate-500">${escapeHtml(item.sub)}</div>` : ''}
                   </div>
                 </div>
                 <div class="flex items-end justify-between">
                   <div class="min-w-0">
-                    <div class="truncate text-3xl font-bold tabular-nums ${valueClass}">${valueHtml}</div>
+                    <div class="${item.unit && !isScore ? 'flex flex-wrap items-baseline gap-x-1.5' : 'truncate'} text-3xl font-bold tabular-nums ${valueClass}">${valueHtml}${item.unit && !isScore ? ` <span class="text-sm font-medium text-slate-500">${escapeHtml(item.unit)}</span>` : ''}</div>
                     ${caption ? `<div class="mt-0.5 truncate text-xs text-slate-500">${escapeHtml(caption)}</div>` : ''}
                   </div>
                   ${item.warn ? `<div class="flex-shrink-0 text-xl text-rose-500" title="${escapeHtml(item.warn)}">⚠</div>` : ''}
                 </div>
+                ${onSelect && item.actionLabel ? `<span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">${escapeHtml(item.actionLabel)} <span aria-hidden="true">→</span></span>` : ''}
               </button>`;
           })
           .join('')}
@@ -362,8 +368,12 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  nameMaxPx     default null. Hard px cap on the identity column so long names/subs truncate
  *                instead of widening the table.
  *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
- *  fillMode      'idle' (default) eventually paints every row; 'scroll' appends adaptive pages
- *                only as the reader approaches the bottom of the table.
+ *  fillMode      'auto' (default) windows large scrollable tables with natural measured heights;
+ *                'idle'/'scroll' retain legacy fill; 'virtual' uses an explicitly fixed stride.
+ *  virtualRowHeight  fixed row height in px used by 'virtual' mode (default 72).
+ *  preindexSearch build an explicit searchable accessor's index in idle slices (default true).
+ *  onScrollActivity  optional callback fired from the table's passive scroll handler.
+ *  scrollLabel   accessible name for the keyboard-focusable table scroller.
  *
  * Sorting, search, watchlist-only and the filter select are all handled internally; the table
  * re-renders its own tbody without the tab getting involved.
@@ -384,6 +394,7 @@ export function scoreTable(config) {
     // Industries" for a company whose feed has not loaded yet rather than echoing the symbol.
     watchName = null,
     name = (r) => r.name,
+    searchPlaceholder = 'Search company...',
     nameLabel = 'Company', // header for the identity column — set it when rows aren't companies
     sub = () => '',
     columns = [],
@@ -393,13 +404,18 @@ export function scoreTable(config) {
     signals = null,
     link = null,
     onRowClick = null,
+    // All record tables can save a snapshot. A specialized adapter may replace the default.
+    bookmark = null,
+    bookmarkSection = state.tab || '',
+    bookmarkDate = null,
+    bookmarkSource = null,
     filters = null,
     searchable = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
     countLabel = null,
-    exportName = 'glow-export',
+    exportName = 'sattva-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
     // needs a per-row control — it moves inside the identity cell, ahead of the avatar. That frees
@@ -434,42 +450,18 @@ export function scoreTable(config) {
     // `visible` when the other axis is not) — so the head was sticking to a box that never
     // scrolled, while the page scrolled underneath it. Giving the wrapper a height makes it
     // actually scroll, which is what makes the head stay put. The toolbar above stays visible too.
-    stickyHead = null,
-    // Long event timelines do not need thousands of off-screen <tr>s. In `scroll` mode the data
-    // set is still complete — search, filters, counts and export read `rows` — but the DOM grows a
-    // page at a time as the reader advances. Other tables keep the existing idle-fill contract.
-    fillMode = 'idle',
-    // TURN THE SEARCH BOX INTO A COMPANY MULTI-SELECT. `[{ ticker, name, count }]` — the companies
-    // this table may be narrowed to, which is the tab's scope list rather than anything derived
-    // from the rows: a company in scope with nothing in this capture is still a company the reader
-    // may ask for, and it lists with a dash rather than being absent.
-    //
-    // It does not replace the search — the same box still filters rows by text — so a table that
-    // passes this loses nothing and gains a list of what can be asked for. See ui/company-select.js.
-    companyOptions = null,
-    // Which company a row belongs to. Defaults to `watchKey`, which is already the ticker on every
-    // table whose rows are events, and to `key` on a screener where a row IS a company.
-    companyOf = null,
-    companyScopeNoun = '',
-    companyHint = '',
-    companyPlaceholder = '',
-    // What the search box says it searches. Defaults to companies, because most tables here are
-    // company screeners — but a table of categories, schemes or macro series is not, and a control
-    // that names the wrong noun tells the reader the table holds something it does not.
-    searchPlaceholder = 'Search company...',
-    // Offer the "Watchlist only" filter. DEFAULTS TO TRUE, so every existing table is unchanged.
-    //
-    // A table whose rows carry no company — `watchKey: () => null` — can only ever answer this
-    // filter with an empty result, which is the same reasoning that already gives those rows NO
-    // STAR: "a star that matched nothing for ever is worse than a control that is not offered."
-    // The filter beside them was exempted from that rule by accident, because it renders once per
-    // table rather than once per row.
-    //
-    // It is OPT-OUT rather than derived from the rows on purpose. Deriving it would silently drop
-    // the control from Superstar Investors' Data Table, Public Chatter and the two macro tabs —
-    // all of which pass `watchKey: () => null` today, and none of which asked for that change. A
-    // table that wants it gone says so; every other table keeps exactly what it has.
+    stickyHead = rows.length > 160 ? 'max(320px, calc(100vh - 320px))' : null,
+    // Large tables default to a measured, bounded window. Search, filters and exports always read
+    // the complete model. Explicit legacy idle/scroll modes remain available for specialized views;
+    // `virtual` is the fixed-stride All Alerts layout, `windowed` preserves natural row heights.
+    fillMode = 'auto',
     showWatchFilter = true,
+    initialRowCount = 40,
+    initialRowKey = null,
+    virtualRowHeight = 72,
+    preindexSearch = true,
+    onScrollActivity = null,
+    scrollLabel = `${nameLabel} data table`,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -479,12 +471,32 @@ export function scoreTable(config) {
     return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
   };
   const watchNameOf = (row) => String((watchName || name)(row) ?? '') || null;
-  // Which company a row is filed under, for the multi-select. Same default as the star, because
-  // the star already answers "which company is this row about" on every table whose rows are events.
-  const companyKeyOf = (row) => {
-    const raw = (companyOf || watchKey || key)(row);
-    return raw === null || raw === undefined || raw === '' ? null : String(raw).toUpperCase();
-  };
+
+  function bookmarkEntry(row, full = false) {
+    if (bookmark) return bookmark(row);
+    const section = bookmarkSection || exportName.replace(/^sattva-/, '');
+    const context = { section, company: row.company || (['Company', 'Stock', 'Instrument'].includes(nameLabel) || watchKeyOf(row) ? watchNameOf(row) : ''),
+      title: `${name(row)} · ${SECTION_LABELS[section] || section}${sub(row) ? ` · ${sub(row)}` : ''}`,
+      ticker: watchKeyOf(row), eventDate: bookmarkDate?.(row), source: bookmarkSource?.(row),
+      // Export filenames use today's date; saving a record must not change its identity at midnight.
+      sourceId: `${exportName.replace(/-\d{4}-\d{2}-\d{2}$/, '')}:${key(row)}`, rowKey: key(row), url: link?.(row) };
+    if (full) {
+      // Only on a save, capture complete column readings and their source links. Use the
+      // accessors, not truncated/virtual DOM cells. Inert template content executes nothing.
+      context.details = [];
+      context.links = [];
+      for (const column of columns) {
+        const value = column.get(row);
+        if (!column.html) { context.details.push({ label: column.label, value: String(value ?? '') }); continue; }
+        const template = document.createElement('template'); template.innerHTML = String(value ?? '');
+        context.details.push({ label: column.label, value: template.content.textContent.replace(/\s+/g, ' ').trim() });
+        for (const anchor of template.content.querySelectorAll('a[href]'))
+          context.links.push({ label: `${column.label}: ${anchor.textContent.trim()}`, url: anchor.getAttribute('href') });
+      }
+      if (showScore && score) { const s = score(row); context.details.push({ label: 'Score at save', value: `${s.points}/${s.max}${s.redFlag ? ` · ${s.redFlag}` : ''}` }); }
+    }
+    return snapshotForRow(row, context);
+  }
 
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
@@ -495,21 +507,11 @@ export function scoreTable(config) {
   const view = {
     q: '',
     filters: filterDefs.map((f) => f.value || 'all'),
-    // The companies the reader picked in the search box, in the order they picked them. Empty means
-    // "every company in scope" — NOT "no companies" — the same distinction `scopeTickers()` draws
-    // between a null and an empty Set, and for the same reason: collapsing the two would make an
-    // untouched control silently mean its own opposite.
-    companies: [],
     watchOnly: false,
     sort: initialSort ? { ...initialSort } : null,
   };
   if (initialView) {
     if (typeof initialView.q === 'string') view.q = initialView.q;
-    // Restored WITHOUT pruning against the option list. A tab whose options arrive in two passes
-    // (the tracked universe is deferred) would otherwise silently drop a selection made before the
-    // second pass landed, and a picked company vanishing on its own is worse than one listed under
-    // its ticker until its name arrives.
-    if (Array.isArray(initialView.companies)) view.companies = initialView.companies.map((t) => String(t).toUpperCase());
     if (typeof initialView.watchOnly === 'boolean') view.watchOnly = initialView.watchOnly;
     if (initialView.sort) view.sort = { ...initialView.sort };
     // Length-checked: a restored value only applies if the filter set still has that slot, so a
@@ -520,8 +522,12 @@ export function scoreTable(config) {
       });
     }
   }
+  if (!showWatchFilter) view.watchOnly = false;
 
   const totalCount = rows.length;
+  // Array lookup is materially cheaper than recomputing 50k searchable strings on every
+  // keystroke. This per-instance index is filled in idle slices once the final feed paint mounts.
+  const searchTextIndex = searchable ? new Array(rows.length) : null;
   const countText = (visible) => {
     const custom = countLabel?.(visible, rows);
     return custom == null || custom === ''
@@ -529,8 +535,11 @@ export function scoreTable(config) {
       : String(custom);
   };
 
-  function haystack(row) {
-    return (searchable ? searchable(row) : `${name(row)} ${key(row)}`).toLowerCase();
+  function haystack(row, rowIndex = -1) {
+    if (rowIndex >= 0 && searchTextIndex?.[rowIndex] !== undefined) return searchTextIndex[rowIndex];
+    const value = String(searchable ? searchable(row) : `${name(row)} ${key(row)}`).toLowerCase();
+    if (rowIndex >= 0 && searchTextIndex) searchTextIndex[rowIndex] = value;
+    return value;
   }
 
   function sortValueFor(row, sortKey) {
@@ -551,13 +560,8 @@ export function scoreTable(config) {
     // did not, so an AI Alert link carrying `RKFORGE` could never match a haystack containing
     // `rkforge` even though the search box visibly held the right ticker.
     const needle = String(view.q || '').trim().toLowerCase();
-    const picked = view.companies.length ? new Set(view.companies) : null;
-    let out = rows.filter((row) => {
-      if (needle && !haystack(row).includes(needle)) return false;
-      if (picked) {
-        const co = companyKeyOf(row);
-        if (!co || !picked.has(co)) return false;
-      }
+    let out = rows.filter((row, rowIndex) => {
+      if (needle && !haystack(row, rowIndex).includes(needle)) return false;
       if (watched) {
         const wk = watchKeyOf(row);
         if (!wk || !watched.has(wk)) return false;
@@ -570,9 +574,11 @@ export function scoreTable(config) {
     if (view.sort) {
       const { key: sk, dir } = view.sort;
       const mul = dir === 'asc' ? 1 : -1;
-      out = out.slice().sort((a, b) => {
-        const av = sortValueFor(a, sk);
-        const bv = sortValueFor(b, sk);
+      // Format/derive each sort key once, not on both sides of every comparator call.
+      const values = new Map(out.map(row => [row, sortValueFor(row, sk)]));
+      out.sort((a, b) => {
+        const av = values.get(a);
+        const bv = values.get(b);
         if (av === bv) return 0;
         if (av === null || av === undefined) return 1;
         if (bv === null || bv === undefined) return -1;
@@ -629,13 +635,14 @@ export function scoreTable(config) {
 
   // A slice of the body, so the first paint can put a screenful in the DOM and let the rest
   // follow. See FIRST_PAINT_ROWS below for why that is not merely a nicety.
+  const isWindowed = fillMode === 'windowed' || (fillMode === 'auto' && !!stickyHead && rows.length > 160);
+  const isFixed = fillMode === 'virtual';
+  const isVirtual = isFixed || isWindowed;
+  const VIRTUAL_ROW_HEIGHT = Math.max(48, Math.round(Number(virtualRowHeight) || 72));
+
   function bodyHtml(list, from = 0, to = list.length) {
     if (!list.length) {
-      // A FUNCTION, because what "nothing here" means changes with the view and the view changes
-      // without rebuilding the table. "No articles for your holdings" is wrong the moment the
-      // reader has narrowed to two companies, and a repaint never revisits a baked-in string.
-      const msg = typeof emptyMessage === 'function' ? emptyMessage(view) : emptyMessage;
-      return `<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(msg)}</td></tr>`;
+      return `<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(emptyMessage)}</td></tr>`;
     }
     const watched = loadWatchlist();
     const end = Math.min(to, list.length);
@@ -643,18 +650,21 @@ export function scoreTable(config) {
     for (let i = from; i < end; i++) {
       const row = list[i];
       const slug = String(key(row));
-      let html = rowHtmlCache.get(slug);
+      // A virtual row carries aria-rowindex, which is position-dependent. Only a screenful is
+      // generated at once, so bypassing the position-independent cache here is both correct and
+      // bounded. Other modes retain the cache that makes large sorts cheap.
+      let html = isVirtual ? undefined : rowHtmlCache.get(slug);
       if (html === undefined) {
         const wk = watchKeyOf(row);
-        html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
-        rowHtmlCache.set(slug, html);
+        html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row), isVirtual ? i : null);
+        if (!isVirtual) rowHtmlCache.set(slug, html);
       }
       out.push(html);
     }
     return out.join('');
   }
 
-  function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null) {
+  function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null, rowIndex = null) {
         const label = String(name(row));
         const { color, initials } = avatarFor(label);
         const sc = showScore && score ? score(row) : null;
@@ -668,48 +678,51 @@ export function scoreTable(config) {
                   class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`
           : '<span class="watch-star flex-shrink-0 text-base leading-none text-transparent" aria-hidden="true">☆</span>';
         const rowLink = link ? link(row) : null;
+        // A CSS height on <tr> is only a minimum. Constrain each cell's content as well, so a
+        // longer attribution/reason cannot change the physical stride behind virtual spacers.
+        // Full text remains in the existing titles, row detail and model-backed export.
+        const td = (content, classes = '') => `<td class="${PX} ${isFixed ? '' : 'py-3'} ${classes}"${isFixed ? ' style="padding-top:0;padding-bottom:0"' : ''}>${isFixed
+          ? `<div data-virtual-cell style="height:${VIRTUAL_ROW_HEIGHT - 1}px;display:flex;align-items:center;overflow:hidden"><div style="width:100%;min-width:0;max-height:${VIRTUAL_ROW_HEIGHT - 25}px;overflow:hidden">${content}</div></div>`
+          : content}</td>`;
         const dataTd = (c) =>
-          `<td class="whitespace-nowrap ${PX} py-3 text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}">${c.html ? c.get(row) : escapeHtml(c.get(row))}</td>`;
+          td(c.html ? c.get(row) : escapeHtml(c.get(row)), `whitespace-nowrap text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}`);
+        const styles = [];
+        if (redFlag) styles.push('box-shadow: inset 3px 0 0 #f43f5e');
+        if (isFixed) styles.push(`height:${VIRTUAL_ROW_HEIGHT}px`);
         return `
           <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
-            ${redFlag ? 'style="box-shadow: inset 3px 0 0 var(--negative)"' : ''}>
+            ${rowIndex === null ? '' : `aria-rowindex="${rowIndex + 2}"`} ${styles.length ? `style="${styles.join(';')}"` : ''}>
             ${
               showRank
-                ? `<td class="${PX} py-3 text-sm font-medium text-slate-500">
-                     <div class="flex items-center gap-1">${star}<span class="row-rank"></span></div>
-                   </td>`
+                ? td(`<div class="flex items-center gap-1">${star}<span class="row-rank"></span></div>`, 'text-sm font-medium text-slate-500')
                 : ''
             }
             ${leadCols.map(dataTd).join('')}
-            <td class="${PX} py-3">
-              <div class="flex items-center gap-2"${nameMaxPx ? ` style="max-width:${nameMaxPx}px"` : ''}>
+            ${td(`<div class="flex items-center gap-2"${nameMaxPx ? ` style="max-width:${nameMaxPx}px"` : ''}>
                 ${showRank ? '' : star}
                 ${showAvatar ? `<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-xs font-bold text-white shadow-sm">${escapeHtml(initials)}</div>` : ''}
                 <div class="min-w-0">
                   <div class="truncate font-semibold text-slate-900" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
-                  <div class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</div>
+                  <div class="flex items-center gap-1"><span class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</span>${bookmarkButton(bookmarkEntry(row))}</div>
                 </div>
-              </div>
-            </td>
+              </div>`)}
             ${
               sc
-                ? `<td class="${PX} py-3">
-                     <div class="flex items-center gap-2">
+                ? td(`<div class="flex items-center gap-2">
                        <span class="inline-flex min-w-[78px] items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${scoreBadgeClass(sc.pct)}">${escapeHtml(sc.points)}/${escapeHtml(sc.max)}</span>
                        ${redFlag ? `<span class="inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 ring-1 ring-rose-200" title="${escapeHtml(sc.redFlag)}">⚠ Red Flag</span>` : ''}
-                     </div>
-                   </td>`
+                     </div>`)
                 : ''
             }
-            ${showSignals ? `<td class="${PX} py-3"><div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div></td>` : ''}
+            ${showSignals ? td(`<div class="flex items-center gap-1">${signals ? signalDots(signals(row)) : ''}</div>`) : ''}
             ${restCols.map(dataTd).join('')}
             ${
               link
-                ? `<td class="${PX} py-3 text-right">${
+                ? td(
                     rowLink
                       ? `<a href="${escapeHtml(rowLink)}" target="_blank" rel="noopener noreferrer" data-stop class="text-sm font-medium text-indigo-600 hover:text-indigo-800">↗</a>`
                       : ''
-                  }</td>`
+                  , 'text-right')
                 : ''
             }
           </tr>`;
@@ -729,16 +742,18 @@ export function scoreTable(config) {
   // is idle. Total work is unchanged; what changes is that none of it blocks the tab appearing.
   // Measured on the Earnings Hub, tab-to-tab: ~900ms of blocked main thread down to ~60ms.
   //
-  // THE ROWS STILL ALL ARRIVE. This is not virtualisation — nothing is unmounted, the DOM ends up
-  // holding every visible row, and Ctrl-F, screenshots and "N of M shown" behave as they did. The
-  // section carries `data-rows-pending` until the fill completes, so a test (or anything else)
-  // can wait for the settled table rather than racing it.
-  const FIRST_PAINT_ROWS = 40; // comfortably more than any viewport shows
+  // In idle and scroll modes the rows still all arrive: nothing is unmounted and the DOM ends up
+  // holding every reached row. Virtual mode is deliberately different. It keeps the full filtered
+  // array for search, counts, sort, watchlist and export, but mounts only a moving screen-sized
+  // window between two spacer rows. That is the right contract for multi-thousand-row timelines,
+  // where retaining every reached row makes layout and the accessibility tree grow without bound.
   // The old adaptive ceiling reached 800 rows. HTML insertion looked cheap, but the style/layout
   // work landed on the next frame: traces showed 40–88ms layout blocks while a table filled. Keep
   // each background batch below a screenful so loading can never monopolise an interaction frame.
-  const MIN_SLICE = 20;
-  const MAX_SLICE = 80;
+  const MIN_SLICE = fillMode === 'scroll' ? 16 : 20;
+  const MAX_SLICE = fillMode === 'scroll' ? 40 : 80;
+  const VIRTUAL_WINDOW_ROWS = Math.max(24, Math.min(64, Math.round(Number(initialRowCount) || 32)));
+  const VIRTUAL_OVERSCAN_ROWS = Math.min(12, Math.floor(VIRTUAL_WINDOW_ROWS / 4));
 
   // requestIdleCallback where it exists, with a timeout so a busy or backgrounded tab still
   // finishes. Safari has no rIC, hence the fallback — a slower fill is fine, a stalled one is not.
@@ -754,40 +769,37 @@ export function scoreTable(config) {
         };
 
   const initialList = visibleRows();
+  const anchorIndex = initialRowKey === null ? -1 : initialList.findIndex((row) => String(key(row)) === initialRowKey);
+  const initialVirtualStart = isVirtual && anchorIndex >= 0
+    ? Math.max(0, Math.min(Math.max(0, initialList.length - VIRTUAL_WINDOW_ROWS), anchorIndex - VIRTUAL_OVERSCAN_ROWS))
+    : 0;
+  const FIRST_PAINT_ROWS = isVirtual
+    ? Math.min(initialList.length, VIRTUAL_WINDOW_ROWS)
+    : Math.max(40, Math.min(initialList.length, Math.max(Number(initialRowCount) || 40, anchorIndex + 40)));
 
-  // ONE BOX, TWO JOBS. With `companyOptions` the search input becomes a company multi-select that
-  // still searches text; without it the plain input is unchanged, so every other table in the
-  // dashboard is untouched by this.
-  const combo =
-    companyOptions && companyOptions.length
-      ? companyCombo({
-          options: companyOptions,
-          selected: view.companies,
-          q: view.q,
-          noun: countNoun || 'rows',
-          scopeNoun: companyScopeNoun,
-          hint: companyHint,
-          placeholder: companyPlaceholder,
-        })
-      : null;
+  const spacerHtml = (rows, edge) => rows > 0
+    ? `<tr data-virtual-spacer="${edge}" aria-hidden="true"><td colspan="${colCount}" style="height:${rows * VIRTUAL_ROW_HEIGHT}px;padding:0;border:0"></td></tr>`
+    : '';
+  const virtualBodyHtml = (list, start) => {
+    if (!list.length) return bodyHtml(list);
+    const safeStart = Math.max(0, Math.min(Math.max(0, list.length - VIRTUAL_WINDOW_ROWS), start));
+    const end = Math.min(list.length, safeStart + VIRTUAL_WINDOW_ROWS);
+    return `${spacerHtml(safeStart, 'top')}${bodyHtml(list, safeStart, end)}${spacerHtml(list.length - end, 'bottom')}`;
+  };
 
   // Installed by wire(). Until then `updateRows` is a no-op that reports nothing changed, which
   // is the truth for an unmounted table.
   let updateRows = () => 0;
 
   const html = `
-    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' ? ' data-scroll-paged' : ''}${initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
-      <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+    <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' || isVirtual ? ' data-scroll-paged' : ''}${isVirtual ? ` data-virtualized data-virtual-total="${initialList.length}" data-virtual-start="${initialVirtualStart}"` : ''}${!isVirtual && initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
+      <div data-table-toolbar class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          ${
-            combo
-              ? combo.html
-              : `<div class="relative max-w-md flex-1">
+          <div class="relative max-w-md flex-1" style="min-width:min(100%, 220px)">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" data-table-search placeholder="${escapeHtml(searchPlaceholder)}" value="${escapeHtml(view.q)}"
+            <input type="text" data-table-search aria-label="Search ${escapeHtml(nameLabel)}" placeholder="${escapeHtml(searchPlaceholder)}" value="${escapeHtml(view.q)}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>`
-          }
+          </div>
           ${filterDefs
             .map(
               // `max-w-full` + `truncate` because A <select> IS AS WIDE AS ITS LONGEST OPTION, and
@@ -807,31 +819,28 @@ export function scoreTable(config) {
                  </select>`
             )
             .join('')}
-          ${
-            // Absent on a table that opted out — see `showWatchFilter` above.
-            showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
+          ${showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
-          </button>` : ''
-          }
+          </button>` : ''}
         </div>
-        <div class="flex items-center gap-3">
+        <div data-table-actions class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
             <span data-row-count class="font-semibold text-slate-700">${escapeHtml(countText(initialList))}</span>
           </div>
-          <button type="button" data-export
+          <button type="button" data-export title="Export Excel"
             class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow">
-            <span>📊</span> Export Excel
+            <span aria-hidden="true">📊</span><span>Export<span data-export-format> Excel</span></span>
           </button>
         </div>
       </div>
 
-      <div class="scrollbar-thin overflow-x-auto" data-table-scroll ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto"` : ''}>
-        <table class="w-full text-sm">
-          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]' : 'bg-slate-50/70'}">${headHtml()}</thead>
-          <tbody data-table-body>${bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
+      <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
+        <table class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 table-sticky-head' : 'bg-slate-50/70'}">${headHtml()}</thead>
+          <tbody data-table-body>${isVirtual ? virtualBodyHtml(initialList, initialVirtualStart) : bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
         </table>
       </div>
     </section>`;
@@ -847,15 +856,49 @@ export function scoreTable(config) {
     const watchBtn = host.querySelector('[data-watch-toggle]');
     const watchIcon = host.querySelector('[data-watch-icon]');
     const watchCount = host.querySelector('[data-watch-count]');
+    const tableEl = host.querySelector('table');
+    const offBookmarkCache = notebook.onChange(() => rowHtmlCache.clear());
+    const offBookmarks = wireBookmarks(host, button => {
+      const slug = button.closest('[data-row-key]')?.dataset.rowKey;
+      const row = rows.find(row => String(key(row)) === slug);
+      return row ? bookmarkEntry(row, true) : null;
+    });
 
     let current = initialList;
+    let virtualStart = initialVirtualStart;
 
     // ---- the background fill ----------------------------------------------------------
     let cancelFill = null;
     let filled = Math.min(FIRST_PAINT_ROWS, initialList.length);
     let slice = MIN_SLICE * 2;
+    let cancelSearchWarm = null;
+    let searchWarmAt = 0;
+
+    // Build the virtual stream's text index in short idle slices. A 50k-row first keystroke must
+    // not also be the moment all searchable strings are normalised. Only the final feed paint
+    // enables this work, so partial tables do not repeatedly build indexes they will soon discard.
+    function warmSearch(deadline) {
+      cancelSearchWarm = null;
+      const started = performance.now();
+      let worked = 0;
+      while (searchWarmAt < rows.length && (worked < 100 || (performance.now() - started < 4 && (!deadline || deadline.timeRemaining() > 1)))) {
+        haystack(rows[searchWarmAt], searchWarmAt);
+        searchWarmAt++;
+        worked++;
+      }
+      if (searchWarmAt < rows.length) cancelSearchWarm = scheduleSlice(warmSearch);
+    }
+
+    function startSearchWarm() {
+      if (isVirtual && preindexSearch && searchable && rows.length) cancelSearchWarm = scheduleSlice(warmSearch);
+    }
 
     function markPending(n) {
+      if (isVirtual) {
+        host.removeAttribute('data-rows-pending');
+        host.setAttribute('data-virtual-total', String(current.length));
+        return;
+      }
       if (n > 0) {
         host.setAttribute('data-rows-pending', String(n));
       } else {
@@ -871,6 +914,7 @@ export function scoreTable(config) {
 
     /** Append the next slice, then schedule the one after it. Idempotent and cancellable. */
     function pumpFill() {
+      if (isVirtual) return;
       cancelFill = null;
       if (filled >= current.length) {
         markPending(0);
@@ -884,7 +928,7 @@ export function scoreTable(config) {
       // Adapt inside the strict ceiling above: the cost per row swings by an order of magnitude
       // between a three-column table and a thirteen-column one.
       const ms = performance.now() - started;
-      if (ms > 12) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
+      if (ms > (fillMode === 'scroll' ? 8 : 12)) slice = Math.max(MIN_SLICE, Math.round(slice / 2));
       else if (ms < 4) slice = Math.min(MAX_SLICE, slice * 2);
       if (filled < current.length) {
         if (fillMode !== 'scroll') cancelFill = scheduleSlice(pumpFill);
@@ -895,6 +939,11 @@ export function scoreTable(config) {
 
     function startFill() {
       stopFill();
+      if (isVirtual) {
+        markPending(0);
+        attachScroll();
+        return;
+      }
       if (filled >= current.length) {
         markPending(0);
         return;
@@ -912,6 +961,7 @@ export function scoreTable(config) {
      * as if it were the whole table.
      */
     function flush() {
+      if (isVirtual) return;
       stopFill();
       if (filled >= current.length) {
         markPending(0);
@@ -928,17 +978,60 @@ export function scoreTable(config) {
     // still leaks nothing. Which scroller matters depends on `stickyHead`: with it the tbody is
     // its own scroll container, without it the page scrolls. Both, then.
     const scroller = host.querySelector('[data-table-scroll]');
+    const windowed = isWindowed ? mountWindowedList({
+      scroller, content: body, items: current, key, rowSelector: 'tr[data-row-key]',
+      renderRows: bodyHtml, estimateHeight: VIRTUAL_ROW_HEIGHT, initialKey: initialRowKey,
+      spacerHtml: (height, edge) => `<tr aria-hidden="true"><td data-window-spacer="${edge}" colspan="${colCount}" style="height:${height}px;padding:0;border:0"></td></tr>`,
+      onScrollActivity,
+      onWindow: (start, total) => {
+        host.dataset.virtualStart = start; host.dataset.virtualTotal = total;
+        tableEl?.setAttribute('aria-rowcount', String(total + 1));
+        rowHtmlCache.clear(); staleKeys.clear();
+      },
+    }) : null;
     let scrollAttached = false;
-    let scrollQueued = false;
+    let scrollFrame = 0;
+
+    function paintVirtualWindow(start) {
+      const nextStart = Math.max(0, Math.min(Math.max(0, current.length - VIRTUAL_WINDOW_ROWS), Math.round(start) || 0));
+      if (nextStart === virtualStart && body.querySelector('tr[data-row-key]')) return;
+      virtualStart = nextStart;
+      // Do not retain markup for rows that have left the viewport. The data array remains complete;
+      // this cache is only a rendering optimisation and must be bounded just like the DOM.
+      rowHtmlCache.clear();
+      staleKeys.clear();
+      body.innerHTML = virtualBodyHtml(current, virtualStart);
+      host.setAttribute('data-virtual-start', String(virtualStart));
+      host.setAttribute('data-virtual-total', String(current.length));
+      tableEl?.setAttribute('aria-rowcount', String(current.length + 1));
+    }
 
     function onScroll() {
-      if (scrollQueued || filled >= current.length) return;
-      scrollQueued = true;
-      requestAnimationFrame(() => {
-        scrollQueued = false;
+      if (isWindowed) return; // measured list owns its scroll/resize lifecycle
+      onScrollActivity?.();
+      if (scrollFrame || (!isVirtual && filled >= current.length)) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        if (isVirtual) {
+          if (!scroller || !current.length) return;
+          const visibleIndex = Math.max(0, Math.min(current.length - 1, Math.floor(scroller.scrollTop / VIRTUAL_ROW_HEIGHT)));
+          const windowEnd = virtualStart + VIRTUAL_WINDOW_ROWS;
+          if (visibleIndex < virtualStart + VIRTUAL_OVERSCAN_ROWS || visibleIndex >= windowEnd - VIRTUAL_OVERSCAN_ROWS) {
+            paintVirtualWindow(visibleIndex - VIRTUAL_OVERSCAN_ROWS);
+          }
+          return;
+        }
         const last = body.lastElementChild;
         if (filled >= current.length || !last) return;
-        if (last.getBoundingClientRect().top < window.innerHeight * 2) {
+        // Internal table scrollers should fill from their own geometry, not from the viewport's.
+        // The old viewport-only test could wait until the reader hit the painted edge, then append
+        // a large slice during the gesture. Keeping roughly 1.5 table viewports buffered makes the
+        // history feel continuous while retaining scroll-paged DOM bounds.
+        const internalNearEnd = scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < Math.max(480, scroller.clientHeight * 1.5);
+        const pageNearEnd = !scroller || scroller.scrollHeight <= scroller.clientHeight
+          ? last.getBoundingClientRect().top < window.innerHeight * 2
+          : false;
+        if (internalNearEnd || pageNearEnd) {
           if (fillMode === 'scroll') pumpFill();
           else flush();
         }
@@ -949,14 +1042,17 @@ export function scoreTable(config) {
       if (scrollAttached) return;
       scrollAttached = true;
       scroller?.addEventListener('scroll', onScroll, { passive: true });
-      window.addEventListener('scroll', onScroll, { passive: true });
+      // A virtual table is always driven by its bounded internal scroller. Listening to window as
+      // well would double the work and is precisely the kind of global closure a live repaint can
+      // retain. Legacy fill modes still support page-scrolling tables without stickyHead.
+      if (!isVirtual || !stickyHead) window.addEventListener('scroll', onScroll, { passive: true });
     }
 
     function detachScroll() {
       if (!scrollAttached) return;
       scrollAttached = false;
       scroller?.removeEventListener('scroll', onScroll);
-      window.removeEventListener('scroll', onScroll);
+      if (!isVirtual || !stickyHead) window.removeEventListener('scroll', onScroll);
     }
 
     // Repaint has a fast path. Sorting and narrowing a filter both leave a row SET the DOM
@@ -968,10 +1064,26 @@ export function scoreTable(config) {
     // The reorder path needs every next row already in the DOM, which is only true once the fill
     // has finished. Mid-fill it falls through to the rebuild — which is now the cheap path, since
     // a rebuild is a screenful plus a fresh fill rather than 1,722 rows.
-    function repaint() {
+    function repaint({ resetScroll = true } = {}) {
       stopFill();
       current = visibleRows();
       head.innerHTML = headHtml();
+
+      if (isVirtual) {
+        if (windowed) {
+          windowed.update(current, { resetScroll });
+          markPending(0); countEl.textContent = countText(current);
+          if (watchCount) watchCount.textContent = String(watchlist.size());
+          return;
+        }
+        const visibleIndex = scroller ? Math.floor(scroller.scrollTop / VIRTUAL_ROW_HEIGHT) : 0;
+        virtualStart = -1; // the filtered/sorted row identities changed; force a bounded rebuild
+        paintVirtualWindow(visibleIndex - VIRTUAL_OVERSCAN_ROWS);
+        markPending(0);
+        countEl.textContent = countText(current);
+        if (watchCount) watchCount.textContent = String(watchlist.size());
+        return;
+      }
 
       // A Map keyed by row key CANNOT SURVIVE A DUPLICATE: the second `<tr>` displaces the first,
       // the first is then never visited by the removal loop, and it stays in the DOM for ever —
@@ -1012,7 +1124,6 @@ export function scoreTable(config) {
       }
 
       countEl.textContent = countText(current);
-      // Absent on a table that opted out of the filter; see `showWatchFilter`.
       if (watchCount) watchCount.textContent = String(watchlist.size());
     }
 
@@ -1027,6 +1138,12 @@ export function scoreTable(config) {
     updateRows = (keys) => {
       const wanted = new Set([...keys].map(String));
       if (!wanted.size) return 0;
+      rows.forEach((row, i) => { if (wanted.has(String(key(row))) && searchTextIndex) searchTextIndex[i] = undefined; });
+      if (windowed) {
+        const touched = [...body.querySelectorAll('tr[data-row-key]')].filter(tr => wanted.has(tr.dataset.rowKey)).length;
+        if (touched) windowed.refresh();
+        return touched;
+      }
       const watched = loadWatchlist();
       // Both indexes are built ONCE, not once per key. Sixty keys scanned against six hundred
       // rows and six hundred <tr> nodes is the sort of quadratic that this table's whole design
@@ -1040,8 +1157,8 @@ export function scoreTable(config) {
         const row = byKey.get(slug);
         if (!row) continue;
         const wk = watchKeyOf(row);
-        const markup = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row));
-        rowHtmlCache.set(slug, markup); // so a later sort reorders the NEW markup, not the old
+        const markup = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row), isVirtual ? current.findIndex((item) => String(key(item)) === slug) : null);
+        if (!isVirtual) rowHtmlCache.set(slug, markup); // later sorts need fresh non-virtual markup
         const tr = trByKey.get(slug);
         if (!tr) continue; // filtered out of view — the cache above still has it right
         scratch.innerHTML = markup;
@@ -1091,7 +1208,7 @@ export function scoreTable(config) {
           rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
           staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
         }
-        repaint();
+        repaint({ resetScroll: false });
         return;
       }
       if (e.target.closest('[data-stop]')) {
@@ -1108,26 +1225,10 @@ export function scoreTable(config) {
       if (row) onRowClick(row);
     });
 
-    // The combo owns its own input, because typing there filters the suggestion list as well as
-    // the rows. Without one, the plain search box behaves exactly as it always has.
-    let releaseCombo = null;
-    if (combo) {
-      releaseCombo = combo.wire(host, {
-        onQuery: (q) => {
-          view.q = q;
-          repaint();
-        },
-        onCompanies: (list) => {
-          view.companies = list;
-          repaint();
-        },
-      });
-    } else {
-      searchEl.addEventListener('input', () => {
-        view.q = searchEl.value.trim().toLowerCase();
-        repaint();
-      });
-    }
+    searchEl.addEventListener('input', () => {
+      view.q = searchEl.value.trim().toLowerCase();
+      repaint();
+    });
 
     filterEls.forEach((el, i) =>
       el.addEventListener('change', () => {
@@ -1136,7 +1237,6 @@ export function scoreTable(config) {
       })
     );
 
-    // Absent on a table that opted out of the filter; see `showWatchFilter`.
     watchBtn?.addEventListener('click', () => {
       view.watchOnly = !view.watchOnly;
       rowHtmlCache.clear(); // star styling is baked into the cached markup
@@ -1157,11 +1257,17 @@ export function scoreTable(config) {
     });
 
     startFill();
+    startSearchWarm();
 
     return () => {
+      offBookmarks(); offBookmarkCache();
+      windowed?.destroy();
       stopFill();
+      if (cancelSearchWarm) cancelSearchWarm();
+      cancelSearchWarm = null;
       detachScroll();
-      releaseCombo?.();
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      scrollFrame = 0;
     };
   }
 
@@ -1624,39 +1730,18 @@ export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
 }
 
 /**
- * Seed a table from `?company=` — ONCE per distinct value.
+ * Seed a table's search from `?company=` — ONCE per distinct value.
  *
  * `#/research/<tab>?company=IIFL` is what an Ask Research citation and an AI Alerts card link to,
  * and every table tab honours it the same way: the first paint after the parameter appears (or
- * changes) opens the table narrowed to that company; later paints keep whatever the reader has
+ * changes) opens the table searched for that company; later paints keep whatever the reader has
  * since typed. Returns the view to pass as `initialView` and the company to remember.
  *
  *   const seeded = companySeededView(ctx, routeCompany, tableView);
  *   routeCompany = seeded.company; tableView = seeded.view;
- *
- * A COMPANY IS AN IDENTITY, AND TEXT IS NOT ONE.
- *
- * This used to seed the free-text search box on every table, which is ambiguous the moment two
- * companies share a name stem: `?company=TECHNOCRAF` — Technocraft Ventures — also matched
- * *Technocraft Industries* (TIIL), because the search haystack carries the company NAME. A
- * citation that named one company opened a table showing two, and nothing on screen said which one
- * had been asked for. It is the same lesson `key(row)` and the con-call composite key already
- * taught here: an identity expressed as a string is not an identity.
- *
- * So where the table can express it exactly, it does. `exact: true` seeds `view.companies`, the
- * kit's own company filter, which narrows by `companyOf(row)` rather than by text — and it is
- * passed only by tables that render the company multi-select, because that control shows the
- * selection as a removable chip. Without a chip the reader would face a narrowed table with no
- * visible control saying why, and no way to clear it, which is worse than a superset.
- *
- * Everywhere else the seed stays in the search box: visible, editable, and honest about being a
- * text match. The table may show a second company whose name contains the string, and the box says
- * exactly why it is there.
  */
-export function companySeededView(ctx, lastCompany, view, { exact = false } = {}) {
+export function companySeededView(ctx, lastCompany, view) {
   const requested = String(ctx?.params?.company || '').trim().toUpperCase();
-  if (requested && requested !== lastCompany) {
-    return { company: requested, view: exact ? { companies: [requested] } : { q: requested } };
-  }
+  if (requested && requested !== lastCompany) return { company: requested, view: { q: requested } };
   return { company: requested || null, view };
 }

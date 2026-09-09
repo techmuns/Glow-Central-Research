@@ -1,19 +1,12 @@
+import { defaultSection } from '../investors/my-managers.js';
 // tabs/super-investors.js — who owns what, from two live sources and nothing else.
 //
 //   Superstar Investors  every tracked investor's book, live off Ticker Finology  → investors/live.js
 //   Institutions         funds, from shareholding filings and AMC portfolios      → investors/filed.js
 //
 // THIS MODULE IS A DISPATCHER AND ALMOST NOTHING ELSE. Both sub-views own their own rendering,
-// provenance and export; all that is left here is the tab contract, the lifetimes, and the
+// provenance and export; all that is left here is the tab contract, the two lifetimes, and the
 // loading state.
-//
-// FUND RETURNS HAS LEFT — IT IS THE MUTUAL FUNDS TAB NOW (js/tabs/mutual-funds.js). It sat here as
-// a third sub-view because that is where the AmfiBeas feed happened to be wired, and it never
-// belonged: this tab answers WHO HOLDS WHAT — a superstar investor's filed book, an institution's
-// shareholding, an AMC's portfolio — and a fund's RETURN is not a holding. It sums with nothing
-// here, joins to no company here, and answers none of the question the two remaining views exist
-// to answer. `#/research/super-investors/fund-returns` still resolves: the shell rewrites it to the
-// new address (MOVED_ROUTES in js/ui/shell.js) rather than dropping the reader on a different page.
 //
 // THE SYNTHETIC HALF IS GONE, AND ITS MACHINERY WITH IT. There used to be a third sub-view, Fund
 // Flows, running on `superinvestors.json` / `institutions.json` — real names against generated
@@ -34,9 +27,6 @@ import { renderLive } from '../investors/live.js';
 import * as liveInvestors from '../data/super-investors.js';
 import * as refreshRegistry from '../core/refresh.js';
 import * as filed from '../data/institution-holdings.js';
-// GLOW: My Managers is the first in-page section under Portfolio; `defaultSection` says which
-// section a visit that has not chosen one opens on. See js/investors/my-managers.js.
-import { defaultSection } from '../investors/my-managers.js';
 
 export const meta = {
   id: 'super-investors',
@@ -62,8 +52,7 @@ let liveView = null;
 let liveRouteCompany = null;
 // The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
-// leaving Super Investors resets it. `null` is "not chosen": the scope's default (GLOW —
-// `defaultSection`, My Managers under Portfolio, All Investors elsewhere) is resolved at paint time.
+// leaving Super Investors resets it.
 let liveSection = null;
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
@@ -86,6 +75,14 @@ export function render(ctx) {
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
+  if (!liveUnregister) liveUnregister = refreshRegistry.register('superstar-investors', {
+    label: 'Investors', refresh: async () => {
+      if (ctxRef?.subview !== 'institutions') return liveInvestors.refresh();
+      await filed.refresh();
+      if (ctxRef?.subview === 'institutions') renderInstitutions(ctxRef);
+      return { checked: 1 };
+    },
+  });
   const view = { institutions: renderInstitutions }[ctx.subview] || renderIndividuals;
   view(ctx);
 }
@@ -150,12 +147,7 @@ function renderIndividuals(ctx) {
   // THE HEADER'S REFRESH BUTTON RE-READS THE BOOKS, and nothing else does. Ninety-one round trips
   // is not work to do on a page load: the grid is painted from the committed snapshot and this
   // device, and asking the server about all of it is what the reader presses a button for.
-  if (!liveUnregister) {
-    liveUnregister = refreshRegistry.register('superstar-investors', {
-      label: 'Superstar Investors',
-      refresh: () => liveInvestors.refresh(),
-    });
-  }
+
 
   // THE GUARD IS `ctxRef`, NOT A CAPTURED TOKEN. `renderToken` increments on every render — which a
   // scope toggle always causes — so a handler holding the value it had at subscribe time goes deaf
@@ -182,7 +174,7 @@ function paintIndividuals(ctx) {
   disposers = [];
   renderLive(ctx, {
     disposers,
-    section: liveSection || defaultSection(ctx.scope), // GLOW
+    section: liveSection || defaultSection(ctx.scope),
     tableView: liveView,
     onView: (v) => (liveView = v),
     onSection: (section) => {

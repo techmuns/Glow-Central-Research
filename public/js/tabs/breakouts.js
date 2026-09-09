@@ -17,10 +17,10 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatPct, formatRelativeTime, formatRupee } from '../core/format.js';
 import { exportRows, todayStamp } from '../ui/export.js';
 import * as technicals from '../data/technicals.js';
+import * as refreshRegistry from '../core/refresh.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
-import { whenDeferredData } from '../core/state.js';
 
 export const meta = {
   id: 'breakouts',
@@ -37,9 +37,28 @@ export const meta = {
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
 let renderToken = 0;
+let ctxRef = null;
+let refreshOff = null;
+let dataOff = null;
+let refreshQuotes = null;
+let tableOff = null;
+const tableViews = new Map();
 
 export function render(ctx) {
+  tableOff?.(); tableOff = null;
+  ctxRef = ctx;
+  refreshQuotes = null;
+  if (!refreshOff) refreshOff = refreshRegistry.register('technicals-view', {
+    label: 'Technicals', refresh: async () => {
+      if (ctxRef?.subview === 'earnings-surprise') return { skipped: true };
+      await technicals.refresh();
+      if (ctxRef?.subview === 'technical-scanner' && refreshQuotes) return refreshQuotes();
+      return { checked: 1, partial: !!technicals.meta()?.failures };
+    },
+  });
+  if (!dataOff) dataOff = technicals.onChange(() => { if (ctxRef) paint(ctxRef); });
   const token = ++renderToken;
+  if (ctx.subview === 'earnings-surprise') { renderEarningsSurprise(ctx); return; }
   ctx.root.innerHTML = loadingHtml();
 
   technicals
@@ -71,6 +90,7 @@ function loadingHtml() {
 }
 
 function paint(ctx) {
+  tableOff?.(); tableOff = null;
   const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const view = {
     'strong-breakouts': renderStrongBreakouts,
@@ -79,17 +99,6 @@ function paint(ctx) {
     'earnings-surprise': renderEarningsSurprise,
   }[ctx.subview] || renderStrongBreakouts;
 
-  // Earnings Surprise is the one sub-view here whose left-hand columns come off `ctx.data`, and
-  // that corpus is no longer in front of the shell's first paint (see js/app.js). Waiting for it
-  // costs this sub-view alone and only on a cold visit — the other three render at once, as they
-  // did. Rendering it early instead would show "0 results joined", which is a claim, not a wait.
-  if (view === renderEarningsSurprise && !ctx.data?.earnings) {
-    const token = renderToken;
-    whenDeferredData().then(() => {
-      if (token === renderToken) renderEarningsSurprise(ctx, rows);
-    });
-    return;
-  }
   view(ctx, rows);
 }
 
@@ -417,7 +426,7 @@ function renderScanner(ctx, rows) {
   const table = scoreTable({
     ...tableBase(rows, ctx),
     // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
-    initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
+    initialView: tableViews.get(ctx.subview) || (ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null),
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -453,7 +462,7 @@ function renderScanner(ctx, rows) {
       },
     },
     initialSort: { key: 'Score', dir: 'desc' },
-    exportName: `glow-technicals-${todayStamp()}`,
+    exportName: `sattva-technicals-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -471,7 +480,8 @@ function renderScanner(ctx, rows) {
 
   pill.wire(ctx.root);
   cards.wire(ctx.root);
-  table.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
   wireRefreshBar(ctx, table);
 }
 
@@ -680,6 +690,7 @@ function renderStrongBreakouts(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: scoreOf,
@@ -691,7 +702,7 @@ function renderStrongBreakouts(ctx, rows) {
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
     ],
     initialSort: null, // pre-sorted by score
-    exportName: `glow-breakouts-${todayStamp()}`,
+    exportName: `sattva-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -708,7 +719,8 @@ function renderStrongBreakouts(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
-  table.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, BREAKOUT_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
@@ -800,6 +812,7 @@ function renderFiiAccumulation(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: (s) => {
@@ -816,7 +829,7 @@ function renderFiiAccumulation(ctx, rows) {
       { label: 'Delivery trend Δ', get: (s) => deliveryCell(s.company.delivery_trend_diff), html: true, align: 'right', sortValue: (s) => s.company.delivery_trend_diff ?? -99 },
     ],
     initialSort: null,
-    exportName: `glow-fii-accumulation-${todayStamp()}`,
+    exportName: `sattva-fii-accumulation-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
 
@@ -833,7 +846,8 @@ function renderFiiAccumulation(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
-  table.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, FII_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
@@ -850,83 +864,15 @@ function deliveryCell(v) {
 
 // ---- (d) Earnings Surprise -------------------------------------------------------------------
 
-function renderEarningsSurprise(ctx, rows) {
-  // The honest join: mock earnings on the left, the REAL technical score on the right.
-  // Deliberately NOT blended into a composite — the two sides have different provenance.
-  const byTicker = new Map(rows.map((s) => [s.company.ticker, s]));
-  // `rows` arrived already narrowed to the scope, so under Portfolio or Watchlist an earnings row
-  // with no technical row is a company outside the scope — not a company with no technicals.
-  const narrowed = ctx.scope !== 'universe';
-  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || !narrowed);
-
-  const joined = earnings
-    .map((e) => ({ earnings: e, tech: byTicker.get(e.ticker) || null }))
-    .filter((j) => (narrowed ? !!j.tech : true))
-    .sort((a, b) => b.earnings.surprisePct - a.earnings.surprisePct);
-
-  const withTech = joined.filter((j) => j.tech && !j.tech.tickerError).length;
-  const beats = joined.filter((j) => j.earnings.resultTag === 'Beat').length;
-
-  // `mock` rather than the plain freshness pill, and it is the one sub-view here that gets it: a
-  // green "Live" in the head of a table whose earnings columns are invented would be the chip
-  // claiming more than it can support. The amber ribbon below states the same thing — this is the
-  // pill agreeing with it, not repeating it by accident.
-  const pill = livePill({
-    mock: true,
-    facts: [
-      { label: 'Results joined', value: formatNumber(joined.length), note: `${withTech} with a live technical score` },
-      { label: 'Beats', value: formatNumber(beats), note: `${joined.length - beats} in-line or miss` },
-      { label: 'Provenance', value: 'Mixed', note: 'mock earnings · live technicals' },
-    ],
-    bodyHtml: `<h3 class="mb-1 text-xs font-bold uppercase tracking-wider text-indigo-700">Two different sources on one screen</h3>
-               <p>This view deliberately keeps two provenances side by side rather than blending them:</p>
-               <ul class="mt-2 list-disc space-y-1 pl-5">
-                 <li><strong>Earnings columns</strong> (surprise %, beat/miss, revenue and PAT growth) are <em>mock data</em> from <code class="rounded bg-slate-100 px-1">mock/earnings.json</code>. Swapping in a real filings feed is documented in docs/DATA-CONTRACTS.md under “Wiring the real feed”.</li>
-                 <li><strong>Technical score</strong> is <em>live</em> — computed today from Yahoo Finance daily OHLCV by the same 16-rule model as the rest of this tab.</li>
-               </ul>
-               <p class="mt-3 text-slate-500">No composite is computed across the two. Combining a mock number with a live one into a single score would make the mock half invisible, and the result would look more trustworthy than it is.</p>`,
-  });
-
-  const table = scoreTable({
-    rows: joined,
-    key: (j) => j.earnings.ticker,
-    name: (j) => j.earnings.name,
-    sub: (j) => `${j.earnings.ticker} · ${j.earnings.sector}`,
-    link: (j) => j.tech?.company?.screenerUrl || null,
-    searchable: (j) => `${j.earnings.name} ${j.earnings.ticker} ${j.earnings.sector}`,
-    onRowClick: (j) => j.tech && openTechnicalsDrill(j.tech),
-    emptyMessage: 'No results to join for this scope.',
-    showScore: true,
-    score: (j) => (j.tech && !j.tech.tickerError ? scoreOf(j.tech) : { points: '—', max: '—', pct: 0, redFlag: null }),
-    columns: [
-      { label: 'Quarter', get: (j) => j.earnings.quarter },
-      { label: 'Surprise', get: (j) => toneSpan(formatPct(j.earnings.surprisePct), j.earnings.surprisePct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.surprisePct },
-      { label: 'Tag', get: (j) => tagPill(j.earnings.resultTag), html: true, sortValue: (j) => j.earnings.resultTag },
-      { label: 'Rev YoY', get: (j) => toneSpan(formatPct(j.earnings.revenueYoyPct), j.earnings.revenueYoyPct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.revenueYoyPct },
-      { label: 'PAT YoY', get: (j) => toneSpan(formatPct(j.earnings.netProfitYoyPct), j.earnings.netProfitYoyPct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.netProfitYoyPct },
-      { label: 'RSI', get: (j) => rsiCell(j.tech?.company?.rsi14), html: true, align: 'right', sortValue: (j) => j.tech?.company?.rsi14 ?? -1 },
-      { label: 'Above 200 DMA', get: (j) => dmaPill(j.tech?.company?.above_200dma), html: true, sortValue: (j) => (j.tech?.company?.above_200dma ? 1 : 0) },
-    ],
-    initialSort: null,
-    exportName: `glow-earnings-surprise-${todayStamp()}`,
-  });
-
+function renderEarningsSurprise(ctx) {
   ctx.root.innerHTML = `
-    ${sectionHead({
-      title: meta.title,
-      description: 'Earnings surprise against the live technical score for the same company.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() })}</div>`,
-    })}
-    <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
-      <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
-      <span>Earnings figures are <strong>mock</strong>. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
-    </div>
-    ${table.html}
-    ${legendStrip()}
-  `;
-
-  pill.wire(ctx.root);
-  table.wire(ctx.root);
+    ${sectionHead({ title: 'Earnings Surprise', description: 'Analyst consensus estimates are not connected.' })}
+    <div class="rounded-2xl bg-white p-6 text-sm text-slate-600 ring-1 ring-slate-200">
+      <p>Beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable.
+         Filing PDFs provide published documents; they do not provide analyst consensus estimates.</p>
+      <p class="mt-3"><a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}">View reported results</a>
+        · <a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}&view=filings">Browse company filings</a></p>
+    </div>`;
 }
 
 function tagPill(tag) {
@@ -1029,7 +975,8 @@ function wireRefreshBar(ctx, table) {
   btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
   btn.title = `Fetch live quotes for the top ${tickers.length} names on screen`;
   note.textContent = `EOD data below. Live quotes for the top ${tickers.length} names on demand.`;
-  btn.addEventListener('click', () => doRefresh({ btn, note, label, tickers, byTicker, table }));
+  refreshQuotes = () => doRefresh({ btn, note, label, tickers, byTicker, table });
+  btn.addEventListener('click', refreshQuotes);
 }
 
 /**
@@ -1040,7 +987,7 @@ function wireRefreshBar(ctx, table) {
  * A control that reports success without changing what it names is worse than one that fails.
  */
 async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
-  if (inFlight) return; // a second click during a slow refresh is not a second request
+  if (inFlight) return { pending: true }; // do not duplicate a local price refresh
   const ctl = new AbortController();
   inFlight = ctl;
   const timer = setTimeout(() => ctl.abort(new Error('client timeout')), CLIENT_TIMEOUT_MS);
@@ -1059,7 +1006,7 @@ async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
       // Static preview — no Worker. Say so once and stop offering the button.
       btn.title = 'Live quotes need the Cloudflare Worker (npx wrangler dev). Not available in a static preview.';
       note.textContent = 'Live quotes need the Worker — run `npx wrangler dev`. The EOD data below is unaffected.';
-      return; // stays disabled
+      return { failed: 1, error: 'Live quotes are unavailable.' }; // stays disabled
     }
 
     // Read the body BEFORE deciding this is a failure. The Worker puts the diagnosis in there —
@@ -1076,12 +1023,14 @@ async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
     // is not something a reader can check against the table without being told which eight.
     btn.title = missingTitle(payload) || `Fetch live quotes for the top ${tickers.length} names on screen`;
     btn.disabled = false;
+    return { checked: applied.length, partial: applied.length < tickers.length };
   } catch (err) {
     if (ctl.signal.aborted && !isTimeout(err)) return; // we navigated away; the tab is gone
     console.warn('[breakouts] live price refresh failed', err);
     note.textContent = failureNote(err);
     note.className = 'text-xs text-amber-700';
     btn.disabled = false;
+    return { failed: 1, error: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
     if (inFlight === ctl) inFlight = null;
@@ -1205,6 +1154,11 @@ function failureNote(err) {
 }
 
 export function destroy() {
+  tableOff?.(); tableOff = null;
+  ctxRef = null; refreshQuotes = null;
+  refreshOff?.(); refreshOff = null;
+  dataOff?.(); dataOff = null;
+  tableViews.clear();
   // Invalidate any in-flight load so it can't paint after we're gone. The parsed+scored
   // technicals cache is intentionally kept — that's what makes tab re-entry instant.
   renderToken++;

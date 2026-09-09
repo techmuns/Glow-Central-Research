@@ -21,6 +21,7 @@ name: GlowVentures sync (series store + family book)
 # and both tabs print their capture time on every visit so nobody mistakes it for today's.
 
 on:
+  workflow_call:
   schedule:
     # 03:30 UTC = 09:00 IST daily, ninety minutes after the GlowVentures harvest.
     - cron: "30 3 * * *"

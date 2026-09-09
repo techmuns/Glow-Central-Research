@@ -1,0 +1,21 @@
+/* Glow-owned brand; structural and dark-mode styles continue to come from Sattva. */
+html:not([data-theme="dark"]) {
+  --brand-500: #c3a962; --brand-600: #8a6a1c; --brand-mid: #d9c48f;
+  --brand-end: #ecdcae; --accent-600: #8a6a1c; --brand-ink: #1a1830;
+  --page-bg: #f4f2ec; --surface: #fff; --ink-900: #1a1830;
+  --ink-600: #55516b; --ink-400: #736f88;
+}
+html[data-theme="dark"] { --accent-600: #ecdcae; --brand-600: #ecdcae; --brand-ink: #1a1830; }
+.bg-indigo-500.text-white, [class*="from-indigo-"][class*="to-pink-"],
+[class*="from-indigo-"][class*="to-pink-"] .text-white { color: var(--brand-ink, #1a1830); }
+.sattva-wordmark { max-width: 250px; height: auto; }
+html[data-theme="dark"] .sattva-wordmark { filter: none; }
+@media (max-width: 360px) and (max-height: 680px) {
+  #app:has(.research-workspace) > [data-app-header] .sattva-product-brand { display: none; }
+}
+@media screen {
+  html:not([data-theme="dark"]) body {
+    background: radial-gradient(at 0% 0%, #d9c48f24 0, transparent 50%),
+      radial-gradient(at 100% 0%, #ecdcae33 0, transparent 50%), #f4f2ec;
+  }
+}

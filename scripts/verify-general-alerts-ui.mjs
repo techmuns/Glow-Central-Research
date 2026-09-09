@@ -1,0 +1,525 @@
+#!/usr/bin/env node
+// Isolated browser over local captures and local stand-ins. No production requests.
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
+const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
+  .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
+const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
+    ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
+    url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
+let version = 1;
+const calls = [];
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
+<script>
+const activeListeners=new Map();
+const listenerSets=new WeakMap();
+const nativeAdd=EventTarget.prototype.addEventListener;
+const nativeRemove=EventTarget.prototype.removeEventListener;
+EventTarget.prototype.addEventListener=function(type,listener,options){
+  if(type==='scroll'||type==='resize'){
+    let byType=listenerSets.get(this);if(!byType){byType=new Map();listenerSets.set(this,byType);}
+    let listeners=byType.get(type);if(!listeners){listeners=new Set();byType.set(type,listeners);}
+    if(!listeners.has(listener)){listeners.add(listener);activeListeners.set(type,(activeListeners.get(type)||0)+1);}
+  }
+  return nativeAdd.call(this,type,listener,options);
+};
+EventTarget.prototype.removeEventListener=function(type,listener,options){
+  const listeners=listenerSets.get(this)?.get(type);
+  if(listeners?.delete(listener))activeListeners.set(type,Math.max(0,(activeListeners.get(type)||0)-1));
+  return nativeRemove.call(this,type,listener,options);
+};
+window.testListenerCount=(type)=>activeListeners.get(type)||0;
+window.testContext={session:{token:'local-fixture-only',email:'fixture@example.test'}};
+window.MunshotDashboardSDK={createClient:()=>({getContext:()=>window.testContext,onMessage:(fn)=>{window.testHostMessage=fn;return()=>{};}})};
+window.SATTVA_CHATTER_URL=location.origin+'/chatter';
+</script><script type="module">
+import * as tab from '/js/tabs/daily-alerts.js';
+import * as coverage from '/js/data/coverage.js';
+import * as refresh from '/js/core/refresh.js';
+coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
+window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
+window.dispose=()=>tab.destroy();
+document.querySelector('#refresh').onclick=()=>refresh.refreshAll();
+window.show();
+</script></body></html>`;
+const server = createServer((req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  calls.push(url.pathname);
+  const json = (value) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
+  try {
+    if (url.pathname === '/embed') {
+      res.setHeader('content-type', 'text/html');
+      res.end(`<!doctype html><html><body style="margin:0;overflow:hidden;background:#475569"><main style="position:fixed;inset:16px 16px 16px 64px;display:flex;flex-direction:column;background:white"><header style="height:48px;flex:none">Local dashboard host</header><iframe title="Research dashboard" src="/" style="width:100%;flex:1;min-height:0;border:0"></iframe></main></body></html>`);
+      return;
+    }
+    if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (url.pathname === '/data/news.json') { json(newsFixture); return; }
+    if (url.pathname === '/api/earnings') { json(data('earnings-live.json')); return; }
+    if (url.pathname === '/api/concalls') {
+      const payload = data('concall-scans.json');
+      json({ ...payload, portfolioUpcoming: [
+        { id: 'STLTECH|2026-09-10|AGM|day', companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: '2026-09-10', time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
+      ], meta: { ...payload.meta, screener: { status: 'ok', checkedAt: '2026-09-04T07:00:00Z', portfolioUpcomingAvailable: true } } });
+      return;
+    }
+    if (url.pathname === '/api/super-investors') { const x = data('super-investors.json'); json({ ok: true, investors: x.investors, fetchedAt: x.capturedAt }); return; }
+    if (url.pathname === '/api/nse-announcements') { json({ capturedAt: '2026-09-04T08:00:00Z', rows: [
+      { company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T07:00:00Z', subject: 'Analyst day complete source record', description: 'Original analyst presentation', url: 'https://example.test/analyst.pdf' },
+      { company: 'Undated issuer', ticker: null, publishedAt: null, subject: 'Undated retained item', url: 'https://example.test/undated.pdf' },
+      ...(version > 1 ? [{ company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T08:00:00Z', subject: 'Newly arrived NSE record', url: 'https://example.test/new.pdf' }] : []),
+    ] }); return; }
+    if (url.pathname === '/api/ipo-monitor') {
+      const date = url.searchParams.get('snapshot');
+      json(date ? { ok: true, snapshot: data('ipo-monitor/snapshots/' + date + '.json') } : {
+        ok: true, latest: data('ipo-monitor/latest.json'), config: data('ipo-monitor/scoring_config.json'), historyAvailable: true,
+        historyDates: data('ipo-monitor/index.json').historyDates,
+      }); return;
+    }
+    if (url.pathname === '/chatter/dashboard') { json(JSON.parse(readFileSync(resolve(root, '../scripts/fixtures/chatter-dashboard.json')))); return; }
+    if (url.pathname === '/chatter/health') { json({ ok: true, ageSeconds: 0 }); return; }
+    const file = resolve(root, '.' + url.pathname);
+    if (!file.startsWith(root + sep)) throw Error('Invalid path');
+    res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'application/octet-stream');
+    res.end(readFileSync(file));
+  } catch { res.writeHead(404); res.end('{}'); }
+});
+await new Promise((done) => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = [];
+page.on('pageerror', (error) => errors.push(error.message));
+page.on('console', (message) => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
+await page.route('**/*', (route) => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+const settled = async (target = page) => {
+  try {
+    await target.waitForFunction(() => {
+      const chips = [...document.querySelectorAll('[data-feed]')];
+      const panel = document.querySelector('#root');
+      return chips.length > 15 && chips.every((c) => !c.textContent.includes('reading…')) && !/Reading \d+ more feeds?/.test(panel?.textContent || '');
+    }, null, { timeout: Number(process.env.GENERAL_ALERTS_SETTLE_MS || 90000) });
+  } catch (error) {
+    const pending = await target.locator('[data-feed]').evaluateAll((chips) => chips.map((chip) => chip.textContent.trim()).filter((label) => label.includes('reading…')));
+    const state = await target.locator('#root').innerText().catch(() => 'root unavailable');
+    throw new Error(`All Alerts did not settle; pending feeds: ${pending.join(', ') || 'controls unavailable'}; page: ${state.slice(0, 500) || 'empty'}; errors: ${errors.join(' | ') || 'none'}`, { cause: error });
+  }
+};
+// A finished provider read can still leave the tab's 250ms source coalescer / 180ms
+// scroll-quiet paint queued. Start geometry gestures only after the rendered surface itself
+// is stable; a chip that no longer says "reading" does not establish that condition.
+const stableReadingSurface = (target = page) => target.evaluate(async () => {
+  let previous = null, previousNode = null, stableAt = performance.now();
+  const deadline = performance.now() + 10000;
+  for (;;) {
+    await new Promise(requestAnimationFrame);
+    const node = document.querySelector('[data-table-scroll]');
+    const box = node?.getBoundingClientRect();
+    const rows = [...(node?.querySelectorAll('tr[data-row-key]') || [])];
+    const stamp = JSON.stringify([box?.x, box?.y, box?.width, box?.height, node?.scrollTop,
+      node?.scrollHeight, node?.querySelector('thead')?.offsetHeight,
+      node?.closest('[data-score-table]')?.dataset.virtualTotal, rows[0]?.dataset.rowKey, rows.at(-1)?.dataset.rowKey]);
+    if (!node || node !== previousNode || stamp !== previous) stableAt = performance.now();
+    else if (performance.now() - stableAt >= 400) return;
+    if (performance.now() > deadline) throw Error('Rendered reading surface did not stabilize');
+    previous = stamp; previousNode = node;
+  }
+});
+try {
+  await page.goto(origin);
+  await settled();
+  console.log('Rendered complete All Alerts pool');
+  const period = page.getByRole('combobox', { name: 'Date range', exact: true });
+  assert.equal(await period.inputValue(), '3d', 'All Alerts opens on Last 3 days');
+  for (const label of ['Today', 'Last 3 days', 'Last 7 days', 'Last 14 days', 'Last 30 days', 'This month', 'Date not supplied', 'All history through today']) {
+    assert((await period.locator('option').allTextContents()).includes(label), `All Alerts offers ${label}`);
+  }
+  await period.selectOption('all'); // The remaining regression suite deliberately exercises full history.
+  await stableReadingSurface(); // Changing the default period can overlap a trailing source repaint.
+  const picker = page.locator('[data-alerts-sources]');
+  const sourceSummary = page.locator('[data-sources-summary]');
+  assert.equal(await picker.getAttribute('open'), null, 'source grid is collapsed on entry');
+  const streamBeforePicker = await page.locator('[data-table-scroll]').boundingBox();
+  await sourceSummary.press('Enter');
+  assert(await page.locator('[data-alerts-coverage]').isVisible(), 'source picker opens from the keyboard');
+  const streamWithPicker = await page.locator('[data-table-scroll]').boundingBox();
+  assert.equal(streamWithPicker.y, streamBeforePicker.y, 'opening source filters never pushes the table down');
+  assert.equal(streamWithPicker.height, streamBeforePicker.height, 'opening source filters does not shrink the reading area');
+  await page.locator('[data-feed-toggle="news"]').click();
+  assert.equal(await page.locator('[data-feed-toggle="news"]').getAttribute('aria-checked'), 'true');
+  assert.match(await sourceSummary.innerText(), /1 selected/);
+  assert(await page.locator('[data-alerts-coverage]').isVisible(), 'multi-select stays open across its row repaint');
+  await page.locator('[data-feed-toggle="announcements"]').click();
+  assert.match(await sourceSummary.innerText(), /2 selected/);
+  await page.locator('[data-sources-close]').click();
+  assert.equal(await picker.getAttribute('open'), null);
+  assert.match(await sourceSummary.innerText(), /2 selected/, 'collapsed control discloses the active filter');
+  await sourceSummary.press('Enter');
+  await page.locator('[data-feed-toggle="__all"]').click();
+  await page.locator('[data-feed-toggle="__all"]').press('Escape');
+  assert.equal(await picker.getAttribute('open'), null);
+  assert(await sourceSummary.evaluate(node => node === document.activeElement), 'Escape returns focus to the source control');
+  assert.equal(await page.locator('[data-feed]').count(), 19, 'Universe hides the portfolio-only calendar');
+  assert.equal(await page.locator('[data-horizon-toggle]').count(), 2);
+  assert.equal(await page.locator('[data-horizon-toggle="through"]').getAttribute('aria-selected'), 'true');
+  const sourceControl = await page.locator('[data-feed]').first().evaluate((node) => {
+    const checkbox = node.querySelector('span');
+    return {
+      touchTarget: node.classList.contains('min-h-10'),
+      checkbox: checkbox?.classList.contains('h-5') && checkbox?.classList.contains('w-5'),
+    };
+  });
+  assert(
+    sourceControl.touchTarget && sourceControl.checkbox,
+    'source controls ship comfortable touch targets and legible checkboxes',
+  );
+  await page.locator('[data-horizon-toggle="through"]').press('ArrowRight');
+  assert.equal(await page.locator('[data-horizon-toggle="upcoming"]').getAttribute('aria-selected'), 'true', 'time horizon is keyboard operable');
+  await page.locator('[data-horizon-toggle="upcoming"]').press('ArrowLeft');
+  assert.equal(await page.locator('[data-horizon-toggle="through"]').getAttribute('aria-selected'), 'true');
+  await page.evaluate(() => window.show('portfolio'));
+  await settled();
+  const dateFixture = await page.evaluate(async () => {
+    const { today } = await import('/js/data/daily-alerts.js');
+    const records = await import('/js/data/alert-records.js');
+    const day = today();
+    const dates = [0,1,2,3,6,7,13,14,29,30,60].map(offset =>
+      new Date(Date.parse(day + 'T00:00:00Z') - offset * 86400000).toISOString().slice(0,10));
+    records.recordDocuments('company-documents', { rows: [...dates,null].map((date,i) => ({
+      key: 'date-window-fixture-' + i, ticker: 'STLTECH', title: 'Date window fixture ' + i,
+      date, url: 'https://example.test/date-window-' + i,
+    })) }, { ticker: 'STLTECH', name: 'Sterlite Technologies' });
+    return { day, dates };
+  });
+  await page.locator('[data-table-search]').fill('Date window fixture');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr[data-row-key]').length === 12);
+  for (const [value,count] of [['today',1],['3d',3],['7d',5],['14d',7],['30d',9],
+    ['month',dateFixture.dates.filter(day => day >= dateFixture.day.slice(0,7) + '-01').length],['older',2],['undated',1],['all',12]]) {
+    await period.selectOption(value);
+    assert.equal(await page.locator('tbody tr[data-row-key]').count(), count, `All Alerts exact period membership: ${value}`);
+  }
+  await period.selectOption('7d');
+  await page.evaluate(() => window.show('portfolio'));
+  await settled();
+  assert.equal(await period.inputValue(), '7d', 'chosen period survives a source revalidation');
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'date window fixture');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 5);
+  await period.selectOption('today');
+  await page.evaluate(() => window.show('portfolio', { company: 'STLTECH' }));
+  await settled();
+  assert.equal(await period.inputValue(), 'all', 'company See all link explicitly restores complete history');
+  await page.locator('[data-table-search]').fill('Date window fixture 10');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, '60-day evidence remains reachable through See all');
+  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); window.show('portfolio'); });
+  await settled();
+  console.log('Verified exact All Alerts periods, retained user choice and complete-history company links');
+  assert.equal(await page.locator('[data-feed="screener-portfolio-upcoming"]').count(), 1);
+  await page.locator('[data-horizon-toggle="upcoming"]').click();
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('AGM scheduled'));
+  assert.equal(await page.locator('[data-horizon-toggle="upcoming"]').getAttribute('aria-selected'), 'true');
+  await page.locator('[data-sources-summary]').click();
+  assert((await page.locator('[data-alerts-coverage]').innerText()).includes('Portfolio calendar'));
+  assert(!(await page.locator('[data-alerts-coverage]').innerText()).includes('Price & volume'), 'Upcoming hides sources that cannot schedule events');
+  const upcomingHeaders = await page.locator('thead').innerText();
+  assert(upcomingHeaders.includes('WHAT IS SCHEDULED'));
+  assert(!upcomingHeaders.includes('DIRECTION') && !upcomingHeaders.includes('IMPORTANCE'));
+  if (process.env.GENERAL_ALERTS_UPCOMING_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_UPCOMING_SCREENSHOT });
+  await page.locator('[data-sources-close]').click();
+  await page.locator('[data-horizon-toggle="through"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-horizon-toggle="through"]')?.getAttribute('aria-selected') === 'true');
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  await page.locator('[data-sources-summary]').click();
+  const coverageText = await page.locator('[data-alerts-coverage]').innerText();
+  assert(/partial|check due|on request/i.test(coverageText), 'unfinished and limited sources remain distinguishable from verified empty results');
+  assert(await page.locator('[data-feed][title*="incomplete" i], [data-feed][title*="not confirmed" i], [data-feed][title*="on-demand" i]').count() > 0,
+    'source controls retain the actual coverage explanation in hover text');
+  assert.notEqual(await page.locator('[data-alerts-coverage-state]').getAttribute('data-alerts-coverage-state'), 'checked',
+    'a mixed/failed local source pool must not claim all checks are complete');
+  await page.locator('[data-sources-close]').click();
+  await page.locator('[data-table-search]').fill('Undated retained item');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Undated retained item'));
+  assert((await page.locator('tbody').innerText()).includes('Date not supplied'));
+  await page.locator('[data-table-search]').fill('Analyst day complete source record');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Analyst day complete source record'));
+  await page.evaluate(() => window.show('portfolio'));
+  await settled();
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'analyst day complete source record', 'search survives scope updates');
+  assert((await page.locator('tbody').innerText()).includes('STLTECH'));
+  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
+  version++;
+  await page.locator('#refresh').click();
+  await settled();
+  await page.waitForFunction(async () => {
+    const refreshState = await import('/js/core/refresh.js');
+    return !refreshState.isRunning('daily-alerts') && document.querySelector('tbody')?.textContent.includes('Newly arrived NSE record');
+  }, null, { timeout: 60000 });
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'newly arrived nse record');
+  console.log('Verified undated search, scope changes and newly arrived filings');
+
+  // Stable recall cases and the exact user-reviewed mismatch, independent of today's capture.
+  await page.locator('[data-table-search]').fill('jayaswal');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('jayaswal'));
+  const jayaswalResults = await page.locator('tbody').innerText();
+  assert(jayaswalResults.includes('Jayaswal Neco'), 'publisher-supported Jayaswal stories remain searchable');
+  assert(!jayaswalResults.includes('Lululemon stock analysis'), 'the reviewed mismatch does not match Jayaswal');
+  assert(jayaswalResults.includes('Indian manufacturer shares a business update'), 'snippet-only coverage remains in company search');
+  assert(jayaswalResults.includes('Possible match — unverified'), 'uncertainty is visible without a hover');
+  if (process.env.NEWS_ATTRIBUTION_SCREENSHOT) await page.screenshot({ path: process.env.NEWS_ATTRIBUTION_SCREENSHOT });
+  for (const [query, title] of [['NESTLEIND', 'Nestlé India'], ['Avenue Supermarts', 'DMart reports']]) {
+    await page.locator('[data-table-search]').fill(query);
+    await page.waitForFunction(text => document.querySelector('tbody')?.textContent.includes(text), title);
+  }
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  await page.locator('[data-table-search]').fill('lululemon');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('lululemon'));
+  assert((await page.locator('tbody').innerText()).includes('Lululemon'), 'the retained story remains searchable by its own publisher text');
+  assert((await page.locator('tbody').innerText()).includes('Unrelated search result'));
+  assert(!(await page.locator('tbody').innerText()).includes('JAYNECOIND'), 'the unrelated row is not labelled as the company');
+  await page.evaluate(() => window.show('portfolio'));
+  await settled();
+
+  await page.locator('[data-table-search]').fill('Session-private fixture');
+  await page.evaluate(async () => (await import('/js/data/alert-records.js')).recordDocuments('company-documents', {
+    rows: [{ key: 'session-private', ticker: 'STLTECH', title: 'Session-private fixture', date: null, url: 'https://example.test/private.pdf' }],
+  }, { ticker: 'STLTECH', name: 'Sterlite Technologies' }));
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
+  await page.evaluate(() => { window.testContext = { session: {} }; window.testHostMessage(); });
+  await page.waitForFunction(() => !document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
+  assert(await page.evaluate(() => !JSON.stringify(localStorage).includes('Session-private fixture')));
+  await page.evaluate(() => window.show('universe'));
+  await settled();
+  await page.locator('[data-table-search]').fill('');
+  await page.waitForFunction(() => {
+    const first = document.querySelector('tbody [data-event-day]');
+    return first?.getAttribute('data-event-day');
+  });
+  assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
+
+  const tableContract = await page.evaluate(() => {
+    const scroller = document.querySelector('[data-table-scroll]');
+    const style = getComputedStyle(scroller);
+    return {
+      headers: [...document.querySelectorAll('thead th')].map((cell) => cell.innerText.replace(/[▴▾]/g, '').trim()),
+      className: scroller.className,
+      tabIndex: scroller.tabIndex,
+      role: scroller.getAttribute('role'),
+      label: scroller.getAttribute('aria-label'),
+      overscroll: style.overscrollBehavior,
+      touchAction: style.touchAction,
+      signals: [...document.querySelectorAll('[data-alert-signal]')].map((cell) => ({
+        direction: cell.dataset.alertDirection,
+        importance: cell.dataset.alertImportance,
+        label: cell.getAttribute('aria-label'),
+      })),
+    };
+  });
+  assert.deepEqual(tableContract.headers.slice(0, 3), ['DATE / TIME', 'SIGNAL / PRIORITY', 'COMPANY']);
+  assert(!tableContract.headers.includes('DIRECTION') && !tableContract.headers.includes('IMPORTANCE'));
+  assert(tableContract.className.includes('table-scroll-surface'));
+  assert.equal(tableContract.tabIndex, 0);
+  assert.equal(tableContract.role, 'region');
+  assert.equal(tableContract.label, 'All Alerts history table');
+  assert.equal(tableContract.overscroll, 'contain');
+  assert.equal(tableContract.touchAction, 'pan-x pan-y');
+  assert(tableContract.signals.length > 0 && tableContract.signals.every((signal) =>
+    ['positive', 'negative', 'neutral'].includes(signal.direction) &&
+    ['high', 'low'].includes(signal.importance) &&
+    /direction, (High|Low) priority/.test(signal.label)));
+
+  const virtualContract = await page.evaluate(() => {
+    const host = document.querySelector('[data-score-table]');
+    const rows = [...document.querySelectorAll('tbody tr[data-row-key]')];
+    return {
+      enabled: host?.hasAttribute('data-virtualized') || false,
+      mounted: rows.length,
+      total: Number(host?.dataset.virtualTotal || 0),
+      ariaRows: Number(host?.querySelector('table')?.getAttribute('aria-rowcount') || 0),
+      elements: document.querySelectorAll('*').length,
+      firstKey: rows[0]?.dataset.rowKey || null,
+      lastKey: rows.at(-1)?.dataset.rowKey || null,
+      scrollListeners: window.testListenerCount('scroll'),
+      resizeListeners: window.testListenerCount('resize'),
+    };
+  });
+  assert(virtualContract.enabled && virtualContract.mounted > 0 && virtualContract.mounted <= 64,
+    `virtual timeline mounts ${virtualContract.mounted} rows`);
+  assert(virtualContract.total > virtualContract.mounted && virtualContract.ariaRows === virtualContract.total + 1,
+    `full ${virtualContract.total}-row model remains represented to assistive technology`);
+  assert(virtualContract.elements < 3000, `bounded timeline DOM has ${virtualContract.elements} elements`);
+  assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
+  assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
+  // The export button moved out of the table toolbar, but must still use the full filtered
+  // model. A local workbook stand-in counts rows without a CDN or a large artifact on disk.
+  await page.evaluate(() => {
+    window.exportedRows = 0;
+    window.ExcelJS = { Workbook: class {
+      constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+      addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
+    } };
+  });
+  await page.locator('[data-alerts-table-actions] [data-export]').click();
+  await page.waitForFunction(() => window.exportedRows > 0);
+  assert.equal(await page.evaluate(() => window.exportedRows), virtualContract.total + 1,
+    'relocated export includes every matching record plus provenance, not just mounted rows');
+
+  await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
+  await page.waitForFunction((firstKey) => {
+    const rows = document.querySelectorAll('tbody tr[data-row-key]');
+    return rows.length > 0 && rows[0]?.dataset.rowKey !== firstKey && Number(document.querySelector('[data-score-table]')?.dataset.virtualStart || 0) > 0;
+  }, virtualContract.firstKey);
+  const endWindow = await page.evaluate(() => ({
+    mounted: document.querySelectorAll('tbody tr[data-row-key]').length,
+    lastKey: [...document.querySelectorAll('tbody tr[data-row-key]')].at(-1)?.dataset.rowKey || null,
+  }));
+  assert(endWindow.mounted <= 64 && endWindow.lastKey !== virtualContract.lastKey,
+    `scrolling moves a bounded ${endWindow.mounted}-row window through full history`);
+  await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = 0; });
+  await page.waitForFunction(() => Number(document.querySelector('[data-score-table]')?.dataset.virtualStart || 0) === 0);
+
+  // A source refresh can insert rows above the viewport. Preserve the visible event, not merely
+  // its old pixel offset, so a reader never loses their place while the stream is live.
+  const beforeRefresh = await page.locator('[data-table-scroll]').evaluate((scroller) => {
+    scroller.style.scrollBehavior = 'auto';
+    scroller.scrollTop = Math.min(900, scroller.scrollHeight - scroller.clientHeight);
+    scroller.style.removeProperty('scroll-behavior');
+    const boundary = scroller.getBoundingClientRect().top + (scroller.querySelector('thead')?.offsetHeight || 0);
+    const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((item) => item.getBoundingClientRect().bottom > boundary);
+    return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : 0 };
+  });
+  assert(beforeRefresh.key && (await page.locator('[data-table-scroll]').evaluate((el) => el.scrollTop)) > 0);
+  await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
+  await settled();
+  await stableReadingSurface();
+  const afterRefresh = await page.locator('[data-table-scroll]').evaluate((scroller, key) => {
+    const boundary = scroller.getBoundingClientRect().top + (scroller.querySelector('thead')?.offsetHeight || 0);
+    const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((item) => item.dataset.rowKey === key);
+    return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : null };
+  }, beforeRefresh.key);
+  assert.equal(afterRefresh.key, beforeRefresh.key);
+  assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh`);
+
+  await page.locator('[data-alerts-focus]').click();
+  assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.alertsFocusMode), 'true');
+  const focusAnchor = await page.locator('[data-table-scroll]').evaluate((scroller, key) => {
+    const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find(node => node.dataset.rowKey === key);
+    return row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - scroller.querySelector('thead').offsetHeight;
+  }, beforeRefresh.key);
+  assert(Math.abs(focusAnchor - beforeRefresh.offset) <= 2,
+    `focus mode keeps the same reading anchor: ${JSON.stringify({ beforeRefresh, afterRefresh, focusAnchor })}`);
+  await page.locator('[data-table-scroll]').press('Escape');
+  assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false);
+
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.waitForTimeout(300);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `no page overflow at ${width}px`);
+  }
+  await page.locator('[data-sources-summary]').click();
+  const lastSource = page.locator('[data-feed-toggle]').last();
+  await lastSource.scrollIntoViewIfNeeded();
+  const sourceOffset = await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop);
+  assert(sourceOffset > 0, 'narrow source picker has a genuine scroll position to preserve');
+  await lastSource.click();
+  assert.equal(await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop), sourceOffset,
+    'source selection preserves the picker scroll position');
+  await page.locator('[data-feed-toggle="__all"]').click();
+  await page.locator('[data-sources-close]').click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  if (process.env.GENERAL_ALERTS_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_SCREENSHOT });
+  await page.locator('[data-alerts-focus]').click();
+  await page.evaluate(() => window.dispose());
+  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false, 'tab teardown restores navigation');
+  assert.equal(await page.evaluate(() => window.testListenerCount('scroll')), 0, 'destroy removes the table scroll listener');
+  assert.equal(await page.evaluate(() => window.testListenerCount('resize')), 0, 'destroy removes the table resize listener');
+  const count = calls.length;
+  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); });
+  await page.waitForTimeout(400);
+  // Name the request. A bare count mismatch here is unfalsifiable: it says something was read and
+  // never says what, so the only way to diagnose one is to reproduce it, which is precisely what a
+  // CI-only race does not allow.
+  assert.equal(
+    calls.length,
+    count,
+    `destroy removes source listeners and does not start another read (started: ${calls.slice(count).join(', ') || 'none'})`,
+  );
+  assert(!calls.some((p) => /\/api\/(combined-filings|drhp-filings|super-investors\/)/.test(p)), 'no per-company fanout');
+  await page.evaluate(async () => {
+    const newsTab = await import('/js/tabs/news.js');
+    window.disposeNews = newsTab.destroy;
+    newsTab.render({ root: document.querySelector('#root'), scope: 'portfolio', params: {}, data: {} });
+  });
+  await page.waitForSelector('[data-table-search]');
+  assert.equal(await page.getByRole('combobox', { name: 'News period' }).inputValue(), 'today');
+  await page.getByRole('combobox', { name: 'News period' }).selectOption('30');
+  await page.locator('[data-table-search]').fill('jayaswal');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Indian manufacturer shares a business update'));
+  const newsText = await page.locator('tbody').innerText();
+  assert(newsText.includes('Possible match — unverified'));
+  assert(!newsText.includes('Lululemon stock analysis'));
+  await page.locator('[data-table-search]').fill('Avenue Supermarts');
+  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('DMart reports'));
+  await page.evaluate(() => window.disposeNews());
+
+  // Exercise the actual tab inside a short host iframe, with real wheel input. Checking DOM
+  // bounds alone misses a virtual stride smaller than the rendered news-attribution rows.
+  await page.goto(`${origin}/embed`);
+  const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await settled(embedded);
+  assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), '3d', 'fresh embedded dashboard also defaults to 3 days');
+  await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
+  for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
+    await page.setViewportSize(size);
+    const scroller = embedded.locator('[data-table-scroll]');
+    await stableReadingSurface(embedded);
+    await scroller.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'end' }); });
+    await stableReadingSurface(embedded);
+    const box = await scroller.boundingBox();
+    await page.mouse.move(box.x + 200, Math.min(size.height - 40, box.y + box.height / 2));
+    let previous = 0;
+    const starts = new Set();
+    for (let step = 0; step < 24; step++) {
+      await page.mouse.wheel(0, 180);
+      try {
+        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, previous);
+      } catch (error) {
+        const state = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.clientHeight,
+          scrollHeight: el.scrollHeight, bounds: el.getBoundingClientRect().toJSON(),
+          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight } }));
+        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, box, state })}`, { cause: error });
+      }
+      const sample = await embedded.evaluate(async () => {
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        const el = document.querySelector('[data-table-scroll]');
+        const rows = [...el.querySelectorAll('tr[data-row-key]')];
+        const stride = parseFloat(rows[0].style.height);
+        const origin = el.querySelector('tbody').getBoundingClientRect().top;
+        const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+        const visible = rows.find(r => r.getBoundingClientRect().bottom > boundary);
+        return { top: el.scrollTop, start: el.closest('[data-score-table]').dataset.virtualStart,
+          count: rows.length, stride, heights: rows.map(r => r.getBoundingClientRect().height),
+          drift: rows.map(r => Math.abs(r.getBoundingClientRect().top - origin - (Number(r.getAttribute('aria-rowindex')) - 2) * stride)),
+          visible: !!visible && visible.getBoundingClientRect().top < el.getBoundingClientRect().bottom };
+      });
+      assert(sample.top > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}): ${JSON.stringify(sample)}`);
+      assert(sample.count <= 64 && sample.heights.every(h => Math.abs(h - sample.stride) <= 1), 'rendered heights match the virtual scroll stride');
+      assert(Math.max(...sample.drift) <= 2, `window replacement must not jump rows: ${Math.max(...sample.drift)}px drift`);
+      previous = sample.top;
+      starts.add(sample.start);
+    }
+    assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
+  }
+  await embedded.evaluate(() => window.dispose());
+  assert.deepEqual(errors, [], 'zero application errors');
+  console.log('PASS: source updates, privacy, filters, cleanup and native iframe wheel scrolling with stable virtual geometry.');
+} finally { await browser.close(); await new Promise((done) => server.close(done)); }

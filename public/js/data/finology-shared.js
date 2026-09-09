@@ -8,7 +8,7 @@
 //
 // PURE, AND IMPORTED BY `worker/finology.mjs`. Same arrangement as stockscans-shared.js: one
 // definition of what a holding is, so the Worker and the browser cannot end up disagreeing about
-// whether a blank quarter means zero. Nothing here touches the DOM, `fetch` or any global.
+// whether a blank quarter means zero. Nothing here touches the DOM or network. Quarter eligibility reads the current date.
 //
 // THE NUMBERS ARE FINOLOGY'S. Holding percentages are what the company filed with the exchanges;
 // `valueCr` is Finology's own derivation from that percentage and a market cap — the same relation
@@ -17,32 +17,35 @@
 // THE ONE DERIVED FIGURE is the quarter-over-quarter change in `deriveMoves`, which is subtraction
 // of two of their own percentages. It is labelled as derived on every surface that shows it.
 
-/**
- * THE RETRY BUDGET, AND IT LIVES HERE BECAUSE THE SCREEN QUOTES IT.
- *
- * `worker/finology.mjs` owns the rationale — six seconds is six times the healthy latency, two
- * attempts rides out a restart, and `DEADLINE_MS` is the absolute guarantee. The numbers sit in
- * this shared module because the panel tells the reader what the request was given, and a sentence
- * that names a figure the code decides must READ it rather than repeat it. It did repeat it: the
- * ceiling was cut from 15s × 3 to 6s × 2 under a 13s deadline, and the reason string in
- * `js/investors/live.js` went on saying "given 15 seconds and retried" — quoting a budget that had
- * not existed for some time, in the one place a reader could check it against a stopwatch.
- *
- * Same rule as the Sources modal: no figure on a surface may be typed by hand where the module that
- * decides it can be asked instead.
- */
-export const REQ_TIMEOUT_MS = 6000;
-export const ATTEMPTS = 2;
-export const DEADLINE_MS = 13000;
-
 /** Only [a-z0-9-] is a valid slug upstream; anything else is a 400 there, so it is rejected here. */
 export const isSlug = (s) => typeof s === 'string' && /^[a-z0-9-]+$/.test(s) && s.length <= 120;
 
 const num = (v) => {
-  if (v == null || v === '' || v === '-') return null;
+  if (typeof v !== 'number' && typeof v !== 'string') return null;
+  if (typeof v === 'string' && (!v.trim() || v.trim() === '-')) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+/**
+ * THE UPSTREAM'S OWN WORD FOR A CELL THAT CARRIES NO NUMBER, kept rather than erased.
+ *
+ * Finology print **"Filing Due"** in a quarter a company has not filed yet, and "-" where the
+ * holding genuinely was not disclosed. `num()` turns both into `null`, and that collapse is what
+ * let a company that simply has not filed be reported as one a fund had sold out of. It is the
+ * same distinction `parseChange` keeps for Trendlyne's "Filing Awaited", for the same reason.
+ *
+ * Returns the label only where it is a real statement — "-" and blank say nothing a null does not.
+ */
+const cellNote = (v) => {
+  const t = typeof v === 'string' ? v.trim() : '';
+  if (!t || t === '-' || Number.isFinite(Number(t))) return null;
+  return t;
+};
+
+/** Their words for "this period is not filed yet", matched loosely because it is somebody's prose. */
+const PENDING_NOTE = /\b(due|awaited|pending|not\s+filed|yet\s+to\s+file)\b/i;
+export const isPendingNote = (note) => !!note && PENDING_NOTE.test(String(note));
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
 /** Two decimals, because a percentage-point delta of 0.30000000000000004 is not a real figure. */
@@ -77,8 +80,8 @@ export function normaliseList(body) {
  * Shape guard for one portfolio.
  *
  * `quarters` is the ordered list of column labels and `quarterlyHoldings` is keyed by those
- * labels. A holding may legitimately be missing a quarter — that means NOT DISCLOSED (or not
- * held) in that quarter, and Finology print "-" for it. It stays `null` all the way to the UI,
+ * labels. An explicit dash/null means no disclosed percentage. A missing key or invalid value
+ * is incomplete data and carries a note. It stays `null` all the way to the UI,
  * where it renders as an em dash. Coercing it to 0 would invent a position size of zero, which is
  * a claim, and would turn every gap in disclosure into a fabricated exit in `deriveMoves`.
  */
@@ -88,14 +91,26 @@ const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8,
 export function quarterOrder(label) {
   const s = String(label || '').trim();
   const iso = /^(\d{4})-(\d{1,2})$/.exec(s);
-  if (iso) return Number(iso[1]) * 100 + Number(iso[2]);
-  const named = /^([A-Za-z]{3})[a-z]*[\s-]*(\d{2,4})$/.exec(s);
+  if (iso) return Number(iso[2]) >= 1 && Number(iso[2]) <= 12 ? Number(iso[1]) * 100 + Number(iso[2]) : null;
+  const named = /^([A-Za-z]{3})[a-z]*[\s-]*(\d{2}|\d{4})$/.exec(s);
   if (!named) return null;
   const m = MONTHS[named[1].toLowerCase()];
   if (!m) return null;
   const y = named[2].length <= 2 ? 2000 + Number(named[2]) : Number(named[2]);
   return y * 100 + m;
 }
+
+/** A dated quarter-end is eligible only after its calendar period has ended. */
+const QUARTER_END_MONTHS = new Set([3, 6, 9, 12]);
+export function isFiledQuarter(label, now = Date.now()) {
+  const n = quarterOrder(label);
+  return n != null && QUARTER_END_MONTHS.has(n % 100) && Date.UTC(Math.floor(n / 100), n % 100, 1) <= now;
+}
+
+/** Stable source identity; punctuation in a display name is only a fallback. */
+export const companyKey = (h) => h?.companySlug
+  ? `slug:${String(h.companySlug).trim().toUpperCase()}`
+  : `name:${String(h?.company || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
 
 /**
  * The source's quarters, newest first.
@@ -116,73 +131,138 @@ function orderedQuarters(quarters) {
   return keyed.sort((a, b) => b.n - a.n).map((k) => k.q);
 }
 
+/** Malformed success payloads must not replace last-good books in any cache. */
+export const isPortfolioPayload = (body, slug = null) => body?.ok !== false
+  && (!slug || !body?.slug || body.slug === slug) && Array.isArray(body?.quarters)
+  && body.quarters.every((q) => typeof q === 'string' && q.trim()) && Array.isArray(body?.holdings)
+  && body.holdings.every((h) => typeof h?.company === 'string' && h.company.trim()
+    && h.quarterlyHoldings && typeof h.quarterlyHoldings === 'object' && !Array.isArray(h.quarterlyHoldings));
+
 export function normalisePortfolio(body, slug) {
   const raw = Array.isArray(body?.quarters) ? body.quarters.filter((q) => typeof q === 'string' && q.trim()) : [];
-  const quarters = orderedQuarters(raw);
-  const holdings = (Array.isArray(body?.holdings) ? body.holdings : [])
+  const quarters = orderedQuarters([...new Set(raw.map((q) => q.trim()))]);
+  const rows = (Array.isArray(body?.holdings) ? body.holdings : [])
     .map((h) => {
       const byQuarter = {};
-      for (const q of quarters) byQuarter[q] = num(h?.quarterlyHoldings?.[q]);
+      const notes = {};
+      for (const q of quarters) {
+        const raw = h?.quarterlyHoldings?.[q];
+        const n = num(raw);
+        byQuarter[q] = n != null && n >= 0 && n <= 100 ? n : null;
+        // Normalisation runs at the Worker, snapshot, device cache and browser boundaries.
+        // Preserve notes through every pass; a missing key is not an explicit disclosure dash.
+        const note = cellNote(raw) || str(h?.quarterlyNotes?.[q]);
+        if (note) notes[q] = note;
+        else if (!Object.hasOwn(h?.quarterlyHoldings || {}, q)) notes[q] = 'Not available';
+        else if (raw != null && !(typeof raw === 'string' && (!raw.trim() || raw.trim() === '-')) && byQuarter[q] == null) notes[q] = 'Invalid percentage';
+      }
       return {
         company: str(h?.company),
         companySlug: str(h?.companySlug),
         quarterlyHoldings: byQuarter,
+        // Their word for a cell that carries no number, where they gave one. Empty on every row
+        // whose cells were all numeric or a plain dash, so it costs nothing on a normal book.
+        quarterlyNotes: notes,
         valueCr: num(h?.valueCr),
       };
     })
     .filter((h) => h.company);
 
+  // Count a company once per investor. Conflicting duplicate cells cannot support a move.
+  const unique = new Map();
+  for (const h of rows) {
+    const key = companyKey(h), existing = unique.get(key);
+    if (!existing) { unique.set(key, h); continue; }
+    for (const q of quarters) {
+      if (existing.quarterlyHoldings[q] !== h.quarterlyHoldings[q] || existing.quarterlyNotes[q] !== h.quarterlyNotes[q]) {
+        existing.quarterlyHoldings[q] = null;
+        existing.quarterlyNotes[q] = 'Conflicting source rows';
+      }
+    }
+    if (existing.valueCr !== h.valueCr) existing.valueCr = null;
+  }
+  const holdings = [...unique.values()];
+
+  // THE COLUMNS ARE SPLIT ONCE, HERE, so every consumer asks the same question of the same answer.
+  // `quarters` is unchanged — it is the source's own column set and the table still renders all of
+  // it, "Filing Due" column included. What is new is that a comparison has somewhere honest to look.
+  const filedQuarters = quarters.filter((q) => isFiledQuarter(q));
+  const openQuarters = quarters.filter((q) => !isFiledQuarter(q));
+
   return {
     name: str(body?.name) || slug,
     slug: str(body?.slug) || slug,
+    ...(str(body?.fetchedAt) ? { fetchedAt: str(body.fetchedAt) } : {}),
+    ...(str(body?.sourceCheckedAt) ? { sourceCheckedAt: str(body.sourceCheckedAt) } : {}),
     netWorthCr: num(body?.netWorthCr),
     activeStocks: num(body?.activeStocks),
     totalStocks: num(body?.totalStocks),
     quarters,
+    filedQuarters,
+    openQuarters,
     holdings,
   };
 }
 
 /**
- * Quarter-over-quarter position changes, from the two most recent quarters they publish.
+ * The latest closed quarter and its immediately preceding quarter, or null for a gap.
  *
- *   new      not disclosed in the prior quarter, disclosed in the latest
- *   exited   disclosed in the prior quarter, not in the latest
- *   added    disclosed in both, latest is higher
- *   trimmed  disclosed in both, latest is lower
- *   held     disclosed in both, unchanged
- *
- * A BLANK QUARTER IS NOT A ZERO, and that is what makes `new` and `exited` presence changes rather
- * than deltas. `deltaPp` stays null for both: the position did not move by "the whole holding", it
- * appeared or disappeared from disclosure, and printing ±5.2pp would be inventing a trade size.
- *
- * Below the Indian disclosure threshold a holder drops off the shareholding pattern entirely, so
- * an `exited` row means "no longer disclosed", which is not the same as "sold out". The UI says
- * that; this function only classifies.
- *
- * With fewer than two quarters published there is nothing to compare, and this returns
- * `comparable: false` rather than calling every position new.
+ * Exported because the Data Table classifies a row from its own book's quarters and must ask the
+ * same question `deriveMoves` asks. It used to answer it itself, off `quarters[0]` and `[1]`.
  */
+export function filedPair(quarters, now = Date.now()) {
+  const filed = orderedQuarters((quarters || []).filter((q) => isFiledQuarter(q, now)));
+  const latest = filed[0] || null;
+  const n = quarterOrder(latest);
+  const previous = n == null ? null : n % 100 === 3 ? n - 91 : n - 3;
+  return [latest, filed.find((q) => quarterOrder(q) === previous) || null];
+}
+
+/**
+ * ONE CLASSIFIER FOR ONE HOLDING, and the only one in this codebase.
+ *
+ * `js/investors/live.js` carried a second copy — the same five branches over `quarters[0]` and
+ * `[1]` — so the Data Table went on printing "Undisclosed" against a company whose drill panel and
+ * alert had been corrected. Two predicates over one question is the shape this repository keeps
+ * having to un-write, and here it meant a fix could land in three places and still be visibly
+ * wrong in the fourth.
+ *
+ * Returns null where there is nothing to say, so the caller can drop the row.
+ */
+export function classifyHolding(h, latest, prior) {
+  if (!latest || !prior) return null;
+  const now = h?.quarterlyHoldings?.[latest] ?? null;
+  const before = h?.quarterlyHoldings?.[prior] ?? null;
+  const notes = [h?.quarterlyNotes?.[latest], h?.quarterlyNotes?.[prior]].filter(Boolean);
+  // A pending/invalid cell on either side makes the comparison incomplete, even if it
+  // carries a number. In particular, a pending prior filing cannot establish a new entrant.
+  if (notes.length) return { action: 'awaiting', deltaPp: null, now, before };
+  if (now == null && before == null) return null;
+  if (now == null) return { action: h?.valueCr === 0 ? 'exited' : 'awaiting', deltaPp: null, now, before };
+  if (before == null) return { action: 'new', deltaPp: null, now, before };
+  const deltaPp = round2(now - before);
+  return { action: deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held', deltaPp, now, before };
+}
+
+/** Only measured changes and explicit disclosure appearances/disappearances are moves. */
+export const MOVE_ACTIONS = ['new', 'exited', 'added', 'trimmed'];
+export const isMove = (action) => MOVE_ACTIONS.includes(action);
+
 export function deriveMoves(portfolio) {
-  const [latest, prior] = portfolio?.quarters || [];
-  if (!latest || !prior) return { comparable: false, latest: latest || null, prior: null, moves: [] };
+  const [latest, prior] = filedPair(portfolio?.quarters);
+  const pending = (portfolio?.quarters || []).filter((q) => !isFiledQuarter(q));
+  if (!latest || !prior) {
+    return { comparable: false, latest, prior, pending, moves: [], reason: 'missing consecutive closed quarters' };
+  }
 
   const moves = [];
   for (const h of portfolio.holdings) {
-    const now = h.quarterlyHoldings[latest];
-    const before = h.quarterlyHoldings[prior];
-    if (now == null && before == null) continue; // disclosed in neither: nothing to say
-    let action;
-    let deltaPp = null;
-    if (before == null) action = 'new';
-    else if (now == null) action = 'exited';
-    else {
-      deltaPp = round2(now - before);
-      action = deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held';
-    }
-    moves.push({ company: h.company, companySlug: h.companySlug, valueCr: h.valueCr, now, before, deltaPp, action });
+    const change = classifyHolding(h, latest, prior);
+    if (!change) continue; // disclosed in neither: nothing to say
+    moves.push({ company: h.company, companySlug: h.companySlug, valueCr: h.valueCr, ...change });
   }
-  return { comparable: true, latest, prior, moves };
+
+  return { comparable: true, latest, prior, pending, moves, reason: null };
 }
 
 /**
@@ -199,8 +279,13 @@ export function deriveMoves(portfolio) {
  * than no total at all.
  */
 export function summarise(portfolio) {
-  const [latest] = portfolio?.quarters || [];
-  const disclosed = latest ? portfolio.holdings.filter((h) => h.quarterlyHoldings[latest] != null) : portfolio.holdings;
+  // THE LATEST *FILED* QUARTER, for the same reason `deriveMoves` uses it. Counting an open
+  // "Filing Due" column as the current book made Madhusudan Kela hold one company instead of
+  // fifteen and put his book at a fraction of its size — a card stating, in figures, that an
+  // investor had liquidated. `latestQuarter` is what every surface prints as "as of", so it has to
+  // name a quarter that was actually filed.
+  const [latest] = filedPair(portfolio?.quarters);
+  const disclosed = latest ? portfolio.holdings.filter((h) => h.quarterlyHoldings[latest] != null) : [];
   const valued = disclosed.filter((h) => h.valueCr != null);
   return {
     latestQuarter: latest || null,

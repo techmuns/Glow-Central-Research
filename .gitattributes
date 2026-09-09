@@ -12,8 +12,8 @@
 
 # Committed data captures. Both repositories regenerate these daily from their own book and universe;
 # taking upstream's copy would paint another deployment's portfolio here. A file only upstream changed
-# still arrives (the driver applies only when both sides changed it), and the next scheduled run here
-# rewrites it with this deployment's own capture.
+# would still arrive through this driver alone. The sync workflow therefore restores every existing
+# Glow capture from its pre-merge commit, including nested archives and one-sided changes.
 public/data/*.json           merge=ours
 public/data/mock/*.json      merge=ours
 
