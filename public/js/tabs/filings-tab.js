@@ -30,7 +30,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as trackedUniverse from '../data/tracked-universe.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
-import { RANGES, parseRange, rangeParam, applyRange, heldSpan, reachOf, describeRange, iso } from '../data/date-range.js';
+import { RANGES, parseRange, rangeParam, applyRange, heldSpan, reachOf, describeRange, indiaDay } from '../data/date-range.js';
 
 const REASONS = {
   'no-route': {
@@ -228,6 +228,8 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
+    // A live arrival after midnight must use today's window, not the day the tab opened.
+    if (!range.custom) range = parseRange(range.id);
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -257,6 +259,7 @@ export function makeFilingsTab(cfg) {
     // eleven hundred rows reads as a feed that lost them.
     const windowed = applyRange(inScope, range);
     const rows = windowed.rows;
+    const windowPhrase = range.id === 'today' ? 'today' : `in ${describeRange(range)}`;
 
     // WHAT WAS ASKED, versus what had something to say. A reader looking at "61 of 142 companies
     // with articles" cannot tell whether the other 81 were searched and had nothing or were never
@@ -431,11 +434,11 @@ export function makeFilingsTab(cfg) {
       // would read as a contradiction of the history control sitting directly above it.
       emptyMessage: (v) =>
         v?.companies?.length
-          ? `No ${cfg.noun} in ${describeRange(range)} for the ${v.companies.length === 1 ? 'company' : `${formatNumber(v.companies.length)} companies`} you picked.`
+          ? `No ${cfg.noun} ${windowPhrase} for the ${v.companies.length === 1 ? 'company' : `${formatNumber(v.companies.length)} companies`} you picked.`
           : m.outstanding
             ? `Nothing in the capture for ${scopePossessive(ctx.scope) || 'these companies'} — and ${formatNumber(m.outstanding)} ${m.outstanding === 1 ? 'company has' : 'companies have'} not been checked since it ran. Refresh to search ${m.outstanding === 1 ? 'it' : 'them'}.`
             : scopePossessive(ctx.scope)
-              ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} in ${describeRange(range)}.`
+              ? `No ${cfg.noun} for ${scopePossessive(ctx.scope)} ${windowPhrase}.`
               : `No ${cfg.noun} matches your filters.`,
     });
     view = table.view;
@@ -503,7 +506,7 @@ export function makeFilingsTab(cfg) {
   const openProvenance = openProvenanceFactory(cfg, () => refreshLabel, doRefresh);
 
   /**
-   * The range control: six presets, a custom pair, and nothing that fetches on its own.
+   * The range control: date presets, a custom pair, and nothing that fetches on its own.
    *
    * IT REPAINTS RATHER THAN RE-MOUNTING. `ctx.setParams` re-runs the shell's mount, which would
    * discard the table's own view — the reader's search text, their sort, their column filter — on
@@ -633,7 +636,7 @@ function rangeControls(range, held, reach, m, customOpen, windowed = null) {
           : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200'
       }">${escapeHtml(label)}</button>`;
 
-  const today = iso(Date.now());
+  const today = indiaDay();
   const custom = customOpen
     ? `<span class="inline-flex items-center gap-1.5">
          <input type="date" data-range-from aria-label="From date" max="${escapeHtml(today)}"
@@ -649,7 +652,7 @@ function rangeControls(range, held, reach, m, customOpen, windowed = null) {
   return `
     <div data-range-control class="flex flex-wrap items-center gap-1.5">
       <span class="mr-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">History</span>
-      ${RANGES.map((r) => btn(r.id, r.short, `Show ${r.days ? `the last ${r.label}` : 'everything held'}`)).join('')}
+      ${RANGES.map((r) => btn(r.id, r.short, `Show ${r.description || (r.days ? `the last ${r.label}` : 'everything held')}`)).join('')}
       <button type="button" data-range-custom-toggle
         aria-pressed="${customOpen ? 'true' : 'false'}"
         title="Pick an exact from and to date"

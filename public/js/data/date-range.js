@@ -1,6 +1,6 @@
 // data/date-range.js — the history window the reader is browsing, in one place.
 //
-//   parseRange('3m')                  -> { id: '3m', from: '2026-06-04', to: '2026-09-03', days: 91 }
+//   parseRange('3m')                  -> { id: '3m', from: '2026-06-05', to: '2026-09-03', days: 91 }
 //   parseRange('2026-01-01..2026-03-31')
 //   rangeBounds(range)                -> { from, to } as YYYY-MM-DD, or null for "does not narrow"
 //   inRange(row.date, bounds)         -> boolean
@@ -20,8 +20,8 @@
 // DATES ARE COMPARED AS STRINGS, DELIBERATELY. Every row in these feeds carries a `YYYY-MM-DD`
 // date, which sorts and compares correctly as text, and the feed already sorts on it that way
 // (`rows()` in js/data/filings.js). Parsing to a Date to compare would introduce a timezone where
-// there is none: `new Date('2026-09-01')` is midnight UTC, which is the previous evening in IST,
-// so a filing on the boundary day would fall out of a window that names it. The scrape writes
+// there is none: midnight UTC and midnight IST fall on different instants, so comparing timestamps
+// can exclude a filing on the boundary day. The scrape writes
 // exchange dates and the reader reads exchange dates; nothing in between needs a clock.
 //
 // A ROW WITH NO DATE IS NOT IN ANY WINDOW EXCEPT "ALL". These feeds carry rows whose date the
@@ -33,11 +33,14 @@
  * The windows offered, widest-last within the fixed set.
  *
  * `days` is what the LIVE WALK asks the upstream for; the same number narrows the rows already in
- * hand. `all` carries none because it does not narrow, and `custom` carries none because its
- * bounds come from the reader.
+ * hand. This month's length is calculated when selected. `all` carries none because it does not
+ * narrow, and `custom` carries none because its bounds come from the reader.
  */
 export const RANGES = [
-  { id: '7d', label: '7 days', short: '7D', days: 7 },
+  { id: 'today', label: 'Today', short: 'Today', days: 1, description: 'today' },
+  { id: '3d', label: '3 days', short: '3 days', days: 3 },
+  { id: '7d', label: '7 days', short: '7 days', days: 7 },
+  { id: 'month', label: 'This month', short: 'This month', days: null, description: 'this month' },
   { id: '1m', label: '1 month', short: '1M', days: 30 },
   { id: '3m', label: '3 months', short: '3M', days: 91 },
   { id: '6m', label: '6 months', short: '6M', days: 182 },
@@ -60,7 +63,13 @@ const BY_ID = new Map(RANGES.map((r) => [r.id, r]));
 
 /** `YYYY-MM-DD` for a timestamp, in the same calendar the rows are written in. */
 export const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
-const daysAgo = (n, now = Date.now()) => iso(now - n * 86400000);
+export const indiaDay = (now = Date.now()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+
+/** Calendar days including today, using the exchange's date even before midnight UTC. */
+export const recentDays = (days, today = indiaDay()) => ({
+  from: iso(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000),
+  to: today,
+});
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isIsoDate = (s) => typeof s === 'string' && ISO_DATE.test(s) && !Number.isNaN(Date.parse(s));
@@ -92,8 +101,12 @@ export function parseRange(raw, now = Date.now()) {
 
 function preset(id, now) {
   const def = BY_ID.get(id);
+  if (id === 'month') {
+    const to = indiaDay(now);
+    return { id, from: `${to.slice(0, 7)}-01`, to, days: Number(to.slice(8)), custom: false };
+  }
   if (!def || def.days == null) return { id: 'all', from: null, to: null, days: null, custom: false };
-  return { id, from: daysAgo(def.days, now), to: iso(now), days: def.days, custom: false };
+  return { id, ...recentDays(def.days, indiaDay(now)), days: def.days, custom: false };
 }
 
 /** How this range is written into the URL. `all` and the default are still written, so a link is literal. */
@@ -193,7 +206,7 @@ export function describeRange(range) {
   if (!range || (!range.from && !range.to)) return 'everything held';
   if (range.custom) return `${range.from} to ${range.to}`;
   const def = BY_ID.get(range.id);
-  return def ? `the last ${def.label}` : `${range.from} to ${range.to}`;
+  return def ? def.description || `the last ${def.label}` : `${range.from} to ${range.to}`;
 }
 
 /** The label the control shows for the current selection. */

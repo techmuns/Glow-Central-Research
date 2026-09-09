@@ -1,13 +1,16 @@
 // Changes use dated trades for activity and dated observations for holdings. Never add the two.
 import { deriveMoves, quarterOrder } from './finology-shared.js';
+import { indiaDay, recentDays } from './date-range.js';
+export { indiaDay };
 
 export const PERIODS = [
+  { id: 'today', label: 'Today' }, { id: '3d', label: '3 days' }, { id: '7d', label: '7 days' },
   { id: 'month', label: 'This month' }, { id: 'quarter', label: 'This quarter' },
   { id: '6m', label: '6 months' }, { id: 'year', label: '1 year' }, { id: 'itd', label: 'ITD' },
 ];
-export const indiaDay = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 const iso = (date) => date.toISOString().slice(0, 10);
 export function periodRange(period, today = indiaDay()) {
+  if (['today', '3d', '7d'].includes(period)) return recentDays(period === 'today' ? 1 : Number.parseInt(period, 10), today);
   const [y, m, d] = today.split('-').map(Number);
   let from = null;
   if (period === 'month') from = iso(new Date(Date.UTC(y, m - 1, 1)));
