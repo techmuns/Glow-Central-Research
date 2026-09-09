@@ -71,6 +71,7 @@ function directionTint(v) {
 // values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
 const FILTER_FIELDS = [
   { label: 'Trade category', allLabel: 'All trade categories', keys: ['trade category'], maxWidthPx: 220 },
+  { label: 'Exchange', allLabel: 'All exchanges', keys: ['exchange'], maxWidthPx: 160 },
   { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
   {
     label: 'Transaction type',
@@ -130,6 +131,7 @@ const tab = makeFilingsTab({
   columns: (m) => {
     const headers = (m.headers || []).filter((h) => !looksLikeName(h) && !looksLikeSource(h) && !looksLikeLink(h));
     const cols = [
+      { label: 'Exchange', get: (r) => r.cells?.Exchange || '—' },
       {
         label: 'Date',
         get: (r) => (r.date ? `<span class="whitespace-nowrap tabular-nums text-slate-600">${escapeHtml(formatDate(r.date))}</span>` : dash('the row carried no readable date')),
@@ -160,13 +162,14 @@ const tab = makeFilingsTab({
     });
     return cols;
   },
+  status: (m) => `<p class="mb-3 text-xs text-slate-500" data-exchange-status>${escapeHtml(m.exchanges?.summary || 'NSE / BSE reports are loading.')}</p>`,
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
         <h2 class="font-display text-xl font-bold text-slate-900">Bulk/block deals and insider disclosures</h2>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
-        <p class="mb-3"><strong>Bulk and block deals</strong> come from Screener.in’s market-wide lists, ingested from the shared Sattva capture alongside the existing insider disclosures. They also power Changes under Super Investors. ${m.bulkDeals ? `${m.bulkDeals.rows} retained deals; source captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Bulk/block coverage is unavailable.'}</p>
+        <p class="mb-3"><strong>Bulk and block deals</strong> come directly from the full NSE CSV exports and BSE historical reports. Official exchange reports take precedence for dates successfully covered; the shared Screener capture supplies other available dates. Buy and sell sides, bulk and block reports, and trades on different exchanges stay separate. They also power Changes under Super Investors. The capture checks every 30 minutes during the day and evening on weekdays, plus weekend catch-up. Both tabs check for updates every minute while visible. These are published disclosures, not a streaming trade tape. ${escapeHtml(m.exchanges?.summary || '')} ${m.bulkDeals ? `Supplementary Screener: ${m.bulkDeals.rows} retained records before overlap removal; captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Bulk/block coverage is unavailable.'}</p>
         <p><strong>Real disclosures.</strong> Indian promoters, directors and designated persons must disclose their dealing
            to the exchanges. These come through the Muns filings API
            (<code class="rounded bg-slate-100 px-1">POST /filings/data/insider_trades</code>) with

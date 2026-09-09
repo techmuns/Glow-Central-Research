@@ -66,17 +66,16 @@ export function matchedDeals(rows, people) {
     if (!action) continue;
     const quantity = field(row.cells, ['trade shares', 'quantity']);
     const price = field(row.cells, ['price']);
-    const key = [row.ticker, row.date, identity(reportedName), action, quantity.replace(/,/g, ''), price.replace(/,/g, ''), field(row.cells, ['exchange'])].join('|');
+    const key = [category, row.exchangeSecurity || row.ticker, row.date, identity(reportedName), action, quantity.replace(/,/g, ''), price.replace(/,/g, ''), field(row.cells, ['exchange'])].join('|');
     if (seen.has(key)) {
       const event = seen.get(key);
       event.evidence.push(row);
-      if (event.source !== category) event.source = 'Bulk / block deal';
       continue;
     }
     const event = { id: key, date: row.date, person: person.name, personId: person.id,
       company: field(row.cells, ['company']) || row.ticker, ticker: row.ticker,
       action, quantity: quantity || null, value: field(row.cells, ['trade value']) || null,
-      source: category, reportedName, raw: row, evidence: [row], url: row.url || null };
+      source: `${category}${row.cells?.Exchange ? ` · ${row.cells.Exchange}` : ''}`, reportedName, raw: row, evidence: [row], url: row.url || null };
     seen.set(key, event);
     events.push(event);
   }

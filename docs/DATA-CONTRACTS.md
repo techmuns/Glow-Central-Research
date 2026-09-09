@@ -3990,3 +3990,57 @@ The manager snapshot is dated 29 August 2026, with six PMS mandates comparing Ju
 statements. Transactions can cover more history than the two retained holdings snapshots. AIF and
 mutual-fund house trades appear where public legal-entity names match; the Changes comparison table
 currently has no security-level AIF or monthly mutual-fund portfolio history.
+
+
+## Glow direct NSE / BSE bulk and block reports
+
+`public/data/exchange-deals.json` is the bootstrap for both Bulk/Block Deal and Super Investors →
+Changes. Version 1 contains `checkedAt`, four `sources` with successful `coverage` intervals,
+`lastSuccessAt`, `latestDate`, `ok` and `error`, an ISIN-verified `securityMap`, and compact `records`:
+`[sourceId, date, exchangeSecurityId, reportedSecurityName, client, Buy|Sell, quantity, price, remarks]`.
+The initial capture covers 9 September 2025 through 9 September 2026 (latest reported trades on
+8 September). ITD means retained history; it does not assert investor inception coverage.
+
+- NSE: the historical page's **complete CSV** endpoint,
+  `/api/historicalOR/bulk-block-short-deals?optionType=bulk_deals|block_deals&from=DD-MM-YYYY&to=DD-MM-YYYY&csv=true`.
+  Do not substitute its on-page JSON response: measured for 2–9 September 2026, it returned 70
+  bulk rows versus 940 in the CSV. Quoted commas, Indian number grouping and embedded quotes are parsed.
+- BSE: `/BseIndiaAPI/api/BulkDealData_ng/w?DealType=1|2&sc_code=&FDate=DD/MM/YYYY&TDate=DD/MM/YYYY`
+  on `api.bseindia.com`. `Table` supplies all rows; the website's pagination is client-side.
+- BSE numeric security codes join NSE symbols **only through matching ISINs** from the exchanges'
+  security masters. Unknown or ambiguous identities retain the BSE code; similar symbols are not a join.
+- Duplicates within a source use exchange/report type, security ID, date, full client name, side,
+  exact quantity and price. Buy/sell, different venues and bulk/block types remain separate. Within
+  successfully covered dates, official reports supersede secondary Screener reports. A secondary
+  row with no exchange is superseded only when both exchanges cover its report type/date. Insider
+  and SAST rows are untouched. Secondary captures stay stored for uncovered-date fallback.
+- A successful overlap replaces that source/date slice, so corrected quantities do not become
+  additional trades. Failed/invalid/out-of-range exports keep previous rows and do not advance
+  coverage. An unexpectedly empty response over previously populated dates is treated as a failure.
+  Deal values marked ≈ are estimates from reported quantity × price, not portfolio allocations.
+
+`bulk-block-refresh.yml` runs at 09:35–22:05 IST every half hour on weekdays, with a 19:05 IST weekend
+catch-up, and after changes to its capture plumbing merge. It restores the latest completed main
+workflow artifact before capturing, refreshes seven overlapping days, and catches up longer gaps in
+31-day slices. It uses Actions artifacts, **not commits to main or deployments**, for fresh data.
+The gzip artifact contains all retained history; the two-day artifact retention bounds storage,
+not trade-history retention. If all artifacts expire, catch-up resumes from the committed bootstrap.
+An archive-read failure aborts before publication rather than resetting newer history. A partial
+source failure publishes the retained data plus explicit source status and leaves the run failed.
+
+`GET /api/bulk-block-deals` reads that fixed workflow's main-branch artifact using the existing
+`GH_DISPATCH_TOKEN` Actions-read permission. It verifies the artifact checksum, serves the gzip
+member without expanding the entire history at the edge, caches for five minutes and supports ETags.
+The static bootstrap is the fallback, marked by `x-glow-exchange-fallback`. Credentials never go to
+browsers or signed download redirects. No new Cloudflare binding or cron slot is needed.
+
+Both views poll the shared read endpoint once a minute while visible. A stale capture during the
+weekday refresh window can POST the fixed `/api/bulk-block-deals/refresh` route as a safety net for
+GitHub schedule delays; the server guards in-flight runs and a 30-minute cooldown. Source checks,
+latest reported dates, errors and capture delays are visible; refresh frequency does not imply
+that exchanges publish an intraday trade tape or disclose every change in a manager's portfolio.
+
+Validation: `node scripts/verify-exchange-deals.mjs` covers parsing, correction/failure retention,
+venue/side separation, coverage precedence, ISIN joins, bounded artifact reads, credential isolation
+and conditional delivery. `scripts/verify-exchange-deals-ui.mjs` verifies timed updates in both views,
+source failures, links and mobile layout against a local server with mocked live delivery.
