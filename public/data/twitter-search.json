@@ -843,12 +843,16 @@
     "isin:INE860D01013|Sanjivani Paranteral": {
       "lastAttemptAt": "2026-09-09T13:25:58+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE953O01021|Sansera Engineering": {
+      "lastAttemptAt": "2026-09-09T14:00:37+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T13:25:58.465398+00:00"
+    "checkedAt": "2026-09-09T14:00:37.108258+00:00"
   }
 }
