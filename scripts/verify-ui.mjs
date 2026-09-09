@@ -4395,8 +4395,7 @@ ok('the All Schemes table renders every scheme the feed carried', frRendered, `$
 if (frRendered) {
   const frText = await hostText();
   ok('...titled Fund Returns & Ranking', /Fund Returns\s*&\s*Ranking/i.test(frText));
-  ok('...crediting AmfiBeas and stating the as-of date', /AmfiBeas/i.test(frText) && /25 Aug 2026/i.test(frText), frText.slice(0, 140));
-  ok('...and saying it adds no scoring of its own', /adds no scoring of its own/i.test(frText));
+  ok('...stating the as-of date in its Live pill', /25 Aug 2026/i.test(await page.locator('[data-fund-returns-info]').innerText()));
 
   // The columns are two per VISIBLE period — a return and a rank — with the multi-year ones labelled
   // CAGR. 10Y is null for every scheme in the stub, so its column must be HIDDEN.

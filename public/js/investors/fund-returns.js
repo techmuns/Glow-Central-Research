@@ -77,7 +77,6 @@ export function renderFundReturns(ctx, {
   const html = `
     ${sectionHead({
       title: 'Fund Returns & Ranking',
-      description: descriptionFor(m),
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}</div>`,
       // Trusted markup from the owning tab — the classification chips, where there are any.
       controls: headHtml,
@@ -176,8 +175,8 @@ function buildTable(funds, m, visiblePeriods, view = null, measure = 'return', o
  * option.
  *
  * THE PLAN IS NOT PRINTED. Every row is the direct plan bar the schemes that have only one, so a
- * word repeated on 1,600 rows says nothing; where a row is a single-plan scheme the table says so
- * once, in the head. See directOnly() in js/data/fund-returns.js.
+ * word repeated on 1,600 rows says nothing. The details modal explains the single-plan exception.
+ * See directOnly() in js/data/fund-returns.js.
  */
 function identitySub(r) {
   const option = r.option && r.option !== 'unknown' ? cap(r.option === 'idcw' ? 'IDCW' : r.option) : null;
@@ -289,15 +288,6 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 // ---------------------------------------------------------------------------------------
 // Chrome — the pill and the provenance modal
 // ---------------------------------------------------------------------------------------
-
-function descriptionFor(m) {
-  const asOf = m.asOfDate ? ` as of ${formatDateLabel(m.asOfDate)}` : '';
-  return (
-    `Every tracked mutual fund and ETF${asOf}, from AmfiBeas over AMFI’s daily NAV snapshot: its point-to-point return, its category’s published median beneath it, and its rank within its own cohort. ` +
-    `The returns, the category medians and the ranks are theirs, reproduced unchanged; this view adds no scoring of its own. ` +
-    `One row per scheme — the direct plan, and the single plan a listed fund has.`
-  );
-}
 
 /** The green Live pill — the always-visible statement of what the figures are and how fresh. */
 function livePill(m) {
