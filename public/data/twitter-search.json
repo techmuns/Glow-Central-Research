@@ -867,12 +867,16 @@
     "isin:INE955I01044|SEJALLTD": {
       "lastAttemptAt": "2026-09-09T17:21:32+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE597J01018|Shalby": {
+      "lastAttemptAt": "2026-09-09T17:57:02+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-09T17:21:32.469275+00:00"
+    "checkedAt": "2026-09-09T17:57:02.145826+00:00"
   }
 }
