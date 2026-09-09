@@ -31,7 +31,7 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     # The trade lane can use 45 minutes and company recovery 25. Leave time to publish both.
-    timeout-minutes: 80
+    timeout-minutes: 90
     permissions:
       contents: write
       pull-requests: write

@@ -49,7 +49,7 @@ await context.route('**/*', route => {
   return url.origin === origin ? route.continue() : route.fulfill({ status: 503, body: 'External requests disabled' });
 });
 const page = await context.newPage();
-page.on('pageerror', error => errors.push(error.message));
+page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
 try {
   await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
   await page.locator('.research-workspace').waitFor();
@@ -187,4 +187,4 @@ try {
   await verifyChangesUI(page, { base: origin });
   assert.deepEqual(errors, []);
   console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, desktop/mobile, mismatch rejection and recovery.`);
-} finally { await browser.close(); await new Promise(done => server.close(done)); }
+} finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }

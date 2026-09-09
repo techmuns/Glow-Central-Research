@@ -6,9 +6,16 @@ export function withFilingArchive(base, kind) {
   let rows = [], error = null, pending = false, loaded = false;
   const revisions = new Map();
   const listeners = new Set();
-  const emit = () => listeners.forEach((fn) => fn());
+  const emit = () => [...listeners].forEach((fn) => fn());
   const merge = kind === 'insider' ? mergeInsiderTrades : mergeAnnouncements;
-  const combined = () => merge(base.rows(), rows);
+  let memo = null;
+  const combined = () => {
+    const live = base.rows();
+    if (memo?.live === live && memo.archive === rows) return memo.value;
+    const value = rows.length ? merge(live, rows) : live;
+    memo = { live, archive: rows, value };
+    return value;
+  };
   return {
     ...base, rows: combined,
     forTicker: (ticker) => combined().filter((row) => row.ticker === String(ticker).toUpperCase()),

@@ -1,0 +1,46 @@
+name: Investor holdings refresh
+
+on:
+  schedule:
+    - cron: "20 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: investor-holdings-refresh
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Capture every investor and retain failed books
+        id: capture
+        continue-on-error: true
+        run: node scripts/scrape-super-investors.mjs
+      - name: Audit every investor and manager
+        id: audit
+        continue-on-error: true
+        run: node scripts/audit-holdings.mjs
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: holdings-coverage-audit
+          path: /tmp/holdings-audit.json
+      - name: Publish the capture and failure metadata through a checked PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json
+      - name: Surface incomplete or overdue ingestion
+        if: steps.capture.outcome == 'failure' || steps.audit.outcome == 'failure'
+        run: |
+          echo "::error::Holdings ingestion needs attention. Last-good data was preserved; see the coverage audit artifact and run summary."
+          exit 1

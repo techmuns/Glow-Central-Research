@@ -58,6 +58,7 @@ import { withTradingViewNews } from './tradingview-news.js';
 import { withNewsHistory } from './news-history.js';
 import { withPortfolioPublisherNews } from './portfolio-publisher-news.js';
 import { recentNewsWindow } from './news-window.js';
+import * as exchangeDeals from './exchange-deals.js';
 
 // How many companies a live walk will ask about before it stops and says so. The upstreams allow
 // 60 requests a minute; forty keeps a cold start under a minute and well inside that budget.
@@ -132,7 +133,7 @@ export function createFeed(kind) {
   let loading = null;
   let seeding = null;
   const subscribers = new Set();
-  const emit = () => subscribers.forEach((fn) => fn());
+  const emit = () => [...subscribers].forEach((fn) => fn());
 
   function fresh() {
     return {
@@ -249,6 +250,7 @@ export function createFeed(kind) {
     return {
       kind,
       bulkDeals: state.bulkDeals,
+      exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -273,7 +275,7 @@ export function createFeed(kind) {
       // company would overstate the age of the forty beside it.
       checkedAt: state.confirmedAt.size ? Math.min(...state.confirmedAt.values()) : state.checkedAt,
       origin: originNow(),
-      headers: state.headers,
+      headers: kind === 'insider' ? [...new Set([...state.headers, ...exchangeDeals.headers])] : state.headers,
       persisted: isPersistent(),
       // A date-indexed snapshot knows its own window; only fall back to the constant when nothing
       // has declared one, so the coverage text cannot claim a year it does not hold.
@@ -321,7 +323,8 @@ export function createFeed(kind) {
       }
       return [key, list, state.identities.get(key)];
     });
-    if (rowSnapshot?.state === state && parts.length === rowSnapshot.parts.length &&
+    const exchangeRevision = kind === 'insider' ? exchangeDeals.revision() : null;
+    if (rowSnapshot?.state === state && rowSnapshot.exchangeRevision === exchangeRevision && parts.length === rowSnapshot.parts.length &&
       parts.every((part, i) => part.every((value, j) => value === rowSnapshot.parts[i][j]))) return rowSnapshot.value;
     const out = [];
     for (const [key, list] of state.rows) {
@@ -338,12 +341,15 @@ export function createFeed(kind) {
         } else out.push({ ...row, ticker });
       }
     }
-    const value = out.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    rowSnapshot = { state, parts, value };
+    const value = (kind === 'insider' ? exchangeDeals.combined(out) : out).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    rowSnapshot = { state, parts, value, exchangeRevision };
     return value;
   }
 
-  const forTicker = (t) => state.rows.get(String(t || '').toUpperCase()) || [];
+  const forTicker = (ticker) => {
+    const t = String(ticker || '').toUpperCase(), held = state.rows.get(t) || [];
+    return kind === 'insider' ? exchangeDeals.forTicker(held, t) : held;
+  };
   /** Was this company asked, and did it answer nothing? Not the same as "we have no rows for it". */
   const wasAskedEmpty = (t) => state.askedEmpty.has(String(t || '').toUpperCase());
   const failureFor = (t) => state.failures.get(String(t || '').toUpperCase()) || null;
@@ -643,6 +649,7 @@ export function createFeed(kind) {
    * overwritten by an older file.
    */
   async function seedFromSnapshot({ replace = false } = {}) {
+    if (kind === 'insider') await exchangeDeals.refresh();
     let res;
     state.snapshotPending = true;
     try {
@@ -894,7 +901,8 @@ export function createFeed(kind) {
     },
     onChange(fn) {
       subscribers.add(fn);
-      return () => subscribers.delete(fn);
+      const stop = kind === 'insider' ? exchangeDeals.onChange(fn) : null;
+      return () => { subscribers.delete(fn); stop?.(); };
     },
   };
 }

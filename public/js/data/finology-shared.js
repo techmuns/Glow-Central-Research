@@ -145,7 +145,9 @@ export function normalisePortfolio(body, slug) {
     .map((h) => {
       const byQuarter = {};
       const notes = {};
+      const quarterlyStatus = {};
       for (const q of quarters) {
+        quarterlyStatus[q] = disclosureStatus(h, q);
         const raw = h?.quarterlyHoldings?.[q];
         const n = num(raw);
         byQuarter[q] = n != null && n >= 0 && n <= 100 ? n : null;
@@ -163,6 +165,7 @@ export function normalisePortfolio(body, slug) {
         // Their word for a cell that carries no number, where they gave one. Empty on every row
         // whose cells were all numeric or a plain dash, so it costs nothing on a normal book.
         quarterlyNotes: notes,
+        quarterlyStatus,
         valueCr: num(h?.valueCr),
       };
     })
@@ -177,6 +180,7 @@ export function normalisePortfolio(body, slug) {
       if (existing.quarterlyHoldings[q] !== h.quarterlyHoldings[q] || existing.quarterlyNotes[q] !== h.quarterlyNotes[q]) {
         existing.quarterlyHoldings[q] = null;
         existing.quarterlyNotes[q] = 'Conflicting source rows';
+        existing.quarterlyStatus[q] = 'unknown';
       }
     }
     if (existing.valueCr !== h.valueCr) existing.valueCr = null;
@@ -229,27 +233,57 @@ export function filedPair(quarters, now = Date.now()) {
  *
  * Returns null where there is nothing to say, so the caller can drop the row.
  */
+/** Source nulls retain their status; missing data cannot establish a purchase or sale. */
+export function disclosureStatus(h, q) {
+  const note = h?.quarterlyNotes?.[q];
+  const raw = h?.quarterlyHoldings?.[q];
+  if (isPendingNote(note) || isPendingNote(raw)) return 'filing_due';
+  if (note && !/^not disclosed$/i.test(note)) return 'unknown';
+  const n = num(raw);
+  if (n != null && n >= 0 && n <= 100) return 'reported';
+  if (['filing_due', 'not_disclosed', 'unknown'].includes(h?.quarterlyStatus?.[q])) return h.quarterlyStatus[q];
+  if (/^(-|—|not disclosed)$/i.test(String(raw ?? '').trim())) return 'not_disclosed';
+  return 'unknown';
+}
+
 export function classifyHolding(h, latest, prior) {
   if (!latest || !prior) return null;
-  const now = h?.quarterlyHoldings?.[latest] ?? null;
-  const before = h?.quarterlyHoldings?.[prior] ?? null;
-  const notes = [h?.quarterlyNotes?.[latest], h?.quarterlyNotes?.[prior]].filter(Boolean);
-  // A pending/invalid cell on either side makes the comparison incomplete, even if it
-  // carries a number. In particular, a pending prior filing cannot establish a new entrant.
-  if (notes.length) return { action: 'awaiting', deltaPp: null, now, before };
+  const now = num(h?.quarterlyHoldings?.[latest]), before = num(h?.quarterlyHoldings?.[prior]);
+  const nowStatus = disclosureStatus(h, latest), beforeStatus = disclosureStatus(h, prior);
   if (now == null && before == null) return null;
-  if (now == null) return { action: h?.valueCr === 0 ? 'exited' : 'awaiting', deltaPp: null, now, before };
-  if (before == null) return { action: 'new', deltaPp: null, now, before };
-  const deltaPp = round2(now - before);
-  return { action: deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held', deltaPp, now, before };
+  let action = 'unknown', deltaPp = null;
+  if (nowStatus === 'filing_due' || beforeStatus === 'filing_due') action = 'awaiting';
+  else if (nowStatus === 'reported' && beforeStatus === 'reported') {
+    deltaPp = round2(now - before);
+    action = deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held';
+  } else if (nowStatus === 'reported' && beforeStatus === 'not_disclosed') action = 'new';
+  else if (beforeStatus === 'reported' && nowStatus === 'not_disclosed') action = 'exited';
+  return { action, deltaPp, now, before, nowStatus, beforeStatus };
 }
 
 /** Only measured changes and explicit disclosure appearances/disappearances are moves. */
 export const MOVE_ACTIONS = ['new', 'exited', 'added', 'trimmed'];
 export const isMove = (action) => MOVE_ACTIONS.includes(action);
 
-export function deriveMoves(portfolio) {
-  const [latest, prior] = filedPair(portfolio?.quarters);
+export function periodEnd(label) {
+  const order = quarterOrder(label);
+  return order == null ? null : new Date(Date.UTC(Math.floor(order / 100), order % 100, 0)).toISOString().slice(0, 10);
+}
+export function closedQuarters(portfolio, today = new Date().toISOString().slice(0, 10)) {
+  return orderedQuarters((portfolio?.quarters || []).filter((q) =>
+    [3, 6, 9, 12].includes(quarterOrder(q) % 100) && periodEnd(q) <= today));
+}
+
+/** Consecutive, completed calendar quarters; an August event is not a portfolio-wide quarter. */
+export function comparisonPeriods(portfolio, today) {
+  const [latest, prior] = closedQuarters(portfolio, today);
+  const monthIndex = (q) => Math.floor(quarterOrder(q) / 100) * 12 + quarterOrder(q) % 100;
+  const comparable = !!latest && !!prior && monthIndex(latest) - monthIndex(prior) === 3;
+  return { comparable, latest: latest || null, prior: prior || null };
+}
+
+export function deriveMoves(portfolio, today) {
+  const [latest, prior] = filedPair(portfolio?.quarters, today ? Date.parse(today) : Date.now());
   const pending = (portfolio?.quarters || []).filter((q) => !isFiledQuarter(q));
   if (!latest || !prior) {
     return { comparable: false, latest, prior, pending, moves: [], reason: 'missing consecutive closed quarters' };
@@ -278,20 +312,20 @@ export function deriveMoves(portfolio) {
  * how many did. A total that silently skips a third of the book while looking complete is worse
  * than no total at all.
  */
-export function summarise(portfolio) {
-  // THE LATEST *FILED* QUARTER, for the same reason `deriveMoves` uses it. Counting an open
-  // "Filing Due" column as the current book made Madhusudan Kela hold one company instead of
-  // fifteen and put his book at a fraction of its size — a card stating, in figures, that an
-  // investor had liquidated. `latestQuarter` is what every surface prints as "as of", so it has to
-  // name a quarter that was actually filed.
-  const [latest] = filedPair(portfolio?.quarters);
-  const disclosed = latest ? portfolio.holdings.filter((h) => h.quarterlyHoldings[latest] != null) : [];
-  const valued = disclosed.filter((h) => h.valueCr != null);
+export function summarise(portfolio, today) {
+  const latest = closedQuarters(portfolio, today)[0] || null;
+  const disclosed = latest ? portfolio.holdings.filter((h) => num(h.quarterlyHoldings[latest]) != null) : [];
+  // Positive disclosed stakes with a zero valuation are an upstream valuation gap, not a zero book.
+  const valued = disclosed.filter((h) => h.valueCr != null && (h.valueCr > 0 || num(h.quarterlyHoldings[latest]) === 0));
+  const missingValues = disclosed.length - valued.length;
   return {
-    latestQuarter: latest || null,
+    latestQuarter: latest,
     disclosedCount: disclosed.length,
     rowCount: portfolio.holdings.length,
-    valueCr: valued.length ? round2(valued.reduce((a, h) => a + h.valueCr, 0)) : null,
+    valueCr: valued.length && !missingValues ? round2(valued.reduce((a, h) => a + h.valueCr, 0)) : null,
     valuedCount: valued.length,
+    missingValues,
+    offCycleCount: portfolio.holdings.filter((h) => (portfolio.quarters || []).some((q) =>
+      quarterOrder(q) > quarterOrder(latest) && ![3, 6, 9, 12].includes(quarterOrder(q) % 100) && num(h.quarterlyHoldings[q]) != null)).length,
   };
 }

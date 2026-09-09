@@ -26,3 +26,5 @@ __pycache__/
 *.session
 *.session-journal
 telegram-credentials*.json
+# Local output of the direct exchange capture; scheduled runs upload it as an artifact.
+tmp/exchange-capture/

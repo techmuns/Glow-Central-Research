@@ -2732,7 +2732,6 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     ['strong-breakouts', 'Strong Breakouts', false],
     ['technical-scanner', 'Technical Scanner', false],
     ['fii-accumulation', 'FII Accumulation', false],
-    ['earnings-surprise', 'Earnings Surprise', true], // estimates unavailable — no live pill
   ];
 
   const seen = [];
@@ -2773,10 +2772,16 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
-  // Missing estimates must not be replaced by a synthetic table or a live-data label.
-  const es = seen.find(([l]) => l === 'Earnings Surprise')[2];
-  ok('the unavailable estimates view has no live-data pill', es.pills === 0 && !es.green);
-  ok('missing consensus is explicit and no generated rows are shown', /consensus estimates are not connected/i.test(await hostText()) && await rowCount() === 0);
+  // Retired mock views must disappear from navigation and saved links alike.
+  await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
+  await waitForPanel();
+  ok('a saved Earnings Surprise link resolves to Strong Breakouts',
+    /breakouts\/strong-breakouts/.test(page.url()), page.url());
+  ok('the Breakouts picker no longer offers Earnings Surprise',
+    !/Earnings Surprise/i.test(await page.locator('#subview-mount').textContent()));
+  ok('the retired view cannot render mock earnings or a Surprise column',
+    !/mock earnings|mixed provenance/i.test(await hostText()) &&
+    !(await page.locator('#content-host th').allTextContents()).some((text) => /surprise/i.test(text)));
 
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
@@ -4674,7 +4679,7 @@ if (siProbe.state === 'no-route') {
   // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
   // route at all. Only a deployment with neither falls back to naming the missing route.
   const noWorker = await hostText();
-  const fromFile = await page.locator('[data-open-investor]').count();
+  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
   ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
     fromFile > 0 || /needs the Worker/i.test(noWorker),
     fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the missing route');
@@ -4688,7 +4693,7 @@ if (siProbe.state === 'no-route') {
   // the no-route branch above: with a snapshot the outcome is the snapshot; only a deployment with
   // neither falls through to naming the reason.
   const errText = await hostText();
-  const fromFile = await page.locator('[data-open-investor]').count();
+  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
   ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
     fromFile > 0
       ? true
@@ -7251,7 +7256,7 @@ console.log('\n— sub-view picker and the removed roadmap card —');
     }
     return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
   });
-  ok('clicking the picker opens its menu', menu.open && menu.items === 4, JSON.stringify({ open: menu.open, items: menu.items }));
+  ok('clicking the picker opens its three available views', menu.open && menu.items === 3, JSON.stringify({ open: menu.open, items: menu.items }));
   ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
   await page.locator('#subview-mount [data-dd-id="fii-accumulation"]').click();
   await page.waitForTimeout(1800);

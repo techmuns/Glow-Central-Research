@@ -338,7 +338,7 @@ export function sourceGroups() {
     {
       title: 'Earnings & filings',
       icon: '📊',
-      tabs: 'Earnings Hub · Con-call · Breakouts → Earnings Surprise',
+      tabs: 'Earnings Hub · Con-call',
       items: [
         {
           name: 'Live published-results feed',
@@ -375,16 +375,6 @@ export function sourceGroups() {
           cadence: capturedSourceCadence('domestic'),
           status: 'live', readState: capturedSourceReadState('domestic'),
           file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
-        },
-        {
-          name: 'Analyst consensus estimates',
-          planned: true,
-          url: null,
-          feeds:
-            'No verified consensus feed is connected. EPS and revenue estimates, beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable. Generated figures have been removed from the dashboard and Ask Research. Filing PDFs alone do not supply analyst estimates.',
-          cadence: 'Awaiting a real estimates source',
-          status: 'pending',
-          file: 'public/js/tabs/breakouts.js · public/js/research/estate.js',
         },
         {
           name: 'Published results calendar — counts',

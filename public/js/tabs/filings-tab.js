@@ -376,6 +376,7 @@ export function makeFilingsTab(cfg) {
         // the description happen to be, and both change as companies are added. A control that
         // moves when you use it reads as a different page.
       })}
+      ${cfg.status ? cfg.status(m) : ''}
       <div data-filings-busy>${busyStrip(m)}</div>
       ${cfg.aboveTable?.(ctx, m) || ''}
       ${table.html}

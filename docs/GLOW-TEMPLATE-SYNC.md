@@ -20,7 +20,12 @@ history rather than replaying years of changes.
   `1801` and `1802` are distinct from Sattva's `1701` and `1702`.
 - Glow palette, wordmark, Family Book, My Managers, Mutual Funds and macro research remain.
   Glow PR #18’s Changes view retains its manager/investor audiences, five periods and separate
-  trade and holdings-comparison evidence. Missing disclosures remain incomplete evidence.
+  trade and holdings-comparison evidence. Glow PRs #20–#25 also remain: compact technicals,
+  official NSE/BSE reports and artifact delivery, investor/manager coverage audits, verified
+  associated-entity evidence, and retirement of the mock Earnings Surprise view.
+  Unknown source cells remain unconfirmed; explicit non-disclosure can establish a disclosure
+  disappearance but never proves a sale. Official reports retain venue, category, side and price
+  through the template archive layer. Repeated reads reuse the unchanged combined history.
   Its public Sattva bulk/block fallback is intentionally retained when Glow’s four-category
   capture fails; it copies market deals only, with its own source date and failure status.
   This explicit fallback is excluded from mechanical repository-name substitutions.

@@ -30,7 +30,6 @@ export const meta = {
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
     { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'fii-accumulation', label: 'FII Accumulation' },
-    { id: 'earnings-surprise', label: 'Earnings Surprise' },
   ],
 };
 
@@ -50,7 +49,6 @@ export function render(ctx) {
   refreshQuotes = null;
   if (!refreshOff) refreshOff = refreshRegistry.register('technicals-view', {
     label: 'Technicals', refresh: async () => {
-      if (ctxRef?.subview === 'earnings-surprise') return { skipped: true };
       await technicals.refresh();
       if (ctxRef?.subview === 'technical-scanner' && refreshQuotes) return refreshQuotes();
       return { checked: 1, partial: !!technicals.meta()?.failures };
@@ -58,7 +56,6 @@ export function render(ctx) {
   });
   if (!dataOff) dataOff = technicals.onChange(() => { if (ctxRef) paint(ctxRef); });
   const token = ++renderToken;
-  if (ctx.subview === 'earnings-surprise') { renderEarningsSurprise(ctx); return; }
   ctx.root.innerHTML = loadingHtml();
 
   technicals
@@ -96,7 +93,6 @@ function paint(ctx) {
     'strong-breakouts': renderStrongBreakouts,
     'technical-scanner': renderScanner,
     'fii-accumulation': renderFiiAccumulation,
-    'earnings-surprise': renderEarningsSurprise,
   }[ctx.subview] || renderStrongBreakouts;
 
   view(ctx, rows);
@@ -113,10 +109,6 @@ function toneSpan(text, tone) {
 function rsiCell(v) {
   if (v == null) return '—';
   return toneSpan(num(v, 1), v >= 55 && v <= 75 ? 'pos' : v > 75 ? 'warn' : v < 40 ? 'neg' : null);
-}
-function adxCell(v) {
-  if (v == null) return '—';
-  return toneSpan(num(v, 1), v > 25 ? 'pos' : v >= 20 ? 'warn' : 'neg');
 }
 function rsCell(v) {
   if (v == null) return '—';
@@ -232,32 +224,24 @@ const TONE = {
   live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   stale: 'bg-slate-50 text-slate-600 ring-slate-200',
   unknown: 'bg-slate-100 text-slate-600 ring-slate-300',
-  mock: 'bg-amber-50 text-amber-800 ring-amber-300',
 };
 const DOT = {
   live: '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>',
   stale: '',
   unknown: '<span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>',
-  mock: '',
 };
 
 /**
- * livePill({ facts, bodyHtml, more, mock }) — one chip in the section head, and behind it
+ * livePill({ facts, bodyHtml, more }) — one chip in the section head, and behind it
  * everything the stat cards used to print.
  *
  * `facts` are the figures the removed cards carried, `bodyHtml` the help their "?" opened, and
  * `more` an optional { label, open() } for help too long to inline.
- *
- * `mock` forces the amber treatment and puts the mixed provenance on the FACE of the chip, not
- * merely inside it — a screenshot travels without the modal, so a synthetic number may never sit
- * under a green "Live".
  */
-function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {}) {
+function livePill({ facts = [], bodyHtml = '', more = null } = {}) {
   const f = freshness();
-  const tone = mock ? 'mock' : f.state;
-  const face = mock
-    ? 'Mock earnings · live technicals'
-    : f.state === 'live'
+  const tone = f.state;
+  const face = f.state === 'live'
       ? 'Up to date'
       : f.state === 'stale'
         ? `Updated ${formatRelativeTime(f.ts)}`
@@ -265,9 +249,7 @@ function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {})
   const coverage = f.meta?.company_count
     ? `${formatNumber(f.meta.scored_count || 0)} of ${formatNumber(f.meta.company_count)} companies scored`
     : null;
-  const title = mock
-    ? 'Two provenances on one screen — click for what is mock and what is live'
-    : f.state === 'live'
+  const title = f.state === 'live'
       ? `End-of-day data, captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''} — click for the source and the figures`
       : f.state === 'stale'
         ? `End-of-day data captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''}`
@@ -284,14 +266,12 @@ function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {})
   return { html, wire };
 }
 
-function pillModalBody({ f, facts, bodyHtml, more, mock }) {
+function pillModalBody({ f, facts, bodyHtml, more }) {
   const m = f.meta;
   const captured = f.ts
     ? `${escapeHtml(formatRelativeTime(f.ts))} <span class="text-slate-400">· ${escapeHtml(f.ts.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }))} IST</span>`
     : '<span class="text-slate-400">not stated by the feed</span>';
-  const note = mock
-    ? '<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">The earnings half of this table is <strong>mock data</strong>. Only the technical score is live. Nothing is combined across the two.</p>'
-    : f.state === 'stale'
+  const note = f.state === 'stale'
       ? `<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">This capture is more than three days old, which is wider than any weekend gap — at least one weekday scrape has not landed. The figures below are from ${escapeHtml(formatRelativeTime(f.ts))}.</p>`
       : f.state === 'unknown'
         ? '<p class="mt-3 rounded-xl bg-slate-100 p-3 text-[12px] leading-relaxed text-slate-700 ring-1 ring-slate-200">The feed did not state when it was captured, so its age cannot be reported. It is not being claimed as current.</p>'
@@ -436,7 +416,6 @@ function renderScanner(ctx, rows) {
       // would order the column by numbers the reader can no longer see.
       { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => s.company.liveQuote?.current ?? s.company.cmp ?? -1 },
       { label: 'RSI', get: (s) => rsiCell(s.company.rsi14), html: true, align: 'right', sortValue: (s) => s.company.rsi14 ?? -1 },
-      { label: 'ADX', get: (s) => adxCell(s.company.adx14), html: true, align: 'right', sortValue: (s) => s.company.adx14 ?? -1 },
       { label: '6M RS', get: (s) => rsCell(s.company.relative_strength_6m), html: true, align: 'right', sortValue: (s) => s.company.relative_strength_6m ?? -99 },
       { label: 'Beta', get: (s) => betaCell(s.company.beta_1y), html: true, align: 'right', sortValue: (s) => s.company.beta_1y ?? -1 },
       { label: 'ATR%', get: (s) => atrCell(s.company.atr14_pct), html: true, align: 'right', sortValue: (s) => s.company.atr14_pct ?? 999 },
@@ -860,30 +839,6 @@ function holdCell(v) {
 function deliveryCell(v) {
   if (v == null) return '<span class="text-slate-300">—</span>';
   return toneSpan(`${v > 0 ? '+' : ''}${num(v, 1)} pp`, v > 1 ? 'pos' : v > 0 ? 'warn' : 'neg');
-}
-
-// ---- (d) Earnings Surprise -------------------------------------------------------------------
-
-function renderEarningsSurprise(ctx) {
-  ctx.root.innerHTML = `
-    ${sectionHead({ title: 'Earnings Surprise', description: 'Analyst consensus estimates are not connected.' })}
-    <div class="rounded-2xl bg-white p-6 text-sm text-slate-600 ring-1 ring-slate-200">
-      <p>Beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable.
-         Filing PDFs provide published documents; they do not provide analyst consensus estimates.</p>
-      <p class="mt-3"><a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}">View reported results</a>
-        · <a class="font-semibold text-indigo-600" href="#/research/earnings-hub?scope=${encodeURIComponent(ctx.scope)}&view=filings">Browse company filings</a></p>
-    </div>`;
-}
-
-function tagPill(tag) {
-  const cls = tag === 'Beat' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : tag === 'Miss' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200';
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${tag}</span>`;
-}
-function dmaPill(v) {
-  if (v == null) return '<span class="text-slate-300">—</span>';
-  return v
-    ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
-    : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
 }
 
 // ---- Excel export ----------------------------------------------------------------------------

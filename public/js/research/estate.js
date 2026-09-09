@@ -43,6 +43,7 @@ import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as technicals from '../data/technicals.js';
 import * as investors from '../data/super-investors.js';
+import { loadEvidence, evidence } from '../data/holding-evidence.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -69,7 +70,6 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'chatter-posts', tab: 'Public Chatter posts', route: '#/research/public-chatter?open=mentions', description: 'Question-selected company posts from the same detail reader as Public Chatter; source text and links, with bounded topic coverage.' },
   { id: 'telegram', tab: 'Telegram', route: '#/research/public-chatter?section=telegram', description: 'Retained public-channel text and document names mentioning companies in scope. Attachment contents are not extracted.' },
   { id: 'technicals', tab: 'Breakouts / Technical', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
-  { id: 'earnings-surprise', tab: 'Breakouts / Technical', route: '#/research/breakouts/earnings-surprise', description: 'Analyst consensus and earnings surprise are unavailable until a real estimates feed is connected.' },
   { id: 'super-investors', tab: 'Super Investors', route: '#/research/super-investors/superstar-investors', description: 'Filed superstar-investor holdings and quarter-on-quarter disclosed changes.' },
   { id: 'portfolio', tab: 'Family Book', route: '#/research/family-book', description: 'GlowVentures platform statements, consolidated once with account dates and unknown values preserved.' },
   { id: 'institutions', tab: 'Super Investors', route: '#/research/super-investors/institutions', description: 'Institutional shareholding patterns and AMC portfolio disclosures.' },
@@ -1031,15 +1031,8 @@ const BUILDERS = [
     },
   },
   {
-    id: 'earnings-surprise',
-    load: async () => null,
-    read() {
-      return failedPacket(this.id, 'Analyst consensus estimates and structured earnings history are not connected. No synthetic financials are supplied.');
-    },
-  },
-  {
     id: 'super-investors',
-    load: () => investors.load(),
+    load: () => Promise.all([investors.load(), loadEvidence()]),
     read({ scope, plan, identities }) {
       const knownTickers = new Set(identities.map(company => company.ticker).filter(Boolean));
       const include = plan.companies.length ? null : investorScopeFilter(scope);
@@ -1052,13 +1045,15 @@ const BUILDERS = [
         rowCount: rows.length,
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failed },
         summary: {
+          primaryEvidence: evidence().holdings.filter((h) => !include || include(h.company)),
+          entityRelationships: evidence().relations,
           counts: summary.counts,
           comparableBooks: summary.comparableBooks,
           contributingBooks: summary.contributingBooks,
           periodPairs: summary.pairs.slice(0, 3).map((pair) => `${pair.latest} vs ${pair.prior}`),
           mostCommonHoldings: investors.overlaps().filter((item) => !include || include(item.company)).slice(0, 3).map((item) => ({ company: clipped(item.company, 60), holders: item.holders.length })),
         },
-        definition: 'changePp is percentage points of the company\'s equity. Exited = no longer disclosed, not necessarily sold. latestValueCr is Finology\'s current value, not a trade value.',
+        definition: 'Comparisons use consecutive completed calendar quarters. Unknown/awaiting means insufficient disclosure evidence, not a trade. Exited requires explicit non-disclosure and does not prove a sale. changePp is percentage points of company equity. Source valuations are not trade values. Primary evidence is individually verified and dated; associated-fund holdings are not personal holdings. Full exchange coverage is unverified.',
         ...chooseRows(rows, plan, row => moveRow(row, knownTickers), (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
       });
     },

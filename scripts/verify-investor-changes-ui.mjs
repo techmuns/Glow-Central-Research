@@ -67,6 +67,37 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await settled();
   assert.equal(await page.locator(`${nav} [aria-selected=true]`).innerText(), 'Changes');
   assert.equal(await page.locator('[data-changes-period]').inputValue(), 'quarter');
+  await page.locator('[data-holdings-integrity] summary').click();
+  const expectedCoverage = await page.evaluate(async () => {
+    const investors = await import('/js/data/super-investors.js');
+    const managers = await import('/js/data/managers.js');
+    return investors.list().length + managers.all().length;
+  });
+  assert.equal(await page.locator('[data-integrity-person]').count(), expectedCoverage, 'coverage must include every investor and every manager');
+  await page.locator('[data-integrity-search]').fill('Madhusudan');
+  assert.equal(await page.locator('[data-integrity-person]').count(), 1);
+  await page.locator('[data-integrity-person]').click();
+  await page.waitForSelector('[data-associated-evidence]');
+  assert.match(await page.locator('[data-associated-evidence]').innerText(), /TIL.*Singularity Equity Fund I.*1.35%/s);
+  assert.match(await page.locator('[data-associated-evidence]').innerText(), /not evidence of personal ownership/);
+  assert.match(await page.locator('#workspace-panel').innerText(), /Unconfirmed/);
+  await page.locator('[data-ws-tab=moves]').click();
+  const periods = await page.evaluate(async () => (await import('/js/data/super-investors.js')).movesFor('madhusudan-kela'));
+  assert((await page.locator('#workspace-panel').innerText()).includes(`${periods.latest} minus ${periods.prior}`));
+  assert.doesNotMatch(await page.locator('#workspace-panel').innerText(), /Aug 2026 minus/);
+  await page.keyboard.press('Escape');
+  await page.locator('[data-integrity-search]').fill('Mukul');
+  await page.locator('[data-integrity-person]').click();
+  await page.locator('[data-ws-tab=moves]').click();
+  const mukulPeriods = await page.evaluate(async () => (await import('/js/data/super-investors.js')).movesFor('mukul-agrawal'));
+  assert((await page.locator('#workspace-panel').innerText()).includes(`${mukulPeriods.latest} minus ${mukulPeriods.prior}`));
+  await page.keyboard.press('Escape');
+  await page.locator('[data-integrity-search]').fill('');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'expanded coverage must stay within the mobile page');
+  await page.screenshot({ path: '/tmp/glow-holdings-integrity-mobile.png', fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: '/tmp/glow-holdings-integrity-desktop.png', fullPage: true });
   console.log('PASS Changes UI: default/order, independent audiences, five periods, directory navigation, source details, preserved state, keyboard focus and mobile overflow');
 }
 

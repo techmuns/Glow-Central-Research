@@ -84,7 +84,7 @@ async function loadCritical() {
  * Replacing the object would leave every mounted tab holding the empty one.
  *
  * A failure here is not fatal and must not blank the app — the four modules below each fall back
- * to fetching their own file, and the two tabs that read `ctx.data` directly wait on this promise
+ * to fetching their own file, and consumers that read `ctx.data` directly wait on this promise
  * and then check what actually arrived.
  */
 function loadDeferred(data) {

@@ -26,9 +26,9 @@ assert.equal(matchedDeals([variant({ Transaction: 'Pledge' })], people).length, 
 assert.equal(matchedDeals([deal], [...people, { id: 'two', name: people[0].name }]).length, 0);
 assert.equal(identityIndex([{ id: 'one', name: 'Example', aliases: ['example'] }]).get('example').id, 'one');
 const grouped = matchedDeals([deal, variant({ 'Trade Category': 'Block deal' })], people);
-assert.equal(grouped.length, 1);
-assert.equal(grouped[0].evidence.length, 2);
-assert.equal(grouped[0].source, 'Bulk / block deal');
+assert.equal(grouped.length, 2, 'bulk and block are different report types');
+assert.equal(matchedDeals([deal, deal], people)[0].evidence.length, 2);
+assert.equal(grouped[0].source, 'Bulk deal');
 assert.equal(matchedDeals([deal, variant({ Transaction: 'Sell' })], people).length, 2);
 assert.equal(matchedDeals([deal, variant({ 'Trade Shares': '20,000' })], people).length, 2);
 
@@ -65,12 +65,12 @@ try {
 
 const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026', 'Dec 2025'], holdings: [
   { company: 'Example', companySlug: 'EXAMPLE', quarterlyHoldings: { 'Sep 2026': 8, 'Jun 2026': 3, 'Mar 2026': 2, 'Dec 2025': null } },
-  { company: 'Gone', companySlug: 'GONE', quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 1 } },
+  { company: 'Gone', companySlug: 'GONE', quarterlyStatus: { 'Jun 2026': 'not_disclosed' }, quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 1 } },
 ] }];
 const observed = investorHoldings(books, [{ slug: 'example', name: 'Investor' }], '2026-09-09');
 assert(observed.every((r) => r.date !== '2026-09-30'));
 assert.equal(observed.find((r) => r.company === 'Example' && r.date === '2026-06-30').deltaPp, 1);
-assert.equal(observed.find((r) => r.company === 'Gone').action, 'awaiting', 'a missing disclosure without a zero-value confirmation is incomplete evidence, not an exit');
+assert.equal(observed.find((r) => r.company === 'Gone').action, 'exited', 'an explicit source non-disclosure establishes a disclosure disappearance, without implying a sale');
 assert.equal(observed.find((r) => r.company === 'Gone').deltaPp, null);
 assert.equal(observed.filter((r) => inPeriod(r, periodRange('month', '2026-09-09'))).length, 0);
 

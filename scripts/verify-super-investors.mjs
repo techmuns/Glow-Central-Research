@@ -26,14 +26,14 @@ try {
   assert.equal(action(row('Example', 'X', 1, 1)), 'held');
   assert.equal(action(row('Example', 'X', 1, '-')), 'new');
   assert.equal(action(row('Example', 'X', '-', 1, 0)), 'exited');
-  assert.equal(action(row('Example', 'X', null, 1, null)), 'awaiting');
-  assert.equal(action(row('Example', 'X', null, 1, 10)), 'awaiting');
+  assert.equal(action(row('Example', 'X', null, 1, null)), 'unknown');
+  assert.equal(action(row('Example', 'X', null, 1, 10)), 'unknown');
   for (const invalid of [true, false, -1, 101, 'N/A', 'Filing Due', {}, 'Pending']) {
-    assert.equal(action(row('Example', 'X', invalid, 1, 0)), 'awaiting', String(invalid));
-    assert.equal(action(row('Example', 'X', 1, invalid, 10)), 'awaiting', `prior ${String(invalid)}`);
+    assert.equal(action(row('Example', 'X', invalid, 1, 0)), /Filing Due|Pending/.test(String(invalid)) ? 'awaiting' : 'unknown', String(invalid));
+    assert.equal(action(row('Example', 'X', 1, invalid, 10)), /Filing Due|Pending/.test(String(invalid)) ? 'awaiting' : 'unknown', `prior ${String(invalid)}`);
   }
   const absent = row(); delete absent.quarterlyHoldings['Mar 2026'];
-  assert.equal(action(absent), 'awaiting');
+  assert.equal(action(absent), 'unknown');
   const body = { quarters, holdings: [row('Example', 'X', 'Filing Due', 1, 0)] };
   for (const bad of [{ slug: 'wrong-investor', quarters, holdings: [] }, {}, { quarters, holdings: null }, { quarters, holdings: [{}] }, { ok: false, quarters, holdings: [] }]) {
     await assert.rejects(fetchInvestorPortfolio(async () => Response.json(bad), 'local-fixture', 'one', 'https://fixture.invalid'), { code: 'shape' });
@@ -52,7 +52,7 @@ try {
   assert.deepEqual(normalisePortfolio(cached, 'one'), cached, 'normalisation is idempotent');
   const conflict = book('one', [row(), row('Example renamed', 'EXAMPLE', 4)]);
   assert.equal(conflict.holdings.length, 1);
-  assert.equal(deriveMoves(conflict).moves[0].action, 'awaiting');
+  assert.equal(deriveMoves(conflict).moves[0].action, 'unknown');
   const duplicate = book('one', [row(), row()]);
   assert.equal(duplicate.holdings.length, 1);
   assert.equal(summariseQuarter([duplicate]).consensusBuyCount, 0, 'duplicate rows are not two investors');
@@ -92,7 +92,7 @@ try {
     book('adia', [row('Aavas Financiers Ltd.', 'AAVAS', 2.13, 1.65)]),
     book('mit', [row('Aavas Financiers Ltd.', 'AAVAS', 1.10, null)]),
   ]);
-  assert.equal(observed.consensusBuys[0].count, 2, 'Aavas source observation from 6 Sep 2026');
+  assert.equal(observed.consensusBuys.length, 0, 'an unknown prior source cell cannot establish a new disclosure or a consensus vote');
   assert(actual.consensusBuys.every((c) => new Set(c.investors.map((i) => i.slug)).size === c.count));
   console.log(JSON.stringify({ status: 'passed', books: actual.loadedBooks, missingBooks: actual.missingBooks, comparable: actual.comparableBooks, excluded: actual.excludedBooks.length, sharedCompanies: actual.consensusBuyCount, counts: actual.counts }));
 } finally { Date.now = now; }

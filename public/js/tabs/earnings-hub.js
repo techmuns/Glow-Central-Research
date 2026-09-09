@@ -14,9 +14,8 @@
 //   The old Earnings Hub scored synthetic financials against a 15-rule model. Moneycontrol
 //   publishes three figures per company — revenue, gross profit, net profit — which is nowhere
 //   near enough to feed that model. Rather than run a real model on fake numbers next to a live
-//   table of real ones, the scoring sub-views are gone. `js/scoring/earnings-scoring.js` and the
-//   legacy scoring code remain available, but the synthetic set is no longer loaded. Analyst
-//   estimates are unavailable; Company Filings provides original documents, not estimated metrics.
+//   table of real ones, the scoring sub-views are gone. The legacy scoring module and mock
+//   fixtures remain in the repo, but no active view or research source loads them.
 //
 // THE PERCENTAGE THAT ISN'T ONE
 //   13% of companies have a sign flip between the two periods. "+199%" on a loss-to-profit

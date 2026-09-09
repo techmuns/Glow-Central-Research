@@ -1,0 +1,31 @@
+{
+  "description": "Individually checked primary evidence. This is not a complete exchange feed. Fund holdings are separate from personal holdings; dates are disclosure dates, not purchase dates.",
+  "relations": [
+    {
+      "entityId": "singularity-equity-fund-i",
+      "legalName": "Singularity Equity Fund I",
+      "investorSlugs": ["madhusudan-kela"],
+      "managerIds": [],
+      "relationship": "Associated fund; Madhusudan Kela is Mentor & IC Chairman of Singularity AMC. This is not evidence of personal ownership.",
+      "sourceUrl": "https://singularityamc.com/",
+      "verifiedAt": "2026-09-09"
+    }
+  ],
+  "holdings": [
+    {
+      "id": "bse-505196-2026-08-06-singularity-equity-fund-i",
+      "entityId": "singularity-equity-fund-i",
+      "legalHolder": "Singularity Equity Fund I",
+      "company": "TIL Ltd.",
+      "isin": "INE806C01018",
+      "bseCode": "505196",
+      "asOf": "2026-08-06",
+      "shares": 1109190,
+      "stakePct": 1.35,
+      "sourceUrl": "https://www.bseindia.com/corporates/shppublicshareholder?scripcd=505196&qtrid=130.01&QtrName=6-Aug-26",
+      "verifiedAt": "2026-09-09",
+      "method": "Manual check of BSE public shareholding table",
+      "note": "Disclosure confirms the fund's position on this date. It does not establish a June purchase or today's position."
+    }
+  ]
+}

@@ -99,6 +99,7 @@ ok('the runtime research catalog covers every visible research tab, and nothing 
     assert.match(source.route, /^#\/research\//, source.id);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
+  assert.equal(DASHBOARD_RESEARCH_SOURCES.some((source) => source.id === 'earnings-surprise'), false);
 });
 
 ok('earnings calendar evidence keeps paginated results and upcoming calls separate from filed results', () => {

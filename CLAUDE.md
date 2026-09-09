@@ -410,7 +410,7 @@ it went furthest: no description, no cards, one pill. Three of its four cards co
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
 The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY.
-**Breakouts / Technical is the second, on all four
+**Breakouts / Technical is the second, on all three
 sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*
@@ -3156,9 +3156,10 @@ ever has one age, so the stale branch cannot be produced by the fixture, exactly
 cannot be produced by a day with no big faller in it. A feed with **no** capture time is a third
 state, `unknown`: never "live", never "stale".
 
-**And a half-mock view may not wear a green Live.** Breakouts' Earnings Surprise sub-view is amber
-and reads *Mock earnings · live technicals* on the face of the chip, because a screenshot travels
-without the modal.
+**Glow removes Earnings Surprise until real data is available.** Breakouts offers only Strong
+Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Strong
+Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
+bootstrap, Ask Research evidence and the source registry; keep it out of active customer views.
 
 ---
 
@@ -3531,8 +3532,8 @@ Rules:
   one sub-view and a 232KB mock corpus read by one other. Two rules if you add a file:
   **the deferred object is mutated in place**, because `ctx.data` is the same reference every
   mounted tab holds — replacing it would leave them all with the empty one; and **the consumer
-  waits, rather than rendering early.** Breakouts → Earnings Surprise and Super Investors →
-  Institutions both do, via `whenDeferredData()` and `filed.load()` respectively. An unprimed
+  waits, rather than rendering early.** Super Investors → Institutions does so via
+  `whenDeferredData()` and `filed.load()`. An unprimed
   Institutions renders an empty book, and an empty book on screen is a claim that nobody holds
   anything.
 - **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
@@ -3762,6 +3763,28 @@ nothing — which is exactly why the con-call route has no projection either.
 
 ---
 
+## Holdings reliability (Glow, 9 September 2026)
+
+`docs/HOLDINGS-RELIABILITY.md` records the current source coverage and the remaining primary-feed
+and manager-statement requirements. Investor snapshots now have a dedicated six-hour
+`investor-refresh.yml`; remove any duplicate investor capture from the general technicals job.
+The investor, manager-archive and insider-trades refreshes publish through checked `codex/*` PRs
+with `scripts/publish-data-pr.mjs`. Missing secrets, failed captures and overdue ingestion must
+surface as failed runs, even when last-good data and failure metadata can still be published.
+
+`finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
+Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
+an absence; never convert it into a purchase, exit, or negative General Alert. Off-cycle monthly
+columns remain dated observations, not complete quarterly portfolios. Source `fetchedAt` and manager
+`syncedAt` are different from disclosure/statement dates. Keep failed books with their original dates;
+newer files must not make retained old source data look freshly confirmed.
+
+`holding-evidence.json` carries individually checked primary records and legal-entity relationships.
+Associated-fund holdings stay separate from personal and family-account positions. No complete
+exchange reconciliation feed is connected; adding one record must never mark a whole book complete.
+The common coverage audit evaluates every investor and every family manager. Run
+`node scripts/verify-holdings-integrity.mjs` and the investor Changes checks after changing these paths.
+
 ## Verification checklist before pushing
 
 ```bash
@@ -3803,7 +3826,7 @@ It covers, beyond the checklist below:
 - shell renders with **zero console errors**
 - every Research Central tab renders its panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
-  (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
+  (the Earnings Hub and all three Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
   capture time and every figure the cards printed)
 - **the Breakouts Live pill is green only when the data earns it**: `freshnessOf` is asserted
