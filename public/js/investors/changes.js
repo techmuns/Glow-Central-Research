@@ -27,8 +27,15 @@ const actionLabels = { new: 'Newly reported', added: 'Increased', trimmed: 'Redu
 export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor, includeHolding } = {}) {
   const state = { audience: 'my-managers', period: 'quarter', ...view };
   let host, disposed = false, ready = false, tableDisposers = [];
+  function rememberSources() {
+    const sources = host?.querySelector('[data-changes-sources]');
+    if (sources) { state.sourcesOpen = sources.open; onView(state); }
+  }
   function paint(focus = null) {
     if (disposed || !host?.isConnected) return;
+    // A source update can repaint before the browser dispatches the native
+    // details toggle event. Read the current DOM state before replacing it.
+    rememberSources();
     tableDisposers.forEach((d) => d?.());
     tableDisposers = [];
     const mine = state.audience === 'my-managers';
@@ -117,7 +124,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
           <p class="my-3 text-xs text-slate-500">Filtered by the comparison’s end date, not a trade date. ${mine ? 'The two latest PMS statements compare quantities; weights are derived from statement values.' : 'Quarterly disclosures compare the stake in a company. A missing disclosure does not prove a sale.'} These comparisons are separate from the trades above.</p>
           <div data-changes-observations>${holdingTable.html}</div>
         </details>
-        <details class="text-xs text-slate-500" data-changes-sources>
+        <details class="text-xs text-slate-500" data-changes-sources ${state.sourcesOpen ? 'open' : ''}>
           <summary class="cursor-pointer font-semibold">Sources &amp; coverage</summary>
           <div class="mt-2 space-y-2 leading-relaxed">
             <p>${mine ? `PMS holdings and transactions come from the manager statements in GlowVentures. Only two holdings statements per account are retained here; the transaction archive can cover a longer period. AIF/fund-house activity appears only where a public deal matches the reported legal name. Manager data as of ${esc(date(managers.meta()?.asOf))}.` : `Holdings come from Ticker Finology’s retained quarterly disclosures. Public trading between reports is visible only where a captured bulk/block deal matches a tracked investor’s name. ${investors.meta().failedBooks || 0} investor books could not be read.`}</p>
@@ -134,12 +141,15 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
       state.period = e.target.value; onView(state); paint('period');
     });
     host.querySelector('[data-changes-holdings]').addEventListener('toggle', (e) => { state.holdingsOpen = e.target.open; onView(state); });
+    host.querySelector('[data-changes-sources]').addEventListener('toggle', (e) => {
+      if (!disposed && e.currentTarget.isConnected) rememberSources();
+    });
     if (focus) host.querySelector(focus === 'period' ? '[data-changes-period]' : '[data-changes-audience] [aria-selected="true"]')?.focus();
   }
   return { html: '<div data-investor-changes></div>', wire(root, disposers) {
     host = root.querySelector('[data-investor-changes]');
     const unsubscribe = insider.onChange(() => paint());
-    disposers.push(() => { disposed = true; unsubscribe(); tableDisposers.forEach((d) => d?.()); });
+    disposers.push(() => { rememberSources(); disposed = true; unsubscribe(); tableDisposers.forEach((d) => d?.()); });
     paint();
     Promise.all([managers.load(), loadEvidence(), insider.isLoaded() ? insider.refreshSnapshot() : insider.seed()]).then(() => { ready = true; paint(); });
   } };
