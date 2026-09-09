@@ -64,6 +64,31 @@ Use `build-book.mjs` / `check-book.mjs` / `build-managers.mjs` for Glow producti
 
 ## Credentials and settings to add
 
+### Glow setup on 10 September 2026
+
+The operator has added `CLAUDE_KEY`, the Screener login secrets, and the Glow watchlist
+variables: ID `10873837`, exact name `G Screen`. A live Ask Research request completed
+successfully through Bedrock, and the authenticated Screener access check succeeded.
+`SYNC_PUSH_TOKEN` was updated by the operator; its write permissions have not been
+independently proven by this access check. Paid summaries and X remain deferred.
+
+The manual **Screener access check** workflow checks access and plans membership changes
+without changing the watchlist by default. For an explicitly authorized membership sync,
+select `sync_watchlist: true` and repeat `10873837` in `watchlist_id`. The supplied ID must
+match the configured deployment variable before the workflow can continue. It verifies the
+watchlist name and both management/export views before importing or removing companies,
+then reads them again to verify the result. A new empty watchlist has no export form;
+the reader accepts this only when both views have no company rows and the expected
+management controls are present. No watchlist is created or renamed.
+
+The current statement contains 168 listed holdings eligible for this mirror and two
+other holdings excluded by their listing status. Missing imports are reported by count;
+an unsuccessful import does not establish that a holding is unavailable at the provider.
+Credentials and downloaded holdings stay in the runner; logs contain counts only.
+This manual operation does not activate paid summaries, X, or a scheduled membership sync.
+
+### Original migration inventory (9 September 2026)
+
 This inventory compares **secret names**, not encrypted values. Nothing was copied between
 accounts, and no production secret or paid collector was activated during the code sync.
 

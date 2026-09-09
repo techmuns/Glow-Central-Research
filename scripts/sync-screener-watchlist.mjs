@@ -7,11 +7,11 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readWatchlistInventory } from './lib/screener-watchlist-browser.mjs';
 import { assertGlowWatchlist } from './lib/screener-upcoming.mjs';
 import {
   additionsCsv,
   matchRemovalButtons,
-  parseWatchlistExport,
   portfolioWatchlistTargets,
   reconcileWatchlist,
 } from './lib/screener-watchlist.mjs';
@@ -24,6 +24,7 @@ assertGlowWatchlist();
 const WATCHLIST_PATH = `/watchlist/${WATCHLIST_ID}/`;
 const MANAGE_PATH = `/user/stocks/${WATCHLIST_ID}/`;
 const IMPORT_PATH = `/watchlist/import/${WATCHLIST_ID}/`;
+const inventoryOptions = { origin: ORIGIN, watchlistId: WATCHLIST_ID, watchlistName: WATCHLIST_NAME };
 const PORTFOLIO = new URL('../public/data/portfolio-companies.json', import.meta.url);
 
 let browser;
@@ -37,43 +38,6 @@ async function report(message) {
 async function go(page, path) {
   const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
   if (!response?.ok() || new URL(page.url()).origin !== ORIGIN) throw new Error('Screener page unavailable');
-}
-
-async function loadManageRows(page) {
-  await go(page, MANAGE_PATH);
-  const title = (await page.locator('h1').first().textContent())?.trim();
-  if (title !== `Add companies to ${WATCHLIST_NAME}`) throw new Error('Unexpected watchlist identity');
-  return page.locator('button[onclick*="Watchlist.removeCompany"]').evaluateAll(buttons => buttons.map(button => {
-    const onclick = button.getAttribute('onclick') || '';
-    const companyId = /removeCompany\(['"](\d+)['"]\)/.exec(onclick)?.[1] || '';
-    const container = button.closest('li, tr') || button.parentElement;
-    const link = container?.querySelector('a[href^="/company/"]');
-    return {
-      companyId,
-      href: link?.getAttribute('href') || '',
-      name: (link?.textContent || container?.textContent || '').trim(),
-    };
-  }).filter(row => row.companyId));
-}
-
-async function exportWatchlist(page) {
-  await go(page, WATCHLIST_PATH);
-  const manageLink = page.locator(`a[href^="${MANAGE_PATH}"]`);
-  if (await manageLink.count() === 0) throw new Error('Watchlist manage link is unavailable');
-  const form = page.locator('form[action^="/api/export/screen/"]').first();
-  const action = await form.getAttribute('action');
-  const exportUrl = new URL(action || '', ORIGIN);
-  if (exportUrl.searchParams.get('sublist_id') !== WATCHLIST_ID) throw new Error('Unexpected export target');
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    form.locator('button[type="submit"], input[type="submit"]').first().click(),
-  ]);
-  if (await download.failure()) throw new Error('Watchlist export download failed');
-  const chunks = [];
-  const stream = await download.createReadStream();
-  for await (const chunk of stream) chunks.push(chunk);
-  await download.delete().catch(() => {});
-  return parseWatchlistExport(Buffer.concat(chunks));
 }
 
 async function importAdditions(page, additions) {
@@ -155,9 +119,7 @@ try {
   if (!hasSession) throw new Error('Authenticated session unavailable');
 
   stage = 'watchlist inventory';
-  const current = await exportWatchlist(page);
-  const manageRows = await loadManageRows(page);
-  if (manageRows.length !== current.length) throw new Error('Export and manage counts differ');
+  const { current, manageRows } = await readWatchlistInventory(page, inventoryOptions);
   const plan = reconcileWatchlist(current, targets);
   const removalMatches = matchRemovalButtons(plan.removals, manageRows);
   await report(`configured Screener plan: ${current.length} current, ${targets.length} listed portfolio companies, ${plan.additions.length} additions, ${plan.removals.length} removals.`);
@@ -170,10 +132,10 @@ try {
     stage = 'watchlist removals';
     await removeCompanies(page, removalMatches);
     stage = 'final watchlist verification';
-    const final = await exportWatchlist(page);
+    const { current: final } = await readWatchlistInventory(page, inventoryOptions);
     const result = reconcileWatchlist(final, targets);
     if (result.removals.length) throw new Error('Non-portfolio companies remain after sync');
-    await report(`configured Screener synced: ${final.length} portfolio companies present; ${result.additions.length} listed holdings are unavailable on Screener.`);
+    await report(`configured Screener synced: ${final.length} portfolio companies present; ${result.additions.length} listed holdings were not added by Screener.`);
     if (result.additions.length) console.log(`::warning::Screener could not add ${result.additions.length} listed portfolio holdings; they will be retried on the next sync.`);
   }
 } catch {

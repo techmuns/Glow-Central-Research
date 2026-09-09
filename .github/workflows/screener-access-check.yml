@@ -1,9 +1,18 @@
 name: Screener access check
 
-# Read-only diagnostic. The configured Glow export is parsed in runner memory; no
-# downloaded artifact, saved session, watchlist mutation, or dashboard write.
+# Read-only by default. An explicit manual request can reconcile the named Glow
+# watchlist. Credentials and exported holdings stay in runner memory.
 on:
   workflow_dispatch:
+    inputs:
+      sync_watchlist:
+        description: 'Apply the Glow portfolio to its configured Screener watchlist'
+        type: boolean
+        default: false
+      watchlist_id:
+        description: 'When applying, repeat the exact target watchlist ID'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -23,6 +32,17 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+      - name: Check the explicitly requested sync target
+        if: inputs.sync_watchlist
+        env:
+          REQUESTED_WATCHLIST_ID: ${{ inputs.watchlist_id }}
+          CONFIGURED_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
+        run: |
+          node --input-type=module -e '
+            const requested = process.env.REQUESTED_WATCHLIST_ID;
+            if (!/^\d+$/.test(requested || "") || requested !== process.env.CONFIGURED_WATCHLIST_ID)
+              throw new Error("The requested watchlist must match the configured Glow watchlist.");
+          '
       - name: Install pinned Playwright runtime
         run: |
           npm install --prefix "$RUNNER_TEMP/screener-browser" --no-save --package-lock=false playwright@1.62.1
@@ -36,13 +56,13 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/check-screener-access.mjs
-      - name: Verify and plan the configured Glow portfolio mirror
+      - name: Check or sync the configured Glow portfolio mirror
         env:
           SCREENER_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
           SCREENER_WATCHLIST_NAME: ${{ vars.SCREENER_WATCHLIST_NAME }}
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
-          SCREENER_SYNC_DRY_RUN: "true"
+          SCREENER_SYNC_DRY_RUN: ${{ inputs.sync_watchlist != true }}
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-browser/node_modules/playwright
           DEBUG: ""
           PWDEBUG: ""
