@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+import { reconcilePublicHoldings } from '../public/js/data/public-holdings-shared.js';
+const load = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));
+const archivePath = process.env.SHAREHOLDINGS_OUT || new URL('../public/data/shareholding-filings.json.gz', import.meta.url).pathname;
+const archive = JSON.parse(archivePath.endsWith('.gz') ? gunzipSync(readFileSync(archivePath)) : readFileSync(archivePath, 'utf8'));
+const report = reconcilePublicHoldings({ archive, snapshot: load('super-investors'), managers: load('managers'), evidence: load('holding-evidence'), exchange: load('exchange-deals') });
+const output = process.env.PUBLIC_HOLDINGS_OUT || new URL('../public/data/public-holdings.json', import.meta.url).pathname;
+writeFileSync(`${output}.tmp`, JSON.stringify(report)); renameSync(`${output}.tmp`, output);
+console.log(JSON.stringify({ ...report.coverage, matchedDisclosures: report.holdings.length, issues: report.issues.length, candidates: report.candidates.length }));

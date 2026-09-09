@@ -49,8 +49,7 @@ const report = assessCoverage({ snapshot: { ...retained, capturedAt: '2026-10-01
     { id: 'aif', name: 'Fund', kind: 'aif', asOf: '2026-10-01' }] } });
 assert.equal(report.total, 4);
 assert(report.rows[0].issues.includes('Source check overdue'), 'a fresh file cannot rejuvenate an old source check');
-assert(report.rows.find((r) => r.id === 'pms').issues.includes('New manager statement needed'));
-assert(report.rows.find((r) => r.id === 'aif').issues.some((s) => s.includes('underlying portfolio feed needed')));
+assert(!report.rows.some((r) => r.issues.some((s) => /statement.*needed|portfolio feed needed/i.test(s))), 'customer document requests are outside this feature');
 assert.equal(report.complete, false);
 
 const evidence = JSON.parse(readFileSync(new URL('../public/data/holding-evidence.json', import.meta.url)));

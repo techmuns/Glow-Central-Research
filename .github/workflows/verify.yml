@@ -115,6 +115,8 @@ jobs:
         run: node scripts/verify-investor-changes.mjs
       - name: Verify holdings integrity and snapshot retention
         run: node scripts/verify-holdings-integrity.mjs
+      - name: Verify original shareholding capture and reconciliation
+        run: node scripts/verify-public-holdings.mjs
       - name: Verify direct exchange capture and delivery
         run: node scripts/verify-exchange-deals.mjs
       - name: Syntax-check JavaScript
@@ -249,6 +251,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-exchange-deals-ui.mjs
+      - name: Verify public holdings updates and retained evidence
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-public-holdings-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
     # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the
