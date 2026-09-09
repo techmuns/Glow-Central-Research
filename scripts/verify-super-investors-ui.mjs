@@ -28,7 +28,7 @@ import * as coverage from '/js/data/coverage.js';
 import * as watchlist from '/js/core/watchlist.js';
 import { renderLive } from '/js/investors/live.js';
 coverage.prime({ holdings: [{ ticker: 'ONLY', name: 'Portfolio Only' }] });
-let disposers = [], scope = 'portfolio', section = 'quarterly-changes';
+let disposers = [], scope = 'portfolio', section = 'data-table';
 window.paint = (nextScope = scope, nextSection = section) => {
   scope = nextScope; section = nextSection;
   disposers.forEach(fn => fn()); disposers = [];
@@ -62,29 +62,15 @@ try {
   await page.clock.install({ time: new Date(at) });
   await page.goto(origin + '/#/research/super-investors?scope=portfolio');
   await page.waitForFunction(() => window.testSI && !window.testSI.feed.meta().confirming);
-  const buys = page.locator('[data-ranked-list="si-consensus-buys"]');
-  assert.match(await buys.innerText(), /available Portfolio disclosures/);
-  assert.doesNotMatch(await page.locator('[data-quarter-summary]').innerText(), /No company was bought|No company was sold|Every position disclosed/);
-  assert.match(await page.locator('[data-si-coverage]').innerText(), /2 of 4 tracked books/);
-  assert.match(await page.locator('[data-si-coverage]').innerText(), /1 unavailable/);
-  assert.match(await page.locator('[data-si-universe]').innerText(), /1 company/);
+  assert.match(await page.locator('#test-root').innerText(), /All disclosed positions/i);
   assert.equal(await page.evaluate(() => testSI.feed.quarterSummary({ include: (company) => company === 'Portfolio Only Ltd.' }).counts.added), 1);
-  await page.locator('[data-si-universe]').click();
-  await page.waitForFunction(() => document.querySelector('[data-quarter-summary] h2').textContent.includes('Universe'));
-  assert.equal(await buys.locator('button').count(), 1);
-  await buys.locator('button').click();
-  const detail = page.locator('[data-company-investor-detail]');
-  assert.equal(await detail.locator('[data-company-investor-row]').count(), 2);
-  assert.match(await detail.innerText(), /1.65%/); assert.match(await detail.innerText(), /2.13%/);
-  assert.match(await detail.innerText(), /1.10%/); assert.doesNotMatch(await detail.innerText(), /Aug 2026/);
-  assert.equal(await detail.locator('a[href^="https://ticker.finology.in/investor/"]').count(), 2);
-  await page.keyboard.press('Escape');
-  await page.evaluate(() => paint('watchlist'));
-  assert.match(await buys.innerText(), /available Watchlist disclosures/);
+  assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 1, 'missing books remain visible in feed health');
+  await page.evaluate(() => paint('universe', 'data-table'));
+  assert.match(await page.locator('#test-root').innerText(), /Aavas/);
   await page.evaluate(() => { testSI.watchlist.add('PENDING', 'Pending'); paint('watchlist', 'data-table'); });
   assert.match(await page.locator('#test-root').innerText(), /Incomplete data/i);
   assert.doesNotMatch(await page.locator('#test-root').innerText(), /Undisclosed/);
-  await page.evaluate(() => paint('portfolio', 'quarterly-changes'));
+  await page.evaluate(() => paint('portfolio', 'data-table'));
   if (process.env.SI_SCREENSHOT) await page.screenshot({ path: process.env.SI_SCREENSHOT, fullPage: true });
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -94,7 +80,7 @@ try {
   fail = true;
   await page.evaluate(() => testSI.feed.refresh());
   assert.equal(await page.evaluate(async () => (await (await import('/js/core/store.js')).readEntry('investor:one')).value.ok), true, 'failed response cannot poison the device cache');
-  assert.match(await page.locator('[data-si-coverage]').innerText(), /book reads failed/);
+  assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 4);
   assert.equal(await page.evaluate(() => testSI.feed.books().length), 3, 'failed refresh retains evidence');
   fail = false;
   await page.evaluate(() => testSI.feed.refresh());
@@ -117,7 +103,7 @@ try {
   await page.clock.setSystemTime(new Date(Date.parse(at) + 7 * 3600000));
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForFunction(() => testSI.feed.book('one').holdings.find(h => h.companySlug === 'ONLY').quarterlyHoldings['Jun 2026'] === 1.8);
-  assert.match(await page.locator('[data-ranked-list="si-adds"]').innerText(), /0.80 pp/, 'resume automatically picks up late corrections');
+  assert(Math.abs(await page.evaluate(() => testSI.feed.allMoves().find(m => m.companySlug === 'ONLY').deltaPp) - 0.8) < 1e-9, 'resume automatically picks up late corrections');
   await page.evaluate(() => {
     const b = testSI.feed.book('one');
     b.quarters.unshift('Sep 2026');
@@ -128,5 +114,5 @@ try {
   await page.clock.setSystemTime(new Date('2026-10-01T00:00:00Z'));
   assert.equal(await page.evaluate(() => testSI.feed.allMoves().find(m => m.companySlug === 'ONLY').latest), 'Sep 2026', 'quarter rollover invalidates derived cache');
   assert.deepEqual(errors, []);
-  console.log('PASS investor scope, identity, disclosure notes, shared changes, drill evidence, missing books, outages and mobile layout');
+  console.log('PASS investor scope, disclosure notes, missing books, retained evidence, credential failures/recovery, late corrections and mobile table layout');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

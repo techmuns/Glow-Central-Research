@@ -70,7 +70,8 @@ function directionTint(v) {
 // "Transaction type" on the control because that is the question the reader is asking; its option
 // values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
 const FILTER_FIELDS = [
-  { label: 'Category', allLabel: 'All four categories', keys: ['trade category', 'disclosure type'], maxWidthPx: 220 },
+  { label: 'Trade category', allLabel: 'All trade categories', keys: ['trade category'], maxWidthPx: 220 },
+  { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
   {
     label: 'Transaction type',
     allLabel: 'All transaction types',
@@ -178,6 +179,7 @@ const tab = makeFilingsTab({
         <p><strong>Real market disclosures.</strong> The scheduled capture reads Screener.in’s complete market-wide
            <strong>Bulk deal, Block deal, SAST and Insider trade</strong> lists. Retained Muns insider rows supplement
            those lists where they carry more exchange fields.</p>
+        <p class="mt-3">${m.bulkDeals ? `${m.bulkDeals.rows} retained bulk/block deals; shared public source captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Shared bulk/block fallback coverage is unavailable.'}</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The table is theirs, columns and all</h3>
         <p class="mt-1 text-xs">The source-specific cells are retained under their own headings. The one common field,

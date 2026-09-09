@@ -196,6 +196,7 @@ export function createFeed(kind) {
       pending: 0,
       truncated: 0,
       headers: [], // insider trades keeps the upstream's own column headings
+      bulkDeals: null,
       // The companies in scope, as the tab last asked for them. `refresh()` re-reads these, so the
       // button asks about what is on screen rather than about everything the module has ever seen.
       wanted: [],
@@ -247,6 +248,7 @@ export function createFeed(kind) {
     const coreFresh = Number.isFinite(stamp) && stamp <= Date.now() + 600000 && Date.now() - stamp <= 4 * 3600000;
     return {
       kind,
+      bulkDeals: state.bulkDeals,
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -551,12 +553,12 @@ export function createFeed(kind) {
    * yesterday's rows as soon as the new deployment reaches the browser.
    */
   async function refreshSnapshot() {
-    const before = state.snapshotUpdatedAt || state.capturedAt;
+    const before = `${state.snapshotUpdatedAt || state.capturedAt}|${state.bulkDeals?.capturedAt}`;
     const available = await seedFromSnapshot({ replace: true });
     if (kind === 'insider') await seedFromDevice([...state.rows.keys()]);
     state.loaded = true;
     emit();
-    return { available, changed: !!state.snapshotUpdatedAt && state.snapshotUpdatedAt !== before, capturedAt: state.capturedAt };
+    return { available, changed: before !== `${state.snapshotUpdatedAt || state.capturedAt}|${state.bulkDeals?.capturedAt}`, capturedAt: state.capturedAt };
   }
 
   const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
@@ -680,6 +682,8 @@ export function createFeed(kind) {
     // replace rows this browser has already proved came from a later capture.
     const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured);
     if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; }
+    const bulkNewer = kind === 'insider' && Date.parse(body.bulkDeals?.capturedAt || '') > (Date.parse(state.bulkDeals?.capturedAt || '') || 0);
+    if (body.bulkDeals && (!state.bulkDeals || Date.parse(body.bulkDeals.capturedAt || '') >= Date.parse(state.bulkDeals.capturedAt || ''))) state.bulkDeals = body.bulkDeals;
     if (!replace || newer) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
@@ -714,7 +718,7 @@ export function createFeed(kind) {
         if (entity.name) state.names.set(key, entity.name);
       }
     }
-    if (replace && !newer) return state.rows.size > 0;
+    if (replace && !newer && !bulkNewer) return state.rows.size > 0;
 
     if (newer) {
       // Announcement snapshots replace rows. Companies that aged out

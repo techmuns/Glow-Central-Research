@@ -19,6 +19,11 @@ history rather than replaying years of changes.
   repository ID `1339395437`. Durable Objects are local to this Worker. All shared edge-cache keys include a Glow deployment prefix. Rate-limit namespaces
   `1801` and `1802` are distinct from Sattva's `1701` and `1702`.
 - Glow palette, wordmark, Family Book, My Managers, Mutual Funds and macro research remain.
+  Glow PR #18’s Changes view retains its manager/investor audiences, five periods and separate
+  trade and holdings-comparison evidence. Missing disclosures remain incomplete evidence.
+  Its public Sattva bulk/block fallback is intentionally retained when Glow’s four-category
+  capture fails; it copies market deals only, with its own source date and failure status.
+  This explicit fallback is excluded from mechanical repository-name substitutions.
 - The portfolio producer is **techmuns/GlowVentures**, not Sattva-Family. Daily `series-refresh`
   checks out that private repository with `GLOWVENTURES_READ_TOKEN`, builds the statement book,
   checks it, and builds manager summaries. `family-book-sync` delegates to this same producer.

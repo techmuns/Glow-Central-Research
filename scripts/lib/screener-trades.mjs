@@ -264,7 +264,11 @@ export function buildScreenerTradesSnapshot(previous, captures, { capturedAt = n
     rows.flatMap((row) => Object.keys(row.cells || {})),
   );
 
+  const deals = rows.filter(row => ['Bulk deal', 'Block deal'].includes(row.cells?.['Trade Category']));
+  const dealDates = deals.map(row => row.date).filter(Boolean).sort();
   return {
+    bulkDeals: { source: 'Screener.in bulk and block listings captured by Glow', sourceUrl: 'https://www.screener.in/trades/bulk/',
+      capturedAt, from: dealDates[0] || null, to: dealDates.at(-1) || null, rows: deals.length, error: null },
     _provenance:
       `REAL DATA, NOT OURS. Market-wide ${SCREENER_TRADE_CATEGORIES.join(', ')} listings are read from Screener.in in newest-first order. ` +
       `All four categories must succeed before this file changes. Exact repeat captures and cross-provider representations of the same ticker/date/person/direction/quantity event are merged once; distinct categories remain distinct. ` +

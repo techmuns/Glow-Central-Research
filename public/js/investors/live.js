@@ -39,6 +39,7 @@ import * as scopeLists from '../core/scope-lists.js';
 import { scopePossessive, scopeLabel } from '../data/scope.js';
 // The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
 import { classifyHolding, companyKey, filedPair, isMove, quarterOrder } from '../data/finology-shared.js';
+import { renderChanges } from './changes.js';
 
 const SOURCE = 'Ticker Finology, captured through this dashboard’s Worker and checked automatically while this view is open.';
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
@@ -53,16 +54,14 @@ const cr = (v) => (v == null ? dash : formatCroreCompact(v));
 
 const SECTIONS = [
   { id: 'investors', label: 'All Investors' },
-  { id: 'quarterly-changes', label: 'Quarterly Changes' },
+  { id: 'quarterly-changes', label: 'Changes' },
   { id: 'data-table', label: 'Data Table' },
 ];
 
-export function renderLive(ctx, { disposers = [], section = 'investors', tableView, onView, onSection } = {}) {
+export function renderLive(ctx, { disposers = [], section = 'quarterly-changes', tableView, onView, onSection, changesView, onChangesView } = {}) {
   const m = feed.meta();
 
-  if (!m.ok && section !== 'my-managers') return renderUnavailable(ctx, m);
   disposers.push(feed.watchFreshness());
-
   const rows = scopedHoldings(ctx);
   const quarters = feed.quarterLabels();
   const investorList = feed.list();
@@ -70,7 +69,7 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
   const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id;
   const sectionTabs = tabBar({ tabs: sections, activeId: activeSection, onSelect: onSection || (() => {}) });
 
-  const summary = activeSection === 'quarterly-changes' ? quarterSummaryBlock(ctx, m) : null;
+  const summary = activeSection === 'quarterly-changes' ? renderChanges(ctx, { view: changesView, onView: onChangesView, openInvestor, includeHolding: scopeFilter(ctx) }) : null;
   const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView) : null;
   if (table) onView?.(table.view);
 
@@ -79,6 +78,8 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
     activeSection === 'my-managers' ? mine.html :
     activeSection === 'quarterly-changes'
       ? summary.html
+      : !m.ok
+      ? unavailableHtml(m)
       : activeSection === 'data-table'
         ? `
         <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -91,9 +92,10 @@ export function renderLive(ctx, { disposers = [], section = 'investors', tableVi
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Superstar Investors',
-      description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
+      description: 'Follow your managers and tracked investors through holdings reports, statement trades and bulk/block deals.',
     })}
     ${staleStrip(m)}
+    ${!m.ok && activeSection === 'quarterly-changes' ? unavailableHtml(m) : ''}
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
       ${sectionTabs.html}
     </div>
@@ -470,14 +472,10 @@ const REASONS = {
  * needs would render as literal angle brackets. This says what happened, what fixes it, and shows
  * no furniture pretending to fill.
  */
-function renderUnavailable(ctx, m) {
+function unavailableHtml(m) {
   const r = REASONS[m.reason] || REASONS.upstream;
   const operator = m.reason === 'no-token' || m.reason === 'unauthorised';
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: 'Superstar Investors',
-      description: `Every tracked investor's book as Ticker Finology publish it, quarter by quarter. ${SOURCE}`,
-    })}
+  return `
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
       <div class="flex flex-wrap items-start gap-3">
         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${operator ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' : 'bg-slate-100 text-slate-500'}" aria-hidden="true">

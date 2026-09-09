@@ -66,6 +66,11 @@ jobs:
           PWDEBUG: ""
         run: node scripts/scrape-screener-trades.mjs
 
+      - name: Retain shared public bulk/block fallback when Glow capture is unavailable
+        id: bulk_fallback
+        if: ${{ !cancelled() && steps.insider.outcome != 'success' }}
+        run: node scripts/sync-bulk-deals.mjs
+
       - name: Check whether company filings are due
         id: company_due
         if: ${{ !cancelled() }}
@@ -89,7 +94,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Open reviewed insider trades data PR
-        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success') }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success' || steps.bulk_fallback.outcome == 'success') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

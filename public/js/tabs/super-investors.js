@@ -50,10 +50,11 @@ let liveUnsub = null;
 let liveUnregister = null;
 let liveView = null;
 let liveRouteCompany = null;
-// The Superstar sub-view has three in-page destinations of its own. Keep the reader on the one they
+// The Superstar sub-view has four in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
 let liveSection = null;
+let changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
 let filedSection = 'institutions';
@@ -70,8 +71,11 @@ export function render(ctx) {
   liveRouteCompany = seeded.company;
   liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
-  // Investors so returning from Institutions opens on the documented All Investors default.
-  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = null;
+  // Investors so returning from Institutions opens on Changes with My Managers selected.
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') {
+    liveSection = null;
+    changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
+  }
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
@@ -102,6 +106,7 @@ export function destroy() {
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
   liveSection = null;
+  changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
   filedSection = 'institutions';
 }
 
@@ -176,6 +181,8 @@ function paintIndividuals(ctx) {
     disposers,
     section: liveSection || defaultSection(ctx.scope),
     tableView: liveView,
+    changesView,
+    onChangesView: (v) => { changesView = v; },
     onView: (v) => (liveView = v),
     onSection: (section) => {
       if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;

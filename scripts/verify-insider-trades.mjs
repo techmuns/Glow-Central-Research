@@ -102,6 +102,9 @@ const captures = SCREENER_TRADE_SOURCES.map((item, index) => ({
 const screenerSnapshot = buildScreenerTradesSnapshot(null, captures, { capturedAt: captureAt });
 const flattenSnapshot = (snapshot) => Object.values(snapshot.byTicker || {}).flat();
 assert.equal(screenerSnapshot.coversUniverse, true);
+assert.equal(screenerSnapshot.bulkDeals.rows, 2);
+assert.equal(screenerSnapshot.bulkDeals.capturedAt, captureAt);
+assert.match(screenerSnapshot.bulkDeals.source, /captured by Glow/);
 assert.deepEqual(screenerSnapshot.categories, ['Bulk deal', 'Block deal', 'SAST', 'Insider trade']);
 assert.equal(screenerSnapshot.rowCount, 4, 'repeat listing rows are collapsed before publication');
 assert.equal(new Set(flattenSnapshot(screenerSnapshot).map(insiderTradeIdentity)).size, screenerSnapshot.rowCount);
@@ -183,6 +186,13 @@ try {
   await feed.refreshSnapshot();
   assert.equal(feed.rows().length, 3);
   assert.equal(feed.failureFor('TEST').reason, 'timeout', 'a failed bulk capture stays visible beside retained rows');
+  const originalCoreTime = feed.meta().capturedAt;
+  const bulkOnly = { ticker: 'TEST', date: day(-1), cells: { Insider: 'New bulk participant', Transaction: 'Buy', 'Trade Category': 'Bulk deal', 'Trade Shares': '17' } };
+  snapshot = { ...snapshot, bulkDeals: { capturedAt: new Date(now - 60000).toISOString(), rows: 1 }, byTicker: { TEST: [bulkOnly] } };
+  assert.equal((await feed.refreshSnapshot()).changed, true, 'independent bulk fallback arrivals are visible without a new core capture');
+  assert.equal(feed.rows().length, 4, 'bulk-only arrivals preserve all live and retained disclosures');
+  assert.equal(feed.meta().capturedAt, originalCoreTime, 'fallback arrivals do not restamp the core source');
+
 } finally {
   globalThis.fetch = realFetch;
   await clearAll();
@@ -209,7 +219,7 @@ const server = createServer((req, res) => {
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'scripts/lib/company-capture.mjs', 'scripts/lib/filing-archive.mjs', 'scripts/lib/company-news-archive.mjs', 'worker/muns.mjs',
-    'scripts/lib/news-json-storage.mjs', 'public/js/core/json-shards.js',
+    'scripts/lib/news-json-storage.mjs', 'scripts/lib/bulk-deals-snapshot.mjs', 'public/js/data/investor-changes.js', 'public/js/data/finology-shared.js', 'public/js/core/json-shards.js',
     'scripts/lib/active-portfolio.mjs', 'public/js/data/family-book-contract.js',
     'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/announcement-identity.js', 'public/js/data/domestic-filings-shared.js', 'public/js/data/company-news-identity.js', 'public/js/data/company-news-reviewed.js']) {
     await mkdir(dirname(join(scratch, file)), { recursive: true });

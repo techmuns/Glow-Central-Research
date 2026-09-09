@@ -61,6 +61,7 @@ import {
   recentArchivedCompanyNews,
   DEFAULT_OVERLAP_HOURS,
 } from './lib/company-news-archive.mjs';
+import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -618,6 +619,7 @@ async function run(kind, list) {
     payload = mergeLastGoodFilings(payload, previous, list);
   }
 
+  if (kind === 'insider' && previous) payload = mergeBulkDeals(payload, previous);
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(
     `\r  ${kind}: ${payload.rowCount} rows across ${payload.withRows} companies (${list.length} requested)` +

@@ -29,7 +29,7 @@ export function adaptGlowTemplate(root = process.cwd()) {
       const p = join(dir, e.name);
       if (e.isDirectory() && !['data', 'assets', 'node_modules', '.git'].includes(e.name)) walk(p);
       else if (/\.(js|mjs|cjs|py|yml|html|jsonc)$/.test(e.name) &&
-        !['adapt-glow-template.mjs', 'sync-upstream.yml'].includes(e.name) && !e.name.startsWith('verify-')) adapt(p);
+        !['adapt-glow-template.mjs', 'sync-upstream.yml', 'sync-bulk-deals.mjs'].includes(e.name) && !e.name.startsWith('verify-')) adapt(p);
     }
   };
   for (const dir of ['public', 'worker', 'scripts', '.github']) walk(join(root, dir));
