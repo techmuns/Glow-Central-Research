@@ -98,8 +98,9 @@ export const meta = {
   subtitle:
     'Every mutual-fund category against the index it is benchmarked to, its published median, and each scheme inside it — plus every tracked scheme’s daily return beside its own category’s median and its peer rank.',
   subviews: [
-    { id: 'category-performance', label: 'Category Performance' },
+    // The shell opens the first subview when the tab is selected or no subview is named.
     { id: 'all-schemes', label: 'All Schemes' },
+    { id: 'category-performance', label: 'Category Performance' },
   ],
   // Scope does not narrow a list of schemes, so an EMPTY watchlist must not replace the tab with
   // the shell's "add companies" panel.
