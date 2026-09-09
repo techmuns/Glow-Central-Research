@@ -887,12 +887,16 @@
     "isin:INE109A01011|Shipping Corporation of India": {
       "lastAttemptAt": "2026-09-09T20:50:50+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE526E01018|SPR Auto Technologies": {
+      "lastAttemptAt": "2026-09-09T21:23:41+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-09T20:50:50.834203+00:00"
+    "checkedAt": "2026-09-09T21:23:41.938166+00:00"
   }
 }
