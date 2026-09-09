@@ -41,7 +41,8 @@ try {
     assert.equal(row.context.holdingsExamined, book.holdings.length);
     assert.match(row.context.holdingsBasis, /ownership and weights not established/);
     assert(row.context.candidates.every(c => c.weightPct === null));
-    assert.equal(row.sources.length, 22, 'the shared sources include Glow Family Book');
+    assert(row.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
+    assert(!row.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
     assert(row.preview.items.some(p => p.ticker === 'HFCL'));
     assert(row.preview.items.some(p => p.ticker === 'TEJASNET'));

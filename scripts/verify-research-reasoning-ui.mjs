@@ -39,7 +39,8 @@ try {
     assert(r.context.businessProfiles.analyses.rows.length > 0, 'business map must carry source-backed analysis, not only sector labels');
     assert(r.context.candidates.every(c => c.weightPct === null));
     assert.match(r.context.holdingsBasis, /ownership and weights not established/);
-    assert.equal(r.sources.length, 22, 'the shared sources include Glow Family Book');
+    assert(r.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
+    assert(!r.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
     assert(r.sources.some(s => s.count));
     assert(r.chars <= 30000);
     assert(r.preview.items.every(p => p.kind === 'excerpt' || p.kind === 'headline'));
