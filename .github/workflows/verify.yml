@@ -22,6 +22,8 @@ jobs:
         run: node scripts/verify-investor-changes.mjs
       - name: Verify holdings integrity and snapshot retention
         run: node scripts/verify-holdings-integrity.mjs
+      - name: Verify original shareholding capture and reconciliation
+        run: node scripts/verify-public-holdings.mjs
       - name: Verify direct exchange capture and delivery
         run: node scripts/verify-exchange-deals.mjs
       - name: Syntax-check JavaScript

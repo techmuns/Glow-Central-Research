@@ -12,7 +12,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: write
       pull-requests: write
@@ -27,6 +27,12 @@ jobs:
         id: capture
         continue-on-error: true
         run: node scripts/scrape-super-investors.mjs
+      - name: Read original exchange filings across all listed companies
+        id: primary
+        continue-on-error: true
+        run: node scripts/capture-shareholdings.mjs
+      - name: Reconcile legal holders, securities, dates and percentages
+        run: node scripts/reconcile-shareholdings.mjs
       - name: Audit every investor and manager
         id: audit
         continue-on-error: true
@@ -39,9 +45,9 @@ jobs:
       - name: Publish the capture and failure metadata through a checked PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
-        run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json
-      - name: Surface incomplete or overdue ingestion
-        if: steps.capture.outcome == 'failure' || steps.audit.outcome == 'failure'
+        run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json public/data/shareholding-filings.json.gz public/data/public-holdings.json
+      - name: Surface failed or overdue ingestion
+        if: steps.capture.outcome == 'failure' || steps.primary.outcome == 'failure' || steps.audit.outcome == 'failure'
         run: |
           echo "::error::Holdings ingestion needs attention. Last-good data was preserved; see the coverage audit artifact and run summary."
           exit 1

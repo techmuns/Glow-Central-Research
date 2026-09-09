@@ -4040,3 +4040,11 @@ Validation: `node scripts/verify-exchange-deals.mjs` covers parsing, correction/
 venue/side separation, coverage precedence, ISIN joins, bounded artifact reads, credential isolation
 and conditional delivery. `scripts/verify-exchange-deals-ui.mjs` verifies timed updates in both views,
 source failures, links and mobile layout against a local server with mocked live delivery.
+
+### Original exchange shareholding reconciliation
+
+`public/data/shareholding-filings.json.gz` is a gzip-compressed version-1 JSON archive produced by `scripts/capture-shareholdings.mjs`. Three source-index statuses retain success/check times and errors. Filing records carry source URL, legal security identifiers, index/report/holding dates, parsed holder tuples `[legalName, shares, stakePercentagePoints, holdingDate]`, file SHA256, parser version and explicit pending/failed/partial status. Changed bytes at one URL retain a superseded version. A failed refresh preserves the successful read and its time. The browser does not load this all-company archive.
+
+`public/data/public-holdings.json` is the version-1 browser projection from `scripts/reconcile-shareholdings.mjs`: dated attributed holdings, every original source figure/link/hash, source coverage, reconciliation issues, filing exceptions, unresolved identity candidates and all tracked profile counts. `complete` remains false. `latest-disclosure` means latest captured issuer disclosure for that security; it is not real-time ownership. A conflict does not have a chosen display value. Source and holding dates must not be interchanged.
+
+`public/data/holding-evidence.json` relations accept exact legal names/aliases, investor and manager IDs, entity ID, `same-person` / `same-entity` / associated relationship kind, source URLs and `verifiedAt`. Only current reviewed mappings expand attribution. Possible name matches never do. The same entity can be linked explicitly to several profiles without merging their holdings or account values. Captures and the projection publish together through the investor-refresh checked PR.

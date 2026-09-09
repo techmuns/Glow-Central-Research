@@ -1,11 +1,12 @@
 // Shared by the coverage screen and the scheduled audit. Targets are operating policies,
 // not regulatory deadlines. A successful fetch never establishes portfolio completeness.
 import { comparisonPeriods, summarise, disclosureStatus, periodEnd } from './finology-shared.js';
+import { currentRelation } from './public-holdings-shared.js';
 
-export const POLICY = { investorHours: 30, managerSyncHours: 36, bulkHours: 72, pmsDays: 40, mfDays: 45, entityReviewDays: 90 };
+export const POLICY = { investorHours: 30, managerSyncHours: 36, bulkHours: 72, mfDays: 45, entityReviewDays: 90 };
 const ageDays = (value, now) => Number.isFinite(Date.parse(value)) ? Math.max(0, (Date.parse(now) - Date.parse(value)) / 86400000) : Infinity;
 
-export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, exchange = null, evidence = {}, now = new Date().toISOString() } = {}) {
+export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, exchange = null, evidence = {}, publicHoldings = null, now = new Date().toISOString() } = {}) {
   const rows = [];
   for (const investor of snapshot.investors || []) {
     const book = snapshot.books?.[investor.slug], issues = [];
@@ -39,14 +40,10 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
     const accountDates = (manager.accounts || []).map((a) => statementDates.get(a.accountId)).filter(Boolean).sort();
     const asOf = manager.kind === 'mf' ? dates[0] || null : manager.kind === 'pms' ? accountDates[0] || manager.asOf : manager.asOf;
     if (ageDays(managers.syncedAt, now) * 24 > POLICY.managerSyncHours) issues.push('Statement archive sync not recently confirmed');
-    if (manager.kind === 'pms') {
-      if (ageDays(asOf, now) > POLICY.pmsDays) issues.push('New manager statement needed');
-      if (manager.noStatementAccounts?.length || !manager.statements?.length || (manager.accounts || []).some((a) => !statementDates.has(a.accountId))) issues.push('Holdings statements missing');
-      if (!manager.window) issues.push('Two holdings statements unavailable');
-    } else if (manager.kind === 'mf') {
+    if (manager.kind === 'mf') {
       if (ageDays(asOf, now) > POLICY.mfDays) issues.push('AMC holdings disclosure overdue or unavailable');
       if (!dates.length || (manager.lookthrough?.funds || []).some((f) => !f.holdingsAsOf)) issues.push('Some schemes lack a dated holdings disclosure');
-    } else issues.push('Fund units/NAV only; underlying portfolio feed needed');
+    }
     rows.push({ id: manager.id, name: manager.name, kind: manager.kind, asOf, fetchedAt: managers.syncedAt || null, issues,
       identity: 'Account records; manager-wide entity coverage unverified', sourceUrl: null });
   }
@@ -57,9 +54,20 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
     if (ageDays(exchange.checkedAt, now) * 24 > POLICY.bulkHours || exchange.sources?.length !== 4 || exchange.sources.some((s) => s.ok !== true)) sourceIssues.push('NSE/BSE bulk/block feed overdue or failed');
     if (exchange.deliveryError) sourceIssues.push('NSE/BSE live delivery unavailable; saved reports retained');
   } else if (ageDays(deals.bulkDeals?.capturedAt, now) * 24 > POLICY.bulkHours || deals.bulkDeals?.error) sourceIssues.push('Bulk/block feed overdue or failed');
-  // No automatic primary-source reconciliation is connected yet. Manual evidence is dated and
-  // limited; adding a verified row must never flip the entire portfolio to exchange-verified.
-  sourceIssues.push('Full exchange reconciliation is not connected');
+  if (!publicHoldings) sourceIssues.push('Public disclosure reconciliation unavailable');
+  else {
+    if (ageDays(publicHoldings.captureCheckedAt, now) * 24 > POLICY.investorHours) sourceIssues.push('Exchange shareholding capture overdue');
+    if (publicHoldings.sources?.length !== 3 || publicHoldings.sources.some((s) => !s.ok)) sourceIssues.push('Some exchange shareholding indexes could not be read');
+    if (publicHoldings.coverage?.pending) sourceIssues.push(`${publicHoldings.coverage.pending} exchange filings await a successful read`);
+    if (publicHoldings.coverage?.partial) sourceIssues.push(`${publicHoldings.coverage.partial} exchange filings contain unresolved rows`);
+    if (publicHoldings.coverage?.failedRefresh) sourceIssues.push(`${publicHoldings.coverage.failedRefresh} exchange filing refreshes failed; last successful reads retained`);
+    if (publicHoldings.securityMaster?.ok === false) sourceIssues.push('NSE security identifier check failed; retained identities used where available');
+    for (const row of rows) {
+      const profile = publicHoldings.profiles?.find((p) => p.id === row.id && p.kind === (row.kind === 'investor' ? 'investor' : 'manager'));
+      if (profile?.issues) row.issues.push(`${profile.issues} public-source checks need review`);
+      row.identity = `${profile?.matches || 0} latest public disclosures matched; ${profile?.relations || 0} verified entity links`;
+    }
+  }
   if ((evidence.relations || []).some((r) => ageDays(r.verifiedAt, now) > POLICY.entityReviewDays)) sourceIssues.push('Some entity relationships need renewed review');
   return { evaluatedAt: now, rows, issues: sourceIssues, attention: rows.filter((r) => r.issues.length).length,
     total: rows.length, complete: false, policy: POLICY };
@@ -67,7 +75,9 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
 
 // Relations expand public-deal discovery while preserving the exact reported holder on each row.
 export function withVerifiedEntities(people, evidence, kind, today = new Date().toISOString()) {
-  return people.map((person) => ({ ...person, aliases: [...(person.aliases || []),
-    ...(evidence?.relations || []).filter((r) => r.sourceUrl?.startsWith('https://') && ageDays(r.verifiedAt, today) <= POLICY.entityReviewDays &&
-      (kind === 'investor' ? r.investorSlugs : r.managerIds)?.includes(person.id)).map((r) => r.legalName)] }));
+  return people.map((person) => {
+    const relations = (evidence?.relations || []).filter((r) => currentRelation(r, today) && (kind === 'investor' ? r.investorSlugs : r.managerIds)?.includes(person.id));
+    const verifiedNames = relations.flatMap((r) => [r.legalName, ...(r.aliases || [])].map((name) => ({ name, entityId: r.entityId })));
+    return { ...person, verifiedNames, aliases: [...(person.aliases || []), ...verifiedNames.map((r) => r.name)] };
+  });
 }

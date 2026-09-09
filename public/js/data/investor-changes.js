@@ -30,12 +30,17 @@ export const identity = (value) => String(value || '').normalize('NFKC').toLower
   .replace(/\b(pvt|private)\b/g, 'private').replace(/\b(ltd|limited)\b/g, 'limited')
   .replace(/[^a-z0-9]/g, '');
 export function identityIndex(people) {
-  const index = new Map();
+  const index = new Map(), candidates = new Map();
   for (const person of people) for (const name of [person.name, ...(person.aliases || [])]) {
     const key = identity(name);
     if (!key) continue;
-    const prior = index.get(key);
-    index.set(key, prior === undefined || prior?.id === person.id ? person : null);
+    const values = candidates.get(key) || [];
+    if (!values.some((p) => p.id === person.id)) values.push(person);
+    candidates.set(key, values);
+  }
+  for (const [key, values] of candidates) {
+    const verified = values.map((p) => p.verifiedNames?.find((n) => identity(n.name) === key)?.entityId);
+    index.set(key, values.length === 1 ? values[0] : verified.every(Boolean) && new Set(verified).size === 1 ? values : null);
   }
   return index;
 }
@@ -62,25 +67,27 @@ export function matchedDeals(rows, people) {
     const category = dealCategory(row);
     if (!category) continue; // A renamed tab does not turn SAST/insider filings into bulk deals.
     const reportedName = field(row.cells, ['insider', 'client name', 'client', 'person', 'name']);
-    const person = index.get(identity(reportedName));
-    if (!person) continue;
+    const match = index.get(identity(reportedName));
+    if (!match) continue;
     const transaction = field(row.cells, ['transaction', 'buy/sell', 'side']).toLowerCase();
     const action = /^(buy|bought|purchase)$/.test(transaction) ? 'buy' : /^(sell|sold|sale)$/.test(transaction) ? 'sell' : null;
     if (!action) continue;
     const quantity = field(row.cells, ['trade shares', 'quantity']);
     const price = field(row.cells, ['price']);
-    const key = [category, row.exchangeSecurity || row.ticker, row.date, identity(reportedName), action, quantity.replace(/,/g, ''), price.replace(/,/g, ''), field(row.cells, ['exchange'])].join('|');
-    if (seen.has(key)) {
-      const event = seen.get(key);
-      event.evidence.push(row);
-      continue;
+    for (const person of Array.isArray(match) ? match : [match]) {
+      const key = [person.id, category, row.exchangeSecurity || row.ticker, row.date, identity(reportedName), action, quantity.replace(/,/g, ''), price.replace(/,/g, ''), field(row.cells, ['exchange'])].join('|');
+      if (seen.has(key)) {
+        const event = seen.get(key);
+        event.evidence.push(row);
+        continue;
+      }
+      const event = { id: key, date: row.date, person: person.name, personId: person.id,
+        company: field(row.cells, ['company']) || row.ticker, ticker: row.ticker,
+        action, quantity: quantity || null, value: field(row.cells, ['trade value']) || null,
+        source: `${category}${row.cells?.Exchange ? ` · ${row.cells.Exchange}` : ''}`, reportedName, raw: row, evidence: [row], url: row.url || null };
+      seen.set(key, event);
+      events.push(event);
     }
-    const event = { id: key, date: row.date, person: person.name, personId: person.id,
-      company: field(row.cells, ['company']) || row.ticker, ticker: row.ticker,
-      action, quantity: quantity || null, value: field(row.cells, ['trade value']) || null,
-      source: `${category}${row.cells?.Exchange ? ` · ${row.cells.Exchange}` : ''}`, reportedName, raw: row, evidence: [row], url: row.url || null };
-    seen.set(key, event);
-    events.push(event);
   }
   return events;
 }

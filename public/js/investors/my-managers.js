@@ -22,6 +22,8 @@ import { formatNumber, formatDate, formatPct } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import * as managers from '../data/managers.js';
 import * as watchlist from '../core/watchlist.js';
+import * as publicHoldings from '../data/public-holdings.js';
+import { publicDisclosuresHtml, wirePublicDisclosures } from './public-disclosures.js';
 
 export const SECTION = { id: 'my-managers', label: 'My Managers' };
 
@@ -308,7 +310,8 @@ function cardStats(m, include) {
 
 let open = null;
 
-export function openManager(id, ctx = null) {
+export async function openManager(id, ctx = null) {
+  await publicHoldings.load();
   const m = managers.byId(id);
   if (!m) return;
   open = { m, ctx };
@@ -335,6 +338,8 @@ export function openManager(id, ctx = null) {
             { id: 'profile', label: 'Profile', render: profilePanel },
           ];
 
+  tabs.splice(1, 0, { id: 'exchange', label: 'Exchange disclosures', badge: publicHoldings.forPerson(id, 'manager').length || undefined,
+    render: () => publicDisclosuresHtml(id, 'manager'), wire: (host) => wirePublicDisclosures(host, id, 'manager') });
   openWorkspace({
     title: m.name,
     subtitle: [m.kind === 'pms' ? m.strategy : m.kind === 'aif' ? m.providerEngagement : null, m.owners.join(', '), m.asOf ? `statements as of ${formatDate(m.asOf)}` : null].filter(Boolean).join(' · '),
@@ -607,7 +612,7 @@ function filedPanel() {
   return `
     <div class="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
       <h3 class="font-display text-base font-bold text-slate-900">This fund files stakes with the exchanges</h3>
-      <p class="mt-2 text-sm leading-relaxed text-slate-600">${escapeHtml(m.name)} is on Ticker Finology’s superstar-investor list as <strong>${escapeHtml(m.finologySlug)}</strong>: every company in which the fund holds more than 1% is on the shareholding pattern that company files each quarter, and Finology publish that book. It is the one place a Category III fund’s positions can be read from, and it is the public disclosure, not the fund’s statement to the family — a position below 1% of a company is invisible in it.</p>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">${escapeHtml(m.name)} also has a quarterly book on Ticker Finology. Open Exchange disclosures for original company filings matched to verified legal holders, with their dates and evidence. These public disclosures cover reported positions on specific dates.</p>
       <button type="button" data-open-filed class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"${openInvestorFn ? '' : ' disabled'}>Open the filed book, quarter by quarter →</button>
       ${openInvestorFn ? '' : '<p class="mt-2 text-xs text-slate-500">The superstar books have not loaded on this visit.</p>'}
     </div>`;
@@ -1022,7 +1027,7 @@ function openProvenance() {
       </dl>
       <div class="mt-4 space-y-2 text-sm text-slate-600">
         <p><strong>PMS mandates</strong> — the manager’s portfolio appraisal, SEBI investor report or holdings statement (in that precedence, the same one GlowVentures’ ledger reads in), newest issue first, and its transaction statement for the dated trades. A move is a change in <strong>quantity</strong> between the two newest statements; the weight of the mandate and its change are derived on the statements’ own market values and headed so.</p>
-        <p><strong>Alternative funds</strong> — units as the fund’s statement values them, with its own return series, capital bridge, commitment and distributions. No portfolio: SEBI requires none from a Category II or III AIF. A fund that also files &gt;1% stakes with the exchanges links to its Finology book, which is the public disclosure and not the fund’s statement.</p>
+        <p><strong>Alternative funds</strong> — units as the fund’s statement values them, with its own return series, capital bridge, commitment and distributions. Exchange disclosures shows publicly reported positions under verified legal holders. Funds listed on Finology also link to their quarterly source book.</p>
         <p><strong>Fund houses</strong> — the AMC’s monthly SEBI portfolio disclosure per scheme, read through the family’s AmfiBeas store (the AMC’s own file where it has one, a third party’s copy where not, and the card says which); NAV and returns are AmfiBeas’s over AMFI’s daily file, for the plan the family holds. The family’s share of an underlying is derived from its units and never added to any total.</p>
         <p><strong>A dash is a figure the statement does not carry</strong> — never zero, never summed as zero. A fund that publishes no NAV reads <em>no valuation</em>, not ₹0. Nothing on this page is scored.</p>
         <p class="text-xs text-slate-500">Refresh: <code class="rounded bg-slate-100 px-1">.github/workflows/series-refresh.yml</code>, 03:30 UTC daily, needs <code class="rounded bg-slate-100 px-1">GLOWVENTURES_READ_TOKEN</code>. By hand: <code class="rounded bg-slate-100 px-1">GLOWVENTURES_DIR=… node scripts/build-managers.mjs</code>.</p>

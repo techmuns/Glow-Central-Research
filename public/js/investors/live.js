@@ -43,6 +43,8 @@ import { sectionsFor, renderManagers, managerSummaryBlock, openManager } from '.
 import { renderChanges } from './changes.js';
 import { wireIntegrity, associatedEvidenceHtml } from './integrity.js';
 import { loadEvidence } from '../data/holding-evidence.js';
+import * as publicHoldings from '../data/public-holdings.js';
+import { publicDisclosuresHtml, wirePublicDisclosures } from './public-disclosures.js';
 
 const SOURCE = 'Ticker Finology via this dashboard’s Worker; scheduled every six hours. Exchange completeness is unverified.';
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
@@ -744,7 +746,7 @@ function changeCell(r) {
 let open = null;
 
 export async function openInvestor(slug) {
-  await loadEvidence();
+  await Promise.all([loadEvidence(), publicHoldings.load()]);
   const inv = feed.list().find((i) => i.slug === slug);
   const b = feed.book(slug);
   if (!inv && !b) return;
@@ -755,6 +757,8 @@ export async function openInvestor(slug) {
     avatarName: b?.name || inv?.name || slug,
     tabs: [
       { id: 'holdings', label: 'Holdings', badge: b?.holdings?.length ?? undefined, render: holdingsPanel },
+      { id: 'exchange', label: 'Exchange disclosures', badge: publicHoldings.forPerson(slug).length || undefined,
+        render: () => publicDisclosuresHtml(slug), wire: (host) => wirePublicDisclosures(host, slug) },
       { id: 'moves', label: 'Quarterly comparison', render: movesPanel },
       { id: 'profile', label: 'Profile', render: profilePanel },
     ],
@@ -765,14 +769,16 @@ export async function openInvestor(slug) {
 
 function holdingsPanel() {
   const b = open?.b;
-  if (!b) return `<p class="py-10 text-center text-sm text-slate-500">This investor's book has not been read yet.</p>`;
-  if (!b.holdings.length) return `<p class="py-10 text-center text-sm text-slate-500">No dated holdings were supplied. This is a coverage gap; it does not establish an empty portfolio.</p>`;
+  const primary = publicDisclosuresHtml(open?.slug, 'investor', true);
+  if (!b) return primary + `<p class="py-10 text-center text-sm text-slate-500">This investor's source book has not been read yet.</p>`;
+  if (!b.holdings.length) return primary + `<p class="py-10 text-center text-sm text-slate-500">No dated holdings were supplied by the secondary source.</p>`;
   // NO EXPLANATORY PARAGRAPH ABOVE THE TABLE. It said three things — the quarters are theirs, a
   // dash is "not disclosed" rather than zero, and the ₹ value is their derivation — on every visit
   // to every investor, above a table where the same facts are one hover away and already spelled
   // out in row 1 of the export. The disclosure did not go anywhere; the repetition did.
   return `
-    ${associatedEvidenceHtml(open?.slug)}
+    ${primary}
+    ${publicHoldings.forPerson(open?.slug).length ? '' : associatedEvidenceHtml(open?.slug)}
     <p class="mb-3 text-xs text-slate-500">Dated source disclosures. Off-cycle columns cover individual updates. Unconfirmed cells have no reliable filing status; they do not establish a purchase or sale.</p>
     <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
       <table class="w-full text-sm">
