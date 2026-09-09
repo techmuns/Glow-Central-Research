@@ -783,12 +783,16 @@
     "isin:INE0SII01026|QPOWER": {
       "lastAttemptAt": "2026-09-09T04:52:24+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE855B01025|Rain Industries": {
+      "lastAttemptAt": "2026-09-09T05:24:12+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T04:52:24.513043+00:00"
+    "checkedAt": "2026-09-09T05:24:12.260825+00:00"
   }
 }
