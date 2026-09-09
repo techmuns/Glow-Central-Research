@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 
 export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } = {}) {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -123,6 +124,9 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.locator('[data-ws-tab=exchange]').click();
   assert(await page.locator('[data-public-row]').count() > 0, 'verified manager funds receive original holdings too');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /3P INDIA EQUITY FUND/i);
+  // The offline parent suite blocks external CDNs; use its installed, pinned ExcelJS runtime.
+  const excelRoot = process.env.EXCELJS_ROOT || resolve(process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright', '../exceljs');
+  await page.addScriptTag({ path: resolve(excelRoot, 'dist/exceljs.min.js') });
   const download = page.waitForEvent('download');
   await page.locator('[data-public-export]').click();
   const evidenceFile = await download;
