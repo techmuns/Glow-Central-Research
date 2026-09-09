@@ -271986,7 +271986,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings via the shared Sattva capture",
     "sourceUrl": "https://raw.githubusercontent.com/techmuns/Sattva-Central-Research/main/public/data/insider-trades.json",
-    "capturedAt": "2026-09-09T11:45:28.485Z",
+    "capturedAt": "2026-09-09T19:08:19.345Z",
     "from": "2026-08-05",
     "to": "2026-09-08",
     "rows": 6129,
