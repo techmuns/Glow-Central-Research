@@ -12,6 +12,38 @@ import {
 
 const API = `https://api.github.com/repos/${SCREENER_CONCALL_REPO}`;
 const positiveId = (value) => Number.isSafeInteger(value) && value > 0;
+export const SCREENER_DOCUMENT_ARTIFACT = 'screener-concall-documents-v1.json.gz';
+
+// Document publication and calendar publication are independent. Keep the last confirmed
+// calendar and its own check time while newer complete documents continue reaching the library.
+// No calendar fields may be taken from a document-only checkpoint.
+export async function readScreenerConcallCollection(options = {}, read = readScreenerConcallCollector) {
+  const [calendar, documents] = await Promise.allSettled([
+    read(options), read({ ...options, documentsOnly: true }),
+  ]);
+  const full = calendar.status === 'fulfilled' ? calendar.value : null;
+  const checkpoint = documents.status === 'fulfilled' ? documents.value : null;
+  if (!checkpoint?.capture || (full?.capture && Date.parse(full.capture.checkedAt) >= Date.parse(checkpoint.capture.checkedAt))) {
+    if (full) return full;
+    throw Error('Screener collection unavailable');
+  }
+  const { documentCheckpoint, portfolioUpcoming, upcoming, upcomingPublishedTotal, upcomingPagesFetched,
+    upcomingDuplicatesRemoved, ...history } = checkpoint.capture;
+  return {
+    capture: { ...full?.capture, ...history,
+      ...(full?.capture?.portfolioUpcoming !== undefined ? { portfolioUpcoming: full.capture.portfolioUpcoming } : {}),
+    },
+    source: {
+      ...(full?.source || { id: SCREENER_CONCALL_ID, status: 'failed', checkedAt: null,
+        portfolioUpcomingAvailable: false, portfolioUpcomingRecords: 0, upcomingPublishedTotal: null,
+        upcomingRecords: 0, upcomingDuplicatesRemoved: 0, upcomingPagesFetched: 0, collectorLatestFailed: true }),
+      records: history.rows.length, publishedTotal: history.publishedTotal, fullHistory: history.fullHistory,
+      documentCheckedAt: checkpoint.source.checkedAt,
+      documentLatestFailed: checkpoint.source.collectorLatestFailed,
+      documentCollectorRunId: checkpoint.source.collectorRunId,
+    },
+  };
+}
 
 export async function boundedCollectorBytes(response, signal, limit = SCREENER_CONCALL_COMPRESSED_LIMIT) {
   if (Number(response.headers.get('content-length')) > limit) {
@@ -75,6 +107,7 @@ export async function readScreenerConcallCollector({
   token,
   ref = 'main',
   allowMissing = false,
+  documentsOnly = false,
   fetcher = fetch,
   now = Date.now,
   signal = AbortSignal.timeout(15000),
@@ -103,16 +136,33 @@ export async function readScreenerConcallCollector({
     (['schedule', 'push', 'workflow_dispatch'].includes(run.event) || (ref !== 'main' && run.event === 'pull_request'));
   const recent = await json(`${runPath}&per_page=10`);
   const runs = (recent.workflow_runs || []).filter(trusted);
-  const successful = await json(`${runPath}&status=success&per_page=10`);
-  const run = (successful.workflow_runs || []).find((item) => trusted(item) && item.status === 'completed' && item.conclusion === 'success');
+  const latest = runs.find(item => item.status === 'completed');
+  let run, artifactList, documentArtifact = false;
+  // Completed runs can contain a healthy document checkpoint even when a later calendar failed.
+  // Look back only for restoring history. A newer run without a usable checkpoint still marks
+  // discovery failed below, so this fallback cannot authorise paid requests from an old success.
+  if (documentsOnly) {
+    const list = await json(`/actions/artifacts?name=${SCREENER_DOCUMENT_ARTIFACT}&per_page=10`);
+    for (const candidate of runs.filter(item => item.status === 'completed')) {
+      const owned = (list.artifacts || []).filter(item => item.name === SCREENER_DOCUMENT_ARTIFACT && item.workflow_run?.id === candidate.id);
+      if (owned.length) {
+        run = candidate; artifactList = { artifacts: owned }; documentArtifact = true; break;
+      }
+    }
+  }
+  let successful;
   if (!run) {
-    if (allowMissing && successful.total_count === 0 && !runs.some((item) => item.conclusion === 'success')) return null;
+    successful = await json(`${runPath}&status=success&per_page=10`);
+    run = (successful.workflow_runs || []).find((item) => trusted(item) && item.status === 'completed' && item.conclusion === 'success');
+  }
+  if (!run) {
+    if (allowMissing && successful?.total_count === 0 && !runs.some((item) => item.conclusion === 'success')) return null;
     throw Error('No successful Screener concall capture is available');
   }
-  const artifactList = await json(`/actions/runs/${run.id}/artifacts?per_page=10`);
+  artifactList ||= await json(`/actions/runs/${run.id}/artifacts?per_page=10`);
   const artifact = (artifactList.artifacts || []).find(
     (item) =>
-      item.name === SCREENER_CONCALL_ARTIFACT &&
+      item.name === (documentArtifact ? SCREENER_DOCUMENT_ARTIFACT : SCREENER_CONCALL_ARTIFACT) &&
       !item.expired &&
       item.workflow_run?.id === run.id &&
       positiveId(item.id),
@@ -152,7 +202,12 @@ export async function readScreenerConcallCollector({
     JSON.parse(await boundedCollectorText(new Response(decompressed), signal, SCREENER_CONCALL_LIMIT)),
     now(),
   );
-  const latest = runs.find((item) => item.status === 'completed');
+  if (documentArtifact && (capture.documentCheckpoint?.version !== 1 || !capture.fullHistory ||
+      !['pending', 'complete', 'calendar-shape', 'blocked'].includes(capture.documentCheckpoint.outcome) ||
+      ['portfolioUpcoming', 'upcoming', 'upcomingPublishedTotal', 'upcomingPagesFetched', 'upcomingDuplicatesRemoved']
+        .some(key => capture[key] !== undefined))) throw Error('Invalid independent document checkpoint');
+  const documentFailure = documentArtifact && (latest?.id !== run.id ||
+    !['complete', 'calendar-shape'].includes(capture.documentCheckpoint.outcome));
   return {
     capture,
     source: {
@@ -170,8 +225,9 @@ export async function readScreenerConcallCollector({
       upcomingPagesFetched: capture.upcomingPagesFetched ?? 0,
       collectorRunId: run.id,
       collectorRunUrl: `https://github.com/${SCREENER_CONCALL_REPO}/actions/runs/${run.id}`,
-      collectorLatestFailed: latest ? latest.conclusion !== 'success' : false,
+      collectorLatestFailed: documentArtifact ? documentFailure : latest ? latest.conclusion !== 'success' : false,
       collectorLatestConclusion: latest?.conclusion || null,
+      ...(documentArtifact ? { documentCheckpoint: true, calendarFailure: capture.documentCheckpoint.outcome === 'calendar-shape' } : {}),
     },
   };
 }
