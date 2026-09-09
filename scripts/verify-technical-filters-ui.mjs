@@ -25,7 +25,8 @@ const companies = cases.map(([ticker, volume, proximity, above, fii, dii, qualit
 }));
 
 export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0.1:8080' } = {}) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  // Keep fixture interception authoritative across reloads; the separate refresh suite tests the real service worker.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   const errors = [], refreshes = [];
   try {
     await context.route('**/*', route => {
