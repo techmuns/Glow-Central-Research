@@ -110,6 +110,9 @@ export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0
     await go('technical-scanner', ['ALPHA', 'BETA'], 'scope=watchlist');
     assert.equal(await count('volume', 'all'), 2);
     assert.equal(await count('volume', '1.5'), 1);
+    await page.evaluate(async () => (await import('/js/core/watchlist.js')).remove('ALPHA'));
+    await click('volume', '1.5', []);
+    assert(await page.locator('[data-refresh-btn]').isDisabled(), 'empty filters cannot dispatch an empty quote request');
     await go('technical-scanner', all, 'scope=universe&vol=any&near=invalid&dma=any');
     for (const group of ['volume', 'proximity', 'trend']) assert(await chip(group, 'all').evaluate(el => el.classList.contains('border-indigo-500')));
 

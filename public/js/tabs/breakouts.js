@@ -929,10 +929,10 @@ function wireRefreshBar(ctx, table, rows) {
   const byTicker = new Map(scored.map((s) => [s.company.ticker, s.company]));
   const tickers = scored.slice(0, 60).map((s) => s.company.ticker);
 
-  btn.disabled = false;
+  btn.disabled = tickers.length === 0;
   btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
-  btn.title = `Fetch live quotes for the top ${tickers.length} names on screen`;
-  note.textContent = `EOD data below. Live quotes for the top ${tickers.length} names on demand.`;
+  btn.title = tickers.length ? `Fetch live quotes for the top ${tickers.length} names on screen` : 'No matching companies to refresh';
+  note.textContent = tickers.length ? `EOD data below. Live quotes for the top ${tickers.length} names on demand.` : 'No matching companies to refresh.';
   btn.addEventListener('click', () => doRefresh({ btn, note, label, tickers, byTicker, table }));
 }
 
