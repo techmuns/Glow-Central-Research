@@ -883,12 +883,16 @@
     "isin:INE024F01011|SHILCTECH": {
       "lastAttemptAt": "2026-09-09T20:03:29+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE109A01011|Shipping Corporation of India": {
+      "lastAttemptAt": "2026-09-09T20:50:50+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-09T20:03:29.846473+00:00"
+    "checkedAt": "2026-09-09T20:50:50.834203+00:00"
   }
 }
