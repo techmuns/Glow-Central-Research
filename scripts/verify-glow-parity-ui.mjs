@@ -106,7 +106,52 @@ try {
   const recovered = await page.evaluate(async () => (await import('/js/research/portfolio-bridge.js')).readResearchPortfolio('What are my largest holdings?'));
   assert.equal(recovered.holdings.length, companies.holdings.length);
   assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('weightPct')), false);
+  // Keep the concurrently merged Glow category picker working with the upgraded
+  // shared table (virtual rows, bookmarks and cached searches).
+  const funds = [
+    ['Alpha Large Cap Fund', 'Equity : Large Cap'], ['Bravo Large Cap Fund', 'Equity : Large Cap'],
+    ['Delta Debt Fund', 'Debt : Short Duration'], ['Echo Debt Fund', 'Debt : Short Duration'],
+    ['Zeta Flexi Cap Fund', 'Equity : Flexi Cap'],
+  ].map(([fundName, classification], i) => ({ schemecode: `FIXTURE${i}`, fundName, classification,
+    plan: 'direct', option: 'growth', cohortKey: `${classification} | direct | growth`,
+    returns: { '1Y': { return: i + 1, rank: null, peerCount: null, statsAvailable: false } } }));
+  await page.route('https://amfibeas.fixture/**', route => route.fulfill({ status: 200, contentType: 'application/json',
+    headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ asOfDate: '2026-09-08',
+      generatedAt: new Date().toISOString(), source: 'AmfiBeas local fixture', periods: ['1Y'], total: funds.length, count: funds.length, funds }) }));
+  await page.evaluate(() => {
+    localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.fixture');
+    location.hash = '#/research/mutual-funds/all-schemes?scope=universe';
+  });
+  const fundInput = page.locator('#content-host [data-fund-search] input');
+  await fundInput.waitFor();
+  const fundRows = page.locator('#content-host tr[data-row-key]');
+  assert.equal(await fundRows.count(), 5);
+  await fundInput.fill('debt short duration');
+  await page.locator('[data-fund-category="Debt : Short Duration"]').waitFor({ state: 'visible' });
+  await fundInput.press('Enter');
+  assert.equal(await fundRows.count(), 2);
+  await fundInput.fill('equity large cap');
+  await page.locator('[data-fund-category="Equity : Large Cap"]').click();
+  assert.equal(await fundRows.count(), 4, 'multiple fund categories combine by OR');
+  assert.equal(await page.locator('[data-fund-category-remove]').count(), 2);
+  await page.locator('[data-mf-measure]').last().click();
+  assert.equal(await page.locator('[data-fund-category-remove]').count(), 2, 'category selections survive measure repaints');
+  assert.equal(await fundRows.count(), 4);
+  await fundInput.fill('alpha');
+  assert.equal(await fundRows.count(), 1, 'scheme text narrows the selected categories');
+  await fundInput.fill('');
+  await page.locator('[data-fund-search-clear]').click();
+  assert.equal(await fundRows.count(), 5);
+  await fundInput.press('Escape');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `fund search fits ${width}px`);
+    if (process.env.GLOW_SCREENSHOT_PREFIX) await page.screenshot({ path: `${process.env.GLOW_SCREENSHOT_PREFIX}-fund-search-${width}.png` });
+  }
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.locator('.research-workspace').waitFor();
+  assert.equal(await page.locator('[data-fund-search-menu]').count(), 0, 'leaving the table removes the category portal');
   assert.deepEqual(foreignPortfolio, []);
   assert.deepEqual(errors, []);
-  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, desktop/mobile, mismatch rejection and recovery.`);
+  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, desktop/mobile, mismatch rejection and recovery.`);
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

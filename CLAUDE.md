@@ -2,6 +2,11 @@
 
 **Glow deployment:** Read [docs/GLOW-TEMPLATE-SYNC.md](docs/GLOW-TEMPLATE-SYNC.md) first. Its statement-book adapter, credentials, palette and extra tabs supersede the Sattva-specific workbook/activation notes retained below.
 
+Glow’s All Schemes view opens by default. Its search bar offers the feed’s category labels;
+multiple categories combine by OR, while typed words narrow the selected schemes. Keep chips
+removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;
+the shared table uses its predicate for rows, counts and export.
+
 Read this before touching anything. `docs/SPEC.md` has the product detail;
 `docs/DATA-CONTRACTS.md` has every JSON shape.
 
