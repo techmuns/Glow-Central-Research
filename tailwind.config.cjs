@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // tailwind.config.cjs — the source of the committed stylesheet, public/css/tailwind.css.
 //
 // Rebuild after ANY change to a class in public/**/*.{html,js} or to this file:
@@ -10,10 +11,22 @@
 // `pink` are the BRAND RAMP slots and carry champagne gold, `emerald`/`amber`/`rose` are the
 // SEMANTIC slots (pass / partial / fail), `slate` is the parchment-and-ink chassis. Read the role,
 // never the name.
+=======
+const { colors, tokens } = require('./scripts/theme-palette.cjs');
+
+>>>>>>> upstream/main
 module.exports = {
   content: ['./public/**/*.{html,js}'],
   theme: {
     extend: {
+      backgroundColor: ({ theme }) => colors('surface', theme('colors')),
+      gradientColorStops: ({ theme }) => colors('surface', theme('colors')),
+      textColor: ({ theme }) => colors('text', theme('colors')),
+      placeholderColor: ({ theme }) => colors('text', theme('colors')),
+      borderColor: ({ theme }) => colors('edge', theme('colors')),
+      divideColor: ({ theme }) => colors('edge', theme('colors')),
+      ringColor: ({ theme }) => colors('edge', theme('colors')),
+      ringOffsetColor: ({ theme }) => colors('surface', theme('colors')),
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         display: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'sans-serif'],
@@ -137,4 +150,9 @@ module.exports = {
       },
     },
   },
+  plugins: [({ addBase, theme }) => addBase({
+    'html[data-theme="dark"]': tokens(theme('colors'), true),
+    // Print always uses ink on paper, including from dark mode.
+    '@media print': { 'html[data-theme]': tokens(theme('colors'), false) },
+  })],
 };

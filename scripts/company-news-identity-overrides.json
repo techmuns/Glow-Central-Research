@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "_provenance": "Optional collector-local reviewed overrides, matched by ISIN, ticker or entityId. The existing curated identities now live in public/js/data/company-news-reviewed.js so scheduled capture and browser portfolio matching share one registry. Never infer identity facts or subsidiaries from search results.",
+  "entities": []
+}
