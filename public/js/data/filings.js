@@ -50,6 +50,7 @@
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 import { isEnglishHeadline } from './filings-shared.js';
+import { preserveBulkDeals } from './investor-changes.js';
 
 // How many companies one Refresh press asks about before it stops and says how many remain. The
 // upstreams allow ~60 requests a minute, so this is one minute's budget: a press fetches the top 60
@@ -227,6 +228,7 @@ export function createFeed(kind) {
       pending: 0,
       truncated: 0,
       headers: [], // insider trades keeps the upstream's own column headings
+      bulkDeals: null,
       // The companies in scope, as the tab last asked for them. `refresh()` re-reads these, so the
       // button asks about what is on screen rather than about everything the module has ever seen.
       wanted: [],
@@ -269,6 +271,7 @@ export function createFeed(kind) {
     const covered = state.rows.size;
     return {
       kind,
+      bulkDeals: state.bulkDeals,
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -544,11 +547,11 @@ export function createFeed(kind) {
    * yesterday's rows as soon as the new deployment reaches the browser.
    */
   async function refreshSnapshot() {
-    const before = state.capturedAt;
+    const before = `${state.capturedAt}|${state.bulkDeals?.capturedAt}`;
     const available = await seedFromSnapshot({ replace: true });
     state.loaded = true;
     emit();
-    return { available, changed: !!state.capturedAt && state.capturedAt !== before, capturedAt: state.capturedAt };
+    return { available, changed: before !== `${state.capturedAt}|${state.bulkDeals?.capturedAt}`, capturedAt: state.capturedAt };
   }
 
   const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
@@ -580,7 +583,7 @@ export function createFeed(kind) {
       const savedAt = hit.savedAt || 0;
       const newerThanFile = savedAt > capturedAt;
       if (!state.rows.has(t) || newerThanFile) {
-        state.rows.set(t, rowsIn(body));
+        state.rows.set(t, kind === 'insider' ? preserveBulkDeals(rowsIn(body), state.rows.get(t)) : rowsIn(body));
         if (newerThanFile) state.fromSnapshot.delete(t);
       }
       if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
@@ -622,13 +625,15 @@ export function createFeed(kind) {
     const heldCaptured = Date.parse(state.capturedAt || '');
     // "Newer" is chronological, not merely different. A rollback or stale edge response must not
     // replace rows this browser has already proved came from a later capture.
-    const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured);
+    const bulkNewer = Date.parse(body.bulkDeals?.capturedAt || '') > (Date.parse(state.bulkDeals?.capturedAt || '') || 0);
+    const newer = replace && ((Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured)) || bulkNewer);
     if (!replace || newer) state.capturedAt = capturedAt;
     if (!replace || newer) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
     }
     if (Array.isArray(body.headers) && body.headers.length) state.headers = body.headers;
+    if (!replace || newer || body.bulkDeals?.capturedAt === state.bulkDeals?.capturedAt) state.bulkDeals = body.bulkDeals || null;
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
     state.coversUniverse = body.coversUniverse === true;
@@ -659,7 +664,10 @@ export function createFeed(kind) {
       const t = ticker.toUpperCase();
       // On the initial seed the device's copy has already been placed and is newer; on a refresh a
       // newer capture wins unless this session confirmed the company AFTER the capture was made.
-      if (state.rows.has(t) && !(newer && snapshotWins(t))) continue;
+      if (state.rows.has(t) && !(newer && snapshotWins(t))) {
+        if (kind === 'insider') state.rows.set(t, preserveBulkDeals(state.rows.get(t), list));
+        continue;
+      }
       state.rows.set(t, kind === 'news' ? dedupeArticles(englishOnly(list)) : list);
       state.fromSnapshot.add(t);
       if (newer) {
@@ -770,7 +778,7 @@ export function createFeed(kind) {
     }
 
     if (Array.isArray(body.headers) && body.headers.length && !state.headers.length) state.headers = body.headers;
-    const list = rowsIn(body);
+    const list = kind === 'insider' ? preserveBulkDeals(rowsIn(body), state.rows.get(t)) : rowsIn(body);
     state.rows.set(t, list);
     state.fromSnapshot.delete(t);
     state.failures.delete(t);

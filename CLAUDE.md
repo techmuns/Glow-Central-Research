@@ -1020,18 +1020,21 @@ redefining every research tab's Portfolio filter by it is a product decision, no
 
 ### The family's managers — My Managers on Superstar Investors (GLOW-OWNED)
 
-**Under Portfolio the Superstar Investors sub-view opens on the family's OWN managers, not on ninety
-public investors it has no relationship with.** The ask was verbatim — *"what my managers are doing,
-can I see that? I'm more interested in the portfolio managers I have access to"* — and the answer is
-`public/data/managers.json`, built by `scripts/build-managers.mjs` from the same GlowVentures checkout
-that brings the book, in the same daily run: every PMS mandate, alternative fund and mutual fund
-house the family's wealth-platform statements show it invested with. `js/data/managers.js` reads it;
-`js/investors/my-managers.js` draws it in the Superstar Investors design (the same card, the same
-click-to-expand workspace, the same six ranked lists on Quarterly Changes) and is wired in with three
-`// GLOW` hunks — the section list and panel branch in `live.js`, the scope-dependent default section
-in `tabs/super-investors.js`. Under Watchlist the section is last and narrowed to the starred symbols;
-under Universe it is not offered at all, which is also what keeps the upstream suite's
-*"All Investors | Quarterly Changes | Data Table"* assertion true.
+**Changes leads Superstar Investors in every scope**, with My Managers / All Investors sub-tabs
+and This month / This quarter / 6 months / 1 year / ITD filters. My Managers and All Investors
+remain separate directory tabs after Changes; Data Table stays fourth. `js/investors/changes.js`
+shows dated PMS transactions and matched bulk/block deals first, with holdings comparisons in an
+expandable table. `js/data/investor-changes.js` owns period boundaries, exact entity joins and
+historical closed-quarter comparisons. ITD means all retained records and explicitly may not reach
+inception. Dated trades and holding observations are never totalled together.
+
+The manager dataset remains `public/data/managers.json`, built by `scripts/build-managers.mjs`
+from the same GlowVentures checkout that brings the family book. `scripts/sync-bulk-deals.mjs`
+ingests only public bulk/block rows from Sattva's Screener capture into the existing
+`insider-trades.json`; the normal insider capture invokes it after its company walk. Failed or
+older bulk captures retain the previous rows and source date with an error. Client per-company
+refreshes also preserve the bulk/block history. Match complete normalised legal names only;
+ambiguous identities and generic strategy aliases must not attribute an entity's trade.
 
 Five rules, and every one is a rule this file already runs on:
 

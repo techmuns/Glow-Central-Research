@@ -18,6 +18,8 @@ jobs:
         run: node scripts/verify-filings-snapshot.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
+      - name: Verify investor changes and bulk/block ingestion
+        run: node scripts/verify-investor-changes.mjs
       - name: Syntax-check JavaScript
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle

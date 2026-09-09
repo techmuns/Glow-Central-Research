@@ -16,6 +16,7 @@
 // shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
 import { readFileSync } from 'node:fs';
+import { verifyChangesUI } from './verify-investor-changes-ui.mjs';
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -815,8 +816,9 @@ console.log('\n— my managers —');
     ok('the roll-up counts every mandate that moved and names no rupee size on a new position', audit.summary.contributingManagers > 0 && audit.summary.newEntrants.every((mv) => mv.deltaPp == null), `${audit.summary.contributingManagers} contributing · ${audit.summary.counts.new} new`);
   }
 
-  // The section: first and default under Portfolio, cards by kind, click to expand.
+  // The manager directory follows Changes; its cards and workspaces remain reachable.
   await go('/#/research/super-investors/superstar-investors?scope=portfolio', 3000);
+  await page.locator('[data-live-section-tabs] [data-tab-id="my-managers"]').click();
   await page.waitForSelector('#content-host [data-managers-panel]:not([data-managers-loading])', { timeout: 20000 }).catch(() => {});
   const grid = await page.evaluate(() => {
     const host = document.getElementById('content-host');
@@ -831,8 +833,8 @@ console.log('\n— my managers —');
       investorCards: host.querySelectorAll('[data-open-investor]').length,
     };
   });
-  ok('under Portfolio the in-page tabs lead with My Managers', grid.labels === 'My Managers|All Investors|Quarterly Changes|Data Table', grid.labels);
-  ok('...and My Managers is the tab a fresh visit opens on', grid.selected === 'My Managers' && grid.panel === 'my-managers' && grid.investorCards === 0, JSON.stringify({ selected: grid.selected, panel: grid.panel }));
+  ok('Changes leads, followed by the manager and investor directories', grid.labels === 'Changes|My Managers|All Investors|Data Table', grid.labels);
+  ok('My Managers opens the manager directory', grid.selected === 'My Managers' && grid.panel === 'my-managers' && grid.investorCards === 0, JSON.stringify({ selected: grid.selected, panel: grid.panel }));
   ok('every manager in the file is a card, grouped by kind in the order mandates, funds, fund houses', audit?.managers > 0 && grid.cards === audit.managers && grid.kinds === 'pms,aif,mf', `${grid.cards} cards · ${grid.kinds}`);
   ok('the head states the managed share of the book and says the figures are statements', /managers run ₹[\d,.]+ Cr of the ₹[\d,.]+ Cr book/.test(grid.text) && /Statements · as of/.test(grid.text));
   ok('an exit is worded "no longer on the statement" and a fund with no NAV says so instead of ₹0', /no longer on the statement/i.test(grid.text) && /No valuation on the statement — not ₹0/.test(grid.text));
@@ -857,43 +859,6 @@ console.log('\n— my managers —');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 
-  // Quarterly Changes: the family's managers ABOVE the superstar roll-up under Portfolio.
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
-  await page.waitForSelector('#content-host [data-quarter-summary]');
-  await page.waitForSelector('#content-host [data-manager-summary]:not([data-manager-summary-loading])', { timeout: 20000 }).catch(() => {});
-  const qc = await page.evaluate(() => {
-    const mine = document.querySelector('#content-host [data-manager-summary]');
-    const theirs = document.querySelector('#content-host [data-quarter-summary]');
-    return {
-      both: !!mine && !!theirs,
-      mineFirst: !!mine && !!theirs && !!(mine.compareDocumentPosition(theirs) & Node.DOCUMENT_POSITION_FOLLOWING),
-      panels: mine ? mine.querySelectorAll('[data-ranked-list]').length : 0,
-      head: mine ? mine.innerText.slice(0, 260).replace(/\s+/g, ' ') : '',
-    };
-  });
-  ok('Quarterly Changes carries "Your managers this period" above the superstar roll-up, six panels', qc.both && qc.mineFirst && qc.panels === 6, qc.head);
-  ok('...and its head counts moves across comparable mandates, no rupee figure invented for the moves themselves', /across \d+ of \d+ comparable mandates/.test(qc.head), qc.head);
-  const firstRow = page.locator('#content-host [data-manager-summary] [data-ranked-idx]').first();
-  if (await firstRow.count()) {
-    await firstRow.click();
-    await page.waitForTimeout(400);
-    const modal = await page.locator('#modal-content').innerText().catch(() => '');
-    ok('a company row opens every mandate’s before/now quantity and weight, with the value labelled as the statement’s mark', /Across your managers/i.test(modal) && /Change \(derived\)/i.test(modal) && /not an amount bought or sold/i.test(modal));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-  } else {
-    skip('a company row opens the cross-mandate detail', 'no move in the shipped file');
-  }
-
-  // Universe: the section is not offered and the block is absent.
-  await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
-  await waitForPanel();
-  const uni = await page.evaluate(() => [...document.querySelectorAll('#content-host [data-live-section-tabs] [role="tab"]')].map((t) => t.textContent.trim()).join('|'));
-  ok('under Universe the tab bar is the superstar one alone', uni === 'All Investors|Quarterly Changes|Data Table', uni);
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
-  await page.waitForSelector('#content-host [data-quarter-summary]');
-  ok('...and Quarterly Changes carries no managers block there', (await page.locator('#content-host [data-manager-summary]').count()) === 0);
-
   // Watchlist: last, and narrowed to the starred symbols through one predicate.
   const starred = await evalSafe(async () => {
     const mod = await import('/js/data/managers.js');
@@ -906,7 +871,7 @@ console.log('\n— my managers —');
     await go('/#/research/super-investors/superstar-investors?scope=watchlist', 3000);
     await waitForPanel();
     const wl = await page.evaluate(() => [...document.querySelectorAll('#content-host [data-live-section-tabs] [role="tab"]')].map((t) => t.textContent.trim()).join('|'));
-    ok('under Watchlist My Managers is offered last', wl === 'All Investors|Quarterly Changes|Data Table|My Managers', wl);
+    ok('under Watchlist My Managers remains second', wl === 'Changes|My Managers|All Investors|Data Table', wl);
     await page.locator('#content-host [data-live-section-tabs] [data-tab-id="my-managers"]').click();
     await page.waitForSelector('#content-host [data-managers-panel]:not([data-managers-loading])', { timeout: 20000 }).catch(() => {});
     const wlText = await hostText();
@@ -5743,290 +5708,8 @@ if (siProbe.state === 'no-route') {
 }
 
 // ---------------------------------------------------------------------------------------
-// THE CROSS-BOOK SUMMARY runs on EITHER path — live books or the committed snapshot.
-//
-// It sits outside the Worker branch above on purpose. The roll-up is computed from whatever books
-// are loaded, and on a static origin those come from `public/data/super-investors.json` — a file,
-// needing no route at all. Gating it on `/api/super-investors` would have skipped it on every run
-// this sandbox can do, and a check that never executes is not a check. It skips only when no book
-// loaded by either path, which is the one case with genuinely nothing to summarise.
-// ---------------------------------------------------------------------------------------
-{
-  await go('/#/research/super-investors?scope=universe', 9000);
-  await waitForPanel();
-  const booksLoaded = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length);
-  if (!booksLoaded) {
-    skip('the cross-book summary renders, with a panel per question', 'no investor book loaded by any path');
-  } else {
-  const sectionTabs = await page.evaluate(() => {
-    const host = document.getElementById('content-host');
-    const tabs = [...host.querySelectorAll('[data-live-section-tabs] [role="tab"]')];
-    return {
-      labels: tabs.map((tab) => tab.textContent.trim()),
-      selected: tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent.trim() || null,
-      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
-      cards: host.querySelectorAll('[data-open-investor]').length,
-      summary: !!host.querySelector('[data-quarter-summary]'),
-      table: !!host.querySelector('[data-table-scroll]'),
-    };
-  });
-  ok('Superstar Investors contains All Investors, Quarterly Changes and Data Table tabs in that order',
-    sectionTabs.labels.join('|') === 'All Investors|Quarterly Changes|Data Table', sectionTabs.labels.join(' | '));
-  ok('All Investors is the default in-page tab',
-    sectionTabs.selected === 'All Investors' && sectionTabs.panel === 'investors' && sectionTabs.cards > 0 && !sectionTabs.summary && !sectionTabs.table,
-    JSON.stringify(sectionTabs));
-
-  await page.locator('#content-host [data-open-investor]').first().click();
-  await page.waitForSelector('#workspace-overlay.is-open');
-  const workspaceChrome = await page.evaluate(() => {
-    const header = document.querySelector('#workspace-content > div.sticky');
-    const text = header?.innerText || '';
-    return {
-      sourceSubtitle: /Ticker Finology\s*·/i.test(text),
-      filedBadge: /Filed holdings/i.test(text),
-      externalAction: /Open on Finology/i.test(text) || !!header?.querySelector('a[href*="ticker.finology.in/investor"]'),
-    };
-  });
-  ok('the investor workspace has no source subtitle, filed badge or Finology action',
-    !workspaceChrome.sourceSubtitle && !workspaceChrome.filedBadge && !workspaceChrome.externalAction,
-    JSON.stringify(workspaceChrome));
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(250);
-
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
-  await page.waitForSelector('#content-host [data-live-panel="data-table"] [data-table-scroll]');
-  await settleTables();
-  const dataTable = await page.evaluate(() => {
-    const host = document.getElementById('content-host');
-    return {
-      panel: host.querySelector('[data-live-panel]')?.dataset.livePanel || null,
-      heading: /All disclosed positions/i.test(host.innerText),
-      rows: host.querySelectorAll('tr[data-row-key]').length,
-      cards: host.querySelectorAll('[data-open-investor]').length,
-      summary: !!host.querySelector('[data-quarter-summary]'),
-      search: !!host.querySelector('input[placeholder*="Search"]'),
-      filters: host.querySelectorAll('select').length,
-      watchlistButton: [...host.querySelectorAll('button')].some((b) => /Watchlist/i.test(b.innerText)),
-      exportButton: [...host.querySelectorAll('button')].some((b) => /Export Excel/i.test(b.innerText)),
-    };
-  });
-  ok('Data Table owns the complete disclosed-positions table, separate from cards and the quarterly roll-up',
-    dataTable.panel === 'data-table' && dataTable.heading && dataTable.rows > 0 && dataTable.cards === 0 && !dataTable.summary,
-    JSON.stringify(dataTable));
-  ok('Data Table keeps the table search, investor/change filters and export action',
-    dataTable.search && dataTable.filters >= 2 && dataTable.watchlistButton && dataTable.exportButton,
-    JSON.stringify(dataTable));
-  ok('switching to Data Table leaves focus on its selected tab',
-    await page.evaluate(() => document.activeElement?.matches('[data-live-section-tabs] [data-tab-id="data-table"]')));
-
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
-  await page.waitForSelector('#content-host [data-quarter-summary]');
-  ok('Quarterly Changes replaces the directory in the same Superstar Investors tab',
-    (await page.locator('#content-host [data-live-panel="quarterly-changes"]').count()) === 1 &&
-      (await page.locator('#content-host [data-open-investor]').count()) === 0);
-  ok('switching in-page tabs leaves focus on the selected replacement tab',
-    await page.evaluate(() => document.activeElement?.matches('[data-live-section-tabs] [data-tab-id="quarterly-changes"]')));
-
-  // ---------------------------------------------------------------------------------------
-  // THE CROSS-BOOK SUMMARY — and the four numbers it refuses to invent
-  //
-  // The page exists so a reader does not open ninety books one at a time, and the summary is what
-  // answers that: who bought what, who sold what, and where more than one tracked investor moved
-  // on the same company. Rendering it is the easy half. The half worth asserting is what it must
-  // NOT do, because every one of these is the obvious feature request and each would be a
-  // fabricated figure:
-  //
-  //   1. No rupee size on a move. `valueCr` is Finology's derivation of what a position is worth
-  //      NOW, not what was traded — ranking "largest buys" by it answers a different question and
-  //      prints a rupee amount nobody disclosed. Increases and reductions are in percentage points.
-  //   2. No size at all on a new or exited position. `deriveMoves` leaves deltaPp null for both on
-  //      purpose: a position appearing is a change of disclosure, not a move of the whole holding.
-  //   3. "Exited" is "no longer disclosed", never "sold" — below the threshold a real holding is
-  //      simply invisible in the filing.
-  //   4. Consensus is a count of who moved, never a signal, a weight or a score.
-  //
-  // Asserted against the SHIPPED data rather than a fixture, and cross-checked against `allMoves()`
-  // — the summary agreeing with itself would prove nothing.
-  // ---------------------------------------------------------------------------------------
-  const summary = await page.evaluate(async () => {
-    const feed = await import('/js/data/super-investors.js');
-    const q = feed.quarterSummary({});
-    const moves = feed.allMoves();
-    const host = document.getElementById('content-host');
-    const sec = host.querySelector('[data-quarter-summary]');
-    const panel = (k) => sec?.querySelector(`[data-ranked-list="${k}"]`);
-    const textOf = (k) => (panel(k)?.innerText || '').replace(/\s+/g, ' ');
-    const rowsOf = (k) => [...(panel(k)?.querySelectorAll('.divide-y > *') || [])].map((r) => r.innerText.replace(/\s+/g, ' ').trim());
-    return {
-      rendered: !!sec,
-      panels: sec ? sec.querySelectorAll('[data-ranked-list]').length : 0,
-      // the honesty invariants, over the whole set rather than the rendered top 5
-      newHaveNoSize: q.newEntrants.every((m) => m.deltaPp == null),
-      exitsHaveNoSize: q.exits.every((m) => m.deltaPp == null),
-      addsAllPositive: q.topAdds.every((m) => m.deltaPp > 0),
-      trimsAllNegative: q.topTrims.every((m) => m.deltaPp < 0),
-      addsSortedDesc: q.topAdds.every((m, i, a) => i === 0 || a[i - 1].deltaPp >= m.deltaPp),
-      consensusAllMultiple: q.consensusBuys.concat(q.consensusExits).every((c) => c.investors.length > 1),
-      consensusBuyActions: q.consensusBuys.every((c) => c.investors.every((i) => ['new', 'added'].includes(i.action))),
-      consensusExitActions: q.consensusExits.every((c) => c.investors.every((i) => ['exited', 'trimmed'].includes(i.action))),
-      // counts must agree with the raw move list, not be recounted independently
-      countsAgree:
-        q.counts.new === moves.filter((m) => m.action === 'new').length &&
-        q.counts.added === moves.filter((m) => m.action === 'added').length &&
-        q.counts.trimmed === moves.filter((m) => m.action === 'trimmed').length &&
-        q.counts.exited === moves.filter((m) => m.action === 'exited').length,
-      // no rupee figure anywhere in the two ranked-by-size panels
-      // Rows only. A panel's note explains the rule in prose — the exits note says an exit is
-      // "not the same as sold" — so folding it into the text under test makes the explanation
-      // fail the check it is explaining.
-      addsRows: rowsOf('si-adds'),
-      trimRows: rowsOf('si-trims'),
-      exitRows: rowsOf('si-exits'),
-      headText: (sec?.querySelector('p')?.innerText || '').replace(/\s+/g, ' '),
-      exitsNote: (panel('si-exits')?.querySelector('p')?.innerText || '').replace(/\s+/g, ' '),
-      // investor names must be the list's, not the book's SEO-suffixed page title
-      suffixed: /Portfolio, Shareholdings/i.test(sec?.innerText || ''),
-      tableSuffixed: /Portfolio, Shareholdings/i.test(host.innerText),
-    };
-  });
-
-  ok('the cross-book summary renders, with a panel per question', summary.rendered && summary.panels === 6, `${summary.panels} panels`);
-  ok('a new position carries no percentage-point size, and neither does an exit',
-    summary.newHaveNoSize && summary.exitsHaveNoSize);
-  ok('...so increases and reductions contain only positions that actually moved',
-    summary.addsAllPositive && summary.trimsAllNegative);
-  ok('...ranked by that move, largest first', summary.addsSortedDesc);
-  const sized = summary.addsRows.concat(summary.trimRows);
-  ok('increases and reductions are in percentage points, with no rupee figure on any move',
-    sized.length > 0 && sized.every((r) => /[-+]?\d+\.\d\d pp$/.test(r)) && !sized.some((r) => /₹/.test(r)),
-    sized[0] || 'no rows');
-  ok('an exit row states the stake last disclosed, never a size for the exit itself',
-    summary.exitRows.length > 0 && summary.exitRows.every((r) => /was \d+\.\d\d%$/.test(r)) && !summary.exitRows.some((r) => /\bsold\b/i.test(r)),
-    summary.exitRows[0] || 'no rows');
-  ok('...and the panel says in words that it is not the same as sold',
-    /not the same as sold/i.test(summary.exitsNote), summary.exitsNote.slice(0, 90));
-  ok('a consensus row is always two or more investors, doing the matching thing',
-    summary.consensusAllMultiple && summary.consensusBuyActions && summary.consensusExitActions);
-  ok('the summary counts agree with the raw move list rather than being recounted',
-    summary.countsAgree);
-  ok('...and the head says how many books contributed, out of how many are comparable',
-    /of \d+ comparable books/.test(summary.headText), summary.headText.slice(0, 130));
-  // Finology's list and book endpoints disagree about an investor's name — the book carries their
-  // page title, suffix and all. The cards always read the list; the table and the summary now do
-  // too, so one person is one string everywhere on this page.
-  ok('investor names come from the list, not the book\'s SEO page title',
-    !summary.suffixed && !summary.tableSuffixed);
-
-  // A compact summary row is a lead, not the answer: "+1" cannot tell the reader who the third
-  // investor was, and one ranked mover says nothing about the other investors holding the same
-  // company. Every visible company therefore opens the complete latest/prior cross-book detail.
-  const companyButtons = page.locator('#content-host [data-quarter-summary] [data-ranked-idx]');
-  const companyButtonCount = await companyButtons.count();
-  ok('every visible Quarterly Changes company is a clickable detail control',
-    companyButtonCount > 0 &&
-      companyButtonCount === (await page.locator('#content-host [data-quarter-summary] [data-ranked-list] .divide-y > *').count()),
-    `${companyButtonCount} company buttons`);
-
-  if (companyButtonCount) {
-    const firstCompanyButton = companyButtons.first();
-    const company = await firstCompanyButton.locator('span.font-semibold').first().innerText();
-    const expectedInvestors = await page.evaluate(async (name) => {
-      const feed = await import('/js/data/super-investors.js');
-      return feed
-        .allHoldings()
-        .filter((r) => r.company === name)
-        .map((r) => {
-          const [latest, prior] = r.quarters || [];
-          return {
-            investor: r.investor,
-            now: latest ? r.quarterlyHoldings[latest] : null,
-            before: prior ? r.quarterlyHoldings[prior] : null,
-          };
-        })
-        .filter((r) => r.now != null || r.before != null)
-        .map((r) => r.investor)
-        .sort();
-    }, company);
-
-    await firstCompanyButton.click();
-    await page.waitForSelector('#modal-overlay.is-open [data-company-investor-detail]');
-    const companyDetail = await page.evaluate(() => {
-      const drill = document.querySelector('#modal-content [data-company-investor-detail]');
-      const headers = [...(drill?.querySelectorAll('th') || [])].map((h) => h.textContent.trim());
-      const rows = [...(drill?.querySelectorAll('[data-company-investor-row]') || [])];
-      return {
-        title: drill?.querySelector('h2')?.innerText.trim() || '',
-        headers,
-        investors: rows.map((r) => r.querySelector('td')?.innerText.trim() || '').sort(),
-        measures: rows.every((r) => r.querySelectorAll('td').length === 6),
-        hasStake: rows.some((r) => /\d+\.\d\d%/.test(r.innerText)),
-        note: (drill?.querySelector('p.mb-4')?.innerText || '').replace(/\s+/g, ' '),
-      };
-    });
-    ok('clicking a company opens its cross-investor popup', companyDetail.title === company, companyDetail.title);
-    ok('the popup lists every relevant superstar investor, not only the shortened card names',
-      JSON.stringify(companyDetail.investors) === JSON.stringify(expectedInvestors),
-      `${companyDetail.investors.length} shown vs ${expectedInvestors.length} expected`);
-    ok('the popup shows status, previous stake, current stake, derived change and current value',
-      companyDetail.measures && companyDetail.hasStake &&
-        companyDetail.headers.join('|') === 'Investor|Status|Previous stake|Current stake|Change (derived)|Current value (Finology)',
-      companyDetail.headers.join(' | '));
-    ok('the popup distinguishes current position value from an amount bought or sold',
-      /not an amount bought or sold/i.test(companyDetail.note) && /not disclosed, not zero/i.test(companyDetail.note),
-      companyDetail.note.slice(0, 150));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(250);
-  }
-
-  // The summary and the table under it must narrow through ONE predicate. Two predicates over the
-  // same question is what had the filings tabs reporting different sets in two places. They now
-  // live in separate in-page tabs, so read each panel in turn and compare their complete sets.
-  await go('/#/research/super-investors?scope=portfolio', 9000);
-  await waitForPanel();
-  ok('the selected in-page tab survives a scope change',
-    (await page.locator('#content-host [data-live-panel="quarterly-changes"]').count()) === 1);
-  const scoped = await page.evaluate(() => {
-    const host = document.getElementById('content-host');
-    const sec = host.querySelector('[data-quarter-summary]');
-    return {
-      head: (sec?.querySelector('p')?.innerText || '').replace(/\s+/g, ' '),
-      names: [...(sec?.querySelectorAll('[data-ranked-list] .divide-y > * span.font-semibold') || [])].map((n) => n.innerText.trim()),
-    };
-  });
-
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="data-table"]').click();
-  // The table streams its rows in, so a comparison against it has to wait for the settled set —
-  // otherwise a company the summary names could be absent purely because its row had not been
-  // appended yet, which would fail for a reason that is not about scope at all.
-  await settleTables();
-  const scopedTableText = await page.evaluate(() => {
-    const host = document.getElementById('content-host');
-    // Against the table's whole text rather than a per-row first line — that was the rank cell,
-    // so nothing ever matched and the check failed for a reason that had nothing to do with scope.
-    return [...host.querySelectorAll('tr[data-row-key]')].map((tr) => tr.innerText).join(' | ');
-  });
-  const missing = scoped.names.filter((name) => !scopedTableText.includes(name));
-  // `quarterSummary({})` is unscoped by construction, so the scoped head must report FEWER
-  // contributing books than the feed has comparable ones — a scope that narrowed nothing would
-  // print "87 of 87" here and look identical to a working one.
-  const contributing = Number(/across ([\d,]+) of ([\d,]+) comparable books/.exec(scoped.head)?.[1]?.replace(/,/g, '') ?? -1);
-  const comparable = Number(/across ([\d,]+) of ([\d,]+) comparable books/.exec(scoped.head)?.[2]?.replace(/,/g, '') ?? -1);
-  ok('a narrowed scope narrows the summary too', contributing > 0 && contributing < comparable, scoped.head.slice(0, 130));
-  ok('...and every company it names is one the table below also shows',
-    scoped.names.length > 0 && missing.length === 0,
-    `${scoped.names.length} named, ${missing.length} absent from the table${missing.length ? `: ${missing.slice(0, 2).join(', ')}` : ''}`);
-  await go('/#/research/super-investors?scope=universe', 9000);
-  await waitForPanel();
-  await page.locator('#content-host [data-live-section-tabs] [data-tab-id="quarterly-changes"]').click();
-  await go('/#/research/super-investors/institutions?scope=universe', 2500);
-  await waitForPanel();
-  await go('/#/research/super-investors/superstar-investors?scope=universe', 2500);
-  await waitForPanel();
-  ok('returning from Institutions resets the in-page tab to All Investors',
-    (await page.locator('#content-host [data-live-panel="investors"]').count()) === 1 &&
-      (await page.locator('#content-host [data-tab-id="investors"][aria-selected="true"]').count()) === 1);
-  }
-}
+// Changes navigation, period windows, evidence and responsive layout.
+await verifyChangesUI(page, { base: BASE });
 
 // ---------------------------------------------------------------------------------------
 // The feed must not re-fetch what it already has confirmed, and must not repaint per arrival.
