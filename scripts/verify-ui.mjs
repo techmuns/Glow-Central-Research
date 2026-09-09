@@ -4330,7 +4330,7 @@ ok(
 console.log('\n— super investors —');
 
 // ---------------------------------------------------------------------------------------
-// 9a. All Schemes — the Mutual Funds tab's second sub-view — renders the AmfiBeas "Returns & Ranking" table
+// 9a. All Schemes — the Mutual Funds tab's default sub-view — renders the AmfiBeas "Returns & Ranking" table
 // (js/investors/fund-returns.js), called straight from the browser like the chatter feed. The API
 // is not deployed to a fixed host, so it is stubbed here from `page.route` — deterministic and no
 // egress — in exactly the shape docs/DATA-CONTRACTS.md documents. `amfiMode` flips it to a 404 for
@@ -4384,7 +4384,7 @@ const staleLink = await hostText();
 ok('an old Fund Flows link lands on a real view rather than an error', staleLink.length > 400 && !/hit a snag/i.test(staleLink) && (await page.locator('[data-mock-ribbon]').count()) === 0);
 
 // All Schemes — the AmfiBeas "Returns & Ranking" table, reproduced.
-// It is the Mutual Funds tab's second sub-view now, beside Category Performance. Every return and every
+// It is the Mutual Funds tab's default sub-view, beside Category Performance. Every return and every
 // rank is AmfiBeas's, reproduced unchanged — the same rule the con-call and chatter feeds follow —
 // and the checks are about that boundary and about not turning a null into a zero. The feed is
 // stubbed above from page.route (the API has no deployed host yet).
@@ -4455,22 +4455,28 @@ if (frRendered) {
   ok('the modal says the returns and ranks are theirs, reproduced', /AmfiBeas/i.test(frModal) && /reproduced/i.test(frModal));
   ok('...and explains the rank is within the scheme’s own cohort', /within its own cohort/i.test(frModal));
   ok('...and that a dash is not a zero', /not (a )?zero/i.test(frModal));
-  // A classification filter narrows the set (search + at least a classification select are offered).
+  await page.keyboard.press('Escape');
+  // GLOW: category selection lives in the search field, with several categories combined by OR.
   const frBefore = await rowCount();
-  const frSelects = await page.locator('#content-host select').count();
-  ok('a classification filter is offered', frSelects >= 1, `${frSelects} selects`);
-  if (frSelects >= 1) {
-    const opts = await page.locator('#content-host select').first().locator('option').allTextContents();
-    const pick = opts.find((o) => !/^all /i.test(o));
-    if (pick) {
-      await page.locator('#content-host select').first().selectOption({ label: pick });
-      await page.waitForTimeout(500);
-      const frAfter = await rowCount();
-      ok('choosing a classification narrows the table', frAfter > 0 && frAfter < frBefore, `${frBefore} → ${frAfter} (${pick})`);
-      await page.locator('#content-host select').first().selectOption({ index: 0 });
-      await page.waitForTimeout(300);
-    }
-  }
+  const frSearch = page.locator('#content-host [data-table-search]');
+  await frSearch.fill('debt short duration');
+  ok('the search bar suggests categories without requiring source punctuation',
+    await page.locator('[data-fund-category="Debt : Short Duration"]').isVisible());
+  await frSearch.press('Enter');
+  const frDebt = await rowCount();
+  ok('choosing a classification in the search bar narrows the table', frDebt > 0 && frDebt < frBefore);
+  await frSearch.fill('equity large cap');
+  await page.locator('[data-fund-category="Equity : Large Cap"]').click();
+  const frPicked = await rowCount();
+  ok('picking another category includes schemes from either category', frPicked > frDebt && frPicked < frBefore);
+  ok('the picked categories are visible as removable chips',
+    await page.locator('[data-fund-category-remove]').count() === 2);
+  await frSearch.fill('alpha');
+  ok('free text searches scheme names within the picked categories', await rowCount() === 1);
+  await frSearch.fill('');
+  await page.locator('[data-fund-search-clear]').click();
+  ok('clearing categories restores all schemes', await rowCount() === frBefore);
+  await frSearch.press('Escape');
 } else {
   skip('the All Schemes table renders', 'the AmfiBeas stub did not answer');
 }

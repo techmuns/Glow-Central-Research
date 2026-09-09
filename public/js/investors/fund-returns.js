@@ -36,6 +36,7 @@ import { exportSheets, todayStamp } from '../ui/export.js';
 import { gapHeat } from '../ui/mf-heatmap.js';
 import { factorLabel } from '../data/mf-taxonomy.js';
 import * as fundReturns from '../data/fund-returns.js';
+import { fundSearch } from '../ui/fund-search.js';
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -120,7 +121,8 @@ function periodsWithData(funds, periods) {
 // ---------------------------------------------------------------------------------------
 
 function buildTable(funds, m, visiblePeriods, view = null, measure = 'return') {
-  return scoreTable({
+  const search = fundSearch({ rows: funds, selected: view?.fundSearch?.categories, q: view?.q });
+  const table = scoreTable({
     rows: funds,
     // The scheme code is the stable, content-derived id — never a row index (see the perf notes in
     // CLAUDE.md: a positional key breaks the repaint fast path the moment the row set changes).
@@ -150,20 +152,19 @@ function buildTable(funds, m, visiblePeriods, view = null, measure = 'return') {
     wrapHeads: true,
     nameMaxPx: 300,
     stickyHead: 'max(320px, calc(100vh - 300px))',
-    // The strategy words are searchable too, so typing "momentum" finds the same set the Strategy
-    // filter offers rather than only the schemes that happen to spell it in their name the same way.
-    searchable: (r) => `${r.fundName} ${r.classification || ''} ${(r.factors || []).join(' ')} ${r.option}`,
-    searchPlaceholder: 'Search scheme or classification...',
+    searchControl: search,
     // Alphabetical by name, exactly as the source lists them.
     initialSort: { key: 'name', dir: 'asc' },
     initialView: view,
     columns: columnsFor(visiblePeriods, measure),
-    filters: filtersFor(funds),
     exportName: `glow-fund-returns-${todayStamp()}`,
     onExport: (visible) => exportFunds(visible, m, visiblePeriods),
     countNoun: 'schemes',
     emptyMessage: 'No scheme matches your filters.',
   });
+  // Keep category selections alongside the table's query and sort when a chip or measure repaints it.
+  table.view.fundSearch = search.view;
+  return table;
 }
 
 /**
@@ -280,32 +281,6 @@ function rankCell(cell) {
 
 /** A dash that says why it is a dash — never a zero. */
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
-
-// ---------------------------------------------------------------------------------------
-// Filters
-// ---------------------------------------------------------------------------------------
-
-function filtersFor(funds) {
-  const out = [];
-
-  const classes = [...new Set(funds.map((f) => f.classification).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  if (classes.length > 1) {
-    out.push({
-      label: 'Classification',
-      options: [{ value: 'all', label: 'All classifications' }, ...classes.map((c) => ({ value: c, label: c }))],
-      match: (r, v) => r.classification === v,
-    });
-  }
-
-  // NO STRATEGY SELECT EITHER. The owning tab renders the strategy as a labelled chip row above
-  // this panel, where its counts are visible without opening anything — and one job wants one
-  // control. See `strategyControls()` in js/tabs/mutual-funds.js.
-  //
-  // NO PLAN FILTER. The table is one row per scheme — the direct plan wherever the source lists one
-  // — so the control could only ever offer "direct" and an empty "regular". See directOnly() in
-  // js/data/fund-returns.js.
-  return out.length ? out : null;
-}
 
 // ---------------------------------------------------------------------------------------
 // Chrome — the pill and the provenance modal
