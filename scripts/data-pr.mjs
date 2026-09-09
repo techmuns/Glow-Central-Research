@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 export const DATA_REPOSITORY = 'techmuns/Glow-Central-Research';
-export const dataPath = path => typeof path === 'string' && /^public\/data\/.+\.(?:json|jsonl|csv|ndjson)$/.test(path) && !path.split('/').some(part => ['.', '..', ''].includes(part)) && !/[\\\r\n]/.test(path);
+export const dataPath = path => typeof path === 'string' && (path === 'public/data/shareholding-filings.json.gz' || /^public\/data\/.+\.(?:json|jsonl|csv|ndjson)$/.test(path)) && !path.split('/').some(part => ['.', '..', ''].includes(part)) && !/[\\\r\n]/.test(path);
 export function dataBranch(runId = process.env.GITHUB_RUN_ID, attempt = process.env.GITHUB_RUN_ATTEMPT || '1') {
   if (!/^\d+$/.test(runId || '') || !/^\d+$/.test(attempt)) throw Error('A capture run identity is required');
   return `codex/data-${runId}-${attempt}`;

@@ -29,6 +29,7 @@ import * as earnings from '../data/earnings-live.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
 import * as marketNews from '../data/market-news.js';
+import * as publicHoldings from '../data/public-holdings.js';
 import * as refreshRegistry from './refresh.js';
 import { runCaptureWatchdog, captureNamesForView } from '../data/capture-watchdog.js';
 import { withoutPublisherName } from './source-copy.js';
@@ -60,6 +61,10 @@ export function start(live) {
   wire(concalls, { keyOf: concallKey, announce: announceConcalls, label: concalls.LIVE_ID });
   wire(chatter, { keyOf: chatterKey, announce: announceChatter, label: chatter.LIVE_ID });
   wire(marketNews, { keyOf: marketNewsKey, announce: announceMarketNews, label: marketNews.LIVE_ID });
+  wire(publicHoldings, { keyOf: (r) => `holdings:${r.id}`, label: publicHoldings.LIVE_ID, announce: () => {
+    for (const row of publicHoldings.newArrivals()) notifications.push({ key: `holdings:${row.id}`, kind: 'system',
+      title: `Holdings check: ${row.company}`, detail: row.message, at: row.detectedAt, href: '#/research/super-investors/superstar-investors' });
+  } });
 }
 
 function wire(feed, { keyOf, announce, label }) {
@@ -85,7 +90,7 @@ function wire(feed, { keyOf, announce, label }) {
  */
 export function ensureRunning() {
   if (!engine) return;
-  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID, marketNews.LIVE_ID]) engine.start(id);
+  for (const id of [earnings.LIVE_ID, concalls.LIVE_ID, chatter.LIVE_ID, marketNews.LIVE_ID, publicHoldings.LIVE_ID]) engine.start(id);
 }
 
 /**

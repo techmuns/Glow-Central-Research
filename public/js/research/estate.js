@@ -43,7 +43,8 @@ import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as technicals from '../data/technicals.js';
 import * as investors from '../data/super-investors.js';
-import { loadEvidence, evidence } from '../data/holding-evidence.js';
+import { loadEvidence } from '../data/holding-evidence.js';
+import * as publicHoldings from '../data/public-holdings.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -1032,29 +1033,40 @@ const BUILDERS = [
   },
   {
     id: 'super-investors',
-    load: () => Promise.all([investors.load(), loadEvidence()]),
+    load: () => Promise.all([investors.load(), loadEvidence(), publicHoldings.load()]),
     read({ scope, plan, identities }) {
       const knownTickers = new Set(identities.map(company => company.ticker).filter(Boolean));
+      const tickerByIsin = new Map(identities.filter(company => company.isin && company.ticker).map(company => [company.isin, company.ticker]));
       const include = plan.companies.length ? null : investorScopeFilter(scope);
-      const rows = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
+      const moves = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
+      const original = (publicHoldings.report()?.holdings || []).filter((h) => !include || include(h.company)).map((h) => ({ primary: true,
+        company: h.company, ticker: tickerByIsin.get(h.isin) || (knownTickers.has(h.ticker) ? h.ticker : null), person: h.person, profileKind: h.kind, legalHolder: h.legalHolder, isin: h.isin, asOf: h.asOf,
+        shares: h.state === 'source-conflict' ? null : h.shares, stakePct: h.state === 'source-conflict' ? null : h.stakePct,
+        status: h.state, comparison: h.comparison, associatedEntity: h.associated,
+        // Keep dated source citations and each conflicting figure. Archive hashes and the
+        // full identity registry remain in the disclosure viewer/export, outside answer space.
+        sources: h.sources.map(s => ({ source: s.source, url: s.url, filedAt: s.filedAt,
+          ...(h.state === 'source-conflict' ? { legalHolder: s.legalHolder, shares: s.shares, stakePct: s.stakePct } : {}),
+          ...(s.partial ? { partial: true } : {}), ...(s.refreshError ? { refreshError: s.refreshError } : {}) })),
+        relationshipUrl: h.associated ? h.relationshipUrl : null }));
+      const rows = [...original, ...moves];
       const meta = investors.meta() || {};
       const summary = investors.quarterSummary({ include, limit: 5 });
       return sourcePacket(this.id, {
-        source: 'Ticker Finology filed portfolios',
+        source: 'Original NSE/BSE shareholding filings and Ticker Finology portfolios',
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failedBooks },
         summary: {
-          primaryEvidence: evidence().holdings.filter((h) => !include || include(h.company)),
-          entityRelationships: evidence().relations,
+          publicDisclosureCoverage: publicHoldings.report()?.coverage || null,
           counts: summary.counts,
           comparableBooks: summary.comparableBooks,
           contributingBooks: summary.contributingBooks,
           periodPairs: summary.pairs.slice(0, 3).map((pair) => `${pair.latest} vs ${pair.prior}`),
           mostCommonHoldings: investors.overlaps().filter((item) => !include || include(item.company)).slice(0, 3).map((item) => ({ company: clipped(item.company, 60), holders: item.holders.length })),
         },
-        definition: 'Comparisons use consecutive completed calendar quarters. Unknown/awaiting means insufficient disclosure evidence, not a trade. Exited requires explicit non-disclosure and does not prove a sale. changePp is percentage points of company equity. Source valuations are not trade values. Primary evidence is individually verified and dated; associated-fund holdings are not personal holdings. Full exchange coverage is unverified.',
-        ...chooseRows(rows, plan, row => moveRow(row, knownTickers), (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
+        definition: 'Original exchange records establish the legal holder and stake on the stated date. Conflicting reports require review. Associated entities remain separate from personal ownership. Quarterly changes use completed quarters; unknown cells do not establish trades. Capture coverage is bounded.',
+        ...chooseRows(rows, plan, (row) => row.primary ? row : moveRow(row, knownTickers), (a, b) => Number(!!b.primary) - Number(!!a.primary) || Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
       });
     },
   },

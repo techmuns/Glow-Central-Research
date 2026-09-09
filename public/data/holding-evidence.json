@@ -1,14 +1,550 @@
 {
-  "description": "Individually checked primary evidence. This is not a complete exchange feed. Fund holdings are separate from personal holdings; dates are disclosure dates, not purchase dates.",
+  "description": "Source-backed legal-holder relationships and dated manual evidence. Original exchange filings are captured and reconciled separately. Relationships never establish personal ownership of a fund position.",
   "relations": [
     {
       "entityId": "singularity-equity-fund-i",
       "legalName": "Singularity Equity Fund I",
-      "investorSlugs": ["madhusudan-kela"],
+      "investorSlugs": [
+        "madhusudan-kela"
+      ],
       "managerIds": [],
       "relationship": "Associated fund; Madhusudan Kela is Mentor & IC Chairman of Singularity AMC. This is not evidence of personal ownership.",
       "sourceUrl": "https://singularityamc.com/",
       "verifiedAt": "2026-09-09"
+    },
+    {
+      "entityId": "abakkus-emerging-opportunities-fund-1",
+      "legalName": "Abakkus Emerging Opportunities Fund - 1",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-growth-fund-2",
+      "legalName": "Abakkus Growth Fund - 2",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-diversified-alpha-fund",
+      "legalName": "Abakkus Diversified Alpha Fund",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-diversified-alpha-fund-2",
+      "legalName": "Abakkus Diversified Alpha Fund - 2",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-venture-opportunities-fund",
+      "legalName": "Abakkus Venture Opportunities Fund",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-four2eight-opportunities-fund",
+      "legalName": "Abakkus Four2Eight Opportunities Fund",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Abakkus fund; held by the named fund, separately from Sunil Singhania personally.",
+      "sourceUrl": "https://abakkusinvest.com/en/our-products",
+      "sourceUrls": [
+        "https://abakkusinvest.com/en/our-products",
+        "https://insights.abakkusinvest.com/indias-next-multibagger-stocks/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-asset-manager-private-limited",
+      "legalName": "Abakkus Asset Manager Private Limited",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Associated Abakkus investment-management company; legal ownership remains with the reported holder.",
+      "sourceUrl": "https://insights.abakkusinvest.com/abakkus-receives-sebi-approval-to-launch-mutual-fund-business/",
+      "sourceUrls": [
+        "https://insights.abakkusinvest.com/abakkus-receives-sebi-approval-to-launch-mutual-fund-business/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "abakkus-investment-managers-private-limited",
+      "legalName": "Abakkus Investment Managers Private Limited",
+      "investorSlugs": [
+        "abakkus-fund-sunil-singhania"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Associated Abakkus investment-management company; legal ownership remains with the reported holder.",
+      "sourceUrl": "https://insights.abakkusinvest.com/abakkus-receives-sebi-approval-to-launch-mutual-fund-business/",
+      "sourceUrls": [
+        "https://insights.abakkusinvest.com/abakkus-receives-sebi-approval-to-launch-mutual-fund-business/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-capital-compounder-fund-1",
+      "legalName": "Carnelian Capital Compounder Fund - 1",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Fund managed by Carnelian, founded by Vikas Khemani; separate from his personal holdings.",
+      "sourceUrl": "https://carneliancapital.co.in/journey",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/journey",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-structural-shift-fund",
+      "legalName": "Carnelian Structural Shift Fund",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Fund managed by Carnelian, founded by Vikas Khemani; separate from his personal holdings.",
+      "sourceUrl": "https://carneliancapital.co.in/journey",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/journey",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-bharat-amritkaal-fund",
+      "legalName": "Carnelian Bharat Amritkaal Fund",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [
+        "carnelian-bharat-amritkaal-fund"
+      ],
+      "kind": "associated-entity",
+      "relationship": "Fund managed by Carnelian, founded by Vikas Khemani; separate from his personal holdings.",
+      "sourceUrl": "https://carneliancapital.co.in/journey",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/journey",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-bharat-amritkaal-fund-2",
+      "legalName": "Carnelian Bharat Amritkaal Fund - 2",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Fund managed by Carnelian, founded by Vikas Khemani; separate from his personal holdings.",
+      "sourceUrl": "https://carneliancapital.co.in/journey",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/journey",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-india-amritkaal-fund",
+      "legalName": "Carnelian India Amritkaal Fund",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Fund managed by Carnelian, founded by Vikas Khemani; separate from his personal holdings.",
+      "sourceUrl": "https://carneliancapital.co.in/journey",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/journey",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "carnelian-asset-management-advisors-private-limited",
+      "legalName": "Carnelian Asset Management & Advisors Private Limited",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [
+        "carnelian-asset-management-and-advisors-pvt-ltd--carnelian-bespoke-portfolio"
+      ],
+      "kind": "associated-entity",
+      "relationship": "Carnelian management company; public disclosures do not establish an individual client account position.",
+      "sourceUrl": "https://carneliancapital.co.in/wp-content/uploads/2026/03/Disclosure-Document_March-2026.pdf",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/wp-content/uploads/2026/03/Disclosure-Document_March-2026.pdf",
+        "https://carneliancapital.co.in/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "kedia-securities-private-limited",
+      "legalName": "Kedia Securities Private Limited",
+      "investorSlugs": [
+        "vijay-kedia"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Investment company headed by Vijay Kedia; separate legal holder.",
+      "sourceUrl": "https://www.ksplindia.com/",
+      "sourceUrls": [
+        "https://www.ksplindia.com/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "equity-intelligence-india-private-limited",
+      "legalName": "Equity Intelligence India Private Limited",
+      "investorSlugs": [
+        "porinju-v-veliyath"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Portfolio management company founded by Porinju Veliyath; separate legal holder.",
+      "sourceUrl": "https://www.equityintelligence.com/storage/disclosures/ftqhOTQwNv27CM18Ly99Kdaer7AOhInvmcM54pMv.pdf",
+      "sourceUrls": [
+        "https://www.equityintelligence.com/storage/disclosures/ftqhOTQwNv27CM18Ly99Kdaer7AOhInvmcM54pMv.pdf",
+        "https://www.equityintelligence.com/team"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "pabrai-investment-fund-2-lp",
+      "legalName": "Pabrai Investment Fund 2, LP",
+      "investorSlugs": [
+        "mohnish-pabrai"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Pabrai fund or management entity identified by the fund manager; separate from personal holdings.",
+      "sourceUrl": "https://pabraifunds.com/partnership-rules/",
+      "sourceUrls": [
+        "https://pabraifunds.com/partnership-rules/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "pabrai-investment-fund-3-ltd",
+      "legalName": "Pabrai Investment Fund 3, Ltd.",
+      "investorSlugs": [
+        "mohnish-pabrai"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Pabrai fund or management entity identified by the fund manager; separate from personal holdings.",
+      "sourceUrl": "https://pabraifunds.com/partnership-rules/",
+      "sourceUrls": [
+        "https://pabraifunds.com/partnership-rules/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "pabrai-investment-fund-4",
+      "legalName": "Pabrai Investment Fund 4",
+      "investorSlugs": [
+        "mohnish-pabrai"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Pabrai fund or management entity identified by the fund manager; separate from personal holdings.",
+      "sourceUrl": "https://pabraifunds.com/partnership-rules/",
+      "sourceUrls": [
+        "https://pabraifunds.com/partnership-rules/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "dalal-street-llc",
+      "legalName": "Dalal Street, LLC",
+      "investorSlugs": [
+        "mohnish-pabrai"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Pabrai fund or management entity identified by the fund manager; separate from personal holdings.",
+      "sourceUrl": "https://pabraifunds.com/partnership-rules/",
+      "sourceUrls": [
+        "https://pabraifunds.com/partnership-rules/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "3p-india-equity-fund-1",
+      "legalName": "3P India Equity Fund 1",
+      "investorSlugs": [
+        "3p-india-equity-fund-1"
+      ],
+      "managerIds": [
+        "3p-investment-managers"
+      ],
+      "kind": "associated-entity",
+      "relationship": "Fund offered by 3P Investment Managers; the exact scheme remains identified.",
+      "sourceUrl": "https://www.3pim.com/",
+      "sourceUrls": [
+        "https://www.3pim.com/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "3p-india-equity-fund-1m",
+      "legalName": "3P India Equity Fund 1M",
+      "investorSlugs": [],
+      "managerIds": [
+        "3p-investment-managers"
+      ],
+      "kind": "associated-entity",
+      "relationship": "Fund offered by 3P Investment Managers; the exact scheme remains identified.",
+      "sourceUrl": "https://www.3pim.com/",
+      "sourceUrls": [
+        "https://www.3pim.com/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "buoyant-opportunities-strategy",
+      "legalName": "Buoyant Opportunities Strategy",
+      "investorSlugs": [],
+      "managerIds": [
+        "buoyant-capital"
+      ],
+      "kind": "associated-entity",
+      "relationship": "Buoyant fund scheme; separate from an individual client account.",
+      "sourceUrl": "https://www.buoyantcap.com/?ic_mega_menu=homepages-mega",
+      "sourceUrls": [
+        "https://www.buoyantcap.com/?ic_mega_menu=homepages-mega"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "cohesion-mk-best-ideas-sub-trust",
+      "legalName": "Cohesion MK Best Ideas Sub-Trust",
+      "investorSlugs": [
+        "madhusudan-kela",
+        "cohesion-mk-best-ideas-sub-trust"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Cohesion fund associated with Madhu Kela; also tracked as its own fund profile.",
+      "sourceUrl": "https://www.cohesion-am.com/resources/faqs/",
+      "sourceUrls": [
+        "https://www.cohesion-am.com/resources/faqs/",
+        "https://nsearchives.nseindia.com/corporate/PFOCUS_03072025210401_OutcomeofBM03072025signed.pdf"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "param-capital",
+      "legalName": "Param Capital",
+      "investorSlugs": [
+        "mukul-agrawal"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Partnership represented by Mukul Mahavir Agrawal; separate legal holder.",
+      "sourceUrl": "https://nsearchives.nseindia.com/corporate/ZOTA_21062024185240_EGMNotice2024.pdf",
+      "sourceUrls": [
+        "https://nsearchives.nseindia.com/corporate/ZOTA_21062024185240_EGMNotice2024.pdf",
+        "https://plakshauniversity.edu.in/team-details/mukul-agrawal"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "mukul-mahavir-agrawal",
+      "legalName": "Mukul Mahavir Agrawal",
+      "investorSlugs": [
+        "mukul-agrawal"
+      ],
+      "managerIds": [],
+      "kind": "same-person",
+      "relationship": "Full legal name of Mukul Agrawal, disclosed in the issuer allottee and beneficial-owner table.",
+      "sourceUrl": "https://nsearchives.nseindia.com/corporate/ZOTA_21062024185240_EGMNotice2024.pdf",
+      "sourceUrls": [
+        "https://nsearchives.nseindia.com/corporate/ZOTA_21062024185240_EGMNotice2024.pdf",
+        "https://plakshauniversity.edu.in/team-details/mukul-agrawal"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "vijay-kedia",
+      "legalName": "Vijay Kishanlal Kedia",
+      "investorSlugs": [
+        "vijay-kedia"
+      ],
+      "managerIds": [],
+      "kind": "same-person",
+      "relationship": "Full legal name in the original issuer disclosure.",
+      "sourceUrl": "https://atulauto.co.in/wp-content/uploads/2024/12/BSEnseAALAllotmentSharesUPONconversionOFwarrants15032023.pdf",
+      "sourceUrls": [
+        "https://atulauto.co.in/wp-content/uploads/2024/12/BSEnseAALAllotmentSharesUPONconversionOFwarrants15032023.pdf",
+        "https://www.ksplindia.com/"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "ashish-kacholia",
+      "legalName": "Ashish Rameshchandra Kacholia",
+      "investorSlugs": [
+        "ashish-kacholia"
+      ],
+      "managerIds": [],
+      "kind": "same-person",
+      "relationship": "Full legal name in the original issuer disclosure.",
+      "sourceUrl": "https://nsearchives.nseindia.com/corporate/NAMAN_19082024205457_5.pdf",
+      "sourceUrls": [
+        "https://nsearchives.nseindia.com/corporate/NAMAN_19082024205457_5.pdf"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "life-insurance-corporation",
+      "legalName": "Life Insurance Corporation of India",
+      "investorSlugs": [
+        "life-insurance-corporation"
+      ],
+      "managerIds": [],
+      "kind": "same-entity",
+      "relationship": "Full legal name of the tracked institution, confirmed by its official website.",
+      "sourceUrl": "https://www.licindia.in/en/web/guest/about-us",
+      "sourceUrls": [
+        "https://www.licindia.in/en/web/guest/about-us"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "vikas-khemani",
+      "legalName": "Vikas Vijaykumar Khemani",
+      "investorSlugs": [
+        "vikas-khemani"
+      ],
+      "managerIds": [],
+      "kind": "same-person",
+      "relationship": "Full legal name confirmed by the original disclosure and the associated institution.",
+      "sourceUrl": "https://carneliancapital.co.in/wp-content/uploads/2026/03/Disclosure-Document_March-2026.pdf",
+      "sourceUrls": [
+        "https://carneliancapital.co.in/wp-content/uploads/2026/03/Disclosure-Document_March-2026.pdf"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "madhusudan-kela",
+      "legalName": "Madhusudan Murlidhar Kela",
+      "investorSlugs": [
+        "madhusudan-kela"
+      ],
+      "managerIds": [],
+      "kind": "same-person",
+      "relationship": "Full legal name confirmed by the original disclosure and the associated institution.",
+      "sourceUrl": "https://nsearchives.nseindia.com/corporate/LSIL_22062026204820_RecordDateorCutoffDatesigned.pdf",
+      "sourceUrls": [
+        "https://nsearchives.nseindia.com/corporate/LSIL_22062026204820_RecordDateorCutoffDatesigned.pdf",
+        "https://plaksha.edu.in/blog/kamala-devi-murlidhar-kela-dining-hall"
+      ],
+      "verifiedAt": "2026-09-09",
+      "aliases": []
+    },
+    {
+      "entityId": "mk-ventures",
+      "legalName": "MK Ventures",
+      "investorSlugs": [
+        "madhusudan-kela"
+      ],
+      "managerIds": [],
+      "kind": "associated-entity",
+      "relationship": "Investment entity; issuer disclosure identifies Madhusudan Murlidhar Kela as its ultimate beneficial owner.",
+      "sourceUrl": "https://nsearchives.nseindia.com/corporate/LSIL_22062026204820_RecordDateorCutoffDatesigned.pdf",
+      "verifiedAt": "2026-09-09",
+      "aliases": []
     }
   ],
   "holdings": [

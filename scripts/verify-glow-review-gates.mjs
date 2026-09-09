@@ -27,6 +27,7 @@ for (const [change, reason] of [
 assert.equal(dataReviewDecision({ ...input, pr: { ...input.pr, isCrossRepository: true } }), 'scope');
 assert.equal(dataReviewDecision({ ...input, pr: { ...input.pr, mergeable: 'CONFLICTING' } }), 'merge-gate');
 assert(!dataPath('public/data/../worker.json')); assert(!dataPath('public/data/source.js'));
+assert(dataPath('public/data/shareholding-filings.json.gz')); assert(!dataPath('public/data/source.js.gz'));
 assert.equal(dataBranch('123', '2'), 'codex/data-123-2'); assert.throws(() => dataBranch('../main', '1'));
 const env = { ...process.env }, commands = [];
 try {
