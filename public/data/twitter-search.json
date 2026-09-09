@@ -827,12 +827,16 @@
     "isin:INE08U801020|Samhi Hotels": {
       "lastAttemptAt": "2026-09-09T11:12:14+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE08U801020|SAMHI": {
+      "lastAttemptAt": "2026-09-09T11:37:19+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T11:12:14.956057+00:00"
+    "checkedAt": "2026-09-09T11:37:19.709127+00:00"
   }
 }
