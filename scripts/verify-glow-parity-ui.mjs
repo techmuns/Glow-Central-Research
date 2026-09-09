@@ -109,9 +109,9 @@ try {
   // Keep the concurrently merged Glow category picker working with the upgraded
   // shared table (virtual rows, bookmarks and cached searches).
   const funds = [
-    ['Alpha Large Cap Fund', 'Equity : Large Cap'], ['Bravo Large Cap Fund', 'Equity : Large Cap'],
+    ['Alpha Large Cap Fund', 'Equity : Large Cap'], ['Bravo Momentum Fund', 'Equity : Large Cap'],
     ['Delta Debt Fund', 'Debt : Short Duration'], ['Echo Debt Fund', 'Debt : Short Duration'],
-    ['Zeta Flexi Cap Fund', 'Equity : Flexi Cap'],
+    ['Zeta Equal Weight Fund', 'Equity : Flexi Cap'],
   ].map(([fundName, classification], i) => ({ schemecode: `FIXTURE${i}`, fundName, classification,
     plan: 'direct', option: 'growth', cohortKey: `${classification} | direct | growth`,
     returns: { '1Y': { return: i + 1, rank: null, peerCount: null, statsAvailable: false } } }));
@@ -143,6 +143,24 @@ try {
   await page.locator('[data-fund-search-clear]').click();
   assert.equal(await fundRows.count(), 5);
   await fundInput.press('Escape');
+  await page.locator('[data-mf-strategy="momentum"]').click();
+  assert.equal(await fundRows.count(), 1);
+  await page.locator('[data-mf-class="Debt"]').click();
+  assert.match(await page.locator('[data-mf-strategy="momentum"]').innerText(), /Momentum\s*·\s*0/);
+  assert.equal(await fundRows.count(), 0, 'strategy counts respect the selected asset class');
+  await page.locator('[data-mf-strategy=""]').click();
+  assert.equal(await fundRows.count(), 2);
+  assert.equal(await page.locator('[data-mf-strategy="momentum"]').count(), 0);
+  await page.locator('[data-mf-class=""]').click();
+  await fundInput.fill('equal weight');
+  assert.match(await page.locator('[data-mf-strategy="equal-weight"]').innerText(), /Equal weight\s*·\s*1/i);
+  await fundInput.press('Escape');
+  await page.locator('[data-mf-strategy="equal-weight"]').click();
+  assert.equal(await fundRows.count(), 1, 'a single matching strategy remains selectable');
+  await fundInput.fill('');
+  await fundInput.press('Escape');
+  await page.locator('[data-mf-strategy=""]').click();
+  assert.equal(await fundRows.count(), 5);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `fund search fits ${width}px`);

@@ -768,6 +768,278 @@ resolves it from the list for every derived view, so one person is one string on
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
 
+
+### Two fund feeds on two dates — the Mutual Funds rule (GLOW-OWNED)
+
+The Mutual Funds tab reads **two** fund sources, and the whole design turns on never letting a
+figure cross between them.
+
+All Schemes opens by default. Its left search box also offers the feed’s category labels as
+suggestions: multiple picked categories are combined by OR, and typed words narrow those schemes.
+The chips can be removed or cleared; no separate classification dropdown can silently narrow the
+search. `js/ui/fund-search.js` owns this control, and the table uses its one matching predicate for
+rows, counts and export. Selections survive filter/measure repaints.
+
+| | Category Performance | All Schemes |
+| --- | --- | --- |
+| source | `public/data/mf-weekly.json`, a committed weekly workbook | AmfiBeas, read live from the browser |
+| as on | its own stated date | its own, **later**, date |
+| schemes | ~620 curated direct-plan growth | ~1,850 — the direct plan of each (see below) |
+| category median | **published by the workbook** | **published per cohort**, on its own date |
+| benchmark | a **published INDEX**, per category | the scheme's own **CATEGORY** — no index exists |
+| peer rank | none | published, within its own cohort |
+
+**A 14-August index return under a 4-September fund return is a comparison nobody measured.** It is
+the same error as dating a price move by the capture rather than the session, and it is the one that
+would be easiest to commit here, because the obvious feature request is "put the *benchmark* on the
+All Schemes table too" — and there is no *index* to put there. So the two live on separate
+sub-views, each printing its own as-on date on its own face, and each provenance panel says in words
+that they are different snapshots and that an index benchmark lives only on the other one.
+
+**BUT "NO INDEX" IS NOT "NOTHING TO COMPARE WITH", AND FOR A LONG TIME THIS TAB READ THEM AS THE
+SAME THING.** All Schemes showed fifteen columns of returns and ranks with no comparator at all, on
+the reasoning above — which was right about the workbook's index and wrong about the feed, because
+AmfiBeas publish `categoryAverage`, `categoryMedian` and `excessVsMedian` **per cohort, on the same
+NAV date**, and the view was simply asking for `fields=compact`, which omits them. A return with
+nothing beside it is a figure the reader cannot act on: +3.9% over three months is a good quarter or
+a bad one entirely according to what the rest of the category did. **When a comparison looks
+impossible, check whether the source already publishes it before concluding the reader cannot have
+one** — the cost here was one query parameter (`fields=full`, ~610 KB gzipped against ~205 KB) and
+the answer had been in the payload the whole time.
+
+Everything else follows the rules this file already runs on, and four are worth naming:
+
+1. **The medians are the workbook's; recomputing them is the PARSE CHECK, not the output.**
+   `scripts/import-mf-weekly.mjs` recalculates every published median from the scheme rows it
+   parsed and **refuses to write the file** if one has moved — a dropped or double-counted row moves
+   the middle, so a median that still reconciles is a check on every row above it. All 208
+   reconcile on the shipped workbook. The number that ships is always the published one. The same
+   rule holds on the live half, one step further: even the *gap* is theirs (`excessVsMedian`), so a
+   rounding of ours cannot disagree with the two figures printed beside it.
+2. **A category the workbook prints no index for is COMPARED ANYWAY, and the whole weight of the
+   rule moves onto the label.** Smart Beta is the one — 70 schemes, no index row. This used to show
+   *"none published"* and no comparison, which is honest and answers nothing; a reader cannot tell a
+   good year from a bad one without something beside the number. So `benchmarkFor()` falls back to
+   an index from **the workbook's own master sheet**, defaulting to the Nifty 500 TRI it prints
+   first under all eleven sectoral and thematic sheets, changeable by the reader to any of the 36.
+   **`paired: false` travels with it and every surface that shows it says the workbook makes no such
+   pairing**: the benchmark cell, the reference row above the schemes, the picker, the provenance
+   panel and row 1 of the export. Nothing is fetched, computed or imported from outside that
+   workbook. The failure to watch for is a comparator that reads as the source's own — which is why
+   the suite asserts the four labels rather than the comparison. Where a sheet prints several
+   indices the **TRI** is used, because a fund's NAV carries reinvested dividends and a Total Return
+   Index is the like-for-like comparator; that is a stated choice, printed in the cell's own title.
+3. **An asset class the workbook does not cover is NAMED, not drawn empty.** It publishes no debt,
+   commodities or fund-of-funds sheet. An empty "Debt" group reads as a claim about the market
+   rather than about a spreadsheet — the same rule as the book's nineteen lines with no NSE symbol.
+   The live feed does cover them, on its own date, and the provenance panel says where.
+4. **NOTHING ON THE TAB SHOWS A REGULAR PLAN, AND AN ETF IS NOT A DUPLICATE.** The workbook is
+   direct-plan by construction; the live feed returns both plans of every scheme, so the table
+   listed each fund twice under two NAVs differing only by the distributor's trail. `directOnly()`
+   in `js/data/fund-returns.js` keeps the direct row of each `(fundName, option, classification)`
+   group — all three **exact**, because a key that stripped "Reg"/"Direct" out of the text folds
+   *Aditya Birla SL **Regular** Savings Fund* into *Aditya Birla SL Savings Fund*, two different
+   funds. **The obvious spelling of this rule — "drop every regular row" — deletes all 234 ETFs**,
+   which the source files as `regular` because a listed unit has no plan to choose. So the rule is
+   *direct where the source lists one*: a group with no direct member is kept as it is. Same shape
+   as `dedupeGroup` in the family book — the duplicate goes, the row that exists only once does not.
+   **Two more things the source's own labelling makes necessary, and both are visible on screen
+   without them**: it lists 31 schemes twice under two ids with every figure identical (both are
+   direct, so both survived and painted one under the other — `foldIdenticalRows()` keeps one, and
+   only ever folds rows identical in *every rendered figure*), and it names hundreds of direct-plan
+   rows `…-Reg(G)`, the regular plan's label on the direct plan's row, against its own `plan` field
+   — the trailing **plan** marker is dropped from the displayed name and nothing else, with
+   `sourceName` keeping the string as it arrived. `meta()` carries `total`, `universe`,
+   `hiddenRegular`, `singlePlan` and `foldedDuplicates` as five separate fields, none reached by
+   subtracting another, and the toolbar offers **no plan filter**: it could only answer with
+   "direct" and an empty "regular".
+
+**AND "WHICH OF THESE ARE THE MOMENTUM FUNDS" IS A REAL QUESTION NEITHER SOURCE CAN ANSWER.**
+AmfiBeas file all 645 passive equity schemes as `Equity : Index`, `Equity : Index Funds` or
+`Equity : ETFs` and stop there; the workbook files all 70 of them as one Smart Beta sheet. So the
+classification tree — however deep — cannot surface momentum, quality, value, low volatility, alpha
+or equal weight, and for a while the only way to find them was to type the word into a search box.
+`FACTORS` / `factorsOf()` in `js/data/mf-taxonomy.js` read the word out of **the scheme's own name**,
+which is where SEBI requires the tracked index to be stated, and the chip row says so on its own
+face. Three things keep that admissible: it is a **separate axis** (a momentum fund's classification
+is untouched and the suite asserts it), a scheme matching nothing is **not in a strategy** rather
+than in a nearest one, and `Growth` is deliberately **not** a factor — it is the option suffix on
+nearly every name in both feeds, so a pattern for it would match the universe and say nothing.
+
+Strategy-chip counts follow the current asset class, group, category, and search selections/text.
+They exclude the strategy filter itself so other valid strategies remain available. An active
+strategy with no matches stays visible with a zero and can be cleared with Any; it must never
+keep a whole-feed count under Debt or disappear while still filtering the table. Even a single
+available strategy stays selectable.
+
+**THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
+because there the third level **is** the row: a chip per category above a table of categories is the
+same control twice. On All Schemes the categories are invisible until a control names them, which is
+how *ETFs* and *Index* — words the source itself prints on 645 schemes — had no control at all.
+Exchange-traded funds are their own group rather than a corner of `Index & smart beta`, because
+listed-versus-open-ended is a distinction the source draws and because 25 gold ETFs under a heading
+about equity factor strategies is a heading that is simply wrong. A bare head with no tail (`Debt`,
+`Hybrid` — 360 schemes) is **`Not sub-classified`**, not `Other`: the second reads as a bucket the
+source chose, the first as the absence it is.
+
+**THE HEATMAP'S CLASS STRINGS MUST BE WRITTEN OUT IN FULL.** `js/ui/mf-heatmap.js` picks a cell
+background from a small set of Tailwind classes, and the stylesheet is precompiled by **scanning the
+source text** — so `` `bg-emerald-${step}` `` yields a class that exists in the DOM and in no
+stylesheet. The cell renders with no background, nothing throws, no test fails, and the heatmap is
+simply invisible. Every class is a literal in an array for that reason; adding a step means writing
+the whole class and rebuilding the stylesheet (hard rule 4).
+
+**And the shade is the only derived reading on the tab, so it explains itself one click away.**
+A scheme's cell is shaded by where it sits among the schemes in its own category over that period —
+a count, not a model, the same kind of reading as the peer rank on the other sub-view — and a
+category's cell by the size of its gap to its own index, in the stated `GAP_BAND_PP` bands. The
+legend says which, in words, **in the provenance panel behind the as-on pill** rather than in a
+block under the table: three blocks used to bracket this view — a coverage paragraph, the legend and
+a five-sentence derivation note — and between them they were the tallest thing on a screen whose
+point is the table. That is the resolution this file has taken four times (the Earnings Hub ribbon,
+Portfolio's provenance block, the market-news freshness card, the con-call schedule chips): **move
+the explanation behind a control that still states the claim, and never delete the claim.** Every
+sentence is still there and the suite asserts each one is one click away. A percentile is used rather than a distance from the
+median because the distances are not comparable between periods: a week's spread across a category
+is a fraction of a point and five years' is tens of points, so one set of percentage-point
+thresholds would paint every 1W cell neutral and every 5Y cell saturated — a heatmap brightest
+wherever the window is longest, which is a fact about the calendar rather than about the funds.
+
+### The macro series store — two tabs that measure nothing (GLOW-OWNED)
+
+Macro Research and Economy & Macro are the last tabs in the bar, after every Sattva tab, and they
+are Glow's own: a port of the two pages of the same names from the GlowVentures family-office cockpit
+(`techmuns/GlowVentures`, `src/pages/MacroResearch.tsx` and `Economy.tsx`), rebuilt on the screener
+kit with no chart library — `js/ui/series-chart.js` draws line, area, bar and scatter as inline SVG.
+
+**Every figure comes from a stored series that somebody else harvested.** `public/data/series/` is a
+copy of the store `npm run harvest` writes in that repository — a manifest (`index.json`) carrying
+each series' metadata AND its precomputed returns table, plus the observations, one file per
+calendar year for a daily series and one `series.json` for a monthly or annual one.
+`.github/workflows/series-refresh.yml` copies it here every morning after their nightly harvest,
+which needs `GLOWVENTURES_READ_TOKEN` because that repository is private; without the token the
+copy ages and the tab prints the harvest time so nobody mistakes it for today's. **The same rules
+as the con-call feed apply, because the analysis is theirs**: returns, spans, 52-week ranges and
+stale flags are reproduced, never recomputed; a horizon a series cannot reach back to is an em
+dash, never a zero and never a shorter window relabelled; a yield reports basis points, not a
+percentage; a row the spec asks for and nothing serves is *named* with the reason, never drawn as a
+sample figure. The three transforms the tab does apply — a range slice, a coarser resample that
+takes each period's last observation, and a rebase-to-100 for overlays in different units — are
+presentation, and each says so on screen where it is applied.
+
+**The release calendar is the one route this adds to the Worker.** `worker/econ-calendar.mjs`
+proxies TradingView's calendar endpoint, which needs Origin and Referer headers a browser cannot
+set and no token. It fetches every window in seven-day slices and merges on the event id because
+one response is silently capped at 2,000 rows — a slice still at the cap is reported as incomplete
+above the table — and it caches one bundle per host in `caches.default` (the `edgeKey` rule: the
+account's Workers share one cache). Surprise is actual less consensus only where both are
+published, with a sign and **no verdict**; an unranked release stays unranked; a release with no
+announced time is shown on the source's own date with no clock.
+
+**Scope does not apply to either tab and the head says so.** They are market-wide series, not
+per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
+watchlist star (`watchKey: () => null`). The landing page is Ask Research, which is also first in
+the bar; `landingTab()` in `shell.js` still resolves an unknown route to `router.DEFAULT_ROUTE.tab`
+by id rather than by position, so the Glow tabs can be moved anywhere in the bar — they sat in front
+of Ask Research once, and now close it — without moving the landing page.
+
+**Never ask the store for a year it does not hold.** `fetchPoints` reads only the chunks inside the
+manifest's `first`/`last` span, and a missing chunk resolves to nothing rather than throwing — but a
+404 on the network is still a console error, and zero console errors is the bar. Today no daily
+series has a gap inside its span (checked against every directory when the tabs were built); if the
+harvester ever leaves one, write the list of years each series holds at copy time and read it
+before fetching, rather than tolerating the 404.
+
+### The family office book — the number Ask Research answers with (GLOW-OWNED)
+
+**`public/data/book.json` is the family's real, consolidated book, and it is not built here.**
+techmuns/GlowVentures reads the PDF statements each wealth platform issues, reconciles them, and
+bakes the result into a generated file (`src/data/glowData.ts`, `npm run build-book` there).
+`scripts/build-book.mjs` reads the generated arrays out of that file and writes the subset this
+dashboard renders, as plain JSON, with the same nulls in the same places; `scripts/check-book.mjs`
+refuses the file unless it reconciles; and the daily GlowVentures copy
+(`.github/workflows/series-refresh.yml`, the same clone that brings the macro series store) runs
+both and commits the result. Three consumers read it: `js/data/book.js` (the module), the **Family
+Book** tab (`js/tabs/family-book.js`), and Ask Research's `portfolio` source, whose packet is built
+in `js/research/book-packet.js` and wrapped by one small hunk in the upstream `estate.js`.
+
+It replaced the illustrative FIFO ledger as the answer to *"what is my portfolio worth"*, because
+Ask Research was answering that question with **₹5.49L, up 19.91%** — twelve invented positions —
+while the book stood at ₹710 Cr. The mock ledger still drives the hidden Portfolio Analytics
+workspace, under its *Illustrative ledger* pill; it is no longer an evidence source.
+
+Four rules, and each is a rule the rest of this file already runs on:
+
+1. **Count each `dedupeGroup` once.** The same AIF folio is reported on two family members'
+   statements with identical figures. Every row is kept — an owner's view shows each statement as
+   printed, and the row says *also reported under* the other member — but a CONSOLIDATED figure
+   counts the holding once, exactly as GlowVentures' `dedupedPositions` does. `book.counted()` is
+   that set; `book.positions()` is every row. Anything that spans more than one owner reads
+   `counted()`, and `check-book.mjs` fails the file when the counted sum is not the upstream
+   headline to the paisa, or when a group has one member (a broken dedupe, not an absent
+   duplicate).
+2. **A null is not zero.** A depository does not know what shares cost; an AIF unit has no price
+   per unit. Sixty rows carry no cost, and they render as an em dash whose title says *not zero* —
+   because a zero cost reads as a 100% gain, and a summed zero reads as a cheaper book.
+3. **The ring-fenced promoter holding is outside the book on both dashboards.** GlowVentures keeps
+   it out of `BOOK_POSITIONS` and on its own page; it travels here as `ringFenced[]`, is named in
+   the provenance modal with its value, and is in no total, no weight and no packet figure.
+   `check-book.mjs` fails the file if it is also inside `positions`.
+4. **The statements' figures are the figures; the one derived number is labelled.** Value, cost,
+   P&L and return are each platform's own marks on its report date, which is printed on every row.
+   The tab derives exactly one figure — **EOD mark (derived)**, quantity × the technicals feed's
+   close, listed symbols only — and the heading, the cell title, the drill and the packet all say
+   so. The listed/private split mirrors `PRIVATE_CLASSES` upstream and is summed from the rows,
+   never `total − listed`, so an unnamed class cannot silently become private.
+
+**Scope on this tab.** The book is the book under Portfolio and Universe alike — there is no wider
+universe of the family's positions to widen to — and the pill says so. Watchlist narrows to the
+rows filed under a starred symbol, and an empty watchlist still shows the book (`allowEmptyScope`).
+The scope toggle's *Portfolio* definition (`js/data/coverage.js`, the 142-line direct-equity
+statement) is **unchanged**: the book has 293 rows with an NSE symbol across 49 accounts, and
+redefining every research tab's Portfolio filter by it is a product decision, not a sync.
+
+### The family's managers — My Managers on Superstar Investors (GLOW-OWNED)
+
+**Under Portfolio the Superstar Investors sub-view opens on the family's OWN managers, not on ninety
+public investors it has no relationship with.** The ask was verbatim — *"what my managers are doing,
+can I see that? I'm more interested in the portfolio managers I have access to"* — and the answer is
+`public/data/managers.json`, built by `scripts/build-managers.mjs` from the same GlowVentures checkout
+that brings the book, in the same daily run: every PMS mandate, alternative fund and mutual fund
+house the family's wealth-platform statements show it invested with. `js/data/managers.js` reads it;
+`js/investors/my-managers.js` draws it in the Superstar Investors design (the same card, the same
+click-to-expand workspace, the same six ranked lists on Quarterly Changes) and is wired in with three
+`// GLOW` hunks — the section list and panel branch in `live.js`, the scope-dependent default section
+in `tabs/super-investors.js`. Under Watchlist the section is last and narrowed to the starred symbols;
+under Universe it is not offered at all, which is also what keeps the upstream suite's
+*"All Investors | Quarterly Changes | Data Table"* assertion true.
+
+Five rules, and every one is a rule this file already runs on:
+
+1. **A move is a change in QUANTITY between a mandate's two newest statements, never in value.**
+   Value moves with the price on a day the manager did nothing; the quantity on the statement is the
+   primitive. The weight of the mandate and its change are derived on the statements' own market
+   values and are headed *derived* everywhere. A new position has no prior weight and an exit no
+   current one, so neither is given a size — the same refusal as `deriveMoves`.
+2. **"No longer on the statement" is the wording, and the trades say why.** Unlike a >1% disclosure,
+   a PMS statement lists every holding, so an absence is a sale or a corporate action — and every
+   move carries the dated trades in its window (from the transaction statement, with the settlement
+   amount the statement prints) and any corporate action recorded there, so the panel can say
+   *sold 2,12,444 in 3 trades for ₹3.68 Cr* rather than guess.
+3. **Only PMS mandates enter the roll-up.** An AIF publishes no portfolio (SEBI requires none from a
+   Category II or III fund), so its card carries what the fund prints — units, returns, bridges,
+   commitments, distributions — and a fund that also files >1% stakes links to its Finology book,
+   through a hand-checked `FINOLOGY_INVESTORS` table the build verifies against the superstar
+   snapshot. A mutual fund's disclosure is a share of the fund, so the family's share of an
+   underlying is derived per row and never summed into anything.
+4. **The file reconciles or is not written.** Managed value plus the direct remainder must equal the
+   book's headline to the paisa, each `dedupeGroup` once and never across two managers; a fund with no
+   valuation carries the statement's reason and is never rendered as ₹0.
+5. **Which document is authoritative is GlowVentures' decision, mirrored.** Holdings come from the
+   appraisal, else the SEBI investor report, else the holdings statement; trades from the transaction
+   statement, else the investor report — the order `src/lib/ledger.ts` reads them in there — and a
+   row printed on two issues of a statement is counted once by the same identity.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but

@@ -11,16 +11,15 @@ const normalise = (value) => String(value ?? '').normalize('NFKD').replace(/\p{M
 const wordsOf = (value) => normalise(value).split(/\s+/).filter(Boolean);
 const containsWords = (text, words) => words.every((word) => text.includes(word));
 
-export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
+export function fundSearch({ rows = [], selected = [], q = '', onFilterChange = null } = {}) {
   const id = `fund-search-${++sequence}`;
   const counts = new Map();
   rows.forEach((row) => counts.set(categoryOf(row), (counts.get(categoryOf(row)) || 0) + 1));
   const categories = [...counts.keys()].sort((a, b) => a.localeCompare(b));
   const view = { categories: [...new Set(selected || [])] };
   let picked = new Set(view.categories);
-  const textByRow = new Map(rows.map((row) => [row,
-    normalise(`${row.fundName} ${categoryOf(row)} ${(row.factors || []).join(' ')} ${row.option || ''}`),
-  ]));
+  const textOf = (row) => normalise(`${row.fundName} ${categoryOf(row)} ${(row.factors || []).join(' ')} ${row.option || ''}`);
+  const textByRow = new Map(rows.map((row) => [row, textOf(row)]));
   let lastQuery;
   let words = [];
   const matches = (row, query) => {
@@ -28,7 +27,10 @@ export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
       lastQuery = query;
       words = wordsOf(query);
     }
-    return (!picked.size || picked.has(categoryOf(row))) && containsWords(textByRow.get(row) || '', words);
+    // Facet counts also ask about schemes excluded by the current strategy. Apply the SAME
+    // search/category predicate to those rows instead of treating an uncached row as empty text.
+    if (!textByRow.has(row)) textByRow.set(row, textOf(row));
+    return (!picked.size || picked.has(categoryOf(row))) && containsWords(textByRow.get(row), words);
   };
 
   const chipHtml = (category) => `
@@ -58,6 +60,14 @@ export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
     const input = root.querySelector('[data-table-search]');
     const box = root.querySelector('[data-fund-search-box]');
     const chips = root.querySelector('[data-fund-search-chips]');
+    const queryChanged = (value) => {
+      onQuery(value);
+      onFilterChange?.(matches);
+    };
+    const selectionChanged = () => {
+      onChange();
+      onFilterChange?.(matches);
+    };
     // A body portal escapes the table's rounded overflow clipping and the page's retained transform.
     const menu = document.createElement('div');
     menu.dataset.fundSearchMenu = id;
@@ -133,8 +143,8 @@ export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
       chips.innerHTML = chipsHtml();
       if (clearQuery) {
         input.value = '';
-        onQuery('');
-      } else onChange();
+        queryChanged('');
+      } else selectionChanged();
       renderList();
       place();
     }
@@ -153,7 +163,7 @@ export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
 
     const onInput = () => {
       onlyPicked = false;
-      onQuery(input.value);
+      queryChanged(input.value);
       show();
       renderList();
       place();
@@ -165,7 +175,7 @@ export function fundSearch({ rows = [], selected = [], q = '' } = {}) {
       } else if (event.target.closest('[data-fund-category-more]')) {
         onlyPicked = true;
         input.value = '';
-        onQuery('');
+        queryChanged('');
       }
       input.focus();
       show();
