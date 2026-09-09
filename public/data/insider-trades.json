@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-09T05:07:50.413Z",
-  "oldestDataAt": "2026-09-09T05:07:50.413Z",
+  "capturedAt": "2026-09-09T06:33:55.835Z",
+  "oldestDataAt": "2026-09-09T06:33:55.835Z",
   "from": "2025-09-09",
   "to": "2026-09-09",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-09T05:07:50.413Z",
+      "capturedAt": "2026-09-09T06:33:55.835Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-09T05:07:50.413Z",
+      "capturedAt": "2026-09-09T06:33:55.835Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-05",
+      "latestDate": "2026-09-08",
       "oldestDate": "2026-08-27",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-09T05:07:50.413Z",
+      "capturedAt": "2026-09-09T06:33:55.835Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-09T05:07:50.413Z",
+      "capturedAt": "2026-09-09T06:33:55.835Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1358,
+  "withRows": 1359,
   "emptyCount": 0,
-  "rowCount": 13869,
+  "rowCount": 13873,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -236995,6 +236995,21 @@
     "SHREEKARNI": [
       {
         "ticker": "SHREEKARNI",
+        "date": "2026-09-08",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Shree Karni",
+          "Insider": "Radhe Shyam Daga",
+          "Transaction": "Acquisition",
+          "Trade Shares": "105000",
+          "Broadcast Date": "2026-09-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SHREEKARNI",
         "date": "2026-08-26",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=78",
         "sourceId": "bulk",
@@ -262418,6 +262433,21 @@
     "TECHLABS": [
       {
         "ticker": "TECHLABS",
+        "date": "2026-09-08",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Trident Techlabs",
+          "Insider": "Sarad Chandra Naithani",
+          "Transaction": "Acquisition",
+          "Trade Shares": "50000",
+          "Broadcast Date": "2026-09-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "TECHLABS",
         "date": "2026-09-01",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -262463,6 +262493,21 @@
       }
     ],
     "HINDCON": [
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-08",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "Hindcon Solutions Privat Ltd",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4018",
+          "Broadcast Date": "2026-09-08",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "HINDCON",
         "date": "2026-09-01",
@@ -276513,6 +276558,23 @@
           "Transaction": "Bought",
           "Trade Shares": "7800",
           "Trade Value": "3.46 lacs",
+          "Broadcast Date": "2026-09-08",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "GGBL": [
+      {
+        "ticker": "GGBL",
+        "date": "2026-09-08",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ganesh Green",
+          "Insider": "Ketanbhai Narsinhbhai Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3000",
           "Broadcast Date": "2026-09-08",
           "Source": "Screener.in"
         }
