@@ -68,6 +68,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     });
     state.activityView = table.view;
     const holdingTable = scoreTable({ rows: observations, key: (r) => r.id, name: (r) => r.company, sub: (r) => r.person,
+      watchKey: (r) => r.ticker || null, watchName: (r) => r.company,
       nameMaxPx: 280, dense: true, showAvatar: false, stickyHead: '360px', fillMode: 'scroll', initialView: state.holdingsView,
       searchable: (r) => `${r.company} ${r.person}`, onRowClick: openPerson,
       searchPlaceholder: 'Search company or investor...', showWatchFilter: false,

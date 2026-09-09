@@ -754,15 +754,8 @@ console.log('\n— family book —');
 // 2. Earnings Hub — the LIVE results feed
 // ---------------------------------------------------------------------------------------
 // ---- GLOW-OWNED: the family's managers ------------------------------------------------------
-// MY MANAGERS is the first in-page tab of Superstar Investors under Portfolio: the PMS mandates,
-// alternative funds and fund houses the family's own statements show it invested with, from
-// `public/data/managers.json` (scripts/build-managers.mjs, copied daily with the book). The claims
-// asserted here are the ones the honesty rules turn on, each against the shipped file rather than a
-// fixture: the managed and direct values add back to the book's headline; a move is a change in
-// quantity with the trades in its window beside it; an exit is worded "no longer on the statement";
-// a fund with no valuation is never rendered as ₹0; the section is first under Portfolio, last under
-// Watchlist and absent under Universe; and the roll-up sits ABOVE the superstar one on Quarterly
-// Changes under Portfolio and not at all under Universe.
+// Verify the statement-backed manager directory and drill-downs. Changes navigation and
+// activity/holdings periods are covered by verifyChangesUI below.
 console.log('\n— my managers —');
 {
   const audit = await evalSafe(async () => {
@@ -7249,13 +7242,13 @@ console.log('\n— news, announcements and insider trades —');
   ok('the Insider Trades toolbar separates trade rows from portfolio companies',
     /^[\d,]+ trades from [\d,]+ portfolio companies$/i.test(insiderFilters.countText.trim()), insiderFilters.countText.trim());
   ok('insider trades offers Category, Transaction type and Mode filters',
-    ['Category', 'Transaction type', 'Mode'].every((label) => insiderFilters.labels.includes(label)),
+    ['Trade category', 'Category', 'Transaction type', 'Mode'].every((label) => insiderFilters.labels.includes(label)),
     insiderFilters.labels.join(' · '));
   ok('...each dropdown is populated from the rows in scope',
-    insiderFilters.optionCounts.length === 3 && insiderFilters.optionCounts.every((n) => n > 1),
+    insiderFilters.optionCounts.length === 4 && insiderFilters.optionCounts.every((n) => n > 1),
     insiderFilters.optionCounts.join(' · '));
   ok('...and each selection narrows the table',
-    insiderFilters.results.length === 3 && insiderFilters.results.every((r) => r.shown > 0 && r.shown < insiderFilters.total),
+    insiderFilters.results.length === 4 && insiderFilters.results.every((r) => r.shown > 0 && r.shown < insiderFilters.total),
     insiderFilters.results.map((r) => `${r.label}: ${r.choice} → ${r.shown}`).join(' · '));
   await drive('insider', 'insider-trades');
   const insUrls = seen.insider.map((u) => new URL(u));

@@ -49,6 +49,7 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   assert.equal(await page.locator('[data-changes-panel]').getAttribute('data-changes-panel'), 'investors');
   assert(Number(await page.locator('[data-changes-panel]').getAttribute('data-activity-total')) > 0);
   assert(Number(await page.locator('[data-changes-panel]').getAttribute('data-holdings-total')) > 0);
+  assert.equal(await page.locator('[data-changes-observations] [data-watch]').count(), 0, 'public comparison IDs must not become watchlist tickers');
   await page.locator('[data-changes-period]').selectOption('month');
   assert.equal(await page.locator('[data-changes-period]').evaluate((el) => el === document.activeElement), true);
   await page.locator(`${audience} [data-tab-id=my-managers]`).click();
