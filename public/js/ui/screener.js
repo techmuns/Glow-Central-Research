@@ -349,6 +349,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  filters       { label, options: [{ value, label }], match(row, value), value? } — the <select>.
  *                Pass an ARRAY of these for several dropdowns; they AND together.
  *  searchable    (row) => haystack string. Defaults to name(row).
+ *  searchControl optional { html, wire(host, { onQuery, onChange }), matches(row, query) }.
+ *                A tab-owned search picker; its predicate also governs counts and export.
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
  *  countNoun     optional plural noun for the toolbar count, e.g. "trades". Without it the
@@ -395,6 +397,8 @@ export function scoreTable(config) {
     onRowClick = null,
     filters = null,
     searchable = null,
+    // GLOW: the Mutual Funds category picker owns its labels and selection in its own module.
+    searchControl = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
@@ -553,7 +557,9 @@ export function scoreTable(config) {
     const needle = String(view.q || '').trim().toLowerCase();
     const picked = view.companies.length ? new Set(view.companies) : null;
     let out = rows.filter((row) => {
-      if (needle && !haystack(row).includes(needle)) return false;
+      if (searchControl) {
+        if (!searchControl.matches(row, view.q)) return false;
+      } else if (needle && !haystack(row).includes(needle)) return false;
       if (picked) {
         const co = companyKeyOf(row);
         if (!co || !picked.has(co)) return false;
@@ -759,7 +765,7 @@ export function scoreTable(config) {
   // still searches text; without it the plain input is unchanged, so every other table in the
   // dashboard is untouched by this.
   const combo =
-    companyOptions && companyOptions.length
+    !searchControl && companyOptions && companyOptions.length
       ? companyCombo({
           options: companyOptions,
           selected: view.companies,
@@ -780,7 +786,9 @@ export function scoreTable(config) {
       <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           ${
-            combo
+            searchControl
+              ? searchControl.html
+              : combo
               ? combo.html
               : `<div class="relative max-w-md flex-1">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
@@ -1111,7 +1119,15 @@ export function scoreTable(config) {
     // The combo owns its own input, because typing there filters the suggestion list as well as
     // the rows. Without one, the plain search box behaves exactly as it always has.
     let releaseCombo = null;
-    if (combo) {
+    if (searchControl) {
+      releaseCombo = searchControl.wire(host, {
+        onQuery: (q) => {
+          view.q = q;
+          repaint();
+        },
+        onChange: repaint,
+      });
+    } else if (combo) {
       releaseCombo = combo.wire(host, {
         onQuery: (q) => {
           view.q = q;
