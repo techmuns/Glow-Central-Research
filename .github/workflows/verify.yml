@@ -28,3 +28,5 @@ jobs:
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
       - name: Validate the Worker bundle
         run: npx --yes wrangler@4 deploy --dry-run
+      - name: Verify exchange delivery in the Workers runtime
+        run: npx --yes --package=wrangler@4.119.0 --call 'node scripts/verify-exchange-worker-runtime.mjs'
