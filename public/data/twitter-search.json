@@ -791,12 +791,16 @@
     "isin:INE855B01025|RAIN": {
       "lastAttemptAt": "2026-09-09T05:59:17+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE399G01023|Ramkrishna Forgings": {
+      "lastAttemptAt": "2026-09-09T06:12:15+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T05:59:17.469515+00:00"
+    "checkedAt": "2026-09-09T06:12:15.230971+00:00"
   }
 }
