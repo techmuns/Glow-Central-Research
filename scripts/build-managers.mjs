@@ -675,6 +675,7 @@ const file = {
     'THE FAMILY’S MANAGERS — every PMS mandate, alternative fund and mutual fund house the family’s wealth-platform statements show it invested with, and what each is doing. Built by scripts/build-managers.mjs from techmuns/GlowVentures: the generated book (src/data/glowData.ts) for accounts, positions, returns, commitments and corporate actions; the statement archive (public/audit) for each PMS mandate’s newest holdings statements and its dated trades; the AmfiBeas look-through (public/lookthrough) for what each mutual fund scheme holds, from the AMC’s own monthly disclosure. A move is a change in QUANTITY between two statements, never in value; a null is a figure no statement printed, never a zero; nothing here is scored.',
   source: 'techmuns/GlowVentures — src/data/glowData.ts · public/audit/*/document.json · public/lookthrough/*.json',
   builtFrom,
+  syncedAt: new Date().toISOString(),
   asOf,
   summary: {
     bookValue: num(summary.totalValue),

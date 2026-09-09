@@ -3327,6 +3327,28 @@ nothing — which is exactly why the con-call route has no projection either.
 
 ---
 
+## Holdings reliability (Glow, 9 September 2026)
+
+`docs/HOLDINGS-RELIABILITY.md` records the current source coverage and the remaining primary-feed
+and manager-statement requirements. Investor snapshots now have a dedicated six-hour
+`investor-refresh.yml`; remove any duplicate investor capture from the general technicals job.
+The investor, manager-archive and insider-trades refreshes publish through checked `codex/*` PRs
+with `scripts/publish-data-pr.mjs`. Missing secrets, failed captures and overdue ingestion must
+surface as failed runs, even when last-good data and failure metadata can still be published.
+
+`finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
+Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
+an absence; never convert it into a purchase, exit, or negative General Alert. Off-cycle monthly
+columns remain dated observations, not complete quarterly portfolios. Source `fetchedAt` and manager
+`syncedAt` are different from disclosure/statement dates. Keep failed books with their original dates;
+newer files must not make retained old source data look freshly confirmed.
+
+`holding-evidence.json` carries individually checked primary records and legal-entity relationships.
+Associated-fund holdings stay separate from personal and family-account positions. No complete
+exchange reconciliation feed is connected; adding one record must never mark a whole book complete.
+The common coverage audit evaluates every investor and every family manager. Run
+`node scripts/verify-holdings-integrity.mjs` and the investor Changes checks after changing these paths.
+
 ## Verification checklist before pushing
 
 ```bash

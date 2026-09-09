@@ -17,7 +17,7 @@ name: GlowVentures sync (series store + family book)
 #
 # IT NEEDS ONE SECRET, because that repository is private: GLOWVENTURES_READ_TOKEN, a fine-grained
 # GitHub personal access token for techmuns/GlowVentures with the single permission
-# "Contents: read". Without it the job says so and exits green — the committed copies simply age,
+# "Contents: read". Without it the job fails visibly — the committed copies simply age,
 # and both tabs print their capture time on every visit so nobody mistakes it for today's.
 
 on:
@@ -33,11 +33,14 @@ concurrency:
 jobs:
   copy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.SYNC_PUSH_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -48,10 +51,10 @@ jobs:
           TOKEN: ${{ secrets.GLOWVENTURES_READ_TOKEN }}
         run: |
           if [ -z "$TOKEN" ]; then
-            echo "::warning title=GlowVentures sync skipped::GLOWVENTURES_READ_TOKEN is not set as a repository secret, so neither the series store nor the family office book was refreshed. Add a fine-grained PAT for techmuns/GlowVentures with Contents: read."
+            echo "::error title=GlowVentures sync skipped::GLOWVENTURES_READ_TOKEN is not set as a repository secret, so neither the series store nor the family office book was refreshed. Add a fine-grained PAT for techmuns/GlowVentures with Contents: read."
             echo "### Skipped — no GLOWVENTURES_READ_TOKEN" >> "$GITHUB_STEP_SUMMARY"
             echo "The committed series store and book were left as they are. Add the secret under Settings → Secrets and variables → Actions to refresh them daily." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
           git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/techmuns/GlowVentures.git" /tmp/glowventures
           src_sha=$(git -C /tmp/glowventures rev-parse --short HEAD)
@@ -121,25 +124,20 @@ jobs:
             echo "::warning title=Price gap-fill failed::The new holdings have no technicals row yet. The book is still correct and is committed; technicals-refresh.yml will fill them on its next run."
           fi
 
-      - name: Commit the refreshed store and book to main
+      - name: Audit holdings coverage
+        id: holdings-audit
         if: env.SRC_SHA != ''
+        continue-on-error: true
+        run: node scripts/audit-holdings.mjs
+
+      - name: Publish refreshed manager data through a checked PR
+        if: env.SRC_SHA != ''
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
+        run: node scripts/publish-data-pr.mjs manager-archive public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json
+
+      - name: Surface overdue holdings feeds
+        if: steps.holdings-audit.outcome == 'failure'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # technicals.json is staged because the step above may have filled prices for holdings
-          # this very run added. It is a no-op on the ordinary day when the book did not grow.
-          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json
-          if git diff --cached --quiet; then
-            echo "The series store and the book are already current."
-            echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          git commit -m "GlowVentures sync ($(date -u +%Y-%m-%d)) — series store and family book from techmuns/GlowVentures@${SRC_SHA}"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
+          echo "::error::The sync completed but holdings coverage needs attention; see the run summary."
           exit 1

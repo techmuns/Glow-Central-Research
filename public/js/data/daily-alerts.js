@@ -46,6 +46,7 @@ import * as earnings from './earnings-live.js';
 import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as investors from './super-investors.js';
+import { periodEnd } from './finology-shared.js';
 import { announcements, insider, news } from './filings.js';
 import { insiderTradeSourceUrl } from './filings-shared.js';
 import { scopeMatcher } from './scope.js';
@@ -680,16 +681,16 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const m = investors.meta() || {};
   const confirmedAt = (move) => investors.confirmedAtFor(move.slug) || m.checkedAt || m.capturedAt || m.fetchedAt;
   const moves = investors.allMoves().filter((move) => {
-    const confirmedDay = istDay(confirmedAt(move));
+    const confirmedDay = periodEnd(move.latest);
     const ticker = investorTicker(move);
-    return move.action !== 'held'
+    return ['new', 'added', 'trimmed', 'exited'].includes(move.action)
       && inRequestedWindow(confirmedDay, day, includeHistory)
       && (ticker ? inScope(wanted, ticker) : scope === 'universe');
   });
   const events = moves.map((move) => {
     const ticker = investorTicker(move);
     const bookConfirmedAt = confirmedAt(move);
-    const confirmedDay = istDay(bookConfirmedAt);
+    const confirmedDay = periodEnd(move.latest);
     const positive = move.action === 'new' || move.action === 'added';
     const direction = positive ? DIRECTION.POSITIVE : DIRECTION.NEGATIVE;
     const presenceChange = move.action === 'new' || move.action === 'exited';
@@ -713,9 +714,10 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
             ? `High: the disclosed holding changed by at least ${INVESTOR_HIGH_PP} percentage point.`
             : `Low: the disclosed holding changed by less than ${INVESTOR_HIGH_PP} percentage point.`
       ),
-      time: istTime(bookConfirmedAt),
-      at: bookConfirmedAt || confirmedDay,
+      time: null,
+      at: confirmedDay,
       day: confirmedDay,
+      sourceCheckedAt: bookConfirmedAt,
       ticker,
       company: move.company || ticker || '—',
       headline: `${move.investor}: ${actionText}`,
@@ -737,7 +739,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
     note: coverage.incomplete
       ? `${coverage.problems.join('; ')}. This reading is incomplete.`
       : coverageDay === day
-      ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
+      ? 'Investor changes are quarterly disclosure comparisons dated to their quarter end. Source checks are recorded separately; these are not trade timestamps.'
       : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,
   };
 }

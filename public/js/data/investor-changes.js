@@ -100,8 +100,8 @@ export function investorHoldings(books, investors, today = indiaDay()) {
       .sort((a, b) => quarterOrder(b) - quarterOrder(a));
     for (let i = 0; i < quarters.length - 1; i++) {
       const latest = quarters[i], prior = quarters[i + 1];
-      for (const move of deriveMoves({ ...book, quarters: [latest, prior] }).moves) {
-        if (move.action === 'held') continue;
+      for (const move of deriveMoves({ ...book, quarters: [latest, prior] }, today).moves) {
+        if (['held', 'unknown', 'awaiting'].includes(move.action)) continue;
         events.push({ ...move, id: `holding|${book.slug}|${move.companySlug}|${latest}`,
           date: quarterEnd(latest), from: quarterEnd(prior), period: `${prior} → ${latest}`,
           person: names.get(book.slug) || book.name, personId: book.slug, source: 'Quarterly disclosure', unit: '% of company' });

@@ -88,7 +88,7 @@ const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8,
 export function quarterOrder(label) {
   const s = String(label || '').trim();
   const iso = /^(\d{4})-(\d{1,2})$/.exec(s);
-  if (iso) return Number(iso[1]) * 100 + Number(iso[2]);
+  if (iso) return Number(iso[2]) >= 1 && Number(iso[2]) <= 12 ? Number(iso[1]) * 100 + Number(iso[2]) : null;
   const named = /^([A-Za-z]{3})[a-z]*[\s-]*(\d{2,4})$/.exec(s);
   if (!named) return null;
   const m = MONTHS[named[1].toLowerCase()];
@@ -118,15 +118,19 @@ function orderedQuarters(quarters) {
 
 export function normalisePortfolio(body, slug) {
   const raw = Array.isArray(body?.quarters) ? body.quarters.filter((q) => typeof q === 'string' && q.trim()) : [];
-  const quarters = orderedQuarters(raw);
+  const quarters = orderedQuarters([...new Set(raw)]);
   const holdings = (Array.isArray(body?.holdings) ? body.holdings : [])
     .map((h) => {
-      const byQuarter = {};
-      for (const q of quarters) byQuarter[q] = num(h?.quarterlyHoldings?.[q]);
+      const byQuarter = {}, quarterlyStatus = {};
+      for (const q of quarters) {
+        byQuarter[q] = num(h?.quarterlyHoldings?.[q]);
+        quarterlyStatus[q] = disclosureStatus(h, q);
+      }
       return {
         company: str(h?.company),
         companySlug: str(h?.companySlug),
         quarterlyHoldings: byQuarter,
+        quarterlyStatus,
         valueCr: num(h?.valueCr),
       };
     })
@@ -135,6 +139,7 @@ export function normalisePortfolio(body, slug) {
   return {
     name: str(body?.name) || slug,
     slug: str(body?.slug) || slug,
+    ...(str(body?.fetchedAt) ? { fetchedAt: str(body.fetchedAt) } : {}),
     netWorthCr: num(body?.netWorthCr),
     activeStocks: num(body?.activeStocks),
     totalStocks: num(body?.totalStocks),
@@ -143,70 +148,70 @@ export function normalisePortfolio(body, slug) {
   };
 }
 
-/**
- * Quarter-over-quarter position changes, from the two most recent quarters they publish.
- *
- *   new      not disclosed in the prior quarter, disclosed in the latest
- *   exited   disclosed in the prior quarter, not in the latest
- *   added    disclosed in both, latest is higher
- *   trimmed  disclosed in both, latest is lower
- *   held     disclosed in both, unchanged
- *
- * A BLANK QUARTER IS NOT A ZERO, and that is what makes `new` and `exited` presence changes rather
- * than deltas. `deltaPp` stays null for both: the position did not move by "the whole holding", it
- * appeared or disappeared from disclosure, and printing ±5.2pp would be inventing a trade size.
- *
- * Below the Indian disclosure threshold a holder drops off the shareholding pattern entirely, so
- * an `exited` row means "no longer disclosed", which is not the same as "sold out". The UI says
- * that; this function only classifies.
- *
- * With fewer than two quarters published there is nothing to compare, and this returns
- * `comparable: false` rather than calling every position new.
- */
-export function deriveMoves(portfolio) {
-  const [latest, prior] = portfolio?.quarters || [];
-  if (!latest || !prior) return { comparable: false, latest: latest || null, prior: null, moves: [] };
-
-  const moves = [];
-  for (const h of portfolio.holdings) {
-    const now = h.quarterlyHoldings[latest];
-    const before = h.quarterlyHoldings[prior];
-    if (now == null && before == null) continue; // disclosed in neither: nothing to say
-    let action;
-    let deltaPp = null;
-    if (before == null) action = 'new';
-    else if (now == null) action = 'exited';
-    else {
-      deltaPp = round2(now - before);
-      action = deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held';
-    }
-    moves.push({ company: h.company, companySlug: h.companySlug, valueCr: h.valueCr, now, before, deltaPp, action });
-  }
-  return { comparable: true, latest, prior, moves };
+/** A source null has lost its meaning. Only explicit absence can support a presence change. */
+export function disclosureStatus(holding, quarter) {
+  if (num(holding?.quarterlyHoldings?.[quarter]) != null) return 'reported';
+  const status = holding?.quarterlyStatus?.[quarter];
+  if (['filing_due', 'not_disclosed', 'unknown'].includes(status)) return status;
+  const text = String(holding?.quarterlyHoldings?.[quarter] ?? '').trim();
+  if (/filing (due|awaited)|awaiting filing/i.test(text)) return 'filing_due';
+  if (/^(-|—|not disclosed)$/i.test(text)) return 'not_disclosed';
+  return 'unknown';
 }
 
-/**
- * Totals over one book. Every figure is a count or a sum of their own numbers.
- *
- * THE VALUE SUMS ONLY WHAT IS STILL DISCLOSED. `holdings` carries every company that has ever
- * appeared in this investor's history, including ones absent from the latest quarter — and
- * summing those into a "book" produced the contradiction this was written to fix: a card reading
- * `0 holdings` beside `₹793 Cr book`, because the count used the latest quarter and the total
- * used all of history. What someone holds now is the latest quarter, so both figures use it.
- *
- * Within that set, only the rows that actually carry a value are summed, and `valuedCount` says
- * how many did. A total that silently skips a third of the book while looking complete is worse
- * than no total at all.
- */
-export function summarise(portfolio) {
-  const [latest] = portfolio?.quarters || [];
-  const disclosed = latest ? portfolio.holdings.filter((h) => h.quarterlyHoldings[latest] != null) : portfolio.holdings;
-  const valued = disclosed.filter((h) => h.valueCr != null);
+export function periodEnd(label) {
+  const order = quarterOrder(label);
+  return order == null ? null : new Date(Date.UTC(Math.floor(order / 100), order % 100, 0)).toISOString().slice(0, 10);
+}
+export function closedQuarters(portfolio, today = new Date().toISOString().slice(0, 10)) {
+  return orderedQuarters((portfolio?.quarters || []).filter((q) =>
+    [3, 6, 9, 12].includes(quarterOrder(q) % 100) && periodEnd(q) <= today));
+}
+
+/** Consecutive, completed calendar quarters; an August event is not a portfolio-wide quarter. */
+export function comparisonPeriods(portfolio, today) {
+  const [latest, prior] = closedQuarters(portfolio, today);
+  const monthIndex = (q) => Math.floor(quarterOrder(q) / 100) * 12 + quarterOrder(q) % 100;
+  const comparable = !!latest && !!prior && monthIndex(latest) - monthIndex(prior) === 3;
+  return { comparable, latest: latest || null, prior: prior || null };
+}
+
+export function deriveMoves(portfolio, today) {
+  const periods = comparisonPeriods(portfolio, today);
+  if (!periods.comparable) return { ...periods, moves: [] };
+  const { latest, prior } = periods;
+  const moves = [];
+  for (const h of portfolio.holdings || []) {
+    const now = num(h.quarterlyHoldings[latest]), before = num(h.quarterlyHoldings[prior]);
+    if (now == null && before == null) continue;
+    const nowStatus = disclosureStatus(h, latest), beforeStatus = disclosureStatus(h, prior);
+    let action = 'unknown', deltaPp = null;
+    if (now != null && before != null) {
+      deltaPp = round2(now - before);
+      action = deltaPp > 0 ? 'added' : deltaPp < 0 ? 'trimmed' : 'held';
+    } else if (nowStatus === 'filing_due' || beforeStatus === 'filing_due') action = 'awaiting';
+    else if (beforeStatus === 'not_disclosed') action = 'new';
+    else if (nowStatus === 'not_disclosed') action = 'exited';
+    moves.push({ company: h.company, companySlug: h.companySlug, valueCr: h.valueCr,
+      now, before, nowStatus, beforeStatus, deltaPp, action });
+  }
+  return { ...periods, moves };
+}
+
+export function summarise(portfolio, today) {
+  const latest = closedQuarters(portfolio, today)[0] || null;
+  const disclosed = latest ? portfolio.holdings.filter((h) => num(h.quarterlyHoldings[latest]) != null) : [];
+  // Positive disclosed stakes with a zero valuation are an upstream valuation gap, not a zero book.
+  const valued = disclosed.filter((h) => h.valueCr != null && (h.valueCr > 0 || num(h.quarterlyHoldings[latest]) === 0));
+  const missingValues = disclosed.length - valued.length;
   return {
-    latestQuarter: latest || null,
+    latestQuarter: latest,
     disclosedCount: disclosed.length,
     rowCount: portfolio.holdings.length,
-    valueCr: valued.length ? round2(valued.reduce((a, h) => a + h.valueCr, 0)) : null,
+    valueCr: valued.length && !missingValues ? round2(valued.reduce((a, h) => a + h.valueCr, 0)) : null,
     valuedCount: valued.length,
+    missingValues,
+    offCycleCount: portfolio.holdings.filter((h) => (portfolio.quarters || []).some((q) =>
+      quarterOrder(q) > quarterOrder(latest) && ![3, 6, 9, 12].includes(quarterOrder(q) % 100) && num(h.quarterlyHoldings[q]) != null)).length,
   };
 }

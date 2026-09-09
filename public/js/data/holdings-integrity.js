@@ -1,0 +1,70 @@
+// Shared by the coverage screen and the scheduled audit. Targets are operating policies,
+// not regulatory deadlines. A successful fetch never establishes portfolio completeness.
+import { comparisonPeriods, summarise, disclosureStatus, periodEnd } from './finology-shared.js';
+
+export const POLICY = { investorHours: 30, managerSyncHours: 36, bulkHours: 72, pmsDays: 40, mfDays: 45, entityReviewDays: 90 };
+const ageDays = (value, now) => Number.isFinite(Date.parse(value)) ? Math.max(0, (Date.parse(now) - Date.parse(value)) / 86400000) : Infinity;
+
+export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, evidence = {}, now = new Date().toISOString() } = {}) {
+  const rows = [];
+  for (const investor of snapshot.investors || []) {
+    const book = snapshot.books?.[investor.slug], issues = [];
+    const fetchedAt = book?.fetchedAt || null;
+    if (!book) issues.push('Book unavailable');
+    else {
+      if (snapshot.failed?.[investor.slug] || book.stale) issues.push('Refresh failed; last successful book retained');
+      if (ageDays(fetchedAt, now) * 24 > POLICY.investorHours) issues.push('Source check overdue');
+      const comparison = comparisonPeriods(book, now.slice(0, 10)), totals = summarise(book, now.slice(0, 10));
+      if (!comparison.comparable) issues.push('Consecutive completed quarters unavailable');
+      if (!totals.latestQuarter || ageDays(periodEnd(totals.latestQuarter), now) > 135) issues.push('Quarterly disclosures overdue');
+      const unresolved = book.holdings.filter((h) => [comparison.latest, comparison.prior].filter(Boolean).some((q) =>
+        ['unknown', 'filing_due'].includes(disclosureStatus(h, q))));
+      if (unresolved.length) issues.push(`${unresolved.length} rows have unconfirmed comparison cells`);
+      if (totals.offCycleCount) issues.push(`${totals.offCycleCount} later updates; not a complete quarterly book`);
+      if (totals.missingValues) issues.push(`${totals.missingValues} disclosed stakes lack usable valuations`);
+    }
+    const relations = (evidence.relations || []).filter((r) => r.investorSlugs?.includes(investor.slug));
+    rows.push({ id: investor.slug, name: investor.name, kind: 'investor', fetchedAt,
+      asOf: book ? summarise(book, now.slice(0, 10)).latestQuarter : null, issues,
+      identity: relations.length ? `${relations.length} evidenced relationship(s); full coverage unverified` : 'Associated entities not reviewed',
+      sourceUrl: `https://ticker.finology.in/investor/${encodeURIComponent(investor.slug)}` });
+  }
+  for (const manager of managers.managers || []) {
+    const issues = [], dates = manager.kind === 'mf' ? (manager.lookthrough?.funds || []).map((f) => f.holdingsAsOf).filter(Boolean).sort() : [];
+    const statementDates = new Map();
+    for (const statement of manager.statements || []) if (statement.asOf && statement.accountId) {
+      const held = statementDates.get(statement.accountId);
+      if (!held || statement.asOf > held) statementDates.set(statement.accountId, statement.asOf);
+    }
+    const accountDates = (manager.accounts || []).map((a) => statementDates.get(a.accountId)).filter(Boolean).sort();
+    const asOf = manager.kind === 'mf' ? dates[0] || null : manager.kind === 'pms' ? accountDates[0] || manager.asOf : manager.asOf;
+    if (ageDays(managers.syncedAt, now) * 24 > POLICY.managerSyncHours) issues.push('Statement archive sync not recently confirmed');
+    if (manager.kind === 'pms') {
+      if (ageDays(asOf, now) > POLICY.pmsDays) issues.push('New manager statement needed');
+      if (manager.noStatementAccounts?.length || !manager.statements?.length || (manager.accounts || []).some((a) => !statementDates.has(a.accountId))) issues.push('Holdings statements missing');
+      if (!manager.window) issues.push('Two holdings statements unavailable');
+    } else if (manager.kind === 'mf') {
+      if (ageDays(asOf, now) > POLICY.mfDays) issues.push('AMC holdings disclosure overdue or unavailable');
+      if (!dates.length || (manager.lookthrough?.funds || []).some((f) => !f.holdingsAsOf)) issues.push('Some schemes lack a dated holdings disclosure');
+    } else issues.push('Fund units/NAV only; underlying portfolio feed needed');
+    rows.push({ id: manager.id, name: manager.name, kind: manager.kind, asOf, fetchedAt: managers.syncedAt || null, issues,
+      identity: 'Account records; manager-wide entity coverage unverified', sourceUrl: null });
+  }
+  const sourceIssues = [];
+  if (!(snapshot.investors || []).length) sourceIssues.push('Investor list unavailable');
+  if (!(managers.managers || []).length) sourceIssues.push('Manager list unavailable');
+  if (ageDays(deals.bulkDeals?.capturedAt, now) * 24 > POLICY.bulkHours || deals.bulkDeals?.error) sourceIssues.push('Bulk/block feed overdue or failed');
+  // No automatic primary-source reconciliation is connected yet. Manual evidence is dated and
+  // limited; adding a verified row must never flip the entire portfolio to exchange-verified.
+  sourceIssues.push('Full exchange reconciliation is not connected');
+  if ((evidence.relations || []).some((r) => ageDays(r.verifiedAt, now) > POLICY.entityReviewDays)) sourceIssues.push('Some entity relationships need renewed review');
+  return { evaluatedAt: now, rows, issues: sourceIssues, attention: rows.filter((r) => r.issues.length).length,
+    total: rows.length, complete: false, policy: POLICY };
+}
+
+// Relations expand public-deal discovery while preserving the exact reported holder on each row.
+export function withVerifiedEntities(people, evidence, kind, today = new Date().toISOString()) {
+  return people.map((person) => ({ ...person, aliases: [...(person.aliases || []),
+    ...(evidence?.relations || []).filter((r) => r.sourceUrl?.startsWith('https://') && ageDays(r.verifiedAt, today) <= POLICY.entityReviewDays &&
+      (kind === 'investor' ? r.investorSlugs : r.managerIds)?.includes(person.id)).map((r) => r.legalName)] }));
+}
