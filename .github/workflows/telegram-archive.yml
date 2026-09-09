@@ -1,0 +1,63 @@
+name: Telegram archive
+
+on:
+  schedule:
+    # Best-effort scheduling; the UI reports the actual successful check time.
+    - cron: "33 2 * * *"
+  workflow_dispatch:
+
+run-name: Telegram archive
+
+concurrency:
+  group: telegram-archive
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # A queued backup must include fixes merged since its scheduled event.
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify collector contracts offline
+        run: node scripts/verify-telegram.mjs && node scripts/verify-telegram-publishing.mjs
+      - name: Preserve the existing archive PR before refreshing its branch
+        run: node scripts/prepare-telegram-archive.mjs
+      - name: Read latest validated artifact for the daily repository backup
+        run: node scripts/telegram-artifact.mjs backup public/data/telegram-posts.json public/data/telegram-posts.json
+      - name: Open archive update PR
+        id: archive
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          branch: codex/telegram-capture
+          base: main
+          add-paths: public/data/telegram-posts.json
+          commit-message: Refresh retained Telegram archive and collection health
+          title: Refresh retained Telegram archive
+          body: |
+            Update the retained public Telegram archive with original publication dates, visible text,
+            Telegram-only post links, collection health and resumable history progress.
+
+            Refresh the archive branch from current main after retaining all validated records
+            unique to its preceding head, so stale collector or test code cannot block future backups.
+
+            The workflow dispatches Verify on this PR's exact commit before merging. Any review
+            feedback or required review gate leaves the PR open. No manual production operations.
+      - name: Verify and merge the archive PR
+        if: steps.archive.outputs.pull-request-number != ''
+        env:
+          TELEGRAM_PR_NUMBER: ${{ steps.archive.outputs.pull-request-number }}
+        run: node scripts/merge-telegram-capture.mjs

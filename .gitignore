@@ -6,9 +6,23 @@
 # `npx wrangler dev` reads this for local secrets. It holds a real API token in normal use,
 # so it is machine-local and never committed. Production values go in `wrangler secret put`.
 .dev.vars
+.dev.vars.*
+
+# Model answers and evaluation packets are local review artifacts, potentially private.
+.research-evaluation/
 
 # `npx wrangler dev` also drops a Miniflare cache here (node_modules/.mf/cf.json) on every start.
 # THIS REPO HAS NO node_modules — see hard rule 2 in CLAUDE.md: no package.json, no dependency
 # tree, wrangler and playwright are invoked through npx and installed nowhere. The directory is
 # wrangler's scratch space, not ours, so it is ignored rather than committed.
 node_modules/
+
+# `scripts/scrape-twitter.py` is the one Python script here (see hard rule 2 in CLAUDE.md for why
+# it is the exception), and running it leaves a bytecode cache beside it. Machine-local, never read
+# by anything, and it must not travel to a runner.
+__pycache__/
+
+# Telegram login state stays outside the repository, even if a helper is run incorrectly.
+*.session
+*.session-journal
+telegram-credentials*.json

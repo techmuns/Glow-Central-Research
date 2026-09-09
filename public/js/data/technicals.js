@@ -8,7 +8,7 @@
 //
 //   await load();                 // idempotent; safe to await from every render()
 //   all()                         // scored rows, best score first
-//   forScope('portfolio')         // narrowed to portfolio.json holdings
+//   forScope('portfolio')         // narrowed to the synced book (js/data/coverage.js)
 //   byTicker('RELIANCE')          // one scored row
 //   meta()                        // generated_at, source, counts, index, breadth
 //
@@ -23,6 +23,22 @@ const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
 
 let loadPromise = null;
 let cache = null; // { meta, scored, byTicker }
+let refreshPromise = null;
+const subscribers = new Set();
+export const onChange = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
+
+// Revalidate the bounded capture; a General Alerts refresh must not reuse the page-lifetime cache.
+export function refresh() {
+  if (refreshPromise) return refreshPromise;
+  if (loadPromise && !cache) return loadPromise;
+  const previous = cache;
+  refreshPromise = buildCache().then((next) => {
+    subscribers.forEach((fn) => fn());
+    return next;
+  }).catch((error) => { cache = previous; throw error; })
+    .finally(() => { refreshPromise = null; });
+  return refreshPromise;
+}
 
 /**
  * Fetch + score once. Concurrent callers share the same in-flight promise, and every later
@@ -100,7 +116,7 @@ function bestFirst(a, b) {
 // bytes already on disk when the server says they have not changed. `no-store` forbids reuse
 // outright, which meant a 2MB corpus was re-downloaded in full on every single visit.
 async function fetchJson(path) {
-  const res = await fetch(path, { cache: 'no-cache' });
+  const res = await fetch(path, { cache: 'no-cache', signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
   return res.json();
 }
