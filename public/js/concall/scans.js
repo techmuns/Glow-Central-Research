@@ -1,11 +1,11 @@
-// concall/scans.js — the Con-call tab, live off StockScans.
+// concall/scans.js — the Con-call library: Screener documents plus live StockScans analysis.
 //
 //   renderScans(ctx)         the quarter's calls: result score, sentiment, highlights, links
 //   openScheduleModal(rows)  "Upcoming Concalls" — the schedule, as an overlay off that table
 //
-// This is the WHOLE tab now. It used to be two of six sub-views behind a left rail; the other
-// four ran on a synthetic transcript corpus with fictional speakers, and they are gone. One
-// screen, one provenance, no ribbon to explain which half you are looking at.
+// This is the WHOLE tab now. Screener supplies the retained market-wide document index; StockScans
+// supplies current-quarter analysis. The two are joined by ticker/date before rendering, and each
+// scored field remains explicitly attributed to StockScans rather than to Screener or this app.
 //
 // EVERYTHING SCORED HERE IS STOCKSCANS' OWN ANALYSIS.
 //   `resultScore` (0-100), `sentimentTier` (0-4) and the highlight bullets are theirs, rendered
@@ -25,22 +25,23 @@
 // THE DEEP DIVE COLUMN TALKS TO A THIRD DASHBOARD, AND STARTING A RUN THERE COSTS MONEY.
 //   The last column hands a row to Concall Deep Dive, a separate Cloudflare Worker that runs its
 //   own LLM pipeline over the call and publishes a report. Three rules hold here:
-//     - Nothing that costs a run ever fires on its own. `POST /api/analyze` is unauthenticated
-//       and every accepted call is a real compute run, so no poller registers it, no row triggers
-//       it on render, the cell is a button, and the panel confirms before dispatching.
+//     - Nothing that costs a run fires on render or from a poller. The Deep Dive button is the
+//       explicit run command: its click dispatches once and opens directly on progress.
 //     - Reading their index IS free, and the column uses that. `GET /api/summary` lists the
 //       reports they already hold; it is fetched once per page load, and the rows it names get a
 //       "Ready" button that opens the finished report at no cost to anyone. The reader should not
 //       have to pay to discover the answer already exists.
-//     - The report is theirs. js/concall/deep-dive.js lays it out and computes nothing on top,
-//       and every finished report links to their own rendering of it — same rule as the
-//       StockScans scores above and the Trendlyne holding values on Institutions.
+//     - The report is theirs. js/concall/deep-dive.js lays it out and computes nothing on top;
+//       primary filing links remain in its provenance strip. Same rule as the StockScans scores
+//       above and the Trendlyne holding values on Institutions. Its compact
+//       result/view/headline may fill a blank row only after the exact-call checks below pass.
 
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { scopeSummary } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { deliveryNote } from '../ui/sources.js';
 import { escapeHtml } from '../core/dom.js';
+import { domesticFilingsHref } from '../data/domestic-filings-shared.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import * as feed from '../data/concall-scans.js';
@@ -48,8 +49,12 @@ import * as deepDive from '../data/deep-dive.js';
 import { openDeepDive } from './deep-dive.js';
 import * as coverage from '../data/coverage.js';
 import { scopePossessive } from '../data/scope.js';
+import { summaryIdsForRow } from '../data/concall-summaries-shared.js';
+import { available as summariesAvailable } from '../data/concall-summaries.js';
+import { openSummary, openSummaryCoverage, summaryStatusHtml, updateSummaryButtons } from './summary.js';
 
-const ATTRIBUTION = 'Scores, sentiment and highlights are the research provider’s own analysis, shown unchanged.';
+const ATTRIBUTION =
+  'Scores and current-quarter sentiment are the research provider’s own analysis. Where an exact, transcript-backed Deep Dive report is already available for one unambiguous call, its result, view and headline fill otherwise blank cells unchanged; no score or sentiment tier is inferred.';
 
 // StockScans' tone vocabulary -> our semantic palette. Emerald/amber/rose are pass/partial/fail
 // here, which is exactly what these tiers mean, so the mapping is honest rather than decorative.
@@ -63,6 +68,9 @@ const TONE = {
 
 const pendingPill = (what) =>
   `<span class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-400 ring-1 ring-slate-200" title="The research provider has not published ${escapeHtml(what)} for this call yet. Not zero — not yet analysed.">pending</span>`;
+
+const documentsOnlyPill = () =>
+  '<span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 ring-1 ring-indigo-200" title="This historical call comes from Screener’s document index and is outside the analysis provider’s current-quarter scan.">documents</span>';
 
 function tierPill(tier, title) {
   if (!tier) return pendingPill(title || 'an assessment');
@@ -78,6 +86,94 @@ function highlight(tag) {
   const cls = mark === '▲' ? 'text-emerald-700' : mark === '▼' ? 'text-rose-700' : 'text-slate-600';
   const dot = mark === '▲' ? '▲' : mark === '▼' ? '▼' : '●';
   return `<span class="flex items-start gap-1 ${cls}"><span class="mt-px flex-shrink-0 text-[9px] leading-4">${dot}</span><span>${escapeHtml(text)}</span></span>`;
+}
+
+const quarterKey = (value) => String(value || '').toUpperCase().replace(/[^QFY0-9]/g, '');
+
+/** The Indian reporting quarter normally discussed by a call on this calendar date. */
+export function reportingQuarter(date) {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(String(date || ''));
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month <= 3) return `Q3FY${String(year).slice(-2)}`;
+  if (month <= 6) return `Q4FY${String(year).slice(-2)}`;
+  if (month <= 9) return `Q1FY${String(year + 1).slice(-2)}`;
+  return `Q2FY${String(year + 1).slice(-2)}`;
+}
+
+/**
+ * A company-level Deep Dive summary may only fill a call row when its confirmed quarter has one
+ * distinct call date for that ticker in the complete library. Two dates means two possible calls,
+ * so neither is guessed. Transcript availability is required for call sentiment/highlights.
+ */
+export function matchingDeepDive(row, allRows, map = readyReports) {
+  const ticker = String(row.ticker || '').toUpperCase();
+  const quarter = reportingQuarter(row.date || row.publishedDate);
+  const hits = ticker ? (Array.isArray(map[ticker]) ? map[ticker] : map[ticker] ? [map[ticker]] : []) : [];
+  const hit = hits.find(
+    (candidate) =>
+      !!candidate?.slug &&
+      String(candidate?.ticker || '').toUpperCase() === ticker &&
+      candidate?.quarter_confirmed === true &&
+      candidate?.transcript_available === true &&
+      quarterKey(candidate.quarter) === quarterKey(quarter),
+  );
+  if (!hit) return null;
+  const dates = callDates(allRows).get(`${ticker}|${quarterKey(quarter)}`) || new Set();
+  return dates.size === 1 ? hit : null;
+}
+
+/** Every named company can be sent to Deep Dive; an exchange ticker is helpful, not required. */
+export const deepDiveEligible = (row) => !!(String(row?.name || '').trim() || String(row?.ticker || '').trim());
+
+const callDateCache = new WeakMap();
+function callDates(allRows) {
+  let index = callDateCache.get(allRows);
+  if (index) return index;
+  index = new Map();
+  for (const row of allRows) {
+    const ticker = String(row.ticker || '').toUpperCase();
+    const date = row.date || row.publishedDate;
+    const quarter = reportingQuarter(date);
+    if (!ticker || !date || !quarter) continue;
+    const key = `${ticker}|${quarterKey(quarter)}`;
+    if (!index.has(key)) index.set(key, new Set());
+    index.get(key).add(date);
+  }
+  callDateCache.set(allRows, index);
+  return index;
+}
+
+function matchingSaved(row, allRows, savedByRecord, savedByTicker) {
+  const ticker = String(row.ticker || '').toUpperCase();
+  const exact = savedByRecord[rowKey(row)] || null;
+  if (exact && String(exact.ticker || '').toUpperCase() === ticker) return exact;
+  const quarter = reportingQuarter(row.date || row.publishedDate);
+  const dates = callDates(allRows).get(`${ticker}|${quarterKey(quarter)}`) || new Set();
+  if (!ticker || !quarter || dates.size !== 1) return null;
+  return (savedByTicker[ticker] || []).find((entry) => quarterKey(entry.quarter) === quarterKey(quarter)) || null;
+}
+
+function deepDiveInsight(row, allRows, savedByRecord, savedByTicker) {
+  if (row.analysisTracked !== false) return null;
+  const saved = matchingSaved(row, allRows, savedByRecord, savedByTicker)?.summary || null;
+  return saved?.transcript_available === true ? saved : matchingDeepDive(row, allRows);
+}
+
+const deepDivePill = (value, kind) =>
+  `<span class="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200" title="Concall Deep Dive ${escapeHtml(kind)}, reproduced unchanged. This is not a StockScans tier.">DD · ${escapeHtml(value)}</span>`;
+
+function deepDiveHighlights(hit) {
+  if (!hit) return '<span class="text-slate-300">—</span>';
+  const headline = String(hit.headline || '').trim();
+  const tags = Array.isArray(hit.tags) ? hit.tags.filter(Boolean).slice(0, 3) : [];
+  if (!headline && !tags.length) return '<span class="text-slate-300">—</span>';
+  return `<div class="flex max-w-[380px] flex-col gap-1 whitespace-normal text-[11px] leading-snug">
+    <span class="font-semibold text-violet-700">Deep Dive</span>
+    ${headline ? `<span class="line-clamp-3 text-slate-600" title="${escapeHtml(headline)}">${escapeHtml(headline)}</span>` : ''}
+    ${tags.length ? `<span class="text-slate-400">${tags.map((tag) => escapeHtml(tag)).join(' · ')}</span>` : ''}
+  </div>`;
 }
 
 // EVERY TIME ON THIS TAB IS IST, EXPLICITLY — NOT THE VIEWER'S ZONE.
@@ -96,6 +192,31 @@ function whenCell(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '<span class="text-slate-300">—</span>';
   return `<span class="whitespace-nowrap" title="${escapeHtml(IST_FULL.format(d))} IST">${escapeHtml(IST_DATE.format(d))}<span class="ml-1 text-slate-400">${escapeHtml(IST_TIME.format(d))}</span></span>`;
+}
+
+function dateCell(row) {
+  if (row.analysisTracked !== false) return whenCell(row.when);
+  const date = row.publishedDate || row.date;
+  if (!date) return '<span class="text-slate-300">—</span>';
+  const d = new Date(`${date}T06:00:00Z`);
+  return Number.isNaN(d.getTime())
+    ? '<span class="text-slate-300">—</span>'
+    : `<span class="whitespace-nowrap" title="Published in Screener’s concall index; exact call time is not supplied.">${escapeHtml(IST_DATE.format(d))}<span class="ml-1 text-[10px] text-slate-400">published</span></span>`;
+}
+
+// Source links are retained, but every call has at most one in-dashboard Summary action.
+const readableDocuments = (row) => (row.documents || []).filter((document) => document.type !== 'Summary');
+
+function documentLinks(row) {
+  const documents = readableDocuments(row);
+  const summaries = summaryIdsForRow(row);
+  if (!documents.length && !summaries.length) return '<span class="text-slate-300">—</span>';
+  return `<div class="flex max-w-[300px] flex-wrap justify-end gap-1">${documents
+    .map(
+      (document) =>
+        `<a data-norow href="${escapeHtml(document.url)}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(document.type)} at its original source" class="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100">${escapeHtml(document.type)}</a>`,
+    )
+    .join('')}${summaries.length ? `<button type="button" data-norow data-screener-summary="${escapeHtml(rowKey(row))}" data-summary-ids="${summaries.join(' ')}" title="Read the saved Screener summary inside this dashboard" class="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100">Summary</button>` : ''}</div>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -125,7 +246,7 @@ export function wireLivePill(root, m) {
   if (!btn) return;
   btn.addEventListener('click', () => {
     const arrivals = feed.newArrivals();
-    const pending = feed.all().filter((r) => r.resultScore == null).length;
+    const pending = feed.all().filter((r) => r.analysisTracked !== false && r.resultScore == null).length;
     openModal(
       `<div class="px-7 py-6">
         <div class="mb-3 flex items-start justify-between gap-4">
@@ -189,14 +310,19 @@ export function wireLivePill(root, m) {
 // ---------------------------------------------------------------------------------------
 // Sub-view 1 — the scan table
 // ---------------------------------------------------------------------------------------
-export function renderScans(ctx, { disposers, tableView, onView }) {
+export function renderScans(ctx, { disposers, tableView, onView, onInsights = null }) {
+  ctx.root.dataset.summaryAvailable = String(summariesAvailable());
   const m = feed.meta();
   const rows = feed.forScope(ctx.scope, coverage.holdings());
-  // Both read once for the whole paint rather than per row — see rememberedMap() in
+  const allRows = feed.all();
+  const screener = m?.screener || null;
+  // Both read once for the whole paint rather than per row — see rememberedByRecord() in
   // data/deep-dive.js. `saved` is the stronger fact of the two: a report already on this device
   // opens with no run AND no request, so those rows are marked before their index has even landed.
-  const dived = deepDive.rememberedMap();
-  const saved = deepDive.savedByTicker();
+  const dived = deepDive.rememberedByRecord();
+  const saved = deepDive.savedByRecord();
+  const savedByTicker = deepDive.savedReportsByTicker();
+  const paintedReadyVersion = readyVersion;
 
   const table = scoreTable({
     rows,
@@ -215,27 +341,51 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     nameMaxPx: 250,
     stickyHead: 'max(320px, calc(100vh - 330px))',
     columns: [
-      { label: 'Call', get: (r) => whenCell(r.when), html: true, align: 'left', sortValue: (r) => r.when || '' },
+      { label: 'Call / Published', get: (r) => dateCell(r), html: true, align: 'left', sortValue: (r) => r.when || '' },
+      { label: 'Filings', get: (r) => r.ticker ? `<a data-norow class="font-semibold text-indigo-600" href="${escapeHtml(domesticFilingsHref(r.ticker, { form: 'concalls', scope: ctx.scope }))}">Transcripts</a>` : '—', html: true, sortable: false },
+      { label: 'Documents', get: (r) => documentLinks(r), html: true, align: 'right', sortable: false },
       {
         // Their index, on their scale. `max: 100` and no tier colouring of our own — the badge
         // beside it is their label for that band.
         label: 'Result Score',
         get: (r) =>
-          r.resultScore == null
+          r.analysisTracked === false
+            ? documentsOnlyPill()
+            : r.resultScore == null
             ? pendingPill('a result score')
             : `<span class="font-semibold tabular-nums text-slate-900">${escapeHtml(r.resultScore.toFixed(1))}</span><span class="ml-1 text-[10px] text-slate-400">/100</span>`,
         html: true,
         align: 'right',
         sortValue: (r) => r.resultScore ?? -1,
       },
-      { label: 'Result', get: (r) => tierPill(r.resultTier, 'a result score'), html: true, align: 'right', sortValue: (r) => r.resultScore ?? -1 },
-      { label: 'Sentiment', get: (r) => tierPill(r.sentiment, 'a sentiment reading'), html: true, align: 'right', sortValue: (r) => r.sentimentTier ?? -1 },
+      {
+        label: 'Result',
+        get: (r) => {
+          if (r.analysisTracked !== false) return tierPill(r.resultTier, 'a result score');
+          const insight = deepDiveInsight(r, allRows, saved, savedByTicker);
+          return insight?.result ? deepDivePill(insight.result, 'reported-result label') : '<span class="text-slate-300">—</span>';
+        },
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.resultScore ?? -1,
+      },
+      {
+        label: 'Sentiment / View',
+        get: (r) => {
+          if (r.analysisTracked !== false) return tierPill(r.sentiment, 'a sentiment reading');
+          const insight = deepDiveInsight(r, allRows, saved, savedByTicker);
+          return insight?.verdict ? deepDivePill(insight.verdict, 'investment view') : '<span class="text-slate-300">—</span>';
+        },
+        html: true,
+        align: 'right',
+        sortValue: (r) => r.sentimentTier ?? -1,
+      },
       {
         label: 'Highlights',
         get: (r) =>
           r.tags.length
             ? `<div class="flex max-w-[380px] flex-col gap-0.5 whitespace-normal text-[11px] leading-snug">${r.tags.slice(0, 3).map(highlight).join('')}</div>`
-            : `<span class="text-slate-300">—</span>`,
+            : deepDiveHighlights(deepDiveInsight(r, allRows, saved, savedByTicker)),
         html: true,
         sortable: false,
       },
@@ -243,7 +393,7 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
         // An action, not a reading — so it does not sort, and it is not in the export either: a
         // workbook of "click here" cells would be a column of nothing.
         label: 'Deep Dive',
-        get: (r) => deepDiveButton(r, dived, saved),
+        get: (r) => (deepDiveEligible(r) ? deepDiveButton(r, dived, saved, savedByTicker, allRows) : '<span class="text-slate-300">—</span>'),
         html: true,
         align: 'right',
         sortable: false,
@@ -260,7 +410,7 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
           { value: 'pending', label: 'Awaiting analysis' },
         ],
         match: (r, v) => {
-          if (v === 'pending') return r.resultScore == null;
+          if (v === 'pending') return r.analysisTracked !== false && r.resultScore == null;
           if (r.resultScore == null) return false;
           if (v === 'excellent') return r.resultScore >= 80;
           if (v === 'strong') return r.resultScore >= 60;
@@ -280,31 +430,61 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
         ],
         match: (r, v) => String(r.sentimentTier) === v,
       },
+      {
+        label: 'Document',
+        options: [
+          { value: 'all', label: 'All documents' },
+          { value: 'Transcript', label: 'Transcript' },
+          { value: 'Recording', label: 'Recording' },
+          { value: 'Presentation', label: 'Presentation' },
+        ],
+        match: (r, v) => readableDocuments(r).some((document) => document.type === v),
+      },
     ],
-    searchable: (r) => `${r.name} ${r.ticker || ''} ${r.industry || ''} ${r.tags.join(' ')}`,
+    searchable: (r) => {
+      const insight = deepDiveInsight(r, allRows, saved, savedByTicker);
+      return `${r.name} ${r.ticker || ''} ${r.industry || ''} ${r.tags.join(' ')} ${insight?.result || ''} ${insight?.verdict || ''} ${insight?.headline || ''} ${(insight?.tags || []).join(' ')} ${readableDocuments(r).map((document) => document.type).join(' ')}`;
+    },
     // The way out to the provider's reader, which is the one thing the removed drill panel carried
     // that was not already on the row. Their reader is where the summary and the transcript live;
     // this tab is their index and links to it rather than reproducing it. `docUrl` builds their
     // DOCUMENT route — the company route needs a period this payload does not carry, and building
     // it short is what made every one of these links 404.
-    link: (r) => r.transcriptUrl,
-    initialSort: { key: 'Call', dir: 'desc' },
-    exportName: 'glow-concall-scans',
+    link: (r) => r.transcriptUrl || readableDocuments(r)[0]?.url || r.screenerCompanyUrl || null,
+    initialSort: { key: 'Call / Published', dir: 'desc' },
+    exportName: 'sattva-concall-scans',
     onExport: (visible) => exportScans(visible, m),
-    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has held a call this quarter.` : 'No calls match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `No concall document or current-quarter scan matches ${scopePossessive(ctx.scope)}.` : 'No calls match your filters.',
     initialView: tableView,
   });
   onView?.(table.view);
 
   ctx.root.innerHTML = `
     ${sectionHead({
-      title: 'Concall Scans',
-      description: `Every earnings call held this quarter, newest first. Times are IST. ${ATTRIBUTION}`,
+      title: 'Concall Library',
+      description: screener?.status === 'ok'
+        ? `Screener’s complete retained concall document index (${escapeHtml(formatNumber(screener.records || 0))} unique source records), newest first, joined without duplicate company/date rows to current-quarter analysis. Times are IST; “published” dates are labelled separately. ${ATTRIBUTION}`
+        : `Current-quarter analysis is available. Screener’s scheduled complete document index is temporarily unavailable on this origin, so historical Transcript / Recording / Presentation links will fill in after its next successful collection. ${ATTRIBUTION}`,
       meta: scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'calls', book: coverage.meta() }),
     })}
     ${table.html}
+    ${summaryStatusHtml()}
   `;
   disposers.push(table.wire(ctx.root));
+  updateSummaryButtons(ctx.root);
+  // Cached/virtual rows can be inserted after status changes. Reconcile their exact IDs too.
+  const summaryRows = new MutationObserver(() => updateSummaryButtons(ctx.root));
+  summaryRows.observe(ctx.root, { childList: true, subtree: true });
+  disposers.push(() => summaryRows.disconnect());
+  const onSummary = event => {
+    const button = event.target.closest('[data-screener-summary]');
+    if (button) {
+      const row = rows.find(row => rowKey(row) === button.dataset.screenerSummary);
+      if (row) { event.preventDefault(); event.stopPropagation(); void openSummary(row); }
+    } else if (event.target.closest('[data-summary-coverage-open]')) openSummaryCoverage();
+  };
+  ctx.root.addEventListener('click', onSummary);
+  disposers.push(() => ctx.root.removeEventListener('click', onSummary));
 
   // Delegated on the host rather than per button: the table body is rebuilt on every sort, filter
   // and live tick, and 500 listeners would be rebuilt with it. The button carries `data-norow`, so
@@ -314,15 +494,26 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
     if (!btn) return;
     const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
     if (!row) return;
-    // A report they already hold — or one this device has kept — opens directly; anything else
-    // goes through the confirm step.
-    const ready = row.ticker ? readyReports[String(row.ticker).toUpperCase()] : null;
+    // Only an unambiguous same-quarter report opens directly. Otherwise this click itself starts
+    // the analysis and the panel goes straight to progress.
+    const ready = matchingDeepDive(row, allRows);
+    const kept = matchingSaved(row, allRows, saved, savedByTicker);
     openDeepDive(row, {
       ready,
+      saved: kept,
       onRecorded: () => markDived(btn),
       // The moment a report is durably on this device, the row says so: the next click on it is
       // free and instant, and the reader should not have to click to discover that.
-      onSaved: () => markReady(btn, null, deepDive.savedFor(row.ticker)),
+      onSaved: ({ slug, report }) => {
+        const summary = deepDive.reportSummary({ slug, report });
+        if (summary?.ticker) {
+          const ticker = String(summary.ticker).toUpperCase();
+          readyReports[ticker] = [summary, ...(readyReports[ticker] || []).filter((entry) => entry.slug !== summary.slug)];
+        }
+        readyVersion++;
+        markReady(btn, null, deepDive.savedForRecord(rowKey(row)));
+        onInsights?.();
+      },
     });
   };
   ctx.root.addEventListener('click', onDeepDive);
@@ -334,24 +525,30 @@ export function renderScans(ctx, { disposers, tableView, onView }) {
   // lands, the rows it names are marked in place rather than by rebuilding the table.
   loadReady().then((ready) => {
     if (!ready || !ctx.root.isConnected) return;
+    if (readyVersion !== paintedReadyVersion) {
+      onInsights?.();
+      return;
+    }
     for (const btn of ctx.root.querySelectorAll('[data-deep-dive]')) {
       const row = rows.find((r) => rowKey(r) === btn.dataset.deepDive);
-      const hit = row?.ticker ? ready[String(row.ticker).toUpperCase()] : null;
+      const hit = row ? matchingDeepDive(row, allRows, ready) : null;
       if (hit) markReady(btn, hit);
     }
   });
 }
 
-// ticker -> their summary row, for every company they have already analysed. Module-level so a
+// ticker -> their summary rows, newest first, for every company they have already analysed. Module-level so a
 // live repaint paints the marks immediately instead of waiting on the promise again.
 let readyReports = {};
 let readyPromise = null;
+let readyVersion = 0;
 function loadReady() {
   if (!readyPromise) {
     readyPromise = deepDive
-      .readyByTicker()
+      .readyReportsByTicker()
       .then((map) => {
         readyReports = map || {};
+        readyVersion++;
         return readyReports;
       })
       .catch(() => ({}));
@@ -367,28 +564,27 @@ const rowKey = (r) => feed.rowUid(r);
 /**
  * The Deep Dive cell.
  *
- * A button and nothing more — no run is dispatched until the reader confirms one inside the panel,
- * because that is a real LLM run on an unauthenticated endpoint. Three different facts, three
- * different marks, and the distinction is the most useful thing this column can carry:
+ * A button and nothing more — the click itself is the reader's explicit instruction to run. Three
+ * different facts, three different marks, and the distinction is the most useful thing this
+ * column can carry:
  *
- *   dot on an outlined button   this browser has dispatched a run for that ticker
+ *   dot on an outlined button   this browser has dispatched a run for that exact row
  *   filled button               a finished report opens for free — no run
  *
  * The filled state is reached two ways: their index says they hold a report, or this device does.
  * The second is stronger — it needs no network at all — and it is known synchronously, so those
  * rows are already filled on first paint rather than upgraded when `/api/summary` lands.
  */
-function deepDiveButton(r, dived, saved) {
-  const t = r.ticker ? String(r.ticker).toUpperCase() : '';
+function deepDiveButton(r, dived, saved, savedByTicker, allRows) {
   // Once their index has resolved, later paints render the Ready state directly instead of
   // painting the plain button and upgrading it a frame later.
-  const hit = t ? readyReports[t] : null;
-  const kept = t ? saved[t] : null;
+  const hit = matchingDeepDive(r, allRows);
+  const kept = matchingSaved(r, allRows, saved, savedByTicker);
   if (hit || kept) return readyButtonHtml(r, hit, kept);
-  const seen = t ? dived[t] : null;
+  const seen = dived[rowKey(r)] || null;
   return `
     <button type="button" data-norow data-deep-dive="${escapeHtml(rowKey(r))}"
-      title="${seen ? 'Open the Deep Dive — a run for this company is already on record' : 'Analyse this call on the Concall Deep Dive dashboard (asks first — a run costs compute)'}"
+      title="${seen ? 'Open the Deep Dive — a run for this call is already on record' : 'Run a Deep Dive for this company now'}"
       class="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
       <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>
       <span>Deep Dive</span>
@@ -404,7 +600,7 @@ function markDived(btn) {
   dot.className = 'ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500';
   dot.setAttribute('aria-hidden', 'true');
   btn.appendChild(dot);
-  btn.title = 'Open the Deep Dive — a run for this company is already on record';
+  btn.title = 'Open the Deep Dive — a run for this call is already on record';
 }
 
 /**
@@ -639,26 +835,35 @@ const dayMonthOf = (date) => {
 // ---------------------------------------------------------------------------------------
 
 async function exportScans(rows, m) {
+  const allRows = feed.all();
+  const saved = deepDive.savedByRecord();
+  const savedByTicker = deepDive.savedReportsByTicker();
+  const insight = (row) => (row.__banner ? null : deepDiveInsight(row, allRows, saved, savedByTicker));
   const banner = {
     __banner:
-      `REAL DATA, NOT OURS. Con-call scans from a third-party research provider — quarter ${m?.quarter || ''}, ` +
+      `REAL DATA. Screener concall documents plus third-party current-quarter analysis — quarter ${m?.quarter || ''}, ` +
       `captured ${new Date().toISOString()}. The result score (0-100), the sentiment tier (0-4) and the highlight bullets are ` +
       `that provider's own analysis, reproduced unchanged; this dashboard adds no scoring of its own. Tier labels use their ` +
-      `published bands. "pending" means the call is listed but not yet analysed — it is not a zero.`,
+      `published bands. "pending" means the call is listed but not yet analysed — it is not a zero. Transcript-backed Deep Dive ` +
+      `result/view/headline fields are copied only onto an exact, unambiguous call and are separately labelled; no score is inferred.`,
   };
   await exportRows({
     filename: 'glow-concall-scans',
     sheetName: 'Concall Scans',
     columns: [
-      { header: 'Call Date', key: 'd', width: 20, get: (r) => (r.__banner ? r.__banner : r.when) },
+      { header: 'Call / Published Date', key: 'd', width: 24, get: (r) => (r.__banner ? r.__banner : r.analysisTracked === false ? r.publishedDate : r.when) },
       { header: 'Ticker', key: 't', width: 14, get: (r) => (r.__banner ? '' : r.ticker || '') },
       { header: 'Company', key: 'c', width: 34, get: (r) => (r.__banner ? '' : r.name) },
       { header: 'Industry', key: 'i', width: 28, get: (r) => (r.__banner ? '' : r.industry || '') },
-      { header: 'Result Score (third-party)', key: 's', width: 24, get: (r) => (r.__banner ? '' : (r.resultScore ?? 'pending')) },
-      { header: 'Result Tier (third-party)', key: 'rt', width: 22, get: (r) => (r.__banner ? '' : r.resultTier?.label || 'pending') },
-      { header: 'Sentiment (third-party)', key: 'st', width: 22, get: (r) => (r.__banner ? '' : r.sentiment?.label || 'pending') },
+      { header: 'Result Score (third-party)', key: 's', width: 24, get: (r) => (r.__banner ? '' : r.analysisTracked === false ? '' : (r.resultScore ?? 'pending')) },
+      { header: 'Result Tier (third-party)', key: 'rt', width: 22, get: (r) => (r.__banner ? '' : r.analysisTracked === false ? '' : r.resultTier?.label || 'pending') },
+      { header: 'Sentiment (third-party)', key: 'st', width: 22, get: (r) => (r.__banner ? '' : r.analysisTracked === false ? '' : r.sentiment?.label || 'pending') },
       { header: 'Highlights (third-party)', key: 'h', width: 70, get: (r) => (r.__banner ? '' : r.tags.join(' | ')) },
+      { header: 'Deep Dive Result', key: 'ddr', width: 22, get: (r) => insight(r)?.result || '' },
+      { header: 'Deep Dive View', key: 'ddv', width: 22, get: (r) => insight(r)?.verdict || '' },
+      { header: 'Deep Dive Headline', key: 'ddh', width: 70, get: (r) => insight(r)?.headline || '' },
       { header: 'Summary Link', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.transcriptUrl || '') },
+      { header: 'Documents', key: 'docs', width: 80, get: (r) => (r.__banner ? '' : readableDocuments(r).map((document) => `${document.type}: ${document.url}`).join(' | ')) },
     ],
     rows: [banner, ...rows],
   });

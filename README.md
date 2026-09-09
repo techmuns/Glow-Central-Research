@@ -1,263 +1,42 @@
 # Glow Central Research
 
-An Indian-equities research and portfolio analytics dashboard. Two workspaces —
-**Research Central** (AI and general alerts, Ask Research, earnings, con-calls, public chatter, technical breakouts,
-superstar investors, news, announcements, insider trades) and **Portfolio Analytics** (positions,
-allocation, transactions, drawdown) — with a global **Portfolio · Watchlist · Universe** scope
-toggle that applies to every tab.
+Glow Ventures family-office research dashboard, using the shared
+[Sattva template](https://github.com/techmuns/Sattva-Central-Research) with Glow's own portfolio,
+branding, Family Book, My Managers, Mutual Funds and macro research.
 
-**Ask Research** is the landing tab. **AI Alerts** is an explainable seven-day priority queue that groups events by
-portfolio company and surfaces the highest-signal evidence first. Materiality, recency, direction,
-real Portfolio membership, independent-feed corroboration, conflicts and sector clusters determine
-its internal ordering; cards show evidence and a next action without exposing score arithmetic.
-Stale feeds are penalised and named in a compact header warning. **General Alerts** keeps the complete
-newest-first, internally scrollable history from Earnings, Con-calls, Public Chatter, Breakouts /
-Technical, Super Investors, News, Corporate Announcements and Insider Trades, with date, direction,
-importance and feed filters. Both views reuse the same feeds and add no source of their own.
+The September 2026 template upgrade includes light/dark themes, Bookmarks, streaming Ask Research,
+portfolio-aware alerts, news archives, company filings, con-calls and summaries, IPO monitoring,
+source health and continuous capture recovery. See the [Glow deployment and credential checklist](docs/GLOW-TEMPLATE-SYNC.md)
+for the exact upstream revision, preserved differences, required settings and future sync process.
 
-**Ask Research** is a conversational workspace that assembles a bounded evidence
-packet from every dashboard data module, reports source coverage and provenance, and keeps its
-conversation library on the reader's device. The Worker sends the bounded packet to Muns' hosted
-LLM router and forwards each NDJSON text chunk immediately, so answers render progressively without
-exposing the session token or waiting for the complete model response.
+Portfolio membership comes from `techmuns/GlowVentures` platform statements. The daily producer
+builds the book, company identities and manager summaries. The dashboard revalidates its published
+snapshot on opening, during visible sessions and before portfolio questions. It preserves the
+source's statement dates and reports failed checks; a successful read is not a live broker update.
+Equity weights use the complete deduplicated equity statement book, not total family NAV.
+Unknown costs and P&L remain unknown and the ring-fenced promoter holding stays outside totals.
+The Family Book tab retains detailed statement evidence.
 
-**Two macro tabs lead the bar.** *Macro Research* (commodities, global indices, currencies, rates and bonds, with a returns table, overlay charts and the US yield curve) and *Economy & Macro* (the indicator grid and the data release calendar) are ported from the GlowVentures cockpit; every figure on them is read from a series store harvested there and copied here daily — nothing is scored or recomputed.
+Every source must retain captured history and report stale, partial and failed checks honestly.
+This is a standing requirement, not certification of complete provider coverage. See
+[reliability criteria](docs/INTELLIGENCE-RELIABILITY.md) and [project instructions](AGENTS.md).
 
-**The Family Book is the real book.** *Family Book* shows every position the family's wealth platforms report — consolidated in the GlowVentures repository from the platforms' own statements and copied here daily as `public/data/book.json`, each duplicate report counted once, blanks kept as blanks. *Ask Research* answers portfolio questions from that same file; the illustrative FIFO ledger under the hidden Portfolio Analytics workspace is no longer an evidence source.
+Static vanilla ES modules, a committed Tailwind stylesheet and a Cloudflare Worker; no frontend
+framework, bundler or application dependency installation. Local check:
 
-**Glow is a downstream of [Sattva Central Research](https://github.com/techmuns/Sattva-Central-Research).**
-The code is merged from there daily by a GitHub Action, so fixes and features built in Sattva land
-here without porting; Glow keeps its own brand, palette, book and universe, plus two features of its
-own — the **Fund Returns** sub-view (every tracked scheme's returns and same-cohort rank, off
-AmfiBeas) and a **~1,900-company tracked universe** for the filings feeds. See `CLAUDE.md`, *This
-dashboard is a downstream of Sattva*.
-
-Static runtime, no bundler, no framework, no npm dependencies for the app itself.
-Vanilla ES modules and a committed, precompiled Tailwind stylesheet. Hosted as a Cloudflare Worker.
-
-![Earnings Hub](docs/screenshots/earnings-hub.png)
-
----
-
-## Status
-
-**All fifteen tabs across both workspaces are built.** See
-[`docs/HANDOFF.md`](docs/HANDOFF.md) for the full live-vs-mock inventory, the architecture map,
-deploy notes and the known gaps.
-
-**Public Chatter is live too**, off the SentimentDash API — mention counts and sentiment across ValuePickr, TradingQnA and Google News. The synthetic forum/Telegram corpus that used to fill it is deleted rather than relabelled.
-
-**Two more surfaces are genuinely live.**
-
-*Breakouts / Technical* scores 535 NSE-500 companies against a 16-rule, 24-point model from a
-daily Yahoo Finance EOD scrape plus NSE delivery data, refreshed weekdays at 07:00 IST by
-[a GitHub Action](.github/workflows/technicals-refresh.yml).
-
-*Portfolio Analytics* marks every position to market from that same feed, and builds its equity
-curve and drawdown from **735 trading days of real closing prices** — because a max drawdown from
-an invented price series looks exactly like a measured one and nobody could check it. The trade
-ledger behind it is synthetic, but every execution price in it is a real close on a real trading
-day, so the curve never steps at a trade. The split ribbon on that workspace states both halves.
-
-**Two full scoring/analysis systems sit on mock-but-real-shaped data.** The Earnings Hub scores
-every result against a 15-rule, 21-point quality-and-growth model; the Con-call tab scans real
-transcript text for user-editable keywords, at runtime, in the browser. Both are wired exactly as
-they will be when the feeds land — swapping the JSON is the only change needed.
-
-The Sources modal in the header lists every feed with an honest live / real / mock / pending
-status. What each tab does *not* do is recorded in `docs/SPEC.md` under its "Still to come" —
-a dashed **Wiring roadmap** card used to carry that under every table, and it was chrome competing
-with the content it sat beneath.
-
----
-
-## Run it locally
-
-No install step. Serve `public/` over HTTP with anything:
-
-```bash
+```sh
 python3 -m http.server 8080 -d public
-# then open http://localhost:8080
+node scripts/verify-glow-parity.mjs
+node scripts/check-book.mjs
+npx --yes wrangler@4 deploy --dry-run
 ```
 
-Opening `public/index.html` directly from the filesystem will **not** work — `fetch()` of the
-JSON data files is blocked on `file://`. The app detects this and says so.
+Use Node 22 for the full Verify suite. Browser checks pin Playwright 1.62.1 and run without
+production API calls. The shared contracts, local Worker tests and browser workflows are in
+[Verify](.github/workflows/verify.yml). Production secrets remain server-side.
 
-Optionally, run it through the real Worker runtime:
-
-```bash
-npx wrangler dev
-```
-
-Ask Research is intentionally disabled until a server-side Muns session token is present. It prefers
-`MUNS_LLM_TOKEN`, then falls back to the existing `MUNS_NEWS_TOKEN` or `MUNS_TOKEN`. The former
-`ANTHROPIC_API_KEY` binding is read only while `MUNS_LLM_LEGACY_ANTHROPIC_BINDING` explicitly confirms
-that it now contains a Muns token; this prevents a genuine Anthropic credential from being sent to
-another service. For local Worker
-development, put the token in the gitignored `.dev.vars`; for production, configure the dedicated
-secret with `npx wrangler secret put MUNS_LLM_TOKEN`. Do not put it in `public/` or browser storage.
-Conversation history is stored locally, while each submitted question and its bounded dashboard
-evidence packet are streamed through `https://fastapi.muns.io/query-router` using the low-latency
-`local_llm` route. `MUNS_LLM_TYPE=hosted_llm` remains available as an explicit operator override.
-Every dashboard source keeps its status and provenance while ranked row samples share a
-13,000-character budget measured on the packet the model receives (`public/js/research/evidence-shared.js`,
-shared with the Worker) and sized for the local model's context window; a company named in the
-question is resolved to its ticker and leads every source that carries it. The compact catalog
-carries only identity and status because the source packets already hold the tab, route, dates and
-provider; UI-only routes and that duplicate catalog stay out of the model prompt and out of the budget.
-
-The browser never compiles Tailwind. If a change adds or removes utility classes, regenerate the
-committed stylesheet with the pinned on-demand CLI (it installs nothing in this repository):
-
-```bash
-npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs \
-  -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
-```
-
----
-
-## Deploy
-
-Cloudflare Workers, with the static site served through the `ASSETS` binding:
-
-```bash
-npx wrangler deploy
-```
-
-Config lives in [`wrangler.jsonc`](wrangler.jsonc); the Worker itself is
-[`worker/index.js`](worker/index.js), which serves assets for everything and has a clearly
-marked slot for future `/api/*` routes.
-
----
-
-## Layout
-
-```
-public/
-  index.html          design tokens, fonts, committed Tailwind stylesheet
-  css/tailwind.css    generated utility CSS; served directly, never compiled in the browser
-  js/
-    app.js            bootstrap: load JSON, mount the shell
-    core/             state, router, live engine, format, dom helpers
-                      watchlist.js — the companies the reader stars, and the Watchlist scope
-    ui/               components.js (primitives), shell.js (chrome + tab registry)
-    concall/          keyword-engine.js (runtime scanner), keyword-editor, deep-dive
-    data/             per-feed loaders: technicals, earnings, concalls, chatter, universe
-                      coverage.js — the 142-company book the Portfolio scope filters by
-                      scope.js — the three scopes; every forScope() is built on it
-                      daily-alerts.js — retained chronological readings across the research feeds
-                      ai-alerts.js — explainable seven-day company ranking over those readings
-                      sentiment-shared.js — slug→NSE resolver, shared with the Worker
-    scoring/          tech-scoring (24 pt), earnings-scoring (21 pt), rule-meta
-    research/         bounded cross-dashboard evidence catalog + safe answer renderer
-    tabs/             ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
-                      super-investors, news, corp-announcements, insider-trades
-    portfolio/        overview, position-by, transactions, drawdown
-  data/               portfolio-companies.json (the Portfolio scope's book, rebuilt daily from techmuns/GlowVentures), portfolio.json (the ledger),
-                      universe.json, technicals.json, mock/*.json
-worker/index.js       asset serving + live read-through APIs + the Ask Research stream
-worker/research.mjs   server-only streaming Muns LLM bridge and request limits
-docs/SPEC.md          product spec, nav model, per-tab features, roadmap
-docs/HANDOFF.md       live-vs-mock inventory, architecture, FIFO rules, deploy, known gaps
-docs/DATA-CONTRACTS.md  every JSON file: shape, types, units, cadence, real source
-CLAUDE.md             working rules, module contract, design tokens, where-to-look index
-```
-
----
-
-## Docs
-
-- **[`docs/SPEC.md`](docs/SPEC.md)** — the product spec: navigation model, scope toggle, every
-  tab and sub-view with its features, and the build roadmap.
-- **[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md)** — every data file's exact JSON shape,
-  field types, units, refresh cadence and intended real source. Read this before wiring live data.
-- **[`CLAUDE.md`](CLAUDE.md)** — stack rules, file layout, the module interface contract, design
-  tokens, and the verification checklist.
-
-## Refresh the technicals feed by hand
-
-```bash
-node scripts/scrape-technicals.mjs            # full run, ~10 min for 535 companies
-TECH_LIMIT=15 node scripts/scrape-technicals.mjs   # smoke run -> technicals.smoke.json
-```
-
-A capped run writes to a sibling file and skips the ATR accumulator, so it can never truncate
-the committed feed or poison the volatility-trend history.
-
-## Regenerate the mock earnings set
-
-```bash
-node scripts/gen-mock-earnings.mjs
-```
-
-Seeded, so the output is byte-stable — a diff means a real change. Writes
-`public/data/mock/earnings.json` and `public/data/mock/earnings-calendar.json`. Company names,
-tickers, sectors and market caps come from `universe.json` and are real; **every financial figure
-is synthetic**, and the dashboard says so on every surface that shows one. Swapping in the real
-filings feed is a three-file change — see *Wiring the real feed* in
-[`docs/DATA-CONTRACTS.md`](docs/DATA-CONTRACTS.md).
-
-## Regenerate the mock con-calls
-
-```bash
-node scripts/gen-mock-concalls.mjs
-```
-
-Seeded, so the output is byte-stable. Writes `public/data/mock/concall-calls.json` (60 companies
-× 2 calls, ~9,000 transcript segments), `concall-keywords.json` and `catalysts.json`.
-
-Company names, tickers and sectors are real. **Every transcript line is synthetic, and every
-person and brokerage firm named in these calls is fictional** — inventing a number for a real
-company is one thing, putting invented words in a real person's mouth is another. The dashboard
-says so on every surface that shows the data.
-
-The keyword counts, though, are **not** mock: `public/js/concall/keyword-engine.js` scans that
-text in the browser on every render, so editing a keyword's aliases genuinely changes what
-matches. No count is stored in any file.
-
-## Regenerate the mock investor set
-
-```bash
-node scripts/import-amc-portfolio.mjs # Bandhan Focused + Small Cap monthly portfolios, from scripts/fixtures/
-```
-
-Seeded, so output is byte-stable.
-
-- **Investor names are real; their positions are not.** Ashish Kacholia, Dolly Khanna, Small Cap
-  World Fund and the rest are real, and their genuine holdings are public. Everything shown here
-  is synthetic, labelled on every surface — and the data set carries **numbers only**, with no
-  `rationale`, `quote` or `thesis` field, deliberately, so there is nothing to render that would
-  read as something a named person said.
-
-## Verify before pushing
-
-```bash
-python3 -m http.server 8080 -d public &
-node scripts/verify-calendar.mjs
-node scripts/verify-research.mjs
-node scripts/verify-ui.mjs
-```
-
-Drives the site with Playwright and walks CLAUDE.md's checklist — every route in both scopes,
-routing and history, table search/sort/filters, the drill panel, the provenance markers, the
-Excel export and the responsive breakpoints. Exits non-zero if anything fails, so it can gate a
-push. It uses a system Playwright install (`PLAYWRIGHT_ROOT` / `CHROME_PATH` to point it
-elsewhere) rather than adding an npm dependency.
-
-## Screenshots
-
-| Technical Scanner | Rule breakdown |
-| --- | --- |
-| ![Technical Scanner](docs/screenshots/tech-scanner.png) | ![Drill panel](docs/screenshots/tech-drill.png) |
-
-| Strong Breakouts | FII Accumulation |
-| --- | --- |
-| ![Strong Breakouts](docs/screenshots/strong-breakouts.png) | ![FII Accumulation](docs/screenshots/fii-accumulation.png) |
-
-| Portfolio Overview — live marks, FIFO basis, reconciliation strip | Drawdown — 735 real trading days |
-| --- | --- |
-| ![Portfolio Overview](docs/screenshots/portfolio-overview.png) | ![Drawdown](docs/screenshots/portfolio-drawdown.png) |
-
-| The FIFO working behind a sell | Grouped by lot, not by position |
-| --- | --- |
-| ![FIFO drill](docs/screenshots/portfolio-fifo-drill.png) | ![Position By](docs/screenshots/portfolio-position-by.png) |
+Upgrades follow a `codex/*` branch and pull request, checks and review, then merge. The scheduled
+[template sync](.github/workflows/sync-upstream.yml) prepares PRs and preserves Glow captures;
+it never writes directly to main. Historical upstream operational notes are reference material:
+[Glow's deployment contract](docs/GLOW-TEMPLATE-SYNC.md) takes precedence for portfolio wiring
+and account settings.

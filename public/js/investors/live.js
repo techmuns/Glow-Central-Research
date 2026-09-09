@@ -1,3 +1,4 @@
+import { sectionsFor, renderManagers, managerSummaryBlock, openManager } from './my-managers.js';
 // investors/live.js — Superstar Investors, live off Ticker Finology.
 //
 //   renderLive(ctx, { disposers })   the whole sub-view
@@ -32,14 +33,13 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import * as feed from '../data/super-investors.js';
-import { DEADLINE_MS, ATTEMPTS, deriveMoves, comparisonPeriods, disclosureStatus } from '../data/finology-shared.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
-import { scopePossessive } from '../data/scope.js';
-// GLOW-OWNED: the family's own managers — first under Portfolio, and a block of their own on
-// Quarterly Changes. See js/investors/my-managers.js; this file only places them.
-import { sectionsFor, renderManagers, managerSummaryBlock, openManager } from './my-managers.js';
+import { scopePossessive, scopeLabel } from '../data/scope.js';
+// The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
+import { classifyHolding, companyKey, filedPair, isMove, quarterOrder } from '../data/finology-shared.js';
+import { deriveMoves, comparisonPeriods, disclosureStatus } from '../data/finology-shared.js';
 import { renderChanges } from './changes.js';
 import { wireIntegrity, associatedEvidenceHtml } from './integrity.js';
 import { loadEvidence } from '../data/holding-evidence.js';
@@ -64,22 +64,22 @@ const SECTIONS = [
 export function renderLive(ctx, { disposers = [], section = 'quarterly-changes', tableView, onView, onSection, changesView, onChangesView } = {}) {
   const m = feed.meta();
 
+  disposers.push(feed.watchFreshness());
   const rows = scopedHoldings(ctx);
   const quarters = feed.quarterLabels();
   const investorList = feed.list();
-  const sections = sectionsFor(ctx.scope, SECTIONS); // GLOW: My Managers sits first under Portfolio
+  const sections = sectionsFor(ctx.scope, SECTIONS);
   const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id;
   const sectionTabs = tabBar({ tabs: sections, activeId: activeSection, onSelect: onSection || (() => {}) });
 
   const summary = activeSection === 'quarterly-changes' ? renderChanges(ctx, { view: changesView, onView: onChangesView, openInvestor, includeHolding: scopeFilter(ctx) }) : null;
   const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView) : null;
   if (table) onView?.(table.view);
-  const mine = activeSection === 'my-managers' ? renderManagers(ctx, { openInvestor }) : null; // GLOW
 
+  const mine = activeSection === 'my-managers' ? renderManagers(ctx, { openInvestor }) : null;
   const panel =
-    activeSection === 'my-managers'
-      ? mine.html
-      : activeSection === 'quarterly-changes'
+    activeSection === 'my-managers' ? mine.html :
+    activeSection === 'quarterly-changes'
       ? summary.html
       : !m.ok
       ? unavailableHtml(m)
@@ -98,7 +98,7 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
       description: 'Follow your managers and tracked investors through holdings reports, statement trades and bulk/block deals.',
     })}
     ${staleStrip(m)}
-    ${refusedStrip(m)}
+    ${!m.ok && activeSection === 'quarterly-changes' ? unavailableHtml(m) : ''}
     <div data-holdings-integrity></div>
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
       ${sectionTabs.html}
@@ -110,10 +110,11 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
   disposers.push(sectionTabs.wire(ctx.root.querySelector('[data-live-section-tabs]')));
   wireIntegrity(ctx.root, disposers, openInvestor, openManager);
   summary?.wire(ctx.root, disposers);
-  mine?.wire(ctx.root, disposers); // GLOW
+  mine?.wire(ctx.root, disposers);
   if (table) disposers.push(table.wire(ctx.root));
   if (activeSection === 'investors') wireCards(ctx.root);
 }
+
 
 // ---------------------------------------------------------------------------------------
 // THE QUARTER, ACROSS EVERY BOOK — the Quarterly Changes in-page tab
@@ -140,70 +141,81 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
 const pp = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(2)} pp`);
 const andOthers = (names) => (names.length <= 2 ? names.join(' & ') : `${names[0]}, ${names[1]} +${names.length - 2}`);
 
-function quarterSummaryBlock(ctx, m, rows) {
+function quarterSummaryBlock(ctx, m) {
   const include = scopeFilter(ctx);
   const q = feed.quarterSummary({ include, limit: 5 });
-  const openCompany = (item) => openCompanyDetail(item.company || item.name);
+  const openCompany = (item) => openCompanyDetail(item, q);
+  const scope = scopeLabel(ctx.scope);
+  const universe = ctx.scope !== 'universe' ? feed.quarterSummary({ include: scopeFilter({ scope: 'universe' }), limit: 0 }) : q;
+  const empty = (what) => q.comparableBooks === 0
+    ? `No comparable books are available for ${scope}.`
+    : `No ${what} found in the available ${scope} disclosures for ${q.latest} vs ${q.prior}.`;
+  const sourceDates = feed.books().map((b) => Date.parse(b.sourceCheckedAt || b.fetchedAt || ''));
+  const sourceDate = sourceDates.length && sourceDates.every(Number.isFinite)
+    ? new Date(Math.min(...sourceDates)).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'unavailable';
 
   const panels = [
     rankedList({
       key: 'si-consensus-buys',
-      title: 'Bought by more than one investor',
-      note: 'Added to, or newly disclosed, by two or more tracked investors.',
+      title: 'Increased or new stakes · 2+ investors',
+      note: 'Higher or newly disclosed stakes in the same quarter pair. This does not establish purchases.',
       items: q.consensusBuys.map((c) => ({
         name: c.company,
         company: c.company,
+        companySlug: c.companySlug,
         sub: andOthers(c.investors.map((i) => i.investor)),
         value: `${c.count} investors`,
-        badge: c.sized ? pp(c.sumPp) : null,
+        badge: c.sumPp != null ? pp(c.sumPp) : null,
         tone: 'pos',
       })),
-      empty: 'No company was bought by more than one tracked investor this quarter.',
+      empty: empty('shared increases or new disclosures'),
       onSelect: openCompany,
     }),
     rankedList({
       key: 'si-new',
-      title: 'New entrants',
-      note: 'First quarter disclosed. Ranked by the stake now held — an appearance has no trade size.',
+      title: 'Newly disclosed',
+      note: 'Disclosed now but absent in the comparison quarter; this may be a re-entry. Ranked by reported stake.',
       items: q.newEntrants.map((mv) => ({
         name: mv.company,
         company: mv.company,
+        companySlug: mv.companySlug,
         sub: mv.investor,
         value: mv.now == null ? '—' : `${Number(mv.now).toFixed(2)}%`,
         tone: 'pos',
       })),
-      empty: 'No new position was disclosed this quarter.',
+      empty: empty('new disclosures'),
       onSelect: openCompany,
     }),
     rankedList({
       key: 'si-adds',
       title: 'Largest increases',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topAdds.map((mv) => ({ name: mv.company, company: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'pos' })),
-      empty: 'No position was increased this quarter.',
+      items: q.topAdds.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: mv.investor, value: pp(mv.deltaPp), tone: 'pos' })),
+      empty: empty('stake increases'),
       onSelect: openCompany,
     }),
     rankedList({
       key: 'si-consensus-exits',
-      title: 'Sold down by more than one investor',
-      note: 'Trimmed, or no longer disclosed, by two or more tracked investors.',
+      title: 'Reduced or undisclosed · 2+ investors',
+      note: 'Lower or no longer disclosed stakes in the same quarter pair. This does not establish sales.',
       items: q.consensusExits.map((c) => ({
         name: c.company,
         company: c.company,
+        companySlug: c.companySlug,
         sub: andOthers(c.investors.map((i) => i.investor)),
         value: `${c.count} investors`,
-        badge: c.sized ? pp(c.sumPp) : null,
+        badge: c.sumPp != null ? pp(c.sumPp) : null,
         tone: 'neg',
       })),
-      empty: 'No company was sold down by more than one tracked investor this quarter.',
+      empty: empty('shared reductions or disclosure removals'),
       onSelect: openCompany,
     }),
     rankedList({
       key: 'si-trims',
       title: 'Largest reductions',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topTrims.map((mv) => ({ name: mv.company, company: mv.company, sub: mv.investor, value: pp(mv.deltaPp), tone: 'neg' })),
-      empty: 'No position was reduced this quarter.',
+      items: q.topTrims.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: mv.investor, value: pp(mv.deltaPp), tone: 'neg' })),
+      empty: empty('stake reductions'),
       onSelect: openCompany,
     }),
     rankedList({
@@ -213,30 +225,41 @@ function quarterSummaryBlock(ctx, m, rows) {
       items: q.exits.map((mv) => ({
         name: mv.company,
         company: mv.company,
+        companySlug: mv.companySlug,
         sub: mv.investor,
         // The stake they last disclosed, labelled as the prior quarter's — NOT a size for the
         // exit, which has none. An em dash where even that is missing.
         value: mv.before == null ? '—' : `was ${Number(mv.before).toFixed(2)}%`,
         tone: 'neg',
       })),
-      empty: 'No confirmed disclosure disappearances in the available comparisons.',
+      empty: empty('confirmed disclosure removals'),
       onSelect: openCompany,
     }),
   ];
 
-  // GLOW: the family's own managers, above the superstar roll-up under Portfolio and Watchlist —
-  // the managers the family pays come before ninety investors it has no relationship with.
   const mine = managerSummaryBlock(ctx);
   const html = `
     ${mine?.html || ''}
     <section class="mb-6" data-quarter-summary>
-      ${summaryHead(q)}
+      ${summaryHead(q, scope)}
+      <div class="mb-3 rounded-xl bg-white px-4 py-3 text-xs text-slate-500 ring-1 ring-slate-200" data-si-coverage>
+        <p><strong>${escapeHtml(scope)} companies</strong> · ${q.comparableBooks} of ${m.total} tracked books have the same comparison pair · ${q.coveredBooks} contain data in this scope.</p>
+        <p class="mt-1">${q.loadedBooks} books loaded · ${q.missingBooks} unavailable · ${q.excludedBooks.length} excluded for missing comparison quarters · ${q.counts.awaiting} incomplete positions in this scope.</p>
+        <p class="mt-1">Ticker Finology · oldest source read: ${escapeHtml(sourceDate)} · ${m.origin === 'live' ? 'Feed checked this session' : 'Saved data'}${m.failedBooks ? ` · ${m.failedBooks} book reads failed` : ''}${m.stale ? ' · Source serving older data' : ''}${sourceDates.some((at) => !Number.isFinite(at) || Date.now() - at >= 6 * 3600000) ? ' · Source check overdue' : ''}${m.confirming || m.pending ? ' · Updates still loading' : ''}. Results cover available disclosures and may change as data arrives.</p>
+        ${ctx.scope !== 'universe' ? `<button type="button" data-si-universe class="mt-2 font-semibold text-indigo-600 hover:underline">View Universe: ${universe.consensusBuyCount} ${universe.consensusBuyCount === 1 ? 'company' : 'companies'} with shared increases or new disclosures</button>` : ''}
+      </div>
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((p) => p.html).join('')}</div>
     </section>`;
 
   function wire(root, disposers) {
-    mine?.wire(root, disposers); // GLOW
+    mine?.wire(root, disposers);
     for (const panel of panels) disposers.push(panel.wire(root));
+    root.querySelector('[data-si-universe]')?.addEventListener('click', () => {
+      const [path, search = ''] = location.hash.split('?');
+      const params = new URLSearchParams(search);
+      params.set('scope', 'universe');
+      location.hash = `${path}?${params}`;
+    });
     const btn = root.querySelector('[data-summary-help]');
     if (btn) btn.addEventListener('click', () => openModal(summaryHelpBody(q), { size: 'wide' }));
   }
@@ -250,8 +273,8 @@ const COMPANY_ACTION = {
   held: ['Unchanged', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Reduced', 'bg-amber-50 text-amber-800 ring-amber-200'],
   exited: ['No longer disclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
-  awaiting: ['Filing due', 'bg-slate-100 text-slate-500 ring-slate-200'],
-  unknown: ['Unconfirmed', 'bg-slate-100 text-slate-500 ring-slate-200'],
+  awaiting: ['Incomplete data', 'bg-slate-100 text-slate-500 ring-slate-200'],
+  unknown: ['Not comparable', 'bg-slate-100 text-slate-500 ring-slate-200'],
 };
 
 /**
@@ -263,15 +286,16 @@ const COMPANY_ACTION = {
  * latest/prior pair contains the company, including an unchanged holder. That is what answers
  * "which investors hold this, and how much?" rather than merely expanding the text already shown.
  */
-function openCompanyDetail(company) {
+function openCompanyDetail(item, comparison) {
+  const company = item.company || item.name;
   const details = feed
     .allHoldings()
-    .filter((r) => r.company === company)
+    .filter((r) => companyKey(r) === companyKey({ company, companySlug: item.companySlug }))
     .map((r) => {
       const { latest, prior } = comparisonPeriods(r);
       const now = latest ? r.quarterlyHoldings[latest] : null;
       const before = prior ? r.quarterlyHoldings[prior] : null;
-      return { ...r, latest, prior, now, before, change: changeOf(r) };
+      return { ...r, latest, prior, now, before, change: classifyHolding(r, latest, prior) };
     })
     // A disclosure that ended before both comparison quarters is real history, but it did not
     // contribute to the quarter the reader clicked. Keeping it out prevents an old holder from
@@ -280,7 +304,7 @@ function openCompanyDetail(company) {
     .sort((a, b) => (b.now != null) - (a.now != null) || (b.now ?? -1) - (a.now ?? -1) || a.investor.localeCompare(b.investor));
 
   const current = details.filter((r) => r.now != null).length;
-  const changed = details.filter((r) => r.change && r.change.action !== 'held').length;
+  const changed = details.filter((r) => isMove(r.change?.action)).length;
   const rows = details
     .map((r) => {
       const action = r.change?.action || 'unknown';
@@ -291,18 +315,18 @@ function openCompanyDetail(company) {
       return `
         <tr class="border-t border-slate-100" data-company-investor-row>
           <td class="px-3 py-3 align-top">
-            <div class="font-semibold text-slate-900">${escapeHtml(r.investor)}</div>
+            <a href="https://ticker.finology.in/investor/${encodeURIComponent(r.slug)}" target="_blank" rel="noopener" class="font-semibold text-indigo-600 hover:underline">${escapeHtml(r.investor)}</a>
           </td>
           <td class="whitespace-nowrap px-3 py-3 align-top">
             <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${escapeHtml(label)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top">
             <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.prior || 'Not published')}</span>
-            <span class="mt-0.5 block font-semibold tabular-nums text-slate-700">${r.before == null ? dash : escapeHtml(`${Number(r.before).toFixed(2)}%`)}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-700">${r.before == null ? escapeHtml(r.quarterlyNotes?.[r.prior] || '—') : escapeHtml(`${Number(r.before).toFixed(2)}%`)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top">
             <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.latest || 'Not published')}</span>
-            <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">${r.now == null ? dash : escapeHtml(`${Number(r.now).toFixed(2)}%`)}</span>
+            <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">${r.now == null ? escapeHtml(r.quarterlyNotes?.[r.latest] || '—') : escapeHtml(`${Number(r.now).toFixed(2)}%`)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums ${deltaClass}">${delta == null ? dash : escapeHtml(pp(delta))}</td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums text-slate-700">${escapeHtml(currentValue)}</td>
@@ -327,11 +351,11 @@ function openCompanyDetail(company) {
       </div>
       <div class="px-6 py-5 sm:px-7">
         <p class="mb-4 text-xs leading-relaxed text-slate-500">
-          Percentages are the stakes disclosed in each investor's own latest and prior published quarters.
+          Percentages use ${escapeHtml(comparison.latest || 'unavailable')} vs ${escapeHtml(comparison.prior || 'unavailable')}, the same pair as the summary. Investor names link to the source.
           <strong class="text-slate-600">Current value is Finology's estimate of the position now, not an amount bought or sold.</strong>
           A dash means not disclosed, not zero.
         </p>
-    <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+        <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-200" tabindex="0" role="region" aria-label="Company investor comparison table">
           <table class="min-w-[850px] w-full text-sm">
             <thead class="bg-slate-50">
               <tr>
@@ -358,7 +382,7 @@ function openCompanyDetail(company) {
  * `clause()` is the Sources-modal rule applied here: a figure goes at the END of a sentence that
  * survives without it, so a count of zero drops its clause rather than printing "0 new".
  */
-function summaryHead(q) {
+function summaryHead(q, scope) {
   const c = q.counts;
   const clause = (n, text) => (n ? text : null);
   const parts = [
@@ -367,23 +391,25 @@ function summaryHead(q) {
     clause(c.trimmed, `${formatNumber(c.trimmed)} reduced`),
     clause(c.exited, `${formatNumber(c.exited)} no longer disclosed`),
   ].filter(Boolean);
+  // Said separately from the moves, because it is not one. See `counts` in data/super-investors.js.
+  const outstanding = c.awaiting ? `${formatNumber(c.awaiting)} position${c.awaiting === 1 ? '' : 's'} with incomplete comparison data` : null;
 
   const span =
     q.pairs.length === 1 && q.pairs[0].latest
       ? `${escapeHtml(q.pairs[0].latest)} vs ${escapeHtml(q.pairs[0].prior)}`
-      : `${q.pairs.length} different quarter pairs`;
+      : 'No complete quarter pair';
 
   return `
     <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-      <h2 class="font-display text-lg font-bold text-slate-900">The quarter across every book</h2>
+      <h2 class="font-display text-lg font-bold text-slate-900">Quarterly changes · ${escapeHtml(scope)}</h2>
       <button type="button" data-summary-help
         class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
         <span>How this is derived</span><span aria-hidden="true">?</span>
       </button>
     </div>
     <p class="mb-3 text-xs text-slate-500">
-      ${parts.length ? `${escapeHtml(parts.join(' · '))} across ${formatNumber(q.contributingBooks)} of ${formatNumber(q.comparableBooks)} comparable books` : 'No position moved in any comparable book.'}
-      <span class="text-slate-400">· ${span}${q.singleQuarterBooks ? ` · ${formatNumber(q.singleQuarterBooks)} book${q.singleQuarterBooks === 1 ? '' : 's'} publish only one quarter and cannot be compared` : ''}</span>
+      ${parts.length ? `${escapeHtml(parts.join(' · '))} across ${formatNumber(q.contributingBooks)} of ${formatNumber(q.comparableBooks)} comparable books` : 'No reportable changes found in the available scoped disclosures.'}
+      <span class="text-slate-400">· ${span}${outstanding ? ` · ${escapeHtml(outstanding)}` : ''}</span>
     </p>`;
 }
 
@@ -398,11 +424,13 @@ function summaryHelpBody(q) {
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">&times;</button>
       </div>
       <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
-        <p>Finology publish a holding <strong>percentage</strong> per company per quarter. The change is the latest quarter minus the one before it, per company, per investor — <strong>the only computed figure on this page</strong>. Everything else is reproduced as they publish it.</p>
-        <p><strong>A blank quarter is not a zero.</strong> Where a holder is not on the shareholding pattern the source prints "-", which below the Indian disclosure threshold means <em>not disclosed</em> rather than <em>sold</em>. So a position appearing counts as <strong>new</strong> and one disappearing as <strong>no longer disclosed</strong> — and neither carries a percentage-point figure, because printing ±the whole holding would invent a trade size that nobody disclosed.</p>
-        <p><strong>Increases and reductions are in percentage points of the company, not rupees.</strong> The ₹ figure beside a holding is Finology's derivation of what the position is worth <em>now</em>, from a percentage and a market cap. It is not what was traded, so ranking "largest buys" by it would answer a different question and attach a rupee amount to a trade nobody stated.</p>
-        <p><strong>"Bought by more than one investor" is a count, not a signal.</strong> It says how many tracked investors added to or newly disclosed the same company. It is not weighted, not scored and not a recommendation — this dashboard adds no model of its own to somebody else's filings.</p>
-        <p><strong>The books are not all on the same quarter.</strong> Each is compared against its own two most recent published quarters, so this roll-up can span several quarter pairs; ${q.pairs.length === 1 ? 'in the current data they all land on one.' : `the current data spans ${q.pairs.length}.`} A book that publishes only one quarter is not comparable and contributes nothing, rather than counting as entirely new${q.singleQuarterBooks ? ` — ${formatNumber(q.singleQuarterBooks)} of them right now` : ''}.</p>
+        <p>Finology publishes a holding <strong>percentage</strong> per company per quarter. Changes subtract the prior percentage from the latest one. Counts and rankings are derived from those disclosures; these are not independently verified exchange filings.</p>
+        <p><strong>Every book uses the same comparison pair:</strong> ${escapeHtml(q.latest || 'unavailable')} vs ${escapeHtml(q.prior || 'unavailable')}. Only consecutive calendar quarters that have ended are eligible. ${q.excludedBooks.length} loaded books lack this pair and are excluded; the dashboard does not mix older periods into this quarter.</p>
+        <p><strong>A missing or conflicting figure is incomplete data.</strong> Filing notes survive the feed and cache. An unavailable prior quarter cannot establish a new entrant. A missing current stake is called no longer disclosed only when the source also reports zero current value; otherwise its status remains incomplete.</p>
+        <p><strong>A blank is not zero, and a new disclosure is not necessarily a new investment.</strong> A holder may reappear or cross the disclosure threshold. Appearances and disappearances carry no percentage-point trade size.</p>
+        <p><strong>Stake changes do not establish purchases or sales.</strong> Issuance, buybacks and other changes in share capital can change ownership percentages. Current rupee values estimate holdings, not money traded.</p>
+        <p><strong>Shared changes count distinct investors in the same company and quarter pair.</strong> Source company identifiers join names; duplicate rows never add votes. A combined percentage-point change is shown only when every included change has a measured delta.</p>
+        <p><strong>The selected scope filters companies.</strong> Portfolio and Watchlist results do not describe the whole Universe. Missing books, excluded periods and incomplete positions are shown above the cards; an empty card means no match in the available data, not proof of no activity.</p>
       </div>
     </div>`;
 }
@@ -432,7 +460,7 @@ const REASONS = {
   },
   timeout: {
     title: 'The super-investor API did not answer in time',
-    body: `The request was given ${DEADLINE_MS / 1000} seconds across ${ATTEMPTS} attempts, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.`,
+    body: 'The request was given 15 seconds and retried, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.',
   },
   unreachable: { title: 'The super-investor API could not be reached', body: 'The upstream service did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
   upstream: { title: 'The super-investor API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
@@ -502,49 +530,8 @@ function staleStrip(m) {
     </div>`;
 }
 
-/**
- * The live feed refused, and there are real figures on screen regardless.
- *
- * THIS IS THE HALF OF `renderUnavailable` THAT A PAGE WITH DATA ON IT NEVER GOT. That panel names
- * the reason and the command that fixes it, and it only renders when there is nothing to show — so
- * the moment the committed snapshot or the device cache could paint a grid, the refusal behind it
- * became invisible. A deployment with no token showed ninety complete books and said nothing at
- * all about the feed answering `no-token`.
- *
- * It is NOT the stale strip and must not read like one. That one is about AGE: the Worker answered,
- * with real filings of a known age. This one is about a feed that did not answer at all, so it says
- * what is wrong, whose it is to fix, and leaves the claim about what the figures ARE to the pill —
- * `Captured` and `Cached` are already exact, and repeating them here in different words would give
- * the reader two sentences to reconcile.
- *
- * Amber for a credential, slate for a service: one is a thing to do, the other a thing to wait for,
- * and colour is the fastest way a reader tells those apart.
- */
-function refusedStrip(m) {
-  if (!m.reason) return '';
-  const r = REASONS[m.reason] || REASONS.upstream;
-  const operator = m.reason === 'no-token' || m.reason === 'unauthorised';
-  const tone = operator
-    ? { box: 'bg-amber-50 ring-amber-200', text: 'text-amber-900', mono: 'text-amber-800/80', mark: 'bg-amber-100 text-amber-700' }
-    : { box: 'bg-slate-50 ring-slate-200', text: 'text-slate-700', mono: 'text-slate-500', mark: 'bg-slate-200 text-slate-600' };
-  return `
-    <div class="mb-5 flex items-start gap-3 rounded-2xl ${tone.box} p-3 ring-1">
-      <span class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${tone.mark}" aria-hidden="true">
-        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          ${operator ? '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/>'}
-        </svg>
-      </span>
-      <p class="text-xs leading-relaxed ${tone.text}">
-        <strong>${escapeHtml(r.title)}.</strong> ${r.body}
-        <span class="mt-1 block">Nothing below was re-read just now — the figures are the ones the pill above describes.</span>
-        ${m.message ? `<span class="mt-1 block font-mono text-[11px] ${tone.mono}">${escapeHtml(m.message)}</span>` : ''}
-      </p>
-    </div>`;
-}
-
 // THERE IS NO FRESHNESS HERO ON THIS VIEW, deliberately.
 //
-
 // It used to carry a fourth, gradient "Last read · 6 minutes ago" card. Shareholding data moves
 // when a company files — four times a year — so a relative clock ticking beside it invited the
 // reader to read staleness into a number that had not changed and could not have. It was also the
@@ -628,6 +615,8 @@ function holdingsTable(ctx, rows, quarters, initialView) {
 
   return scoreTable({
     rows,
+    bookmarkDate: () => quarters[0],
+    bookmarkSource: row => row.investor,
     key: (r) => `${r.slug}|${r.company}`,
     // NO STAR ON THIS TABLE. The watchlist is a list of NSE symbols — that is what every scope
     // filter on this dashboard matches — and this upstream discloses a company NAME and no symbol
@@ -646,7 +635,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
     columns: [
       ...quarters.map((q) => ({
         label: q,
-        get: (r) => pct(r.quarterlyHoldings[q]),
+        get: (r) => r.quarterlyHoldings[q] == null && r.quarterlyNotes?.[q] ? escapeHtml(r.quarterlyNotes[q]) : pct(r.quarterlyHoldings[q]),
         html: true,
         align: 'right',
         sortValue: (r) => r.quarterlyHoldings[q] ?? -1,
@@ -689,6 +678,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
           { value: 'added', label: 'Added to' },
           { value: 'trimmed', label: 'Trimmed' },
           { value: 'exited', label: 'No longer disclosed' },
+          { value: 'awaiting', label: 'Incomplete data' },
           { value: 'held', label: 'Unchanged' },
         ],
         match: (r, v) => changeOf(r)?.action === v,
@@ -697,14 +687,21 @@ function holdingsTable(ctx, rows, quarters, initialView) {
     searchable: (r) => `${r.company} ${r.investor} ${r.companySlug || ''}`,
     initialSort: { key: 'Value', dir: 'desc' },
     onRowClick: (r) => openInvestor(r.slug),
-    exportName: `glow-superinvestors-${todayStamp()}`,
+    exportName: `sattva-superinvestors-${todayStamp()}`,
     onExport: () => runExport(),
     emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} is disclosed by a tracked investor.` : 'No positions match your filters.',
     initialView,
   });
 }
 
-/** The derived move for one row, computed from the two most recent quarters of its own book. */
+/**
+ * The derived move for one row, asked of the SHARED classifier rather than re-implemented.
+ *
+ * This function used to hold its own copy of the five branches, reading `quarters[0]` and `[1]`
+ * directly — so when a book's newest column was an unfiled "Filing Due" period it printed
+ * "Undisclosed" against a company the investor plainly still held, and it would have gone on
+ * printing it after `deriveMoves` was fixed. See `classifyHolding` in js/data/finology-shared.js.
+ */
 function changeOf(r) {
   return deriveMoves({ quarters: r.quarters, holdings: [r] }).moves[0] || null;
 }
@@ -717,6 +714,10 @@ const ACTION = {
   held: ['Held', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Trimmed', 'bg-amber-50 text-amber-800 ring-amber-200'],
   exited: ['Undisclosed', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  // NEUTRAL, AND DELIBERATELY NOT ROSE. An outstanding filing is the absence of an answer, not a
+  // negative one; giving it the exit's colour would put a sale back on the screen in everything
+  // but the word.
+  awaiting: ['Incomplete data', 'bg-slate-100 text-slate-500 ring-slate-200'],
 };
 
 function changeCell(r) {
@@ -774,7 +775,7 @@ function holdingsPanel() {
   return `
     ${associatedEvidenceHtml(open?.slug)}
     <p class="mb-3 text-xs text-slate-500">Dated source disclosures. Off-cycle columns cover individual updates. Unconfirmed cells have no reliable filing status; they do not establish a purchase or sale.</p>
-    <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+    <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-200" tabindex="0" role="region" aria-label="Investor holdings table">
       <table class="w-full text-sm">
         <thead class="bg-slate-50">
           <tr>
@@ -890,26 +891,23 @@ function profilePanel() {
  * tabs reporting different sets in two places on one screen.
  */
 function scopeFilter(ctx) {
-  if (ctx.scope === 'universe') {
-    const removed = scopeLists.removed('universe').map((entry) => String(entry.name || '').toLowerCase()).filter(Boolean);
-    if (!removed.length) return null;
-    return (company) => !removed.some((name) => String(company).toLowerCase().includes(name.slice(0, 12)));
-  }
-  const names = (
-    ctx.scope === 'watchlist'
-      ? watchlist.all().map((w) => String(w.name || ''))
-      : coverage.holdings().map((h) => String(h.name || ''))
-  )
-    .map((n) => n.toLowerCase())
-    .filter(Boolean);
-  return (company) => names.some((n) => String(company).toLowerCase().includes(n.slice(0, 12)));
+  const normalName = (name) => String(name || '').toLowerCase().replace(/\b(limited|ltd)\b/g, '').replace(/[^a-z0-9]/g, '');
+  const entries = ctx.scope === 'universe' ? scopeLists.removed('universe')
+    : ctx.scope === 'watchlist' ? watchlist.all() : coverage.holdings();
+  if (ctx.scope === 'universe' && !entries.length) return null;
+  const tickers = new Set(entries.map((e) => String(e.ticker || '').toUpperCase()).filter(Boolean));
+  const names = new Set(entries.map((e) => normalName(e.name)).filter(Boolean));
+  return (company, holding = {}) => {
+    const match = tickers.has(String(holding.companySlug || '').toUpperCase()) || names.has(normalName(company));
+    return ctx.scope === 'universe' ? !match : match;
+  };
 }
 
 function scopedHoldings(ctx) {
   const all = feed.allHoldings();
   const include = scopeFilter(ctx);
   if (!include) return all;
-  return all.filter((r) => include(r.company));
+  return all.filter((r) => include(r.company, r));
 }
 
 /**
@@ -955,7 +953,7 @@ async function runExport() {
   const quarters = feed.quarterLabels();
   const rows = feed.allHoldings();
   await exportSheets({
-    filename: `glow-superinvestors-${todayStamp()}`,
+    filename: `sattva-superinvestors-${todayStamp()}`,
     banner:
       `REAL FILED HOLDINGS, NOT OURS. Superstar investor shareholdings via Ticker Finology (ticker.finology.in), read ${new Date().toISOString()}. ` +
       `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value Cr (Finology)" column is THEIR derivation ` +

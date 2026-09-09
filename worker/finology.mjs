@@ -19,7 +19,7 @@
 // credential for the operator to renew, everything else is a service to wait for. The Worker
 // route turns that code into something the panel can say out loud.
 
-import { isSlug, normaliseList, normalisePortfolio, REQ_TIMEOUT_MS, ATTEMPTS, DEADLINE_MS } from '../public/js/data/finology-shared.js';
+import { isSlug, normaliseList, normalisePortfolio, isPortfolioPayload } from '../public/js/data/finology-shared.js';
 
 export { isSlug };
 
@@ -40,9 +40,9 @@ export const BASE = 'https://devde.muns.io';
 //
 // Retrying hard into a struggling upstream also makes the struggle worse, and ninety books each
 // retrying three times is ninety times the harm.
-// The three numbers themselves are in `finology-shared.js`, so the sentence the panel shows a
-// reader is read from the same place this module enforces — see the note above them there.
-export { REQ_TIMEOUT_MS, ATTEMPTS, DEADLINE_MS };
+export const REQ_TIMEOUT_MS = 6000;
+export const ATTEMPTS = 2;
+export const DEADLINE_MS = 13000;
 const BACKOFF_MS = [400];
 
 function fail(message, code) {
@@ -146,5 +146,9 @@ export async function fetchInvestorList(fetchImpl, token, base) {
 /** GET /super-investors/{slug} -> one investor's book, quarter by quarter. */
 export async function fetchInvestorPortfolio(fetchImpl, token, slug, base) {
   if (!isSlug(slug)) throw fail(`"${slug}" is not a valid investor slug.`, 'bad-slug');
-  return normalisePortfolio(await call(fetchImpl, token, `/super-investors/${encodeURIComponent(slug)}`, base), slug);
+  const body = await call(fetchImpl, token, `/super-investors/${encodeURIComponent(slug)}`, base);
+  if (!isPortfolioPayload(body, slug)) throw fail('The source returned an incomplete portfolio payload.', 'shape');
+  // Unlike delivery fetchedAt, this successful source check belongs in the ETag.
+  // Otherwise unchanged holdings can retain an old source timestamp indefinitely.
+  return { ...normalisePortfolio(body, slug), sourceCheckedAt: new Date(Date.now()).toISOString() };
 }

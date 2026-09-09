@@ -3,22 +3,27 @@
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
 
 import { $, escapeHtml } from '../core/dom.js';
-import { state, setScope, setRoute, saveLastRoute } from '../core/state.js';
+import { state, subscribe, setScope, setRoute, saveLastRoute } from '../core/state.js';
 import * as router from '../core/router.js';
 import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
+import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { closeDrill, closeModal, closeWorkspace, watchlistEmptyPanel } from './screener.js';
+import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
+import * as coverage from '../data/coverage.js';
+import { startFamilySession } from '../data/family-session.js';
+import { bindFamilySyncLifecycle } from '../data/family-sync-lifecycle.js';
 import { openScopeEditor } from './scope-editor.js';
+import { sourcesModalHtml } from './sources.js';
 import { mountHostTicker } from './host-ticker.js';
+import { mountThemeToggle } from './theme-toggle.js';
+import { BOOKMARK_ICON } from './bookmark-button.js';
+import * as sourceBeacon from './source-beacon.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
-import * as macroResearch from '../tabs/macro-research.js';
-import * as economyMacro from '../tabs/economy-macro.js';
-import * as familyBook from '../tabs/family-book.js';
 import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
@@ -26,71 +31,80 @@ import * as concall from '../tabs/concall.js';
 import * as publicChatter from '../tabs/public-chatter.js';
 import * as breakouts from '../tabs/breakouts.js';
 import * as superInvestors from '../tabs/super-investors.js';
-import * as mutualFunds from '../tabs/mutual-funds.js';
 import * as news from '../tabs/news.js';
 import * as corpAnnouncements from '../tabs/corp-announcements.js';
+import * as corporateActions from '../tabs/corporate-actions.js';
+import * as nseFilings from '../tabs/nse-filings.js';
 import * as insiderTrades from '../tabs/insider-trades.js';
-import * as overview from '../portfolio/overview.js';
-import * as positionBy from '../portfolio/position-by.js';
-import * as transactions from '../portfolio/transactions.js';
-import * as drawdown from '../portfolio/drawdown.js';
+import * as ipos from '../tabs/ipos.js';
+import * as bookmarks from '../tabs/bookmarks.js';
+import * as mutualFunds from '../tabs/mutual-funds.js';
+import * as macroResearch from '../tabs/macro-research.js';
+import * as economyMacro from '../tabs/economy-macro.js';
+import * as familyBook from '../tabs/family-book.js';
 
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
 //
-// PORTFOLIO ANALYTICS IS BUILT BUT NOT OFFERED. It is `hidden`, which keeps its four tabs routable
-// — a saved `#/portfolio/overview` link still resolves and renders — while removing the switcher
-// that was the only way to reach it by clicking. That is the whole change: nothing was deleted, so
-// bringing it back is deleting one flag.
+// PORTFOLIO ANALYTICS IS GONE, AND HIDING IT WAS THE MISTAKE THAT PRECEDED DELETING IT.
 //
-// Hidden rather than removed from the array on purpose. Dropping the entry would make every
-// `#/portfolio/...` URL fall through to Research Central, silently showing the reader a different
-// page from the one they bookmarked, and would break the four modules' route contract for no gain.
+// It was four modules over an ILLUSTRATIVE ledger — invented quantities, invented costs, real
+// prices — and it was kept `hidden: true` so that a saved `#/portfolio/...` link would still
+// resolve to the page it named rather than falling through to Research Central. That reasoning
+// protected a bookmark and created a trap: with no workspace switcher in the chrome there was
+// nothing on the page that led back, and inside the Munshot host there is no address bar to edit,
+// so a reader who arrived — from an Ask Research citation, which listed the workspace as an
+// evidence source and linked straight into it — was stuck on a screen of made-up money.
 //
-// THE LANDING TAB IS `router.DEFAULT_ROUTE.tab` (Ask Research), RESOLVED BY ID, NOT BY POSITION.
-// Upstream lands on the first entry, and that was load-bearing. Glow's three own tabs (Macro
-// Research, Economy & Macro, Family Book — GLOW-OWNED, see CLAUDE.md) once sat in front of Ask
-// Research; they now close the bar, after every Sattva tab, so the array and the router's default
-// agree again — but `landingTab()` below still resolves an unknown or absent tab by id and falls
-// back to the first entry only if that id is missing, so the Glow tabs can be moved anywhere in
-// the bar without moving the landing page.
+// The only portfolio fact this dashboard carries now is the BOOK: the 142 company names synced
+// from the family repository, which is what the Portfolio scope filters by. See js/data/coverage.js.
+// An unknown workspace falls through to Research Central below, so an old `#/portfolio/...` link
+// lands on a working page and the URL is corrected — that is the intended behaviour, not a
+// regression to guard against. The four modules, the FIFO engine and the mock ledger are in git
+// history at d3bba30 if a REAL ledger is ever wired.
+//
+// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// an unknown or absent tab, so the order of this array IS the default landing page — there is no
+// second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, earningsHub, concall, publicChatter, breakouts, superInvestors, mutualFunds, news, corpAnnouncements, insiderTrades, macroResearch, economyMacro, familyBook] },
-  { id: 'portfolio', label: 'Portfolio Analytics', hidden: true, tabs: [overview, positionBy, transactions, drawdown] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, corporateActions, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
 ];
-
-/** The tab a workspace opens on: the router's default when the workspace carries it, else its first entry. */
-const landingTab = (ws) => ws.tabs.find((t) => t.meta.id === router.DEFAULT_ROUTE.tab) || ws.tabs[0];
-
-// A ROUTE THAT MOVED STILL RESOLVES TO WHAT IT MEANT.
-//
-// Fund Returns was the third sub-view of Super Investors and is now the All Schemes view of the
-// Mutual Funds tab. Without this, `#/research/super-investors/fund-returns` would fall through the
-// unknown-sub-view branch below onto Superstar Investors — the reader's own bookmark quietly
-// showing them a different page, which is the exact failure the `hidden: true` Portfolio Analytics
-// entry exists to avoid. One line here keeps every saved link and every shared link landing on the
-// view it named.
-//
-// Keyed `tab/subview`, and it rewrites the URL rather than rendering the new view under the old
-// address, so the reader's next bookmark is the current one.
-const MOVED_ROUTES = {
-  'super-investors/fund-returns': { tab: 'mutual-funds', subview: 'all-schemes' },
-};
-
-function movedRoute(raw) {
-  return MOVED_ROUTES[`${raw.tab}/${raw.subview}`] || null;
-}
 
 let contentHost = null;
 let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
+let topTabs = null;
 
 export function mount(root) {
+  topTabs?.dispose();
+  topTabs = null;
   root.innerHTML = shellTemplate();
   contentHost = $('#content-host', root);
 
+  scopeLists.migratePortfolioToWatchlist();
   wireStaticHeader(root);
+  coverage.onChange(({ changed }) => {
+    if (changed && state.scope === 'portfolio' && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
+      setTimeout(() => { if (!currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash()); }, 0);
+    }
+  });
+  // Read-only, one names-only request per minute while visible. The existing
+  // Refresh button also ticks this poller; no production jobs are dispatched.
+  live.register('family-portfolio', { intervalMs: 60000, fetcher: async () => {
+    const result = await coverage.refresh();
+    if (result.error) throw new Error(result.error);
+    return result;
+  } });
+  live.start('family-portfolio');
+  bindFamilySyncLifecycle();
+  startFamilySession();
+
+  // "Data flowing in", lower-left. Page-level chrome with the same lifetime as the alert stack:
+  // mounted once, outside `#app`, so a route change never tears it down. It reads the source
+  // registry only when it is opened — nothing here loads a feed. See ui/source-beacon.js for why
+  // it is here rather than back in the header the Sources button was removed from.
+  sourceBeacon.mount();
 
   // Always-on poller so the header pill re-renders on a cadence even when nothing else is
   // polling. `synthetic: true` keeps it out of `getLastDataTick()` — it asks no server anything,
@@ -114,19 +128,21 @@ export function mount(root) {
   // Deferred by a tick because the change arrives mid-`repaint()`, and remounting the tab out from
   // under the handler that is painting it is a different bug for the same money.
   watchlist.onChange(() => {
+    if (currentTabModule?.meta.scopeIndependent) return;
     if (state.scope !== 'watchlist') return;
     // The editor deliberately batches its repaint until it closes, so several additions can be
     // made without the route remount closing the modal after the first click.
     if (document.querySelector('[data-scope-editor]')) return;
     setTimeout(() => {
-      if (state.scope === 'watchlist') handleRoute(root, router.parseHash());
+      if (state.scope === 'watchlist' && !currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash());
     }, 0);
   });
 
   scopeLists.onChange((scope) => {
+    if (currentTabModule?.meta.scopeIndependent) return;
     if (state.scope !== scope || document.querySelector('[data-scope-editor]')) return;
     setTimeout(() => {
-      if (state.scope === scope) handleRoute(root, router.parseHash());
+      if (state.scope === scope && !currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash());
     }, 0);
   });
 
@@ -135,20 +151,17 @@ export function mount(root) {
 
 function shellTemplate() {
   return `
-    <header class="mx-auto max-w-[1400px] px-6 pb-4 pt-8">
+    <header data-app-header data-app-frame class="mx-auto max-w-[1400px] px-6 pb-4 pt-8">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex flex-shrink-0 items-center gap-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-lg font-extrabold text-slate-900 shadow-lg">SC</div>
-          <div class="min-w-0">
-            <h1 class="font-display truncate text-2xl font-extrabold leading-tight text-slate-900">Glow Central Research</h1>
-            <p id="brand-subtitle" class="truncate text-sm text-slate-500">Research Central · Indian equities</p>
-          </div>
+        <div data-brand-mark class="sattva-product-brand">
+          <img class="sattva-wordmark" src="/assets/brand/glow-ventures-wordmark.svg" width="2704" height="302" alt="Glow Ventures" fetchpriority="high" />
+          <h1 class="sattva-product-caption" aria-label="Glow Central Research"><span id="brand-subtitle">Research Central · Indian equities</span></h1>
         </div>
 
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
-          <div class="flex items-center gap-1.5"
+          <div data-scope-controls class="flex items-center gap-1.5"
                title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
-            <span class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
+            <span data-scope-label class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
             <div id="scope-edit-mount"></div>
           </div>
@@ -159,15 +172,19 @@ function shellTemplate() {
                it. (No backticks in here: this comment lives inside a template literal.) -->
           <div id="host-ticker-mount" hidden></div>
           <div id="status-mount"></div>
+          <div class="header-personal-controls">
+            <button type="button" data-theme-toggle class="theme-toggle" aria-label="Dark mode" aria-pressed="false"></button>
+            <a data-header-bookmarks class="header-bookmarks" href="#/research/bookmarks">${BOOKMARK_ICON}<span>Bookmarks</span></a>
+          </div>
         </div>
       </div>
     </header>
 
-    <nav class="mx-auto max-w-[1400px] px-6">
+    <nav data-app-nav data-app-frame class="mx-auto max-w-[1400px] px-6" aria-label="Research navigation">
       <div id="tabbar-mount" class="min-w-0"></div>
     </nav>
 
-    <div class="mx-auto max-w-[1400px] px-6 py-6">
+    <div data-app-content data-app-frame class="mx-auto max-w-[1400px] px-6 py-6">
       <div id="subview-mount" class="mb-5"></div>
       <!-- #dashboard-main is the capture root the host asks for on dashboard.capture.visual
            (js/core/host-capture.js). It is the CONTENT region deliberately: the header's scope
@@ -176,6 +193,25 @@ function shellTemplate() {
       <main id="dashboard-main" class="fade-in min-w-0">
         <div id="content-host"></div>
       </main>
+      <!-- THE DOOR TO THE SOURCE REGISTRY, AND THE ONLY ONE.
+           CLAUDE.md removed the header's Sources button and made every status pill passive, for a
+           good reason: those chips were competing with the tables they qualified. It also says, in
+           the same breath, that "canonical provenance remains in the source registry" — and the
+           registry had NO CALLER AT ALL, so that sentence was a promise the app did not keep.
+           sourcesModalHtml() was exported and unreachable, and sourceGroups() was named only in
+           a comment. (No backticks in here: this comment is inside a template literal — which is
+           exactly how this footer broke the page the first time it was written.)
+           A footer is what closes that without reopening what was closed. It sits AFTER the
+           content, so by construction it cannot compete with anything for the top of the page;
+           it adds nothing to the header; and it leaves every pill exactly as passive as before.
+           One muted line is also what a reader looking for provenance already expects to find at
+           the bottom of a page. -->
+      <footer class="border-t border-slate-100 pb-8 pt-5 text-center">
+        <button type="button" data-sources-open
+          class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
+          Data sources and how each feed is collected
+        </button>
+      </footer>
     </div>`;
 }
 
@@ -193,13 +229,17 @@ function shellTemplate() {
  * any poller has ticked.
  *
  * The pill is deliberately passive. Source/freshness explainer popups were removed from the
- * dashboard; Refresh remains the only action in this compact header cluster.
+ * dashboard; Refresh and the appearance toggle share this compact header cluster.
  */
 function wireStaticHeader(root) {
+  headerDisposer?.();
+  const offTheme = mountThemeToggle(root.querySelector('[data-theme-toggle]'));
   const status = statusControl({
-    getTimestamp: () => live.getLastDataTick() ?? state.dataLoadedAt,
+    getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
-    onRefresh: () => watch.refreshNow(),
+    onRefresh: () => watch.refreshNow({ tab: state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
+    getRefreshKey: () => JSON.stringify([state.tab, state.scope, state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
+    subscribeContext: (fn) => { const off = subscribe(fn); const offRegistry = refreshRegistry.onChange(fn); return () => { off(); offRegistry(); }; },
   });
   $('#status-mount', root).innerHTML = status.html;
   // NOT `chromeDisposers` — that list is flushed on every route change, and this control is part
@@ -212,9 +252,22 @@ function wireStaticHeader(root) {
   // header rather than to whichever tab happens to be mounted.
   const offHostTicker = mountHostTicker($('#host-ticker-mount', root));
 
+  // The footer's registry link. Wired here rather than per route for the reason above: the footer
+  // is static, and a listener flushed on every route change would leave a link that silently stops
+  // working the first time the reader switches tab — the same failure the status pill's clock had.
+  //
+  // `sourcesModalHtml()` is a FUNCTION, called on open, so every figure in the modal is read from
+  // the module that owns it at the moment it is shown. That is deliberate and is why the registry
+  // may be reached from a static control without going stale — see *Data sources* in CLAUDE.md.
+  const sourcesBtn = root.querySelector('[data-sources-open]');
+  const onSources = () => openModal(sourcesModalHtml(), { size: 'wide' });
+  sourcesBtn?.addEventListener('click', onSources);
+
   headerDisposer = () => {
+    offTheme();
     offStatus?.();
     offHostTicker?.();
+    sourcesBtn?.removeEventListener('click', onSources);
   };
 }
 
@@ -222,14 +275,7 @@ function wireStaticHeader(root) {
 
 function handleRoute(root, rawRoute) {
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
-  // A route that moved is rewritten before anything else reads it, so the tab, the sub-view picker
-  // and the saved route all agree on the view's current address rather than its old one.
-  const moved = movedRoute(rawRoute);
-  if (moved && ws.tabs.some((t) => t.meta.id === moved.tab)) {
-    router.navigate({ workspace: ws.id, ...moved, scope: rawRoute.scope || state.scope, params: rawRoute.params || {} }, { replace: true });
-    rawRoute = { ...rawRoute, ...moved };
-  }
-  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || landingTab(ws);
+  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || ws.tabs[0];
   const subviews = tabModule.meta.subviews || [];
   const subviewValid = subviews.some((s) => s.id === rawRoute.subview);
   const subview = subviewValid ? rawRoute.subview : subviews[0]?.id || null;
@@ -259,6 +305,12 @@ function editScope(root, scope) {
 
 function renderRouteChrome(root, ws, tabModule, resolved) {
   disposeChrome();
+  const bookmarksLink = root.querySelector('[data-header-bookmarks]');
+  bookmarksLink.href = router.buildHash({ workspace: ws.id, tab: bookmarks.meta.id, scope: resolved.scope });
+  if (tabModule === bookmarks) bookmarksLink.setAttribute('aria-current', 'page');
+  else bookmarksLink.removeAttribute('aria-current');
+  // Table-first is an opt-in layout, not a redesign of the other research views.
+  root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
 
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
@@ -272,17 +324,18 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     onChange: goScope,
   });
   const toggleMount = $('#scope-toggle-mount', root);
+  // Personal saved records keep their original company membership after a portfolio exit.
+  root.querySelector('[data-scope-controls]').hidden = tabModule.meta.scopeIndependent === true;
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
 
   const editMount = $('#scope-edit-mount', root);
   editMount.innerHTML = `
-    <button type="button" data-scope-edit aria-label="Edit ${escapeHtml(scopeLabel(resolved.scope))} companies"
-      title="Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}"
+    <button type="button" data-scope-edit aria-label="${resolved.scope === 'portfolio' ? 'View Portfolio' : `Edit ${escapeHtml(scopeLabel(resolved.scope))} companies`}"
+      title="${resolved.scope === 'portfolio' ? 'View holdings from Family Office' : `Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}`}"
       class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
       <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path>
-        <path d="m11.5 5.5 3 3" stroke-linecap="round"></path>
+        ${resolved.scope === 'portfolio' ? '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"></path><circle cx="10" cy="10" r="2"></circle>' : '<path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="m11.5 5.5 3 3" stroke-linecap="round"></path>'}
       </svg>
     </button>`;
   const editButton = editMount.querySelector('[data-scope-edit]');
@@ -337,11 +390,19 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     chromeDisposers.push(subviewPicker.wire(subviewMount));
   }
 
-  const tabItems = ws.tabs.map((t) => ({ id: t.meta.id, label: t.meta.title }));
-  const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab });
-  const tabBarMount = $('#tabbar-mount', root);
-  tabBarMount.innerHTML = bar.html;
-  chromeDisposers.push(bar.wire(tabBarMount));
+  // Keep the strip mounted across routes: replacing it resets horizontal scroll and drops
+  // keyboard focus on every selection, including changes to the scope or subview.
+  if (topTabs?.workspace === ws.id) {
+    topTabs.bar.update(resolved.tab);
+  } else {
+    topTabs?.dispose();
+    // Saved events are reached from the header beside the appearance control.
+    const tabItems = ws.tabs.filter((t) => t !== bookmarks).map((t) => ({ id: t.meta.id, label: t.meta.title }));
+    const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab, label: 'Research sections' });
+    const tabBarMount = $('#tabbar-mount', root);
+    tabBarMount.innerHTML = bar.html;
+    topTabs = { workspace: ws.id, bar, dispose: bar.wire(tabBarMount) };
+  }
 
   document.title = `${tabModule.meta.title} · Glow Central Research`;
 
@@ -460,16 +521,9 @@ function mountTab(root, tabModule, resolved) {
  * preserved. Whatever brings Portfolio Analytics back calls this rather than reinventing it.
  */
 // eslint-disable-next-line no-unused-vars
-function goWorkspace(id) {
-  const ws = WORKSPACES.find((w) => w.id === id);
-  if (!ws) return;
-  const firstTab = landingTab(ws);
-  router.navigate({ workspace: ws.id, tab: firstTab.meta.id, subview: firstTab.meta.subviews?.[0]?.id ?? null, scope: state.scope });
-}
-
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || landingTab(ws);
+  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];
   router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews?.[0]?.id ?? null, scope: state.scope });
 }
 

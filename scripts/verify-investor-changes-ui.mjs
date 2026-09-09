@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
 export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } = {}) {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const nav = '[data-live-section-tabs]';
   const audience = '[data-changes-audience]';
   const settled = () => page.waitForSelector('[data-investor-changes][data-changes-ready="true"]');
@@ -28,7 +29,7 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
     assert.equal(Number(await page.locator('[data-changes-panel]').getAttribute('data-activity-total')), expected, period);
     assert(await page.locator('[data-changes-coverage]').innerText().then((s) => s.includes('not necessarily inception')));
   }
-  await page.locator('[data-changes-activity] tr[data-row-key]').first().click();
+  await page.locator('[data-changes-activity] tr[data-row-key] td:nth-child(2)').first().click();
   await page.waitForSelector('#modal-overlay.is-open');
   assert.match(await page.locator('#modal-content').innerText(), /Statement|Bulk|Block/i);
   await page.keyboard.press('Escape');

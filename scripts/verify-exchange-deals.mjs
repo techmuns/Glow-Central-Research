@@ -92,3 +92,31 @@ const shipped = validateExchangeSnapshot(JSON.parse(readFileSync(new URL('../pub
 assert.equal(new Set(shipped.records.map(exchangeDealKey)).size, shipped.records.length);
 assert(shipped.records.length > 40000 && shipped.sources.every((s) => s.ok && s.coverage[0].from <= '2025-09-09'));
 console.log(`PASS exchanges: complete exports, ${shipped.records.length} distinct shipped reports, corrections, venue/side separation, coverage gaps, ISIN joins, partial failures, artifact transport, credential isolation and conditional delivery`);
+
+// Delivery callbacks may rerender a view and replace themselves. The new subscription must
+// wait for the next delivery rather than being visited forever by a live Set iterator.
+const feed = await import('../public/js/data/exchange-deals.js');
+const savedFetch = globalThis.fetch;
+let originalCalls = 0, replacementCalls = 0, stopReplacement;
+let stopOriginal = feed.onChange(() => {
+  originalCalls++;
+  stopOriginal();
+  stopReplacement = feed.onChange(() => { replacementCalls++; });
+});
+globalThis.fetch = async () => Response.json(before);
+try {
+  await feed.refresh();
+  assert.equal(originalCalls, 1);
+  assert.equal(replacementCalls, 1, 'replacement receives the final delivery, not the seed delivery that installed it');
+  assert.equal(feed.revision(), before.checkedAt);
+} finally { stopOriginal(); stopReplacement?.(); globalThis.fetch = savedFetch; }
+console.log('PASS exchange subscriptions: headless reads and safe repaint replacement');
+
+const { mergeInsiderTrades } = await import('../public/js/data/insider-history.js');
+const { withFilingArchive } = await import('../public/js/data/filing-archives.js');
+const official = { ticker: 'EXAMPLE', date: '2026-09-09', exchangeSecurity: 'EXAMPLE', sourceId: 'nse-bulk', cells: { 'Trade Category': 'Bulk deal', Insider: 'Example Fund', Transaction: 'Buy', 'Trade Shares': '1000', Price: '50', Exchange: 'NSE' } };
+const venues = [official, { ...official, sourceId: 'bse-bulk', cells: { ...official.cells, Exchange: 'BSE' } }, { ...official, cells: { ...official.cells, Price: '51' } }];
+assert.equal(mergeInsiderTrades(venues, venues).length, 3, 'archive keeps venue and price distinctions while deduplicating identical reports');
+const archivedFeed = withFilingArchive({ rows: () => venues }, 'insider');
+assert.equal(archivedFeed.rows(), archivedFeed.rows(), 'unchanged exchange/archival rows preserve normalized feed cache identity');
+console.log('PASS official deal archive: venue/price identity and stable repeated reads');

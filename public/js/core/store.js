@@ -29,21 +29,23 @@
 //   "fetch it", which is exactly what the code did before this module existed.
 
 import { authHeaders } from './host-context.js';
+import { hydrateJsonShards } from './json-shards.js';
 
 const DB_NAME = 'sattva-cache';
 const DB_VERSION = 1;
 const STORE = 'payloads';
 
 // Everything the store holds, so a version bump or a manual clear has one list to walk.
-// The window each filings feed asks for by default, mirrored from WINDOW_DAYS in
-// js/data/filings.js. It lives here so `filingRow` can keep the bare key for the ordinary case and
-// only suffix a widened one — importing the feed from the store would be a cycle, and the two
-// numbers moving apart costs one cold fetch rather than a wrong answer.
-const DEFAULT_FILING_WINDOW = { news: 30, announcements: 365, insider: 365 };
-
 export const KEYS = {
+  fundReturns: 'fund-returns',
   earnings: (subType) => `earnings:${subType}`,
   concalls: 'concalls',
+  // The portfolio calendar half of /api/concalls, kept separate from the response above and its
+  // ETag. The route assembles two independent upstreams — StockScans' rows and the authenticated
+  // configured Screener artifact — and either can fail alone, arriving as a payload that carries no calendar
+  // at all. Retaining it here is what stops one upstream's outage emptying the other's feed, and
+  // what makes that survive a reload; the same reasoning as `nse-filings:history`.
+  concallPortfolioUpcoming: 'concalls:portfolio-upcoming',
   // The `list` half is keyed separately from the strip-only request: they are different
   // representations of the same date and storing them under one key would let a strip-only
   // response answer for a request that wanted the company list, or the reverse.
@@ -56,9 +58,6 @@ export const KEYS = {
   // above which mirror the upstream's one-page-per-investor shape.
   investorSnapshot: 'investors:snapshot',
   chatter: 'chatter',
-  // The AmfiBeas returns-ranking feed — one file for every scheme, called direct from the browser
-  // (CORS-open) like the chatter feed, revalidated against its ETag.
-  fundReturns: 'fund-returns',
   // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
   // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the
   // body in a status envelope, so there is no validator to send and nothing to 304. The reason to
@@ -68,18 +67,36 @@ export const KEYS = {
   // News, announcements and insider trades. One entry per committed snapshot and one per company
   // walked live, so a quarter landing for one company cannot invalidate the other six hundred.
   filings: (kind) => `filings:${kind}`,
-  // THE WINDOW IS PART OF THE KEY, because it is part of the question. These routes take `from`
-  // and `to`, so the reader's history range decides what a request asks for — and a thirty-day
-  // answer served back for a one-year request would be a store hit, no network, and eleven months
-  // missing with nothing on screen able to say so. The default window keeps the bare key, so the
-  // common path still reads entries written before ranges existed.
-  filingRow: (kind, ticker, windowDays = null) =>
-    windowDays && windowDays !== DEFAULT_FILING_WINDOW[kind]
-      ? `filings:${kind}:${ticker}:${windowDays}d`
-      : `filings:${kind}:${ticker}`,
+  filingRow: (kind, ticker) => `filings:${kind}:${ticker}`,
+  // Additive insider history is separate from the exact HTTP response and its ETag.
+  insiderHistory: (ticker) => `insider-history:${ticker}`,
+  announcementLookups: 'announcement-lookups:v1',
+  domesticFilings: (ticker, form) => `domestic-filings:${ticker}:${form}`,
   // Market-wide stocks news, the Universe half of the News tab. One committed capture, refreshed
   // by a scheduled Action — neither the browser nor the Worker can read the publisher directly.
   marketNews: 'market-news',
+  // One entry per ARCHIVE MONTH, not one for the whole archive. A reader who has scrolled back
+  // three months holds three entries, and a story landing in the current month must not invalidate
+  // the two below it — the same reasoning as the per-investor and per-company keys above.
+  marketNewsMonth: (month) => `market-news:${month}`,
+  // NSE's live announcements feed — one committed blob, refreshed live off /api/nse-announcements.
+  nseFilings: 'nse-filings',
+  // Separate from the HTTP response/ETag: a shrinking live window cannot erase retained rows.
+  nseFilingsHistory: 'nse-filings:history',
+  // NSE + Screener's exchange-wide corporate-actions calendar. One retained snapshot serves all scopes.
+  corporateActions: 'corporate-actions',
+  // X/Twitter posts from the monitored handles, which join the market-news list. Its own key
+  // rather than a slice of `marketNews`: the two are separate captures with separate ETags, and a
+  // post landing must not invalidate 600 publisher stories.
+  twitterPosts: 'twitter-posts',
+  // Source-backed operating metrics extracted by Screener from company documents. One daily
+  // artifact covers the public universe and the synchronized portfolio; it is conditional and
+  // disk-backed because the series change far less often than a dashboard session.
+  screenerInsights: 'screener-insights',
+  // Posts from the monitored public Telegram channel. Its own key rather than a slice of anything
+  // else: it is a separate capture with its own ETag, and a post landing here must not invalidate
+  // the chatter feed it shares a tab with.
+  telegramPosts: 'telegram-posts',
 };
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still
@@ -220,6 +237,44 @@ export function writeEntry(key, { tag, value, savedAt = Date.now() }) {
     .catch(() => null);
 }
 
+/** Atomically replace a multi-entry cache. Quota/transaction failure keeps the previous disk
+ * revision intact; the complete new revision remains usable in this session's memory. */
+export async function writeEntryBatch(entries, deleteKeys = [], { prunePrefix = null } = {}) {
+  const rows = [...entries].map(([key, entry]) => [key, { tag: entry.tag || null,
+    savedAt: entry.savedAt ?? Date.now(), value: entry.value }]);
+  const keep = new Set(rows.map(([key]) => key));
+  const inGroup = key => key === prunePrefix || key.startsWith(`${prunePrefix}:`);
+  if (prunePrefix && (!prunePrefix.startsWith('ai-alerts:public-window:') || rows.some(([key]) => !inGroup(key))))
+    throw Error('Invalid alert cache group');
+  const db = await openDb();
+  const persistent = db ? await new Promise(resolve => {
+    let transaction;
+    try {
+      transaction = db.transaction(STORE, 'readwrite');
+      const target = transaction.objectStore(STORE);
+      if (prunePrefix) {
+        const cursor = target.openKeyCursor(IDBKeyRange.bound(prunePrefix, `${prunePrefix}\uffff`));
+        cursor.onsuccess = () => {
+          if (!cursor.result) return;
+          if (inGroup(cursor.result.key) && !keep.has(cursor.result.key)) target.delete(cursor.result.key);
+          cursor.result.continue();
+        };
+      }
+      for (const key of deleteKeys) target.delete(key);
+      for (const [key, row] of rows) target.put(row, key);
+      transaction.oncomplete = () => resolve(true);
+      transaction.onabort = transaction.onerror = () => resolve(false);
+    } catch {
+      try { transaction?.abort(); } catch { /* Already aborted. */ }
+      resolve(false);
+    }
+  }) : false;
+  if (prunePrefix) for (const key of memory.keys()) if (inGroup(key) && !keep.has(key)) memory.delete(key);
+  for (const key of deleteKeys) memory.delete(key);
+  for (const [key, row] of rows) memory.set(key, row);
+  return { persistent };
+}
+
 export function deleteEntry(key) {
   memory.delete(key);
   return openDb()
@@ -260,7 +315,21 @@ export function clearAll() {
  *   450KB parse off the main thread on every unchanged tick, which is the only benefit the manual
  *   version had left.
  */
-export async function conditionalJson(path, { key, optional = false, signal } = {}) {
+const conditionalInFlight = new Map();
+export function conditionalJson(path, options = {}) {
+  // Cancellation, validation and authenticated reads belong to their caller.
+  // Ordinary public poll and header reads share one bounded revalidation.
+  if (options.signal || options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
+  const requestKey = JSON.stringify([path, options.key, !!options.optional]);
+  if (conditionalInFlight.has(requestKey)) return conditionalInFlight.get(requestKey);
+  const pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
+  conditionalInFlight.set(requestKey, pending);
+  return pending;
+}
+
+async function readConditionalJson(path, { key, optional = false, signal, validate } = {}) {
+  const callerSignal = signal;
+  signal = signal || AbortSignal.timeout(20000);
   const stored = key ? await readEntry(key) : null;
 
   let res;
@@ -289,13 +358,16 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
   // The tag travels in the body as well as the header. The header is authoritative where it can be
   // read; the body copy is what survives a cross-origin response whose ETag is not exposed.
   const headerTag = res.headers.get('etag');
-  if (headerTag && stored?.tag === headerTag && stored.value) {
+  if (headerTag && stored?.tag === headerTag && stored.value && !Object.hasOwn(stored.value, '_jsonShards')) {
+    validate?.(stored.value);
     return { status: 304, value: stored.value, tag: stored.tag, savedAt: stored.savedAt, checkedAt, fromStore: true };
   }
 
   let value;
   try {
-    value = await res.json();
+    // Each immutable part has its own bounded timeout. A large complete capture must not share
+    // the manifest's 20-second budget; an explicit caller cancellation still covers every read.
+    value = await hydrateJsonShards(await res.json(), path, { signal: callerSignal });
   } catch (err) {
     if (optional) return miss(res.status);
     throw err;
@@ -304,10 +376,14 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
   const tag = headerTag || value?.meta?.contentTag || null;
   // Same short-circuit, for the case where the ETag header was unreadable and the tag had to come
   // out of the body. The parse is already paid for, but the caller still learns nothing changed.
-  if (tag && stored?.tag === tag && stored.value) {
+  if (tag && stored?.tag === tag && stored.value && !Object.hasOwn(stored.value, '_jsonShards')) {
+    validate?.(stored.value);
     return { status: 304, value: stored.value, tag: stored.tag, savedAt: stored.savedAt, checkedAt, fromStore: true };
   }
 
+  // Consumers with a strict contract must validate before malformed 200s can replace last-good
+  // bytes. Validation errors propagate to the consumer's existing stale/failure policy.
+  validate?.(value);
   if (key) writeEntry(key, { tag, value, savedAt: checkedAt });
   return { status: 200, value, tag, savedAt: checkedAt, checkedAt, fromStore: false };
 
@@ -334,17 +410,18 @@ export async function conditionalJson(path, { key, optional = false, signal } = 
  */
 const inFlightJson = new Map();
 
-export function revalidatedJson(path, { optional = false } = {}) {
-  const existing = inFlightJson.get(path);
+export function revalidatedJson(path, { optional = false, allowCached = false } = {}) {
+  const requestKey = `${allowCached ? 'bootstrap' : 'revalidate'}:${path}`;
+  const existing = inFlightJson.get(requestKey);
   if (existing) return optional ? existing.catch(() => null) : existing;
 
-  const p = fetch(path, { cache: 'no-cache' })
+  const p = fetch(path, { cache: 'no-cache', ...(allowCached ? { headers: { 'x-sattva-bootstrap': '1' } } : {}), signal: AbortSignal.timeout(20000) })
     .then((res) => {
       if (!res.ok) throw new Error(`${path} (${res.status})`);
-      return res.json();
+      return res.json().then(value => hydrateJsonShards(value, path));
     })
-    .finally(() => inFlightJson.delete(path));
+    .finally(() => inFlightJson.delete(requestKey));
 
-  inFlightJson.set(path, p);
+  inFlightJson.set(requestKey, p);
   return optional ? p.catch(() => null) : p;
 }

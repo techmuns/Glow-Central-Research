@@ -3,8 +3,8 @@
   "asOf": "2026-08-29",
   "source": "techmuns/GlowVentures · src/data/glowData.ts",
   "sourceCommit": {
-    "sha": "8b830d6",
-    "date": null
+    "sha": "e3561b5",
+    "date": "2026-09-09T15:00:45+05:30"
   },
   "count": 170,
   "resolved": 166,
@@ -20,13 +20,18 @@
   },
   "holdings": [
     {
-      "isin": null,
+      "isin": "INE767A01016",
       "name": "Aarti Drugs Ltd",
       "bookName": "Aarti Drugs Ltd",
       "ticker": "AARTIDRUGS",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE674K01013",
@@ -38,49 +43,74 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE03Q201024",
       "name": "Alivus Life Sciences Ltd",
       "bookName": "Alivus Life Sciences Ltd",
       "ticker": "ALIVUS",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE098F01031",
       "name": "Amrutanjan Health Care Ltd",
       "bookName": "Amrutanjan Health Care Ltd",
       "ticker": "AMRUTANJAN",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE294Z01018",
       "name": "The Anup Engineering Ltd",
       "bookName": "The Anup Engineering Ltd",
       "ticker": "ANUP",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE955V01021",
       "name": "Arvind Fashions Ltd",
       "bookName": "ARVIND FASHIONS LIMITED",
       "ticker": "ARVINDFASN",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0LEZ01016",
       "name": "Ather Energy Ltd",
       "bookName": "Ather Energy Ltd",
       "ticker": "ATHERENERG",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE406A01037",
@@ -110,13 +140,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE213C01025",
       "name": "Banco Products India Ltd.",
       "bookName": "Banco Products India Ltd.",
       "ticker": "BANCOINDIA",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE495P01020",
@@ -137,22 +172,32 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE257A01026",
       "name": "Bharat Heavy Electricals Ltd",
       "bookName": "Bharat Heavy Electricals Ltd",
       "ticker": "BHEL",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE376G01013",
       "name": "Biocon Ltd",
       "bookName": "Biocon Ltd",
       "ticker": "BIOCON",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE800A01015",
@@ -164,31 +209,46 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE153T01027",
       "name": "BLS International Services Ltd",
       "bookName": "BLS International Services Ltd",
       "ticker": "BLS",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0KBH01020",
       "name": "Blue Jet Healthcare Ltd.",
       "bookName": "Blue Jet Healthcare Ltd.",
       "ticker": "BLUEJET",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE666D01022",
       "name": "Borosil Renewables Ltd",
       "bookName": "BOROSIL RENEWABLES LTD",
       "ticker": "BORORENEW",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE365Y01019",
@@ -200,49 +260,74 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE836A01035",
       "name": "Birlasoft Ltd",
       "bookName": "Birlasoft Ltd",
       "ticker": "BSOFT",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE24OJ01011",
       "name": "Shankara Buildpro Ltd",
       "bookName": "Shankara Buildpro Ltd",
       "ticker": "BUILDPRO",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE477A01020",
       "name": "Can Fin Homes Ltd.",
       "bookName": "Can Fin Homes Ltd.",
       "ticker": "CANFINHOME",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE475E01026",
       "name": "Caplin Point Laboratories Ltd.",
       "bookName": "Caplin Point Laboratories Ltd.",
       "ticker": "CAPLIPOINT",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE482A01020",
       "name": "Ceat Ltd",
       "bookName": "Ceat Ltd",
       "ticker": "CEATLTD",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE180C01042",
@@ -254,13 +339,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE783X01023",
       "name": "Chemfab Alkalis Limited",
       "bookName": "CHEMFAB ALKALIS LIMITED",
       "ticker": "CHEMFAB",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE647U01026",
@@ -272,22 +362,32 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE11XY01018",
       "name": "Caliber Mining and Logistics Limited",
       "bookName": "Caliber Mining and Logistics Limited",
       "ticker": "CMLL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE985W01018",
       "name": "Creative Newtech Limited",
       "bookName": "CREATIVE NEWTECH LIMITED",
       "ticker": "CNL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE299U01018",
@@ -308,58 +408,88 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE917M01012",
       "name": "Dilip Buildcon Ltd",
       "bookName": "Dilip Buildcon Ltd",
       "ticker": "DBL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE500A01029",
       "name": "Dcw Limited",
       "bookName": "DCW LIMITED",
       "ticker": "DCW",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0FHS01024",
       "name": "Deep Industries Ltd.",
       "bookName": "Deep Industries Ltd.",
       "ticker": "DEEPINDS",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE738I01010",
       "name": "eClerx Services Ltd.",
       "bookName": "eClerx Services Ltd.",
       "ticker": "ECLERX",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE532F01054",
       "name": "Edelweiss Financial Services Ltd",
       "bookName": "Edelweiss Financial Services Ltd",
       "ticker": "EDELWEISS",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE230A01023",
       "name": "EIH Ltd.",
       "bookName": "EIH Ltd.",
       "ticker": "EIHOTEL",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE0ZOL01023",
@@ -380,40 +510,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE510A01028",
       "name": "Engineers India Ltd",
       "bookName": "Engineers India Ltd",
       "ticker": "ENGINERSIN",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE778B01029",
       "name": "Ester Industries Limited",
       "bookName": "Ester Industries Limited",
       "ticker": "ESTER",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0KCE01017",
       "name": "Eureka Forbes Ltd",
       "bookName": "Eureka Forbes Ltd",
       "ticker": "EUREKAFORB",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE302A01020",
       "name": "Exide Industries Ltd",
       "bookName": "Exide Industries Ltd",
       "ticker": "EXIDEIND",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE171A01029",
@@ -434,13 +584,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE139R01012",
       "name": "Fusion Finance Limited",
       "bookName": "Fusion Finance Limited",
       "ticker": "FUSION",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE036B01030",
@@ -452,13 +607,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE079J01017",
       "name": "Gateway Distriparks Ltd",
       "bookName": "Gateway Distriparks Ltd",
       "ticker": "GATEWAY",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE12E301017",
@@ -470,103 +630,158 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE017A01032",
       "name": "Great Eastern Shipping Co. Ltd.",
       "bookName": "Great Eastern Shipping Co. Ltd.",
       "ticker": "GESHIP",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE539A01019",
       "name": "GHCL Ltd",
       "bookName": "GHCL Ltd",
       "ticker": "GHCL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0PA801013",
       "name": "GHCL Textiles Limited",
       "bookName": "GHCL Textiles Limited",
       "ticker": "GHCLTEXTIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE068V01023",
       "name": "Gland Pharma Limited",
       "bookName": "GLAND PHARMA LIMITED",
       "ticker": "GLAND",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE935A01035",
       "name": "Glenmark Pharmaceuticals Ltd",
       "bookName": "Glenmark Pharmaceuticals Ltd",
       "ticker": "GLENMARK",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE541A01023",
       "name": "GMM Pfaudler Ltd",
       "bookName": "GMM Pfaudler Ltd",
       "ticker": "GMMPFAUDLR",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE371A01025",
       "name": "Graphite India Ltd",
       "bookName": "Graphite India Ltd",
       "ticker": "GRAPHITE",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE224A01026",
       "name": "Greaves Cotton Ltd",
       "bookName": "GREAVES COTTON LTD.",
       "ticker": "GREAVESCOT",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE066F01020",
       "name": "Hindustan Aeronautics Ltd",
       "bookName": "Hindustan Aeronautics Ltd",
       "ticker": "HAL",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE127D01025",
       "name": "HDFC Asset Management Co. Ltd.",
       "bookName": "HDFC Asset Management Co. Ltd.",
       "ticker": "HDFCAMC",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE545A01024",
       "name": "HEG Ltd",
       "bookName": "HEG Ltd",
       "ticker": "HEG",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE090A01021",
@@ -578,40 +793,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE483B01026",
       "name": "Indo Count Industries Ltd",
       "bookName": "Indo Count Industries Ltd",
       "ticker": "ICIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE022Q01020",
       "name": "Indian Energy Exchange Ltd.",
       "bookName": "Indian Energy Exchange Ltd.",
       "ticker": "IEX",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE559A01017",
       "name": "IFB Industries Ltd",
       "bookName": "IFB Industries Ltd",
       "ticker": "IFBIND",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE919H01018",
       "name": "Indian Metals And Ferro Alloys Ltd",
       "bookName": "INDIAN METALS AND FERRO ALLOYS LTD.",
       "ticker": "IMFA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE0LGX01024",
@@ -632,13 +867,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE681B01017",
       "name": "Indraprastha Medical Corp. Ltd.",
       "bookName": "Indraprastha Medical Corp. Ltd.",
       "ticker": "INDRAMEDCO",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE095A01012",
@@ -659,40 +899,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE177A01018",
       "name": "Ingersollrand India Ltd",
       "bookName": "Ingersollrand India Ltd",
       "ticker": "INGERRAND",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE306R01017",
       "name": "Intellect Design Arena Ltd",
       "bookName": "Intellect Design Arena Ltd",
       "ticker": "INTELLECT",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE858B01029",
       "name": "Isgec Heavy Engineering Ltd",
       "bookName": "Isgec Heavy Engineering Ltd",
       "ticker": "ISGEC",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE168A01041",
       "name": "Jammu Kashmir Bank Ltd",
       "bookName": "Jammu Kashmir Bank Ltd",
       "ticker": "J&KBANK",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE039C01032",
@@ -713,31 +973,46 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE854B01010",
       "name": "Jayaswal Neco Industries Ltd",
       "bookName": "JAYASWAL NECO INDUSTRIES LTD.",
       "ticker": "JAYNECOIND",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE351F01018",
       "name": "Jaiprakash Power Ventures Ltd",
       "bookName": "Jaiprakash Power Ventures Ltd",
       "ticker": "JPPOWER",
       "sector": "Utilities",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE220G01021",
       "name": "Jindal Stainless Ltd",
       "bookName": "Jindal Stainless Ltd",
       "ticker": "JSL",
       "sector": "Materials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE668F01031",
@@ -749,13 +1024,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE303R01014",
       "name": "Kalyan Jewellers India Limited",
       "bookName": "KALYAN JEWELLERS INDIA LIMITED",
       "ticker": "KALYANKJIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE036D01028",
@@ -776,40 +1056,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE884B01025",
       "name": "Kirloskar Ferrous Industries Ltd",
       "bookName": "KIRLOSKAR FERROUS INDUSTRIES LTD.",
       "ticker": "KIRLFER",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE177F01017",
       "name": "Kovai Medical Center & Hospital Ltd.",
       "bookName": "Kovai Medical Center & Hospital Ltd.",
       "ticker": "KOVAI",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE220B01022",
       "name": "Kalpataru Projects International Ltd",
       "bookName": "Kalpataru Projects International Ltd",
       "ticker": "KPIL",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE999A01023",
       "name": "KSB Ltd",
       "bookName": "KSB Ltd",
       "ticker": "KSB",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE455I01029",
@@ -821,121 +1121,186 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE0J1Y01017",
       "name": "Life Insurance Corp. of India",
       "bookName": "Life Insurance Corp. of India",
       "ticker": "LICI",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE326A01037",
       "name": "Lupin Ltd",
       "bookName": "Lupin Ltd",
       "ticker": "LUPIN",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE576O01020",
       "name": "Laxmi Organic Industries Limited",
       "bookName": "Laxmi Organic Industries Limited",
       "ticker": "LXCHEM",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE101A01026",
       "name": "Mahindra & Mahindra Ltd.",
       "bookName": "Mahindra & Mahindra Ltd.",
       "ticker": "M&M",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE759A01021",
       "name": "Mastek Ltd",
       "bookName": "Mastek Ltd",
       "ticker": "MASTEK",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE099Z01011",
       "name": "Mishra Dhatu Nigam Ltd",
       "bookName": "Mishra Dhatu Nigam Ltd",
       "ticker": "MIDHANI",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE338I01027",
       "name": "Motilal Oswal Financial Services Ltd.",
       "bookName": "Motilal Oswal Financial Services Ltd.",
       "ticker": "MOTILALOFS",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE943D01017",
       "name": "MPS Ltd",
       "bookName": "MPS Ltd",
       "ticker": "MPSLTD",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE060A01024",
       "name": "Navneet Education Ltd",
       "bookName": "Navneet Education Ltd",
       "ticker": "NAVNETEDUL",
       "sector": "Consumer Staples",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE794A01010",
       "name": "Neuland Laboratories Ltd",
       "bookName": "Neuland Laboratories Ltd",
       "ticker": "NEULANDLAB",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE229H01012",
       "name": "Nitin Spinners Limited",
       "bookName": "NITIN SPINNERS LIMITED",
       "ticker": "NITINSPIN",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE531F01023",
       "name": "Nuvama Wealth Management Ltd",
       "bookName": "Nuvama Wealth Management Ltd",
       "ticker": "NUVAMA",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE093I01010",
       "name": "Oberoi Realty Ltd.",
       "bookName": "Oberoi Realty Ltd.",
       "ticker": "OBEROIRLTY",
       "sector": "Real Estate",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE013P01021",
@@ -947,22 +1312,32 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE922B01023",
       "name": "Panacea Biotec Ltd",
       "bookName": "Panacea Biotec Ltd",
       "ticker": "PANACEABIO",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE045601023",
       "name": "Paras Defence and Space Technologies",
       "bookName": "Paras Defence and Space Technologies",
       "ticker": "PARAS",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE1H7V01011",
@@ -974,13 +1349,18 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE134E01011",
       "name": "Power Finance Corporation Ltd",
       "bookName": "Power Finance Corporation Ltd",
       "ticker": "PFC",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE457L01029",
@@ -992,40 +1372,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE160A01022",
       "name": "Punjab National Bank",
       "bookName": "Punjab National Bank",
       "ticker": "PNB",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE637C01025",
       "name": "Pokarna Ltd",
       "bookName": "Pokarna Ltd",
       "ticker": "POKARNA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE633B01018",
       "name": "Polyplex Corporation Ltd",
       "bookName": "Polyplex Corporation Ltd",
       "ticker": "POLYPLEX",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE074A01025",
       "name": "Praj Industries Limited",
       "bookName": "Praj Industries Limited",
       "ticker": "PRAJIND",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE726V01018",
@@ -1037,31 +1437,46 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE323I01011",
       "name": "Puravankara Limited",
       "bookName": "Puravankara Limited",
       "ticker": "PURVA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE191H01014",
       "name": "PVR Inox Ltd",
       "bookName": "PVR Inox Ltd",
       "ticker": "PVRINOX",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE703B01027",
       "name": "Ratnamani Metals & Tubes Ltd",
       "bookName": "Ratnamani Metals & Tubes Ltd",
       "ticker": "RATNAMANI",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE976G01028",
@@ -1073,40 +1488,60 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE020B01018",
       "name": "Rural Electrification Corporation Ltd",
       "bookName": "Rural Electrification Corporation Ltd",
       "ticker": "RECLTD",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0W2G01015",
       "name": "Sagility Ltd.",
       "bookName": "Sagility Ltd.",
       "ticker": "SAGILITY",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE953O01021",
       "name": "Sansera Engineering Limited",
       "bookName": "SANSERA ENGINEERING LIMITED",
       "ticker": "SANSERA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE423Y01016",
       "name": "SBFC Finance Ltd",
       "bookName": "SBFC Finance Ltd",
       "ticker": "SBFC",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE062A01020",
@@ -1118,67 +1553,102 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE385F01024",
       "name": "SG Mart Limited",
       "bookName": "SG Mart Limited",
       "ticker": "SGMART",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE908D01010",
       "name": "Shakti Pumps India Ltd",
       "bookName": "Shakti Pumps India Ltd",
       "ticker": "SHAKTIPUMP",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE274V01019",
       "name": "Shankara Building Products Ltd",
       "bookName": "Shankara Building Products Ltd",
       "ticker": "SHANKARA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE221J01015",
       "name": "Sharda Cropchem Ltd",
       "bookName": "Sharda Cropchem Ltd",
       "ticker": "SHARDACROP",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE597I01028",
       "name": "Sharda Motor Industries Ltd",
       "bookName": "Sharda Motor Industries Ltd",
       "ticker": "SHARDAMOTR",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE498B01024",
       "name": "Shoppers Stop Ltd",
       "bookName": "Shoppers Stop Ltd",
       "ticker": "SHOPERSTOP",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE232A01011",
       "name": "Shree Digvijay Cement Co.Ltd",
       "bookName": "SHREE DIGVIJAY CEMENT CO.LTD",
       "ticker": "SHREDIGCEM",
       "sector": "Materials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE0NAZ01010",
@@ -1190,121 +1660,186 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE269A01021",
       "name": "Sonata Software Ltd.",
       "bookName": "Sonata Software Ltd.",
       "ticker": "SONATSOFTW",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE575P01011",
       "name": "Star Health and Allied Insurance Company Limited",
       "bookName": "Star Health and Allied Insurance Company Limited",
       "ticker": "STARHEALTH",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE00IN01015",
       "name": "Stove Kraft Limited",
       "bookName": "Stove Kraft Limited",
       "ticker": "STOVEKRAFT",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE399C01030",
       "name": "Suprajit Engineering Ltd.",
       "bookName": "Suprajit Engineering Ltd.",
       "ticker": "SUPRAJIT",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE335A01020",
       "name": "Surya Roshni Ltd",
       "bookName": "Surya Roshni Ltd",
       "ticker": "SURYAROSNI",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE0DYJ01015",
       "name": "Syrma SGS Technology Limited",
       "bookName": "Syrma SGS Technology Limited",
       "ticker": "SYRMA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE142M01025",
       "name": "Tata Technologies Limited",
       "bookName": "TATA TECHNOLOGIES LIMITED",
       "ticker": "TATATECH",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE688A01022",
       "name": "Transport Corp. of India Ltd.",
       "bookName": "Transport Corp. of India Ltd.",
       "ticker": "TCI",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE669C01036",
       "name": "Tech Mahindra Ltd",
       "bookName": "Tech Mahindra Ltd",
       "ticker": "TECHM",
       "sector": "Information Technology",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE010J01012",
       "name": "Tejas Networks Limited",
       "bookName": "Tejas Networks Limited",
       "ticker": "TEJASNET",
       "sector": "Communication Services",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE19RI01016",
       "name": "Tenneco Clean Air India Ltd.",
       "bookName": "Tenneco Clean Air India Ltd.",
       "ticker": "TENNIND",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE152A01029",
       "name": "Thermax Ltd",
       "bookName": "Thermax Ltd",
       "ticker": "THERMAX",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE508G01029",
       "name": "Time Technoplast Ltd",
       "bookName": "Time Technoplast Ltd",
       "ticker": "TIMETECHNO",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE454P01035",
@@ -1316,49 +1851,74 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE152M01016",
       "name": "Triveni Turbine Ltd",
       "bookName": "Triveni Turbine Ltd",
       "ticker": "TRITURBINE",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE945H01021",
       "name": "V2 Retail Ltd",
       "bookName": "V2 Retail Ltd",
       "ticker": "V2RETAIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE884A01027",
       "name": "Vaibhav Global Ltd",
       "bookName": "Vaibhav Global Ltd",
       "ticker": "VAIBHAVGBL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE1CDF01017",
       "name": "Vedanta Aluminium Metal Limited",
       "bookName": "Vedanta Aluminium Metal Limited",
       "ticker": "VAML",
       "sector": "Materials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE665L01035",
       "name": "Varroc Engineering Limited",
       "bookName": "Varroc Engineering Limited",
       "ticker": "VARROC",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE200M01039",
@@ -1370,58 +1930,88 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE205A01025",
       "name": "Vedanta Ltd",
       "bookName": "Vedanta Ltd",
       "ticker": "VEDL",
       "sector": "Materials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE054A01027",
       "name": "VIP Industries Ltd",
       "bookName": "VIP Industries Ltd",
       "ticker": "VIPIND",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE807F01027",
       "name": "Viyash Scientific Limited",
       "bookName": "Viyash Scientific Limited",
       "ticker": "VIYASH",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE377N01017",
       "name": "Waaree Energies Ltd.",
       "bookName": "Waaree Energies Ltd.",
       "ticker": "WAAREEENER",
       "sector": "Industrials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE049B01025",
       "name": "Wockhardt Ltd",
       "bookName": "Wockhardt Ltd",
       "ticker": "WOCKPHARMA",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE765D01022",
       "name": "Wpil Ltd",
       "bookName": "Wpil Ltd",
       "ticker": "WPIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE07K301024",
@@ -1433,31 +2023,46 @@
       "matchedBy": "glowventures:symbol"
     },
     {
-      "isin": null,
+      "isin": "INE520A01027",
       "name": "Zensar Technologies Ltd",
       "bookName": "Zensar Technologies Ltd",
       "ticker": "ZENSARTECH",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE342J01019",
       "name": "ZF Commercial Vehicle Control Systems India Ltd",
       "bookName": "ZF Commercial Vehicle Control Systems India Ltd",
       "ticker": "ZFCVINDIA",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE010B01027",
       "name": "Zydus Lifesciences Ltd.",
       "bookName": "Zydus Lifesciences Ltd.",
       "ticker": "ZYDUSLIFE",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE666D13019",
@@ -1469,24 +2074,34 @@
       "reason": "warrant line — a right to subscribe, not a share any feed here is keyed by"
     },
     {
-      "isin": null,
+      "isin": "INE757A01017",
       "name": "Cosmo Films Ltd",
       "bookName": "Cosmo Films Ltd",
       "sector": "Unclassified",
       "ticker": "COSMOFIRST",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:checked by hand"
+      "matchedBy": "company-index:checked by hand",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE741K01010",
       "name": "Credit Access Grameen Limited",
       "bookName": "Credit Access Grameen Limited",
       "sector": "Unclassified",
       "ticker": "CREDITACC",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:checked by hand"
+      "matchedBy": "company-index:checked by hand",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE0LTR03090",
@@ -1507,44 +2122,64 @@
       "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries"
     },
     {
-      "isin": null,
+      "isin": "INE0NR701018",
       "name": "Krishca Strapping Solutions",
       "bookName": "KRISHCA STRAPPING SOLUTIONS",
       "sector": "Unclassified",
       "ticker": "KRISHCA",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:checked by hand"
+      "matchedBy": "company-index:checked by hand",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:26.731Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE201A01024",
       "name": "Manali Petrochemical Ltd",
       "bookName": "MANALI PETROCHEMICAL LTD.",
       "sector": "Unclassified",
       "ticker": "MANALIPETC",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:technicals"
+      "matchedBy": "company-index:technicals",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE277B01014",
       "name": "Punjab Chem & Crop Prot L",
       "bookName": "PUNJAB CHEM & CROP PROT L",
       "sector": "Unclassified",
       "ticker": "PUNJABCHEM",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:checked by hand"
+      "matchedBy": "company-index:checked by hand",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
-      "isin": null,
+      "isin": "INE231F01020",
       "name": "Sasken Communication Technologies",
       "bookName": "SASKEN COMMUNICATION TECHNOLOGIES",
       "sector": "Unclassified",
       "ticker": "SASKEN",
       "listed": true,
       "matchedName": null,
-      "matchedBy": "company-index:checked by hand"
+      "matchedBy": "company-index:checked by hand",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-09-09T06:34:25.369Z",
+        "matchedBy": "exact NSE symbol"
+      }
     },
     {
       "isin": "INE00GK01023",

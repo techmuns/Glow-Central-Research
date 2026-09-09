@@ -5,8 +5,10 @@ let lastDispatch = 0, apiTag = null;
 let byTicker = new Map();
 let snapshot = null, rows = [], pending = null, loaded = false, lastCheck = 0, timer = null, deliveryError = null;
 const listeners = new Set();
-const emit = () => listeners.forEach((fn) => fn());
+// A repaint may replace a subscription; deliver each revision to the original listeners once.
+const emit = () => [...listeners].forEach((fn) => fn());
 export const meta = () => snapshot ? { ...snapshot, records: undefined, deliveryError, summary: exchangeSummary(snapshot, deliveryError), rowCount: rows.length } : null;
+export const revision = () => snapshot?.checkedAt || null;
 export const combined = (secondary) => combineExchangeDeals(secondary, snapshot, rows);
 export const forTicker = (secondary, ticker) => combineExchangeDeals(secondary, snapshot, byTicker.get(ticker) || []);
 export const headers = ['Trade Category', 'Company', 'Insider', 'Transaction', 'Trade Shares', 'Price', 'Trade Value', 'Exchange', 'BSE Code', 'Remarks', 'Source'];
@@ -49,12 +51,12 @@ export async function refresh() {
   })().finally(() => { pending = null; });
   return pending;
 }
-function poll() { if (!document.hidden) void refresh(); }
+function poll() { if (loaded && typeof document !== 'undefined' && !document.hidden) void refresh(); }
 export function onChange(fn) {
   listeners.add(fn);
-  if (!timer) { timer = setInterval(poll, 60000); document.addEventListener('visibilitychange', poll); void refresh(); }
+  if (!timer && typeof document !== 'undefined') { timer = setInterval(poll, 60000); document.addEventListener('visibilitychange', poll); if (loaded) void refresh(); }
   return () => {
     listeners.delete(fn);
-    if (!listeners.size) { clearInterval(timer); timer = null; document.removeEventListener('visibilitychange', poll); }
+    if (!listeners.size) { clearInterval(timer); timer = null; if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', poll); }
   };
 }

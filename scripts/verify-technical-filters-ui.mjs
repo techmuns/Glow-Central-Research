@@ -25,7 +25,8 @@ const companies = cases.map(([ticker, volume, proximity, above, fii, dii, qualit
 }));
 
 export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0.1:8080' } = {}) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  // Keep fixture interception authoritative across reloads; the separate refresh suite tests the real service worker.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   const errors = [], refreshes = [];
   try {
     await context.route('**/*', route => {
@@ -47,14 +48,21 @@ export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0
       return route.fulfill({ status: 404, json: { ok: false, reason: 'no-route' }, headers: { 'access-control-allow-origin': '*' } });
     });
     const page = await context.newPage();
-    page.on('pageerror', e => errors.push(e.message));
+    page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
+    const failedRequests = [];
+    page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
     const chip = (group, id) => page.locator(`[data-chip-group="${group}"][data-chip-id="${id}"]`);
     const count = async (group, id) => Number(await chip(group, id).locator('span').last().innerText());
     const expectRows = async (expected) => {
-      await page.waitForFunction(expected => {
+      try { await page.waitForFunction(expected => {
         const actual = [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey).sort();
         return JSON.stringify(actual) === JSON.stringify(expected);
-      }, [...expected].sort());
+      }, [...expected].sort()); } catch (error) {
+        console.error(JSON.stringify(await page.evaluate(() => ({ url: location.href, rows: [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey), text: (document.querySelector('#content-host') || document.body)?.innerText?.slice(0, 1800), ready: document.readyState, scripts: [...document.scripts].map(s => s.src).filter(Boolean) }))));
+        console.error(JSON.stringify({ failedRequests }));
+        await page.screenshot({ path: '/tmp/glow-technical-filter-failure.png' });
+        throw error;
+      }
     };
     const go = async (sub, expected, query = 'scope=universe') => {
       await page.goto(`${base}/#/research/breakouts/${sub}?${query}`);

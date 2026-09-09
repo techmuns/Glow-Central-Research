@@ -88,6 +88,8 @@ export function renderFiled(ctx, { disposers = [], section = 'institutions', onS
 
   const table = scoreTable({
     rows,
+    bookmarkDate: () => label0,
+    bookmarkSource: () => fund.name,
     // An AMC line that resolved to no NSE symbol still needs a stable id for the watchlist, so the
     // instrument name stands in. It is unique within a fund — the importer merges a company's
     // repeat spells into one row and fails the run on two companies sharing a symbol.
@@ -119,7 +121,7 @@ export function renderFiled(ctx, { disposers = [], section = 'institutions', onS
     initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
     initialSort: { key: filing ? 'Holding Value' : 'Value (AMC)', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
-    exportName: `glow-${fund.investorId}-holdings`,
+    exportName: `sattva-${fund.investorId}-holdings`,
     onExport: (visible) => exportFund(visible, fund),
     emptyMessage: scopePossessive(ctx.scope) ? `This fund holds none of ${scopePossessive(ctx.scope)}.` : 'No holding matches your filters.',
   });
@@ -399,7 +401,7 @@ function openInstitutionCompany(key) {
           <strong class="text-slate-600">Current value is Trendlyne's derivation, not an amount bought or sold.</strong>
           A dash means not disclosed, not zero.
         </p>
-        <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200">
+        <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-200" tabindex="0" role="region" aria-label="Company institution comparison table">
           <table class="min-w-[980px] w-full text-sm">
             <thead class="bg-slate-50"><tr>
               <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">Institution</th>
@@ -930,7 +932,7 @@ async function exportFund(visible, fund) {
       ];
 
   await exportRows({
-    filename: `glow-${fund.investorId}-holdings`,
+    filename: `sattva-${fund.investorId}-holdings`,
     sheetName: filing ? 'Filed holdings' : 'Fund portfolio',
     columns: [
       ...columns,

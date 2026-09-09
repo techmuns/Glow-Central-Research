@@ -48,8 +48,8 @@ export function prime(payload) {
   return raw;
 }
 
-export function load() {
-  if (raw) return Promise.resolve(raw);
+export function load({ force = false } = {}) {
+  if (raw && !force) return Promise.resolve(raw);
   if (!loading) {
     loading = revalidatedJson(PATH)
       .then((payload) => prime(payload))

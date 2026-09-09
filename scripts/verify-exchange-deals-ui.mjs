@@ -1,17 +1,31 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { resolve, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 const seed = JSON.parse(readFileSync(new URL('../public/data/exchange-deals.json', import.meta.url)));
 const managers = JSON.parse(readFileSync(new URL('../public/data/managers.json', import.meta.url))).managers;
+const root = fileURLToPath(new URL('../public/', import.meta.url));
+const server = createServer((req, res) => {
+  const path = new URL(req.url, 'http://localhost').pathname;
+  if (path.startsWith('/api/')) { res.writeHead(503, { 'content-type': 'application/json' }); res.end('{"ok":false}'); return; }
+  try {
+    res.setHeader('content-type', ({ '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' })[extname(path)] || 'text/html');
+    res.end(readFileSync(resolve(root, `.${path === '/' ? '/index.html' : path}`)));
+  } catch { res.writeHead(404); res.end(); }
+});
+await new Promise(done => server.listen(0, '127.0.0.1', done));
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install();
   let payload = structuredClone(seed), calls = 0;
   await page.route('**/api/bulk-block-deals', async (route) => { calls++; await route.fulfill({ json: payload }); });
   await page.route('**/api/bulk-block-deals/refresh*', (route) => route.fulfill({ json: { ok: true, dispatched: false } }));
-  const base = process.argv[2] || 'http://127.0.0.1:8089';
+  const base = `http://127.0.0.1:${server.address().port}`;
+  await page.route('**/*', route => new URL(route.request().url()).origin === base ? route.fallback() : route.abort());
   await page.goto(`${base}/#/research/super-investors/superstar-investors?scope=portfolio`);
   await page.waitForSelector('[data-investor-changes][data-changes-ready=true]');
   assert.match(await page.locator('[data-exchange-status]').innerText(), /NSE \+ BSE/);
@@ -28,11 +42,11 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-exchange-status]')?.textContent.includes('48,423'));
   assert(await page.getByRole('columnheader', { name: 'Exchange', exact: true }).count() > 0);
   assert(await page.locator('[data-insider-source-link]').count() > 0);
-  for (const [id, label] of [['today', 'Today'], ['3d', '3 days'], ['7d', '7 days'], ['month', 'This month']]) {
-    const button = page.locator(`[data-range-preset="${id}"]`);
-    assert.equal(await button.innerText(), label);
-    await button.click();
-    assert.equal(await button.getAttribute('aria-pressed'), 'true');
+  for (const [id, value, label] of [['today', 'today', 'Today'], ['3d', '3', 'Last 3 days'], ['7d', '7', 'Last 7 days'], ['month', 'month', 'This month'], ['3m', '3m', 'Last 3 months'], ['6m', '6m', 'Last 6 months'], ['1y', '1y', 'Last year']]) {
+    const select = page.getByRole('combobox', { name: 'Trade period', exact: true });
+    assert.equal(await select.locator(`option[value="${value}"]`).innerText(), label);
+    await select.selectOption(value);
+    assert.equal(await select.inputValue(), value);
     assert(page.url().includes(`range=${id}`), 'date selection is linkable');
     const expected = await page.evaluate(async (id) => {
       const { insider } = await import('/js/data/filings.js');
@@ -41,11 +55,11 @@ try {
     }, id);
     const count = await page.locator('[data-row-count]').first().innerText();
     assert.equal(Number(count.replace(/,/g, '').match(/\d+/)?.[0]), expected, `Bulk/Block ${id}`);
-    assert(await page.getByText('Polling fixture', { exact: true }).count() > 0, 'today’s new deal remains in every short window');
+    assert(await page.getByText('TESTPOLL', { exact: true }).count() > 0, 'today’s new deal remains in every short window');
   }
   await page.reload();
-  await page.waitForSelector('[data-range-preset="month"][aria-pressed="true"]');
-  await page.locator('[data-range-preset="all"]').click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Trade period"]')?.value === '1y');
+  await page.getByRole('combobox', { name: 'Trade period', exact: true }).selectOption('all');
   await page.screenshot({ path: '/tmp/glow-exchange-deals-desktop.png', fullPage: true });
   payload = { ...payload, checkedAt: new Date(Date.now() + 120000).toISOString(), sources: payload.sources.map((s) => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
@@ -55,7 +69,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await page.screenshot({ path: '/tmp/glow-exchange-deals-mobile.png', fullPage: true });
-  await page.locator('[data-range-preset="today"]').click();
+  await page.getByRole('combobox', { name: 'Trade period', exact: true }).selectOption('today');
   const tomorrow = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const afterMidnight = new Date(`${tomorrow}T00:01:00+05:30`);
   await page.clock.setSystemTime(afterMidnight);
@@ -63,7 +77,7 @@ try {
   await page.clock.fastForward(61000);
   await page.waitForFunction(() => [...document.querySelectorAll('tr')].some((row) => row.textContent.includes('NEXTDAY')));
   assert.equal(await page.getByText('TESTPOLL', { exact: true }).count(), 0, 'a live update advances Today past yesterday’s deal');
-  assert.equal(await page.locator('[data-range-preset="today"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByRole('combobox', { name: 'Trade period', exact: true }).inputValue(), 'today');
   assert.deepEqual(errors, []);
-  console.log('PASS exchange UI: short date filters, persisted window, timed update reaches Changes and Bulk/Block, evidence links, failure visibility, history retention and mobile overflow');
-} finally { await browser.close(); }
+  console.log('PASS exchange UI: short date filters, persisted window, timed update reaches Changes and Bulk/Block, exchange column, evidence links, failure visibility, history retention and mobile overflow');
+} finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }
