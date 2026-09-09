@@ -127,8 +127,9 @@ let allSchemesView = null;
 let assetClass = null;
 let group = null;
 // The third level — the source's own category — offered on All Schemes, where the row is a scheme
-// rather than a category. Null means "every category in this group".
+// rather than a category. Null means every category under the selected classification/group.
 let categoryId = null;
+let categoryScrollLeft = 0;
 // The strategy the scheme's own NAME states. A separate axis from the three above; null means "any".
 let strategy = null;
 // The reader's own benchmark choice, per category id — one of the indices the workbook prints under
@@ -195,6 +196,7 @@ export function destroy() {
   assetClass = null;
   group = null;
   categoryId = null;
+  categoryScrollLeft = 0;
   strategy = null;
   chosenBenchmark = {};
 }
@@ -752,11 +754,8 @@ function renderAllSchemes(ctx) {
       disposers,
       repaint: paint,
       rows,
-      // THE THIRD LEVEL IS OFFERED HERE AND NOT ON CATEGORY PERFORMANCE, because there the third
-      // level IS the row: a chip per category above a table of categories is the same control
-      // twice. Here the categories are invisible until something names them, which is how "ETFs"
-      // and "Index" — words the source itself uses — had no control at all.
-      headHtml: `${hierarchyControls(null, tree, { coverage: false, depth: 3 })}<div data-mf-strategy-mount></div>${measureControls('live')}`,
+      // Categories are a direct choice on their own row, including before a group is selected.
+      headHtml: `${hierarchyControls(null, tree, { coverage: false })}${liveCategoryControls(tree)}<div data-mf-strategy-mount></div>${measureControls('live')}`,
       view: allSchemesView,
       onView: (v, matchesSearch) => { allSchemesView = v; updateStrategyCounts(v, matchesSearch); },
       onSearchChange: updateStrategyCounts,
@@ -766,6 +765,7 @@ function renderAllSchemes(ctx) {
     ctx.root.innerHTML = panel.html;
     panel.wire(ctx.root);
     wireHierarchy(ctx.root, paint);
+    wireCategoryScroll(ctx.root);
     wireStrategy(ctx.root, paint);
     wireMeasure(ctx.root, paint);
   };
@@ -838,7 +838,7 @@ function twoFeedsProvenance(m) {
  * null and a full Set, for the same reason: the two look identical until a category appears or
  * disappears. The counts on a chip describe the TAXONOMY, so they do not move when you press one.
  */
-function hierarchyControls(all, tree = weekly.tree(all), { coverage = true, depth = 2 } = {}) {
+function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {}) {
   const classChips = tree
     .map((n) => chipBtn(`data-mf-class="${escapeHtml(n.assetClass)}"`, `${n.assetClass} · ${n.count}`, assetClass === n.assetClass))
     .join('');
@@ -846,15 +846,6 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true, dept
   const groupChips = active
     ? `<span class="mx-1 h-4 w-px bg-slate-200"></span>${chipBtn('data-mf-group=""', 'All groups', !group)}${active.groups
         .map((g) => chipBtn(`data-mf-group="${escapeHtml(g.group)}"`, `${g.group} · ${g.count}`, group === g.group))
-        .join('')}`
-    : '';
-  // THE THIRD LEVEL IS THE SOURCE'S OWN CATEGORY, and until it was offered a reader had no way to
-  // ask for "ETFs" or "Index" — words the source itself prints on 645 equity schemes. Only shown
-  // where the third level is not already the row (see the call site on All Schemes).
-  const activeGroup = depth >= 3 && active ? active.groups.find((g) => g.group === group) : null;
-  const categoryChips = activeGroup
-    ? `<span class="mx-1 h-4 w-px bg-slate-200"></span>${chipBtn('data-mf-category=""', 'All categories', !categoryId)}${activeGroup.categories
-        .map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}"`, `${c.label} · ${c.items.length}`, categoryId === c.id))
         .join('')}`
     : '';
   // `coverage: false` on All Schemes. The note names what the WEEKLY WORKBOOK does not publish;
@@ -867,13 +858,81 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true, dept
       ${chipBtn('data-mf-class=""', 'All', !assetClass)}
       ${classChips}
       ${groupChips}
-      ${categoryChips}
       ${
         uncovered.length
           ? `<span class="ml-1 cursor-help text-[11px] text-slate-400" title="${escapeHtml(uncovered.map((c) => c.note).join(' '))}">${escapeHtml(uncovered.map((c) => c.label).join(', '))} not covered here</span>`
           : ''
       }
     </div>`;
+}
+
+// Match the customer's workbook-style navigation while keeping each live source category intact.
+// Only ordering is curated: combined categories and repeated labels are never merged or guessed.
+function liveCategoryControls(tree) {
+  const first = ['Small Cap', 'Mid Cap', 'Flexi Cap', 'Large Cap'];
+  const rank = (label) => first.includes(label) ? first.indexOf(label) : first.length;
+  const categories = tree.filter((n) => !assetClass || n.assetClass === assetClass)
+    .flatMap((n) => n.groups.filter((g) => !group || g.group === group)
+      .flatMap((g) => g.categories.map((c) => ({ ...c, assetClass: n.assetClass }))))
+    .sort((a, b) => rank(a.label) - rank(b.label));
+  const labels = new Map();
+  categories.forEach((c) => labels.set(c.label, (labels.get(c.label) || 0) + 1));
+  const arrow = (direction, symbol) => `<button type="button" data-mf-category-scroll-by="${direction}"
+    aria-label="Scroll categories ${direction < 0 ? 'left' : 'right'}" hidden
+    class="rounded-md px-2 py-1 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-30">${symbol}</button>`;
+  return `<div data-mf-categories role="group" aria-label="Category" class="flex w-full min-w-0 items-center gap-2">
+    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Category</span>
+    ${chipBtn(`data-mf-category="" aria-pressed="${!categoryId}"`, 'All', !categoryId)}
+    ${arrow(-1, '‹')}
+    <div data-mf-category-scroll class="scrollbar-thin min-w-0 flex-1 overflow-x-auto">
+      <div class="relative flex w-max items-center gap-1.5 p-1 whitespace-nowrap">
+        ${categories.map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}" aria-pressed="${categoryId === c.id}"`,
+          labels.get(c.label) > 1 ? `${c.assetClass} · ${c.label}` : c.label, categoryId === c.id, c.sourceLabel)).join('')}
+      </div>
+    </div>
+    ${arrow(1, '›')}
+  </div>`;
+}
+
+function wireCategoryScroll(root) {
+  const row = root.querySelector('[data-mf-categories]');
+  if (!row) return;
+  const scroller = row.querySelector('[data-mf-category-scroll]');
+  const arrows = [...row.querySelectorAll('[data-mf-category-scroll-by]')];
+  const update = () => {
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    arrows.forEach((button) => {
+      button.hidden = max <= 1;
+      button.disabled = Number(button.dataset.mfCategoryScrollBy) < 0 ? scroller.scrollLeft <= 1 : scroller.scrollLeft >= max - 1;
+    });
+    categoryScrollLeft = scroller.scrollLeft;
+  };
+  const onClick = (event) => {
+    const button = event.target.closest('[data-mf-category-scroll-by]');
+    if (button) scroller.scrollBy({ left: Number(button.dataset.mfCategoryScrollBy) * scroller.clientWidth * 0.8, behavior: 'smooth' });
+  };
+  // Retain the reader's place through filter/measure repaints and keep a selected chip in view.
+  scroller.scrollLeft = categoryScrollLeft;
+  update();
+  const active = scroller.querySelector('[aria-pressed="true"]');
+  const revealActive = () => {
+    if (active) {
+      if (active.offsetLeft < scroller.scrollLeft) scroller.scrollLeft = active.offsetLeft;
+      else if (active.offsetLeft + active.offsetWidth > scroller.scrollLeft + scroller.clientWidth)
+        scroller.scrollLeft = active.offsetLeft + active.offsetWidth - scroller.clientWidth;
+    }
+    update();
+  };
+  const onResize = () => { update(); revealActive(); };
+  revealActive();
+  row.addEventListener('click', onClick);
+  scroller.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', onResize);
+  disposers.push(() => {
+    row.removeEventListener('click', onClick);
+    scroller.removeEventListener('scroll', update);
+    window.removeEventListener('resize', onResize);
+  });
 }
 
 /**
@@ -909,6 +968,7 @@ function wireHierarchy(root, repaint) {
       assetClass = el.dataset.mfClass || null;
       group = null;
       categoryId = null;
+      categoryScrollLeft = 0;
       openCategory = null;
       repaint();
     };
@@ -919,6 +979,7 @@ function wireHierarchy(root, repaint) {
     const on = () => {
       group = el.dataset.mfGroup || null;
       categoryId = null;
+      categoryScrollLeft = 0;
       openCategory = null;
       repaint();
     };
@@ -927,9 +988,13 @@ function wireHierarchy(root, repaint) {
   });
   root.querySelectorAll('[data-mf-category]').forEach((el) => {
     const on = () => {
+      const focused = document.activeElement === el;
       categoryId = el.dataset.mfCategory || null;
+      if (!categoryId) categoryScrollLeft = 0;
       openCategory = null;
       repaint();
+      if (focused) [...root.querySelectorAll('[data-mf-category]')]
+        .find((button) => button.dataset.mfCategory === (categoryId || ''))?.focus({ preventScroll: true });
     };
     el.addEventListener('click', on);
     disposers.push(() => el.removeEventListener('click', on));

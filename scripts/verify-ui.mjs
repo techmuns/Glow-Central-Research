@@ -4985,6 +4985,15 @@ ok('...so the toolbar offers no plan control, which could only answer with an em
 const mfLiveChips = await page.locator('[data-mf-hierarchy] [data-mf-class]').count();
 ok('All Schemes carries the same classification control', mfLiveChips >= 3, `${mfLiveChips} chips`);
 const mfLiveBefore = await rowCount();
+// GLOW: category choices are directly available, before selecting any classification or group.
+const mfCategoryRow = page.locator('[data-mf-categories]');
+ok('All Schemes offers a dedicated Category row before any hierarchy selection', await mfCategoryRow.isVisible());
+await mfCategoryRow.locator('[data-mf-category="equity-small-cap"]').click();
+ok('Small Cap directly filters the live scheme table', await rowCount() > 0 && await page.locator('#content-host [data-row-key]').evaluateAll((rows) => rows.every((r) => /Equity : Small Cap/.test(r.innerText))));
+await mfCategoryRow.locator('[data-mf-category="equity-large-cap"]').click();
+ok('another category can be selected without clearing the previous one first', await rowCount() > 0 && await page.locator('#content-host [data-row-key]').evaluateAll((rows) => rows.every((r) => /Equity : Large Cap/.test(r.innerText))));
+await mfCategoryRow.locator('[data-mf-category=""]').click();
+ok('Category All restores the live scheme set', await rowCount() === mfLiveBefore);
 if (mfLiveChips > 1 && mfLiveBefore > 0) {
   await page.locator('[data-mf-hierarchy] [data-mf-class]').nth(1).click();
   await page.waitForTimeout(1400);
@@ -5001,10 +5010,10 @@ if (mfLiveChips > 1 && mfLiveBefore > 0) {
   if (mfGroupChipsLive >= 2) {
     await page.locator('[data-mf-hierarchy] [data-mf-group]').nth(1).click();
     await page.waitForTimeout(1600);
-    const mfCatChips = await page.locator('[data-mf-hierarchy] [data-mf-category]').count();
-    ok('choosing a group reveals the source’s own categories beneath it', mfCatChips >= 2, `${mfCatChips} category chips`);
+    const mfCatChips = await page.locator('[data-mf-categories] [data-mf-category]').count();
+    ok('choosing a group narrows the dedicated Category row', mfCatChips >= 2, `${mfCatChips} category chips`);
     const mfBeforeCat = await rowCount();
-    await page.locator('[data-mf-hierarchy] [data-mf-category]').nth(1).click();
+    await page.locator('[data-mf-categories] [data-mf-category]').nth(1).click();
     await page.waitForTimeout(1600);
     const mfAfterCat = await rowCount();
     ok('...and pressing one narrows the feed to that category', mfAfterCat > 0 && mfAfterCat <= mfBeforeCat, `${mfBeforeCat} → ${mfAfterCat}`);
