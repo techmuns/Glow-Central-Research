@@ -519,7 +519,7 @@ function publisherTally() {
 
 async function exportVisible(visible, m) {
   await exportRows({
-    filename: 'sattva-market-news',
+    filename: 'glow-market-news',
     sheetName: 'Market news',
     columns: [
       {

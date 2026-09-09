@@ -139,7 +139,7 @@ const tab = makeFilingsTab({
     </div>
   </div>`,
   onExport: async (visible, meta) => exportRows({
-    filename: 'sattva-corporate-actions', sheetName: 'Corporate Actions',
+    filename: 'glow-corporate-actions', sheetName: 'Corporate Actions',
     columns: [
       { header: 'Ticker', key: 'ticker', width: 14, get: (r) => r.ticker },
       { header: 'Company', key: 'company', width: 38, get: (r) => r.company },

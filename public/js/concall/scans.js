@@ -848,7 +848,7 @@ async function exportScans(rows, m) {
       `result/view/headline fields are copied only onto an exact, unambiguous call and are separately labelled; no score is inferred.`,
   };
   await exportRows({
-    filename: 'sattva-concall-scans',
+    filename: 'glow-concall-scans',
     sheetName: 'Concall Scans',
     columns: [
       { header: 'Call / Published Date', key: 'd', width: 24, get: (r) => (r.__banner ? r.__banner : r.analysisTracked === false ? r.publishedDate : r.when) },

@@ -71,7 +71,7 @@ marks coverage failed and pauses source claims until a successful check.
 
 The 9 September incident exposed a dependency error: successfully read documents were discarded
 when a later, unrelated portfolio calendar could not be parsed. The collector now atomically
-writes `screener-concall-documents-v1.json.gz` before reading either calendar. Its upload runs even
+writes `screener-concalls-v1.json.gz.documents.gz` before reading either calendar. Its upload runs even
 after a calendar failure. It contains public document metadata only, with no paid notes or account
 state; the existing combined calendar artifact still requires all its own reads to succeed.
 
@@ -188,3 +188,11 @@ transport: portfolio/market calendar changes and empty market schedules preserve
 refusals block paid eligibility, document failures produce no usable checkpoint,
 and recovery publishes the complete calendar again. Artifact tests cover pending/crashed writes,
 newer failed runs, legacy rollout, corruption, expiry and atomic preservation after invalid input.
+
+The independent checkpoint is published as `screener-concalls-v1.json.gz.documents.gz`. With
+[upload-artifact's unarchived mode](https://github.com/actions/upload-artifact#inputs), GitHub uses
+the actual file basename and ignores the configured artifact label. The reader and workflow path
+are checked together to prevent a successfully uploaded checkpoint becoming undiscoverable.
+Calendar date parsing supports Today and Tomorrow across month/year boundaries. Failed portfolio
+parses report only fixed structure flags and counts; source HTML, text and account values stay out
+of public logs. Recovery recognises an explicit Upcoming tab label as well as a heading; it still requires a complete dated company list and current authentication. Unknown responses still block paid requests.

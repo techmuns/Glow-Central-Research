@@ -927,7 +927,7 @@ async function exportCalendar(rows, payload, date = '') {
       `Market cap in Rs. crore. Blank cells mean not known, not zero.`,
   };
   await exportRows({
-    filename: 'sattva-earnings-calendar',
+    filename: 'glow-earnings-calendar',
     sheetName: 'Results Calendar',
     columns: [
       { header: 'Event Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },
@@ -964,7 +964,7 @@ async function exportResults(rows, m) {
   const pri = m?.priorPeriod || 'Prior';
   const val = (mm, field) => (mm?.[field] ?? '');
   await exportRows({
-    filename: 'sattva-earnings',
+    filename: 'glow-earnings',
     sheetName: 'Latest Results',
     columns: [
       { header: 'Result Date', key: 'd', width: 14, get: (r) => (r.__banner ? r.__banner : r.resultDate) },

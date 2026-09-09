@@ -11,6 +11,7 @@ export function adaptGlowText(old, path = '') {
     .replaceAll('Sattva Ventures', 'Glow Ventures')
     .replaceAll('/assets/brand/sattva-ventures-wordmark.png', '/assets/brand/glow-ventures-wordmark.svg')
     .replaceAll('/assets/brand/sattva-ventures-mark.svg', '/assets/brand/favicon.svg')
+    .replaceAll("filename: 'sattva-", "filename: 'glow-")
     .replaceAll('Sattva Research', 'Glow Research').replaceAll('SATTVA CENTRAL RESEARCH', 'GLOW CENTRAL RESEARCH')
     .replaceAll("'Sattva-Central-Research'", "'Glow-Central-Research'");
   if (basename(path) === 'wrangler.jsonc') next = next

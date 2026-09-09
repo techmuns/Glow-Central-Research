@@ -19,6 +19,7 @@ import {
   SCREENER_PORTFOLIO_DASHBOARD,
   SCREENER_PORTFOLIO_WATCHLIST_ID,
   SCREENER_PORTFOLIO_WATCHLIST_NAME,
+  upcomingDiagnostics,
 } from './lib/screener-upcoming.mjs';
 import {
   mergeScreenerConcallCapture,
@@ -45,12 +46,21 @@ let failureCode = null;
 let failureFeed = null;
 let documents = null;
 let failureDetail = null;
+let failureShape = null;
 let confirmedCalendarShape = false;
 
 function collectionError(code) {
   const error = new Error('Screener concall page rejected');
   error.collectionCode = code;
   return error;
+}
+
+async function recognisedCalendarResponse(response, page, feed, observedAt) {
+  // body() reads this navigation's existing bytes. It neither makes a second source request nor
+  // trusts the browser's automatic repair of incomplete HTML as evidence of a complete calendar.
+  const body = await response.body().catch(() => null);
+  return !!body && body.length <= MAX_PAGE_BYTES && recognisedCalendar(body.toString('utf8'), feed, observedAt) &&
+    (await page.locator('a[href^="/logout/"], form[action^="/logout/"]').count()) > 0;
 }
 
 const readData = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));
@@ -211,8 +221,7 @@ async function main() {
         try {
           parsed = parseScreenerMarketUpcomingPage(html);
         } catch {
-          confirmedCalendarShape = recognisedCalendar(html, 'upcoming') &&
-            (await page.locator('a[href^="/logout/"], form[action^="/logout/"]').count()) > 0;
+          confirmedCalendarShape = await recognisedCalendarResponse(response, page, 'upcoming');
           throw collectionError('shape');
         }
         if (baseline && (parsed.publishedTotal !== baseline.publishedTotal || parsed.lastPage !== baseline.lastPage)) throw collectionError('pagination');
@@ -249,7 +258,7 @@ async function main() {
   if (upcomingCollected.length !== upcomingFirst.publishedTotal) throw Error('Screener upcoming count mismatch');
 
   stage = 'portfolio calendar capture';
-  const checkedAt = new Date().toISOString();
+  let checkedAt;
   // This read follows seven market-calendar pages on a normal run (and the complete document
   // catalogue on a daily audit). Retry temporary transport/server failures on this fixed
   // dashboard. Refusals and shape changes stop; complete documents remain checkpointed separately.
@@ -262,6 +271,7 @@ async function main() {
         });
         const dashboardUrl = new URL(page.url());
         if (!dashboard?.ok()) throw collectionError([401,403,429].includes(dashboard?.status()) ? 'refused' : 'response');
+        checkedAt = new Date().toISOString();
         if (dashboardUrl.origin !== 'https://www.screener.in' || dashboardUrl.pathname !== `/dash/${SCREENER_PORTFOLIO_WATCHLIST_ID}/`) {
           throw collectionError('session');
         }
@@ -277,8 +287,7 @@ async function main() {
         try {
           return parseScreenerPortfolioUpcomingPage(html, checkedAt);
         } catch (error) {
-          confirmedCalendarShape = recognisedCalendar(html, 'portfolio') &&
-            (await page.locator('a[href^="/logout/"], form[action^="/logout/"]').count()) > 0;
+          confirmedCalendarShape = await recognisedCalendarResponse(dashboard, page, 'portfolio', checkedAt);
           const diagnostics = new Map([
             ['Screener Upcoming panel unavailable or ambiguous', 'panel'],
             ['Unmapped Screener Upcoming row', 'row'],
@@ -288,6 +297,7 @@ async function main() {
             ['Invalid Screener upcoming company route', 'company-route'],
           ]);
           failureDetail = diagnostics.get(error.message) || 'validation';
+          failureShape = upcomingDiagnostics(html, checkedAt);
           throw collectionError('shape');
         }
       } catch (error) {
@@ -360,6 +370,7 @@ try {
   const location = failurePage ? ` (${failureFeed || 'history'} page ${failurePage}, ${failureCode})` : '';
   console.error(`Screener concall collection failed during ${stage}${location}. No credentials or page content were logged.`);
   if (failureDetail) console.error(`Portfolio calendar diagnostic: ${failureDetail}.`);
+  if (failureShape) console.error(`Portfolio calendar structure: ${JSON.stringify(failureShape)}`);
   process.exitCode = 1;
 } finally {
   await browser?.close().catch(() => {});

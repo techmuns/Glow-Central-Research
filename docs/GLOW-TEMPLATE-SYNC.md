@@ -1,7 +1,7 @@
 # Glow deployment and Sattva template sync
 
 Audited on 9 September 2026. Template baseline: `techmuns/Sattva-Central-Research` commit
-`670e464e63135f90308883cbd13861aa00610754` (merged PR #158).
+`542081ef` (includes merged PR #160, with PR #159 calendar/checkpoint fixes).
 
 ## What is shared
 

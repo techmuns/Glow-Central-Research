@@ -5,7 +5,7 @@
 // that publishes `window.ExcelJS`.
 //
 //   import { exportRows } from '../ui/export.js';
-//   exportRows({ filename: 'sattva-technicals', sheetName: 'Technicals', columns, rows });
+//   exportRows({ filename: 'glow-technicals', sheetName: 'Technicals', columns, rows });
 //
 // `columns` is `[{ header, key, width?, get(row) }]`. Everything is a caller decision — this
 // file knows nothing about technicals or any other tab, so prompts 4–7 can adopt it as-is.
