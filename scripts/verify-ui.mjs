@@ -7391,7 +7391,7 @@ console.log('\n— news, announcements and insider trades —');
 
       const presets = await page.locator('[data-range-preset]').allTextContents();
       ok(`${tab} offers 3M / 6M / 1Y history windows and a custom range`,
-        ['7D', '1M', '3M', '6M', '1Y', 'All'].every((p) => presets.includes(p)) &&
+        ['Today', '3 days', '7 days', 'This month', '1M', '3M', '6M', '1Y', 'All'].every((p) => presets.includes(p)) &&
           (await page.locator('[data-range-custom-toggle]').count()) === 1,
         presets.join(' '));
 
@@ -7415,7 +7415,7 @@ console.log('\n— news, announcements and insider trades —');
       // 2. A WINDOW WIDER THAN THE CAPTURE SAYS SO, ON THE FACE OF THE CONTROL.
       await page.locator('[data-range-preset="1y"]').click();
       await page.waitForTimeout(900);
-      const yearBack = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+      const yearBack = await evalSafe(async () => (await import('/js/data/date-range.js')).parseRange('1y').from);
       const reachNote = (await page.locator('[data-range-control] [class*="amber"]').first().textContent().catch(() => '')) || '';
       const capturePartial = !!held.first && held.first > yearBack;
       ok(`...and names how far back it actually holds when a window outruns the capture`,

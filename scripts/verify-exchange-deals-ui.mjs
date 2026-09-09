@@ -28,6 +28,24 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-exchange-status]')?.textContent.includes('48,423'));
   assert(await page.getByRole('columnheader', { name: 'Exchange', exact: true }).count() > 0);
   assert(await page.locator('[data-insider-source-link]').count() > 0);
+  for (const [id, label] of [['today', 'Today'], ['3d', '3 days'], ['7d', '7 days'], ['month', 'This month']]) {
+    const button = page.locator(`[data-range-preset="${id}"]`);
+    assert.equal(await button.innerText(), label);
+    await button.click();
+    assert.equal(await button.getAttribute('aria-pressed'), 'true');
+    assert(page.url().includes(`range=${id}`), 'date selection is linkable');
+    const expected = await page.evaluate(async (id) => {
+      const { insider } = await import('/js/data/filings.js');
+      const { parseRange, applyRange } = await import('/js/data/date-range.js');
+      return applyRange(insider.rows(), parseRange(id)).rows.length;
+    }, id);
+    const count = await page.locator('[data-row-count]').first().innerText();
+    assert.equal(Number(count.replace(/,/g, '').match(/\d+/)?.[0]), expected, `Bulk/Block ${id}`);
+    assert(await page.getByText('Polling fixture', { exact: true }).count() > 0, 'today’s new deal remains in every short window');
+  }
+  await page.reload();
+  await page.waitForSelector('[data-range-preset="month"][aria-pressed="true"]');
+  await page.locator('[data-range-preset="all"]').click();
   await page.screenshot({ path: '/tmp/glow-exchange-deals-desktop.png', fullPage: true });
   payload = { ...payload, checkedAt: new Date(Date.now() + 120000).toISOString(), sources: payload.sources.map((s) => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
@@ -37,6 +55,15 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await page.screenshot({ path: '/tmp/glow-exchange-deals-mobile.png', fullPage: true });
+  await page.locator('[data-range-preset="today"]').click();
+  const tomorrow = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  const afterMidnight = new Date(`${tomorrow}T00:01:00+05:30`);
+  await page.clock.setSystemTime(afterMidnight);
+  payload = { ...payload, checkedAt: afterMidnight.toISOString(), records: [...payload.records, ['nse-bulk', tomorrow, 'NEXTDAY', 'Midnight fixture', managers[0].name, 'Buy', 100, 50, '']] };
+  await page.clock.fastForward(61000);
+  await page.waitForFunction(() => [...document.querySelectorAll('tr')].some((row) => row.textContent.includes('NEXTDAY')));
+  assert.equal(await page.getByText('TESTPOLL', { exact: true }).count(), 0, 'a live update advances Today past yesterday’s deal');
+  assert.equal(await page.locator('[data-range-preset="today"]').getAttribute('aria-pressed'), 'true');
   assert.deepEqual(errors, []);
-  console.log('PASS exchange UI: timed update reaches Changes and Bulk/Block, exchange column, evidence links, failure visibility, history retention and mobile overflow');
+  console.log('PASS exchange UI: short date filters, persisted window, timed update reaches Changes and Bulk/Block, evidence links, failure visibility, history retention and mobile overflow');
 } finally { await browser.close(); }
