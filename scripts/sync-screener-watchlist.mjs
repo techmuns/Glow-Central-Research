@@ -122,7 +122,7 @@ try {
   const { current, manageRows } = await readWatchlistInventory(page, inventoryOptions);
   const plan = reconcileWatchlist(current, targets);
   const removalMatches = matchRemovalButtons(plan.removals, manageRows);
-  await report(`configured Screener plan: ${current.length} current, ${targets.length} listed portfolio companies, ${plan.additions.length} additions, ${plan.removals.length} removals.`);
+  await report(`configured Screener plan: ${current.length} current, ${targets.length} portfolio sync candidates, ${plan.additions.length} additions, ${plan.removals.length} removals.`);
 
   if (dryRun) {
     await report('Dry run completed. The existing configured Screener watchlist was not changed.');
@@ -135,8 +135,8 @@ try {
     const { current: final } = await readWatchlistInventory(page, inventoryOptions);
     const result = reconcileWatchlist(final, targets);
     if (result.removals.length) throw new Error('Non-portfolio companies remain after sync');
-    await report(`configured Screener synced: ${final.length} portfolio companies present; ${result.additions.length} listed holdings were not added by Screener.`);
-    if (result.additions.length) console.log(`::warning::Screener could not add ${result.additions.length} listed portfolio holdings; they will be retried on the next sync.`);
+    await report(`configured Screener ${result.additions.length ? 'partially synced' : 'synced'}: ${final.length} portfolio companies present; ${result.additions.length} candidate holdings were not added by Screener.`);
+    if (result.additions.length) console.log(`::warning::Screener could not add ${result.additions.length} portfolio holdings; they remain candidates for the next explicitly requested sync.`);
   }
 } catch {
   // Browser exceptions can include account, holding, or form data. Keep public

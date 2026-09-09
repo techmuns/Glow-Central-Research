@@ -81,11 +81,19 @@ then reads them again to verify the result. A new empty watchlist has no export 
 the reader accepts this only when both views have no company rows and the expected
 management controls are present. No watchlist is created or renamed.
 
-The current statement contains 168 listed holdings eligible for this mirror and two
-other holdings excluded by their listing status. Missing imports are reported by count;
-an unsuccessful import does not establish that a holding is unavailable at the provider.
+The current statement supplies 168 candidates through its existing `listed` flag and two
+other holdings excluded by that flag. The producer also marks unresolved ordinary equity
+as `listed: true`, so eligibility is not independent proof of an exchange listing. Missing
+imports are reported as a partial sync by count; an unsuccessful import does not establish
+that a holding is unavailable at the provider.
 Credentials and downloaded holdings stay in the runner; logs contain counts only.
 This manual operation does not activate paid summaries, X, or a scheduled membership sync.
+
+The [authorized initial sync](https://github.com/techmuns/Glow-Central-Research/actions/runs/34409208209)
+imported and verified 167 companies against their exported ISINs, with no unrelated members.
+One unresolved candidate was not matched by Screener's import or company search. All 170
+dashboard holdings remain present and matched the live Glow portfolio by ISIN. This record
+describes the 29 August statement snapshot, not present-day ownership or complete feed coverage.
 
 ### Original migration inventory (9 September 2026)
 
