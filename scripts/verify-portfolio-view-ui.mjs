@@ -332,8 +332,12 @@ try {
     await frame.locator('[data-alerts-coverage]').waitFor({ state: 'visible' });
     const expanded = await measure();
     assert.equal(expanded.height, normal.height, 'filters overlay, rather than consume, the reading space');
-    const panel = await frame.locator('[data-alerts-coverage]').boundingBox();
-    assert(panel.width <= normal.width, 'source picker stays within the host frame');
+    const panel = await frame.waitForFunction(() => {
+      const box = document.querySelector('[data-alerts-coverage]')?.getBoundingClientRect();
+      return box?.width > 0 && box.height > 0 ? { width: box.width } : false;
+    });
+    assert((await panel.jsonValue()).width <= normal.width, 'source picker stays within the host frame');
+    await panel.dispose();
     await frame.locator('[data-sources-close]').click();
     await frame.locator('[data-table-search]').fill('KISSHT');
     await frame.locator('[data-alerts-focus]').click();
