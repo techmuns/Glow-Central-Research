@@ -736,10 +736,18 @@ function renderAllSchemes(ctx) {
     releaseDisposers();
     const m = fundReturns.meta();
     const tree = liveTree();
-    // THE CHIPS NARROW THE FEED, they do not merely decorate it. One predicate, `liveScoped()`,
-    // produces the rows AND the counts, so the head can never describe a wider set than the table
-    // beneath it — the same rule `scopeFilter(ctx)` follows on Super Investors.
+    // The hierarchy and strategy narrow the feed before the table applies its search predicate.
+    // The result count and export read that same final set.
     const rows = m && !m.reason ? liveScoped(fundReturns.all()) : null;
+    // Count alternatives within the chosen classification and search, BEFORE applying strategy.
+    // Applying strategy here would hide other valid choices; using the whole feed invented matches
+    // under Debt. Refresh only this strip as text changes so the search input retains focus.
+    const strategyBase = liveScoped(fundReturns.all(), { includeStrategy: false });
+    const updateStrategyCounts = (view, matchesSearch) => {
+      if (token !== renderToken) return;
+      const mount = ctx.root.querySelector('[data-mf-strategy-mount]');
+      if (mount) mount.innerHTML = strategyControls(strategyBase.filter((f) => matchesSearch(f, view.q)), (f) => f.factors);
+    };
     const panel = renderFundReturns(ctx, {
       disposers,
       repaint: paint,
@@ -748,9 +756,10 @@ function renderAllSchemes(ctx) {
       // level IS the row: a chip per category above a table of categories is the same control
       // twice. Here the categories are invisible until something names them, which is how "ETFs"
       // and "Index" — words the source itself uses — had no control at all.
-      headHtml: `${hierarchyControls(null, tree, { coverage: false, depth: 3 })}${strategyControls(fundReturns.all(), (f) => f.factors)}${measureControls('live')}`,
+      headHtml: `${hierarchyControls(null, tree, { coverage: false, depth: 3 })}<div data-mf-strategy-mount></div>${measureControls('live')}`,
       view: allSchemesView,
-      onView: (v) => { allSchemesView = v; },
+      onView: (v, matchesSearch) => { allSchemesView = v; updateStrategyCounts(v, matchesSearch); },
+      onSearchChange: updateStrategyCounts,
       measure: measureFor('live'),
       extraProvenance: twoFeedsProvenance(m),
     });
@@ -776,18 +785,18 @@ function liveTree() {
 }
 
 /**
- * The live feed under the chips above it — asset class, group, category and strategy. ONE PREDICATE,
- * used by the rows, the counts and the export, so no number on screen can describe a wider set than
- * the table beneath it.
+ * The live feed under the chips above it — asset class, group, category and strategy. Strategy
+ * counts reuse the hierarchy without their own filter, so they describe the available alternatives.
  */
-function liveScoped(all) {
-  if (!assetClass && !group && !categoryId && !strategy) return all;
+function liveScoped(all, { includeStrategy = true } = {}) {
+  const chosenStrategy = includeStrategy ? strategy : null;
+  if (!assetClass && !group && !categoryId && !chosenStrategy) return all;
   return all.filter((f) => {
     const t = classifyLive(f.classification);
     return (!assetClass || t.assetClass === assetClass)
       && (!group || t.group === group)
       && (!categoryId || t.categoryId === categoryId)
-      && (!strategy || f.factors?.includes(strategy));
+      && (!chosenStrategy || f.factors?.includes(chosenStrategy));
   });
 }
 
@@ -878,18 +887,19 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true, dept
  * IT READS THE SCHEME'S OWN NAME, WHICH IS WHERE THE TRACKED INDEX IS STATED, and the row says so
  * on its own face. It is a SEPARATE axis from the classification chips beside it: a momentum fund's
  * classification is still `Equity : Index`, nothing here moves it, and a scheme matching no pattern
- * is simply not in a strategy rather than placed in the nearest one. `All` is null rather than every
- * chip pressed, and the counts describe the FEED, so they do not move when you press one.
+ * is simply not in a strategy rather than placed in the nearest one. Counts follow the classification
+ * and search filters, excluding the strategy itself so other valid choices remain available.
  */
 function strategyControls(all, factorsOf) {
-  const present = FACTORS.map((f) => ({ ...f, count: all.filter((r) => factorsOf(r)?.includes(f.id)).length })).filter((f) => f.count > 0);
-  if (present.length < 2) return '';
+  const present = FACTORS.map((f) => ({ ...f, count: all.filter((r) => factorsOf(r)?.includes(f.id)).length }))
+    .filter((f) => f.count > 0 || f.id === strategy);
   return `
     <div class="flex flex-wrap items-center gap-1.5" data-mf-strategies>
       <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400" title="Read from each scheme’s own name, where the tracked index is stated. Neither source publishes this as a classification.">Strategy in the name</span>
       ${chipBtn('data-mf-strategy=""', 'Any', !strategy)}
       ${present.map((f) => chipBtn(`data-mf-strategy="${escapeHtml(f.id)}"`, `${f.label} · ${f.count}`, strategy === f.id,
-        `Schemes whose own name states ${f.label.toLowerCase()}. Read from the name, not from a classification — no source publishes one.`)).join('')}
+        `${f.count} schemes match the current classification and search filters and state ${f.label.toLowerCase()} in their own name.`)).join('')}
+      ${present.some((f) => f.count > 0) ? '' : '<span class="text-[11px] text-slate-400">No named strategies match these filters.</span>'}
     </div>`;
 }
 
@@ -927,14 +937,17 @@ function wireHierarchy(root, repaint) {
 }
 
 function wireStrategy(root, repaint) {
-  root.querySelectorAll('[data-mf-strategy]').forEach((el) => {
-    const on = () => {
-      strategy = el.dataset.mfStrategy || null;
-      repaint();
-    };
-    el.addEventListener('click', on);
-    disposers.push(() => el.removeEventListener('click', on));
-  });
+  // The buttons are replaced as the search changes; one listener on their stable mount survives it.
+  const mount = root.querySelector('[data-mf-strategy-mount]');
+  if (!mount) return;
+  const on = (event) => {
+    const button = event.target.closest('[data-mf-strategy]');
+    if (!button || !mount.contains(button)) return;
+    strategy = button.dataset.mfStrategy || null;
+    repaint();
+  };
+  mount.addEventListener('click', on);
+  disposers.push(() => mount.removeEventListener('click', on));
 }
 
 function measureControls(level) {

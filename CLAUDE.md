@@ -885,6 +885,12 @@ is untouched and the suite asserts it), a scheme matching nothing is **not in a 
 than in a nearest one, and `Growth` is deliberately **not** a factor — it is the option suffix on
 nearly every name in both feeds, so a pattern for it would match the universe and say nothing.
 
+Strategy-chip counts follow the current asset class, group, category, and search selections/text.
+They exclude the strategy filter itself so other valid strategies remain available. An active
+strategy with no matches stays visible with a zero and can be cleared with Any; it must never
+keep a whole-feed count under Debt or disappear while still filtering the table. Even a single
+available strategy stays selectable.
+
 **THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
 because there the third level **is** the row: a chip per category above a table of categories is the
 same control twice. On All Schemes the categories are invisible until a control names them, which is

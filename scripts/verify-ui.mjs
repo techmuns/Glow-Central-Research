@@ -5090,6 +5090,33 @@ if (mfStrategyChips.length > 1) {
   ok('...every one of which states it in its own name', mfMomAgree.everyNameSaysIt && mfMomRows === mfMomAgree.count,
     `${mfMomRows} on screen, ${mfMomAgree.count} in the feed`);
   ok('...and not one of their classifications was rewritten to say so', mfMomAgree.classificationsUntouched);
+  // GLOW: the strategy badge must count the chosen classification, not the whole daily feed.
+  await page.locator('[data-mf-class="Debt"]').click();
+  ok('Debt does not claim the equity momentum schemes as matches',
+    /Momentum\s*·\s*0/.test(await page.locator('[data-mf-strategy="momentum"]').innerText()) && await rowCount() === 0);
+  await page.locator('[data-mf-strategy=""]').click();
+  ok('clearing a zero-match strategy restores debt schemes without offering absent strategies',
+    await rowCount() > 0 && await page.locator('[data-mf-strategy="momentum"]').count() === 0);
+  await page.locator('[data-mf-class=""]').click();
+  const strategySearch = page.locator('#content-host [data-table-search]');
+  await strategySearch.fill('debt short duration');
+  await strategySearch.press('Enter');
+  ok('strategy counts also respect categories picked in the search bar',
+    await page.locator('[data-mf-strategy="momentum"]').count() === 0);
+  await strategySearch.fill('');
+  await strategySearch.click();
+  await page.locator('[data-fund-search-clear]').click();
+  await strategySearch.press('Escape');
+  await page.locator('[data-mf-strategy="momentum"]').click();
+  await strategySearch.fill('equal weight');
+  ok('search updates strategy alternatives even when the current strategy has no matching rows',
+    /Momentum\s*·\s*0/.test(await page.locator('[data-mf-strategy="momentum"]').innerText())
+      && /Equal weight\s*·\s*1/i.test(await page.locator('[data-mf-strategy="equal-weight"]').innerText()));
+  await strategySearch.press('Escape');
+  await page.locator('[data-mf-strategy="equal-weight"]').click();
+  ok('a single remaining strategy stays selectable and its count agrees with the rows', await rowCount() === 1);
+  await strategySearch.fill('');
+  await strategySearch.press('Escape');
   await page.locator('[data-mf-strategies] [data-mf-strategy]').first().click();
   await page.waitForTimeout(1400);
 }
