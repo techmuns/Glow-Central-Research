@@ -796,6 +796,9 @@ All Schemes table too" — and there is no *index* to put there. So the two live
 sub-views, each printing its own as-on date on its own face, and each provenance panel says in words
 that they are different snapshots and that an index benchmark lives only on the other one.
 
+All Schemes keeps its heading compact: the Live pill carries the date, and its existing details
+modal carries the source and methodology. Do not repeat that explanation as a paragraph above the filters.
+
 **BUT "NO INDEX" IS NOT "NOTHING TO COMPARE WITH", AND FOR A LONG TIME THIS TAB READ THEM AS THE
 SAME THING.** All Schemes showed fifteen columns of returns and ranks with no comparator at all, on
 the reasoning above — which was right about the workbook's index and wrong about the feed, because
