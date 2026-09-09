@@ -63,6 +63,19 @@ try {
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /3P INDIA EQUITY FUND/i);
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  const firstVisit = await browser.newPage({ serviceWorkers: 'block' });
+  firstVisit.on('pageerror', e => errors.push(e.message));
+  await firstVisit.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  await firstVisit.clock.install();
+  await firstVisit.goto(`${origin}/#/research/super-investors/superstar-investors?scope=universe`);
+  await firstVisit.waitForSelector('[data-changes-ready=true]');
+  await firstVisit.evaluate(async () => (await import('/js/investors/live.js')).openInvestor('madhusudan-kela'));
+  await firstVisit.locator('[data-ws-tab=exchange]').click();
+  assert.match(await firstVisit.locator('[data-public-disclosures]').innerText(), /temporarily unavailable/);
+  unavailable = false;
+  await firstVisit.clock.fastForward(300100);
+  await firstVisit.waitForSelector('[data-public-row]');
+  assert(await firstVisit.locator('[data-public-search]').isVisible(), 'a first visit during an outage recovers in the open view without navigation');
   assert.deepEqual(errors, []);
-  console.log('PASS public holdings UI: automatic new evidence, search retention, associated-fund alerts, failed refresh, offline reload, manager scope and mobile layout');
+  console.log('PASS public holdings UI: automatic new evidence, search retention, associated-fund alerts, failed refresh, offline reload, first-visit recovery, manager scope and mobile layout');
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }

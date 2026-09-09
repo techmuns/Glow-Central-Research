@@ -6,7 +6,7 @@ const labels = { agrees: 'Agrees with source', 'stake-difference': 'Percentage d
 export function publicDisclosuresHtml(id, kind = 'investor', compact = false) {
   const all = primary.forPerson(id, kind), rows = compact ? all.filter((h) => h.state !== 'historical-disclosure').slice(0, 8) : all;
   const report = primary.report();
-  if (!report) return `<p class="my-3 text-sm text-slate-500">Exchange disclosures are temporarily unavailable.</p>`;
+  if (!report) return `<section data-public-disclosures><p class="my-3 text-sm text-slate-500">Exchange disclosures are temporarily unavailable.</p></section>`;
   return `<section class="mb-4 rounded-xl bg-slate-50 p-3 text-sm" data-public-disclosures>
     <div class="flex items-center justify-between gap-3"><h3 class="font-semibold">Exchange disclosures${compact ? '' : ` · ${all.length}`}</h3>${!compact && all.length ? '<button data-public-export class="text-xs font-semibold underline">Export evidence</button>' : ''}</div>
     <p class="mt-1 text-xs text-slate-500">Original NSE / BSE filings. The holder and date apply to each row. Fund disclosures remain separate from personal or account holdings.</p>
