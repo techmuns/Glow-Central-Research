@@ -896,8 +896,11 @@ available strategy stays selectable.
 
 **THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
 because there the third level **is** the row: a chip per category above a table of categories is the
-same control twice. On All Schemes the categories are invisible until a control names them, which is
-how *ETFs* and *Index* — words the source itself prints on 645 schemes — had no control at all.
+same control twice. All Schemes offers a separate, single-line **Category** row immediately, without
+requiring a group first. Small Cap, Mid Cap, Flexi Cap, and Large Cap lead the live choices; remaining
+categories retain the source's labels, with the asset class shown for duplicate labels. The row
+scrolls on narrow screens, retains the selected chip through repaints, and narrows with the chosen
+classification/group. Category selection filters the same rows used by search, counts, and export.
 Exchange-traded funds are their own group rather than a corner of `Index & smart beta`, because
 listed-versus-open-ended is a distinction the source draws and because 25 gold ETFs under a heading
 about equity factor strategies is a heading that is simply wrong. A bare head with no tail (`Debt`,
