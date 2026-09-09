@@ -57,7 +57,7 @@ accounts, and no production secret or paid collector was activated during the co
 | GitHub Actions secrets | `SCREENER_USERNAME`, `SCREENER_PASSWORD` | Add the credentials for the intended Glow Screener account. Required for authenticated con-call/calendar, operating insights and paid summary collection. |
 | GitHub Actions variables | `SCREENER_WATCHLIST_ID`, `SCREENER_WATCHLIST_NAME` | Configure an existing **Glow** watchlist by numeric URL ID and exact name. There is no Sattva watchlist fallback. |
 | GitHub Actions variable and Worker setting | `SCREENER_SUMMARIES_ENABLED` | Set `true` in both only when enabling paid private summaries. The Worker accepts this as a secret or variable. |
-| Cloudflare Worker secret | `SCREENER_SUMMARY_READER_EMAILS` | Set the allowed reader emails for private summaries, using the existing Cloudflare Access identity integration. |
+| Cloudflare Worker secret | `SCREENER_SUMMARY_READER_EMAILS` | Set comma-separated allowed reader emails for private summaries. The reader's Munshot/Muns session is verified through the Muns profile API. |
 | GitHub Actions secret | `X_ACCOUNTS` | Add the desired X account list for social capture. Optional to core research. |
 | GitHub Actions secret, already present | `SYNC_PUSH_TOKEN` | Correct its permissions: Glow **Contents, Workflows and Pull requests: read/write**. Current upstream-sync logs show PR creation denied. A PAT/App token is needed for pushed PRs to trigger verification workflows. |
 
