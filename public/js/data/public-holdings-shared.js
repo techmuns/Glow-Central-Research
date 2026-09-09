@@ -103,8 +103,12 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
     const value = q ? secondary?.quarterlyHoldings?.[q] : null;
     row.secondary = { source: 'Finology', url: row.kind === 'investor' ? `https://ticker.finology.in/investor/${row.personId}` : null,
       checkedAt: book?.fetchedAt || null, period: q, stakePct: value ?? null };
-    if (row.state === 'source-conflict') issues.push({ id: issueKey('source-conflict', row.id), type: 'source-conflict', personId: row.personId, kind: row.kind, company: row.company,
-      legalHolder: row.legalHolder, asOf: row.asOf, sourceUrl: row.sources[0].url, message: 'Multiple figures are reported for the same holder name, security and date; review the original rows before combining or choosing them.' });
+    if (row.state === 'source-conflict') {
+      row.comparison = 'source-conflict';
+      issues.push({ id: issueKey('source-conflict', row.id), type: 'source-conflict', personId: row.personId, kind: row.kind, company: row.company,
+        legalHolder: row.legalHolder, asOf: row.asOf, sourceUrl: row.sources[0].url, message: 'Multiple figures are reported for the same holder name, security and date; review the original rows before combining or choosing them.' });
+      continue;
+    }
     if (row.associated || row.kind !== 'investor') { row.comparison = 'associated-entity'; continue; }
     if (!q) { row.comparison = 'off-cycle-disclosure'; continue; }
     if (typeof value === 'number') {

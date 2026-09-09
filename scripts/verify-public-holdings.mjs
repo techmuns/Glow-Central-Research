@@ -89,6 +89,7 @@ const conflicting = { ...revised, id: 'other-exchange', sourceId: 'nse-equities'
 report = reconcilePublicHoldings({ archive: { filings: [revised, conflicting] }, snapshot, managers, evidence, now });
 assert.equal(report.holdings.find((h) => !h.associated).state, 'source-conflict');
 assert(report.issues.some((i) => i.type === 'source-conflict'));
+assert(!report.issues.some((i) => i.type === 'stake-difference'), 'conflicting source figures must not become a chosen Finology comparison');
 const later = { ...revised, id: 'later', asOf: '2026-08-01', filedAt: now, holders: [['Another holder', 1, 0.1, '2026-08-01']] };
 report = reconcilePublicHoldings({ archive: { filings: [revised, later] }, snapshot, managers, evidence, now });
 assert(report.holdings.every((h) => h.state === 'historical-disclosure'), 'an earlier holding must not look current after a later issuer filing');

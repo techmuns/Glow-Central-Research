@@ -29,9 +29,10 @@ export async function refresh() {
       if (data && Date.parse(next.checkedAt) < Date.parse(data.checkedAt)) throw new Error('Older public holdings capture; current records retained');
       const before = new Set((data?.issues || []).map((r) => r.id));
       if (data) {
-        const priorHoldings = new Set(data.holdings.map((r) => r.id));
-        arrivals.push(...next.holdings.filter((r) => !priorHoldings.has(r.id) && r.state === 'latest-disclosure' && r.shares > 0)
-          .map((r) => ({ id: `disclosure:${r.id}`, company: r.company, type: 'public-disclosure', detectedAt: next.checkedAt,
+        const revision = (r) => `${r.id}|${r.shares}|${r.stakePct}|${r.state}`;
+        const priorHoldings = new Set(data.holdings.map(revision));
+        arrivals.push(...next.holdings.filter((r) => !priorHoldings.has(revision(r)) && r.state === 'latest-disclosure' && r.shares > 0)
+          .map((r) => ({ id: `disclosure:${revision(r)}`, company: r.company, type: 'public-disclosure', detectedAt: next.checkedAt,
             message: `${r.person}: ${r.legalHolder} disclosed ${r.stakePct}% as of ${r.asOf}.` })));
         arrivals.push(...next.issues.filter((r) => !before.has(r.id) && ['stake-difference', 'source-conflict'].includes(r.type)).map((r) => ({ ...r, detectedAt: next.checkedAt })));
         if (arrivals.length > 1000) arrivals.splice(0, arrivals.length - 1000);
