@@ -115,17 +115,7 @@ jobs:
         continue-on-error: true
         run: node scripts/scrape-concalls.mjs
 
-      # Every super-investor's book. It reads THIS DASHBOARD'S OWN WORKER rather than Finology —
-      # the upstream needs a bearer token and that token lives on the Worker and nowhere else, so
-      # this job needs no secret at all. ~91 requests against a six-hour edge cache, so most of
-      # them are cache reads. Shareholding data moves once a quarter; running it daily only bounds
-      # how stale the committed copy can be.
-      #
-      # It refuses to write below 80% coverage, so a bad run leaves the previous snapshot in place
-      # rather than replacing a complete file with a mostly-empty one.
-      - name: Run super-investor snapshot
-        continue-on-error: true
-        run: node scripts/scrape-super-investors.mjs
+      # Investor books have an independent six-hour refresh in investor-refresh.yml.
 
       - name: Upload technicals data (artifact)
         if: always()
@@ -141,7 +131,6 @@ jobs:
             public/data/result-returns.json
             public/data/earnings-calendar.json
             public/data/concall-scans.json
-            public/data/super-investors.json
           if-no-files-found: warn
 
       - name: Commit refreshed technicals to main
@@ -158,7 +147,7 @@ jobs:
           # unstaged, and an unstaged change is what makes `git rebase` below refuse to run, so the
           # retry never worked: measured, the 3 Sep 2026 dispatch scraped for 17 minutes, main moved,
           # and the push died on "cannot rebase: You have unstaged changes". Port to Sattva.
-          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans super-investors price-move-checks; do
+          for f in earnings-live mc-ticker-map result-returns earnings-calendar concall-scans price-move-checks; do
             [ -f "public/data/$f.json" ] && git add "public/data/$f.json" || true
           done
           if git diff --cached --quiet; then

@@ -37,6 +37,7 @@ import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
 import * as technicals from '../data/technicals.js';
 import * as investors from '../data/super-investors.js';
+import { loadEvidence, evidence } from '../data/holding-evidence.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -847,7 +848,7 @@ const BUILDERS = [
   },
   {
     id: 'super-investors',
-    load: () => investors.load(),
+    load: () => Promise.all([investors.load(), loadEvidence()]),
     read({ scope, plan }) {
       const include = investorScopeFilter(scope);
       const rows = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
@@ -859,13 +860,15 @@ const BUILDERS = [
         rowCount: rows.length,
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failed },
         summary: {
+          primaryEvidence: evidence().holdings.filter((h) => !include || include(h.company)),
+          entityRelationships: evidence().relations,
           counts: summary.counts,
           comparableBooks: summary.comparableBooks,
           contributingBooks: summary.contributingBooks,
           periodPairs: summary.pairs.slice(0, 3).map((pair) => `${pair.latest} vs ${pair.prior}`),
           mostCommonHoldings: investors.overlaps().filter((item) => !include || include(item.company)).slice(0, 3).map((item) => ({ company: clipped(item.company, 60), holders: item.holders.length })),
         },
-        definition: 'changePp is percentage points of the company\'s equity. Exited = no longer disclosed, not necessarily sold. latestValueCr is Finology\'s current value, not a trade value.',
+        definition: 'Comparisons use consecutive completed calendar quarters. Unknown/awaiting means insufficient disclosure evidence, not a trade. Exited requires explicit non-disclosure and does not prove a sale. changePp is percentage points of company equity. Source valuations are not trade values. Primary evidence is individually verified and dated; associated-fund holdings are not personal holdings. Full exchange coverage is unverified.',
         ...chooseRows(rows, plan, moveRow, (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
       });
     },

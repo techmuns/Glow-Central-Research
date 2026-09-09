@@ -11,6 +11,8 @@ import * as watchlist from '../core/watchlist.js';
 import { scopeAllowsTicker } from '../data/scope.js';
 import { openManager } from './my-managers.js';
 import { exportRows } from '../ui/export.js';
+import { withVerifiedEntities } from '../data/holdings-integrity.js';
+import { loadEvidence, evidence } from '../data/holding-evidence.js';
 import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings } from '../data/investor-changes.js';
 
 const audiences = [{ id: 'my-managers', label: 'My Managers' }, { id: 'investors', label: 'All Investors' }];
@@ -31,9 +33,10 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     tableDisposers = [];
     const mine = state.audience === 'my-managers';
     const allManagers = managers.all(), list = investors.list();
-    const people = mine ? allManagers.map((m) => ({ id: m.id, name: m.name,
+    const basePeople = mine ? allManagers.map((m) => ({ id: m.id, name: m.name,
       aliases: [m.house, list.find((i) => i.slug === m.finologySlug)?.name].filter(Boolean) }))
       : list.map((i) => ({ id: i.slug, name: i.name }));
+    const people = withVerifiedEntities(basePeople, evidence(), mine ? 'manager' : 'investor');
     const allows = (row) => mine ? ctx.scope !== 'watchlist' || watchlist.has(row.ticker)
       : row.ticker ? scopeAllowsTicker(ctx.scope, row.ticker) : !includeHolding || includeHolding(row.company);
     const deals = matchedDeals(insider.rows(), people);
@@ -48,7 +51,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     } });
     const openPerson = (row) => mine ? openManager(row.personId) : openInvestor?.(row.personId);
     const table = scoreTable({
-      rows: events, key: (r) => r.id, name: (r) => r.company, sub: (r) => r.person,
+      rows: events, key: (r) => r.id, name: (r) => r.company, sub: (r) => r.reportedName && r.reportedName.toLowerCase() !== r.person.toLowerCase() ? `${r.person} · reported: ${r.reportedName}` : r.person,
       watchKey: (r) => r.ticker || null, watchName: (r) => r.company,
       nameMaxPx: 220, showAvatar: false, dense: true, stickyHead: '400px', fillMode: 'scroll',
       searchable: (r) => `${r.company} ${r.person} ${r.reportedName || ''} ${r.source}`,
@@ -138,7 +141,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     const unsubscribe = insider.onChange(() => paint());
     disposers.push(() => { disposed = true; unsubscribe(); tableDisposers.forEach((d) => d?.()); });
     paint();
-    Promise.all([managers.load(), insider.isLoaded() ? insider.refreshSnapshot() : insider.seed()]).then(() => { ready = true; paint(); });
+    Promise.all([managers.load(), loadEvidence(), insider.isLoaded() ? insider.refreshSnapshot() : insider.seed()]).then(() => { ready = true; paint(); });
   } };
 }
 

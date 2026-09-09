@@ -67,7 +67,7 @@
 // re-read control in the Live pill's modal, and it asks for everything again.
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
-import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2 } from './finology-shared.js';
+import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2, closedQuarters } from './finology-shared.js';
 
 const LIST_PATH = 'api/super-investors';
 const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
@@ -160,6 +160,12 @@ function fresh() {
   };
 }
 
+function acceptDirectory(incoming) {
+  const missing = state.investors.filter((i) => !incoming.some((next) => next.slug === i.slug));
+  for (const investor of missing) state.failures.set(investor.slug, { reason: 'missing-from-list', message: 'Previously tracked investor missing from the current directory; retained for review.' });
+  state.investors = [...incoming, ...missing];
+}
+
 export const isLoaded = () => state.loaded;
 export const list = () => state.investors;
 export const book = (slug) => state.books.get(slug) || null;
@@ -227,6 +233,7 @@ export function meta() {
     dropped: state.dropped,
     loadedBooks: state.books.size,
     failedBooks: state.failures.size,
+    failed: state.failures.size,
     pending: Math.max(0, state.investors.length - state.books.size - state.failures.size),
     inFlight: state.inFlight,
     fetchedAt: state.fetchedAt,
@@ -327,7 +334,6 @@ export async function refreshSnapshot() {
   if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
 
   const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
-  const incomingBooks = new Set(Object.entries(body.books || {}).filter(([, value]) => value && value.ok !== false).map(([slug]) => slug));
   // A deployment snapshot can be newer than the file that seeded this page and still older than
   // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
   // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
@@ -350,10 +356,8 @@ export async function refreshSnapshot() {
     ...state.staleBooks,
   ]);
   for (const slug of knownSlugs) {
-    const confirmed = Number(state.confirmedAt.get(slug));
-    const removedInvestor = !acceptedSlugs.has(slug);
-    const unreadInCapture = !incomingBooks.has(slug) && (!Number.isFinite(confirmed) || confirmed <= incomingAt);
-    if (!removedInvestor && !unreadInCapture) continue;
+    // An unread book is retained. Only a removed directory entry leaves this view.
+    if (acceptedSlugs.has(slug)) continue;
     state.books.delete(slug);
     state.confirmedAt.delete(slug);
     state.fromSnapshot.delete(slug);
@@ -373,15 +377,17 @@ export async function refreshSnapshot() {
   for (const [slug, value] of Object.entries(body.books || {})) {
     if (!value || value.ok === false) continue;
     const confirmed = Number(state.confirmedAt.get(slug));
-    if (Number.isFinite(confirmed) && confirmed > incomingAt) continue;
+    const sourceAt = Date.parse(value.fetchedAt || '') || incomingAt;
+    if (Number.isFinite(confirmed) && confirmed > sourceAt) continue;
     state.books.set(slug, normalisePortfolio(value, slug));
-    state.confirmedAt.set(slug, incomingAt);
+    state.confirmedAt.set(slug, sourceAt);
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
     state.failures.delete(slug);
-    if (value.stale === true) state.staleBooks.add(slug);
+    if (value.stale === true || body.failed?.[slug]) state.staleBooks.add(slug);
     else state.staleBooks.delete(slug);
   }
+  for (const [slug, failure] of Object.entries(body.failed || {})) state.failures.set(slug, failure);
   for (const slug of state.books.keys()) {
     const confirmed = Number(state.confirmedAt.get(slug));
     if (Number.isFinite(confirmed) && confirmed < state.checkedAt) state.checkedAt = confirmed;
@@ -457,7 +463,7 @@ export function load() {
     }
 
     state.listOk = true;
-    state.investors = Array.isArray(body.investors) ? body.investors : [];
+    acceptDirectory(Array.isArray(body.investors) ? body.investors : []);
     state.dropped = body.dropped || 0;
     state.fetchedAt = body.fetchedAt || null;
     state.stale = body.stale === true;
@@ -494,7 +500,7 @@ async function seedFromStore(gen) {
   if (!body || body.ok === false || !Array.isArray(body.investors) || !body.investors.length) return false;
 
   state.listOk = true;
-  state.investors = body.investors;
+  acceptDirectory(body.investors);
   state.dropped = body.dropped || 0;
   state.fetchedAt = body.fetchedAt || null;
   state.checkedAt = entry.savedAt || null;
@@ -519,7 +525,7 @@ async function seedFromStore(gen) {
     // was live when they were cached, and the shape guard is what makes that safe.
     state.books.set(i.slug, normalisePortfolio(value, i.slug));
     state.unconfirmed.add(i.slug);
-    state.confirmedAt.set(i.slug, hit.savedAt || null);
+    state.confirmedAt.set(i.slug, Date.parse(value.fetchedAt || '') || hit.savedAt || null);
     // A last-good copy the Worker served during an outage. It is real and it is labelled, and it
     // is the one thing the revalidation skip must never apply to.
     if (value.stale === true) state.staleBooks.add(i.slug);
@@ -553,23 +559,24 @@ async function seedFromSnapshot(gen) {
   if (!body || !Array.isArray(body.investors) || !body.investors.length) return false;
 
   state.capturedAt = body.capturedAt || null;
-  // The list only if the device did not already have a newer one.
-  if (!state.investors.length) {
-    state.investors = body.investors;
-    state.listOk = true;
-    state.dropped = body.dropped || 0;
-  }
+  acceptDirectory(body.investors);
+  state.listOk = true;
+  state.dropped = body.dropped || 0;
   // The capture time IS a real confirmation time: these are the server's own bytes, read then.
   const at = Date.parse(body.capturedAt || '') || null;
   let added = 0;
   for (const [slug, value] of Object.entries(body.books || {})) {
-    if (!value || value.ok === false || state.books.has(slug)) continue;
+    if (!value || value.ok === false) continue;
+    const sourceAt = Date.parse(value.fetchedAt || '') || at;
+    if (state.books.has(slug) && (state.confirmedAt.get(slug) || 0) >= sourceAt) continue;
     state.books.set(slug, normalisePortfolio(value, slug));
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
-    if (at) state.confirmedAt.set(slug, at);
+    if (sourceAt) state.confirmedAt.set(slug, sourceAt);
+    if (body.failed?.[slug]) { state.failures.set(slug, body.failed[slug]); state.staleBooks.add(slug); }
     added++;
   }
+  for (const [slug, failure] of Object.entries(body.failed || {})) state.failures.set(slug, failure);
   if (at && (state.checkedAt == null || at < state.checkedAt)) state.checkedAt = at;
   if (added) bump();
   return state.investors.length > 0;
@@ -598,8 +605,8 @@ async function confirmList() {
   if (body.fetchedAt) state.fetchedAt = body.fetchedAt;
   state.stale = body.stale === true;
   state.staleReason = body.stale === true ? body.staleReason || null : null;
-  if (body.investors.length !== state.investors.length) {
-    state.investors = body.investors;
+  if (JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
+    acceptDirectory(body.investors);
     bump();
     emit({ now: true });
   }
@@ -654,8 +661,8 @@ async function revalidate({ ignoreWindow = false } = {}) {
       state.stale = body.stale === true;
       state.staleReason = body.stale === true ? body.staleReason || null : null;
       // An investor added or removed upstream since the cached read.
-      if (body.investors.length !== state.investors.length) {
-        state.investors = body.investors;
+      if (JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
+        acceptDirectory(body.investors);
         bump();
       }
     }
@@ -753,15 +760,15 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
     // It also must not be recorded as CONFIRMED. Nothing vouched for those bytes — the request
     // failed — so the slug stays in `unconfirmed`, `meta().origin` keeps saying `store`, and the
     // next visit asks again instead of resting on a six-hour skip it never earned.
-    if (had) return false;
     state.failures.set(slug, {
       reason: body?.reason || 'unreachable',
       message: body?.message || 'This investor’s book could not be read.',
     });
+    if (had) { state.staleBooks.add(slug); return false; }
     return null;
   }
   // The server answered, so whatever it said about these bytes is now confirmed as of this moment.
-  state.confirmedAt.set(slug, res.checkedAt || Date.now());
+  state.confirmedAt.set(slug, Date.parse(body.fetchedAt || '') || res.checkedAt || Date.now());
   if (body.stale === true) state.staleBooks.add(slug);
   else state.staleBooks.delete(slug);
 
@@ -772,7 +779,7 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
     state.fromSnapshot.delete(slug);
     // `fromStore` is the conditional layer reporting a 304 — the server confirmed the bytes we
     // already had, so there is nothing to re-normalise and nothing to repaint.
-    if (res.fromStore) return false;
+    if (res.fromStore) { state.failures.delete(slug); return false; }
     state.books.set(slug, normalisePortfolio(body, slug));
     state.failures.delete(slug);
     bump();
@@ -836,7 +843,7 @@ function derived() {
     const investor = displayName(b);
     for (const q of b.quarters) if (!seenQuarters.includes(q)) seenQuarters.push(q);
 
-    const [latest] = b.quarters;
+    const [latest] = closedQuarters(b);
     for (const h of b.holdings) {
       holdings.push({
         investor,
@@ -844,6 +851,7 @@ function derived() {
         company: h.company,
         companySlug: h.companySlug,
         quarterlyHoldings: h.quarterlyHoldings,
+        quarterlyStatus: h.quarterlyStatus,
         quarters: b.quarters,
         latest: latest || null,
         pct: latest ? h.quarterlyHoldings[latest] : null,
@@ -926,7 +934,7 @@ export const totalsFor = (slug) => {
  * places on one screen.
  */
 export function quarterSummary({ include = null, limit = 5 } = {}) {
-  const all = derived().moves;
+  const all = derived().moves.filter((m) => !['unknown', 'awaiting'].includes(m.action));
   const moves = include ? all.filter((m) => include(m.company)) : all;
 
   const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0 };
@@ -967,7 +975,7 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
   // panel can say so rather than letting it read as an investor who did nothing.
   let comparableBooks = 0;
   let singleQuarterBooks = 0;
-  for (const b of state.books.values()) (b.quarters.length > 1 ? comparableBooks++ : singleQuarterBooks++);
+  for (const b of state.books.values()) (deriveMoves(b).comparable ? comparableBooks++ : singleQuarterBooks++);
 
   return {
     counts,
@@ -1001,7 +1009,7 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
 export function overlaps() {
   const byCompany = new Map();
   for (const b of state.books.values()) {
-    const [latest] = b.quarters;
+    const [latest] = closedQuarters(b);
     if (!latest) continue;
     for (const h of b.holdings) {
       if (h.quarterlyHoldings[latest] == null) continue;
@@ -1031,5 +1039,5 @@ export function quarterLabels() {
 
 /** The newest quarter any loaded book publishes — what "this quarter" means across the feed. */
 export function latestQuarter() {
-  return derived().quarters[0] || null;
+  return closedQuarters({ quarters: derived().quarters })[0] || null;
 }

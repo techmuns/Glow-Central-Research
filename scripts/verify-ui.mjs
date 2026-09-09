@@ -5516,7 +5516,7 @@ if (siProbe.state === 'no-route') {
   // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
   // route at all. Only a deployment with neither falls back to naming the missing route.
   const noWorker = await hostText();
-  const fromFile = await page.locator('[data-open-investor]').count();
+  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
   ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
     fromFile > 0 || /needs the Worker/i.test(noWorker),
     fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the missing route');
@@ -5530,7 +5530,7 @@ if (siProbe.state === 'no-route') {
   // the no-route branch above: with a snapshot the outcome is the snapshot; only a deployment with
   // neither falls through to naming the reason.
   const errText = await hostText();
-  const fromFile = await page.locator('[data-open-investor]').count();
+  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
   ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
     fromFile > 0
       ? true

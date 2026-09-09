@@ -85,8 +85,10 @@ export function prime(payload) {
  * empty grid would claim the family has no managers, which is the one thing this module must not
  * say by accident.
  */
-export function load() {
-  if (raw) return Promise.resolve(raw);
+export function refresh() { return load(true); }
+
+export function load(force = false) {
+  if (raw && !force) return Promise.resolve(raw);
   if (!loading) {
     loading = revalidatedJson(PATH)
       .then((payload) => {
@@ -254,6 +256,7 @@ export function meta() {
   return {
     source: raw.source || null,
     builtFrom: raw.builtFrom || null,
+    syncedAt: raw.syncedAt || null,
     asOf: raw.asOf || null,
     origin: 'snapshot',
     managers: all().length,

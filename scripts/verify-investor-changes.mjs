@@ -65,7 +65,7 @@ try {
 
 const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026', 'Dec 2025'], holdings: [
   { company: 'Example', companySlug: 'EXAMPLE', quarterlyHoldings: { 'Sep 2026': 8, 'Jun 2026': 3, 'Mar 2026': 2, 'Dec 2025': null } },
-  { company: 'Gone', companySlug: 'GONE', quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 1 } },
+  { company: 'Gone', companySlug: 'GONE', quarterlyStatus: { 'Jun 2026': 'not_disclosed' }, quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 1 } },
 ] }];
 const observed = investorHoldings(books, [{ slug: 'example', name: 'Investor' }], '2026-09-09');
 assert(observed.every((r) => r.date !== '2026-09-30'));
