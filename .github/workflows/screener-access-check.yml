@@ -1,6 +1,6 @@
 name: Screener access check
 
-# Read-only diagnostic. The S Screen export is parsed in runner memory; no
+# Read-only diagnostic. The configured Glow export is parsed in runner memory; no
 # downloaded artifact, saved session, watchlist mutation, or dashboard write.
 on:
   workflow_dispatch:
@@ -36,8 +36,10 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/check-screener-access.mjs
-      - name: Verify and plan the existing S Screen portfolio mirror
+      - name: Verify and plan the configured Glow portfolio mirror
         env:
+          SCREENER_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
+          SCREENER_WATCHLIST_NAME: ${{ vars.SCREENER_WATCHLIST_NAME }}
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           SCREENER_SYNC_DRY_RUN: "true"

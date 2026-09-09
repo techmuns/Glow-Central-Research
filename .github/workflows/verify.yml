@@ -7,6 +7,7 @@ on:
     branches: [main]
 
 env:
+  # Historical saved-page fixtures only; collectors use this repository's variables.
   SCREENER_WATCHLIST_ID: '10850427'
   SCREENER_WATCHLIST_NAME: 'S Screen'
 jobs:
