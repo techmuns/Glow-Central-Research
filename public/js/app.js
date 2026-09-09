@@ -7,7 +7,6 @@ import { setData, setDataError, setDeferredData } from './core/state.js';
 import { revalidatedJson } from './core/store.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
-import { prime as primeEarnings, adaptLegacySummary } from './data/earnings.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeBook } from './data/book.js';
@@ -51,8 +50,6 @@ const DEFERRED_SOURCES = {
   // ordered by market cap. Deferred: only the filings tabs read it, and only when a walk runs, by
   // which point the deferred pass has long landed. See js/data/tracked-universe.js.
   trackedUniverse: 'data/tracked-universe.json',
-  earnings: 'data/mock/earnings.json',
-  earningsCalendar: 'data/mock/earnings-calendar.json',
   // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
   // read by exactly one sub-view.
   filedHoldings: 'data/institution-holdings.json',
@@ -88,7 +85,7 @@ async function loadCritical() {
  * Replacing the object would leave every mounted tab holding the empty one.
  *
  * A failure here is not fatal and must not blank the app — the four modules below each fall back
- * to fetching their own file, and the two tabs that read `ctx.data` directly wait on this promise
+ * to fetching their own file, and consumers that read `ctx.data` directly wait on this promise
  * and then check what actually arrived.
  */
 function loadDeferred(data) {
@@ -101,13 +98,6 @@ function loadDeferred(data) {
       // against — see js/data/universe.js.
       data.universeRaw = data.universe;
       data.universe = adaptUniverse(data.universeRaw);
-
-      // Same pattern for earnings. The rich payload primes js/data/earnings.js (so it never
-      // refetches), and `ctx.data.earnings` keeps the flat one-row-per-company summary that
-      // Breakouts → Earnings Surprise was written against.
-      data.earningsRaw = data.earnings;
-      primeEarnings(data.earningsRaw, data.earningsCalendar);
-      data.earnings = adaptLegacySummary(data.earningsRaw);
 
       // Institutions: filed shareholdings and AMC portfolios. The Superstar half of that tab loads
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.

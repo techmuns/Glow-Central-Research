@@ -2746,9 +2746,10 @@ ever has one age, so the stale branch cannot be produced by the fixture, exactly
 cannot be produced by a day with no big faller in it. A feed with **no** capture time is a third
 state, `unknown`: never "live", never "stale".
 
-**And a half-mock view may not wear a green Live.** Breakouts' Earnings Surprise sub-view is amber
-and reads *Mock earnings · live technicals* on the face of the chip, because a screenshot travels
-without the modal.
+**Glow removes Earnings Surprise until real data is available.** Breakouts offers only Strong
+Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Strong
+Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
+bootstrap, Ask Research evidence and the source registry; keep it out of active customer views.
 
 ---
 
@@ -3096,8 +3097,8 @@ Rules:
   one sub-view and a 232KB mock corpus read by one other. Two rules if you add a file:
   **the deferred object is mutated in place**, because `ctx.data` is the same reference every
   mounted tab holds — replacing it would leave them all with the empty one; and **the consumer
-  waits, rather than rendering early.** Breakouts → Earnings Surprise and Super Investors →
-  Institutions both do, via `whenDeferredData()` and `filed.load()` respectively. An unprimed
+  waits, rather than rendering early.** Super Investors → Institutions does so via
+  `whenDeferredData()` and `filed.load()`. An unprimed
   Institutions renders an empty book, and an empty book on screen is a claim that nobody holds
   anything.
 - **Caching must never cost freshness, and it must never be able to claim freshness it lacks.**
@@ -3389,7 +3390,7 @@ It covers, beyond the checklist below:
 - shell renders with **zero console errors**
 - all 15 tabs across both workspaces render their panel
 - every tab that has a statStrip shows 4 cards with the gradient freshness hero as the 4th
-  (the Earnings Hub and all four Breakouts sub-views have none by design; a Live pill carries the
+  (the Earnings Hub and all three Breakouts sub-views have none by design; a Live pill carries the
   provenance instead, and the suite asserts the modal behind it still names the source, the
   capture time and every figure the cards printed)
 - **the Breakouts Live pill is green only when the data earns it**: `freshnessOf` is asserted
