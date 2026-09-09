@@ -58,7 +58,7 @@ accounts, and no production secret or paid collector was activated during the co
 | GitHub Actions variables | `SCREENER_WATCHLIST_ID`, `SCREENER_WATCHLIST_NAME` | Configure an existing **Glow** watchlist by numeric URL ID and exact name. There is no Sattva watchlist fallback. |
 | GitHub Actions variable and Worker setting | `SCREENER_SUMMARIES_ENABLED` | Set `true` in both only when enabling paid private summaries. The Worker accepts this as a secret or variable. |
 | Cloudflare Worker secret | `SCREENER_SUMMARY_READER_EMAILS` | Set comma-separated allowed reader emails for private summaries. The reader's Munshot/Muns session is verified through the Muns profile API. |
-| GitHub Actions secret | `X_ACCOUNTS` | Add the desired X account list for social capture. Optional to core research. |
+| GitHub Actions secret | `X_COOKIES` or `X_ACCOUNTS` | Optional X capture authentication. The collector prefers `X_COOKIES` containing the intended account's own session. Otherwise, `X_ACCOUNTS` supplies one login as `username:password:email:email_password`; only the first configured account is used. These are credentials, not the monitored handles list. |
 | GitHub Actions secret, already present | `SYNC_PUSH_TOKEN` | Correct its permissions: Glow **Contents, Workflows and Pull requests: read/write**. Current upstream-sync logs show PR creation denied. A PAT/App token is needed for pushed PRs to trigger verification workflows. |
 
 Existing credentials to keep:
@@ -70,7 +70,8 @@ Existing credentials to keep:
   by the daily producer. It replaces Sattva's `FAMILY_HOLDINGS_TOKEN` / `FAMILY_REPO_TOKEN` needs.
 
 Sattva's Actions `CLAUDE_API_KEY` is not consumed by a production workflow, so an Actions copy
-is unnecessary. `X_COOKIES` is a legacy unused input, not a required credential. Public Telegram
+is unnecessary. X capture can be opted out with the Actions variable `X_CAPTURE_ENABLED=false`.
+Public Telegram
 collection needs no secret; optional `TELEGRAM_CREDENTIALS` is absent from both audited repos.
 The existing Cloudflare Git deployment integration does not require adding an Actions deploy key.
 
