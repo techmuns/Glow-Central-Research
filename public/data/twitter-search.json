@@ -855,12 +855,16 @@
     "isin:INE08NE01025|Sanstar": {
       "lastAttemptAt": "2026-09-09T15:34:42+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE08NE01025|SANSTAR": {
+      "lastAttemptAt": "2026-09-09T16:09:50+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-09T15:34:42.994117+00:00"
+    "checkedAt": "2026-09-09T16:09:50.583385+00:00"
   }
 }
