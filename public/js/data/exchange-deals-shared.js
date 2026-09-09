@@ -16,7 +16,7 @@ export function validateExchangeSnapshot(data) {
     if (!EXCHANGE_SOURCES.some((c) => c.id === s.id) || !Array.isArray(s.coverage) || s.coverage.some((w) => !validDay(w.from) || !validDay(w.to) || w.from > w.to)) throw new Error('Invalid exchange coverage');
   }
   for (const r of data.records) {
-    if (!Array.isArray(r) || !EXCHANGE_SOURCES.some((s) => s.id === r[0]) || !validDay(r[1]) || !r[2] || !r[4] || !['Buy', 'Sell'].includes(r[5]) || !Number.isSafeInteger(r[6]) || r[6] <= 0 || !Number.isFinite(r[7]) || r[7] < 0) throw new Error('Invalid exchange deal');
+    if (!Array.isArray(r) || !EXCHANGE_SOURCES.some((s) => s.id === r[0]) || !validDay(r[1]) || !(r[0].startsWith('bse-') ? /^\d{6}$/.test(r[2]) : /^[A-Z0-9&_.+\-]+$/.test(r[2])) || typeof r[3] !== 'string' || !r[3].trim() || typeof r[4] !== 'string' || !r[4].trim() || !['Buy', 'Sell'].includes(r[5]) || !Number.isSafeInteger(r[6]) || r[6] <= 0 || !Number.isFinite(r[7]) || r[7] < 0) throw new Error('Invalid exchange deal');
   }
   return data;
 }

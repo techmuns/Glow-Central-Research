@@ -4,7 +4,7 @@ export const ARTIFACT_NAME = 'exchange-deals';
 export const ARTIFACT_FILE = 'exchange-deals.json.gz';
 export const MAX_CAPTURE_BYTES = 20 * 1024 * 1024;
 export async function readLimited(response, limit = MAX_CAPTURE_BYTES) {
-  if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
+  if (!response.ok) { await response.body?.cancel(); throw new Error(`Source returned HTTP ${response.status}`); }
   if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new Error('Capture exceeds size limit'); }
   const reader = response.body.getReader(), chunks = []; let length = 0;
   try {

@@ -33,6 +33,7 @@ assert.equal(failure.sources.find((s) => s.id === nse.id).coverage.at(-1).to, '2
 assert.equal(failure.sources.find((s) => s.id === nse.id).lastSuccessAt, '2026-09-09T13:00:00Z');
 assert.throws(() => applyExchangeSlice(snapshot, nse, [[nse.id, '2026-09-99', ...parsed[0].slice(2)]], slice));
 assert.throws(() => applyExchangeSlice(snapshot, nse, [[...parsed[0].slice(0, 6), NaN, 1, '']], slice));
+assert.throws(() => applyExchangeSlice(snapshot, bse, [[bse.id, '2026-09-08', 'undefined', ...bseRow.slice(3)]], slice), /Invalid exchange deal/);
 const secondary = { ticker: 'EXAMPLE', date: '2026-09-08', cells: { 'Trade Category': 'Bulk deal', Insider: 'EXAMPLE FUND', 'Trade Shares': '1' } };
 assert.equal(combineExchangeDeals([secondary], before).length, 3, 'authoritative coverage prevents even rounded secondary duplicates');
 assert.equal(combineExchangeDeals([{ ...secondary, date: '2026-08-01' }], before).length, 4, 'secondary history outside covered windows is retained');
