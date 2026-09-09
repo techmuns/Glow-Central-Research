@@ -799,12 +799,16 @@
     "isin:INE399G01023|RKFORGE": {
       "lastAttemptAt": "2026-09-09T06:46:40+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE027A01015|Rashtriya Chemicals": {
+      "lastAttemptAt": "2026-09-09T07:20:29+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T06:46:40.481819+00:00"
+    "checkedAt": "2026-09-09T07:20:29.518890+00:00"
   }
 }
