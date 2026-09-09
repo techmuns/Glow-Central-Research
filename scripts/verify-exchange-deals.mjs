@@ -68,6 +68,7 @@ const archive = zip(JSON.stringify(before));
 const calls = [];
 const fetchImpl = async (url, options) => {
   calls.push({ url, options });
+  assert.equal(options.redirect, 'manual', 'Workers supports manual/follow redirect modes only');
   if (url.includes('/workflows/')) return Response.json({ workflow_runs: [{ id: 42, event: 'schedule', head_branch: 'main', head_repository: { full_name: 'org/repo' } }] });
   if (url.includes('/runs/42/')) return Response.json({ artifacts: [{ id: 99, name: 'exchange-deals', size_in_bytes: archive.length, expired: false }] });
   if (url.endsWith('/99/zip')) return new Response(null, { status: 302, headers: { location: 'https://storage.example/capture.zip' } });
