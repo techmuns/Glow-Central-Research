@@ -90,7 +90,7 @@ credentials in repository files, frontend assets, PR text or chat.
 ## Future upgrades
 
 `Sync from Sattva` checks merged upstream changes every six hours and on manual invocation.
-It prepares a `codex/sattva-sync-*` **merge commit and pull request**, preserving every existing
+Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **merge commit and pull request**, preserving every existing
 Glow capture (including nested archives), applying product/repository substitutions, rebuilding
 Tailwind and checking the Glow contract. Newly introduced upstream portfolio caches are excluded.
 It does not push to main. Conflicts or failed checks produce a draft requiring resolution;

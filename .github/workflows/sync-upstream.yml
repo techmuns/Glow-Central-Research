@@ -32,11 +32,24 @@ jobs:
             echo "Sattva's merged changes are already included." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          common=$(git merge-base sattva/main HEAD)
+          if git diff --quiet "$common" sattva/main -- . ':!public/data'; then
+            echo "Only Sattva capture data changed; Glow keeps its own collectors and needs no template PR." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           upstream=$(git rev-parse sattva/main)
           branch="codex/sattva-sync-${upstream:0:12}"
           existing=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url // empty')
           if [ -n "$existing" ]; then
             echo "An existing PR already covers this template revision: $existing" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # A previous attempt may have pushed before its token could create a PR.
+          # Recover that branch instead of making a conflicting replacement commit.
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            body="$RUNNER_TEMP/sattva-sync-recovery.md"
+            echo "Recover the existing template review branch for $upstream. Inspect its prior sync run, resolve any conflicts, and pass Verify before merging." > "$body"
+            gh pr create --draft --base main --head "$branch" --title "Review Sattva template sync (${upstream:0:12})" --body-file "$body"
             exit 0
           fi
           base=$(git rev-parse HEAD)
