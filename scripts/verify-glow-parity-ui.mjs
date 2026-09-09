@@ -9,12 +9,16 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const sourceBook = JSON.parse(readFileSync(resolve(root, 'data/book.json')));
 const companies = JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json')));
-let mismatch = false, bookReads = 0;
+let mismatch = false, bookReads = 0, revision = null;
 const readAsset = path => {
   if (path === '/data/book.json') {
     bookReads++;
-    return JSON.stringify(mismatch ? { ...sourceBook, builtFrom: 'mismatched' } : sourceBook);
+    return JSON.stringify({ ...sourceBook,
+      ...(revision ? { builtFrom: revision, sourcePublishedAt: new Date().toISOString() } : {}),
+      ...(mismatch ? { builtFrom: 'mismatched' } : {}) });
   }
+  if (path === '/data/portfolio-companies.json' && revision)
+    return JSON.stringify({ ...companies, sourceCommit: { ...companies.sourceCommit, sha: revision } });
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
   if (!file.startsWith(root + sep)) throw Error('Outside public assets');
   return readFileSync(file);
@@ -62,6 +66,18 @@ try {
   assert.match(result.reply.reading.answer, /equity statement-book weights/);
   assert(result.frames.includes(`${origin}/glow-bridge.html`));
   assert.equal(result.holdings.length, companies.holdings.length);
+  await page.evaluate(async () => {
+    const bridge = await import('/js/research/portfolio-bridge.js');
+    window.glowBookEvents = [];
+    bridge.onPortfolioInvalidation(version => window.glowBookEvents.push(['invalidated', version]));
+    bridge.onPortfolioReady(version => window.glowBookEvents.push(['ready', version]));
+  });
+  revision = 'glow-next-source-fixture';
+  await page.evaluate(async () => (await import('/js/data/family-session.js')).refreshFamilySession());
+  await page.waitForFunction(() => window.glowBookEvents.some(([type]) => type === 'ready'));
+  const transitions = await page.evaluate(() => window.glowBookEvents);
+  assert.equal(transitions[0][0], 'invalidated');
+  assert.deepEqual(transitions[1], ['ready', transitions[0][1]], 'a background revision change announces adoption so AI Alerts can resume');
   const readsBefore = bookReads;
   const detail = await page.evaluate(async () => (await import('/js/research/portfolio-bridge.js')).readResearchPortfolio('What is my cost basis?'));
   assert(bookReads > readsBefore, 'detailed questions re-read the real statement asset');

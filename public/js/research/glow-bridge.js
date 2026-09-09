@@ -19,12 +19,16 @@ window.addEventListener('message', async event => {
     const { portfolio, book } = await readGlowBook(fetch, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
     assertBookChange(portfolio, lastPortfolio);
     const reply = glowPositionReply(portfolio, book);
-    if (lastRevision && lastRevision !== portfolio.sourceRevision)
+    const changed = lastRevision && lastRevision !== portfolio.sourceRevision;
+    if (changed)
       send({ type: 'invalidated', version: reply.sizes.archiveVersion });
     lastRevision = portfolio.sourceRevision;
     lastPortfolio = portfolio;
     if (controller.signal.aborted) throw Error('Cancelled');
     send({ type: 'result', ...reply, ...(type === 'read' ? { reading: glowReading(portfolio, book, reply.sizes) } : {}) });
+    // AI Alerts waits for adoption after invalidation, including when the
+    // background session (rather than that tab) discovered the new book.
+    if (changed) send({ type: 'positions-ready', version: reply.sizes.archiveVersion });
   } catch { send({ type: 'error', message: 'The Glow statement book could not be verified. Please refresh; no replacement holdings were assumed.' }); }
   finally { active.delete(id); }
 });

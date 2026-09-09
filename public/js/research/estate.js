@@ -528,6 +528,10 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     const sample = candidate.target === 'rows' ? source : source?.unresolvedTopics;
     if (!sample) continue;
     sample.rows.push(candidate.row);
+    // A fixed row reserve can still be too small when many feeds have long
+    // first rows. Optional metadata must yield before a source loses its only
+    // representative; provenance, dates and definitions remain intact.
+    if (candidate.rowIndex === 0 && measure() > charBudget) trimSkeleton(packet.sources, measure, charBudget);
     if (measure() > charBudget) {
       sample.rows.pop();
       continue;
@@ -754,8 +758,13 @@ function insiderRow(row) {
   };
 }
 
-function moveRow(row) {
+function moveRow(row, knownTickers) {
+  // Finology's exchange symbol survives issuer renames. Only use a slug as a
+  // ticker when the loaded company directory recognises it (SCRIP-* is not NSE).
+  const slug = String(row.companySlug || '').trim().toUpperCase();
+  const ticker = knownTickers.has(slug) ? slug : null;
   return {
+    ticker: ticker || null,
     investor: clipped(row.investor, 60),
     company: clipped(row.company, 60),
     action: row.action || null,
@@ -1031,7 +1040,8 @@ const BUILDERS = [
   {
     id: 'super-investors',
     load: () => investors.load(),
-    read({ scope, plan }) {
+    read({ scope, plan, identities }) {
+      const knownTickers = new Set(identities.map(company => company.ticker).filter(Boolean));
       const include = plan.companies.length ? null : investorScopeFilter(scope);
       const rows = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
       const meta = investors.meta() || {};
@@ -1049,7 +1059,7 @@ const BUILDERS = [
           mostCommonHoldings: investors.overlaps().filter((item) => !include || include(item.company)).slice(0, 3).map((item) => ({ company: clipped(item.company, 60), holders: item.holders.length })),
         },
         definition: 'changePp is percentage points of the company\'s equity. Exited = no longer disclosed, not necessarily sold. latestValueCr is Finology\'s current value, not a trade value.',
-        ...chooseRows(rows, plan, moveRow, (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
+        ...chooseRows(rows, plan, row => moveRow(row, knownTickers), (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
       });
     },
   },
