@@ -24,7 +24,7 @@ Every investor and manager workspace has an Exchange disclosures tab with compan
 
 `investor-refresh.yml` runs every six hours. It captures Finology, reads new/failed/partial exchange filings, refreshes older successful reads after seven days, reconciles the result, and writes the per-profile audit. It publishes usable data and failures through the existing checked `codex/*` PR workflow. Index failures, transport failures, unread filings and parse exceptions remain visible. Outages or unfinished capture fail the run after publication; issuer data and identifier exceptions remain in the review queue. A run timeout cannot certify completeness, and the dashboard flags stale capture times independently.
 
-Publication uses the existing `SYNC_PUSH_TOKEN`, waits for required checks and review gates, and merges only the checked commit. Branch protection is not bypassed. The existing Cloudflare Git integration publishes merged assets. No manual production capture or deployment is needed for this implementation.
+Publication uses the existing GitHub Actions token and shared data-PR publisher. It requests verification and code review; the existing data-PR review workflow merges only when its exact-commit CI and review requirements are met. Missing review or failed checks leave the update pending. Branch protection is not bypassed. The existing Cloudflare Git integration publishes merged assets. No manual production capture or deployment is needed for this implementation.
 
 ## Meaning and remaining limits
 

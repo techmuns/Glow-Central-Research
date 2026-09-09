@@ -1,18 +1,21 @@
 {
   // MUST match the deployed Worker: https://glow-central-research.tech-441.workers.dev.
-  //
-  // THIS FILE IS GLOW-OWNED. This repository is a downstream of techmuns/Sattva-Central-Research
-  // (see CLAUDE.md, "This dashboard is a downstream of Sattva"): the code is merged from there,
-  // and the Worker name, GH_REPO and the rate-limit namespace below are the deployment-specific
-  // values that must NOT be taken from upstream on a sync.
-  // A name that does not match the live Worker is a quiet trap rather than a loud one:
-  // `npx wrangler deploy` would create a SECOND, empty Worker beside the real one, and
-  // `npx wrangler secret put MUNS_TOKEN` would put the credential on that empty one — where
-  // nothing reads it, and where it would look like it had been set correctly.
+  // Glow-owned identity; the shared source and Durable Object class come from the template.
+  // Keep the Worker, repository and limiter namespaces separate from Sattva.
   "name": "glow-central-research",
   "compatibility_date": "2026-05-23",
-  "main": "worker/index.js",
+  "main": "worker/entry.js",
   "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CAPTURE_REGISTRY", "class_name": "CaptureRegistry" },
+      // Private summary records and the account budget use a separate fixed object name.
+      { "name": "SCREENER_SUMMARIES", "class_name": "CaptureRegistry" },
+      // Alias the existing namespace; the channel timer uses a distinct fixed object name.
+      { "name": "TELEGRAM_SCHEDULER", "class_name": "CaptureRegistry" }
+    ]
+  },
+  "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
 
   // WHICH REPOSITORY THE NEWS REFRESH BUTTON MAY START A RUN IN.
   //
@@ -30,9 +33,15 @@
     "GH_REPO": "techmuns/Glow-Central-Research",
     "GH_REF": "main",
 
-    // Ask Research streams the low-latency model through Muns' query router. The session credential
-    // is a Worker secret: prefer `MUNS_LLM_TOKEN`, with existing Muns tokens as fallbacks.
+    // Ask Research uses Claude Sonnet 5 through AWS Bedrock when the CLAUDE_KEY Worker
+    // secret is present. The key is never a build variable or browser credential.
+    // The older CLAUDE_API_KEY name remains an alias; CLAUDE_KEY takes precedence.
+    // Muns remains the route only for environments without a dedicated Claude key.
+    "BEDROCK_REGION": "ap-south-1",
+    "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-5",
     "MUNS_LLM_BASE": "https://fastapi.muns.io",
+    // Compact prompts use the local route; research.mjs automatically routes larger
+    // complete-portfolio prompts to hosted_llm before overflowing the small context.
     "MUNS_LLM_TYPE": "local_llm",
     // The operator confirmed this old binding now contains a Muns token, not an Anthropic key.
     // Remove this migration opt-in after `MUNS_LLM_TOKEN` is installed.
@@ -45,10 +54,13 @@
   // permissive and local to a location.
   "ratelimits": [
     {
+      "name": "CAPTURE_REGISTRATION_LIMITER",
+      "namespace_id": "1802",
+      "simple": { "limit": 6, "period": 60 }
+    },
+    {
       "name": "RESEARCH_RATE_LIMITER",
-      // Distinct from the Sattva deployment's (1701) on the same Cloudflare account, so the two
-      // Workers never share one rate-limit bucket.
-      "namespace_id": "1702",
+      "namespace_id": "1801",
       "simple": { "limit": 6, "period": 60 }
     }
   ]
@@ -60,7 +72,7 @@
   // 124 over 41 hours, then ZERO against ~11 in the 5.7 hours after the cron was relaxed). It could
   // not be registered, and the build log says exactly why:
   //
-  //     Trigger configuration for "<worker name>" was only partially updated:
+  //     Trigger configuration for "glow-central-research" was only partially updated:
   //       Cron schedules:
   //         - This account has reached the Workers Free limit of 5 cron triggers per account.
   //

@@ -107,7 +107,7 @@ export function renderManagers(ctx, { openInvestor = null } = {}) {
   const html = `
     <div data-managers-panel data-managers-loading>
       <div class="mb-3 h-5 w-64 animate-pulse rounded bg-slate-100"></div>
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${Array.from({ length: 4 }, () => '<div class="skeleton-shimmer h-40 rounded-2xl bg-slate-100"></div>').join('')}</div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">${Array.from({ length: 4 }, () => '<div class="skeleton-shimmer h-40 rounded-2xl bg-slate-100"></div>').join('')}</div>
     </div>`;
   return {
     html,
@@ -203,7 +203,7 @@ function kindSection(kind, list, m, include) {
         <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(kind.label)}</h3>
         <span class="text-xs text-slate-500">${escapeHtml(`${formatNumber(list.length)} · ${totals ? money(totals.marketValue) : ''} · ${note}`)}</span>
       </div>
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${list.map((x) => managerCard(x, include)).join('')}</div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">${list.map((x) => managerCard(x, include)).join('')}</div>
     </section>`;
 }
 
@@ -234,7 +234,7 @@ function managerCard(m, include) {
   const reason = m.value?.marketValue === 0 ? noValuationReason(m) : null;
   return `
     <button type="button" data-open-manager="${escapeHtml(m.id)}"
-      class="flex flex-col rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      class="flex min-w-0 flex-col rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
       <div class="flex items-center gap-3">
         <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-xs font-bold text-white">${escapeHtml(initials)}</span>
         <span class="min-w-0">
@@ -894,7 +894,7 @@ function buildSummary(ctx) {
   const html = `
     <section class="mb-6" data-manager-summary>
       ${summaryHead(q, ctx)}
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((p) => p.html).join('')}</div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((p) => p.html).join('')}</div>
     </section>`;
 
   function wire(root, disposers) {

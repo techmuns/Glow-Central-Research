@@ -1,0 +1,77 @@
+name: TradingView portfolio news
+
+# Independent from slow name/global searches. GitHub schedules are best-effort, not a stream.
+# Off-the-hour quarter-hour slots reduce scheduler congestion. No browser needs to remain open.
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: tradingview-portfolio-news
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      FAMILY_HOLDINGS_LIVE: 'true'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # A queued event's SHA may predate a completed capture. Always start at current main
+          # so its archive, source backoff and onboarding checkpoints cannot roll backwards.
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Capture public portfolio headlines
+        id: capture
+        continue-on-error: true
+        run: node scripts/enrich-tradingview-news.mjs --isolated
+      - name: Retain capture artifact
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: tradingview-news-data
+          path: public/data/tradingview-news/
+          if-no-files-found: warn
+      - name: Open reviewed tradingview news data PR
+        # Successful checkpoints survive a later collector failure or artifact-service outage.
+        # The final gate still reports that failed collection; publishing is not approval.
+        if: ${{ !cancelled() && steps.capture.outcome != 'skipped' && github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/partition-news-data.mjs
+          git add public/data/tradingview-news/
+          if git diff --cached --quiet; then exit 0; fi
+          node scripts/data-pr.mjs "Refresh tradingview news data"
+
+      # Partial capture and Retry-After are durable before reporting failure, so the next
+      # scheduled run can recover without discarding news or hammering a refusing source.
+      - name: Check TradingView coverage
+        if: ${{ !cancelled() && steps.capture.outcome != 'skipped' }}
+        env:
+          TRADINGVIEW_HEALTH_REPORT: ${{ runner.temp }}/tradingview-health.json
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          node scripts/check-tradingview-news-health.mjs
+          if [ "$CAPTURE_OUTCOME" != "success" ]; then
+            echo "::error::Collection stopped early. Saved checkpoints are retained; coverage is not certified."
+            exit 1
+          fi
+      - name: Retain coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: tradingview-news-health
+          path: ${{ runner.temp }}/tradingview-health.json
+          if-no-files-found: warn

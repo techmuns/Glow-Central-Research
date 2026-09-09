@@ -1,9 +1,8 @@
 // lib/yahoo.mjs — the shared Yahoo Finance chart fetcher.
 //
-// Extracted from scrape-technicals.mjs so scrape-portfolio-history.mjs uses the same code
-// path rather than a second, subtly-different copy. Two fetchers against the same endpoint
-// drift: one gains a retry, the other keeps a bug, and the two feeds disagree about what a
-// close price is.
+// Extracted from scrape-technicals.mjs so every caller shares one code path rather than a
+// second, subtly-different copy. Two fetchers against the same endpoint drift: one gains a
+// retry, the other keeps a bug, and the two feeds disagree about what a close price is.
 //
 //   import { fetchBars, sleep } from './lib/yahoo.mjs';
 //   const bars = await fetchBars('RELIANCE.NS', new Date('2023-01-01'), new Date());
@@ -12,7 +11,7 @@
 // `^CRSLDX` (Nifty 500).
 
 export const INDEX_SYMBOL = '^CRSLDX';
-export const USER_AGENT = 'Mozilla/5.0 (compatible; GlowCentralBot/1.0)';
+export const USER_AGENT = 'Mozilla/5.0 (compatible; SattvaCentralBot/1.0)';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,6 +109,7 @@ export async function fetchBars(symbol, start, end, { includeInProgress = false 
 
       const ts = result.timestamp;
       const q = result.indicators?.quote?.[0] || {};
+      const adjusted = result.indicators?.adjclose?.[0]?.adjclose || [];
       const out = [];
       for (let i = 0; i < ts.length; i++) {
         const close = q.close?.[i];
@@ -121,6 +121,7 @@ export async function fetchBars(symbol, start, end, { includeInProgress = false 
           high: q.high?.[i] ?? close,
           low: q.low?.[i] ?? close,
           close,
+          adjustedClose: Number.isFinite(adjusted[i]) ? adjusted[i] : null,
           volume,
         });
       }

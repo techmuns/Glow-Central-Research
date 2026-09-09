@@ -75,7 +75,9 @@ const asOfMatch = src.match(/export const BOOK_AS_OF = "([^"]+)"/);
 const ringFenced = src.includes('export const BOOK_POLYCAB') ? arr('BOOK_POLYCAB') : [];
 
 let builtFrom = null;
+let sourcePublishedAt = null;
 try {
+  sourcePublishedAt = execSync('git log -1 --format=%cI', { cwd: SRC_DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
   builtFrom = execSync('git rev-parse --short HEAD', { cwd: SRC_DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
 } catch {
   /* not a checkout — leave null */
@@ -89,6 +91,7 @@ const out = {
     'THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.',
   source: 'techmuns/GlowVentures src/data/glowData.ts',
   builtFrom,
+  sourcePublishedAt,
   asOf: asOfMatch ? asOfMatch[1] : summary.asOf,
   summary: pick(summary, ['asOf', 'listedValue', 'privateValue', 'totalValue', 'positionsCount', 'entitiesCount', 'startupsCount', 'accountsCount']),
   owners: owners.map((o) => ({ ownerId: o.ownerId ?? null, name: o.displayName ?? o.name ?? null })),
@@ -266,12 +269,28 @@ for (const [key, e] of [...noSymbol.entries()].sort((a, b) => a[0].localeCompare
   }
 }
 
+// Complete identities from the exchange's verified symbol directory, never fuzzy names.
+// A statement ISIN always wins; contradictory exchange identities stop publication.
+const directory = readJson('public/data/filing-capture/nse-identities.json');
+const official = new Map();
+for (const d of Object.values(directory?.directories || {})) for (const e of d.entries || []) {
+  if (official.has(e.ticker) && official.get(e.ticker).isin !== e.isin) throw Error('Conflicting NSE directory identity');
+  official.set(e.ticker, { ...e, checkedAt: d.checkedAt, url: d.url });
+}
+for (const holding of holdings) {
+  const exact = official.get(holding.ticker);
+  if (exact && holding.isin && exact.isin !== holding.isin) throw Error(`Statement/exchange ISIN conflict for ${holding.ticker}`);
+  if (!holding.isin && exact) {
+    holding.isin = exact.isin;
+    holding.isinSource = { url: exact.url, checkedAt: exact.checkedAt, matchedBy: 'exact NSE symbol' };
+  }
+}
 const companies = {
   _provenance:
     'THE PORTFOLIO BOOK — what the Portfolio toggle means on every research tab: the companies the family holds DIRECTLY as listed equity, one line per NSE symbol, read from the same GlowVentures book as book.json by scripts/build-book.mjs. Names and sectors only, no quantity, cost or value. A line with no symbol is kept with the reason; fund units, ETFs, AIFs, cash and the ring-fenced promoter holding are counted under excluded, never listed as companies.',
   asOf: out.asOf,
   source: 'techmuns/GlowVentures · src/data/glowData.ts',
-  sourceCommit: builtFrom ? { sha: builtFrom, date: null } : null,
+  sourceCommit: builtFrom ? { sha: builtFrom, date: sourcePublishedAt } : null,
   count: holdings.length,
   resolved: holdings.filter((h) => h.ticker).length,
   unlisted: holdings.filter((h) => !h.ticker && h.listed === false).length,
@@ -286,3 +305,9 @@ console.log(
   `portfolio-companies.json: ${companies.count} direct-equity lines (${companies.resolved} with an NSE symbol, ${companies.unresolved} unresolved, ${companies.unlisted} not listed equity) ` +
     `from ${equityRows.length} equity rows; excluded ${Object.entries(excluded).map(([k, v]) => `${k} ${v}`).join(', ')} → ${COMPANIES_OUT}`
 );
+
+// Portfolio metadata must follow a new Glow book even if external collectors are unavailable.
+if (OUT === join(ROOT, 'public/data/book.json') && COMPANIES_OUT === join(ROOT, 'public/data/portfolio-companies.json')) {
+  const { rebuildGlowCaptureIndex } = await import('./rebuild-glow-capture-index.mjs');
+  await rebuildGlowCaptureIndex(join(ROOT, 'public/data'));
+}

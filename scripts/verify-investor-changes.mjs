@@ -96,7 +96,8 @@ const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026',
 const observed = investorHoldings(books, [{ slug: 'example', name: 'Investor' }], '2026-09-09');
 assert(observed.every((r) => r.date !== '2026-09-30'));
 assert.equal(observed.find((r) => r.company === 'Example' && r.date === '2026-06-30').deltaPp, 1);
-assert.equal(observed.find((r) => r.action === 'exited').deltaPp, null);
+assert.equal(observed.find((r) => r.company === 'Gone').action, 'exited', 'an explicit source non-disclosure establishes a disclosure disappearance, without implying a sale');
+assert.equal(observed.find((r) => r.company === 'Gone').deltaPp, null);
 assert.equal(observed.filter((r) => inPeriod(r, periodRange('month', '2026-09-09'))).length, 0);
 
 const load = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));

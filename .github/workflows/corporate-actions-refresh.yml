@@ -1,0 +1,82 @@
+name: Corporate actions refresh
+
+# NSE official calendar plus authenticated Screener enrichment. Incremental checks keep the head
+# fresh; the daily full crawl reconciles backfills and corrections across the rolling window.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+    - cron: "13 1 * * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Who asked for this run — auto, button, or manual"
+        required: false
+        default: "manual"
+      full:
+        description: "Reconcile the complete rolling Screener window"
+        required: false
+        type: boolean
+        default: false
+
+run-name: Corporate actions refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+concurrency:
+  group: corporate-actions-refresh
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install pinned browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/screener-actions-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/screener-actions-browser/node_modules/playwright/cli.js" install --with-deps chromium
+
+      - name: Merge NSE base with Screener enrichment
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-actions-browser/node_modules/playwright
+          SCREENER_FULL_REFRESH: ${{ github.event.schedule == '13 1 * * *' || inputs.full == true }}
+          DEBUG: ''
+          PWDEBUG: ''
+        run: node scripts/scrape-corporate-actions.mjs
+
+      - name: Verify corporate actions contract
+        run: node scripts/verify-corporate-actions.mjs public/data/corporate-actions.json
+
+      - name: Upload capture
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: corporate-actions
+          path: public/data/corporate-actions.json
+          if-no-files-found: error
+
+      - name: Open reviewed corporate actions data PR
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/corporate-actions.json
+          if git diff --cached --quiet; then
+            echo "No corporate action changes to commit."
+            exit 0
+          fi
+          node scripts/data-pr.mjs "Refresh corporate actions data"

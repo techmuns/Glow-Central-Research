@@ -63,8 +63,13 @@ on:
 # for ever.
 run-name: Market news refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
 
+# SHARED WITH `rss-news-refresh.yml`, WHICH IS THE POINT. Both jobs merge into the same capture —
+# public/data/market-news.json and the shards beside it — so two of them running at once would have
+# each read the file, added its own publishers and written back, and whichever finished second would
+# silently drop the other's stories. Queuing them is the whole fix, and `cancel-in-progress: false`
+# is what makes it a queue rather than a race with extra steps.
 concurrency:
-  group: market-news-refresh
+  group: market-news-capture
   cancel-in-progress: false
 
 jobs:
@@ -73,6 +78,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -111,22 +118,22 @@ jobs:
       # `if: success()` matters: the scraper exits non-zero when it read pages and parsed nothing,
       # which means the markup changed rather than the news being quiet. Committing then would
       # replace a good capture with an empty one that still looks valid.
-      - name: Commit the capture
+      - name: Open reviewed market news data PR
         if: success() && steps.capture.outputs.blocked != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/market-news.json
+          # THE ARCHIVE DIRECTORY TOO. The capture is two files now — a bounded head and a shard per
+          # month — and staging only the head would commit a head that names archive months no
+          # deployment has ever received. The reader would scroll to the end and get a failed fetch
+          # for every one of them.
+          node scripts/partition-news-data.mjs
+          git add public/data/market-news.json public/data/market-news
+          if [ -d public/data/market-news.parts ]; then git add -A -- public/data/market-news.parts; fi
           if git diff --cached --quiet; then
             echo "No new stories."
             exit 0
           fi
-          git commit -m "Market news refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort; exit 1; }
-            sleep $((attempt * 2))
-          done
-          exit 1
+          node scripts/data-pr.mjs "Refresh market news data"

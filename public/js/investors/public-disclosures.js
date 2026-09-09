@@ -22,7 +22,7 @@ export function publicDisclosuresHtml(id, kind = 'investor', compact = false) {
     ${compact && all.length > rows.length ? '<p class="mt-2 text-xs text-slate-500">Open Exchange disclosures for all dated records and source checks.</p>' : ''}
     </section>`;
 }
-export function wirePublicDisclosures(host, id, kind = 'investor') {
+function bindControls(host, id, kind) {
   host.querySelector('[data-public-search]')?.addEventListener('input', (event) => {
     const query = event.target.value.trim().toLowerCase(); host.querySelectorAll('[data-public-row]').forEach((row) => { row.hidden = !row.textContent.toLowerCase().includes(query); });
   });
@@ -32,4 +32,25 @@ export function wirePublicDisclosures(host, id, kind = 'investor') {
       'Filing received': s.filedAt, 'Source checked': s.checkedAt, 'Filing URL': s.url, 'Relationship URL': h.relationshipUrl || '', 'Identifier note': s.identityNote || '', 'Filing exception': s.refreshError || (s.partial ? 'Some filing rows are unresolved' : ''), 'File SHA256': s.sha256 })));
     exportRows({ rows, columns: Object.keys(rows[0] || {}).map((key) => ({ key, header: key, get: (r) => r[key] })), filename: `exchange-holdings-${id}`, sheetName: 'Exchange disclosures' });
   });
+}
+
+export function wirePublicDisclosures(host, id, kind = 'investor', compact = false) {
+  let section = host.querySelector('[data-public-disclosures]');
+  if (!section) return;
+  bindControls(section, id, kind);
+  const stop = primary.onChange(() => {
+    if (!section.isConnected) { stop(); observer.disconnect(); return; }
+    const input = section.querySelector('[data-public-search]'), query = input?.value || '', focused = input === document.activeElement;
+    const scroll = section.querySelector('.overflow-auto')?.scrollTop || 0;
+    const wrapper = document.createElement('div'); wrapper.innerHTML = publicDisclosuresHtml(id, kind, compact);
+    const next = wrapper.firstElementChild; section.replaceWith(next); section = next;
+    bindControls(section, id, kind);
+    const replacement = section.querySelector('[data-public-search]');
+    if (replacement) { replacement.value = query; replacement.dispatchEvent(new Event('input')); if (focused) replacement.focus(); }
+    const table = section.querySelector('.overflow-auto'); if (table) table.scrollTop = scroll;
+    const badge = host.closest('#workspace-content')?.querySelector('[data-ws-tab="exchange"] .tabular-nums');
+    if (badge) badge.textContent = primary.forPerson(id, kind).length;
+  });
+  const observer = new MutationObserver(() => { if (!section.isConnected) { stop(); observer.disconnect(); } });
+  observer.observe(host.parentElement || host, { childList: true, subtree: true });
 }

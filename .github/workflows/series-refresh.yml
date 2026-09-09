@@ -21,6 +21,7 @@ name: GlowVentures sync (series store + family book)
 # and both tabs print their capture time on every visit so nobody mistakes it for today's.
 
 on:
+  workflow_call:
   schedule:
     # 03:30 UTC = 09:00 IST daily, ninety minutes after the GlowVentures harvest.
     - cron: "30 3 * * *"
@@ -37,10 +38,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.SYNC_PUSH_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -130,12 +130,22 @@ jobs:
         continue-on-error: true
         run: node scripts/audit-holdings.mjs
 
-      - name: Publish refreshed manager data through a checked PR
+      - name: Open reviewed series data PR
         if: env.SRC_SHA != ''
         env:
-          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
-        run: node scripts/publish-data-pr.mjs manager-archive public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json
-
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # technicals.json is staged because the step above may have filled prices for holdings
+          # this very run added. It is a no-op on the ordinary day when the book did not grow.
+          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json public/data/filing-capture/index.json
+          if git diff --cached --quiet; then
+            echo "The series store and the book are already current."
+            echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node scripts/data-pr.mjs "Refresh series data"
       - name: Surface overdue holdings feeds
         if: steps.holdings-audit.outcome == 'failure'
         run: |

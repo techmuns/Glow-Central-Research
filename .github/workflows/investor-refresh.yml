@@ -16,10 +16,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.SYNC_PUSH_TOKEN }}
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -44,7 +43,7 @@ jobs:
           path: /tmp/holdings-audit.json
       - name: Publish the capture and failure metadata through a checked PR
         env:
-          GH_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json public/data/shareholding-filings.json.gz public/data/public-holdings.json
       - name: Surface failed or overdue ingestion
         if: steps.capture.outcome == 'failure' || steps.primary.outcome == 'failure' || steps.audit.outcome == 'failure'
