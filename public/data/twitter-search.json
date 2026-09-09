@@ -815,12 +815,16 @@
     "isin:INE425Y01011|RPSG Ventures Limite": {
       "lastAttemptAt": "2026-09-09T09:36:07+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE425Y01011|RPSGVENT": {
+      "lastAttemptAt": "2026-09-09T10:09:01+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T09:36:07.344182+00:00"
+    "checkedAt": "2026-09-09T10:09:01.517848+00:00"
   }
 }
