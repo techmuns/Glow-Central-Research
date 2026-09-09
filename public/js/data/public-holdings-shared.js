@@ -143,7 +143,7 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
   return { version: 1, checkedAt: now, captureCheckedAt: archive.checkedAt || null, window: archive.window || null, sources: archive.sources || [],
     securityMaster: archive.securityMaster ? { ...archive.securityMaster, entries: undefined } : null,
     coverage: { indexed: (archive.filings || []).length, parsed: (archive.filings || []).filter((f) => f.holders).length, pending: failed.length,
-      partial: filings.filter((f) => f.status === 'partial').length, failedRefresh: filings.filter((f) => f.error).length, companies: securities.size, profiles: registry.people.length },
+      partial: filings.filter((f) => f.status === 'partial').length, failedRefresh: filings.filter((f) => f.error).length, securities: securities.size, profiles: registry.people.length },
     holdings: holdings.sort((a,b) => b.asOf.localeCompare(a.asOf) || a.id.localeCompare(b.id)), issues: uniqueIssues,
     candidates: [...candidates.values()], sourceExceptions, profiles: registry.people.map((p) => ({ ...p,
       matches: holdings.filter((r) => r.personId === p.id && r.kind === p.kind && r.state === 'latest-disclosure').length,

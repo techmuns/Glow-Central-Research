@@ -10,7 +10,7 @@ export const forPerson = (id, kind = 'investor') => (data?.holdings || []).filte
 const CACHE_KEY = 'holdings:public';
 function validate(next) {
   if (next?.version !== 1 || !['holdings', 'issues', 'sources', 'profiles', 'candidates'].every((key) => Array.isArray(next[key])) ||
-    !['indexed', 'parsed', 'pending', 'partial', 'companies', 'profiles'].every((key) => Number.isSafeInteger(next.coverage?.[key]) && next.coverage[key] >= 0) ||
+    !['indexed', 'parsed', 'pending', 'partial', 'securities', 'profiles'].every((key) => Number.isSafeInteger(next.coverage?.[key]) && next.coverage[key] >= 0) ||
     !Number.isFinite(Date.parse(next.checkedAt)) || !Number.isFinite(Date.parse(next.captureCheckedAt)) ||
     next.holdings.some((h) => !h.id || !h.personId || !h.company || !h.legalHolder || !/^IN[A-Z0-9]{10}$/.test(h.isin) || !Number.isFinite(Date.parse(h.asOf)) ||
       !Number.isSafeInteger(h.shares) || h.shares < 0 || !Number.isFinite(h.stakePct) || h.stakePct < 0 || h.stakePct > 100 || !h.sources?.length ||
