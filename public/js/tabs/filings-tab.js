@@ -459,6 +459,7 @@ export function makeFilingsTab(cfg) {
         // time the row count changed the pill's width would be unusable.
         controls: rangeControls(range, held, reach, m, customOpen, windowed),
       })}
+      ${cfg.status ? cfg.status(m) : ''}
       ${busyStrip(m)}
       ${table.html}`;
 

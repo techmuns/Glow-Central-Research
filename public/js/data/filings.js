@@ -48,6 +48,7 @@
 // Worker named, and the pill says how many could not be read. Rendering them as zero rows would
 // report an outage as an absence of events.
 
+import * as exchangeDeals from './exchange-deals.js';
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 import { isEnglishHeadline } from './filings-shared.js';
 import { preserveBulkDeals } from './investor-changes.js';
@@ -272,6 +273,7 @@ export function createFeed(kind) {
     return {
       kind,
       bulkDeals: state.bulkDeals,
+      exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -296,7 +298,7 @@ export function createFeed(kind) {
       // company would overstate the age of the forty beside it.
       checkedAt: state.confirmedAt.size ? Math.min(...state.confirmedAt.values()) : state.checkedAt,
       origin: originNow(),
-      headers: state.headers,
+      headers: kind === 'insider' ? [...new Set([...state.headers, ...exchangeDeals.headers])] : state.headers,
       persisted: isPersistent(),
       // A date-indexed snapshot knows its own window; only fall back to the constant when nothing
       // has declared one, so the coverage text cannot claim a year it does not hold.
@@ -323,10 +325,13 @@ export function createFeed(kind) {
   function rows() {
     const out = [];
     for (const [ticker, list] of state.rows) for (const r of list) out.push({ ...r, ticker: r.ticker || ticker });
-    return out.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return (kind === 'insider' ? exchangeDeals.combined(out) : out).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }
 
-  const forTicker = (t) => state.rows.get(String(t || '').toUpperCase()) || [];
+  const forTicker = (ticker) => {
+    const t = String(ticker || '').toUpperCase(), held = state.rows.get(t) || [];
+    return kind === 'insider' ? exchangeDeals.forTicker(held, t) : held;
+  };
   /** Was this company asked, and did it answer nothing? Not the same as "we have no rows for it". */
   const wasAskedEmpty = (t) => state.askedEmpty.has(String(t || '').toUpperCase());
   const failureFor = (t) => state.failures.get(String(t || '').toUpperCase()) || null;
@@ -610,6 +615,7 @@ export function createFeed(kind) {
    * overwritten by an older file.
    */
   async function seedFromSnapshot({ replace = false } = {}) {
+    if (kind === 'insider') await exchangeDeals.refresh();
     let res;
     try {
       res = await conditionalJson(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
@@ -810,7 +816,8 @@ export function createFeed(kind) {
     },
     onChange(fn) {
       subscribers.add(fn);
-      return () => subscribers.delete(fn);
+      const stop = kind === 'insider' ? exchangeDeals.onChange(fn) : null;
+      return () => { subscribers.delete(fn); stop?.(); };
     },
   };
 }
