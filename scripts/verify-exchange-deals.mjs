@@ -67,6 +67,7 @@ await assert.rejects(readLimited(new Response('too big'), 3), /size limit/);
 const archive = zip(JSON.stringify(before));
 const calls = [];
 const fetchImpl = async (url, options) => {
+  assert.equal(options.redirect, 'manual', 'Cloudflare requests must use a supported redirect mode and never follow redirects automatically');
   calls.push({ url, options });
   if (url.includes('/workflows/')) return Response.json({ workflow_runs: [{ id: 42, event: 'schedule', head_branch: 'main', head_repository: { full_name: 'org/repo' } }] });
   if (url.includes('/runs/42/')) return Response.json({ artifacts: [{ id: 99, name: 'exchange-deals', size_in_bytes: archive.length, expired: false }] });
@@ -75,6 +76,17 @@ const fetchImpl = async (url, options) => {
   return new Response(archive);
 };
 assert.equal((await latestExchangeArtifact({ repo: 'org/repo', token: 'test-token', fetchImpl })).text, JSON.stringify(before));
+await assert.rejects(latestExchangeArtifact({ repo: 'org/repo', token: 'test-token', fetchImpl: async (_url, options) => {
+  assert.equal(options.redirect, 'manual');
+  return new Response(null, { status: 302, headers: { location: 'https://unexpected.example/' } });
+} }), /HTTP 302/, 'API redirects must be refused without forwarding the token');
+await assert.rejects(latestExchangeArtifact({ repo: 'org/repo', token: 'test-token', fetchImpl: async (url, options) => {
+  if (url.startsWith('https://storage.example/')) {
+    assert.equal(options.redirect, 'manual'); assert.equal(options.headers, undefined);
+    return new Response(null, { status: 307, headers: { location: 'https://unexpected.example/' } });
+  }
+  return fetchImpl(url, options);
+} }), /HTTP 307/, 'a second storage redirect must not be followed');
 const cacheMap = new Map(), cache = { match: async (key) => cacheMap.get(key.url)?.clone(), put: async (key, value) => { cacheMap.set(key.url, value); } };
 const waits = [], ctx = { waitUntil: (p) => waits.push(p) }, request = new Request('https://local.example/api/bulk-block-deals');
 const env = { GH_REPO: 'org/repo', GH_DISPATCH_TOKEN: 'test-token', ASSETS: { fetch: async () => Response.json(before) } };

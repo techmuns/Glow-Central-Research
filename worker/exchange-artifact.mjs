@@ -48,7 +48,9 @@ export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, c
   const base = `https://api.github.com/repos/${repo}`;
   const signal = AbortSignal.timeout(25000);
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Glow-exchange-capture', 'x-github-api-version': '2022-11-28' };
-  const get = async (path) => JSON.parse(new TextDecoder().decode(await readLimited(await fetchImpl(base + path, { headers, signal, redirect: 'error' }), 1024 * 1024)));
+  // Workers supports follow/manual, not redirect:error. readLimited rejects non-2xx responses,
+  // so manual still refuses unexpected redirects without forwarding the GitHub credential.
+  const get = async (path) => JSON.parse(new TextDecoder().decode(await readLimited(await fetchImpl(base + path, { headers, signal, redirect: 'manual' }), 1024 * 1024)));
   const runs = await get(`/actions/workflows/${EXCHANGE_WORKFLOW}/runs?branch=main&status=completed&per_page=5`);
   if (!Array.isArray(runs.workflow_runs)) throw new Error('Unreadable capture run list');
   for (const run of runs.workflow_runs) {
@@ -62,7 +64,7 @@ export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, c
     await redirect.body?.cancel();
     if (redirect.status !== 302 || !location || new URL(location).protocol !== 'https:') throw new Error('Capture archive download unavailable');
     // Signed storage URL: NEVER send the GitHub credential to the redirect destination.
-    const download = await fetchImpl(location, { signal, redirect: 'error' });
+    const download = await fetchImpl(location, { signal, redirect: 'manual' });
     const bytes = await readLimited(download);
     if (artifact.digest?.startsWith('sha256:')) {
       const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((v) => v.toString(16).padStart(2, '0')).join('');
