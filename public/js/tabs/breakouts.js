@@ -20,7 +20,6 @@ import * as technicals from '../data/technicals.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
-import { whenDeferredData } from '../core/state.js';
 
 export const meta = {
   id: 'breakouts',
@@ -30,7 +29,6 @@ export const meta = {
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
     { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'fii-accumulation', label: 'FII Accumulation' },
-    { id: 'earnings-surprise', label: 'Earnings Surprise' },
   ],
 };
 
@@ -76,20 +74,8 @@ function paint(ctx) {
     'strong-breakouts': renderStrongBreakouts,
     'technical-scanner': renderScanner,
     'fii-accumulation': renderFiiAccumulation,
-    'earnings-surprise': renderEarningsSurprise,
   }[ctx.subview] || renderStrongBreakouts;
 
-  // Earnings Surprise is the one sub-view here whose left-hand columns come off `ctx.data`, and
-  // that corpus is no longer in front of the shell's first paint (see js/app.js). Waiting for it
-  // costs this sub-view alone and only on a cold visit — the other three render at once, as they
-  // did. Rendering it early instead would show "0 results joined", which is a claim, not a wait.
-  if (view === renderEarningsSurprise && !ctx.data?.earnings) {
-    const token = renderToken;
-    whenDeferredData().then(() => {
-      if (token === renderToken) renderEarningsSurprise(ctx, rows);
-    });
-    return;
-  }
   view(ctx, rows);
 }
 
@@ -219,32 +205,24 @@ const TONE = {
   live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   stale: 'bg-slate-50 text-slate-600 ring-slate-200',
   unknown: 'bg-slate-100 text-slate-600 ring-slate-300',
-  mock: 'bg-amber-50 text-amber-800 ring-amber-300',
 };
 const DOT = {
   live: '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>',
   stale: '',
   unknown: '<span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>',
-  mock: '',
 };
 
 /**
- * livePill({ facts, bodyHtml, more, mock }) — one chip in the section head, and behind it
+ * livePill({ facts, bodyHtml, more }) — one chip in the section head, and behind it
  * everything the stat cards used to print.
  *
  * `facts` are the figures the removed cards carried, `bodyHtml` the help their "?" opened, and
  * `more` an optional { label, open() } for help too long to inline.
- *
- * `mock` forces the amber treatment and puts the mixed provenance on the FACE of the chip, not
- * merely inside it — a screenshot travels without the modal, so a synthetic number may never sit
- * under a green "Live".
  */
-function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {}) {
+function livePill({ facts = [], bodyHtml = '', more = null } = {}) {
   const f = freshness();
-  const tone = mock ? 'mock' : f.state;
-  const face = mock
-    ? 'Mock earnings · live technicals'
-    : f.state === 'live'
+  const tone = f.state;
+  const face = f.state === 'live'
       ? 'Up to date'
       : f.state === 'stale'
         ? `Updated ${formatRelativeTime(f.ts)}`
@@ -252,9 +230,7 @@ function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {})
   const coverage = f.meta?.company_count
     ? `${formatNumber(f.meta.scored_count || 0)} of ${formatNumber(f.meta.company_count)} companies scored`
     : null;
-  const title = mock
-    ? 'Two provenances on one screen — click for what is mock and what is live'
-    : f.state === 'live'
+  const title = f.state === 'live'
       ? `End-of-day data, captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''} — click for the source and the figures`
       : f.state === 'stale'
         ? `End-of-day data captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''}`
@@ -271,14 +247,12 @@ function livePill({ facts = [], bodyHtml = '', more = null, mock = false } = {})
   return { html, wire };
 }
 
-function pillModalBody({ f, facts, bodyHtml, more, mock }) {
+function pillModalBody({ f, facts, bodyHtml, more }) {
   const m = f.meta;
   const captured = f.ts
     ? `${escapeHtml(formatRelativeTime(f.ts))} <span class="text-slate-400">· ${escapeHtml(f.ts.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }))} IST</span>`
     : '<span class="text-slate-400">not stated by the feed</span>';
-  const note = mock
-    ? '<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">The earnings half of this table is <strong>mock data</strong>. Only the technical score is live. Nothing is combined across the two.</p>'
-    : f.state === 'stale'
+  const note = f.state === 'stale'
       ? `<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">This capture is more than three days old, which is wider than any weekend gap — at least one weekday scrape has not landed. The figures below are from ${escapeHtml(formatRelativeTime(f.ts))}.</p>`
       : f.state === 'unknown'
         ? '<p class="mt-3 rounded-xl bg-slate-100 p-3 text-[12px] leading-relaxed text-slate-700 ring-1 ring-slate-200">The feed did not state when it was captured, so its age cannot be reported. It is not being claimed as current.</p>'
@@ -841,98 +815,6 @@ function holdCell(v) {
 function deliveryCell(v) {
   if (v == null) return '<span class="text-slate-300">—</span>';
   return toneSpan(`${v > 0 ? '+' : ''}${num(v, 1)} pp`, v > 1 ? 'pos' : v > 0 ? 'warn' : 'neg');
-}
-
-// ---- (d) Earnings Surprise -------------------------------------------------------------------
-
-function renderEarningsSurprise(ctx, rows) {
-  // The honest join: mock earnings on the left, the REAL technical score on the right.
-  // Deliberately NOT blended into a composite — the two sides have different provenance.
-  const byTicker = new Map(rows.map((s) => [s.company.ticker, s]));
-  // `rows` arrived already narrowed to the scope, so under Portfolio or Watchlist an earnings row
-  // with no technical row is a company outside the scope — not a company with no technicals.
-  const narrowed = ctx.scope !== 'universe';
-  const earnings = (ctx.data?.earnings || []).filter((e) => byTicker.has(e.ticker) || !narrowed);
-
-  const joined = earnings
-    .map((e) => ({ earnings: e, tech: byTicker.get(e.ticker) || null }))
-    .filter((j) => (narrowed ? !!j.tech : true))
-    .sort((a, b) => b.earnings.surprisePct - a.earnings.surprisePct);
-
-  const withTech = joined.filter((j) => j.tech && !j.tech.tickerError).length;
-  const beats = joined.filter((j) => j.earnings.resultTag === 'Beat').length;
-
-  // `mock` rather than the plain freshness pill, and it is the one sub-view here that gets it: a
-  // green "Live" in the head of a table whose earnings columns are invented would be the chip
-  // claiming more than it can support. The amber ribbon below states the same thing — this is the
-  // pill agreeing with it, not repeating it by accident.
-  const pill = livePill({
-    mock: true,
-    facts: [
-      { label: 'Results joined', value: formatNumber(joined.length), note: `${withTech} with a live technical score` },
-      { label: 'Beats', value: formatNumber(beats), note: `${joined.length - beats} in-line or miss` },
-      { label: 'Provenance', value: 'Mixed', note: 'mock earnings · live technicals' },
-    ],
-    bodyHtml: `<h3 class="mb-1 text-xs font-bold uppercase tracking-wider text-indigo-700">Two different sources on one screen</h3>
-               <p>This view deliberately keeps two provenances side by side rather than blending them:</p>
-               <ul class="mt-2 list-disc space-y-1 pl-5">
-                 <li><strong>Earnings columns</strong> (surprise %, beat/miss, revenue and PAT growth) are <em>mock data</em> from <code class="rounded bg-slate-100 px-1">mock/earnings.json</code>. Swapping in a real filings feed is documented in docs/DATA-CONTRACTS.md under “Wiring the real feed”.</li>
-                 <li><strong>Technical score</strong> is <em>live</em> — computed today from Yahoo Finance daily OHLCV by the same 16-rule model as the rest of this tab.</li>
-               </ul>
-               <p class="mt-3 text-slate-500">No composite is computed across the two. Combining a mock number with a live one into a single score would make the mock half invisible, and the result would look more trustworthy than it is.</p>`,
-  });
-
-  const table = scoreTable({
-    rows: joined,
-    key: (j) => j.earnings.ticker,
-    name: (j) => j.earnings.name,
-    sub: (j) => `${j.earnings.ticker} · ${j.earnings.sector}`,
-    link: (j) => j.tech?.company?.screenerUrl || null,
-    searchable: (j) => `${j.earnings.name} ${j.earnings.ticker} ${j.earnings.sector}`,
-    onRowClick: (j) => j.tech && openTechnicalsDrill(j.tech),
-    emptyMessage: 'No results to join for this scope.',
-    showScore: true,
-    score: (j) => (j.tech && !j.tech.tickerError ? scoreOf(j.tech) : { points: '—', max: '—', pct: 0, redFlag: null }),
-    columns: [
-      { label: 'Quarter', get: (j) => j.earnings.quarter },
-      { label: 'Surprise', get: (j) => toneSpan(formatPct(j.earnings.surprisePct), j.earnings.surprisePct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.surprisePct },
-      { label: 'Tag', get: (j) => tagPill(j.earnings.resultTag), html: true, sortValue: (j) => j.earnings.resultTag },
-      { label: 'Rev YoY', get: (j) => toneSpan(formatPct(j.earnings.revenueYoyPct), j.earnings.revenueYoyPct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.revenueYoyPct },
-      { label: 'PAT YoY', get: (j) => toneSpan(formatPct(j.earnings.netProfitYoyPct), j.earnings.netProfitYoyPct > 0 ? 'pos' : 'neg'), html: true, align: 'right', sortValue: (j) => j.earnings.netProfitYoyPct },
-      { label: 'RSI', get: (j) => rsiCell(j.tech?.company?.rsi14), html: true, align: 'right', sortValue: (j) => j.tech?.company?.rsi14 ?? -1 },
-      { label: 'Above 200 DMA', get: (j) => dmaPill(j.tech?.company?.above_200dma), html: true, sortValue: (j) => (j.tech?.company?.above_200dma ? 1 : 0) },
-    ],
-    initialSort: null,
-    exportName: `glow-earnings-surprise-${todayStamp()}`,
-  });
-
-  ctx.root.innerHTML = `
-    ${sectionHead({
-      title: meta.title,
-      description: 'Earnings surprise against the live technical score for the same company.',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: joined.length, noun: 'results', book: coverage.meta() })}</div>`,
-    })}
-    <div class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
-      <span class="font-bold uppercase tracking-wider">Mixed provenance</span>
-      <span>Earnings figures are <strong>mock</strong>. Technical scores are <strong>live</strong>, computed today from Yahoo Finance EOD. The two are shown side by side and deliberately not blended into a composite.</span>
-    </div>
-    ${table.html}
-    ${legendStrip()}
-  `;
-
-  pill.wire(ctx.root);
-  table.wire(ctx.root);
-}
-
-function tagPill(tag) {
-  const cls = tag === 'Beat' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : tag === 'Miss' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200';
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${tag}</span>`;
-}
-function dmaPill(v) {
-  if (v == null) return '<span class="text-slate-300">—</span>';
-  return v
-    ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
-    : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
 }
 
 // ---- Excel export ----------------------------------------------------------------------------

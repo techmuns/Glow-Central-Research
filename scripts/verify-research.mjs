@@ -52,6 +52,7 @@ ok('the runtime research catalog covers every evidence-bearing research tab, the
     assert.equal(tabs.has(title), true, title);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
+  assert.equal(DASHBOARD_RESEARCH_SOURCES.some((source) => source.id === 'earnings-surprise'), false);
 });
 
 ok('earnings calendar evidence stays a paginated all-exchange schedule, separate from filed results', () => {

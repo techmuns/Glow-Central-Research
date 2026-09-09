@@ -132,8 +132,8 @@ export function setData(data) {
 /**
  * The promise for the bootstrap files the shell does NOT wait for.
  *
- * Two tabs read `ctx.data` directly — Breakouts → Earnings Surprise and Super Investors →
- * Institutions — and their inputs are in that deferred set. Handing them the same promise is what
+ * Consumers such as Super Investors → Institutions read `ctx.data` directly, and their inputs
+ * are in that deferred set. Handing them the same promise is what
  * keeps them from either racing it (rendering an empty view a beat before the data lands) or
  * firing a second fetch for a file already on the wire. It resolves rather than rejects: a
  * consumer checks what arrived, because "the corpus failed to load" is a thing to say on the panel

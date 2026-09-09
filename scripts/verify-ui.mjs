@@ -1871,9 +1871,9 @@ console.log('\n— AI alerts —');
       tokens: packet.selection.tokens,
     };
   });
-  ok('...assembles one status-bearing packet from all fifteen dashboard sources',
-    evidenceAudit.catalog === 15 && evidenceAudit.sources === 15 && evidenceAudit.ready > 0 &&
-      evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry)),
+  ok('...assembles all fourteen dashboard sources without the retired mock earnings source',
+    evidenceAudit.catalog === 14 && evidenceAudit.sources === 14 && evidenceAudit.ready > 0 &&
+      evidenceAudit.statuses.every((entry) => /:(ready|unavailable)$/.test(entry) && !entry.startsWith('earnings-surprise:')),
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the provider-facing packet inside the local model budget',
     evidenceAudit.chars <= evidenceAudit.budget, `${evidenceAudit.chars.toLocaleString()} of ${evidenceAudit.budget.toLocaleString()} chars`);
@@ -1986,7 +1986,7 @@ console.log('\n— AI alerts —');
   await page.waitForFunction(() => /Dashboard evidence remains traceable/.test(document.querySelector('[data-research-transcript]')?.innerText || ''), null, { timeout: 25000 });
   const researchAnswer = await page.locator('[data-research-transcript]').innerText();
   ok('...submits the complete dashboard packet without claiming unsupported web research',
-    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 15 && askRequest?.evidence?.sources?.length === 15,
+    askRequest?.webResearch === false && askRequest?.evidence?.catalog?.length === 14 && askRequest?.evidence?.sources?.length === 14,
     `${askRequest?.evidence?.selection?.sourcesReady ?? 0} sources ready`);
   ok('...renders the streamed dashboard answer without a fabricated web source',
     /dashboard research/i.test(researchAnswer) &&
@@ -3136,7 +3136,6 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     ['strong-breakouts', 'Strong Breakouts', false],
     ['technical-scanner', 'Technical Scanner', false],
     ['fii-accumulation', 'FII Accumulation', false],
-    ['earnings-surprise', 'Earnings Surprise', true], // half mock — may not wear a green Live
   ];
 
   const seen = [];
@@ -3177,10 +3176,16 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
-  // The mock half may not hide behind a green chip: a screenshot travels without the modal.
-  const es = seen.find(([l]) => l === 'Earnings Surprise')[2];
-  ok('the half-mock sub-view is amber instead, and says so on the chip itself',
-    es.amber && !es.green && /mock/i.test(es.face), `"${es.face}"`);
+  // Retired mock views must disappear from navigation and saved links alike.
+  await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
+  await waitForPanel();
+  ok('a saved Earnings Surprise link resolves to Strong Breakouts',
+    /breakouts\/strong-breakouts/.test(page.url()), page.url());
+  ok('the Breakouts picker no longer offers Earnings Surprise',
+    !/Earnings Surprise/i.test(await page.locator('#subview-mount').textContent()));
+  ok('the retired view cannot render mock earnings or a Surprise column',
+    !/mock earnings|mixed provenance/i.test(await hostText()) &&
+    !(await page.locator('#content-host th').allTextContents()).some((text) => /surprise/i.test(text)));
 
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
@@ -3395,7 +3400,8 @@ const sources = await page.evaluate(async () => {
 });
 ok('the source registry lists the live published-results feed without naming the provider',
   /live published-results feed/i.test(sources) && !/money\s*control/i.test(sources));
-ok('...and still labels the remaining mock earnings set', /gen-mock-earnings/.test(sources));
+ok('...and omits the retired mock earnings and consensus sources',
+  !/gen-mock-earnings|Earnings Surprise|Synthetic today/i.test(sources));
 
 // NO FIGURE IN THE SOURCES MODAL MAY BE TYPED BY HAND. Every count in it used to be the number
 // that was true the day the sentence was written — "1,319 companies in the current pull", "877 in
@@ -7575,7 +7581,7 @@ console.log('\n— sub-view picker and the removed roadmap card —');
     }
     return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
   });
-  ok('clicking the picker opens its menu', menu.open && menu.items === 4, JSON.stringify({ open: menu.open, items: menu.items }));
+  ok('clicking the picker opens its three available views', menu.open && menu.items === 3, JSON.stringify({ open: menu.open, items: menu.items }));
   ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
   await page.locator('#subview-mount [data-dd-id="fii-accumulation"]').click();
   await page.waitForTimeout(1800);

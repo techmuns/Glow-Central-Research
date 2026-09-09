@@ -31,7 +31,6 @@ import { filterByScope, scopeAllowsTicker } from '../data/scope.js';
 import * as alerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
 import * as earningsLive from '../data/earnings-live.js';
-import * as earningsScored from '../data/earnings.js';
 import * as earningsCalendar from '../data/earnings-calendar.js';
 import * as concalls from '../data/concall-scans.js';
 import * as chatter from '../data/chatter-live.js';
@@ -55,7 +54,6 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'concall', tab: 'Con-call', route: '#/research/concall', description: 'Held and scheduled earnings calls with StockScans scores, sentiment tiers and source tags.' },
   { id: 'public-chatter', tab: 'Public Chatter', route: '#/research/public-chatter', description: 'Retail mention counts and sentiment across ValuePickr, TradingQnA and Google News.' },
   { id: 'technicals', tab: 'Breakouts / Technical', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
-  { id: 'earnings-surprise', tab: 'Breakouts / Technical', route: '#/research/breakouts/earnings-surprise', description: 'The explicitly mock earnings-scoring corpus used by the Earnings Surprise sub-view.' },
   { id: 'super-investors', tab: 'Super Investors', route: '#/research/super-investors/superstar-investors', description: 'Filed superstar-investor holdings and quarter-on-quarter disclosed changes.' },
   { id: 'institutions', tab: 'Super Investors', route: '#/research/super-investors/institutions', description: 'Institutional shareholding patterns and AMC portfolio disclosures.' },
   { id: 'company-news', tab: 'News', route: '#/research/news', description: 'Company-specific retained news for covered symbols.' },
@@ -807,42 +805,6 @@ const BUILDERS = [
         coverage: { universe: cov.total, nse500: cov.nse500, book: cov.book, scored: meta.scored_count, failures: meta.failures },
         definition: '16 rules, 24 points, computed by this dashboard. Returns are percentages; Pp fields are percentage points.',
         ...chooseRows(rows, plan, technicalRow, (a, b) => (b.score?.points ?? -Infinity) - (a.score?.points ?? -Infinity)),
-      });
-    },
-  },
-  {
-    id: 'earnings-surprise',
-    load: () => earningsScored.load(),
-    read({ scope, holdings, plan }) {
-      const rows = earningsScored.forScope(scope, holdings);
-      const meta = earningsScored.meta() || {};
-      return sourcePacket(this.id, {
-        source: 'Mock earnings corpus (seeded generator)',
-        asOf: meta.generated_at || null,
-        rowCount: rows.length,
-        coverage: { total: meta.company_count, withoutResultData: rows.filter((row) => row.tickerError).length },
-        definition: 'MOCK: synthetic financial figures on real company identities. Label as mock; never blend into factual company financials.',
-        dataQuality: 'mock',
-        ...chooseRows(rows, plan, (row) => {
-          const company = row.company || {};
-          const latest = company.quarters?.at?.(-1) || null;
-          // The book gets a placeholder row for a holding the corpus does not carry; it must read
-          // as "no data", never as a company that scored nought.
-          if (row.tickerError) return { ticker: company.ticker || null, company: clipped(company.name || company.ticker, 60), note: clipped(row.tickerError, 80) };
-          return {
-            ticker: company.ticker || null,
-            company: clipped(company.name || company.ticker, 60),
-            quarter: company.quarter || latest?.quarter || null,
-            reportedOn: company.reportedOn || null,
-            score: { points: row.totalPoints ?? null, max: row.totalMax ?? null, pct: round(row.scorePct) },
-            hardFails: (row.hardFails || []).map((item) => clipped(item.label || item.key || item, 80)).slice(0, 6),
-            revenueCr: latest?.revenue ?? null,
-            netProfitCr: latest?.netProfit ?? null,
-            epsRupees: latest?.eps ?? null,
-            operatingMarginPct: latest?.opm ?? null,
-            consensusEpsRupees: company.consensus?.eps ?? null,
-          };
-        }, (a, b) => (b.score?.points ?? -Infinity) - (a.score?.points ?? -Infinity)),
       });
     },
   },
