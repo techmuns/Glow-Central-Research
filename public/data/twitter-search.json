@@ -767,12 +767,16 @@
     "isin:INE0V9N01017|Prizor Viztech": {
       "lastAttemptAt": "2026-09-09T01:05:30+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE004A01022|Protean eGov Technologies": {
+      "lastAttemptAt": "2026-09-09T01:20:09+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-09T01:05:30.430846+00:00"
+    "checkedAt": "2026-09-09T01:20:09.550702+00:00"
   }
 }
