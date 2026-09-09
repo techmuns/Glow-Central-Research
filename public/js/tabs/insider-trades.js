@@ -70,6 +70,7 @@ function directionTint(v) {
 // "Transaction type" on the control because that is the question the reader is asking; its option
 // values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
 const FILTER_FIELDS = [
+  { label: 'Trade category', allLabel: 'All trade categories', keys: ['trade category'], maxWidthPx: 220 },
   { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
   {
     label: 'Transaction type',
@@ -104,8 +105,8 @@ function tradeFilters(rows) {
 
 const tab = makeFilingsTab({
   id: 'insider-trades',
-  title: 'Insider Trades',
-  subtitle: 'Insider dealing disclosed for the companies in scope. Each row preserves the disclosure’s fields and links to its matching public record.',
+  title: 'Bulk/Block Deal',
+  subtitle: 'Bulk/block deals and retained insider disclosures for the companies in scope. Each row preserves the source’s fields and links to its public record.',
   feed,
   noun: 'trades',
   nameLabel: 'Insider',
@@ -161,10 +162,11 @@ const tab = makeFilingsTab({
   },
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
-        <h2 class="font-display text-xl font-bold text-slate-900">Insider trades</h2>
+        <h2 class="font-display text-xl font-bold text-slate-900">Bulk/block deals and insider disclosures</h2>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
+        <p class="mb-3"><strong>Bulk and block deals</strong> come from Screener.in’s market-wide lists, ingested from the shared Sattva capture alongside the existing insider disclosures. They also power Changes under Super Investors. ${m.bulkDeals ? `${m.bulkDeals.rows} retained deals; source captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Bulk/block coverage is unavailable.'}</p>
         <p><strong>Real disclosures.</strong> Indian promoters, directors and designated persons must disclose their dealing
            to the exchanges. These come through the Muns filings API
            (<code class="rounded bg-slate-100 px-1">POST /filings/data/insider_trades</code>) with

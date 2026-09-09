@@ -49,6 +49,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchNews, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
 import { mergeLastGoodFilings } from './lib/filings-snapshot.mjs';
+import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
+import { syncBulkDeals } from './sync-bulk-deals.mjs';
 import { isEnglishHeadline } from '../public/js/data/filings-shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -313,6 +315,7 @@ async function run(kind, list) {
     payload = mergeLastGoodFilings(payload, previous, list);
   }
 
+  if (kind === 'insider' && previous) payload = mergeBulkDeals(payload, previous);
   writeFileSync(DATA(file), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(
     `\r  ${kind}: ${payload.rowCount} rows across ${payload.withRows} of ${list.length} companies` +
@@ -326,3 +329,4 @@ const list = companies();
 console.log(`Walking ${list.length} companies (${SCOPE}) for: ${wanted.join(', ')}`);
 console.log(VIA_WORKER ? `  through ${BASE} — no token needed here; the Worker holds it\n` : '  straight at the upstream, with MUNS_TOKEN\n');
 for (const kind of wanted) await run(kind, list);
+if (wanted.includes('insider') && !LIMIT) await syncBulkDeals();

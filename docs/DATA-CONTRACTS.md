@@ -3954,3 +3954,39 @@ the Super Investors tab's ninety-one-book revalidation walk.
 
 For anything that should update without a page reload, register a poller with
 `live.register(id, { intervalMs, fetcher })` instead of adding it to `DATA_SOURCES`.
+
+
+## Changes — manager statements, investor disclosures and bulk/block deals
+
+`js/investors/changes.js` is the first Superstar Investors in-page tab. Its two audiences share
+five selectable windows: This month, This quarter, trailing 6 months, trailing 1 year, and ITD.
+Calendar boundaries use IST; trailing month arithmetic clamps to the last valid day. ITD includes
+all retained records, not a claim of complete inception history. Future/undated events are excluded.
+
+Activity rows come from `managers.json` PMS transactions (the family's accounts) and exact entity
+matches in `insider-trades.json` bulk/block rows (the named manager/fund or public investor's
+reported deals). Full-name matching normalises case, punctuation and equivalent Private/Pvt and
+Limited/Ltd spellings. Manager house names and the existing verified Finology cross-link are allowed;
+generic strategy names, substrings, fuzzy matches and ambiguous identities are excluded. Identical
+trade details reported under both Bulk and Block are grouped, with both source records accessible.
+No transaction volume or allocation is inferred from a public deal.
+
+Holdings comparisons are separate observations: public investors compare every pair of retained
+closed quarter columns; managers compare their two retained latest statements. The selected window
+filters by comparison end date. It does not attribute those net changes to individual days within
+the period. PMS weights and company stakes are different units and labelled accordingly. A missing
+public stake is no longer reported, not proof of a sale. New/missing positions carry no derived pp.
+
+`sync-bulk-deals.mjs` reads the public Sattva `insider-trades.json` capture and admits only rows whose
+Trade Category is Bulk deal or Block deal. It merges them into Glow's existing file and records a
+separate `bulkDeals` source/date/retained-range/count/error object. Both upstream category checks must
+succeed. The normal insider capture invokes this after the company walk; failed/older captures keep
+history and report their error. The import does not copy portfolio data or credentials. UI source
+metadata keeps bulk capture time distinct from the Muns insider capture time. Per-company insider
+responses cannot erase retained bulk/block rows.
+
+Initial imported bulk/block capture: 9 September 2026, records from 5 August to 8 September 2026.
+The manager snapshot is dated 29 August 2026, with six PMS mandates comparing June/July to July/August
+statements. Transactions can cover more history than the two retained holdings snapshots. AIF and
+mutual-fund house trades appear where public legal-entity names match; the Changes comparison table
+currently has no security-level AIF or monthly mutual-fund portfolio history.
