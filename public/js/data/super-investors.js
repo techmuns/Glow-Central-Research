@@ -1,73 +1,26 @@
-// data/super-investors.js — the live super-investor feed, off Ticker Finology via our Worker.
+// Super-investor feed: saved books paint first, then the active investor view checks
+// source freshness. General Alerts uses the bulk snapshot without per-investor fanout.
+// Books are fetched four at a time; arrivals are coalesced before repainting.
 //
-//   load()              the list, then every book, painting as they arrive
-//   list()              [{ name, slug, bio, imageUrl }]
-//   book(slug)          one normalised portfolio, or null if it has not landed
-//   books()             every book that has landed
-//   movesFor(slug)      quarter-over-quarter changes for one investor
-//   allMoves()          the same across every loaded book
-//   meta()              what loaded, what failed, where the paint came from, and when
-//   onChange(fn)        fires as each book lands, so the grid fills in progressively
+// `load()` reads the device cache and committed snapshot, then checks the list.
+// `watchFreshness()` keeps an active investor view current within the Worker's
+// six-hour source cache, including late corrections, resumes and reconnects.
+// `refresh()` explicitly checks every book. Failed reads retain last-good data and
+// cannot overwrite good device-cache entries. Origin, source age and coverage are
+// separate facts; none is a guarantee of complete upstream filings.
 //
-// LOADED ONCE PER PAGE, NEVER POLLED. Shareholding data changes when a company files, which is
-// once a quarter. A poller here would re-scrape somebody else's service every thirty seconds to
-// re-learn a number that moves four times a year.
-//
-// THE DEVICE IS READ BEFORE THE NETWORK IS ASKED ANYTHING.
-//   Ninety investors means ninety-one requests: the list, then one page per book. Conditional
-//   fetching already made the BYTES nearly free on a second visit — every unchanged book is a
-//   bodyless 304 — but a 304 is still a round trip, and ninety-one of them four at a time is
-//   twenty-three sequential waits before the grid is full. That is the delay, and no amount of
-//   caching at the HTTP layer removes it, because the wait is latency and not bandwidth.
-//
-//   So `load()` reads what it already has before it asks for anything. The device comes first, then
-//   the COMMITTED SNAPSHOT — `public/data/super-investors.json`, every book in one 414KB file
-//   (69KB over the wire) written by scripts/scrape-super-investors.mjs — for whatever the device
-//   does not hold. Only then does a background pass revalidate.
-//
-//   THE SNAPSHOT IS THE HALF THAT HELPS A FIRST VISIT, and it is the half that was missing. A
-//   device cache does nothing at all for a reader who has never opened the tab, and that reader is
-//   the one who waited: ninety-one requests, four at a time, each of which may be a live scrape on
-//   somebody else's service. Every other bulk feed in this dashboard is served from a committed
-//   file for exactly this reason.
-//
-//   Between them: a first visit is one request, a return visit is none, and a book the snapshot
-//   could not capture is fetched live and is absent rather than empty in the meantime.
-//
-//   THE STORE AND THE SNAPSHOT BOTH HOLD THE SERVER'S OWN BYTES — never a locally patched copy —
-//   which is the entire basis for trusting a paint that asked nobody. `meta().origin` distinguishes
-//   all three: `snapshot` for the committed file, `store` for this device's cache, `live` only once
-//   every painted book has been confirmed against the server in this session.
-//
-// A FAILED BOOK IS NOT AN EMPTY BOOK. `ok: false` from the Worker carries a `reason`, and this
-// module keeps it per investor. The card says "could not be read" and names why; it never shows a
-// holdings count of zero for a book that failed to load.
-//
-// THREE THINGS THAT MADE A RETURN VISIT SLOW, AND WHAT REPLACED THEM.
-//   1. EVERY BOOK WAS RE-ASKED ON EVERY PAGE LOAD. The revalidation pass walked all ninety-one
-//      unconditionally, so a reader who opened the tab twice in a minute paid ninety-one round
-//      trips to be told nothing had changed. A book confirmed inside the current window is now left
-//      alone, and THE WINDOW COMES FROM THE FILING CALENDAR rather than from a number of hours: a
-//      book is assembled from shareholding patterns companies file once a quarter, so outside a
-//      filing season there is nothing that can have changed it. See `revalidateWindowMs`. Three
-//      things are always asked for regardless — a book never read, a book carrying the server's
-//      `stale` flag, and a book whose confirmation predates the most recent quarter end.
-//   2. NINETY-ONE INDEXEDDB TRANSACTIONS BEFORE FIRST PAINT. `readEntry` per book, each opening
-//      its own transaction. `readEntries` does the lot in one.
-//   3. NINETY FULL REPAINTS OF THE ACTIVE PANEL. Every arriving book emitted, and the tab rebuilt
-//      whichever directory, quarterly summary or positions table was selected on each emit.
-//      Arrivals are now coalesced into at most one repaint per EMIT_COALESCE_MS, which turns that
-//      into a handful. The walk's final emit is still immediate, so the settled state is never
-//      left waiting behind a timer.
-//
-// NONE OF THAT MAY BUY SPEED WITH A FRESHNESS CLAIM WE CANNOT SUPPORT. `meta().origin` still reads
-// `store` for as long as any painted book is unconfirmed — which, with the skip above, is the
-// normal state of a quick return visit — and `meta().checkedAt` reports the OLDEST confirmation
-// behind what is on screen rather than the newest. `refresh()` is the escape hatch, wired to a
-// re-read control in the Live pill's modal, and it asks for everything again.
+// Normalisation is shared with the Worker. Quarter comparisons, per-book moves,
+// allHoldings and summaries preserve disclosure notes rather than treating blanks
+// or pending filings as trades.
 
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
+<<<<<<< HEAD
 import { normalisePortfolio, deriveMoves, summarise, quarterOrder, round2, closedQuarters } from './finology-shared.js';
+=======
+import { normalisePortfolio, isPortfolioPayload, deriveMoves, summarise, quarterOrder, filedPair, isFiledQuarter } from './finology-shared.js';
+
+import { summariseQuarter } from './investor-quarterly.js';
+>>>>>>> upstream/main
 
 const LIST_PATH = 'api/super-investors';
 const bookPath = (slug) => `api/super-investors/${encodeURIComponent(slug)}`;
@@ -81,41 +34,11 @@ const SNAPSHOT_PATH = 'data/super-investors.json';
 // these is a cache read of a few milliseconds and the ceiling stops mattering.
 const CONCURRENCY = 4;
 
-// HOW OFTEN A BOOK IS WORTH ASKING ABOUT AGAIN, WHICH IS A QUESTION ABOUT THE FILING CALENDAR.
-//
-// A super-investor's book is assembled from the shareholding patterns companies file with the
-// exchanges, and those are filed once a quarter. Nothing else moves it. So the window is derived
-// from where the calendar is rather than from a flat number of hours:
-//
-//   IN SEASON   a quarter has ended within FILING_SEASON_DAYS, so companies are still filing and
-//               a book genuinely gains lines from one day to the next.
-//   OUT OF      every company that is going to file for this quarter has, and the next thing that
-//   SEASON      can change any book is the next quarter end. Asking again before then cannot learn
-//               anything, so the hold is long.
-//
-// AND ONE HARD RULE ABOVE BOTH: a confirmation older than the most recent quarter end is always
-// re-asked, whatever the elapsed time says. Without it a long hold could straddle a quarter
-// boundary and keep serving last quarter's book into the new one — the exact failure the window is
-// meant to prevent, arrived at by being too clever about avoiding requests.
-const DAY_MS = 24 * 60 * 60 * 1000;
-const FILING_SEASON_DAYS = 60;
-const REVALIDATE_IN_SEASON_MS = 24 * 60 * 60 * 1000;
-const REVALIDATE_OUT_OF_SEASON_MS = 30 * DAY_MS;
-
-/** The most recent 31 Mar / 30 Jun / 30 Sep / 31 Dec, in ms. */
-function lastQuarterEnd(now = Date.now()) {
-  const d = new Date(now);
-  const y = d.getUTCFullYear();
-  const ends = [Date.UTC(y - 1, 11, 31), Date.UTC(y, 2, 31), Date.UTC(y, 5, 30), Date.UTC(y, 8, 30), Date.UTC(y, 11, 31)];
-  let last = ends[0];
-  for (const e of ends) if (e <= now) last = e;
-  return last;
-}
-
-function revalidateWindowMs(now = Date.now()) {
-  const sinceQuarterEnd = now - lastQuarterEnd(now);
-  return sinceQuarterEnd <= FILING_SEASON_DAYS * DAY_MS ? REVALIDATE_IN_SEASON_MS : REVALIDATE_OUT_OF_SEASON_MS;
-}
+// Match the Worker's six-hour source cache year-round: late filings and corrections
+// can arrive outside filing season. This is a freshness bound, not a completeness claim.
+const REVALIDATE_MS = 6 * 60 * 60 * 1000;
+const AUTO_RETRY_MS = 15 * 60 * 1000;
+let lastAutoAttempt = -Infinity;
 
 // Books arrive faster than a repaint of the panel takes. Long enough to absorb a burst, short
 // enough that the grid still visibly fills rather than appearing in one jump.
@@ -169,7 +92,7 @@ function acceptDirectory(incoming) {
 export const isLoaded = () => state.loaded;
 export const list = () => state.investors;
 export const book = (slug) => state.books.get(slug) || null;
-export const books = () => [...state.books.values()];
+export const books = () => [...state.books.values()].filter((b) => state.investors.some((i) => i.slug === b.slug));
 export const failureFor = (slug) => state.failures.get(slug) || null;
 
 export function onChange(fn) {
@@ -231,10 +154,16 @@ export function meta() {
     message: state.message,
     total: state.investors.length,
     dropped: state.dropped,
+<<<<<<< HEAD
     loadedBooks: state.books.size,
     failedBooks: state.failures.size,
     failed: state.failures.size,
     pending: Math.max(0, state.investors.length - state.books.size - state.failures.size),
+=======
+    loadedBooks: state.investors.filter((i) => state.books.has(i.slug)).length,
+    failedBooks: state.investors.filter((i) => state.failures.has(i.slug)).length,
+    pending: state.investors.filter((i) => !state.books.has(i.slug) && !state.failures.has(i.slug)).length,
+>>>>>>> upstream/main
     inFlight: state.inFlight,
     fetchedAt: state.fetchedAt,
     // The OLDEST confirmation behind what is on screen, not the newest. With the revalidation skip
@@ -277,7 +206,7 @@ function originNow() {
 /** The oldest moment anything on screen was confirmed by the server. */
 function oldestCheckedAt() {
   let oldest = state.checkedAt;
-  for (const slug of state.unconfirmed) {
+  for (const { slug } of state.investors) {
     const at = state.confirmedAt.get(slug);
     if (at != null && (oldest == null || at < oldest)) oldest = at;
   }
@@ -288,6 +217,7 @@ function oldestCheckedAt() {
 export function invalidate() {
   state = fresh();
   loading = null;
+  lastAutoAttempt = -Infinity;
   generation++;
   bump();
 }
@@ -299,15 +229,18 @@ export function invalidate() {
  * know whether anything has moved in the last six hours has a control that asks. It is wired to
  * the Live pill's modal in js/investors/live.js and to nothing automatic.
  */
-export async function refresh() {
-  const before = state.books.size;
-  invalidate();
-  await load();
-  // IGNORING THE WINDOW IS THE POINT. A reader who presses Refresh is saying "ask anyway", and a
-  // refresh that quietly skipped every book because the committed capture was recent would be a
-  // button that does nothing on the one occasion they were sure something had changed.
-  await revalidate({ ignoreWindow: true });
-  return { added: Math.max(0, state.books.size - before), checked: state.investors.length, failed: state.failures.size };
+let refreshPromise = null;
+export function refresh() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const before = state.books.size;
+    // Keep the current books visible while revalidating. Invalidating first
+    // erased the table and could discard good books during an upstream outage.
+    await refreshSnapshot();
+    await revalidate({ ignoreWindow: true });
+    return { added: Math.max(0, state.books.size - before), checked: state.investors.length, failed: state.failures.size };
+  })().finally(() => { refreshPromise = null; });
+  return refreshPromise;
 }
 
 /**
@@ -334,6 +267,10 @@ export async function refreshSnapshot() {
   if (Number.isFinite(heldAt) && incomingAt <= heldAt) return state;
 
   const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
+<<<<<<< HEAD
+=======
+  const incomingBooks = new Set(Object.entries(body.books || {}).filter(([slug, value]) => isPortfolioPayload(value, slug)).map(([slug]) => slug));
+>>>>>>> upstream/main
   // A deployment snapshot can be newer than the file that seeded this page and still older than
   // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
   // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
@@ -375,7 +312,7 @@ export async function refreshSnapshot() {
   // make a fully replaced snapshot look stale after a successful refresh.
   state.checkedAt = incomingAt;
   for (const [slug, value] of Object.entries(body.books || {})) {
-    if (!value || value.ok === false) continue;
+    if (!isPortfolioPayload(value, slug)) continue;
     const confirmed = Number(state.confirmedAt.get(slug));
     const sourceAt = Date.parse(value.fetchedAt || '') || incomingAt;
     if (Number.isFinite(confirmed) && confirmed > sourceAt) continue;
@@ -424,13 +361,8 @@ export function load() {
       state.loaded = true;
       state.origin = 'store';
       emit({ now: true });
-      // AND NOTHING IS WALKED. Confirming ninety books is ninety round trips, each of which may be
-      // a live scrape upstream, and it is work nobody asked for over a grid that is already
-      // complete and already labelled with where it came from. `refresh()` is what asks — the
-      // header's Refresh button, and *Re-read everything now* in the Live pill's modal.
-      //
-      // The LIST is a single request and does tell us something a snapshot cannot: whether an
-      // investor has been added or removed. That one is worth making, and it is one.
+      // Bulk consumers stop at the list; the active investor view separately binds
+      // watchFreshness() to revalidate due books without blocking this cached paint.
       confirmList();
       return state;
     }
@@ -520,7 +452,7 @@ async function seedFromStore(gen) {
   for (const i of state.investors) {
     const hit = stored.get(KEYS.investorBook(i.slug));
     const value = hit?.value;
-    if (!value || value.ok === false) continue;
+    if (!isPortfolioPayload(value, i.slug)) continue;
     // Re-normalised rather than trusted: these bytes were written by whatever version of the Worker
     // was live when they were cached, and the shape guard is what makes that safe.
     state.books.set(i.slug, normalisePortfolio(value, i.slug));
@@ -566,9 +498,13 @@ async function seedFromSnapshot(gen) {
   const at = Date.parse(body.capturedAt || '') || null;
   let added = 0;
   for (const [slug, value] of Object.entries(body.books || {})) {
+<<<<<<< HEAD
     if (!value || value.ok === false) continue;
     const sourceAt = Date.parse(value.fetchedAt || '') || at;
     if (state.books.has(slug) && (state.confirmedAt.get(slug) || 0) >= sourceAt) continue;
+=======
+    if (!isPortfolioPayload(value, slug) || state.books.has(slug)) continue;
+>>>>>>> upstream/main
     state.books.set(slug, normalisePortfolio(value, slug));
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
@@ -606,7 +542,11 @@ async function confirmList() {
   state.stale = body.stale === true;
   state.staleReason = body.stale === true ? body.staleReason || null : null;
   if (JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
+<<<<<<< HEAD
     acceptDirectory(body.investors);
+=======
+    state.investors = body.investors;
+>>>>>>> upstream/main
     bump();
     emit({ now: true });
   }
@@ -662,7 +602,11 @@ async function revalidate({ ignoreWindow = false } = {}) {
       state.staleReason = body.stale === true ? body.staleReason || null : null;
       // An investor added or removed upstream since the cached read.
       if (JSON.stringify(body.investors) !== JSON.stringify(state.investors)) {
+<<<<<<< HEAD
         acceptDirectory(body.investors);
+=======
+        state.investors = body.investors;
+>>>>>>> upstream/main
         bump();
       }
     }
@@ -688,13 +632,8 @@ async function revalidate({ ignoreWindow = false } = {}) {
  * `force` re-asks for books already in memory, which is what the revalidation pass needs; the
  * first-visit walk skips them, because a book in memory there has just been fetched.
  *
- * WHAT THE REVALIDATION PASS DOES *NOT* ASK FOR is the change that made a return visit quick. A
- * book confirmed inside the current window — see `revalidateWindowMs`, which is derived from the
- * filing calendar rather than from a number of hours — cannot have anything new to tell us, so the
- * request would spend a round trip receiving bytes already on this device. Three exceptions, each
- * of which would otherwise strand a reader on something worse than a slow paint: a book we do not
- * have at all, a book the Worker served from its last-good copy during an outage, and a book whose
- * confirmation predates the most recent quarter end.
+ * Books within the six-hour source window are skipped. Missing books and failed/stale
+ * reads are always eligible; lifecycle retries remain bounded by AUTO_RETRY_MS.
  */
 async function walkBooks({ force = false, ignoreWindow = false } = {}) {
   const gen = generation;
@@ -720,15 +659,33 @@ async function walkBooks({ force = false, ignoreWindow = false } = {}) {
 }
 
 function needsRevalidation(slug) {
-  if (!state.books.has(slug)) return true; // never read: there is nothing to skip
-  if (state.staleBooks.has(slug)) return true; // a last-good copy is exactly what wants replacing
-  const at = state.confirmedAt.get(slug);
-  if (at == null) return true; // no idea when it was confirmed, so treat it as unconfirmed
-  const now = Date.now();
-  // A quarter has ended since this copy was confirmed, so a filing season it knows nothing about
-  // has begun. Elapsed time is not allowed to overrule that.
-  if (at < lastQuarterEnd(now)) return true;
-  return now - at >= revalidateWindowMs(now);
+  if (!state.books.has(slug) || state.staleBooks.has(slug) || state.failures.has(slug)) return true;
+  const sourceAt = Date.parse(state.books.get(slug).sourceCheckedAt || state.books.get(slug).fetchedAt || '');
+  const confirmedAt = state.confirmedAt.get(slug);
+  if (!Number.isFinite(sourceAt) || confirmedAt == null) return true;
+  return Date.now() - Math.min(sourceAt, confirmedAt) >= REVALIDATE_MS;
+}
+
+/** Active-view lifecycle only; General Alerts' snapshot reads do not fan out over books. */
+export function watchFreshness() {
+  const check = () => {
+    if (document.visibilityState !== 'visible' || !state.loaded || !state.listOk || state.revalidating) return;
+    if (Date.now() - lastAutoAttempt < AUTO_RETRY_MS) return;
+    const listDue = !state.checkedAt || Date.now() - state.checkedAt >= REVALIDATE_MS;
+    if (!listDue && !state.investors.some((i) => needsRevalidation(i.slug))) return;
+    lastAutoAttempt = Date.now();
+    void revalidate();
+  };
+  const events = ['pageshow', 'focus', 'online'];
+  for (const event of events) window.addEventListener(event, check);
+  document.addEventListener('visibilitychange', check);
+  const interval = setInterval(check, 60_000);
+  check();
+  return () => {
+    clearInterval(interval);
+    for (const event of events) window.removeEventListener(event, check);
+    document.removeEventListener('visibilitychange', check);
+  };
 }
 
 /**
@@ -741,10 +698,20 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
   const had = state.books.get(slug);
   if (had && !force) return had;
 
-  let res;
+  let res, readFailure;
   try {
-    res = await conditionalJson(bookPath(slug), { key: KEYS.investorBook(slug), optional: true });
-  } catch {
+    res = await conditionalJson(bookPath(slug), {
+      key: KEYS.investorBook(slug), optional: true,
+      validate: (body) => {
+        if (!isPortfolioPayload(body, slug)) {
+          const error = new Error(body?.message || 'The investor book could not be read.');
+          error.code = body?.reason || 'shape';
+          throw error;
+        }
+      },
+    });
+  } catch (error) {
+    readFailure = error;
     res = null;
   }
   // A re-read replaced the state while this was in flight. The bytes are already in the device
@@ -761,11 +728,15 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
     // failed — so the slug stays in `unconfirmed`, `meta().origin` keeps saying `store`, and the
     // next visit asks again instead of resting on a six-hour skip it never earned.
     state.failures.set(slug, {
-      reason: body?.reason || 'unreachable',
-      message: body?.message || 'This investor’s book could not be read.',
+      reason: readFailure?.code || body?.reason || 'unreachable',
+      message: readFailure?.message || body?.message || 'This investor’s book could not be read.',
     });
+<<<<<<< HEAD
     if (had) { state.staleBooks.add(slug); return false; }
     return null;
+=======
+    return had ? false : null;
+>>>>>>> upstream/main
   }
   // The server answered, so whatever it said about these bytes is now confirmed as of this moment.
   state.confirmedAt.set(slug, Date.parse(body.fetchedAt || '') || res.checkedAt || Date.now());
@@ -779,7 +750,12 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
     state.fromSnapshot.delete(slug);
     // `fromStore` is the conditional layer reporting a 304 — the server confirmed the bytes we
     // already had, so there is nothing to re-normalise and nothing to repaint.
+<<<<<<< HEAD
     if (res.fromStore) { state.failures.delete(slug); return false; }
+=======
+    state.failures.delete(slug);
+    if (res.fromStore) return false;
+>>>>>>> upstream/main
     state.books.set(slug, normalisePortfolio(body, slug));
     state.failures.delete(slug);
     bump();
@@ -834,16 +810,26 @@ function displayName(b) {
 }
 
 function derived() {
-  if (memo.version === version) return memo;
+  // A quarter can close while the same cached bytes remain loaded.
+  const now = new Date(Date.now());
+  const period = `${now.getUTCFullYear()}-${Math.floor(now.getUTCMonth() / 3)}`;
+  if (memo.version === version && memo.period === period) return memo;
 
   const moves = [];
   const holdings = [];
   const seenQuarters = [];
-  for (const b of state.books.values()) {
+  for (const b of books()) {
     const investor = displayName(b);
     for (const q of b.quarters) if (!seenQuarters.includes(q)) seenQuarters.push(q);
 
+<<<<<<< HEAD
     const [latest] = closedQuarters(b);
+=======
+    // THE LATEST *FILED* QUARTER, NOT THE LATEST COLUMN. An open "Filing Due" period carries a
+    // figure for a handful of early filers and a blank for everyone else, so reading `pct` off it
+    // blanked the current stake of most of the book — see `isFiledQuarter` in finology-shared.js.
+    const [latest] = filedPair(b.quarters);
+>>>>>>> upstream/main
     for (const h of b.holdings) {
       holdings.push({
         investor,
@@ -851,7 +837,12 @@ function derived() {
         company: h.company,
         companySlug: h.companySlug,
         quarterlyHoldings: h.quarterlyHoldings,
+<<<<<<< HEAD
         quarterlyStatus: h.quarterlyStatus,
+=======
+        quarterlyNotes: h.quarterlyNotes,
+        fetchedAt: b.fetchedAt,
+>>>>>>> upstream/main
         quarters: b.quarters,
         latest: latest || null,
         pct: latest ? h.quarterlyHoldings[latest] : null,
@@ -864,7 +855,7 @@ function derived() {
     for (const m of ms) moves.push({ ...m, investor, slug: b.slug, latest: l, prior });
   }
 
-  memo = { version, moves, holdings, quarters: orderQuarters(seenQuarters) };
+  memo = { version, period, moves, holdings, quarters: orderQuarters(seenQuarters) };
   return memo;
 }
 
@@ -897,43 +888,9 @@ export const totalsFor = (slug) => {
   return b ? summarise(b) : null;
 };
 
-/**
- * THE QUARTER, ROLLED UP ACROSS EVERY COMPARABLE BOOK.
- *
- * The page exists so a reader does not have to open ninety books one at a time, and this is the
- * function that answers that. It is a roll-up of `deriveMoves` — counting and grouping their
- * numbers — and it invents nothing beyond the percentage-point subtraction that module already
- * documents as the one derived figure here.
- *
- * FOUR THINGS IT DELIBERATELY WILL NOT DO, each of which is the obvious feature request:
- *
- *  1. **No rupee size on any move.** `valueCr` is Finology's derivation of what a position is
- *     WORTH NOW, not what was traded. Ranking "largest buys" by it would answer "who holds the
- *     biggest position that also grew", and print a rupee figure for a trade nobody disclosed.
- *     Increases and reductions are therefore ranked in PERCENTAGE POINTS of the company, which is
- *     the only size the filing actually states.
- *  2. **No size at all on a new or exited position.** `deriveMoves` leaves `deltaPp` null for both
- *     on purpose — a position appearing is a change of disclosure, not a move of "the whole
- *     holding" — so new entrants are ranked by the stake they now disclose, and exits carry no
- *     figure. Sorting them into the increase/reduction lists would fabricate the very number that
- *     module refuses to state.
- *  3. **"Exited" is not "sold".** Below the disclosure threshold a real holding vanishes from the
- *     shareholding pattern. The wording on every surface is "no longer disclosed".
- *  4. **Consensus is a COUNT, not a signal.** `consensusBuys` says how many tracked investors
- *     added or newly disclosed the same company. It is not a recommendation, it is not weighted,
- *     and it is not scored — this dashboard adds no model to somebody else's filings.
- *
- * AND THE BOOKS ARE NOT ALL ON THE SAME QUARTER. `deriveMoves` compares each book's own two most
- * recent quarters, so across ninety investors this can span several (latest, prior) pairs. That is
- * a fact about their publishing, not an error, and `pairs` reports it so the UI can say so rather
- * than implying one clean quarter boundary.
- *
- * `include(company)` narrows to the scope the view is showing. It is passed in rather than read
- * here so the summary and the table below it filter through ONE predicate — two predicates over
- * the same question is the shape that had the filings tabs reporting different companies in two
- * places on one screen.
- */
+/** Compare the same consecutive closed quarters across the active investor list. */
 export function quarterSummary({ include = null, limit = 5 } = {}) {
+<<<<<<< HEAD
   const all = derived().moves.filter((m) => !['unknown', 'awaiting'].includes(m.action));
   const moves = include ? all.filter((m) => include(m.company)) : all;
 
@@ -997,6 +954,11 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
     // book order rather than ranked by a figure that would have to be made up.
     exits: byAction('exited'),
   };
+=======
+  return summariseQuarter(books().filter((b) => state.investors.some((i) => i.slug === b.slug)), {
+    include, limit, investors: state.investors,
+  });
+>>>>>>> upstream/main
 }
 
 /**
@@ -1008,8 +970,13 @@ export function quarterSummary({ include = null, limit = 5 } = {}) {
  */
 export function overlaps() {
   const byCompany = new Map();
+<<<<<<< HEAD
   for (const b of state.books.values()) {
     const [latest] = closedQuarters(b);
+=======
+  for (const b of books()) {
+    const [latest] = filedPair(b.quarters);
+>>>>>>> upstream/main
     if (!latest) continue;
     for (const h of b.holdings) {
       if (h.quarterlyHoldings[latest] == null) continue;
@@ -1037,7 +1004,16 @@ export function quarterLabels() {
   return derived().quarters;
 }
 
-/** The newest quarter any loaded book publishes — what "this quarter" means across the feed. */
+/**
+ * The newest FILED quarter any loaded book publishes — what "this quarter" means across the feed.
+ *
+ * An open period is a column, not a quarter: it exists as soon as one company files into it, so
+ * taking it would have the whole feed announce itself as of a quarter almost nobody has filed.
+ */
 export function latestQuarter() {
+<<<<<<< HEAD
   return closedQuarters({ quarters: derived().quarters })[0] || null;
+=======
+  return derived().quarters.find((q) => isFiledQuarter(q)) || null;
+>>>>>>> upstream/main
 }

@@ -17,9 +17,14 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatPct, formatRelativeTime, formatRupee } from '../core/format.js';
 import { exportRows, todayStamp } from '../ui/export.js';
 import * as technicals from '../data/technicals.js';
+import * as refreshRegistry from '../core/refresh.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
+<<<<<<< HEAD
+=======
+import { TECHNICAL_FILTERS, TECHNICAL_DEFAULTS, chipCounts } from './technical-filters.js';
+>>>>>>> upstream/main
 
 export const meta = {
   id: 'breakouts',
@@ -35,13 +40,33 @@ export const meta = {
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
 let renderToken = 0;
+<<<<<<< HEAD
 // Chip changes rebuild the panel; preserve the table's search, score filter and sort within
 // that view, and reset them when the reader chooses another view or leaves the tab.
 let tableView = null;
 let tableSubview = null;
 let routeCompany = null;
+=======
+let ctxRef = null;
+let refreshOff = null;
+let dataOff = null;
+let refreshQuotes = null;
+let tableOff = null;
+const tableViews = new Map();
+>>>>>>> upstream/main
 
 export function render(ctx) {
+  tableOff?.(); tableOff = null;
+  ctxRef = ctx;
+  refreshQuotes = null;
+  if (!refreshOff) refreshOff = refreshRegistry.register('technicals-view', {
+    label: 'Technicals', refresh: async () => {
+      await technicals.refresh();
+      if (ctxRef?.subview === 'technical-scanner' && refreshQuotes) return refreshQuotes();
+      return { checked: 1, partial: !!technicals.meta()?.failures };
+    },
+  });
+  if (!dataOff) dataOff = technicals.onChange(() => { if (ctxRef) paint(ctxRef); });
   const token = ++renderToken;
   // A filter repaint replaces the table that an outstanding quote request would update.
   inFlight?.abort();
@@ -87,6 +112,7 @@ function loadingHtml() {
 }
 
 function paint(ctx) {
+  tableOff?.(); tableOff = null;
   const rows = technicals.forScope(ctx.scope, coverage.holdings());
   const view = {
     'strong-breakouts': renderStrongBreakouts,
@@ -378,7 +404,12 @@ function scoringHelpModalBody() {
 function renderScanner(ctx, rows) {
   const m = technicals.meta();
   const state = readChipState(ctx.params || {}, TECHNICAL_DEFAULTS, TECHNICAL_FILTERS);
+<<<<<<< HEAD
   const { filtered, counts } = applyChipFilters(rows, TECHNICAL_FILTERS, state);
+=======
+  const counts = chipCounts(rows, TECHNICAL_FILTERS, state);
+  const filtered = rows.filter(row => Object.values(TECHNICAL_FILTERS).every(group => group.test(row, state[group.param])));
+>>>>>>> upstream/main
   const scored = filtered.filter((s) => !s.tickerError);
   const maxPoints = scored[0]?.totalMax ?? 24;
 
@@ -407,6 +438,11 @@ function renderScanner(ctx, rows) {
 
   const table = scoreTable({
     ...tableBase(filtered, ctx),
+<<<<<<< HEAD
+=======
+    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
+    initialView: tableViews.get(ctx.subview) || (ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null),
+>>>>>>> upstream/main
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -452,6 +488,8 @@ function renderScanner(ctx, rows) {
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'companies', book: coverage.meta() })}</div>`,
     })}
+    ${chipBar(TECHNICAL_FILTERS, state, counts)}
+    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${rows.length}</span> companies match these filters.</div>
     ${refreshBar()}
     ${chipBar(TECHNICAL_FILTERS, state, counts)}
     ${cards.html}
@@ -461,7 +499,12 @@ function renderScanner(ctx, rows) {
 
   pill.wire(ctx.root);
   cards.wire(ctx.root);
+<<<<<<< HEAD
   table.wire(ctx.root);
+=======
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
+>>>>>>> upstream/main
   wireRefreshBar(ctx, table, filtered);
   wireChipBar(ctx.root, TECHNICAL_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
@@ -502,6 +545,7 @@ const BREAKOUT_FILTERS = {
       return ids.includes(q);
     },
   },
+<<<<<<< HEAD
   volume: {
     param: 'vol',
     label: 'Volume confirm',
@@ -553,6 +597,9 @@ const BREAKOUT_FILTERS = {
     // the view rather than silently emptying it.
     test: (s, ids) => (ids[0] === 'above' ? s.company.above_200dma === true : true),
   },
+=======
+  ...TECHNICAL_FILTERS,
+>>>>>>> upstream/main
 };
 
 // GLOW: use the same three market filters in every technical view. Volume confirmation reads
@@ -599,8 +646,13 @@ function chipBar(groups, state, counts) {
       ${Object.entries(groups)
         .map(
           ([groupKey, g]) => `
+<<<<<<< HEAD
         <div class="flex flex-wrap items-center gap-2" role="group" aria-label="${escapeHtml(g.label)}">
           <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(g.label)}</span>
+=======
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400"${g.description ? ` title="${escapeHtml(g.description)}"` : ''}>${escapeHtml(g.label)}</span>
+>>>>>>> upstream/main
           ${g.options
             .map((o) => {
               const active = state[g.param].includes(o.id);
@@ -647,9 +699,18 @@ function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
 
+<<<<<<< HEAD
   // Each chip counts its result with every other group held at the current selection.
   const { filtered, counts } = applyChipFilters(withBreakout, BREAKOUT_FILTERS, state);
   filtered
+=======
+  // Live counts per chip: how many rows would remain if that chip alone were toggled on,
+  // holding the other groups at their current setting.
+  const counts = chipCounts(withBreakout, BREAKOUT_FILTERS, state);
+
+  const filtered = withBreakout
+    .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
+>>>>>>> upstream/main
     // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
     // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
     // columns left on screen once the Quality column came off. The quality is still what the chip
@@ -684,6 +745,7 @@ function renderStrongBreakouts(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: scoreOf,
@@ -713,7 +775,8 @@ function renderStrongBreakouts(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
-  table.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, BREAKOUT_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
@@ -778,8 +841,16 @@ function renderFiiAccumulation(ctx, rows) {
   const state = readChipState(ctx.params || {}, FII_DEFAULTS, FII_FILTERS);
   const withHold = rows.filter((s) => !s.tickerError && (s.company.chg_fii_hold != null || s.company.chg_dii_hold != null));
 
+<<<<<<< HEAD
   const { filtered, counts } = applyChipFilters(withHold, FII_FILTERS, state);
   filtered.sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+=======
+  const counts = chipCounts(withHold, FII_FILTERS, state);
+
+  const filtered = withHold
+    .filter((s) => Object.values(FII_FILTERS).every((g) => g.test(s, state[g.param])))
+    .sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+>>>>>>> upstream/main
 
   const exiting = withHold.filter((s) => (s.company.chg_fii_hold ?? 0) < -2).length;
   const avgFii = withHold.length ? withHold.reduce((s, r) => s + (r.company.chg_fii_hold ?? 0), 0) / withHold.length : 0;
@@ -796,6 +867,7 @@ function renderFiiAccumulation(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: (s) => {
@@ -830,7 +902,8 @@ function renderFiiAccumulation(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
-  table.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, FII_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
@@ -845,6 +918,20 @@ function deliveryCell(v) {
   return toneSpan(`${v > 0 ? '+' : ''}${num(v, 1)} pp`, v > 1 ? 'pos' : v > 0 ? 'warn' : 'neg');
 }
 
+<<<<<<< HEAD
+=======
+function tagPill(tag) {
+  const cls = tag === 'Beat' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : tag === 'Miss' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200';
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${tag}</span>`;
+}
+function dmaPill(v) {
+  if (v == null) return '<span class="text-slate-300">—</span>';
+  return v
+    ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
+    : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
+}
+
+>>>>>>> upstream/main
 // ---- Excel export ----------------------------------------------------------------------------
 
 // One row per company: identity, score, every rule's points, then the headline indicators.
@@ -931,9 +1018,16 @@ function wireRefreshBar(ctx, table, rows) {
 
   btn.disabled = tickers.length === 0;
   btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
+<<<<<<< HEAD
   btn.title = tickers.length ? `Fetch live quotes for the top ${tickers.length} names on screen` : 'No matching companies to refresh';
   note.textContent = tickers.length ? `EOD data below. Live quotes for the top ${tickers.length} names on demand.` : 'No matching companies to refresh.';
   btn.addEventListener('click', () => doRefresh({ btn, note, label, tickers, byTicker, table }));
+=======
+  btn.title = `Fetch live quotes for the top ${tickers.length} names on screen`;
+  note.textContent = `EOD data below. Live quotes for the top ${tickers.length} names on demand.`;
+  refreshQuotes = () => doRefresh({ btn, note, label, tickers, byTicker, table });
+  btn.addEventListener('click', refreshQuotes);
+>>>>>>> upstream/main
 }
 
 /**
@@ -944,7 +1038,7 @@ function wireRefreshBar(ctx, table, rows) {
  * A control that reports success without changing what it names is worse than one that fails.
  */
 async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
-  if (inFlight) return; // a second click during a slow refresh is not a second request
+  if (inFlight) return { pending: true }; // do not duplicate a local price refresh
   const ctl = new AbortController();
   inFlight = ctl;
   const timer = setTimeout(() => ctl.abort(new Error('client timeout')), CLIENT_TIMEOUT_MS);
@@ -963,7 +1057,7 @@ async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
       // Static preview — no Worker. Say so once and stop offering the button.
       btn.title = 'Live quotes need the Cloudflare Worker (npx wrangler dev). Not available in a static preview.';
       note.textContent = 'Live quotes need the Worker — run `npx wrangler dev`. The EOD data below is unaffected.';
-      return; // stays disabled
+      return { failed: 1, error: 'Live quotes are unavailable.' }; // stays disabled
     }
 
     // Read the body BEFORE deciding this is a failure. The Worker puts the diagnosis in there —
@@ -980,12 +1074,14 @@ async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
     // is not something a reader can check against the table without being told which eight.
     btn.title = missingTitle(payload) || `Fetch live quotes for the top ${tickers.length} names on screen`;
     btn.disabled = false;
+    return { checked: applied.length, partial: applied.length < tickers.length };
   } catch (err) {
     if (ctl.signal.aborted && !isTimeout(err)) return; // we navigated away; the tab is gone
     console.warn('[breakouts] live price refresh failed', err);
     note.textContent = failureNote(err);
     note.className = 'text-xs text-amber-700';
     btn.disabled = false;
+    return { failed: 1, error: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
     if (inFlight === ctl) inFlight = null;
@@ -1109,6 +1205,11 @@ function failureNote(err) {
 }
 
 export function destroy() {
+  tableOff?.(); tableOff = null;
+  ctxRef = null; refreshQuotes = null;
+  refreshOff?.(); refreshOff = null;
+  dataOff?.(); dataOff = null;
+  tableViews.clear();
   // Invalidate any in-flight load so it can't paint after we're gone. The parsed+scored
   // technicals cache is intentionally kept — that's what makes tab re-entry instant.
   renderToken++;

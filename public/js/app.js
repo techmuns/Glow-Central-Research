@@ -5,14 +5,21 @@
 import { $ } from './core/dom.js';
 import { setData, setDataError, setDeferredData } from './core/state.js';
 import { revalidatedJson } from './core/store.js';
+import { watchAppUpdates, watchWorkerChanges } from './core/app-updates.js';
 import { mount } from './ui/shell.js';
 import { adaptUniverse } from './data/universe.js';
 import { prime as primeFiled } from './data/institution-holdings.js';
+<<<<<<< HEAD
 import { prime as primePortfolio } from './data/portfolio.js';
 import { prime as primeBook } from './data/book.js';
 import { prime as primeCoverage } from './data/coverage.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
+=======
+import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
+import { loadCompanyCaptureIndex } from './data/company-captures.js';
+>>>>>>> upstream/main
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
+import { startWatchlistCapture } from './data/watchlist-capture.js';
 // Imported for its side effect as much as for `startHostCapture`: js/core/sdk.js builds the one
 // SDK client at import time, so pulling it in from the bootstrap is what guarantees the client
 // exists — and its window listener is attached — before the host can post `host:init`.
@@ -37,15 +44,16 @@ import { startHostCapture } from './core/host-capture.js';
 //   and each consumer awaits the module that owns it. Every one of those modules already had its
 //   own idempotent `load()`; priming them from here is an optimisation, not the mechanism.
 const CRITICAL_SOURCES = {
-  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols. This is
-  // what the Portfolio/Universe toggle filters the research tabs by. It is NOT the ledger:
-  // portfolio.json is, and the two are different questions. See js/data/coverage.js.
+  // The family's direct-equity book — 142 company lines, names resolved to NSE symbols, synced
+  // from techmuns/Sattva-Family. This is what the scope toggle filters the research tabs by, and
+  // it is the ONLY portfolio information this dashboard holds: names and sectors, no quantities,
+  // no costs, no valuations. See js/data/coverage.js.
   portfolioCompanies: 'data/portfolio-companies.json',
 };
 
 const DEFERRED_SOURCES = {
-  portfolio: 'data/portfolio.json',
   universe: 'data/universe.json',
+<<<<<<< HEAD
   // The broad market universe the filings feeds walk — ~1,900 companies above a market-cap floor,
   // ordered by market cap. Deferred: only the filings tabs read it, and only when a walk runs, by
   // which point the deferred pass has long landed. See js/data/tracked-universe.js.
@@ -57,23 +65,31 @@ const DEFERRED_SOURCES = {
   // GLOW: the real family office book, synced daily from techmuns/GlowVentures. Read by the
   // Family Book tab and by Ask Research's portfolio source; 385KB, so deferred.
   book: 'data/book.json',
+=======
+  // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
+  // read by exactly one sub-view.
+  filedHoldings: 'data/institution-holdings.json',
+>>>>>>> upstream/main
 };
 
-async function fetchAll(sources) {
+async function fetchAll(sources, options = {}) {
   const results = await Promise.all(
     // `revalidatedJson`, not a bare fetch: same `no-cache` semantics — revalidate every load, reuse
     // what is already on disk when the server answers 304 — plus in-flight sharing. That last part
     // matters here because the deferred pass and the Earnings Hub both want universe.json at the
     // same moment on a cold visit, and two concurrent requests cannot revalidate against each
     // other. It was 163KB twice.
-    Object.entries(sources).map(async ([key, path]) => [key, await revalidatedJson(path)])
+    Object.entries(sources).map(async ([key, path]) => [key, await revalidatedJson(path, options)])
   );
   return Object.fromEntries(results);
 }
 
 async function loadCritical() {
-  const data = await fetchAll(CRITICAL_SOURCES);
+  // Bootstrap can restore saved company identities immediately, including offline.
+  // The names-only Family poller rechecks them after mount; Refresh is network-first.
+  const data = await fetchAll(CRITICAL_SOURCES, { allowCached: true });
   primeCoverage(data.portfolioCompanies);
+  await restoreLastGood();
   return data;
 }
 
@@ -103,6 +119,7 @@ function loadDeferred(data) {
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
 
+<<<<<<< HEAD
       // The filings tracking universe (Corporate Announcements, Insider Trades, company News).
       primeTrackedUniverse(data.trackedUniverse);
 
@@ -115,6 +132,12 @@ function loadDeferred(data) {
       // GLOW: the family office book. The module falls back to fetching the file itself if this
       // pass failed, so a bad deferred load costs a second request rather than an empty tab.
       primeBook(data.book);
+=======
+      // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
+      // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,
+      // which no reader could reach by clicking. Both the workspace and those files are gone; the
+      // only portfolio input left is the BOOK above, and it is the one thing the shell blocks on.
+>>>>>>> upstream/main
       return data;
     })
     .catch((err) => {
@@ -158,7 +181,72 @@ async function boot() {
   // GitHub schedules are best-effort. One small timestamp request checks every committed capture
   // after first paint and dispatches only the ones outside their real operating window. The Worker
   // declines duplicate runs across readers; landed files repaint any feed already on screen.
+  void loadCompanyCaptureIndex();
   startCaptureWatchdog();
+  startWatchlistCapture();
+
+  // Install the public app/data cache only after the dashboard is interactive.
+  // It warms the complete module graph for future tab switches and repeat visits,
+  // while the service worker explicitly excludes authenticated and no-store reads.
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // A NEW WORKER IS NOT A NEW DASHBOARD UNTIL THE DOCUMENT RELOADS, AND NOBODY TELLS THE READER.
+    //
+    // sw.js serves /js/ cache-first and excludes it from background revalidation, so the modules a
+    // page is running are fixed for the life of that document. Installing a new worker does not
+    // change them: `skipWaiting()` and `clients.claim()` swap which worker answers the NEXT
+    // request, they do not re-execute the module graph already imported. So the first visit after
+    // a deploy upgrades the cache and still paints the old build, and only a SECOND reload shows
+    // the new one — measured, on this app: the cache flipped on reload 1 and the new section
+    // appeared on reload 2.
+    //
+    // That is the failure the comment block in sw.js warns about, arrived at from the other side:
+    // the cache name WAS bumped, the worker DID install, and the feature was still invisible to
+    // everyone who had visited before. A version boundary nothing acts on is not a boundary.
+    //
+    // `controllerchange` fires exactly when the claim lands. It also fires on a FIRST install,
+    // where the page already holds the newest modules and a reload would be a pointless flash —
+    // Track the first claim too: the same first-visit document may stay open
+    // across later deployments, which must then use the normal guarded upgrade.
+    watchWorkerChanges(navigator.serviceWorker, applyWorkerUpgrade);
+    const register = () => navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(registration => { watchAppUpdates(registration); })
+      .catch((err) => console.warn('[app] repeat-visit cache unavailable', err));
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(register, { timeout: 2000 });
+    else setTimeout(register, 0);
+  }
+}
+
+
+/**
+ * Reload onto the newly activated worker — but never over the top of a metered run.
+ *
+ * Ask Research holds the only work here that a reload destroys rather than defers: the answer is
+ * streaming from a paid model call and the question is already in the transcript, so a reload
+ * mid-answer costs the run and leaves that question with nothing under it. Everything else a
+ * reload discards is cheap and rebuilt on the way back — a scroll position, a search term, a
+ * committed snapshot that is already on the device.
+ *
+ * So this waits rather than prompting. A banner asking the reader to reload would put the cost of
+ * our deployment model on them, which is the thing being fixed; and it would still have to be
+ * declined during an answer. If a generation never settles the update simply lands on the reader's
+ * next natural visit, which is exactly where it landed before this existed.
+ */
+function applyWorkerUpgrade() {
+  const busy = async () => {
+    try {
+      const { hasWorkInFlight } = await import('./tabs/ask-research.js');
+      return hasWorkInFlight();
+    } catch {
+      return false;   // a module that will not load cannot be holding a run open.
+    }
+  };
+  const attempt = async () => {
+    if (await busy()) return;
+    clearInterval(timer);
+    location.reload();
+  };
+  const timer = setInterval(attempt, 5000);
+  attempt();
 }
 
 boot();
