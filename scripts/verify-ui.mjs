@@ -7581,7 +7581,7 @@ console.log('\n— sub-view picker and the removed roadmap card —');
     }
     return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
   });
-  ok('clicking the picker opens its menu', menu.open && menu.items === 4, JSON.stringify({ open: menu.open, items: menu.items }));
+  ok('clicking the picker opens its three available views', menu.open && menu.items === 3, JSON.stringify({ open: menu.open, items: menu.items }));
   ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
   await page.locator('#subview-mount [data-dd-id="fii-accumulation"]').click();
   await page.waitForTimeout(1800);

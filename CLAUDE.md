@@ -431,7 +431,7 @@ it went furthest: no description, no cards, one pill. Three of its four cards co
 table directly beneath them already lists — *Alerts 0*, *Updates 89* — and the fourth printed a
 date; the paragraph above them restated per-feed facts the coverage panel states per feed, by name.
 The pill carries the Indian trading date on its face, because this is the one tab defined by a DAY.
-**Breakouts / Technical is the second, on all four
+**Breakouts / Technical is the second, on all three
 sub-views** — each opened with two or three counts plus the gradient freshness
 hero, above the table those counts describe, and most of it was already on screen a few pixels
 lower: *"Breakout candidates 21 of 586"* is the line under the chip bar and *"Strong breakouts 0"*

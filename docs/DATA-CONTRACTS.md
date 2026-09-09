@@ -24,8 +24,6 @@ the interface, and change the doc and the producer together.
 | `portfolio` | `public/data/portfolio.json` |
 | `portfolioCompanies` | `public/data/portfolio-companies.json` |
 | `universe` | `public/data/universe.json` |
-| `earnings` | `public/data/mock/earnings.json` |
-| `earningsCalendar` | `public/data/mock/earnings-calendar.json` |
 | `filedHoldings` | `public/data/institution-holdings.json` |
 | `transactions` | `public/data/mock/transactions.json` |
 
@@ -33,9 +31,8 @@ the interface, and change the doc and the producer together.
 `ctx.data.universe` carries the adapted `{ ticker, name, marketCap, sector, industry }` shape the
 older tabs were built against (see `js/data/universe.js`).
 
-`earnings.json` follows the same pattern: the full payload stays on `ctx.data.earningsRaw` and
-primes `js/data/earnings.js` (so the module never refetches it), while `ctx.data.earnings` carries
-the flat one-row-per-company summary that Breakouts → Earnings Surprise was written against.
+The retired Earnings Surprise corpus and its mock calendar are not loaded by the bootstrap
+or Ask Research. Live results and the scheduled-results calendar use their own data modules.
 
 **Not in that map:** several heavy feeds are fetched lazily by their own data modules the first
 time their tab mounts, then cached for the life of the page — the other tabs shouldn't pay for
@@ -1416,6 +1413,9 @@ Keys in `failures` render as "—", never 0%. Current coverage: **1,312 of 1,319
 
 ## `public/data/mock/earnings.json` — MOCK, real-shaped
 
+**Retired in Glow:** no active view or research source consumes this fixture. The schema and
+integration notes below describe the legacy implementation, not a currently connected feed.
+
 Eight quarters of results per company: everything the 15-rule Result Quality & Growth model in
 `js/scoring/earnings-scoring.js` scores. Root is an **object** with a metadata envelope and a
 `companies[]` array.
@@ -1538,21 +1538,17 @@ and the poller already read this shape. To poll a live endpoint instead of a fil
 in-page poller re-reads and **re-scores** every 45s while the tab is open and visible.
 **Real source** — BSE/NSE corporate filings for the reported figures; Screener.in or Trendlyne
 for consensus estimates.
-**Consumed by** — Earnings Hub (all three sub-views), Breakouts → Earnings Surprise.
+**Consumed by** — no active dashboard view or research source.
 
-> **Legacy adapter.** Breakouts → Earnings Surprise predates this shape and reads a flat
-> one-row-per-company summary (`ticker`, `revenueCr`, `revenueYoyPct`, `netProfitCr`,
-> `epsActual`, `epsEstimate`, `surprisePct`, `resultTag`, …). `adaptLegacySummary()` in
-> `js/data/earnings.js` derives it, and `app.js` hands the result to `ctx.data.earnings` — so
-> that view needed no changes and needs none when the real feed lands. `ctx.data.earningsRaw`
-> carries the full payload. Same pattern as `js/data/universe.js`.
+> **Legacy adapter.** `adaptLegacySummary()` remains in `js/data/earnings.js` for the retired
+> flat Earnings Surprise shape. The bootstrap no longer calls it or populates `ctx.data.earnings`.
 
 ---
 
 ## `public/data/mock/earnings-calendar.json` — MOCK
 
-Companies **yet to report** this season. Drives the Earnings Hub's upcoming-results strip only;
-nothing is scored off it.
+Retired mock fixture for companies **yet to report**. It previously drove the Earnings Hub's
+upcoming-results strip; active views and the bootstrap no longer load it.
 
 ```jsonc
 {
