@@ -69,6 +69,10 @@ assert.equal(report.holdings.find((h) => !h.associated).comparison, 'agrees');
 assert.equal(report.holdings.filter((h) => h.legalHolder === fund).length, 2, 'the fund can appear in investor and manager audiences without losing its legal holder');
 assert.equal(report.holdings.some((h) => h.legalHolder.includes('HUF')), false, 'name resemblance never attributes a family entity');
 assert.equal(report.candidates.length, 1);
+for (const ticker of ['NOTLISTED', 'NOTLSITED', 'Not listed', 'NA', 'N/A', 'NIL', '-']) {
+  const placeholder = reconcilePublicHoldings({ archive: { filings: [{ ...revised, ticker }] }, snapshot, managers, evidence, now });
+  assert(placeholder.holdings.every(h => h.ticker === revised.bseCode), `${ticker} is a filing placeholder, not a listed company symbol`);
+}
 const legalNames = { relations: [{ entityId: 'example-person', legalName: 'Example Fullname Investor', investorSlugs: ['investor'], kind: 'same-person', sourceUrl: 'https://example.com/issuer', verifiedAt: '2026-09-09' }] };
 const nameVariant = { ...revised, sourceId: 'nse-equities', id: 'full-name', holders: [['Example Fullname Investor', 120, 1.2, '2026-06-30']] };
 const identityReport = reconcilePublicHoldings({ archive: { filings: [revised, nameVariant] }, snapshot, managers, evidence: legalNames, now });

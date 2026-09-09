@@ -2,6 +2,8 @@
 import { identity } from './investor-changes.js';
 import { periodEnd, quarterOrder } from './finology-shared.js';
 const DAYS = 86400000;
+// BSE-only issuers often put a placeholder in the NSE-symbol XBRL field.
+const listedSymbol = (value) => /^(?:NOTLISTED|NOTLSITED|NA|NIL|NONE|NOTAPPLICABLE)?$/i.test(String(value || '').replace(/[^a-z0-9]/gi, '')) ? null : value;
 export const currentRelation = (r, now) => /^https:\/\//.test(r.sourceUrl || '') && Number.isFinite(Date.parse(r.verifiedAt)) && Date.parse(r.verifiedAt) <= Date.parse(now) && Date.parse(now) - Date.parse(r.verifiedAt) <= 90 * DAYS;
 
 export function entityRegistry(snapshot, managers, evidence, now) {
@@ -42,7 +44,7 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
   }
   const filings = [...byFiling.values()], latestDates = new Map(), securities = new Map(), symbols = new Map(), datedSymbols = new Map(), companyNames = new Map(), datedNames = new Map();
   const addUnique = (map, key, isin) => { if (!key || !isin) return; map.set(key, map.has(key) && map.get(key) !== isin ? null : isin); };
-  const addSymbol = (symbol, isin, date) => { if (!symbol) return; const key = String(symbol).toUpperCase(); addUnique(symbols, key, isin); if (date) addUnique(datedSymbols, `${key}|${date}`, isin); };
+  const addSymbol = (symbol, isin, date) => { if (!listedSymbol(symbol)) return; const key = String(symbol).toUpperCase(); addUnique(symbols, key, isin); if (date) addUnique(datedSymbols, `${key}|${date}`, isin); };
   const addName = (name, isin, date) => { const key = identity(name); addUnique(companyNames, key, isin); if (date) addUnique(datedNames, `${key}|${date}`, isin); };
   const resolveSecurity = (holding, date) => {
     if (holding.isin) return holding.isin;
@@ -80,7 +82,7 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
       if (!row) {
         row = { id: key, personId: target.id, person: target.name, kind: target.kind, entityId: target.entityId,
           legalHolder, associated: target.associated, attribution: target.verified ? 'reviewed-legal-identity' : 'exact-name-and-source-context', relationship: target.relationship, relationshipUrl: target.sourceUrl,
-          company: f.company, ticker: f.ticker || f.bseCode, isin: f.isin, asOf, shares, stakePct, sources: [],
+          company: f.company, ticker: listedSymbol(f.ticker) || f.bseCode, isin: f.isin, asOf, shares, stakePct, sources: [],
           state: asOf === latestDates.get(f.isin) ? 'latest-disclosure' : 'historical-disclosure' };
         matched.set(key, row);
       }

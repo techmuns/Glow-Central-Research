@@ -43,7 +43,7 @@ import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as technicals from '../data/technicals.js';
 import * as investors from '../data/super-investors.js';
-import { loadEvidence, evidence } from '../data/holding-evidence.js';
+import { loadEvidence } from '../data/holding-evidence.js';
 import * as publicHoldings from '../data/public-holdings.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
@@ -1036,12 +1036,19 @@ const BUILDERS = [
     load: () => Promise.all([investors.load(), loadEvidence(), publicHoldings.load()]),
     read({ scope, plan, identities }) {
       const knownTickers = new Set(identities.map(company => company.ticker).filter(Boolean));
+      const tickerByIsin = new Map(identities.filter(company => company.isin && company.ticker).map(company => [company.isin, company.ticker]));
       const include = plan.companies.length ? null : investorScopeFilter(scope);
       const moves = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
       const original = (publicHoldings.report()?.holdings || []).filter((h) => !include || include(h.company)).map((h) => ({ primary: true,
-        company: h.company, ticker: h.ticker, person: h.person, profileKind: h.kind, legalHolder: h.legalHolder, isin: h.isin, asOf: h.asOf,
+        company: h.company, ticker: tickerByIsin.get(h.isin) || (knownTickers.has(h.ticker) ? h.ticker : null), person: h.person, profileKind: h.kind, legalHolder: h.legalHolder, isin: h.isin, asOf: h.asOf,
         shares: h.state === 'source-conflict' ? null : h.shares, stakePct: h.state === 'source-conflict' ? null : h.stakePct,
-        status: h.state, comparison: h.comparison, associatedEntity: h.associated, sources: h.sources, relationshipUrl: h.relationshipUrl }));
+        status: h.state, comparison: h.comparison, associatedEntity: h.associated,
+        // Keep dated source citations and each conflicting figure. Archive hashes and the
+        // full identity registry remain in the disclosure viewer/export, outside answer space.
+        sources: h.sources.map(s => ({ source: s.source, url: s.url, filedAt: s.filedAt,
+          ...(h.state === 'source-conflict' ? { legalHolder: s.legalHolder, shares: s.shares, stakePct: s.stakePct } : {}),
+          ...(s.partial ? { partial: true } : {}), ...(s.refreshError ? { refreshError: s.refreshError } : {}) })),
+        relationshipUrl: h.associated ? h.relationshipUrl : null }));
       const rows = [...original, ...moves];
       const meta = investors.meta() || {};
       const summary = investors.quarterSummary({ include, limit: 5 });
@@ -1052,7 +1059,6 @@ const BUILDERS = [
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failedBooks },
         summary: {
           publicDisclosureCoverage: publicHoldings.report()?.coverage || null,
-          entityRelationships: evidence().relations,
           counts: summary.counts,
           comparableBooks: summary.comparableBooks,
           contributingBooks: summary.contributingBooks,
