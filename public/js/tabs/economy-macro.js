@@ -62,7 +62,7 @@ let disposers = [];
 let chartDisposer = null;
 let calTable = null;
 let calTableView = null;
-let calRange = 'week';
+let calRange = 'today';
 let countries = new Set(cal.DEFAULT_COUNTRIES);
 let impacts = new Set(['high', 'medium']);
 let categories = new Set(); // empty = every category
@@ -79,6 +79,8 @@ const release = () => {
 };
 
 export function render(ctx) {
+  // Each visit starts on today's releases; repaints keep an explicit range choice.
+  if (!ctxRef) calRange = 'today';
   ctxRef = ctx;
   const t = ++token;
   if (calTable?.view) calTableView = calTable.view;
@@ -132,11 +134,6 @@ function paint(ctx) {
       description: meta.subtitle,
       meta: `${liveCount > 0 ? chip(`${liveCount} live · series store`, `Harvested ${m.generatedAt || 'unknown'}`, 'good') : chip('series store did not load', '', 'warn')}${chip('Market-wide · scope does not apply', 'These are national and market series, not per-company feeds, so the Portfolio / Watchlist / Universe toggle narrows nothing here.')}<button type="button" data-econ-info class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" title="Where these figures come from">Sources ?</button>`,
     })}
-    <div class="mb-5 rounded-2xl bg-white px-4 py-3 text-sm leading-relaxed text-slate-600 shadow-sm ring-1 ring-slate-100">
-      ${liveCount > 0
-        ? `Growth, inflation, unemployment, government debt, the two 10-year yields, the RBI's policy rates and AMFI's mutual-fund figures are <span class="font-semibold text-emerald-700">live</span> from the harvested series store — each with its full history (India's CPI runs from 1960), so any of them can be charted by clicking the row. The World Bank series are <span class="font-semibold text-slate-700">annual</span> and lagged; the observation year is shown on every figure. The remaining rows come from Indian statistical sources with no API and are shown as absent until a source is wired — never as a sample number.`
-        : `The series store did not load. Every live figure on this page is read from <code class="rounded bg-slate-100 px-1">public/data/series/</code>, which is committed and served statically — so this is a deployment problem rather than a missing feed. Every indicator row below is shown as absent until it loads.`}
-    </div>
     ${calendarCard()}
     <div data-econ-chart class="mb-5 hidden"></div>
     <div class="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -225,7 +222,7 @@ function multiSelect(kind, noun, options, chosen, label) {
 async function loadCalendar() {
   const seq = ++calSeq;
   const today = new Date();
-  const [from, to] = (cal.CAL_RANGES.find((r) => r.key === calRange) ?? cal.CAL_RANGES[1]).of(today);
+  const [from, to] = (cal.CAL_RANGES.find((r) => r.key === calRange) ?? cal.CAL_RANGES[0]).of(today);
   calState = undefined;
   paintCalendar();
   const res = await cal.fetchCalendar(from, to, [...countries]);
