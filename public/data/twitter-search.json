@@ -1023,12 +1023,16 @@
     "isin:INE508G01029|TIMETECHNO": {
       "lastAttemptAt": "2026-09-10T15:30:16+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE615H01020|Titagarh Rail Systems": {
+      "lastAttemptAt": "2026-09-10T16:05:46+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T15:30:16.125778+00:00"
+    "checkedAt": "2026-09-10T16:05:46.379990+00:00"
   }
 }
