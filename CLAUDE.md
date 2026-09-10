@@ -3812,7 +3812,10 @@ check green (one flaky assertion is enough to stop every feed at once) AND a rev
 may be removed to unblock data** — a generated-data PR is reviewed like any other change — but both
 have to be REACHABLE, and the run has to say when one is not: `review-unavailable` is the reviewer
 app's own answer that it is not connected to this repository, and it is annotated as a warning
-because it will still be true tomorrow, unlike `review-pending-or-unavailable`. **A person's own
+because a spent quota is answered tomorrow and an unreviewable author never is: measured on
+10 September 2026 the connector reviews a pull request raised by a PERSON and answers every capture
+PR with that notice, because their author is `github-actions[bot]`, which has no Codex account to
+connect. **A person's own
 approval is a review**, and where the connector cannot answer it is the one that counts — bound to
 that head commit exactly as the Codex summary is, from somebody GitHub would let merge the branch by
 hand, and never from the branch's own author. An app saying it cannot review here is not review

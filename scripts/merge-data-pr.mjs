@@ -27,11 +27,15 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
   // somebody who could merge this by hand is the same evidence a human reviewer has always been.
   // It is bound to THIS head commit, exactly as the Codex summary is: an approval of an earlier
   // capture is not an approval of this one, and these branches are one capture each.
+  //
+  // Measured on 10 September 2026: the connector answers a PR raised by a PERSON, and answers every
+  // one of these with "To use Codex here, create a Codex account and connect to github" — because
+  // the author is `github-actions[bot]`, which has no Codex account to connect. So this is not a
+  // wait that a quota reset or a busy day ends; nothing about a capture PR will ever satisfy it.
   const approved = reviews.some(r => r.state === 'APPROVED' && r.commit_id === pr.headRefOid &&
     writer(r.author_association) && r.user?.login !== pr.author?.login);
   // "Has not answered yet" and "cannot answer here" are different states, and only the second is a
-  // stop: the reviewer app itself says so when it is not connected to this repository, and every
-  // capture then opens a PR that nothing will ever merge until somebody reviews it. Neither state
+  // stop: a spent quota is answered tomorrow, an unreviewable author never is. Neither state
   // merges, but the run must be able to say which one it is, or the whole dashboard's data quietly
   // stops advancing with nothing on the repository saying why.
   if (!completed && !approved) return comments.some(c => reviewer(c.user?.login) && /to use codex here/i.test(c.body))
@@ -79,6 +83,6 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
   console.log(decision);
   // Only the state that will never resolve on its own is annotated; a PR still waiting for CI or
   // for the reviewer is ordinary and stays quiet.
-  if (decision === 'review-unavailable') console.log('::warning::The Codex reviewer is not connected to this repository, so this captured data waits for a review that will not arrive on its own. ' +
-    'Approve the pull request and it merges, or connect the reviewer. Until one of those happens the published dashboard stops advancing.');
+  if (decision === 'review-unavailable') console.log('::warning::The Codex reviewer cannot review this pull request, so this captured data waits for a review that will not arrive on its own. ' +
+    'Approve the pull request and it merges. Until somebody does, the published dashboard stops advancing.');
 }
