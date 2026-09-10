@@ -1,11 +1,21 @@
 {
-  "capturedAt": "2026-09-08T06:28:12.062Z",
-  "from": "2026-09-05",
-  "to": "2026-09-29",
+  "capturedAt": "2026-09-10T04:59:02.251Z",
+  "from": "2026-09-07",
+  "to": "2026-10-01",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-10-01",
+      "displayDate": "01 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-09-30",
+      "displayDate": "30 Sep",
+      "count": 0
+    },
     {
       "date": "2026-09-29",
       "displayDate": "29 Sep",
@@ -69,7 +79,7 @@
     {
       "date": "2026-09-17",
       "displayDate": "17 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-16",
@@ -99,12 +109,12 @@
     {
       "date": "2026-09-11",
       "displayDate": "11 Sep",
-      "count": 0
+      "count": 2
     },
     {
       "date": "2026-09-10",
       "displayDate": "10 Sep",
-      "count": 0
+      "count": 2
     },
     {
       "date": "2026-09-09",
@@ -120,19 +130,131 @@
       "date": "2026-09-07",
       "displayDate": "07 Sep",
       "count": 3
-    },
-    {
-      "date": "2026-09-06",
-      "displayDate": "06 Sep",
-      "count": 0
-    },
-    {
-      "date": "2026-09-05",
-      "displayDate": "05 Sep",
-      "count": 1
     }
   ],
   "byDate": {
+    "2026-09-17": {
+      "rows": [
+        {
+          "scId": "S26",
+          "name": "Skyways Air Services",
+          "shortName": null,
+          "resultDate": "2026-09-17",
+          "displayDate": "17 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 111,
+          "changePct": -2.28,
+          "marketCap": 1613.31,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/skywaysairservices/S28",
+          "ticker": "SKYWAYS",
+          "fullName": "Skyways Air Ser",
+          "industry": "Logistics",
+          "shares": 145343544,
+          "mktCapAtBuild": 1613.31
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "10/09/2026"
+    },
+    "2026-09-11": {
+      "rows": [
+        {
+          "scId": "LJML",
+          "name": "Lalithaa Jewellery Mart",
+          "shortName": null,
+          "resultDate": "2026-09-11",
+          "displayDate": "11 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 332.55,
+          "changePct": -0.57,
+          "marketCap": 18613.15,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diamond--jewellery/lalithaajewellerymart/LJML",
+          "ticker": "LALITHAA",
+          "fullName": "Lalithaa Jewell",
+          "industry": "Diamond & Jewellery",
+          "shares": 559709811,
+          "mktCapAtBuild": 18613.15
+        },
+        {
+          "scId": "HIP01",
+          "name": "Horizon Industrial Parks",
+          "shortName": null,
+          "resultDate": "2026-09-11",
+          "displayDate": "11 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 55.08,
+          "changePct": -1.06,
+          "marketCap": 15879.03,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/real-estate-rental-development-operations/horizonindustrialparks/HIP01",
+          "ticker": "HORIZONIND",
+          "fullName": "Horizon Ind",
+          "industry": "Real Estate Rental, Development & Operations",
+          "shares": 2882902834,
+          "mktCapAtBuild": 15879.03
+        }
+      ],
+      "scheduledCount": 2,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "10/09/2026"
+    },
+    "2026-09-10": {
+      "rows": [
+        {
+          "scId": "GAA",
+          "name": "Gaja Alternative Asset Management",
+          "shortName": null,
+          "resultDate": "2026-09-10",
+          "displayDate": "10 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 159.1,
+          "changePct": 0.26,
+          "marketCap": 2243.47,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-investment/gajaalternativeassetmanagement/GAA",
+          "ticker": "GAJA",
+          "fullName": "Gaja Alternativ",
+          "industry": "Finance - Investment",
+          "shares": 141010230,
+          "mktCapAtBuild": 2243.47
+        },
+        {
+          "scId": "SJL01",
+          "name": "Shankesh Jewellers",
+          "shortName": null,
+          "resultDate": "2026-09-10",
+          "displayDate": "10 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 99.69,
+          "changePct": 1.8,
+          "marketCap": 1465.76,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diamond--jewellery/shankeshjewellers/SJL01",
+          "ticker": "SHANKESH",
+          "fullName": "Shankesh Jewell",
+          "industry": "Diamond & Jewellery",
+          "shares": 147031420,
+          "mktCapAtBuild": 1465.76
+        }
+      ],
+      "scheduledCount": 2,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "10/09/2026"
+    },
     "2026-09-09": {
       "rows": [
         {
@@ -143,9 +265,9 @@
           "displayDate": "9 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 11.84,
-          "changePct": -1.91,
-          "marketCap": 42.79,
+          "ltp": 15.39,
+          "changePct": 19.95,
+          "marketCap": 55.62,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/steel-sponge-iron/novaironsteel/NIS"
         }
@@ -154,7 +276,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "08/09/2026"
+      "asOnDate": "10/09/2026"
     },
     "2026-09-08": {
       "rows": [
@@ -166,9 +288,9 @@
           "displayDate": "8 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 35.7,
-          "changePct": 2.62,
-          "marketCap": 215.63,
+          "ltp": 40.2,
+          "changePct": 4.85,
+          "marketCap": 242.81,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/household-personal-products/marutiinteriorproducts/MIP02"
         }
@@ -177,7 +299,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "08/09/2026"
+      "asOnDate": "10/09/2026"
     },
     "2026-09-07": {
       "rows": [
@@ -189,16 +311,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 138.7,
-          "changePct": 2.58,
-          "marketCap": 10091.5,
+          "ltp": 130.79,
+          "changePct": -1.19,
+          "marketCap": 9515.99,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/online-services/shiprocket/SL26",
           "ticker": "SHIPROCKET",
           "fullName": "Shiprocket",
           "industry": "Online Services",
           "shares": 727577587,
-          "mktCapAtBuild": 10091.5
+          "mktCapAtBuild": 9620.03
         },
         {
           "scId": "BLE",
@@ -208,16 +330,16 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 462.6,
-          "changePct": -3.28,
-          "marketCap": 1956.91,
+          "ltp": 451.15,
+          "changePct": -1.23,
+          "marketCap": 1908.48,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/metals-castings-forgings/beharilalengineering/BLE",
           "ticker": "BLEL",
           "fullName": "Behari Lal Engg",
           "industry": "Metals - Castings/Forgings",
           "shares": 42302482,
-          "mktCapAtBuild": 1956.91
+          "mktCapAtBuild": 1945.91
         },
         {
           "scId": "KI25",
@@ -227,51 +349,23 @@
           "displayDate": "7 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 32.2,
-          "changePct": -2.1,
-          "marketCap": 364.09,
+          "ltp": 31.85,
+          "changePct": 0.25,
+          "marketCap": 360.13,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/renewables/kotyarkindustries/KI10",
           "ticker": "KOTYARK",
           "fullName": "Kotyark Ind",
           "industry": "Renewables",
           "shares": 113070276,
-          "mktCapAtBuild": 364.09
+          "mktCapAtBuild": 360.13
         }
       ],
       "scheduledCount": 3,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "08/09/2026"
-    },
-    "2026-09-05": {
-      "rows": [
-        {
-          "scId": "MDL02",
-          "name": "Molbio Diagnostics",
-          "shortName": null,
-          "resultDate": "2026-09-05",
-          "displayDate": "5 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 1117,
-          "changePct": -0.9,
-          "marketCap": 12872.31,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/medical-equipment-supplies-accessories/molbiodiagnostics/MDL02",
-          "ticker": "MOLBIO",
-          "fullName": "Molbio Diagnost",
-          "industry": "Medical Equipment/Supplies/Accessories",
-          "shares": 115239996,
-          "mktCapAtBuild": 12872.31
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "08/09/2026"
+      "asOnDate": "10/09/2026"
     }
   }
 }
