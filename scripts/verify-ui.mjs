@@ -2773,6 +2773,7 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
+<<<<<<< HEAD
   // Retired mock views must disappear from navigation and saved links alike.
   await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
   await waitForPanel();
@@ -2784,6 +2785,8 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     !/mock earnings|mixed provenance/i.test(await hostText()) &&
     !(await page.locator('#content-host th').allTextContents()).some((text) => /surprise/i.test(text)));
 
+=======
+>>>>>>> sattva/main
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
