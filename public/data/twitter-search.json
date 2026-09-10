@@ -995,12 +995,16 @@
     "isin:INE665A01038|Swan Corp": {
       "lastAttemptAt": "2026-09-10T11:35:35+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE665A01038|SWANCORP": {
+      "lastAttemptAt": "2026-09-10T12:05:57+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T11:35:35.876844+00:00"
+    "checkedAt": "2026-09-10T12:05:57.905059+00:00"
   }
 }
