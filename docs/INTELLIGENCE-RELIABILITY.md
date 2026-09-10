@@ -91,6 +91,15 @@ leads the evidence preview even when older evidence has a higher score. **Larges
 Receiving holding weights cannot silently switch the selected ordering. Size sorting falls back to
 newest evidence when complete valuations are unavailable. Period-only source dates remain period-only.
 
+The sort control displays the ordering actually applied. A saved Largest holdings preference
+waits for complete valuations with Newest first visibly selected; pending, failed and incomplete
+size reads keep Largest holdings disabled. Its saved preference resumes once verified weights
+arrive. Independent HTML documents, including Glow's portfolio reader, keep separate service-worker
+cache entries from the dashboard shell. `verify-ai-alert-cache-ui.mjs` reproduces the old navigation
+collision and tests a returning-session upgrade, statement weights and read failure/recovery.
+Missing statement sectors may use exact-ticker classifications from the existing company feed;
+unclassified companies never form a sector cluster or gain priority for sharing missing metadata.
+
 Family's position reader revalidates the shared workbook catalog and reuses the adopted book when
 its revision is unchanged. Changed revisions must be adopted before a positions reply. Workbook
 weights do not wait for live quotes, historical archive reconstruction or a model; the existing

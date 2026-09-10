@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateTelegramCapture, TELEGRAM_REPO, TELEGRAM_ARTIFACT, TELEGRAM_HEAD_ARTIFACT, telegramCatchupRanges } from '../public/js/data/telegram-shared.js';
 import { readTelegramCollector } from '../worker/telegram-collector.mjs';
+import { TelegramDelivery, TELEGRAM_DELIVERY_NAME } from '../worker/telegram-delivery.mjs';
 import { mergeTelegramRestore } from './telegram-artifact.mjs';
 const at = '2026-09-06T01:00:00.000Z';
 const raw = { schemaVersion:2, channel:'researchreportss', route:'mtproto', lastCheckedAt:at, latestVerifiedAt:at,
@@ -226,7 +227,8 @@ globalThis.fetch=async (url,options)=>{
   return new Response(bytes);
 };
 try {
-  const env={GH_DISPATCH_TOKEN:'test-secret'},ctx={waitUntil(p){pending.push(p);}};
+  const delivery = new TelegramDelivery({GH_DISPATCH_TOKEN:'test-secret'}, {fetcher:globalThis.fetch});
+  const env={TELEGRAM_SCHEDULER:{getByName(name){assert.equal(name,TELEGRAM_DELIVERY_NAME);return {telegramPosts:()=>delivery.response()};}}},ctx={waitUntil(p){pending.push(p);}};
   const response=await worker.fetch(new Request('https://local.test/api/telegram/posts'),env,ctx);
   assert.equal(response.status,200);
   assert.equal((await response.json()).posts[0].id,500);

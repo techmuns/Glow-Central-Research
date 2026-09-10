@@ -19,6 +19,7 @@ import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attributi
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
 import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
+import * as technicals from './technicals.js';
 import { enrichCardFromAllAlerts, indexAlertContext } from './intelligence-graph.js';
 import { canonicalArticleUrl } from './filings-shared.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
@@ -654,13 +655,18 @@ function positionSnapshotIndex({ holdings, sizes }) {
  * product rules; testing only whatever today's capture happens to contain would leave branches
  * unexercised most days.
  */
-export function rankReport(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all() } = {}) {
+const knownSector = value => typeof value === 'string' && !/^(unclassified|unknown|n\/a|[-—])?$/i.test(value.trim()) ? value.trim() : null;
+
+export function rankReport(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), companyMetadata = technicals.all().map(row => row.company) } = {}) {
   const day = report?.day || generalAlerts.today();
   const firstDay = shiftDay(day, -(WINDOW_DAYS - 1));
   // Private weights never come from the persisted names-only coverage list.
   const weights = report?.scope === 'portfolio' && positionSizes?.sizes.complete
     ? positionSnapshotIndex({ ...positionSizes, holdings: positionSizes.holdings || holdings }) : new Map();
   const feedById = new Map((report?.feeds || []).map((feed) => [feed.id, feed]));
+  // Exact identifiers only: a missing statement classification can use the
+  // existing company feed, but an unknown sector is never a shared industry.
+  const sectors = new Map(companyMetadata.map(company => [String(company.ticker || '').toUpperCase(), knownSector(company.sector)]));
   const holdingByTicker = new Map(
     (holdings || [])
       .filter((holding) => holding.ticker)
@@ -729,7 +735,7 @@ export function rankReport(report, { holdings = coverage.holdings(), positionSiz
       entityId,
       ticker,
       company: top?.event.company || holding?.name || key,
-      sector: holding?.sector || null,
+      sector: knownSector(holding?.sector) || sectors.get(ticker) || null,
       holding: !!holding,
       holdingWeightPct: weights.get(key) ?? weights.get(entityId) ?? null,
       // Cards show the strongest evidence first. General Alerts remains the chronological record.
@@ -817,7 +823,7 @@ export function rankReport(report, { holdings = coverage.holdings(), positionSiz
       cacheSavedAt: report?.cacheSavedAt || null,
     },
   };
-  rankingOptions.set(result, { holdings, positionSizes, insightCompanies });
+  rankingOptions.set(result, { holdings, positionSizes, insightCompanies, companyMetadata });
   rankingEvidence.set(result, windowEvidence);
   return result;
 }

@@ -264,9 +264,14 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   }
 }
 
+function effectiveSort(ctx) {
+  return sortOrder === 'holdings' && (ctx.scope !== 'portfolio' || !report?.meta?.positionSizes?.complete || sizeError)
+    ? 'newest' : sortOrder;
+}
+
 function paint(ctx) {
   const matches = (query.trim() ? report?.allCards || [] : report?.cards || []).filter((card) => matchesSearch(card, query));
-  const cards = sortAlertCards(filteredCards(matches), ctx.scope === 'portfolio' ? sortOrder : sortOrder === 'holdings' ? 'newest' : sortOrder);
+  const cards = sortAlertCards(filteredCards(matches), effectiveSort(ctx));
   const shown = cards.slice(0, visibleLimit);
   // Keep the input node mounted while typing and while independent feeds deliver partials.
   // Replacing the whole root loses the caret, keyboard focus and IME composition.
@@ -301,14 +306,14 @@ function positionStatus(ctx) {
   if (ctx.scope !== 'portfolio') return '';
   const sizes = report?.meta?.positionSizes;
   if ((sizesLoading || awaitingBook !== null) && !sizes) return sortOrder === 'holdings'
-    ? `<p class="mb-4 text-xs text-slate-500" role="status">Loading portfolio sizes · Newest alerts shown meanwhile.</p>` : '';
-  if (sizes) {
+    ? `<p class="mb-4 text-xs text-slate-500" role="status">Loading portfolio sizes · Showing newest first until Largest holdings is ready.</p>` : '';
+  if (sizes?.complete && !sizeError) {
     return `<p data-ai-size-note class="mb-4 text-xs text-slate-500" title="${escapeHtml(`Portfolio checked ${sizes.checkedAt}. ${['workbook', 'statements'].includes(sizes.valuation) ? 'Weights use the source statement marks.' : 'Weights use available prices; quote freshness varies.'} Percentages use the complete equity statement book; other asset classes and the ring-fenced holding are excluded.`)}">
       Statement period · ${fmtDay(sizes.bookAsOf)}${['workbook', 'statements'].includes(sizes.valuation) ? ' · Snapshot weights' : ''}
     </p>`;
   }
   return portfolioConnectionState() === 'locked' ? `<p class="mb-4 text-xs text-slate-500"><button type="button" data-ai-unlock class="font-semibold text-indigo-700 hover:underline">Unlock portfolio to include holding sizes</button></p>`
-    : sortOrder === 'holdings' ? `<p class="mb-4 text-xs text-slate-500">Portfolio sizes unavailable · Newest alerts shown.</p>` : '';
+    : sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Statement values could not be fully reconciled' : ''} · ${effectiveSort(ctx) === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
 }
 
 function searchMarkup() {
@@ -447,7 +452,10 @@ function controls(cards, visibleCount) {
       <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <label class="flex items-center gap-2">Sort
           <select data-ai-sort aria-label="Sort AI Alerts" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            ${Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map(([value, label]) => `<option value="${value}" ${value === (ctxRef?.scope !== 'portfolio' && sortOrder === 'holdings' ? 'newest' : sortOrder) ? 'selected' : ''}>${label}</option>`).join('')}
+            ${Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map(([value, label]) => {
+              const unavailable = value === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError);
+              return `<option value="${value}" ${value === effectiveSort(ctxRef) ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>${label}${unavailable ? sizesLoading || awaitingBook !== null ? ' (loading…)' : ' (unavailable)' : ''}</option>`;
+            }).join('')}
           </select>
         </label>
         ${filter === 'archived' && archived ? `<button type="button" data-ai-unmute-all class="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:text-indigo-700 hover:ring-indigo-200">Restore all</button>` : ''}

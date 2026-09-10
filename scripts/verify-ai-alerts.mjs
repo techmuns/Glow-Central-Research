@@ -75,6 +75,18 @@ assert.equal(bySize.cards[0].ticker, 'LARGE');
 assert.equal(bySize.cards[0].holdingWeightPct, 20, 'unmatched funds stay in the percentage denominator');
 assert(bySize.cards[0].score < bySize.cards[1].score, 'size ordering leaves evidence priority intact');
 const byPriority = rankReport(report, { holdings: sizeHoldings });
+const missingSectors = sizeHoldings.map(h => ({ ...h, sector: 'Unclassified' }));
+const negativeReport = { ...report, events: report.events.map(e => ({ ...e, direction: 'negative' })) };
+const unclassified = rankReport(negativeReport, { holdings: missingSectors, companyMetadata: [] });
+assert(unclassified.allCards.every(c => c.sector === null && c.sectorCluster === 0),
+  'unclassified companies cannot form a negative sector cluster or inflate priority');
+const classified = rankReport(negativeReport, { holdings: missingSectors,
+  companyMetadata: [{ ticker: 'LARGE', sector: 'Financial Services' }, { ticker: 'SMALL', sector: 'Industrials' }] });
+assert.equal(classified.allCards.find(c => c.ticker === 'LARGE').sector, 'Financial Services');
+assert(classified.allCards.every(c => c.sectorCluster === 0));
+assert.equal(rankReport(report, { holdings: sizeHoldings.map(h => ({ ...h, sector: 'Statement sector' })),
+  companyMetadata: [{ ticker: 'LARGE', sector: 'Other sector' }] }).allCards.find(c => c.ticker === 'LARGE').sector, 'Statement sector',
+  'a known statement classification takes precedence over the company feed');
 assert.equal(byPriority.cards[0].ticker, 'SMALL', 'public identities cannot activate size ordering');
 assert(byPriority.cards.every(c => c.holdingWeightPct === null));
 assert.equal(rankReport({ ...report, scope: 'universe' }, { holdings: sizeHoldings, positionSizes: sizes }).cards[0].ticker, 'SMALL');

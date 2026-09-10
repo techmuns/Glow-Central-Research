@@ -24,10 +24,10 @@ const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/muns
 const WARM_CONCURRENCY = 8;
 const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
-// Keep the portfolio reader and Telegram revisions separate from the shared marker: concurrent dashboard
-// releases can update that marker without conflicting with this content fix. Every
-// install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-glow-portfolio-reader-v1-telegram-content-v1`;
+// Keep reader/content revisions separate from the shared marker: concurrent dashboard
+// releases can advance it without conflicting with these fixes. Every install,
+// read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v1-telegram-content-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -141,19 +141,18 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
-function appDocument(url) {
-  return url.pathname === '/' || url.pathname === '/index.html';
+function shellNavigation(request, url) {
+  return request.mode === 'navigate' && ['/', '/index.html'].includes(url.pathname);
 }
 
 function cacheKey(request, url) {
-  if (request.mode === 'navigate') {
-    // The portfolio iframe is a separate document. Serving the app shell here
-    // prevents its handshake and can recursively open more dashboard frames.
-    // Cloudflare also redirects .html to its extensionless document URL.
-    if (appDocument(url)) return new Request(new URL('/index.html', self.location.origin));
-    if (url.pathname === '/glow-bridge' || url.pathname === '/glow-bridge.html')
-      return new Request(new URL('/glow-bridge.html', self.location.origin));
-  }
+  // Hash routes share the shell. Independent documents (especially the hidden
+  // portfolio reader) must never read or overwrite the dashboard's HTML cache.
+  if (shellNavigation(request, url)) return new Request(new URL('/index.html', self.location.origin));
+  // Cloudflare redirects .html to its extensionless document URL. Both spellings
+  // must reuse the reader document warmed during installation, never the shell.
+  if (request.mode === 'navigate' && ['/glow-bridge', '/glow-bridge.html'].includes(url.pathname))
+    return new Request(new URL('/glow-bridge.html', self.location.origin));
   return request;
 }
 
@@ -215,6 +214,6 @@ self.addEventListener('fetch', (event) => {
       return held;
     }
     return (await fetchAndCache(cache, request, key)) ||
-      (request.mode === 'navigate' && appDocument(url) ? cache.match('/index.html') : Response.error());
+      (shellNavigation(request, url) ? cache.match('/index.html') : Response.error());
   })());
 });

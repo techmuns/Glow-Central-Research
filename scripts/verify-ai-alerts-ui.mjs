@@ -193,6 +193,8 @@ try {
   await waitFor(peer, () => !!window.releasePositions);
   assert.equal(await page.locator('[data-ai-card]').count(), 8, 'cold-load evidence does not wait for holding sizes');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true,
+    'Largest holdings cannot be selected before complete weights arrive');
   await peer.evaluate(() => window.releasePositions());
   await settled();
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
@@ -436,7 +438,8 @@ try {
   await page.evaluate(() => localStorage.setItem('sattva:ai-alerts:sort:v1', 'holdings'));
   await page.goto(`${origin}/?hold=1`);
   await page.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
-  assert.equal(await page.getByRole('combobox', { name: 'Sort AI Alerts' }).inputValue(), 'holdings', 'sort preference survives a full reload');
+  assert.equal(await page.getByRole('combobox', { name: 'Sort AI Alerts' }).inputValue(), 'newest', 'pending weights display the actual newest-first fallback');
+  assert.equal(await page.evaluate(() => localStorage.getItem('sattva:ai-alerts:sort:v1')), 'holdings', 'the requested sort survives reload while its data loads');
   await page.getByRole('combobox', { name: 'Sort AI Alerts' }).selectOption('newest');
   assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Ready/i);
   assert.equal(await page.evaluate(() => !!window.releaseStart), true, 'live collection is still blocked while cached cards are ready');
