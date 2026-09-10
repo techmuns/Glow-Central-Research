@@ -16,17 +16,17 @@
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-09-10-glow-alert-filters-v2`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-10-glow-bulk-block-clean-header-v1`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
 const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js';
 const WARM_CONCURRENCY = 8;
 
-// Keep the Telegram revision separate from the shared marker: concurrent dashboard
-// releases can update that marker without conflicting with this content fix. Every
-// install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-telegram-content-v1`;
+// Keep reader/content revisions separate from the shared marker: concurrent dashboard
+// releases can advance it without conflicting with these fixes. Every install,
+// read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-telegram-content-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
