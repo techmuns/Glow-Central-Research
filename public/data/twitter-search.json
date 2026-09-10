@@ -963,12 +963,16 @@
     "isin:INE089C01029|STLTECH": {
       "lastAttemptAt": "2026-09-10T07:02:45+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE958L01034|String Metaverse": {
+      "lastAttemptAt": "2026-09-10T07:38:47+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T07:02:45.145830+00:00"
+    "checkedAt": "2026-09-10T07:38:47.975798+00:00"
   }
 }
