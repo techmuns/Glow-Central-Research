@@ -44,8 +44,9 @@ try {
   assert.equal(await page.locator('[data-changes-sources]').evaluate(el => el.open), false, 'automatic arrivals preserve a deliberately collapsed source panel');
   const callsBefore = calls;
   await page.goto(`${base}/#/research/insider-trades?scope=universe`);
-  await page.waitForSelector('[data-exchange-status]');
-  await page.waitForFunction(() => document.querySelector('[data-exchange-status]')?.textContent.includes('48,423'));
+  await page.waitForSelector('[data-insider-source-link]');
+  await page.waitForFunction(async (count) => (await import('/js/data/filings.js')).insider.meta().exchanges?.rowCount === count, payload.records.length);
+  assert.equal(await page.locator('[data-exchange-status]').count(), 0, 'Bulk/Block omits the customer-facing status line');
   assert(await page.getByRole('columnheader', { name: 'Exchange', exact: true }).count() > 0);
   assert(await page.locator('[data-insider-source-link]').count() > 0);
   for (const [id, value, label] of [['today', 'today', 'Today'], ['3d', '3', 'Last 3 days'], ['7d', '7', 'Last 7 days'], ['month', 'month', 'This month'], ['3m', '3m', 'Last 3 months'], ['6m', '6m', 'Last 6 months'], ['1y', '1y', 'Last year']]) {
@@ -69,9 +70,13 @@ try {
   await page.screenshot({ path: '/tmp/glow-exchange-deals-desktop.png', fullPage: true });
   payload = { ...payload, checkedAt: new Date(Date.now() + 120000).toISOString(), sources: payload.sources.map((s) => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
-  await page.waitForFunction(() => document.querySelector('[data-exchange-status]')?.textContent.includes('Test outage'));
+  await page.waitForFunction(async () => (await import('/js/data/filings.js')).insider.meta().exchanges?.summary.includes('Test outage'));
   assert(calls > callsBefore, 'Bulk/Block tab polls the shared exchange feed');
   assert(await page.locator('[data-insider-source-link]').count() > 0, 'partial failure retains rows');
+  assert.equal(await page.locator('[data-exchange-status]').count(), 0, 'automatic updates do not restore the status line');
+  await page.locator('[data-filings-method]').click();
+  assert.match(await page.locator('#modal-content').innerText(), /NSE \+ BSE.*Test outage/s, 'source details remain available in the help panel');
+  await page.locator('[data-modal-close]').first().click();
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await page.screenshot({ path: '/tmp/glow-exchange-deals-mobile.png', fullPage: true });
@@ -85,5 +90,5 @@ try {
   assert.equal(await page.getByText('TESTPOLL', { exact: true }).count(), 0, 'a live update advances Today past yesterday’s deal');
   assert.equal(await page.getByRole('combobox', { name: 'Trade period', exact: true }).inputValue(), 'today');
   assert.deepEqual(errors, []);
-  console.log('PASS exchange UI: short date filters, persisted window, timed update reaches Changes and Bulk/Block, exchange column, evidence links, failure visibility, history retention and mobile overflow');
+  console.log('PASS exchange UI: short date filters, persisted window, timed update reaches Changes and Bulk/Block, clean Bulk/Block header, exchange column, evidence links, source failures in help, history retention and mobile overflow');
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }

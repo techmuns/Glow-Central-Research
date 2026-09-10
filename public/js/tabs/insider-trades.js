@@ -199,7 +199,8 @@ const tab = makeFilingsTab({
     });
     return cols;
   },
-  status: (m) => `<p class="mb-3 text-xs text-slate-500" data-exchange-status>${escapeHtml(m.exchanges?.summary || 'NSE / BSE reports are loading.')}</p>`,
+  // Source health remains available in the help panel without a status line above the table.
+  status: () => '',
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
         <h2 class="font-display text-xl font-bold text-slate-900">Bulk/Block Deal</h2>
