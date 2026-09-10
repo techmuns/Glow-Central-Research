@@ -3,8 +3,8 @@
   "asOf": "2026-08-29",
   "source": "techmuns/GlowVentures · src/data/glowData.ts",
   "sourceCommit": {
-    "sha": "e3561b5",
-    "date": "2026-09-09T15:00:45+05:30"
+    "sha": "ac8d318",
+    "date": "2026-09-10T07:04:02Z"
   },
   "count": 170,
   "resolved": 166,
@@ -343,7 +343,7 @@
       "name": "Chemfab Alkalis Limited",
       "bookName": "CHEMFAB ALKALIS LIMITED",
       "ticker": "CHEMFAB",
-      "sector": "Unclassified",
+      "sector": "Materials",
       "listed": true,
       "matchedBy": "glowventures:symbol",
       "isinSource": {
