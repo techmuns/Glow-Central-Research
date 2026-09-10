@@ -23,10 +23,10 @@ const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/g
 const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js';
 const WARM_CONCURRENCY = 8;
 
-// Keep the Telegram revision separate from the shared marker: concurrent dashboard
-// releases can update that marker without conflicting with this content fix. Every
-// install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-telegram-content-v1`;
+// Keep reader/content revisions separate from the shared marker: concurrent dashboard
+// releases can advance it without conflicting with these fixes. Every install,
+// read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-telegram-content-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -141,8 +141,14 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+function shellNavigation(request, url) {
+  return request.mode === 'navigate' && ['/', '/index.html'].includes(url.pathname);
+}
+
 function cacheKey(request, url) {
-  if (request.mode === 'navigate') return new Request(new URL('/index.html', self.location.origin));
+  // Hash routes share the shell. Independent documents (especially the hidden
+  // portfolio reader) must never read or overwrite the dashboard's HTML cache.
+  if (shellNavigation(request, url)) return new Request(new URL('/index.html', self.location.origin));
   return request;
 }
 
@@ -197,6 +203,6 @@ self.addEventListener('fetch', (event) => {
       return held;
     }
     return (await fetchAndCache(cache, request, key)) ||
-      (request.mode === 'navigate' ? cache.match('/index.html') : Response.error());
+      (shellNavigation(request, url) ? cache.match('/index.html') : Response.error());
   })());
 });
