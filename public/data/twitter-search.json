@@ -1079,12 +1079,16 @@
     "isin:INE205A01025|Vedanta": {
       "lastAttemptAt": "2026-09-10T23:02:30+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE205A01025|VEDL": {
+      "lastAttemptAt": "2026-09-10T23:17:28+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 230,
-    "checkedAt": "2026-09-10T23:02:30.410089+00:00"
+    "checkedAt": "2026-09-10T23:17:28.078858+00:00"
   }
 }
