@@ -1913,8 +1913,24 @@ Every other source here is open. The super-investor API is not: it wants
    **200 with `ok: false` and a `reason`** — the request to our Worker succeeded — cached for 15
    seconds rather than the six hours a success gets, so a corrected token takes effect at once.
 3. **A failed read is never an empty result.** `holdings: []` only ever travels with `ok: false`
-   beside it, and the card says "could not be read". An investor who holds nothing and an investor
-   whose book 500'd must never render the same.
+   beside it, and the card says so. An investor who holds nothing and an investor whose book 500'd
+   must never render the same.
+
+   **AND A FAILED RE-CHECK IS NOT A FAILED READ — that distinction is the whole of `failureFor`.**
+   `loadBook` keeps a book it already holds when a later read fails, which is right, and records
+   the failure beside it, which is also right. `failureFor` then reported the two as one thing, so
+   a card could ask "is there anything to show for this investor?" and get *yes* from `book()` and
+   *no* from `failureFor()` in the same breath. Measured with the upstream answering 502 over the
+   shipped ninety-book capture: **ninety cards printing "This book could not be read", each one
+   directly under its own "as of Jun 2026" line** — read off the very book the message said could
+   not be read — and one coverage line reading *"90 books loaded · 0 unavailable · 90 book reads
+   failed"*. Nothing threw, no count was wrong and no state was lost; every figure was sitting in
+   memory and the paint asked the wrong question. So the two questions are two functions and
+   neither may answer for the other: **`failureFor(slug)` is a GAP** (no book at all — say so, and
+   never as an empty book), **`uncheckedFor(slug)` is a FRESHNESS condition** (a real book of a
+   known age), counted apart as `meta().failedBooks` and `meta().uncheckedBooks`. Anything that
+   reads one of those counts must be checked against the other — `investorCoverageState` reports
+   an unchecked book as retained rather than as evidence that could not be included.
 
 And two that come from the upstream being a live scrape rather than an API over a database:
 
@@ -1939,8 +1955,29 @@ And two that come from the upstream being a live scrape rather than an API over 
   `last-good` entry, and a failure serves that as a **200 with `stale: true`**, its **original**
   `fetchedAt` (restamping it would be the cache claiming freshness it does not have), a
   `staleReason` naming the failure, and a 30-second TTL so recovery reaches the screen quickly.
-  The view carries an amber strip saying exactly that — *real filed holdings of this age*, which is
-  a different statement from the mock ribbon and must not be worded like one.
+- **`caches.default` IS PER-COLO AND EVICTABLE, so `last-good` is a floor and not a dependable
+  one.** A reader routed to a cold colo during an outage got `ok: false` for all ninety books while
+  a complete committed capture of all ninety sat in this Worker's own assets. `investorRoute` takes
+  a `snapshot` fallback and tries it after the edge copy: the edge entry, then
+  `public/data/super-investors.json` through `ASSETS`, then — only then — a named failure. It is a
+  floor and never a substitute, so it is reached only once a live read HAS failed and the edge had
+  nothing, it carries the capture's **own** read time rather than being restamped, it travels as
+  `stale: true`, and **a slug the capture does not hold stays `ok: false`** — answering that one
+  from the file would turn "we have no copy of this" into an investor who discloses nothing, which
+  is the one substitution this route exists to refuse.
+- **THE AGE IS THE CAVEAT, AND ONE QUIET LABEL IS ALL OF IT THAT BELONGS IN THE CHROME.** The view
+  used to carry a full-width amber block — a warning triangle, three sentences about the Worker
+  serving the copy it already had, and the upstream's own error string, `/super-investors returned
+  HTTP 502`, in monospace on a customer screen — over a complete, correct grid of real filed
+  holdings whose only fault was being a few hours old. Amber is semantic here and means *partial*;
+  a quarterly disclosure read this morning is not partial, it is current, and colouring its age as
+  a fault teaches a reader to distrust figures that were never in doubt. So the claim survives in
+  the form a reader can act on — `Ticker Finology · up to date` inside the six-hour source window,
+  the measured age past it, `updating` with no timestamp — and the mechanism, the counts and the
+  upstream's own words for the failure all move into the panel's provenance modal and the source
+  registry. **Moved, not deleted**: an explanation with no door is worse than no explanation, and
+  this is still not the mock ribbon — every figure under the label is a real filing, so the label
+  gives the age and makes no other claim.
 - **Cache the failure too, briefly.** With ninety-one requests behind one outage, a failure that is
   not cached costs every one of them its own full timeout. Both the stale answer and the hard
   failure go into the fresh key for a few seconds, so one reader pays the timeout once instead of
@@ -3178,6 +3215,7 @@ ever has one age, so the stale branch cannot be produced by the fixture, exactly
 cannot be produced by a day with no big faller in it. A feed with **no** capture time is a third
 state, `unknown`: never "live", never "stale".
 
+<<<<<<< HEAD
 **Glow removes Earnings Surprise until real data is available.** Breakouts offers only Strong
 Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Strong
 Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
@@ -3189,6 +3227,12 @@ defaulting each to All. Counts hold the other chip groups fixed within the curre
 holding filters are included. Keep search and score selections across chip repaints, and keep
 scanner cards, exports and price-refresh candidates within the selected chips. The fixture in
 `scripts/verify-technical-filters-ui.mjs` covers boundary values, missing data and empty intersections.
+=======
+**Earnings Surprise is removed because analyst consensus estimates are not connected.** Breakouts
+has three views: Strong Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise
+links resolve to Strong Breakouts through the normal sub-view fallback. Research keeps the missing
+consensus limitation with Earnings Hub; reported growth must not be presented as an earnings surprise.
+>>>>>>> sattva/main
 
 ---
 
@@ -3685,6 +3729,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change Corporate Announcements | Keep the exchange-wide base in `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs`. Additional user-requested company/date lookups use `worker/muns.mjs` + `js/data/announcements-extra.js`; they merge with the table and never replace the base capture or claim universe coverage. |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
+| Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
