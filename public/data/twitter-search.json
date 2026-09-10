@@ -951,12 +951,16 @@
     "isin:INE089C01029|SterliteTech": {
       "lastAttemptAt": "2026-09-10T05:25:42+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE089C01029|Sterlite analyst day": {
+      "lastAttemptAt": "2026-09-10T05:57:10+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T05:25:42.418204+00:00"
+    "checkedAt": "2026-09-10T05:57:10.127225+00:00"
   }
 }
