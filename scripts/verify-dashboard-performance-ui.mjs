@@ -49,6 +49,7 @@ try {
   await page.goto(origin);
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor();
   await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await page.evaluate(async () => {
     await fetch('/api/private-fixture');
     await fetch('/data/authorized-fixture.json', { headers: { authorization: 'Bearer test-only' } });
@@ -72,6 +73,18 @@ try {
   assert(!cacheState.urls.some((url) => new URL(url).pathname.startsWith('/api/')), 'authenticated/API replies are never persisted');
   assert(!cacheState.urls.some((url) => /authorized-fixture|no-store-fixture/.test(url)),
     'Authorization and explicit no-store reads are never persisted');
+
+  const bridgeTitle = await page.evaluate(() => new Promise(resolve => {
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
+    frame.onload = () => { resolve(frame.contentDocument.title); frame.remove(); };
+    frame.src = '/glow-bridge.html';
+    document.body.append(frame);
+  }));
+  assert.equal(bridgeTitle, 'Glow portfolio reader', 'the bridge navigation reads its own cached document');
+  const dashboardHtml = await page.evaluate(async name =>
+    (await (await caches.open(name)).match('/index.html')).text(), cacheState.names[0]);
+  assert(dashboardHtml.includes('<title>Glow Central Research</title>'), 'the bridge cannot replace the cached dashboard entry');
 
   await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
   offline = true;
