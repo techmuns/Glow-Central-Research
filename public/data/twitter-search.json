@@ -1071,12 +1071,16 @@
     "isin:INE1CLE01013|Vedanta Iron and Steel": {
       "lastAttemptAt": "2026-09-10T21:56:35+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE1CLE01013|VISL": {
+      "lastAttemptAt": "2026-09-10T22:29:31+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 230,
-    "checkedAt": "2026-09-10T21:56:35.982034+00:00"
+    "checkedAt": "2026-09-10T22:29:31.869180+00:00"
   }
 }
