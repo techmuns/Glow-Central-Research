@@ -931,12 +931,16 @@
     "isin:INE073K01018|SONACOMS": {
       "lastAttemptAt": "2026-09-10T02:10:15+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE12Z301012|Sotefin Bharat": {
+      "lastAttemptAt": "2026-09-10T02:49:12+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T02:10:15.462640+00:00"
+    "checkedAt": "2026-09-10T02:49:12.143931+00:00"
   }
 }
