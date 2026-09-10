@@ -14,6 +14,18 @@ const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.ma
   byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
     url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
+// THE SCHEDULED EVENT HAS TO BE SCHEDULED WHEN THE SUITE RUNS. The Upcoming AGM row below was
+// dated 2026-09-10 - a future date on the day it was written - and `isUpcomingEvent` reads
+// `event.day > day || (event.day === day && kind === 'scheduled')` against the tab's own IST day.
+// So the fixture aged out of the Upcoming horizon the moment IST rolled past it and the wait for
+// "AGM scheduled" timed out. Measured: it began failing at 18:30 UTC, midnight IST, and a fixed
+// date only gets older, so every later run would have failed too. The tab takes its day in IST
+// rather than UTC, so this derives the same day and sets the row to TOMORROW - a same-day row is
+// upcoming only while its source still calls it scheduled, and this fixture should not rest on
+// that second condition. Every other date in this suite is already derived from `today()`; this
+// stub is built before the page exists, so it computes the same day here.
+const IST_DAY = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+const UPCOMING_DAY = new Date(Date.parse(`${IST_DAY}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 let version = 1;
 const calls = [];
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
@@ -65,7 +77,7 @@ const server = createServer((req, res) => {
     if (url.pathname === '/api/concalls') {
       const payload = data('concall-scans.json');
       json({ ...payload, portfolioUpcoming: [
-        { id: 'STLTECH|2026-09-10|AGM|day', companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: '2026-09-10', time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
+        { id: `STLTECH|${UPCOMING_DAY}|AGM|day`, companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: UPCOMING_DAY, time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
       ], meta: { ...payload.meta, screener: { status: 'ok', checkedAt: '2026-09-04T07:00:00Z', portfolioUpcomingAvailable: true } } });
       return;
     }
