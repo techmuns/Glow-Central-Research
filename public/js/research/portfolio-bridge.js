@@ -208,6 +208,9 @@ let pendingSizes = null;
 // pending one requested at or after its own moment: simultaneous callers still share one read, and
 // a question arriving mid-refresh gets its own, queued behind it.
 let pendingSizesAskedAt = 0;
+// Whether the current `pendingSizes` read has begun asking the host, rather than still sitting in
+// the queue behind an earlier one. Only a started read withholds itself from a later forced caller.
+let pendingSizesStarted = false;
 const cancelled = () => new DOMException('Cancelled', 'AbortError');
 function forConsumer(operation, signal) {
   if (!signal) return operation;
@@ -286,10 +289,25 @@ export function readPositionSizes(signal, { force = false } = {}) {
     useFamilyBook(cached.holdings, cached.sizes.bookAsOf, cached.sizes.checkedAt);
     return Promise.resolve(cached);
   }
-  if (pendingSizes && (!force || pendingSizesAskedAt >= askedAt)) return forConsumer(pendingSizes, signal);
+  // A FORCED READ MAY SHARE ONE THAT HAS NOT ASKED THE HOST ANYTHING YET. `enqueueRead` runs its
+  // callback in a later microtask, so a read created earlier in this same burst has posted nothing
+  // so far, and sharing it cannot return anything staler than opening a second one would - the
+  // reply is stamped when the host answers, which is after both callers asked either way.
+  //
+  // The guard was `pendingSizesAskedAt >= askedAt` alone, and `Date.now()` is quantised to the
+  // millisecond: two callers in one burst shared only when they happened to land inside the same
+  // millisecond, and otherwise opened a SECOND read of the Family reader - the exact thing the
+  // `peak === 1` assertion beside this one exists to forbid. It read as a flaky test and was a
+  // real duplicate read; measured on main, one failure in twelve local runs and more under CI
+  // load, where it intermittently blocked generated-data publication.
+  //
+  // Freshness is unchanged for a read that HAS started: that one is still not shared with a later
+  // forced caller, because the host may already have read the book.
+  if (pendingSizes && (!force || !pendingSizesStarted || pendingSizesAskedAt >= askedAt)) return forConsumer(pendingSizes, signal);
   // `enqueueRead` serialises behind whatever is running, so a second read is never posted into a
   // frame that answers one at a time.
-  const read = enqueueRead(readPositionSizesNow);
+  pendingSizesStarted = false;
+  const read = enqueueRead(() => { pendingSizesStarted = true; return readPositionSizesNow(); });
   pendingSizes = read;
   pendingSizesAskedAt = askedAt;
   read.catch(() => {}).finally(() => { if (pendingSizes === read) pendingSizes = null; });
