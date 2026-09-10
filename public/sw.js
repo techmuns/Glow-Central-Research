@@ -22,11 +22,12 @@ const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/g
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
 const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js';
 const WARM_CONCURRENCY = 8;
+const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
 // Keep reader/content revisions separate from the shared marker: concurrent dashboard
 // releases can advance it without conflicting with these fixes. Every install,
 // read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-telegram-content-v1`;
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v1-telegram-content-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -91,10 +92,9 @@ async function mapBounded(items, worker) {
 }
 
 /** Follow the native ES-module graph so every tab's code is warm without a hand-maintained list. */
-async function cacheModuleGraph(cache, entry) {
-  const first = new URL(entry, self.location.origin);
-  const seen = new Set([first.href]);
-  let pending = [first];
+async function cacheModuleGraph(cache, entries) {
+  let pending = entries.map(entry => new URL(entry, self.location.origin));
+  const seen = new Set(pending.map(url => url.href));
 
   // Walk one breadth at a time. A promise-per-module traversal can deadlock on
   // perfectly valid circular imports (A waits for B while B waits for A).
@@ -125,7 +125,7 @@ self.addEventListener('install', (event) => {
     // A new version activates only when its whole required shell is complete;
     // otherwise the previous worker/cache remains the safe fallback.
     await Promise.all(CORE.map((asset) => cacheRequired(cache, asset)));
-    await cacheModuleGraph(cache, APP_ENTRY);
+    await cacheModuleGraph(cache, MODULE_ENTRIES);
     // The SDK is a small, versioned public script but its S3 response has no
     // Cache-Control header. Keep an opaque copy so it cannot block every return visit.
     await cacheOne(cache, MUNSHOT_SDK, { mode: 'no-cors' }, 4000);
@@ -149,6 +149,10 @@ function cacheKey(request, url) {
   // Hash routes share the shell. Independent documents (especially the hidden
   // portfolio reader) must never read or overwrite the dashboard's HTML cache.
   if (shellNavigation(request, url)) return new Request(new URL('/index.html', self.location.origin));
+  // Cloudflare redirects .html to its extensionless document URL. Both spellings
+  // must reuse the reader document warmed during installation, never the shell.
+  if (request.mode === 'navigate' && ['/glow-bridge', '/glow-bridge.html'].includes(url.pathname))
+    return new Request(new URL('/glow-bridge.html', self.location.origin));
   return request;
 }
 
@@ -178,7 +182,14 @@ async function fetchAndCache(cache, request, key) {
   }
   const control = response.headers.get('cache-control') || '';
   if (response.ok && !/\b(?:private|no-store)\b/i.test(control)) {
-    try { await cache.put(key, response.clone()); } catch { /* A storage failure must not fail the network read. */ }
+    try {
+      // Background document revalidation must preserve the same redirect-free
+      // navigation response as installation (Cloudflare redirects .html URLs).
+      const copy = response.clone();
+      await cache.put(key, copy.redirected
+        ? new Response(copy.body, { status: copy.status, statusText: copy.statusText, headers: copy.headers })
+        : copy);
+    } catch { /* A storage failure must not fail the network read. */ }
   }
   return response;
 }

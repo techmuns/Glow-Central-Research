@@ -154,7 +154,7 @@ jobs:
       - name: Verify the real Glow statement bridge and retained family-office tabs
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-glow-parity-ui.mjs
+        run: node scripts/verify-glow-parity-ui.mjs && node scripts/verify-glow-portfolio-cache-ui.mjs
       - name: Verify inline private summary reader and source parser offline
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

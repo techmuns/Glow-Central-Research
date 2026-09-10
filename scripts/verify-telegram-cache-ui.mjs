@@ -66,7 +66,7 @@ try {
   await page.waitForFunction(() => window.controllerChanges === 1 && navigator.serviceWorker.controller.state === 'activated');
   assert(moduleRequested, 'the new release re-reads the Telegram module');
   const after = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
-  assert.deepEqual(after, ['sattva-dashboard-fixture-next-release-glow-alert-filters-v1-telegram-content-v1'], 'a later shared marker upgrades and evicts the previous combined cache');
+  assert.deepEqual(after, ['sattva-dashboard-fixture-next-release-glow-alert-filters-v1-glow-portfolio-reader-v1-telegram-content-v1'], 'a later shared marker upgrades and evicts the previous combined cache');
   console.log('PASS Telegram cache revision, legacy eviction, atomic module warm-up and subsequent shared release upgrade.');
 } finally {
   releaseModule();
