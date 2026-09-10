@@ -987,12 +987,16 @@
     "isin:INE07RO01027|Supriya Lifescience": {
       "lastAttemptAt": "2026-09-10T10:34:32+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE07RO01027|SUPRIYA": {
+      "lastAttemptAt": "2026-09-10T11:07:40+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T10:34:32.881540+00:00"
+    "checkedAt": "2026-09-10T11:07:40.145062+00:00"
   }
 }
