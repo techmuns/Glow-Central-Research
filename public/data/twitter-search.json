@@ -959,12 +959,16 @@
     "isin:INE089C01029|STL analyst day": {
       "lastAttemptAt": "2026-09-10T06:11:41+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE089C01029|STLTECH": {
+      "lastAttemptAt": "2026-09-10T07:02:45+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T06:11:41.488196+00:00"
+    "checkedAt": "2026-09-10T07:02:45.145830+00:00"
   }
 }
