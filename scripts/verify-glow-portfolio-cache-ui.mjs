@@ -12,7 +12,7 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const holdings = JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json'))).holdings;
 const worker = readFileSync(resolve(root, 'sw.js'), 'utf8');
-let upgraded = false, bookUnavailable = false, bridgeUnavailable = false, bookReads = 0;
+let upgraded = false, bookUnavailable = false, bridgeUnavailable = false, bookReads = 0, bridgeReads = 0;
 const questions = [], errors = [];
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
@@ -35,6 +35,7 @@ const server = createServer(async (req, res) => {
   }
   if (path === '/' && !upgraded) return send('<!doctype html><title>Legacy dashboard shell</title>');
   if (path === '/glow-bridge' && bridgeUnavailable) return send('Reader unavailable', 'text/plain', 503);
+  if (path === '/glow-bridge') res.setHeader('x-fixture-bridge-read', String(++bridgeReads));
   if (path === '/data/book.json') {
     bookReads++;
     if (bookUnavailable) return send('{"error":"Fixture book unavailable"}', 'application/json', 503);
@@ -90,13 +91,18 @@ try {
   await page.waitForFunction(() => sessionStorage.getItem('portfolio-cache-upgraded') === 'yes' && document.title === 'Cache upgrade fixture');
   const cacheNames = await page.evaluate(() => caches.keys());
   assert(!cacheNames.some(name => name.includes('legacy-portfolio-fixture')), 'old cache is evicted during the existing-session upgrade');
-  assert(cacheNames.some(name => name.includes('glow-portfolio-reader-v1')), 'the deployed release marker advances');
+  assert.equal(cacheNames.filter(name => name.startsWith('sattva-dashboard-')).length, 1, 'one new release replaces the legacy cache');
 
   // Both document spellings work after redirects and repeated revalidation.
+  const installedBridgeReads = bridgeReads;
   for (const path of ['/glow-bridge.html', '/glow-bridge', '/glow-bridge.html']) {
     await page.goto(`${origin}${path}`);
     assert.equal(await page.title(), 'Glow portfolio reader');
   }
+  await page.waitForFunction(async before => {
+    const cache = await caches.open((await caches.keys()).find(name => name.startsWith('sattva-dashboard-')));
+    return Number((await cache.match('/glow-bridge.html'))?.headers.get('x-fixture-bridge-read')) > before;
+  }, installedBridgeReads);
   const cachedDocuments = await page.evaluate(async () => {
     const cache = await caches.open((await caches.keys()).find(name => name.startsWith('sattva-dashboard-')));
     return { shell: await (await cache.match('/index.html')).text(), reader: await (await cache.match('/glow-bridge.html')).text(),
