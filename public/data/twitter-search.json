@@ -1051,12 +1051,16 @@
     "isin:INE879I01012|Valor Estate": {
       "lastAttemptAt": "2026-09-10T19:35:09+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE879I01012|DB Realty": {
+      "lastAttemptAt": "2026-09-10T20:05:51+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 230,
-    "checkedAt": "2026-09-10T19:35:09.380058+00:00"
+    "checkedAt": "2026-09-10T20:05:51.587678+00:00"
   }
 }
