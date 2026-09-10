@@ -4675,6 +4675,153 @@ Operational detection and alert-delivery requirements are documented in
 [`FILINGS-OPERATIONS.md`](FILINGS-OPERATIONS.md). Source failures fail a post-publication health
 gate, and `/api/filings-health` exposes a read-only HTTP 503 signal for external monitoring.
 
+## `public/data/fpi-activity.json` — FPI activity (GLOW-OWNED)
+
+Behind the **FPI Activity** view on Macro Research. Written by
+`scripts/scrape-fpi-activity.mjs` from NSDL's FPI Monitor — the depository that publishes India's
+foreign-portfolio-investment statistics — and refreshed by `.github/workflows/fpi-activity-refresh.yml`
+on weekday evenings IST. **No credential is involved**: these reports are public, so this feed
+cannot fail the way a session-token feed fails.
+
+Four NSDL reports are read, and the split between them is the whole contract:
+
+| Report | Gives | Used for |
+| --- | --- | --- |
+| `ReportDetail.aspx?RepID=1` — Debt Utilisation Status | the **outstanding investment** held in central government securities, state development loans and corporate bonds, one file per reporting date, archived back to 2011 | the debt rows and the *Outstanding Investment* column |
+| `Monthly.aspx` / `Archive.aspx` — Daily Trends | **net investment** for a reporting date, in NSDL's own route categories | the equity row's daily columns |
+| `Yearwise.aspx?RptType=6` — Calendar Year | net investment by month, with the year's own published total | the equity row's month and calendar-year columns |
+| `Yearwise.aspx?RptType=5` — Financial Year | net investment by Indian financial year | the equity row's financial-year columns |
+
+### What is published and what is derived
+
+**Equity is published.** Every equity cell is a figure NSDL printed for that exact window. Nothing
+in the capture or the view sums days into a month or months into a year.
+
+**Debt is derived, and it is one derivation:** the change in NSDL's published outstanding
+investment between the opening and closing reporting date of the window. **That is not the same
+measurement as net purchases** — a maturity or a redemption moves it too — and every surface that
+shows one says so: the view's footnote, its provenance modal, the source registry, the CSV's first
+line and row 1 of the exported workbook.
+
+The derivation was checked against a desk circular for 17 and 14 August 2026 before it shipped —
+G-Sec −117 and −422, SDLs +300 and 0, corporate bonds −76 and −343, each reproduced to the crore
+from the published levels. `scripts/verify-fpi-activity.mjs` freezes those levels as a fixture, so
+a change to `activityTable` that alters what a debt cell means fails the suite.
+
+**Debt is the general investment route.** The long-term investor category, the coupon
+re-investment limit, the voluntary retention route (VRR) and the fully accessible route (FAR) are
+separate limits with their own utilisation and are **not** folded into the headline: adding two
+limits together would make a reallocation between them read as a purchase. The VRR and long-term
+figures are captured beside each level and are in the exported workbook.
+
+**Equity has no outstanding figure** because these reports publish none. That cell is an em dash
+saying so — not a zero, and not a figure borrowed from another report.
+
+### The rows, and the two totals
+
+`G Sec`, `SDLs`, `Corp Bonds`, **`Total Debt`**, `Equity`, **`Debt + Equity`** — the reference
+template's order. Two totals sit on one table and they are not the same claim:
+
+- **`Total Debt`** is the three debt lines added, and it is the one total here that **does** carry
+  an *Outstanding Investment* figure, because every part of it is a published level. Its holding is
+  a sum of three figures NSDL printed.
+- **`Debt + Equity`** is the three debt lines **plus equity** — deliberately not *Total Debt plus
+  equity computed from the rows above it*. `addUp` in `js/data/fpi-activity.js` takes its source
+  rows as an argument for exactly that reason: a total built from "every row so far" would add the
+  three debt lines and then add their own subtotal again, **doubling the debt half of the headline**
+  with nothing thrown, no count wrong and no cell looking out of place. Its outstanding cell is an
+  em dash, because equity has no holding to add.
+
+`verify-fpi-activity.mjs` asserts both identities on every column, including that the headline is
+*not* the doubled figure.
+
+### Shape
+
+```jsonc
+{
+  "_provenance": "…",                  // what is published, what is derived, and the difference
+  "source": "NSDL FPI Monitor — https://www.fpi.nsdl.co.in/…",
+  "reports": { "debtOutstanding": "…", "dailyNetInvestment": "…", "calendarYear": "…", "financialYear": "…" },
+  "generator": "scripts/scrape-fpi-activity.mjs",
+  "capturedAt": "2026-09-10T03:58:11.402Z",
+  "currency": "INR crore",
+  "asOn": "2026-09-09",                // newest reporting date with a captured debt level
+  "flowsAsOn": "2026-09-09",           // newest reporting date with published net investment
+  "reportingDates": ["2024-01-02", …], // NSDL's reporting calendar, ascending — see below
+  "archive": { "count": 3295, "oldest": "2011-09-30", "newest": "2026-09-09" },
+  "levels": [{                         // outstanding investment, ascending by date, retained for ever
+    "date": "2026-09-09",
+    "gsec": 70464.02, "sdl": 2334.952, "corpBond": 128115,     // general route — the headline
+    "gsecVrr": 1330.525, "sdlVrr": 0, "corpBondVrr": 156316,   // VRR route, carried, never folded in
+    "gsecLongTerm": null,              // published on the pre-2026 pages only
+    "layout": "single-line"            // or "by-investor-category" — which era of the report this is
+  }],
+  "dailyFlows": [{ "date": "2026-09-09", "equity": 727.34, "debtGeneral": -1436.84,
+                   "debtVrr": -542.09, "debtFar": -216.02, "hybrid": 7.39,
+                   "mutualFunds": -3.82, "aifs": 0, "total": -1464.04 }],
+  "months":         [{ "period": "2026-08", "partial": false, "equity": 29631, … }],
+  "calendarYears":  [{ "period": "2025",    "partial": false, "equity": -166286, … }],
+  "financialYears": [{ "period": "2026-27", "partial": true,  "equity": -105206, … }],
+  "monthlyCoverage": [{ "period": "2026-08", "days": 20, "reconciles": true }],
+  "failed": [{ "what": "debt level 2025-03-28", "reason": "refused", "message": "…" }]
+}
+```
+
+`reportingDates` is NSDL's own reporting calendar, and it is what lets the view know which date
+**precedes** which. Without it a missing level is indistinguishable from a day the exchanges were
+shut, and a daily column would silently span sessions.
+
+`partial` marks a period the source itself says has not closed (NSDL print `**` against it). A
+part-year total and a closed one are different claims and the view labels them differently. NSDL
+mark the running *month* and leave the year's total row unmarked, so the flag is carried up from
+the months.
+
+### Why it fetches about a dozen pages a run, not one per trading day
+
+Because a flow over any window is the difference of two levels, the whole table needs only
+**anchors**: the three newest reporting dates and their predecessors, the last reporting date of
+each recent month, and the last reporting date on or before each financial and calendar year
+boundary. That is `wantedLevelDates` in the scraper and nothing else is asked for. Each page is
+about a megabyte, so this matters — and it means a cold start is complete on its first run rather
+than needing months of accumulation. Every level, once captured, is **retained for ever**: a past
+reporting date's published holding does not change. `FPI_LEVEL_LIMIT` (default 16) bounds a run,
+newest first, so a cold start that runs out of budget has the daily columns and is short only on
+the oldest anchors — which the view names rather than guessing at.
+
+### Three guards
+
+1. **The daily flows reconcile to the published month, or the month is not marked complete.** NSDL
+   publish both, so summing the captured days and comparing is a check on every day above it — a
+   dropped or double-counted date moves the sum. Measured on August 2026: all six categories agree
+   to the crore. The figure that ships is always the published one; the recomputation is the parse
+   check, exactly as in `scripts/import-mf-weekly.mjs`.
+2. **The general-limit row is aligned by arithmetic, not by position.** Its columns move between
+   reporting dates *under an unchanged header* — 18 and 14 August 2026 print eight cells per row
+   and 17 August prints seven, the Upper Limit cell simply absent — and the span ids move with
+   them. Read positionally, 17 August reports an upper limit of ₹70,189 crore and an investment of
+   ₹145 crore: real numbers, wrong columns. `alignGeneralLimit` finds the only offset where NSDL's
+   own published identity (`Investment + Unutilised Blocks + Investment VRR = Total Investment`, or
+   its two-term pre-2026 form) holds, and a layout it cannot align **fails the run** rather than
+   returning a plausible figure.
+3. **A bad read keeps the retained file.** Levels and flows are merged into what is committed;
+   nothing captured is retracted by a run that read less. The scraper exits **2** when NSDL cannot
+   be reached or refuses — somebody else's outage, reported as a warning — and **1** when a page
+   parses into a shape it cannot align or a month stops reconciling, which is ours to look at.
+
+### Wiring notes
+
+- The view is a **sub-view of Macro Research**, not a tab of its own, and it is the one view there
+  that does not read the series store — `render()` waits on whichever store the current sub-view
+  actually needs, and the FPI view carries its own description because "computed from a stored
+  daily series" is not true of it.
+- The table is **hand-rolled rather than built from `scoreTable`**, on the same test as the news
+  list: six instrument and total lines against eleven fixed windows is not a record with columns. Everything
+  the kit was protecting is kept by hand — every string escaped, the table scrolling inside its own
+  container, `scope` on every `<th>`, and a null rendering as an em dash that says why.
+- Scope does not apply. These are market-wide figures and no row carries a watchlist star.
+- `scripts/verify-fpi-activity.mjs` is the contract test: the circular fixture, the refusals, the
+  parser alignments and the shipped capture's own honesty. It needs no server and no network.
+
 ## Adding a new data file
 
 1. Drop the JSON in `public/data/` (or `public/data/mock/` if it's placeholder data).
