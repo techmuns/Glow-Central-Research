@@ -1,0 +1,98 @@
+name: FPI activity refresh
+
+# NSDL publish each reporting date's FPI figures once, after the session — the Debt Utilisation
+# Status for the outstanding holding, and Daily Trends for net investment. There is nothing to
+# gain from asking more often than they publish, so this runs twice on Indian weekday evenings:
+# once shortly after the usual publication time and once later, so a late file is still picked up
+# the same day rather than waiting until tomorrow.
+#
+# GitHub's scheduler is best effort and sheds dense crons — measured elsewhere in this repository
+# at 12 fired runs out of 124 scheduled on a */20 schedule. Two sparse firings a day is the shape
+# it actually honours, and nothing here depends on a particular one landing: the capture is
+# incremental and retained, so a missed day is filled by the next run that does fire.
+#
+# NO SECRET IS INVOLVED. These reports are public and need no credential, which is why this job
+# cannot fail the way a session-token feed fails.
+
+on:
+  schedule:
+    # 14:30 UTC = 20:00 IST, and 17:30 UTC = 23:00 IST, Monday to Friday.
+    - cron: "30 14 * * 1-5"
+    - cron: "30 17 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      levels:
+        description: "How many archived debt-level pages this run may fetch"
+        required: false
+        default: "16"
+
+run-name: FPI activity refresh (${{ github.event_name == 'schedule' && 'github-cron' || 'manual' }})
+
+concurrency:
+  group: fpi-activity-refresh
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # Exit 2 is NSDL being unreachable or serving a page it refused to give us — somebody else's
+      # outage, and the retained capture is still correct, so the run reports a warning rather
+      # than a failure. Exit 1 means a page parsed into a shape the reader could not align, or the
+      # captured days stopped reconciling to NSDL's own published month: both are ours to look at,
+      # and both fail the run loudly.
+      - name: Capture NSDL FPI activity
+        id: capture
+        env:
+          FPI_LEVEL_LIMIT: ${{ inputs.levels || '16' }}
+        run: |
+          set +e
+          node scripts/scrape-fpi-activity.mjs
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "0" ]; then exit 0; fi
+          if [ "$code" = "2" ]; then
+            echo "::warning title=NSDL could not be fully read::Some reports were unavailable. Every record captured before this run is unchanged and the next run resumes where this one stopped."
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Verify the FPI activity contract
+        run: node scripts/verify-fpi-activity.mjs
+
+      - name: Upload capture
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: fpi-activity
+          path: public/data/fpi-activity.json
+          if-no-files-found: error
+
+      - name: Open reviewed FPI activity data PR
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/fpi-activity.json
+          if git diff --cached --quiet; then
+            echo "NSDL has published nothing new since the last capture."
+            echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node scripts/data-pr.mjs "Refresh FPI activity data"

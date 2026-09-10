@@ -1,6 +1,7 @@
 import * as fundReturns from '../data/fund-returns.js';
 import * as mfWeekly from '../data/mf-weekly.js';
 import * as macroSeries from '../data/series.js';
+import * as fpiActivity from '../data/fpi-activity.js';
 import * as familyBook from '../data/book.js';
 import * as familyManagers from '../data/managers.js';
 // ui/sources.js — the data-source registry behind the header's "Sources" button.
@@ -751,6 +752,18 @@ export function sourceGroups() {
           cadence: 'Held six hours at the edge, re-read after fifteen minutes · the last held copy is served, marked stale, when the feed does not answer',
           status: 'live',
           file: 'worker/econ-calendar.mjs · public/js/data/econ-calendar.js · public/js/tabs/economy-macro.js',
+        },
+        {
+          name: 'NSDL FPI Monitor — foreign portfolio investment',
+          url: 'https://www.fpi.nsdl.co.in/web/Reports/ReportsListing.aspx',
+          feeds:
+            `<strong>The depository's own figures.</strong> The FPI Activity view on Macro Research: what foreign portfolio investors bought and sold in Indian government securities, state development loans, corporate bonds and equities, by reporting day, month, financial year and calendar year, with the debt they hold now. <strong>The equity row is NSDL's published net investment</strong>, reproduced unchanged from their Daily Trends and year-wise reports — nothing here sums it. <strong>The three debt rows are derived</strong>: NSDL publish the outstanding investment held in each instrument on every reporting date and the figure shown is the <em>change in that holding</em> across the window, which a maturity or redemption also moves and is therefore not the same measurement as net purchases. Debt is the general investment route; the long-term investor category, coupon re-investment, VRR and FAR are separate limits and are not folded in. Equity carries no outstanding figure because these reports publish none, and a window whose opening level was not captured is an em dash naming the date rather than a difference against an earlier one. The capture adds up the days it holds and compares them to NSDL's own published month, so a month that does not reconcile is not claimed complete.${clause(
+              num(() => fpiActivity.meta().levels || null),
+              ' <n> reporting dates of outstanding investment are captured.'
+            )}${fpiActivity.meta().asOn ? ` Newest reporting date ${escapeHtml(fpiActivity.meta().asOn)}.` : ''}`,
+          cadence: 'Weekday evenings IST (20:00 and 23:00), after NSDL publish the day\'s reports · no credential — these reports are public',
+          status: 'live',
+          file: 'public/data/fpi-activity.json · scripts/lib/nsdl-fpi.mjs · scripts/scrape-fpi-activity.mjs · public/js/data/fpi-activity.js · .github/workflows/fpi-activity-refresh.yml',
         },
       ],
     },

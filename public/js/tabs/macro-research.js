@@ -16,6 +16,13 @@
 //
 // SCOPE DOES NOT APPLY HERE and the head says so: these are market-wide series, not per-company
 // feeds, so the Portfolio / Watchlist / Universe toggle narrows nothing on this tab.
+//
+// ONE SUB-VIEW IS NOT A SERIES AT ALL. FPI Activity reads a capture of NSDL's own FPI Monitor
+// (`js/data/fpi-activity.js`) and renders a fixed template table, so it takes none of the
+// furniture above — no chart, no frequency, no range — and it carries its OWN description rather
+// than the tab subtitle, because "computed from a stored daily series" is not true of it. It is
+// here rather than on a tab of its own because a reader asking what foreign money did this week
+// is asking a macro question, beside the rupee, the ten-year and the commodity complex.
 
 import { sectionHead, scoreTable, openModal } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
@@ -23,12 +30,26 @@ import { formatNumber } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { seriesChart, yieldCurveChart, exportChartPng } from '../ui/series-chart.js';
 import * as series from '../data/series.js';
+import * as fpi from '../data/fpi-activity.js';
 
 const VIEWS = {
   commodities: { label: 'Commodities', blurb: 'Energy, precious and industrial metals, agriculture and fertilisers — futures closes and the World Bank Pink Sheet.' },
   indices: { label: 'Global Indices', blurb: 'The US, European, Asian and Indian benchmarks, daily closes.' },
   currencies: { label: 'Currencies', blurb: 'USD/INR and the majors, daily closes.' },
   rates: { label: 'Rates & Bonds', blurb: 'Government-bond yields, the US corporate credit spread and RBI policy rates — a yield reports basis points, never a percentage return.' },
+  // THE ONE VIEW ON THIS TAB THAT DOES NOT READ THE SERIES STORE. It reads a capture of NSDL's own
+  // FPI Monitor instead, and it is a fixed template table rather than a chart over a series — so
+  // `paint` hands it off whole rather than trying to fit it to the furniture above. See
+  // `js/data/fpi-activity.js` for what is published and what is derived.
+  fpi: {
+    label: 'FPI Activity',
+    // `standalone` REPLACES the tab subtitle rather than being appended to it. Every other view
+    // here is "computed from a stored daily series" and this one is not a series at all, so
+    // concatenating would put a provenance claim on the page that is false for the figures under
+    // it — the one thing this tab's own rules forbid most plainly.
+    standalone: true,
+    blurb: 'What foreign portfolio investors bought and sold in Indian government securities, state development loans, corporate bonds and equities — by reporting day, month, financial year and calendar year, with the debt they hold now. Read from NSDL, the depository that publishes it.',
+  },
 };
 const CHART_TYPES = [['line', 'Line'], ['area', 'Area'], ['bar', 'Bar'], ['scatter', 'Scatter']];
 const MAX_COMPARE = 6;
@@ -78,9 +99,15 @@ export function render(ctx) {
   if (table?.view) tableView = table.view;
   release();
   applyParams(ctx.params || {});
-  if (!series.isLoaded()) {
-    ctx.root.innerHTML = `${sectionHead({ title: meta.title, description: meta.subtitle })}${loadingHtml()}`;
-    series.load().then(() => {
+  // Each sub-view waits on the store it actually reads. FPI Activity is not in the series store
+  // and must not sit behind it: a reader who lands there should not pay for a manifest whose
+  // every figure this view ignores, and the series store failing must not blank a view it does
+  // not feed.
+  const view = viewOf(ctx);
+  const wanted = view === 'fpi' ? fpi : series;
+  if (!wanted.isLoaded()) {
+    ctx.root.innerHTML = `${sectionHead({ title: meta.title, description: VIEWS[view].standalone ? VIEWS[view].blurb : meta.subtitle })}${loadingHtml()}`;
+    wanted.load().then(() => {
       if (t === token && ctxRef) paint(ctxRef);
     });
     return;
@@ -126,8 +153,12 @@ const btn = (attrs, label, active = false, title = '') =>
 // ---- the panel -------------------------------------------------------------------------------
 
 function paint(ctx) {
-  const idx = series.index();
   const view = viewOf(ctx);
+  if (view === 'fpi') {
+    paintFpi(ctx);
+    return;
+  }
+  const idx = series.index();
   if (!idx) {
     ctx.root.innerHTML = `
       ${sectionHead({ title: meta.title, description: meta.subtitle, meta: scopeNote() })}
@@ -277,6 +308,241 @@ function absentCard(absent) {
       <ul class="mt-3 space-y-2">
         ${absent.map((a) => `<li class="border-b border-slate-100 pb-2 last:border-0 last:pb-0"><div class="text-sm font-medium text-slate-700">${escapeHtml(a.label)} <span class="text-slate-400">· ${escapeHtml(a.group || '')}</span></div><div class="text-xs leading-relaxed text-slate-500">${escapeHtml(a.absent || '')}</div></li>`).join('')}
       </ul>
+    </div>`;
+}
+
+// ---- FPI Activity ------------------------------------------------------------------------------
+//
+// A FIXED TEMPLATE TABLE, NOT A SCREENER, which is why it is hand-rolled rather than built from
+// `scoreTable`. The kit models a record with columns — a company, a score, a date — that a reader
+// compares down the column and narrows with a search. This is five instrument lines against eleven
+// fixed windows: nothing to search, nothing to sort, no company to star, and a two-deep header
+// grouping the windows that no screener column set can express. Same test as the news list in
+// `js/tabs/market-news-view.js`: the row is not a record, so the kit is the wrong tool.
+//
+// What opting out of the kit does NOT opt out of, and is therefore done by hand here: every string
+// escaped, the table scrolling inside its own container so the page never scrolls sideways, every
+// `<th>` carrying a scope, and a null rendering as an em dash that says why.
+
+const FPI_GROUPS = [
+  { key: 'daily', label: 'Reporting day', tint: '' },
+  { key: 'month', label: 'Month', tint: 'bg-slate-50' },
+  { key: 'fy', label: 'Financial year', tint: '' },
+  { key: 'cy', label: 'Calendar year', tint: 'bg-slate-50' },
+  { key: 'outstanding', label: 'Held now', tint: 'bg-indigo-50/60' },
+];
+
+const fpiTitle = (asOn) =>
+  `FPI activity in the Indian local-currency debt and equity market${asOn ? `, as reported for ${new Date(`${asOn}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}` : ''}`;
+
+function fpiTableHtml(t) {
+  const groups = FPI_GROUPS.map((g) => ({ ...g, cols: t.columns.filter((c) => c.group === g.key) })).filter((g) => g.cols.length);
+  const cellFor = (row, i) => {
+    const c = row.cells[i];
+    const tone = row.total ? 'font-bold ' : '';
+    const value = fpi.fmtCrore(c.value);
+    return `<td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${tone}${c.value == null ? 'text-slate-300' : fpi.toneOf(c.value)}" title="${escapeHtml(c.note || '')}">${escapeHtml(value)}</td>`;
+  };
+  return `
+    <div class="scrollbar-thin overflow-x-auto" data-fpi-scroll>
+      <table class="w-full min-w-[880px] border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200">
+            <th scope="col" class="sticky left-0 z-10 bg-white px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(t.currency)}</th>
+            ${groups.map((g) => `<th scope="col" colspan="${g.cols.length}" class="${g.tint} border-l border-slate-100 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(g.label)}</th>`).join('')}
+          </tr>
+          <tr class="border-b-2 border-slate-200">
+            <th scope="col" class="sticky left-0 z-10 bg-white px-3 pb-2 text-left text-xs font-semibold text-slate-700">Instrument</th>
+            ${groups
+              .map((g) =>
+                g.cols
+                  .map(
+                    (c, i) =>
+                      `<th scope="col" class="${g.tint} ${i === 0 ? 'border-l border-slate-100' : ''} whitespace-nowrap px-3 pb-2 text-right text-xs font-semibold text-slate-700"${c.partial ? ' title="This period has not closed — the figure is the period so far."' : ''}>${escapeHtml(c.label)}${c.partial ? '<span class="text-slate-400"> *</span>' : ''}</th>`,
+                  )
+                  .join(''),
+              )
+              .join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${t.rows
+            .map(
+              (r) => `
+            <tr class="border-b border-slate-100 last:border-0 ${r.total ? 'bg-slate-50/70' : ''}">
+              <th scope="row" class="sticky left-0 z-10 ${r.total ? 'bg-slate-50' : 'bg-white'} px-3 py-2 text-left align-top">
+                <span class="block whitespace-nowrap text-sm ${r.total ? 'font-bold' : 'font-semibold'} text-slate-900">${escapeHtml(r.label)}</span>
+                <span class="block text-[11px] font-normal text-slate-400">${escapeHtml(r.sub || '')}</span>
+              </th>
+              ${r.cells.map((_, i) => cellFor(r, i)).join('')}
+            </tr>`,
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function paintFpi(ctx) {
+  const t = fpi.activityTable();
+  const m = fpi.meta();
+  if (!t) {
+    ctx.root.innerHTML = `
+      ${sectionHead({ title: meta.title, description: VIEWS.fpi.blurb, meta: scopeNote() })}
+      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+        <h3 class="font-display text-base font-bold text-slate-900">The FPI capture did not load</h3>
+        <p class="mt-1.5 text-sm leading-relaxed text-slate-600">Every figure in this view is read from <code class="rounded bg-slate-100 px-1">public/data/fpi-activity.json</code>, which is committed to the repository and served statically. If this persists the deployment is incomplete rather than NSDL being unavailable — nothing here depends on a live API or a token.</p>
+      </div>`;
+    return;
+  }
+  const stale = m.asOn ? Math.floor((Date.now() - Date.parse(`${m.asOn}T00:00:00Z`)) / 86400000) : null;
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: meta.title,
+      description: VIEWS.fpi.blurb,
+      meta: `${chip(`NSDL · as on ${t.asOn}`, `NSDL's newest reporting date in this capture. Captured ${m.capturedAt || 'unknown'}.`, stale != null && stale <= 4 ? 'good' : 'neutral')}${scopeNote()}<button type="button" data-fpi-info class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" title="What is published, what is derived, and where each figure comes from">Sources ?</button>`,
+    })}
+    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(fpiTitle(t.asOn))}</h3>
+      <p class="mt-0.5 text-xs text-slate-500">A figure in brackets is an outflow${t.flowsAsOn && t.flowsAsOn !== t.asOn ? ` · equity is reported to ${escapeHtml(t.flowsAsOn)}` : ''}</p>
+      <div class="mt-3">${fpiTableHtml(t)}</div>
+      <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        ${btn('data-fpi-csv', 'CSV', false, 'Download exactly this table')}
+        ${btn('data-fpi-xlsx', 'Export Excel', false, 'This table, plus the published levels and daily net investment behind it')}
+        <span class="text-[11px] text-slate-400" data-fpi-note></span>
+      </div>
+    </div>
+    <p class="mt-3 rounded-2xl bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 shadow-sm ring-1 ring-slate-100">
+      <span class="font-semibold text-slate-600">The equity row is NSDL's own net investment</span>, published for each of these windows and reproduced unchanged — nothing on this page adds it up.
+      <span class="font-semibold text-slate-600">The three debt rows are derived</span>: NSDL publish the outstanding investment foreign portfolio investors hold in each instrument on every reporting date, and the figure shown is the <span class="font-semibold text-slate-600">change in that holding</span> across the window. A maturity or a redemption moves it too, so it is close to net buying but is not the same statement.
+      Debt is the <span class="font-semibold text-slate-600">general investment route</span>; the long-term investor category, the coupon re-investment limit, the voluntary retention route and the FAR route are separate limits with their own utilisation and are not folded in — adding two limits together would make a reallocation between them read as a purchase.
+      <span class="font-semibold text-slate-600">Equity carries no outstanding figure</span> because these reports do not publish one, and a window whose opening level was not captured is an em dash naming the date, never a difference taken against an earlier one.
+      ${t.columns.some((c) => c.partial) ? 'A period marked <span class="font-semibold text-slate-600">*</span> has not closed; its figure is the period so far. ' : ''}
+      ${t.unmeasured.length ? `${escapeHtml(t.unmeasured.map((u) => `${u.column} needs the level for ${u.missing}`).join('; '))}. ` : ''}
+      ${m.failed.length ? `${escapeHtml(String(m.failed.length))} read${m.failed.length === 1 ? '' : 's'} failed on the last capture; every retained record is unchanged.` : ''}
+    </p>`;
+  wireFpi(ctx, t);
+}
+
+function fpiRows(t) {
+  return t.rows.map((r) => ({ label: r.label, basis: r.basis, values: r.cells.map((c) => c.value) }));
+}
+
+function exportFpiCsv(t) {
+  const esc = (v) => (v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const lines = [
+    [`FPI activity — ${t.currency}. NSDL FPI Monitor, as on ${t.asOn}. Equity is NSDL's published net investment; the debt rows are the change in NSDL's published outstanding investment across each window, which is not the same measurement as net purchases. A blank cell is a window this capture cannot measure — not a zero.`],
+    ['Instrument', 'Basis', ...t.columns.map((c) => `${c.label}${c.partial ? ' (period not closed)' : ''}`)],
+    ...fpiRows(t).map((r) => [r.label, r.basis === 'debt' ? 'change in outstanding investment (derived)' : r.basis === 'equity' ? 'net investment (NSDL, published)' : 'sum of the rows above', ...r.values]),
+  ];
+  downloadText(lines.map((r) => r.map(esc).join(',')).join('\n'), `glow_fpi_activity_${t.asOn}_${todayStamp()}.csv`);
+  return true;
+}
+
+async function exportFpiExcel(t) {
+  const payload = fpi.index();
+  const banner =
+    `MEASURED, NOT OURS. NSDL FPI Monitor (https://www.fpi.nsdl.co.in/), captured ${fpi.meta().capturedAt || 'on an unknown date'}, newest reporting date ${t.asOn}. All figures in ${t.currency}. ` +
+    'THE EQUITY ROW IS NSDL\'S OWN PUBLISHED NET INVESTMENT for each window, reproduced unchanged. THE DEBT ROWS ARE DERIVED: they are the change in NSDL\'s published outstanding investment between the opening and closing reporting date of each window, which a maturity or redemption also moves, and is therefore not the same measurement as net purchases. ' +
+    'Debt is the general investment route only; the long-term investor category, coupon re-investment, VRR and FAR are separate limits and are not included. Equity has no outstanding figure because these reports do not publish one. A blank cell is a window that could not be measured — never a zero.';
+  return exportSheets({
+    filename: `glow-fpi-activity-${t.asOn}`,
+    banner,
+    sheets: [
+      {
+        name: 'FPI activity',
+        columns: [
+          { header: 'Instrument', key: 'label', width: 18, get: (r) => r.label },
+          { header: 'Basis', key: 'basis', width: 38, get: (r) => (r.basis === 'debt' ? 'change in outstanding investment (derived)' : r.basis === 'equity' ? 'net investment (NSDL, published)' : 'sum of the rows above') },
+          ...t.columns.map((c, i) => ({ header: `${c.label}${c.partial ? ' *' : ''}`, key: `c${i}`, width: 14, get: (r) => r.values[i] })),
+        ],
+        rows: fpiRows(t),
+      },
+      {
+        name: 'Debt outstanding (NSDL)',
+        columns: [
+          { header: 'Reporting date', key: 'date', width: 14, get: (r) => r.date },
+          { header: 'G-Sec — general route', key: 'gsec', width: 20, get: (r) => r.gsec },
+          { header: 'SDLs — general route', key: 'sdl', width: 20, get: (r) => r.sdl },
+          { header: 'Corp bonds — general route', key: 'corpBond', width: 24, get: (r) => r.corpBond },
+          { header: 'G-Sec — VRR route', key: 'gsecVrr', width: 18, get: (r) => r.gsecVrr },
+          { header: 'Corp bonds — VRR route', key: 'corpBondVrr', width: 22, get: (r) => r.corpBondVrr },
+          { header: 'G-Sec — long-term category', key: 'gsecLongTerm', width: 24, get: (r) => r.gsecLongTerm },
+          { header: 'Report layout', key: 'layout', width: 22, get: (r) => r.layout || '' },
+        ],
+        rows: payload?.levels || [],
+      },
+      {
+        name: 'Daily net investment (NSDL)',
+        columns: [
+          { header: 'Reporting date', key: 'date', width: 14, get: (r) => r.date },
+          { header: 'Equity', key: 'equity', width: 12, get: (r) => r.equity },
+          { header: 'Debt — general limit', key: 'debtGeneral', width: 20, get: (r) => r.debtGeneral },
+          { header: 'Debt — VRR', key: 'debtVrr', width: 14, get: (r) => r.debtVrr },
+          { header: 'Debt — FAR', key: 'debtFar', width: 14, get: (r) => r.debtFar },
+          { header: 'Hybrid', key: 'hybrid', width: 12, get: (r) => r.hybrid },
+          { header: 'Mutual funds', key: 'mutualFunds', width: 14, get: (r) => r.mutualFunds },
+          { header: 'AIFs', key: 'aifs', width: 10, get: (r) => r.aifs },
+          { header: 'Total', key: 'total', width: 12, get: (r) => r.total },
+        ],
+        rows: payload?.dailyFlows || [],
+      },
+    ],
+  });
+}
+
+function wireFpi(ctx, t) {
+  const root = ctx.root;
+  const say = (text) => {
+    const el = root.querySelector('[data-fpi-note]');
+    if (el) el.textContent = text;
+  };
+  const onClick = async (ev) => {
+    const el = ev.target.closest('[data-fpi-info],[data-fpi-csv],[data-fpi-xlsx]');
+    if (!el || !root.contains(el)) return;
+    if (el.hasAttribute('data-fpi-info')) openModal(fpiProvenanceHtml(t), { size: 'wide' });
+    else if (el.hasAttribute('data-fpi-csv')) say(exportFpiCsv(t) ? 'CSV downloaded.' : 'Nothing to export yet.');
+    else {
+      say('Building the workbook…');
+      say((await exportFpiExcel(t)) ? 'Workbook downloaded.' : 'Export unavailable (the spreadsheet library could not be loaded).');
+    }
+  };
+  root.addEventListener('click', onClick);
+  disposers.push(() => root.removeEventListener('click', onClick));
+}
+
+function fpiProvenanceHtml(t) {
+  const m = fpi.meta();
+  const report = (label, url) => `<li><strong>${escapeHtml(label)}</strong> — <a class="text-indigo-700 underline" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></li>`;
+  return `
+    <div class="p-6">
+      <h2 class="font-display text-lg font-bold text-slate-900">Where these figures come from</h2>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600"><strong>Measured, and not ours.</strong> Every figure in this view is read from NSDL's FPI Monitor — the depository that publishes India's foreign-portfolio-investment statistics — captured by <code class="rounded bg-slate-100 px-1">scripts/scrape-fpi-activity.mjs</code> and refreshed by <code class="rounded bg-slate-100 px-1">.github/workflows/fpi-activity-refresh.yml</code>. No credential is involved and nothing here is scored, ranked or judged.</p>
+      <dl class="mt-4 grid gap-3 sm:grid-cols-2">
+        <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Newest reporting date</dt><dd class="mt-1 text-sm text-slate-800">${escapeHtml(t.asOn || 'unknown')}${t.flowsAsOn && t.flowsAsOn !== t.asOn ? ` · equity to ${escapeHtml(t.flowsAsOn)}` : ''}</dd></div>
+        <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Captured</dt><dd class="mt-1 text-sm text-slate-800">${escapeHtml(m.capturedAt || 'unknown')}</dd></div>
+      </dl>
+      <h3 class="font-display mt-5 text-sm font-bold text-slate-900">What is published, and what this view derives</h3>
+      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-600">
+        <li><strong>Equity is published.</strong> NSDL print net investment in equity for the day, the month, the financial year and the calendar year. Every equity cell is one of their numbers; nothing is summed here.</li>
+        <li><strong>Debt is derived, and it is one derivation.</strong> NSDL publish the <em>outstanding investment</em> held in each instrument on every reporting date. A window's figure is the change in that holding between its opening and closing reporting date. <strong>That is not the same measurement as net purchases</strong> — a maturity or a redemption moves it too.</li>
+        <li><strong>Outstanding investment is published</strong>, as at the newest reporting date. Equity has none on these reports, so its cell is an em dash rather than a zero or a figure borrowed from elsewhere.</li>
+        <li><strong>A window that cannot be measured has no number.</strong> Where the opening level has not been captured the cell is an em dash naming the missing date — it is never differenced against an earlier level, which would span sessions and read as one day's trading.</li>
+        <li><strong>A total with a missing part is not a total.</strong> <em>Debt + Equity</em> is blank unless every row above it answered for that window.</li>
+      </ul>
+      <h3 class="font-display mt-5 text-sm font-bold text-slate-900">Which limit the debt rows are</h3>
+      <p class="mt-1 text-sm leading-relaxed text-slate-600">The <strong>general investment route</strong>, which is the line these reports are quoted on. The long-term investor category, the coupon re-investment limit, the voluntary retention route (VRR) and the fully accessible route (FAR) are <strong>separate limits with their own utilisation</strong> and are not added in: folding two limits together would make a reallocation between them read as a purchase. The VRR and long-term figures are captured alongside each level and are in the exported workbook.</p>
+      <h3 class="font-display mt-5 text-sm font-bold text-slate-900">The reports read</h3>
+      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-600">
+        ${report('Debt Utilisation Status — the outstanding holding, one file per reporting date', m.reports.debtOutstanding || 'https://www.fpi.nsdl.co.in/web/Reports/ReportDetail.aspx?RepID=1')}
+        ${report('Daily Trends in FPI Investments — net investment by day', m.reports.dailyNetInvestment || 'https://www.fpi.nsdl.co.in/web/Reports/Monthly.aspx')}
+        ${report('FPI Net Investment Details (Calendar Year) — by month and calendar year', m.reports.calendarYear || 'https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=6')}
+        ${report('FPI Net Investment Details (Financial Year)', m.reports.financialYear || 'https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=5')}
+      </ul>
+      <h3 class="font-display mt-5 text-sm font-bold text-slate-900">How the capture checks itself</h3>
+      <p class="mt-1 text-sm leading-relaxed text-slate-600">NSDL publish both the daily net investment and the monthly total, so the capture <strong>adds up the days it holds and compares them to the published month</strong>; a month that does not reconcile is not claimed as complete, and the figure that ships is always the published one. The debt table's columns move between reporting dates under an unchanged header, so each row is aligned by the source's own published identity rather than by position — a layout it cannot align is reported rather than guessed at.</p>
+      ${m.failed.length ? `<h3 class="font-display mt-5 text-sm font-bold text-slate-900">Failed on the last capture</h3><ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-600">${m.failed.map((f) => `<li><strong>${escapeHtml(f.what || 'a read')}</strong> — ${escapeHtml(f.message || f.reason || 'no reason given')}</li>`).join('')}</ul><p class="mt-1 text-xs text-slate-500">Every record captured before that run is unchanged.</p>` : ''}
+      <p class="mt-4 text-xs text-slate-500">Files: <code class="rounded bg-slate-100 px-1">public/data/fpi-activity.json</code> · <code class="rounded bg-slate-100 px-1">scripts/lib/nsdl-fpi.mjs</code> · <code class="rounded bg-slate-100 px-1">scripts/scrape-fpi-activity.mjs</code> · <code class="rounded bg-slate-100 px-1">public/js/data/fpi-activity.js</code> · <code class="rounded bg-slate-100 px-1">public/js/tabs/macro-research.js</code>.</p>
     </div>`;
 }
 

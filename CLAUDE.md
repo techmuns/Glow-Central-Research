@@ -942,6 +942,28 @@ account's Workers share one cache). Surprise is actual less consensus only where
 published, with a sign and **no verdict**; an unranked release stays unranked; a release with no
 announced time is shown on the source's own date with no clock.
 
+**ONE SUB-VIEW OF MACRO RESEARCH IS NOT A SERIES AT ALL — FPI Activity, and it is the reference
+case for a level that has to be read as a flow.** It is a fixed template table of what foreign
+portfolio investors bought and sold in Indian government securities, SDLs, corporate bonds and
+equities, read from NSDL's own FPI Monitor into `public/data/fpi-activity.json`. The split that
+governs it: **equity is PUBLISHED** — NSDL print net investment for the day, month, financial year
+and calendar year, and nothing here sums it — while **debt is DERIVED**, being the change in NSDL's
+published *outstanding investment* between two reporting dates, which a maturity also moves and is
+therefore **not the same measurement as net purchases**. Every surface says which it is, including
+the CSV's first line and row 1 of the workbook. Debt is the **general investment route** only:
+folding in the long-term, VRR or FAR limits would make a reallocation between two limits read as a
+purchase. Equity carries **no outstanding figure** because these reports publish none, and a window
+whose opening level was not captured is an em dash **naming the date** — never differenced against
+an older level, which would span sessions and read as one day's trading. Three more rules travel
+with it: **the general-limit row is aligned by NSDL's own published identity rather than by
+position**, because its columns move between reporting dates under an unchanged header (18 August
+2026 prints eight cells, 17 August seven — read positionally, that day reports an investment of
+₹145 crore); **the captured days must sum to NSDL's published month** or that month is not claimed
+complete; and **the whole table needs about a dozen anchor levels, not one per trading day**,
+because a flow over any window is the difference of two of them. The derivation reproduces a desk
+circular to the crore and `scripts/verify-fpi-activity.mjs` freezes that fixture. See
+`docs/DATA-CONTRACTS.md` → *FPI activity*.
+
 **Scope does not apply to either tab and the head says so.** They are market-wide series, not
 per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
 watchlist star (`watchKey: () => null`). The landing page is Ask Research, which is also first in
@@ -3750,6 +3772,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the X account list, or how a handle is read | `js/core/twitter-handles.js` + `js/ui/twitter-sources.js` — the 1–15 `[A-Za-z0-9_]` rule is also in `worker/index.js` and `scripts/scrape-twitter.py` and the three may not disagree |
 | Change how X posts are collected | `scripts/scrape-twitter.py` + `.github/workflows/twitter-refresh.yml` — the exit codes are the interface (0 wrote, 2 nothing readable, 3 no credential, 1 a real fault) |
 | Set up X collection on a deployment | add an **`X_ACCOUNTS`** repository secret (*Settings → Secrets and variables → Actions*), one `username:password:email:email_password` per line. The dashboard's Add Handle control additionally needs `GH_DISPATCH_TOKEN` on the Worker, and says `Adding…` rather than failing without it |
+| Change the FPI Activity view, or what a debt figure means | `public/js/data/fpi-activity.js` (the matrix) + `paintFpi` in `public/js/tabs/macro-research.js` (the table) + `scripts/lib/nsdl-fpi.mjs` and `scripts/scrape-fpi-activity.mjs` (the capture) — read *One sub-view of Macro Research is not a series at all* first. Equity is NSDL's published net investment and debt is the change in their published outstanding investment; the two may never be described in the same words. `node scripts/verify-fpi-activity.mjs` is the test and needs no server |
 | Change the lower-left source beacon | `js/ui/source-beacon.js` + the `.beacon-*` block in `public/index.html` — read *The source beacon* first; it may not reintroduce a header Sources button, and every count in it stays derived |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
