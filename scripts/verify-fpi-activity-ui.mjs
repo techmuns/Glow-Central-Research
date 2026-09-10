@@ -128,7 +128,7 @@ const main = async () => {
     })),
     unscoped: [...t.querySelectorAll('th')].filter((th) => !th.getAttribute('scope')).length,
   }));
-  ok('the five template rows, in order', shape.rows.map((r) => r.label).join(',') === 'G Sec,SDLs,Corp Bonds,Equity,Debt + Equity', shape.rows.map((r) => r.label).join(','));
+  ok('the six template rows, in order', shape.rows.map((r) => r.label).join(',') === 'G Sec,SDLs,Corp Bonds,Total Debt,Equity,Debt + Equity', shape.rows.map((r) => r.label).join(','));
   ok('eleven windows: three days, three months, two FYs, two CYs and the holding', shape.columns.length === 11, shape.columns.join(' | '));
   ok('the windows are grouped by kind', shape.groups.join(',').toLowerCase().includes('reporting day') && shape.groups.join(',').toLowerCase().includes('held now'), shape.groups.join(' | '));
   ok('every <th> carries a scope', shape.unscoped === 0, `${shape.unscoped} without one`);
@@ -138,6 +138,8 @@ const main = async () => {
   const total = shape.rows.find((r) => r.label === 'Debt + Equity');
   ok('equity carries no outstanding figure, and its cell says why', equity.cells.at(-1).text === '—' && /do not publish an outstanding equity holding/i.test(equity.cells.at(-1).title), JSON.stringify(equity.cells.at(-1)));
   ok('and the debt lines are not totalled with it', total.cells.at(-1).text === '—');
+  const totalDebt = shape.rows.find((r) => r.label === 'Total Debt');
+  ok('Total Debt does carry an outstanding holding, because every part of it is a published level', totalDebt.cells.at(-1).text !== '—' && /published outstanding investment/i.test(totalDebt.cells.at(-1).title), JSON.stringify(totalDebt.cells.at(-1)));
   ok('a debt cell says its figure is a change in outstanding investment', shape.rows[0].cells.some((c) => /change in outstanding investment/i.test(c.title)));
   ok('and that this is not net purchases', shape.rows[0].cells.some((c) => /not the same measurement as net purchases/i.test(c.title)));
   ok('an equity cell names it as NSDL\'s published net investment', equity.cells.some((c) => /published net investment/i.test(c.title)));
@@ -172,7 +174,8 @@ const main = async () => {
     });
     ok('the CSV downloads', true, file.suggestedFilename());
     ok('...and row 1 carries the provenance a workbook leaves the page without', /not the same measurement as net purchases/i.test(text) && /NSDL/.test(text));
-    ok('...and every template row is in it', ['G Sec', 'SDLs', 'Corp Bonds', 'Equity', 'Debt + Equity'].every((r) => text.includes(r)));
+    ok('...and every template row is in it', ['G Sec', 'SDLs', 'Corp Bonds', 'Total Debt', 'Equity', 'Debt + Equity'].every((r) => text.includes(r)));
+    ok('...and each row says what its figures are', /change in outstanding investment \(derived\)/.test(text) && /the three debt lines added/.test(text) && /net investment \(NSDL, published\)/.test(text));
     ok('...and a window it cannot measure is blank, never a zero', !/,0,0,0,0,0,0,0,0,0,0/.test(text));
   }
 

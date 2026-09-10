@@ -339,7 +339,10 @@ function fpiTableHtml(t) {
   const groups = FPI_GROUPS.map((g) => ({ ...g, cols: t.columns.filter((c) => c.group === g.key) })).filter((g) => g.cols.length);
   const cellFor = (row, i) => {
     const c = row.cells[i];
-    const tone = row.total ? 'font-bold ' : '';
+    // Two totals on one table, and they must not read as the same thing: the headline is bold on
+    // a filled row, the subtotal is semibold above a rule. Same weight for both would leave the
+    // reader adding the debt lines up themselves to see which was which.
+    const tone = row.total ? 'font-bold ' : row.subtotal ? 'font-semibold ' : '';
     const value = fpi.fmtCrore(c.value);
     return `<td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${tone}${c.value == null ? 'text-slate-300' : fpi.toneOf(c.value)}" title="${escapeHtml(c.note || '')}">${escapeHtml(value)}</td>`;
   };
@@ -369,9 +372,9 @@ function fpiTableHtml(t) {
           ${t.rows
             .map(
               (r) => `
-            <tr class="border-b border-slate-100 last:border-0 ${r.total ? 'bg-slate-50/70' : ''}">
+            <tr class="border-b border-slate-100 last:border-0 ${r.total ? 'bg-slate-50/70' : ''} ${r.subtotal ? 'border-t border-slate-200' : ''}">
               <th scope="row" class="sticky left-0 z-10 ${r.total ? 'bg-slate-50' : 'bg-white'} px-3 py-2 text-left align-top">
-                <span class="block whitespace-nowrap text-sm ${r.total ? 'font-bold' : 'font-semibold'} text-slate-900">${escapeHtml(r.label)}</span>
+                <span class="block whitespace-nowrap text-sm ${r.total || r.subtotal ? 'font-bold' : 'font-semibold'} text-slate-900">${escapeHtml(r.label)}</span>
                 <span class="block text-[11px] font-normal text-slate-400">${escapeHtml(r.sub || '')}</span>
               </th>
               ${r.cells.map((_, i) => cellFor(r, i)).join('')}
@@ -433,7 +436,7 @@ function exportFpiCsv(t) {
   const lines = [
     [`FPI activity — ${t.currency}. NSDL FPI Monitor, as on ${t.asOn}. Equity is NSDL's published net investment; the debt rows are the change in NSDL's published outstanding investment across each window, which is not the same measurement as net purchases. A blank cell is a window this capture cannot measure — not a zero.`],
     ['Instrument', 'Basis', ...t.columns.map((c) => `${c.label}${c.partial ? ' (period not closed)' : ''}`)],
-    ...fpiRows(t).map((r) => [r.label, r.basis === 'debt' ? 'change in outstanding investment (derived)' : r.basis === 'equity' ? 'net investment (NSDL, published)' : 'sum of the rows above', ...r.values]),
+    ...fpiRows(t).map((r) => [r.label, fpi.basisLabel(r.basis), ...r.values]),
   ];
   downloadText(lines.map((r) => r.map(esc).join(',')).join('\n'), `glow_fpi_activity_${t.asOn}_${todayStamp()}.csv`);
   return true;
@@ -453,7 +456,7 @@ async function exportFpiExcel(t) {
         name: 'FPI activity',
         columns: [
           { header: 'Instrument', key: 'label', width: 18, get: (r) => r.label },
-          { header: 'Basis', key: 'basis', width: 38, get: (r) => (r.basis === 'debt' ? 'change in outstanding investment (derived)' : r.basis === 'equity' ? 'net investment (NSDL, published)' : 'sum of the rows above') },
+          { header: 'Basis', key: 'basis', width: 38, get: (r) => fpi.basisLabel(r.basis) },
           ...t.columns.map((c, i) => ({ header: `${c.label}${c.partial ? ' *' : ''}`, key: `c${i}`, width: 14, get: (r) => r.values[i] })),
         ],
         rows: fpiRows(t),

@@ -4717,6 +4717,24 @@ figures are captured beside each level and are in the exported workbook.
 **Equity has no outstanding figure** because these reports publish none. That cell is an em dash
 saying so — not a zero, and not a figure borrowed from another report.
 
+### The rows, and the two totals
+
+`G Sec`, `SDLs`, `Corp Bonds`, **`Total Debt`**, `Equity`, **`Debt + Equity`** — the reference
+template's order. Two totals sit on one table and they are not the same claim:
+
+- **`Total Debt`** is the three debt lines added, and it is the one total here that **does** carry
+  an *Outstanding Investment* figure, because every part of it is a published level. Its holding is
+  a sum of three figures NSDL printed.
+- **`Debt + Equity`** is the three debt lines **plus equity** — deliberately not *Total Debt plus
+  equity computed from the rows above it*. `addUp` in `js/data/fpi-activity.js` takes its source
+  rows as an argument for exactly that reason: a total built from "every row so far" would add the
+  three debt lines and then add their own subtotal again, **doubling the debt half of the headline**
+  with nothing thrown, no count wrong and no cell looking out of place. Its outstanding cell is an
+  em dash, because equity has no holding to add.
+
+`verify-fpi-activity.mjs` asserts both identities on every column, including that the headline is
+*not* the doubled figure.
+
 ### Shape
 
 ```jsonc
@@ -4797,7 +4815,7 @@ the oldest anchors — which the view names rather than guessing at.
   actually needs, and the FPI view carries its own description because "computed from a stored
   daily series" is not true of it.
 - The table is **hand-rolled rather than built from `scoreTable`**, on the same test as the news
-  list: five instrument lines against eleven fixed windows is not a record with columns. Everything
+  list: six instrument and total lines against eleven fixed windows is not a record with columns. Everything
   the kit was protecting is kept by hand — every string escaped, the table scrolling inside its own
   container, `scope` on every `<th>`, and a null rendering as an em dash that says why.
 - Scope does not apply. These are market-wide figures and no row carries a watchlist star.

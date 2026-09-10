@@ -101,6 +101,19 @@ export function fmtCrore(v) {
 
 export const toneOf = (v) => (v == null || !Number.isFinite(v) || v === 0 ? 'text-slate-500' : v < 0 ? 'text-rose-700' : 'text-slate-900');
 
+/**
+ * What a row's figures ARE, in one phrase — for the CSV's own column and the workbook's. Both
+ * exports read it from here rather than each spelling it out, because a workbook leaves the page
+ * without its chrome and the two must not be able to describe the same row differently.
+ */
+export const basisLabel = (basis) =>
+  ({
+    debt: 'change in outstanding investment (derived)',
+    debtTotal: 'the three debt lines added (derived)',
+    equity: 'net investment (NSDL, published)',
+    total: 'the debt lines and equity added',
+  })[basis] || basis || '';
+
 const shortDate = (iso) => (iso ? `${iso.slice(8)}-${MONTH_ABBR[Number(iso.slice(5, 7)) - 1]}-${iso.slice(2, 4)}` : '—');
 const shortMonth = (period) => `${MONTH_ABBR[Number(period.slice(5, 7)) - 1]}-${period.slice(2, 4)}`;
 
@@ -238,33 +251,71 @@ export function activityTable(payload = capture, options = {}) {
     return cell(from.equity, `NSDL's published net investment in equity for this window, from ${where}${col.partial ? ' — the period has not closed' : ''}.`);
   };
 
-  const rows = DEBT_ROWS.map((r) => ({
+  const debtRows = DEBT_ROWS.map((r) => ({
     ...r,
     basis: 'debt',
     cells: columns.map((c) => debtCell(c, r.key)),
   }));
-  rows.push({ id: 'equity', label: 'Equity', sub: 'Net investment (NSDL)', basis: 'equity', cells: columns.map(equityCell) });
+  const equityRow = { id: 'equity', label: 'Equity', sub: 'Net investment (NSDL)', basis: 'equity', cells: columns.map(equityCell) };
 
-  // ---- the total: null wherever any part of it is -----------------------------------------------
-  rows.push({
+  /**
+   * Add named rows for one column. **THE SOURCE ROWS ARE PASSED IN, NEVER TAKEN AS "EVERY ROW SO
+   * FAR"** — with a subtotal on the table, a total built from whatever precedes it would add the
+   * three debt lines and then add their own subtotal again, doubling the debt half of the headline.
+   * Nothing would throw and every figure would look plausible, which is this codebase's whole
+   * catalogue of quiet arithmetic failures in one line.
+   */
+  const addUp = (source, i, note, whenMissing) => {
+    const parts = source.map((r) => r.cells[i].value);
+    if (parts.some((v) => v == null)) return cell(null, whenMissing);
+    return cell(parts.reduce((n, v) => n + v, 0), note);
+  };
+
+  // ---- Total Debt — the one total here that DOES carry an outstanding figure ---------------------
+  //
+  // Every part of it is a published level, so summing them across the outstanding column is a sum
+  // of three figures NSDL printed. That is why this row's holding is a number where the headline's
+  // is an em dash: the difference is not the arithmetic, it is that equity has no level to add.
+  const totalDebtRow = {
+    id: 'totalDebt',
+    label: 'Total Debt',
+    sub: 'The three lines above, added',
+    basis: 'debtTotal',
+    subtotal: true,
+    cells: columns.map((c, i) =>
+      addUp(
+        debtRows,
+        i,
+        c.group === 'outstanding'
+          ? "NSDL's published outstanding investment in the three instruments above, added. It is the general investment route only — the long-term investor category, the coupon re-investment limit, VRR and FAR are separate limits and are not in it."
+          : 'The three debt lines added. Each is a change in outstanding investment across this window, which a maturity or redemption also moves, so this is not the same measurement as net purchases.',
+        'One of the three debt lines has no figure for this window, so there is no total. A sum over part of them would look like a complete one.',
+      ),
+    ),
+  };
+
+  // ---- the headline: null wherever any part of it is --------------------------------------------
+  const grandTotalRow = {
     id: 'total',
     label: 'Debt + Equity',
-    sub: 'The rows above, added',
+    sub: 'Total Debt and Equity, added',
     // The template's headline line. It is the only row on the page that mixes a derived debt
     // figure with a published equity one, which is why its own note says so rather than letting
     // the reader assume both halves were measured the same way.
     basis: 'total',
     total: true,
     cells: columns.map((c, i) => {
-      if (c.group === 'outstanding') return cell(null, 'Equity has no outstanding figure on these reports, so the debt lines cannot be totalled with it.');
-      const parts = rows.map((r) => r.cells[i].value);
-      if (parts.some((v) => v == null)) return cell(null, 'One of the rows above has no figure for this window, so there is no total. A sum over part of the table would look like a complete one.');
-      return cell(
-        parts.reduce((n, v) => n + v, 0),
-        'The debt rows and the equity row added. The debt half is a change in outstanding investment and the equity half is a published net investment; they are added here as the reference template does, and they are not the same measurement.',
+      if (c.group === 'outstanding') return cell(null, 'Equity has no outstanding figure on these reports, so it cannot be added to the debt holding above. The debt half alone is on the Total Debt row.');
+      return addUp(
+        [...debtRows, equityRow],
+        i,
+        'The three debt lines and the equity line added. The debt half is a change in outstanding investment and the equity half is a published net investment; they are added here as the reference template does, and they are not the same measurement.',
+        'One of the rows above has no figure for this window, so there is no total. A sum over part of the table would look like a complete one.',
       );
     }),
-  });
+  };
+
+  const rows = [...debtRows, totalDebtRow, equityRow, grandTotalRow];
 
   return {
     columns,

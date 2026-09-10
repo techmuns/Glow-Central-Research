@@ -168,7 +168,29 @@ function captureChecks() {
   const t = activityTable(p);
   ok('the table builds', !!t);
   if (!t) return;
-  eq('five instrument rows, in the template order', t.rows.map((r) => r.id).join(','), 'gsec,sdl,corpBond,equity,total');
+  eq('six rows, in the template order', t.rows.map((r) => r.id).join(','), 'gsec,sdl,corpBond,totalDebt,equity,total');
+
+  // TWO TOTALS ON ONE TABLE, so the arithmetic is asserted rather than assumed. Total Debt is the
+  // three lines above it; the headline is those three plus equity and must NOT also add the
+  // subtotal, which would double the debt half of every figure on it without throwing, without a
+  // wrong count, and without a cell that looks out of place.
+  const pick = (id) => t.rows.find((r) => r.id === id);
+  for (let i = 0; i < t.columns.length; i += 1) {
+    const col = t.columns[i];
+    const debt = ['gsec', 'sdl', 'corpBond'].map((id) => pick(id).cells[i].value);
+    const sub = pick('totalDebt').cells[i].value;
+    const head = pick('total').cells[i].value;
+    const eqv = pick('equity').cells[i].value;
+    const near = (a, b) => a != null && b != null && Math.abs(a - b) < 0.5;
+    ok(`${col.label}: Total Debt is the three debt lines added`, near(sub, debt.reduce((n, v) => n + (v ?? NaN), 0)), `${sub} vs ${debt.join(' + ')}`);
+    if (col.group === 'outstanding') {
+      ok(`${col.label}: the headline has no figure, because equity has no holding`, head === null);
+    } else {
+      ok(`${col.label}: the headline is Total Debt plus Equity`, near(head, sub + eqv), `${head} vs ${sub} + ${eqv}`);
+      ok(`${col.label}: and it does not also add the subtotal in`, !near(head, sub + sub + eqv) || sub === 0, `${head} vs the doubled ${sub + sub + eqv}`);
+    }
+  }
+  ok('Total Debt carries an outstanding holding where equity cannot', pick('totalDebt').cells.at(-1).value != null && pick('equity').cells.at(-1).value === null);
   ok('three reporting-day columns', t.columns.filter((c) => c.group === 'daily').length === 3);
   ok('three month columns', t.columns.filter((c) => c.group === 'month').length === 3);
   ok('two financial-year columns', t.columns.filter((c) => c.group === 'fy').length === 2);
