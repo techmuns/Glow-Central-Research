@@ -1043,12 +1043,16 @@
     "isin:INE0CAZ01013|Urban Company": {
       "lastAttemptAt": "2026-09-10T18:25:02+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0CAZ01013|URBANCO": {
+      "lastAttemptAt": "2026-09-10T18:38:39+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T18:25:02.857315+00:00"
+    "checkedAt": "2026-09-10T18:38:39.461816+00:00"
   }
 }
