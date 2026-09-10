@@ -14,6 +14,17 @@ health. `/api/telegram/posts` reads these artifacts with the existing Worker
 SHA-256, download host and public-data schema. No Telegram credentials reach the Worker
 or browser. One-minute edge caching and ETags bound repeated reads.
 
+The `researchreportss-delivery-v1` object in the existing `TELEGRAM_SCHEDULER` binding
+coordinates artifact reads for this channel. It decompresses, validates, strips non-public
+fields and prepares a response inside the Durable Object's CPU allowance, then transfers
+the response stream through RPC. The public Worker handles headers and edge caching without
+decoding or hashing the archive. This fixes the observed resource-limit failure that left
+Glow readers on the September 4 static fallback despite newer successful captures.
+Concurrent readers share one bounded read; a disposable in-memory response lasts at most
+one minute. Failed reads cannot turn expired responses into fresh success. Restarting the
+object recovers from the immutable artifact. This delivery object never arms the collection
+timer, reads Telegram directly, or changes the capture/archive publication policy.
+
 The browser restores validated saved captures before reading the static
 `public/data/telegram-posts.json`. Public Chatter polls the artifact once a minute while
 mounted and visible, retaining newer data if an older static file or failed response

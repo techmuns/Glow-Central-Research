@@ -125,6 +125,8 @@ jobs:
         run: npx --yes wrangler@4 deploy --dry-run
       - name: Verify exchange delivery in the Workers runtime
         run: npx --yes --package=wrangler@4.119.0 --call 'node scripts/verify-exchange-worker-runtime.mjs'
+      - name: Verify large Telegram delivery through the existing Durable Object
+        run: npx --yes --package=wrangler@4.119.0 --call 'node scripts/verify-telegram-delivery-runtime.mjs'
       - name: Verify durable company registry in the local Worker runtime
         run: node scripts/verify-capture-registry-runtime.mjs && node scripts/verify-telegram-scheduler-runtime.mjs
       - name: Verify private summary persistence in the local Worker runtime

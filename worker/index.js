@@ -30,7 +30,7 @@
 // waste in the system. So each response carries a content-derived ETag, and a request that
 // arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
-import { readTelegramCollector } from './telegram-collector.mjs';
+import { TELEGRAM_DELIVERY_NAME } from './telegram-delivery.mjs';
 import { TELEGRAM_SCHEDULER_NAME, TELEGRAM_PRODUCTION_HOST } from './telegram-scheduler.mjs';
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
@@ -2136,14 +2136,15 @@ function edgeKey(path) {
 // Fresh immutable captures do not wait for an archive PR or a static-site rebuild.
 async function handleTelegramPosts(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method' }, 405);
-  const key = edgeKey('telegram/posts-v1');
+  const key = edgeKey('telegram/posts-v2');
   const hit = await caches.default.match(key);
   if (hit) return revalidate(request, hit, 'hit');
   try {
-    const result = await readTelegramCollector({ token: env.GH_DISPATCH_TOKEN,
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(20000)]) });
-    const body = JSON.stringify({ ...result.capture, delivery: result.source });
-    const response = tagged(body, contentTag(body), 60);
+    if (!env.TELEGRAM_SCHEDULER) throw Error('Telegram delivery binding unavailable');
+    const response = await env.TELEGRAM_SCHEDULER.getByName(TELEGRAM_DELIVERY_NAME).telegramPosts();
+    // RPC transfers the prepared response stream. Never parse, re-encode or hash this archive
+    // in the public Worker: a valid growing capture exceeded its resource limit in production.
+    if (!response.ok) return response;
     ctx.waitUntil(caches.default.put(key, response.clone()));
     return revalidate(request, response, 'live');
   } catch {
