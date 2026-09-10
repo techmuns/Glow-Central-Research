@@ -16,7 +16,7 @@
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-09-10-glow-public-holdings-v2`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-10-glow-alert-filters-v1`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -141,8 +141,14 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+function shellNavigation(request, url) {
+  return request.mode === 'navigate' && ['/', '/index.html'].includes(url.pathname);
+}
+
 function cacheKey(request, url) {
-  if (request.mode === 'navigate') return new Request(new URL('/index.html', self.location.origin));
+  // Hash routes share the shell. Independent documents (especially the hidden
+  // portfolio reader) must never read or overwrite the dashboard's HTML cache.
+  if (shellNavigation(request, url)) return new Request(new URL('/index.html', self.location.origin));
   return request;
 }
 
@@ -197,6 +203,6 @@ self.addEventListener('fetch', (event) => {
       return held;
     }
     return (await fetchAndCache(cache, request, key)) ||
-      (request.mode === 'navigate' ? cache.match('/index.html') : Response.error());
+      (shellNavigation(request, url) ? cache.match('/index.html') : Response.error());
   })());
 });

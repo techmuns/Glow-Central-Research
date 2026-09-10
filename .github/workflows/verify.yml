@@ -196,7 +196,7 @@ jobs:
       - name: Verify stable alert refresh, portfolio failures and navigation
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-alert-capacity-ui.mjs
+        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-ai-alert-cache-ui.mjs
       - name: Verify explicit refresh through the service worker
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
