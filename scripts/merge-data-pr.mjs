@@ -19,7 +19,13 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
   if ([...latest.values()].some(c => c.status !== 'completed' || !['success', 'neutral', 'skipped'].includes(c.conclusion))) return 'checks';
   const completed = comments.some(c => reviewer(c.user?.login) && c.body.includes('codex-pull-request-review-summary') &&
     c.body.includes('Completed') && c.body.includes(`\`${pr.headRefOid.slice(0, 7)}\``));
-  if (!completed) return 'review-pending-or-unavailable';
+  // "Has not answered yet" and "cannot answer here" are different states, and only the second is a
+  // stop: the reviewer app itself says so when it is not connected to this repository, and every
+  // capture then opens a PR that nothing will ever merge. Neither state merges — the gate is
+  // unchanged — but the run must be able to say which one it is, or the whole dashboard's data
+  // quietly stops advancing with nothing on the repository saying why.
+  if (!completed) return comments.some(c => reviewer(c.user?.login) && /to use codex here/i.test(c.body))
+    ? 'review-unavailable' : 'review-pending-or-unavailable';
   if (inline.length || reviews.some(r => ['CHANGES_REQUESTED', 'COMMENTED'].includes(r.state))) return 'review-feedback';
   const informational = c => reviewer(c.user?.login) && (c.body.includes('codex-pull-request-review-summary') || c.body.startsWith('You have reached your Codex usage limits')) ||
     /^cloudflare-workers-and-pages(?:\[bot\])?$/.test(c.user?.login || '') && c.body.startsWith('## Deploying with') ||
@@ -55,5 +61,11 @@ export function mergeDataPr(event) {
   if (decision === 'ready') gh('pr', 'merge', String(number), '--repo', DATA_REPOSITORY, '--merge', '--match-head-commit', pr.headRefOid);
   return decision;
 }
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url)
-  console.log(mergeDataPr(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))));
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  const decision = mergeDataPr(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')));
+  console.log(decision);
+  // Only the state that will never resolve on its own is annotated; a PR still waiting for CI or
+  // for the reviewer is ordinary and stays quiet.
+  if (decision === 'review-unavailable') console.log('::warning::The generated-data review gate cannot be satisfied: the Codex reviewer is not connected to this repository, ' +
+    'so captured data stays in its review branch and the published dashboard stops advancing. Connect the reviewer, or review and merge these data PRs another way.');
+}

@@ -19,6 +19,9 @@ for (const [change, reason] of [
   [{ checks: [check('contracts')] }, 'verification'],
   [{ checks: [...input.checks, { ...check('deploy'), conclusion: 'failure' }] }, 'checks'],
   [{ comments: [{ user: bot, body: 'You have reached your Codex usage limits for code reviews.' }] }, 'review-pending-or-unavailable'],
+  // A reviewer that cannot answer here is not a reviewer that has not answered yet. Neither merges;
+  // only the first will still be true tomorrow, so the run has to be able to name it.
+  [{ comments: [{ user: bot, body: 'To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).' }] }, 'review-unavailable'],
   [{ comments: [{ user: bot, body: '<!-- codex-pull-request-review-summary --> Completed `bbbbbbb`' }] }, 'review-pending-or-unavailable'],
   [{ comments: [...input.comments, { user: bot, body: 'P1: dropped records need restoration' }] }, 'review-feedback'],
   [{ inline: [{ body: 'wrong issuer' }] }, 'review-feedback'],

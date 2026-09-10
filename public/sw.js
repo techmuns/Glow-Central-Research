@@ -27,7 +27,7 @@ const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 // Keep reader/content revisions separate from the shared marker: concurrent dashboard
 // releases can advance it without conflicting with these fixes. Every install,
 // read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v1-telegram-content-v1`;
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v2-telegram-content-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();

@@ -3802,6 +3802,21 @@ The investor, manager-archive and insider-trades refreshes publish through check
 with `scripts/publish-data-pr.mjs`. Missing secrets, failed captures and overdue ingestion must
 surface as failed runs, even when last-good data and failure metadata can still be published.
 
+**A CAPTURE THAT PUBLISHES INTO A PR NOBODY CAN MERGE IS A CAPTURE THAT NEVER HAPPENED, AND EVERY
+RUN STILL REPORTS SUCCESS.** Measured on 10 September 2026: the collectors ran all day, each one
+opening its `codex/data-*` PR and exiting `published: false, outcome: review-pending`, while `main`
+— which is what Cloudflare deploys — still carried the 9 September capture. News opens on Today, so
+the tab was empty; every other feed was a day behind with nothing on screen or in the run log saying
+why. `merge-data-pr.mjs` is the only thing that merges those PRs, and it needs BOTH the `browser`
+check green (one flaky assertion is enough to stop every feed at once) AND a completed review from
+the Codex connector. **Neither gate may be removed to unblock data** — a generated-data PR is
+reviewed like any other change — but both have to be REACHABLE, and the run has to say when one is
+not: `review-unavailable` is the reviewer app's own answer that it is not connected to this
+repository, and it is annotated as a warning because it will still be true tomorrow, unlike
+`review-pending-or-unavailable`. **Check that captured data reached `main` before believing a green
+capture run**, exactly as the market-news rule says to check that a committed capture reaches the
+live site.
+
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
 an absence; never convert it into a purchase, exit, or negative General Alert. Off-cycle monthly

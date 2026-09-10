@@ -201,6 +201,13 @@ let readTail = Promise.resolve();
 let reading = false;
 export const portfolioReadBusy = () => reading;
 let pendingSizes = null;
+// WHEN THE PENDING READ WAS ASKED FOR, not when it settles. `pauseFamilySession()` stops the NEXT
+// background recheck but cannot make one already in flight this question's own, and a forced read
+// that adopts a check begun before it was asked for answers from a book verified for somebody
+// else's earlier check — the staleness `force` exists to refuse. So a forced read may only join a
+// pending one requested at or after its own moment: simultaneous callers still share one read, and
+// a question arriving mid-refresh gets its own, queued behind it.
+let pendingSizesAskedAt = 0;
 const cancelled = () => new DOMException('Cancelled', 'AbortError');
 function forConsumer(operation, signal) {
   if (!signal) return operation;
@@ -270,6 +277,7 @@ export async function readResearchPortfolio(question, signal, history = []) {
 }
 export function readPositionSizes(signal, { force = false } = {}) {
   if (signal?.aborted) return Promise.reject(cancelled());
+  const askedAt = Date.now();
   const cached = force ? null : cachedPositionSizes();
   if (cached) {
     // A visibility transition may have marked the current Family book as
@@ -278,6 +286,12 @@ export function readPositionSizes(signal, { force = false } = {}) {
     useFamilyBook(cached.holdings, cached.sizes.bookAsOf, cached.sizes.checkedAt);
     return Promise.resolve(cached);
   }
-  if (!pendingSizes) pendingSizes = enqueueRead(readPositionSizesNow).finally(() => { pendingSizes = null; });
-  return forConsumer(pendingSizes, signal);
+  if (pendingSizes && (!force || pendingSizesAskedAt >= askedAt)) return forConsumer(pendingSizes, signal);
+  // `enqueueRead` serialises behind whatever is running, so a second read is never posted into a
+  // frame that answers one at a time.
+  const read = enqueueRead(readPositionSizesNow);
+  pendingSizes = read;
+  pendingSizesAskedAt = askedAt;
+  read.catch(() => {}).finally(() => { if (pendingSizes === read) pendingSizes = null; });
+  return forConsumer(read, signal);
 }
