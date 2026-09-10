@@ -80,6 +80,7 @@ const main = async () => {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   let dropped = 0;
+  let cancelled = 0;
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     // Network failures are judged from the request events below, which name the URL.
@@ -88,8 +89,19 @@ const main = async () => {
   });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('requestfailed', (r) => {
-    if (isEnvironmentUrl(r.url())) dropped += 1;
-    else errors.push(`request failed: ${r.url()} (${r.failure()?.errorText})`);
+    const why = r.failure()?.errorText || '';
+    // A CANCELLED REQUEST IS NOT A FAILED ONE. `net::ERR_ABORTED` is what the browser reports when
+    // a request is torn down rather than answered — which is exactly what this test does to the
+    // bootstrap loads by reloading the page and then closing the browser while the deferred ones
+    // are still in flight. Measured: it fired on roughly one run in three, on
+    // `data/portfolio-companies.json` and `data/book.json`, and never on anything this view reads.
+    // Nothing this check exists to catch is lost by excluding it: a genuinely missing file answers
+    // HTTP 404, which the response handler below sees, and an unreachable server reports
+    // ERR_CONNECTION_REFUSED, which is not an abort. They are counted so a run cannot hide behind
+    // the exclusion.
+    if (/ERR_ABORTED/i.test(why)) cancelled += 1;
+    else if (isEnvironmentUrl(r.url())) dropped += 1;
+    else errors.push(`request failed: ${r.url()} (${why})`);
   });
   page.on('response', (r) => {
     if (r.status() < 400) return;
@@ -184,6 +196,9 @@ const main = async () => {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-fpi-scroll] table', { timeout: 30000 });
   ok('a reload restores the FPI view from the URL', (await page.evaluate(() => location.hash)).includes('/fpi'));
+  // Let the shell's bootstrap and deferred loads settle before the rest of the run tears the page
+  // down around them, so the cancellations above stay rare rather than being manufactured here.
+  await page.waitForLoadState('networkidle').catch(() => {});
 
   // ---- layout ------------------------------------------------------------------------------------
   for (const [w, h] of [[1440, 900], [1024, 800], [390, 844]]) {
@@ -209,7 +224,7 @@ const main = async () => {
   ok('dark mode repaints the sticky row header rather than leaving it white', dark.theme === 'dark' && dark.bgLuma < 90 && dark.fgLuma > 160, JSON.stringify(dark));
 
   ok('zero console errors and no failed request for a file of our own', errors.length === 0, errors.slice(0, 4).join(' | '));
-  console.log(`\n(${dropped} environment failure(s) filtered by URL: no CDN and no Worker in this sandbox.)`);
+  console.log(`\n(${dropped} environment failure(s) filtered by URL: no CDN and no Worker in this sandbox; ${cancelled} request(s) cancelled by this test's own teardown.)`);
   await browser.close();
   if (server) await new Promise((done) => server.close(done));
   console.log(failed ? `\n${failed} check(s) failed.` : '\nAll FPI Activity UI checks passed.');
