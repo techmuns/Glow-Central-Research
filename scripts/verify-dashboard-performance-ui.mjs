@@ -49,6 +49,7 @@ try {
   await page.goto(origin);
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor();
   await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await page.evaluate(async () => {
     await fetch('/api/private-fixture');
     await fetch('/data/authorized-fixture.json', { headers: { authorization: 'Bearer test-only' } });
