@@ -7,6 +7,12 @@ import { resolve, extname, sep } from 'node:path';
 
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
+// The revision markers live in sw.js and AGENTS.md requires advancing one with every public/js
+// change, so read them from there rather than repeating them here. A hand-typed copy turns an
+// ordinary release bump into a failing check that says nothing about caching — which is what it
+// did, and on this repository a red `browser` job stops every capture from publishing.
+const markers = readFileSync(resolve(root, 'sw.js'), 'utf8').match(/const CACHE_KEY = `\$\{CACHE_NAME\}([^`]*)`;/)?.[1];
+assert(markers, 'sw.js must build CACHE_KEY from CACHE_NAME plus its revision markers');
 let nextRelease = false, moduleRequested = false, releaseModule, markModuleRequested;
 const heldModule = new Promise(done => { releaseModule = done; });
 const requestedModule = new Promise(done => { markModuleRequested = done; });
@@ -66,7 +72,7 @@ try {
   await page.waitForFunction(() => window.controllerChanges === 1 && navigator.serviceWorker.controller.state === 'activated');
   assert(moduleRequested, 'the new release re-reads the Telegram module');
   const after = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
-  assert.deepEqual(after, ['sattva-dashboard-fixture-next-release-glow-alert-filters-v1-glow-portfolio-reader-v1-telegram-content-v1'], 'a later shared marker upgrades and evicts the previous combined cache');
+  assert.deepEqual(after, [`sattva-dashboard-fixture-next-release${markers}`], 'a later shared marker upgrades and evicts the previous combined cache');
   console.log('PASS Telegram cache revision, legacy eviction, atomic module warm-up and subsequent shared release upgrade.');
 } finally {
   releaseModule();
