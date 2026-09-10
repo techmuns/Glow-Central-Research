@@ -142,7 +142,11 @@ self.addEventListener('activate', (event) => {
 });
 
 function cacheKey(request, url) {
-  if (request.mode === 'navigate') return new Request(new URL('/index.html', self.location.origin));
+  // Only the dashboard's two entry URLs share its HTML cache. An iframe navigation
+  // to the portfolio reader must never replace that entry with the bridge document.
+  if (request.mode === 'navigate' && (url.pathname === '/' || url.pathname === '/index.html')) {
+    return new Request(new URL('/index.html', self.location.origin));
+  }
   return request;
 }
 
