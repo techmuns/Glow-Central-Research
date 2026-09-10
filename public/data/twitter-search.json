@@ -1031,12 +1031,16 @@
     "isin:INE615H01020|TITAGARH": {
       "lastAttemptAt": "2026-09-10T16:39:59+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0OC301013|Turtlemint Fintech Solutions": {
+      "lastAttemptAt": "2026-09-10T17:13:41+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T16:39:59.298252+00:00"
+    "checkedAt": "2026-09-10T17:13:41.945469+00:00"
   }
 }
