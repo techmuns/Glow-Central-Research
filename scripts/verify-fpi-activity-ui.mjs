@@ -10,8 +10,11 @@
 // invisible from the data side.
 
 import { createRequire } from 'node:module';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { extname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const BASE = process.argv[2] || 'http://127.0.0.1:8080';
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const require = createRequire(import.meta.url);
 let chromium;
@@ -20,6 +23,38 @@ try {
 } catch {
   console.error(`Playwright not found at ${PW_ROOT}. Set PLAYWRIGHT_ROOT, e.g. PLAYWRIGHT_ROOT=$(npm root -g)/playwright`);
   process.exit(1);
+}
+
+// Serves `public/` itself on an ephemeral port when no base URL is given, so this runs in CI's
+// browser job with no separate server step — the same arrangement as `verify-theme-ui.mjs`. Pass
+// a URL to drive an already-running origin (`npx wrangler dev`, say) instead.
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
+const root = fileURLToPath(new URL('../public', import.meta.url));
+let server = null;
+let BASE = process.argv[2];
+if (!BASE) {
+  server = createServer((req, res) => {
+    const path = new URL(req.url, 'http://localhost').pathname;
+    res.setHeader('cache-control', 'no-store');
+    // No Worker here, and that is the point: the view must paint from the committed capture alone.
+    if (path.startsWith('/api/')) {
+      res.writeHead(503, { 'content-type': 'application/json' }).end('{"ok":false,"error":"No Worker in this test"}');
+      return;
+    }
+    const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
+    if (!file.startsWith(root + sep)) {
+      res.writeHead(404).end();
+      return;
+    }
+    try {
+      res.setHeader('content-type', MIME[extname(file)] || 'text/plain');
+      res.end(readFileSync(file));
+    } catch {
+      res.writeHead(404).end();
+    }
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  BASE = `http://127.0.0.1:${server.address().port}`;
 }
 
 let failed = 0;
@@ -176,6 +211,7 @@ const main = async () => {
   ok('zero console errors and no failed request for a file of our own', errors.length === 0, errors.slice(0, 4).join(' | '));
   console.log(`\n(${dropped} environment failure(s) filtered by URL: no CDN and no Worker in this sandbox.)`);
   await browser.close();
+  if (server) await new Promise((done) => server.close(done));
   console.log(failed ? `\n${failed} check(s) failed.` : '\nAll FPI Activity UI checks passed.');
   process.exit(failed ? 1 : 0);
 };

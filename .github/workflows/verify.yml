@@ -119,6 +119,8 @@ jobs:
         run: node scripts/verify-public-holdings.mjs
       - name: Verify direct exchange capture and delivery
         run: node scripts/verify-exchange-deals.mjs
+      - name: Verify FPI activity derivation against a published circular
+        run: node scripts/verify-fpi-activity.mjs
       - name: Syntax-check JavaScript
         run: find public/js worker scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check && node --check public/sw.js
       - name: Validate the Worker bundle
@@ -149,6 +151,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-theme-ui.mjs
+      - name: Verify the FPI Activity view, its refusals and its exports
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-fpi-activity-ui.mjs
       - name: Verify the real Glow statement bridge and retained family-office tabs
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
