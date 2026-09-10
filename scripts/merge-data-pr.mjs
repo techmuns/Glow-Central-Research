@@ -5,6 +5,9 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DATA_REPOSITORY, dataPath } from './data-pr.mjs';
 const reviewer = login => /^chatgpt-codex-connector(?:\[bot\])?$/.test(login || '');
+// Anyone GitHub already lets merge this by hand. The gate must not be stricter than that, and it
+// must not be looser: the PR's own author cannot stand in for its reviewer.
+const writer = association => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(association);
 export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, comments }) {
   if (pr.state !== 'OPEN' || pr.isCrossRepository || pr.baseRefName !== 'main' ||
       pr.headRepository?.nameWithOwner !== DATA_REPOSITORY ||
@@ -19,15 +22,25 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
   if ([...latest.values()].some(c => c.status !== 'completed' || !['success', 'neutral', 'skipped'].includes(c.conclusion))) return 'checks';
   const completed = comments.some(c => reviewer(c.user?.login) && c.body.includes('codex-pull-request-review-summary') &&
     c.body.includes('Completed') && c.body.includes(`\`${pr.headRefOid.slice(0, 7)}\``));
+  // A PERSON'S OWN APPROVAL IS A REVIEW. The Codex connector is the reviewer this repository asks
+  // for first, and where it cannot answer — it says so itself, in those words — a review from
+  // somebody who could merge this by hand is the same evidence a human reviewer has always been.
+  // It is bound to THIS head commit, exactly as the Codex summary is: an approval of an earlier
+  // capture is not an approval of this one, and these branches are one capture each.
+  const approved = reviews.some(r => r.state === 'APPROVED' && r.commit_id === pr.headRefOid &&
+    writer(r.author_association) && r.user?.login !== pr.author?.login);
   // "Has not answered yet" and "cannot answer here" are different states, and only the second is a
   // stop: the reviewer app itself says so when it is not connected to this repository, and every
-  // capture then opens a PR that nothing will ever merge. Neither state merges — the gate is
-  // unchanged — but the run must be able to say which one it is, or the whole dashboard's data
-  // quietly stops advancing with nothing on the repository saying why.
-  if (!completed) return comments.some(c => reviewer(c.user?.login) && /to use codex here/i.test(c.body))
+  // capture then opens a PR that nothing will ever merge until somebody reviews it. Neither state
+  // merges, but the run must be able to say which one it is, or the whole dashboard's data quietly
+  // stops advancing with nothing on the repository saying why.
+  if (!completed && !approved) return comments.some(c => reviewer(c.user?.login) && /to use codex here/i.test(c.body))
     ? 'review-unavailable' : 'review-pending-or-unavailable';
   if (inline.length || reviews.some(r => ['CHANGES_REQUESTED', 'COMMENTED'].includes(r.state))) return 'review-feedback';
-  const informational = c => reviewer(c.user?.login) && (c.body.includes('codex-pull-request-review-summary') || c.body.startsWith('You have reached your Codex usage limits')) ||
+  // An app saying it cannot review here is not review feedback to address; it is the reason a
+  // person's approval is standing in for it.
+  const informational = c => reviewer(c.user?.login) && (c.body.includes('codex-pull-request-review-summary') ||
+      c.body.startsWith('You have reached your Codex usage limits') || /to use codex here/i.test(c.body)) ||
     /^cloudflare-workers-and-pages(?:\[bot\])?$/.test(c.user?.login || '') && c.body.startsWith('## Deploying with') ||
     c.user?.login === pr.author?.login && c.body.startsWith('<!-- glow-data-review -->');
   if (comments.some(c => !informational(c))) return 'review-feedback';
@@ -66,6 +79,6 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
   console.log(decision);
   // Only the state that will never resolve on its own is annotated; a PR still waiting for CI or
   // for the reviewer is ordinary and stays quiet.
-  if (decision === 'review-unavailable') console.log('::warning::The generated-data review gate cannot be satisfied: the Codex reviewer is not connected to this repository, ' +
-    'so captured data stays in its review branch and the published dashboard stops advancing. Connect the reviewer, or review and merge these data PRs another way.');
+  if (decision === 'review-unavailable') console.log('::warning::The Codex reviewer is not connected to this repository, so this captured data waits for a review that will not arrive on its own. ' +
+    'Approve the pull request and it merges, or connect the reviewer. Until one of those happens the published dashboard stops advancing.');
 }

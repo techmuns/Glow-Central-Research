@@ -6,6 +6,8 @@ import { dataReviewDecision } from './merge-data-pr.mjs';
 import { dataBranch, dataPath, publishStagedData, DATA_REPOSITORY } from './data-pr.mjs';
 
 const sha = 'a'.repeat(40), bot = { login: 'chatgpt-codex-connector[bot]' };
+const notice = { user: bot, body: 'To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).' };
+const approval = { state: 'APPROVED', commit_id: sha, author_association: 'OWNER', user: { login: 'techmuns' } };
 const check = name => ({ name, status: 'completed', conclusion: 'success', started_at: '2026-09-09T00:00:00Z' });
 const input = { pr: { state: 'OPEN', isCrossRepository: false, baseRefName: 'main', headRepository: { nameWithOwner: DATA_REPOSITORY },
   headRefName: 'codex/data-123-1', changedFiles: 1, mergeable: 'MERGEABLE', isDraft: false, headRefOid: sha, author: { login: 'github-actions[bot]' } },
@@ -21,7 +23,14 @@ for (const [change, reason] of [
   [{ comments: [{ user: bot, body: 'You have reached your Codex usage limits for code reviews.' }] }, 'review-pending-or-unavailable'],
   // A reviewer that cannot answer here is not a reviewer that has not answered yet. Neither merges;
   // only the first will still be true tomorrow, so the run has to be able to name it.
-  [{ comments: [{ user: bot, body: 'To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).' }] }, 'review-unavailable'],
+  [{ comments: [notice] }, 'review-unavailable'],
+  // Where it cannot answer, a person who could merge this by hand reviewing it is the review — and
+  // of THIS capture only, by somebody who is not the branch's own author.
+  [{ comments: [notice], reviews: [approval] }, 'ready'],
+  [{ comments: [notice], reviews: [{ ...approval, commit_id: 'c'.repeat(40) }] }, 'review-unavailable'],
+  [{ comments: [notice], reviews: [{ ...approval, author_association: 'NONE' }] }, 'review-unavailable'],
+  [{ comments: [notice], reviews: [{ ...approval, user: { login: 'github-actions[bot]' } }] }, 'review-unavailable'],
+  [{ comments: [notice], reviews: [approval, { state: 'CHANGES_REQUESTED' }] }, 'review-feedback'],
   [{ comments: [{ user: bot, body: '<!-- codex-pull-request-review-summary --> Completed `bbbbbbb`' }] }, 'review-pending-or-unavailable'],
   [{ comments: [...input.comments, { user: bot, body: 'P1: dropped records need restoration' }] }, 'review-feedback'],
   [{ inline: [{ body: 'wrong issuer' }] }, 'review-feedback'],

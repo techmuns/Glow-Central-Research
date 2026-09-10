@@ -3808,14 +3808,17 @@ opening its `codex/data-*` PR and exiting `published: false, outcome: review-pen
 — which is what Cloudflare deploys — still carried the 9 September capture. News opens on Today, so
 the tab was empty; every other feed was a day behind with nothing on screen or in the run log saying
 why. `merge-data-pr.mjs` is the only thing that merges those PRs, and it needs BOTH the `browser`
-check green (one flaky assertion is enough to stop every feed at once) AND a completed review from
-the Codex connector. **Neither gate may be removed to unblock data** — a generated-data PR is
-reviewed like any other change — but both have to be REACHABLE, and the run has to say when one is
-not: `review-unavailable` is the reviewer app's own answer that it is not connected to this
-repository, and it is annotated as a warning because it will still be true tomorrow, unlike
-`review-pending-or-unavailable`. **Check that captured data reached `main` before believing a green
-capture run**, exactly as the market-news rule says to check that a committed capture reaches the
-live site.
+check green (one flaky assertion is enough to stop every feed at once) AND a review. **Neither gate
+may be removed to unblock data** — a generated-data PR is reviewed like any other change — but both
+have to be REACHABLE, and the run has to say when one is not: `review-unavailable` is the reviewer
+app's own answer that it is not connected to this repository, and it is annotated as a warning
+because it will still be true tomorrow, unlike `review-pending-or-unavailable`. **A person's own
+approval is a review**, and where the connector cannot answer it is the one that counts — bound to
+that head commit exactly as the Codex summary is, from somebody GitHub would let merge the branch by
+hand, and never from the branch's own author. An app saying it cannot review here is not review
+feedback to address. **Check that captured data reached `main` before believing a green capture
+run**, exactly as the market-news rule says to check that a committed capture reaches the live
+site.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
