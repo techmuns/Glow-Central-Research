@@ -354,7 +354,27 @@ function researchStream(request, env, input) {
   let cancelled = false;
   return new ReadableStream({
     async start(rawController) {
+      // THE TERMINAL EVENT IS THE ONLY THING SEPARATING A FINISHED ANSWER FROM A SEVERED ONE.
+      // Every branch below writes one, so the reader can always name what happened — Bedrock
+      // dropping mid-answer reads as `Claude returned an incomplete or malformed answer stream`,
+      // an answer-limit stop as `Claude reached its answer limit`, a slow provider as `timeout`.
+      // But an enqueue that THROWS — an errored controller, a reader that went away between the
+      // `cancelled` guard and the write — skipped the event and let `finally` close the body
+      // cleanly, and a well-formed NDJSON stream that simply stops is the one ending the reader
+      // cannot diagnose: it can only say "the connection closed", over a partial answer whose
+      // cause is nowhere in its own artefact. That is half a failure state, and it is the half
+      // that sends somebody to read a provider that was never asked anything.
+      //
+      // So terminal writes go through `finish()`, which records only a write that actually
+      // landed, and the teardown supplies a named one when nothing else did. A body that is
+      // genuinely gone still cannot be written to — nothing can fix that from here — but it is
+      // no longer possible for a LIVE reader to be handed a stream with no ending in it.
+      let terminated = false;
       const controller = { enqueue: value => { if (!cancelled) rawController.enqueue(value); } };
+      const finish = (event) => {
+        try { ndjson(controller, event); terminated = true; }
+        catch { /* The reader is already gone; `finally` closes what is left of the body. */ }
+      };
       ndjson(controller, { type: 'start', provider: researchProvider(env) });
       ndjson(controller, { type: 'phase', phase: 'Writing from dashboard evidence' });
 
@@ -362,38 +382,48 @@ function researchStream(request, env, input) {
         if (researchProvider(env) === 'bedrock') {
           const result = await streamClaudeChat(request, env, input, researchInstructions(input), upstreamCancellation.signal,
             text => ndjson(controller, { type: 'text', text }));
-          if (result.providerStreamFailure) ndjson(controller, { type: 'error', reason: 'provider', message: result.providerStreamFailure });
-          else ndjson(controller, { type: 'done' });
+          if (result.providerStreamFailure) finish({ type: 'error', reason: 'provider', message: result.providerStreamFailure });
+          else finish({ type: 'done' });
           return;
         }
         const upstream = await streamMunsChat(request, env, buildMunsRequest(input, env), upstreamCancellation.signal);
         if (!upstream.ok) {
           const detail = await readBoundedText(upstream.body, MAX_UPSTREAM_ERROR_BYTES);
-          ndjson(controller, { type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
+          finish({ type: 'error', reason: 'provider', message: describeUpstreamFailure(upstream.status, detail) });
           return;
         }
         if (!upstream.body) {
-          ndjson(controller, { type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
+          finish({ type: 'error', reason: 'empty_stream', message: 'The research provider returned no response stream.' });
           return;
         }
         const result = await consumeMunsStream(upstream.body, controller);
         if (result.providerStreamFailure) {
-          ndjson(controller, { type: 'error', reason: 'provider', message: result.providerStreamFailure });
+          finish({ type: 'error', reason: 'provider', message: result.providerStreamFailure });
         } else if (!result.wroteText) {
-          ndjson(controller, { type: 'error', reason: 'incomplete_stream', message: 'The answer stream ended before a complete response arrived.' });
+          finish({ type: 'error', reason: 'incomplete_stream', message: 'The answer stream ended before a complete response arrived.' });
         } else {
-          ndjson(controller, { type: 'done' });
+          finish({ type: 'done' });
         }
       } catch (error) {
         const timedOut = error?.name === 'TimeoutError' || (error?.name === 'AbortError' && !request.signal.aborted);
-        ndjson(controller, {
+        finish({
           type: 'error',
           reason: timedOut ? 'timeout' : request.signal.aborted ? 'cancelled' : 'network',
           message: timedOut ? 'The answer service took too long. Your question and source readings are saved; you can retry.' : request.signal.aborted ? 'Research was cancelled.' : 'The answer service could not be reached. Your source readings are still available.',
         });
       } finally {
         upstreamCancellation.abort();
-        if (!cancelled) rawController.close();
+        // A reader still holding the body gets an ending it can name, whatever went wrong above.
+        // `incomplete_stream` is the honest reading: text may have arrived, the answer did not
+        // finish, and nothing here can say why — which is a different claim from the provider's
+        // own failures and must not borrow their wording.
+        if (!cancelled && !terminated) {
+          finish({ type: 'error', reason: 'incomplete_stream',
+            message: 'The answer stream ended before a complete response arrived. Your source readings are still available; you can retry.' });
+        }
+        // Closing a body the runtime has already torn down throws, and a throw here would
+        // replace whatever the reader was told with an unhandled rejection.
+        if (!cancelled) { try { rawController.close(); } catch { /* already gone */ } }
       }
     },
     cancel() {
