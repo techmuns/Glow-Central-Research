@@ -28,6 +28,13 @@ try {
         companies: evidence.selection.companies, context: evidence.businessContext,
         evidence, sources: evidence.sources.map(s => ({ id: s.id, status: s.status, count: s.rows.length })), preview: researchPreview(evidence) });
     }
+    // WHAT THE RETRIEVAL FOUND, SEPARATELY FROM WHAT THE BYTE FIT KEPT. Only the crude-oil case
+    // asserts a named company, so only that question pays for a second, wider retrieval. Asking
+    // the fitted list instead makes the assertion depend on where the budget boundary fell, which
+    // is what broke the sibling business suite on a capture that had MORE of the evidence in it.
+    const wide = await research.buildResearchEvidence({ question: questions[0], prepared, scope: 'portfolio', charBudget: 120000 });
+    cases[0].found = (wide.businessContext?.candidates || []).map(c => c.ticker);
+    cases[0].foundOmitted = wide.businessContext?.candidatesOmitted ?? 0;
     return cases;
   });
   for (const r of report) {
@@ -47,8 +54,15 @@ try {
     assert(r.context.candidates.every(c => c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert.deepEqual(report[0].companies, [], 'crude oil must not resolve to Oil India');
-  assert(report[0].context.candidates.some(c => c.ticker === 'MRPL'), 'actual crude sourcing evidence must survive');
+  assert.equal(report[0].foundOmitted, 0, 'the wider retrieval must trim nothing; raise its budget');
+  assert(report[0].found.includes('MRPL'), 'actual crude sourcing evidence must survive');
+  // Deliberately still the FITTED list. Open-vocabulary reasoning retrieval casts wider than the
+  // source-backed comparison and does surface HDFCBANK as a low-ranked candidate at a budget that
+  // trims nothing; what this asserts, and always asserted, is that a market-wrap co-mention does
+  // not reach the model as oil exposure. Absence assertions are also safe against growth, since
+  // trimming only ever removes candidates.
   assert(!report[0].context.candidates.some(c => c.ticker === 'HDFCBANK'), 'a market-wrap co-mention is not oil exposure');
+  assert(report[0].context.candidates.every(c => report[0].found.includes(c.ticker)), 'the fit adds no company');
   assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
   assert(report[3].context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
   if (process.env.RESEARCH_EVAL_EXPORT) {
