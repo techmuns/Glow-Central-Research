@@ -1019,12 +1019,16 @@
     "isin:INE508G01029|Time Technoplast": {
       "lastAttemptAt": "2026-09-10T15:00:40+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE508G01029|TIMETECHNO": {
+      "lastAttemptAt": "2026-09-10T15:30:16+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 223,
-    "checkedAt": "2026-09-10T15:00:40.612567+00:00"
+    "checkedAt": "2026-09-10T15:30:16.125778+00:00"
   }
 }
