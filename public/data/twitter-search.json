@@ -45,7 +45,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0R4701017|ALPEXSOLAR-SM": {
-      "lastAttemptAt": "2026-09-06T11:37:52+00:00",
+      "lastAttemptAt": "2026-09-11T12:57:58+00:00",
       "error": "search-unavailable"
     },
     "isin:INE094B01013|Ashika Global Securities": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T12:12:02.310107+00:00"
+    "checkedAt": "2026-09-11T12:57:58.222076+00:00"
   }
 }
