@@ -90,7 +90,7 @@ const MATCH_ROW_LIMIT = 14;
 // window; this row budget must never be spent on repeating the full ledger.
 export const RESEARCH_EVIDENCE_CHAR_BUDGET = 18_000;
 // The share of the budget that rows are guaranteed. The skeleton is trimmed before a row is refused.
-export const ROW_RESERVE_SHARE = 0.4;
+export const ROW_RESERVE_SHARE = 0.5;
 // The score a row earns when the question named its company. Above any number of token hits, so a
 // company question lists that company's rows from every source before anything else.
 const COMPANY_SCORE = 8;
@@ -525,8 +525,24 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     if (!sample) continue;
     sample.rows.push(candidate.row);
     if (measure() > charBudget) {
-      sample.rows.pop();
-      continue;
+      if (candidate.rowIndex === 0 && sample.rows.length === 1) {
+        for (const field of ['detail', 'summary', 'headline', 'text']) {
+          if (candidate.row[field] && typeof candidate.row[field] === 'string' && candidate.row[field].length > 120) {
+            candidate.row[field] = clipped(candidate.row[field], 120);
+          }
+        }
+        if (measure() > charBudget) {
+          delete candidate.row.detail;
+          delete candidate.row.summary;
+        }
+        if (measure() > charBudget) {
+          sample.rows.pop();
+          continue;
+        }
+      } else {
+        sample.rows.pop();
+        continue;
+      }
     }
     sample.includedRows += 1;
   }
