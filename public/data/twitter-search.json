@@ -1087,12 +1087,16 @@
     "isin:INE704J01044|Vedanta Oil and Gas": {
       "lastAttemptAt": "2026-09-10T23:51:21+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE704J01044|VOGL": {
+      "lastAttemptAt": "2026-09-11T00:28:38+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 230,
-    "checkedAt": "2026-09-10T23:51:21.526999+00:00"
+    "checkedAt": "2026-09-11T00:28:38.457823+00:00"
   }
 }
