@@ -29,7 +29,7 @@
       "error": "search-unavailable"
     },
     "isin:INE914E01040|Alankit": {
-      "lastAttemptAt": "2026-09-06T08:59:26+00:00",
+      "lastAttemptAt": "2026-09-11T10:32:06+00:00",
       "error": "search-unavailable"
     },
     "isin:INE914E01040|ALANKIT": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T09:57:21.824502+00:00"
+    "checkedAt": "2026-09-11T10:32:06.158979+00:00"
   }
 }
