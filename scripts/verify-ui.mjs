@@ -1089,9 +1089,27 @@ await go('/#/research/breakouts?scope=universe', 2500);
 
   const before = await glyph();
   await star().click();
-  await page.waitForTimeout(400);
+  // THE WATCHLIST IS SHARED NOW, so adding asks whose add it is before anything is stored. The
+  // suite drives that the way a person does rather than seeding the name behind it: the prompt is
+  // part of the control, and a check that skipped it would keep passing after the control broke.
+  await page.waitForSelector('[data-watch-attribution]', { timeout: 5000 });
+  ok('adding to the shared watchlist asks who is adding it',
+    await page.locator('[data-attribution-confirm]').isVisible());
+  const firstRun = await page.locator('[data-attribution-input]').isVisible();
+  if (firstRun) await page.fill('[data-attribution-input]', 'Verification Runner');
+  else await page.selectOption('[data-attribution-select]', { label: 'Verification Runner' });
+  await page.click('[data-attribution-confirm]');
+  await page.waitForTimeout(500);
   const after = await glyph();
   ok('clicking the watchlist star fills it', before === '☆' && after === '★', `${before} → ${after}`);
+  ok('...and the entry records who added it',
+    await page.evaluate((k) => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]')
+      .find((e) => e.ticker === k)?.addedBy === 'Verification Runner', key0));
+  // The name is kept so the next add is a selection rather than typing — that is the whole point
+  // of recording it, and a roster that did not grow would send the reader back to the keyboard.
+  ok('...and the name joins the roster for next time',
+    await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:watchlist:people') || '[]')
+      .some((p) => p.name === 'Verification Runner')));
   // THE STORED ENTRY IS A COMPANY, NOT A ROW. On Breakouts the row key IS the ticker, so the two
   // coincide here — but the shape does not: entries are `{ ticker, name, addedAt }`, because the
   // Watchlist scope has to be able to name a company on a feed that does not carry it.
@@ -1122,6 +1140,9 @@ await go('/#/research/breakouts?scope=universe', 2500);
   await star().click();
   await page.waitForTimeout(400);
   ok('...and clicking it again empties it', (await glyph()) === '☆', await glyph());
+  // Unstarring is the undo for a mis-click and must stay ONE click. The contract allows an
+  // unattributed removal precisely so this never grows a dialog; see watchlistIntent().
+  ok('...without asking who removed it', (await page.locator('[data-watch-attribution]').count()) === 0);
   ok('...and empties the stored watchlist with it',
     await page.evaluate((k) => !JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === k), key0));
 }

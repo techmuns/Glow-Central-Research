@@ -14,7 +14,10 @@
       // Private summary records and the account budget use a separate fixed object name.
       { "name": "SCREENER_SUMMARIES", "class_name": "CaptureRegistry" },
       // Alias the existing namespace; the channel timer uses a distinct fixed object name.
-      { "name": "TELEGRAM_SCHEDULER", "class_name": "CaptureRegistry" }
+      { "name": "TELEGRAM_SCHEDULER", "class_name": "CaptureRegistry" },
+      // The one shared watchlist. Same provisioned class, its own fixed object name, so the desk's
+      // list needs no namespace migration and no company-registry shard ever sees its tables.
+      { "name": "SHARED_WATCHLIST", "class_name": "CaptureRegistry" }
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],

@@ -11,6 +11,8 @@
 //   GET  /api/concalls                         ->  live analysis + scheduled Screener document history
 //   GET  /api/super-investors                  ->  the tracked super-investor list (Finology)
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
+//   GET  /api/watchlist                        ->  the one shared watchlist + contributor roster
+//   POST /api/watchlist                        ->  apply add/remove edits, attributed by name
 //   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
 //   GET  /api/research                          ->  whether Ask Research is configured
 //   POST /api/research                          ->  streamed dashboard-grounded research answer
@@ -63,6 +65,7 @@ import { handleDrhpFilings } from './drhp-filings.mjs';
 import { handleIpoMonitor } from './ipo-monitor.mjs';
 import { handleIpoFilings } from './ipo-filings.mjs';
 import { handleCaptureRegistration } from './capture-registration.mjs';
+import { handleWatchlist } from './watchlist.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
 import { readScreenerConcallCollector, readScreenerConcallCollection } from './screener-concalls-collector.mjs';
 import { enrichConcallScans, SCREENER_CONCALL_FRESH_MS, SCREENER_CONCALL_WORKFLOW } from '../public/js/data/screener-concalls-shared.js';
@@ -135,6 +138,7 @@ export default {
     if (url.pathname === '/api/ipo-monitor') return handleIpoMonitor(request);
     if (url.pathname === '/api/ipo-filings') return handleIpoFilings(request, { readPlatform: ({ signal }) => readPlatformCollector({ token: env.GH_DISPATCH_TOKEN, signal }) });
     if (url.pathname === '/api/capture-registration') return handleCaptureRegistration(request, env);
+    if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
     if (url.pathname === '/api/concall-summaries' || url.pathname === '/api/concall-summaries/collector')
       return handleConcallSummaries(request, env);
 

@@ -77,8 +77,11 @@ public/
     app.js                    bootstrap: load all JSON, then mount the shell
     core/
       state.js                global state + localStorage + pub/sub
-      watchlist.js            THE WATCHLIST — a set of COMPANIES, not of rows. Backs the star in
-                              every table AND the Watchlist scope; see the scope section below
+      watchlist.js            THE WATCHLIST — a set of COMPANIES, not of rows, and ONE list for the
+                              whole desk rather than one per browser. Backs the star in every table
+                              AND the Watchlist scope; see the scope section below
+      watchlist-people.js     WHO IS ADDING — the shared contributor roster behind the dropdown,
+                              plus which of those names THIS device adds under
       router.js               hash routing (#/ws/tab/subview?scope=)
       live.js                 live-update polling engine
       watch.js                app-wide feed watchers -> the alert stack
@@ -94,6 +97,9 @@ public/
       visual.js               avatars, tiers, status pills, signal dots, legend
       sources.js              data-source registry — the canonical list of every feed and its honest
                               status; read by the beacon below and by each tab's provenance surfaces
+      watchlist-attribution.js  "Who is adding this?" — the prompt on every addition to the shared
+                              watchlist. A growing dropdown of everyone who has added before, so the
+                              first add types a name and every add after it is one key
       twitter-sources.js      "Edit Twitter Sources" — add/remove the X accounts whose posts join
                               the News feed. Opened from the beacon's Twitter / X family
       source-beacon.js        "DATA FLOWING IN" — the lower-left beacon: one launcher, one popover,
@@ -117,6 +123,9 @@ public/
     data/
       scope.js                THE THREE SCOPES in one place — portfolio / watchlist / universe,
                               and the one `filterByScope()` every forScope() is built on
+      watchlist-shared.js     pure shape + identity rules for the shared watchlist, imported by
+                              worker/watchlist-store.mjs too — one definition of what a company,
+                              a contributor and an edit are
       daily-alerts.js         RETAINED HISTORY across NINE feeds. Derived: no file, no route of its own
       ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
@@ -215,6 +224,9 @@ scripts/
                                            before history. Public mode needs no Telegram account
 .github/workflows/twitter-refresh.yml      every 30 min + workflow_dispatch from the dashboard when
                                            a reader adds an account; posts from the monitored handles
+worker/watchlist-store.mjs    THE SHARED WATCHLIST'S durable record — SQLite in the provisioned
+                              CaptureRegistry class under one fixed object name. Intents, not lists
+worker/watchlist.mjs          GET/POST /api/watchlist — private-cacheable, ETagged, same-origin writes
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -2264,14 +2276,64 @@ spelling of "everything else" with two scopes and became "the book, or every lis
 never the watchlist" with three. Every `forScope()` in `js/data/` and every scope branch in a tab
 now goes through `filterByScope`/`scopeTickers` instead, so the question is asked in one place.
 
-### The watchlist is a list of COMPANIES
+### The watchlist is a list of COMPANIES, and ONE list for the whole desk
 
-`sattva:watchlist` holds `{ ticker, name, addedAt }`. See *The star marks a COMPANY* above for what
-that changed in `scoreTable`, and `docs/DATA-CONTRACTS.md` for the shape and the legacy prune.
+`sattva:watchlist` holds `{ ticker, name, addedAt, addedBy }`. See *The star marks a COMPANY* above
+for what that changed in `scoreTable`, and `docs/DATA-CONTRACTS.md` for the shape and the legacy
+prune.
 
 `name` exists so a watched company can be **named** on a feed that does not carry it. Printing the
 symbol back where a name belongs would be inventing one — the same class of error as rendering a
 missing value as zero.
+
+**IT IS NO LONGER A LIST PER BROWSER, AND THAT LOCAL ARRAY IS NOW A MIRROR.** It was `localStorage`
+and nothing else, so two people at one desk kept two different watchlists and neither could see the
+other's; the same person on a phone saw a third. Every device held a partial answer and none of them
+said so. The shared list lives on the Worker (`GET`/`POST /api/watchlist`, `worker/watchlist-store.mjs`)
+and `core/watchlist.js` keeps a copy of it, because every scope filter here asks "is this ticker
+watched?" *during a render* and cannot await a network read to decide whether a row is in scope.
+
+Four rules hold that up, and each is a rule this codebase already had:
+
+1. **An edit is sent as what it WAS, not as the list it produced.** A whole-array PUT silently
+   deletes: a tab that loaded the list an hour ago and stars one company would write its stale array
+   over everything anyone else added since, and nothing would report the loss. The outbox holds
+   intents and the server applies them to whatever the list is now.
+2. **A failed read is never an empty list.** `adopt()` runs only on a response that carried
+   companies. A 503, an aborted fetch and a static origin with no Worker all leave the list alone —
+   and a **404 is not a fault**, because serving this dashboard as static files is supported and is
+   how `verify-ui.mjs` runs it.
+3. **`meta().origin` is derived, never assigned** — `live` only once a read in THIS session vouched
+   for what is painted, `store` for bytes kept from an earlier visit, `pending` while the reader's
+   own edit has not been accepted. One "connected" over all three is wrong two thirds of the time.
+4. **The optimistic re-application covers clicks, not guesses.** The outbox is replayed over each
+   snapshot so a reader never watches their own star being undone — but only `add` and `remove`. A
+   `seed` is this device guessing that a company it still holds locally belongs on the shared list,
+   and the server refuses one over any row it already holds, watched **or removed**. Painting a seed
+   before it was accepted put a company somebody had deliberately dropped back on screen for a whole
+   cycle, which is a stale device quietly undoing a deliberate edit.
+
+### AN ADDITION CARRIES THE NAME OF WHOEVER MADE IT — `js/ui/watchlist-attribution.js`
+
+A shared list creates a question a private one never had: **who put this here?** So an addition asks,
+and `watchlistIntent()` refuses an unattributed `add` — enforced in the contract rather than in the
+UI, where a second entry point could quietly skip it.
+
+- **Removing does not ask**, and that asymmetry is deliberate. Unstarring is the undo for a mis-click
+  and has to stay one click, so the contract permits an unattributed removal rather than inventing a
+  name for it. The device's own name still rides along when there is one.
+- **Every add after the first is a selection.** The roster is shared, so a new phone opens with the
+  desk's names in the dropdown instead of an empty box that invites a second spelling of a name
+  already on the list. `personKey()` folds case and spacing; the display name is the latest spelling
+  that person typed.
+- **A device nobody has identified themselves on preselects NOBODY.** Falling back to the top of the
+  roster looks helpful and is the one genuinely damaging default available: the top is whoever added
+  most recently *anywhere on the desk*, so a colleague on a new phone pressing Enter would file their
+  add under that person's name — one person's name on another's work, invisible once it happened.
+- **`addedBy: null` means nothing ever recorded who**, which is a different claim from "nobody" and
+  is never printed as a name. `attributionLabel()` renders it *"Added before names were recorded"*.
+  Companies carried across from a device's pre-shared local list are exactly this case: crediting
+  whoever happens to be at the keyboard would be inventing an attribution.
 
 ### Two denominators that are not the same claim
 
@@ -3451,7 +3513,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first. It is the only portfolio data here: names and sectors, never a quantity or a value |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
-| Change what the Watchlist scope tracks | `js/core/watchlist.js` (the store) + `watchKey` on the table that stars it — read *The star marks a COMPANY* first |
+| Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
+| Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
+| Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
@@ -3526,9 +3590,16 @@ Then run the suite — ~410 Playwright assertions, exits non-zero at the end if 
 node scripts/verify-calendar.mjs
 node scripts/verify-portfolio-calendar.mjs
 node scripts/verify-research.mjs
+node scripts/verify-shared-watchlist.mjs
+node scripts/verify-shared-watchlist-ui.mjs
 node scripts/verify-ui.mjs
 node scripts/verify-sdk.mjs
 ```
+
+`verify-shared-watchlist-ui.mjs` needs no Worker and no egress: it stands up the real
+`SharedWatchlistStore` behind an in-process `/api/watchlist` and drives **two browser contexts** —
+two devices, separate storage, one server — through the real star and prompt. That pairing is the
+only arrangement in which *"everyone sees the same list"* is a claim about anything.
 
 `verify-sdk.mjs` is separate because it needs a different fixture: the dashboard inside an
 **iframe** with a host on the other end of the channel. It drives the **real** shipped SDK bundle —
@@ -3602,6 +3673,12 @@ It covers, beyond the checklist below:
   on its other rows, and a legacy composite row key is pruned rather than filed as a company
 - the Watchlist scope narrows a feed to the starred companies, an EMPTY one narrows to nothing
   rather than to everything, and the pill prints its own denominator
+- **adding to the watchlist asks who is adding it**, records that name against the company, keeps it
+  for next time, and adds NOTHING when the prompt is dismissed; unstarring stays one click
+- **two devices converge on one list**: a company starred on one appears on the other with the same
+  name beside it, a removal reaches it, an outage leaves every row on screen while dropping the
+  `live` claim, an edit made during that outage lands when the server returns, and a stale device
+  cannot resurrect a company somebody removed
 - the URL hash updates; browser back/forward work
 - a reload restores the same route and scope
 - the top-tab underline scales in on the active tab only
