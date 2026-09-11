@@ -33,7 +33,7 @@
       "error": "search-unavailable"
     },
     "isin:INE914E01040|ALANKIT": {
-      "lastAttemptAt": "2026-09-06T09:03:32+00:00",
+      "lastAttemptAt": "2026-09-11T11:09:45+00:00",
       "error": "search-unavailable"
     },
     "isin:INE1YPB01014|Allcargo Global": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T10:32:06.158979+00:00"
+    "checkedAt": "2026-09-11T11:09:45.050213+00:00"
   }
 }
