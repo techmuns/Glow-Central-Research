@@ -1099,12 +1099,16 @@
     "isin:INE694L01019|VEDPOWER": {
       "lastAttemptAt": "2026-09-11T01:16:07+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE564S01019|Vikram Kamats Hospitality": {
+      "lastAttemptAt": "2026-09-11T02:13:56+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 230,
     "attempted": 1,
     "incomplete": 230,
-    "checkedAt": "2026-09-11T01:16:07.168656+00:00"
+    "checkedAt": "2026-09-11T02:13:56.805209+00:00"
   }
 }
