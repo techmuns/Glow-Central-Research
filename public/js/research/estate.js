@@ -287,7 +287,7 @@ export function queryPlan(question, index = [], { scope = 'universe', holdings =
       ['ready', 'limited'].includes(portfolio?.status) && portfolio?.mode === 'verified-holdings',
     businessWeightsComplete: portfolioPositions?.sizes?.complete === true,
     tokens: tokens.filter((token) => !consumed.has(token)),
-    topics: questionTopics(question),
+    topics: questionTopics([...consumed].reduce((remaining, word) => remaining.replaceAll(new RegExp(`\\b${word}\\b`, 'gi'), ' '), outsidePhrases)),
     sourceIds: [/\btelegram\b/i.test(question) && 'telegram', /\b(?:public )?chatter\b/i.test(question) && 'public-chatter', /\b(?:public )?chatter\b/i.test(question) && 'chatter-posts'].filter(Boolean),
     window: questionWindow(question, now),
     crossHolding: !!business || /\b(other|rest|across)\b.*\b(holdings|portfolio|stocks|positions|book)\b/i.test(question),
