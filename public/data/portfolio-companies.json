@@ -3,8 +3,8 @@
   "asOf": "2026-08-29",
   "source": "techmuns/GlowVentures · src/data/glowData.ts",
   "sourceCommit": {
-    "sha": "e3561b5",
-    "date": "2026-09-09T15:00:45+05:30"
+    "sha": "2902299",
+    "date": "2026-09-11T07:03:07Z"
   },
   "count": 170,
   "resolved": 166,
@@ -343,7 +343,7 @@
       "name": "Chemfab Alkalis Limited",
       "bookName": "CHEMFAB ALKALIS LIMITED",
       "ticker": "CHEMFAB",
-      "sector": "Unclassified",
+      "sector": "Materials",
       "listed": true,
       "matchedBy": "glowventures:symbol",
       "isinSource": {
@@ -2170,7 +2170,7 @@
       "isin": "INE231F01020",
       "name": "Sasken Communication Technologies",
       "bookName": "SASKEN COMMUNICATION TECHNOLOGIES",
-      "sector": "Unclassified",
+      "sector": "Information Technology",
       "ticker": "SASKEN",
       "listed": true,
       "matchedName": null,
