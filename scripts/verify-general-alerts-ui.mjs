@@ -8,6 +8,15 @@ import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
+// THE UPCOMING FIXTURE IS DATED RELATIVE TO TODAY, BECAUSE "UPCOMING" IS.
+//
+// This was a literal '2026-09-10', which was in the future when it was written and stopped being
+// so on 2026-09-11 — at which point the Upcoming horizon correctly dropped it and this check
+// failed on main with nothing changed. A forward calendar legitimately shrinks as its dates pass
+// (see the retention rules in CLAUDE.md), so the app was right and the fixture had rotted.
+// Deriving the date keeps the assertion exactly as strong and stops it expiring again.
+const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
 const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
