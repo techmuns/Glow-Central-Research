@@ -28,12 +28,19 @@ try {
     return cases;
   });
   for (const r of report) {
-    assert.equal(r.context.kind, 'portfolio-reasoning', r.question);
-    assert.equal(r.context.businessProfiles.total, book.holdings.length);
-    assert.equal(r.context.businessProfiles.omitted, 0);
-    assert.equal(r.context.businessProfiles.rows.length, book.holdings.length);
-    assert.deepEqual(new Set(r.context.businessProfiles.rows.map(p => p[0])), new Set(book.holdings.map(h => h.ticker || h.isin)));
-    assert(r.context.businessProfiles.analyses.rows.length > 0, 'business map must carry source-backed analysis, not only sector labels');
+    const expectedKind = r.question.includes('similar to') ? 'source-backed-business-comparison' : 'portfolio-reasoning';
+    assert.equal(r.context.kind, expectedKind, r.question);
+    if (r.context.kind === 'portfolio-reasoning') {
+      assert.equal(r.context.businessProfiles.total, book.holdings.length);
+      assert.equal(r.context.businessProfiles.omitted, 0);
+      assert.equal(r.context.businessProfiles.rows.length, book.holdings.length);
+      assert.deepEqual(new Set(r.context.businessProfiles.rows.map(p => p[0])), new Set(book.holdings.map(h => h.ticker || h.isin)));
+      assert(r.context.businessProfiles.analyses.rows.length > 0, 'business map must carry source-backed analysis, not only sector labels');
+    } else {
+      assert.equal(r.context.holdingsExamined, book.holdings.length);
+      assert(r.context.candidates.length > 0);
+      assert(r.context.references.length > 0);
+    }
     assert(r.context.candidates.every(c => c.weightPct === null));
     assert.match(r.context.holdingsBasis, /ownership and weights not established/);
     assert.equal(r.sources.length, 20);
@@ -62,5 +69,5 @@ try {
     });
     writeFileSync(process.env.RESEARCH_EVAL_EXPORT, JSON.stringify({ kind: 'public-snapshot-fixture', tests }, null, 2), { mode: 0o600 });
   }
-  console.log(JSON.stringify({ pass: true, cases: report.map(r => ({ question: r.question, retrievalMs: r.ms, chars: r.chars, holdings: r.context.businessProfiles.rows.length, candidates: r.context.candidates.map(c => c.ticker) })) }, null, 2));
+  console.log(JSON.stringify({ pass: true, cases: report.map(r => ({ question: r.question, retrievalMs: r.ms, chars: r.chars, holdings: r.context.businessProfiles ? r.context.businessProfiles.rows.length : r.context.holdingsExamined, candidates: r.context.candidates.map(c => c.ticker) })) }, null, 2));
 } finally { await h.close(); }
