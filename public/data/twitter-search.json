@@ -1107,12 +1107,16 @@
     "isin:INE18UN01038|GAJA": {
       "lastAttemptAt": "2026-09-11T02:46:48+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE540H01012|Voltamp Transformers": {
+      "lastAttemptAt": "2026-09-11T03:19:45+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T02:46:48.147872+00:00"
+    "checkedAt": "2026-09-11T03:19:45.632876+00:00"
   }
 }
