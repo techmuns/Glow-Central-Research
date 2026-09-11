@@ -9665,8 +9665,8 @@
     "version": 1,
     "optional": true,
     "status": "unavailable",
-    "reason": "source-read-failed",
-    "lastAttemptAt": "2026-09-09T08:24:28.526Z",
+    "reason": "sign-in-unavailable",
+    "lastAttemptAt": "2026-09-11T02:55:33.464Z",
     "lastSuccessAt": null
   }
 }
