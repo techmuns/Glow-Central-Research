@@ -53,6 +53,11 @@ try {
   assert(report[0].context.candidates.some(c => c.ticker === 'MRPL'), 'actual crude sourcing evidence must survive');
   assert(!report[0].context.candidates.some(c => c.ticker === 'HDFCBANK'), 'a market-wrap co-mention is not oil exposure');
   assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
+  console.error('=== DEBUG REPORT 3 CONTEXT ===');
+  console.error('KIND:', report[3]?.context?.kind);
+  console.error('REF_COUNT:', report[3]?.context?.references?.length);
+  console.error('REFS:', JSON.stringify(report[3]?.context?.references));
+  console.error('===============================');
   assert(report[3].context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
   if (process.env.RESEARCH_EVAL_EXPORT) {
     const checkedAt = new Date().toISOString();
