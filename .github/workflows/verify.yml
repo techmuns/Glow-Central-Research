@@ -71,6 +71,8 @@ jobs:
         run: node scripts/verify-capture-onboarding.mjs
       - name: Verify watchlist capture registration and retries
         run: node scripts/verify-capture-registration.mjs
+      - name: Verify the shared watchlist contract, attribution and conflicting edits
+        run: node scripts/verify-shared-watchlist.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
@@ -239,6 +241,13 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-source-connections-ui.mjs
+      # Two browser contexts against one server: separate storage, one shared list. That pairing
+      # is the only arrangement in which "everyone sees the same watchlist" is a claim about
+      # anything, so the check runs the real store class behind an in-process route.
+      - name: Verify one shared watchlist across two devices, with named contributors
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-shared-watchlist-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
     # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the

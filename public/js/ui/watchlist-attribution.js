@@ -122,7 +122,14 @@ export function askContributor({ ticker = '', company = '' } = {}) {
     });
 
     const root = document.querySelector('[data-watch-attribution]');
-    if (!root) return finish(null);
+    if (!root) {
+      // `openModal` returns silently when the page carries no overlay roots, so the prompt never
+      // rendered. Resolving null is the safe answer — nothing is added, and nothing is added
+      // anonymously — but a star that does nothing is the exact shape of bug this codebase treats
+      // as worse than a loud one, so it says so rather than just failing closed.
+      console.warn('[watchlist] no modal overlay roots on this page, so the contributor prompt could not open; nothing was added.');
+      return finish(null);
+    }
     const select = root.querySelector('[data-attribution-select]');
     const newBox = root.querySelector('[data-attribution-new]');
     const input = root.querySelector('[data-attribution-input]');

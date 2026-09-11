@@ -22,8 +22,15 @@ import { revalidate, tagged, withTag } from './http.mjs';
 
 const fail = (reason, status) => Response.json({ ok: false, reason }, { status, headers: { 'cache-control': 'no-store' } });
 
+// A WRITE MUST CARRY OUR OWN ORIGIN — present and matching, not merely "not contradicting".
+//
+// This is the same test `handleCaptureRegistration` applies, and it matters more here: that route
+// enrols public issuer identities, while this one changes a list every reader sees. A missing
+// `Origin` is not evidence of a same-origin caller, and `/api/*` answers an OPTIONS preflight with
+// `access-control-allow-origin: *`, so a cross-site POST does get as far as this check and has to
+// be refused by it. Browsers send `Origin` on every POST, so nothing legitimate is turned away.
 const sameOrigin = (request, url) =>
-  (!request.headers.get('origin') || request.headers.get('origin') === url.origin) &&
+  request.headers.get('origin') === url.origin &&
   (!request.headers.get('sec-fetch-site') || request.headers.get('sec-fetch-site') === 'same-origin');
 
 export async function handleWatchlist(request, env) {
@@ -59,6 +66,17 @@ export async function handleWatchlist(request, env) {
   // A write is same-origin only. The read is not restricted the same way — it carries no
   // credential and answers the dashboard's own page — but an edit reaches a list everybody sees.
   if (!sameOrigin(request, url)) return fail('origin', 403);
+  // The route is unauthenticated, as every write route here is: this dashboard has no account
+  // system to key one on. So the bound on what one caller can do to a shared list is a rate limit,
+  // set well above what a person starring companies produces and well below a script's.
+  if (!env.SHARED_WATCHLIST_LIMITER) return fail('watchlist-unavailable', 503);
+  const limit = await env.SHARED_WATCHLIST_LIMITER.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
+  if (!limit.success) {
+    return new Response(JSON.stringify({ ok: false, reason: 'rate-limit' }), {
+      status: 429,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'retry-after': '60' },
+    });
+  }
   if (!/^application\/json(?:;|$)/i.test(request.headers.get('content-type') || '')) return fail('content-type', 415);
 
   let input;

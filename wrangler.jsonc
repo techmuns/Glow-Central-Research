@@ -67,6 +67,15 @@
       "name": "RESEARCH_RATE_LIMITER",
       "namespace_id": "1701",
       "simple": { "limit": 6, "period": 60 }
+    },
+    {
+      // The shared watchlist takes a write whenever somebody stars a company, so its ceiling is
+      // higher than the two above: a reader working through a screener legitimately produces a
+      // burst, and a limit tuned for a paid upstream would refuse ordinary use. This bounds an
+      // unauthenticated write to a shared list; it is not billing-grade accounting.
+      "name": "SHARED_WATCHLIST_LIMITER",
+      "namespace_id": "1703",
+      "simple": { "limit": 60, "period": 60 }
     }
   ]
 

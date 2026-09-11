@@ -70,6 +70,13 @@ const ROUTE = 'api/watchlist';
 const POLL_MS = 60000;
 const RETRY_MS = 15000;
 
+// A star is a keystroke, not a transaction. Somebody working down a screener stars four companies
+// in a couple of seconds, and firing a request on each one sends four writes where one carrying
+// four intents would do — wasteful against our own rate limit, and against a list that ends up in
+// the same state either way. The outbox is persisted, so a few hundred milliseconds of batching
+// risks nothing: a tab closed inside the window still sends the edits on its next visit.
+const WRITE_DEBOUNCE_MS = 400;
+
 // One wording for one condition, so the editor's status line and any future surface cannot give
 // the reader two different accounts of the same outage.
 const UNREACHABLE =
@@ -86,6 +93,17 @@ let confirmed = false;     // has a read in THIS session vouched for the painted
 let lastError = null;
 let syncing = null;
 let retryAt = 0;
+let writeTimer = null;
+
+/** Batch a burst of edits into one write. `syncNow()` cancels any pending one, so an awaited sync
+ *  leaves no scheduled work behind — which is what makes settling this deterministic. */
+function scheduleWrite() {
+  clearTimeout(writeTimer);
+  writeTimer = setTimeout(() => {
+    writeTimer = null;
+    void syncNow({ force: true });
+  }, WRITE_DEBOUNCE_MS);
+}
 
 function readRaw(key, fallback) {
   try {
@@ -257,7 +275,7 @@ export function add(ticker, name = null, by = null) {
   queue(contributor ? { op: 'add', ticker: t, name: companyName(name), by: contributor } : { op: 'seed', ticker: t, name: companyName(name) });
   if (contributor) people.remember(contributor);
   emit();
-  void syncNow();
+  scheduleWrite();
   return true;
 }
 
@@ -271,7 +289,7 @@ export function remove(ticker, by = null) {
   queue({ op: 'remove', ticker: t, by: contributor || null });
   if (contributor) people.remember(contributor);
   emit();
-  void syncNow();
+  scheduleWrite();
   return true;
 }
 
@@ -384,6 +402,9 @@ async function flush() {
  * at once, and three simultaneous reads of one small list is waste that also races itself.
  */
 export function syncNow({ force = false } = {}) {
+  // Any batched write is folded into this pass rather than firing again behind it.
+  clearTimeout(writeTimer);
+  writeTimer = null;
   if (syncing) return syncing;
   if (!force && Date.now() < retryAt) return Promise.resolve(meta());
   syncing = (async () => {
@@ -483,6 +504,8 @@ export function startWatchlistSync() {
   window.addEventListener('storage', onStorage);
   void syncNow({ force: true });
   stopPoll = () => {
+    clearTimeout(writeTimer);
+    writeTimer = null;
     clearInterval(timer);
     document.removeEventListener('visibilitychange', onVisible);
     window.removeEventListener('online', onOnline);
