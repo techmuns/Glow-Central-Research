@@ -101,7 +101,7 @@
       "error": "search-unavailable"
     },
     "isin:INE476A01022|Canara Bank": {
-      "lastAttemptAt": "2026-09-06T20:08:47+00:00",
+      "lastAttemptAt": "2026-09-11T20:59:33+00:00",
       "error": "search-unavailable"
     },
     "isin:INE476A01022|CANBK": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T20:26:59.057822+00:00"
+    "checkedAt": "2026-09-11T20:59:33.004758+00:00"
   }
 }
