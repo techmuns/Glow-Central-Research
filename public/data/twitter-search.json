@@ -89,7 +89,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0HOQ01053|GROWW": {
-      "lastAttemptAt": "2026-09-06T18:26:47+00:00",
+      "lastAttemptAt": "2026-09-11T18:52:42+00:00",
       "error": "search-unavailable"
     },
     "isin:INE376G01013|Biocon": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T18:30:18.160610+00:00"
+    "checkedAt": "2026-09-11T18:52:42.881228+00:00"
   }
 }
