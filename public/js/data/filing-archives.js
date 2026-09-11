@@ -1,3 +1,4 @@
+import * as exchangeDeals from './exchange-deals.js';
 import { capturedJson } from './company-captures.js';
 import { mergeAnnouncements } from './announcements-shared.js';
 import { mergeInsiderTrades, mergeInsiderHeaders } from './insider-history.js';
@@ -6,7 +7,7 @@ export function withFilingArchive(base, kind) {
   let rows = [], error = null, pending = false, loaded = false;
   const revisions = new Map();
   const listeners = new Set();
-  const emit = () => listeners.forEach((fn) => fn());
+  const emit = () => [...listeners].forEach((fn) => fn());
   const merge = kind === 'insider' ? mergeInsiderTrades : mergeAnnouncements;
 
   // THE ARCHIVE MERGE IS MEMOISED ON ITS TWO INPUTS, AND THAT IS THE WHOLE OF THIS BLOCK.
@@ -33,7 +34,8 @@ export function withFilingArchive(base, kind) {
   const combined = () => {
     const base_ = base.rows();
     if (memo && memo.base === base_ && memo.rows === rows) return memo.value;
-    const value = merge(base_, rows);
+    const joined = rows.length ? merge(base_, rows) : base_;
+    const value = kind === 'insider' && rows.length ? exchangeDeals.combined(joined.filter(r => !/^(nse|bse)-(bulk|block)$/.test(r.sourceId || ''))) : joined;
     memo = { base: base_, rows, value };
     return value;
   };

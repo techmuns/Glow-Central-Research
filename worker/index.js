@@ -75,6 +75,9 @@ import { SCREENER_INSIGHTS_FRESH_MS, SCREENER_INSIGHTS_WORKFLOW } from '../publi
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 import { isXbrlFilingUrl, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
 
+import { handleExchangeDeals } from './exchange-deals.mjs';
+import { EXCHANGE_WORKFLOW } from './exchange-artifact.mjs';
+
 const MUNSHOT_API = 'https://fastapi.muns.io/stock-data';
 const MAX_TICKERS = 60;
 
@@ -152,6 +155,11 @@ export default {
     // is specific to the caller: these all share a URL-keyed edge cache.
     env = withCallerToken(env, request);
 
+    if (url.pathname === '/api/bulk-block-deals') return handleExchangeDeals(request, env, ctx);
+    if (url.pathname === '/api/bulk-block-deals/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, { workflow: EXCHANGE_WORKFLOW, cacheName: 'exchange-deals-dispatch', cooldownS: 1800 });
+    }
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
     }
