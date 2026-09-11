@@ -69,8 +69,12 @@ try {
     assert.equal(row.context.holdingsExamined, book.holdings.length);
     assert.match(row.context.holdingsBasis, /ownership and weights not established/);
     assert(row.context.candidates.every(c => c.weightPct === null));
+<<<<<<< HEAD
     assert(row.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
     assert(!row.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
+=======
+    assert.equal(row.sources.length, 20);
+>>>>>>> sattva/main
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
     // The preview quotes literal excerpts and is capped at three, so naming a SECOND company in it
     // is the same byte-boundary bet as the candidates were. What must hold is that it previews
