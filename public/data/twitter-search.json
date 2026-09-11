@@ -81,7 +81,7 @@
       "error": "search-unavailable"
     },
     "isin:INE083K01017|BENGALASM": {
-      "lastAttemptAt": "2026-09-06T17:19:27+00:00",
+      "lastAttemptAt": "2026-09-11T17:56:41+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0HOQ01053|Billionbrains Garage Ventures": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T17:23:42.237034+00:00"
+    "checkedAt": "2026-09-11T17:56:41.323982+00:00"
   }
 }
