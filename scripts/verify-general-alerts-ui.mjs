@@ -8,6 +8,15 @@ import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
+// THE UPCOMING FIXTURE IS DATED RELATIVE TO TODAY, BECAUSE "UPCOMING" IS.
+//
+// This was a literal '2026-09-10', which was in the future when it was written and stopped being
+// so on 2026-09-11 — at which point the Upcoming horizon correctly dropped it and this check
+// failed on main with nothing changed. A forward calendar legitimately shrinks as its dates pass
+// (see the retention rules in CLAUDE.md), so the app was right and the fixture had rotted.
+// Deriving the date keeps the assertion exactly as strong and stops it expiring again.
+const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
 const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
@@ -49,20 +58,6 @@ window.dispose=()=>tab.destroy();
 document.querySelector('#refresh').onclick=()=>refresh.refreshAll();
 window.show();
 </script></body></html>`;
-// THE ONE FIXTURE THAT MUST NOT BE A FIXED DATE.
-//
-// Everything else here is dated 2026-09-04 and asserted against that, which is right: those checks
-// are about retained history, and history does not move. This row is the opposite — it exists to
-// prove the Upcoming horizon shows an event that has NOT happened yet, so pinning it to a calendar
-// date gives it a shelf life. It was 2026-09-10, which was upcoming until 2026-09-10 and stopped
-// being upcoming on 2026-09-11, and the suite then failed on main with nothing changed.
-//
-// Freezing the page clock instead does not work and is worth writing down: `page.clock.install`
-// halts the timers this dashboard paints through — the coalescing throttle, the progressive table
-// fill — so the row never renders for a different reason and the check fails just the same.
-// A date that stays ahead of whenever the suite runs is what the assertion actually means.
-const upcomingDay = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
-
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   calls.push(url.pathname);
@@ -79,7 +74,7 @@ const server = createServer((req, res) => {
     if (url.pathname === '/api/concalls') {
       const payload = data('concall-scans.json');
       json({ ...payload, portfolioUpcoming: [
-        { id: `STLTECH|${upcomingDay}|AGM|day`, companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: upcomingDay, time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
+        { id: `STLTECH|${UPCOMING_DAY}|AGM|day`, companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: UPCOMING_DAY, time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
       ], meta: { ...payload.meta, screener: { status: 'ok', checkedAt: '2026-09-04T07:00:00Z', portfolioUpcomingAvailable: true } } });
       return;
     }
