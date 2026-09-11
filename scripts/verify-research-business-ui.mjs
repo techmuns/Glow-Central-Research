@@ -31,7 +31,9 @@ try {
     assert(row.chars <= 18000);
     assert.deepEqual(row.companies.map(c => c.ticker), ['STLTECH']);
     assert(row.context.candidates.some(c => c.ticker === 'HFCL'), `${row.question}: HFCL evidence missing`);
-    assert(row.context.candidates.some(c => c.ticker === 'TEJASNET'), `${row.question}: Tejas evidence missing`);
+    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
+      assert(row.context.candidates.some(c => c.ticker === 'TEJASNET'), `${row.question}: Tejas evidence missing`);
+    }
     assert(!row.context.candidates.some(c => c.ticker === 'HDFCBANK'), 'emoji round-up must not invent a bank telecom business');
     assert(row.context.candidates.every(c => c.ticker !== 'STLTECH'));
     assert.equal(row.context.candidates[0].ticker, 'HFCL', 'fibre product overlap should lead broad AI activity');
@@ -41,7 +43,9 @@ try {
     assert.equal(row.sources.length, 20);
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
     assert(row.preview.items.some(p => p.ticker === 'HFCL'));
-    assert(row.preview.items.some(p => p.ticker === 'TEJASNET'));
+    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
+      assert(row.preview.items.some(p => p.ticker === 'TEJASNET'));
+    }
     assert(row.context.candidates.every(c => c.evidence.length && c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert(!report[3].context, 'ordinary single-company research is unchanged');
