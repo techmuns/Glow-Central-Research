@@ -97,7 +97,7 @@
       "error": "search-unavailable"
     },
     "isin:INE376G01013|BIOCON": {
-      "lastAttemptAt": "2026-09-06T19:32:17+00:00",
+      "lastAttemptAt": "2026-09-11T20:26:59+00:00",
       "error": "search-unavailable"
     },
     "isin:INE476A01022|Canara Bank": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T19:52:08.833999+00:00"
+    "checkedAt": "2026-09-11T20:26:59.057822+00:00"
   }
 }
