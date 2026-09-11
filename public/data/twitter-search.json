@@ -13,7 +13,7 @@
       "error": "search-unavailable"
     },
     "isin:INE674K01013|ABCAPITAL": {
-      "lastAttemptAt": "2026-09-06T00:08:05+00:00",
+      "lastAttemptAt": "2026-09-11T08:13:44+00:00",
       "error": "search-unavailable"
     },
     "isin:INE679V01027|Aditya Vision": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T07:30:43.912803+00:00"
+    "checkedAt": "2026-09-11T08:13:44.979824+00:00"
   }
 }
