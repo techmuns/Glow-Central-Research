@@ -49,6 +49,20 @@ window.dispose=()=>tab.destroy();
 document.querySelector('#refresh').onclick=()=>refresh.refreshAll();
 window.show();
 </script></body></html>`;
+// THE ONE FIXTURE THAT MUST NOT BE A FIXED DATE.
+//
+// Everything else here is dated 2026-09-04 and asserted against that, which is right: those checks
+// are about retained history, and history does not move. This row is the opposite — it exists to
+// prove the Upcoming horizon shows an event that has NOT happened yet, so pinning it to a calendar
+// date gives it a shelf life. It was 2026-09-10, which was upcoming until 2026-09-10 and stopped
+// being upcoming on 2026-09-11, and the suite then failed on main with nothing changed.
+//
+// Freezing the page clock instead does not work and is worth writing down: `page.clock.install`
+// halts the timers this dashboard paints through — the coalescing throttle, the progressive table
+// fill — so the row never renders for a different reason and the check fails just the same.
+// A date that stays ahead of whenever the suite runs is what the assertion actually means.
+const upcomingDay = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   calls.push(url.pathname);
@@ -65,7 +79,7 @@ const server = createServer((req, res) => {
     if (url.pathname === '/api/concalls') {
       const payload = data('concall-scans.json');
       json({ ...payload, portfolioUpcoming: [
-        { id: 'STLTECH|2026-09-10|AGM|day', companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: '2026-09-10', time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
+        { id: `STLTECH|${upcomingDay}|AGM|day`, companyKey: 'STLTECH', ticker: 'STLTECH', name: 'Sterlite Technologies', date: upcomingDay, time: null, eventType: 'AGM', companyUrl: 'https://www.screener.in/company/STLTECH/', sourceUrl: 'https://www.screener.in/company/STLTECH/', observedAt: '2026-09-04T07:00:00Z' },
       ], meta: { ...payload.meta, screener: { status: 'ok', checkedAt: '2026-09-04T07:00:00Z', portfolioUpcomingAvailable: true } } });
       return;
     }
