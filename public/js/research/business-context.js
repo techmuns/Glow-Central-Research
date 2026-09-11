@@ -176,12 +176,18 @@ export function portfolioBusinessContext({ plan, packets, technicalRows = [] }) 
       .sort((a, b) => development(b) - development(a) || Number(a.basis === 'industry label only') - Number(b.basis === 'industry label only'))
       .filter(r => !unique.has(r.id) && unique.add(r.id)).slice(0, 2).map(proof);
     if (!evidence.length) {
-      const own = packets.flatMap(p => (p.reasoningRows || p.rows || []).filter(r => company.isin && r.isin ? r.isin === company.isin : company.ticker && r.ticker === company.ticker).map(r => ({
-        tab: p.tab, date: r.date || r.when?.slice(0, 10) || null, basis: r.sourceTags?.length ? 'company analysis tags' : r.industry ? 'industry label only' : 'company-linked source text',
-        text: textLimit((r.sourceTags?.length ? r.sourceTags.join('; ') : '') || r.industry || r.title || r.headline || '', 220),
-        sourceStatus: p.status, verification: 'source-reported'
-      })));
-      evidence = own.slice(0, 2);
+      const boilerplate = /^(?:newspaper publication|copy of newspaper|loss of share|closure of trading|board meeting|analyst.*meet|trading window)/i;
+      const own = packets.flatMap(p => (p.reasoningRows || p.rows || []).filter(r => company.isin && r.isin ? r.isin === company.isin : company.ticker && r.ticker === company.ticker).map(r => {
+        const text = (r.sourceTags?.length ? r.sourceTags.join('; ') : '') || r.industry || r.title || r.headline || '';
+        const rank = r.sourceTags?.length ? 3 : r.industry ? 2 : !boilerplate.test(text) ? 1 : 0;
+        return {
+          tab: p.tab, date: r.date || r.when?.slice(0, 10) || null,
+          basis: r.sourceTags?.length ? 'company analysis tags' : r.industry ? 'industry label only' : 'company-linked source text',
+          text: textLimit(text, 220),
+          sourceStatus: p.status, verification: 'source-reported', rank
+        };
+      })).sort((a, b) => b.rank - a.rank || String(b.date || '').localeCompare(String(a.date || '')));
+      evidence = own.filter(r => r.rank > 0).slice(0, 2).map(({ rank, ...rest }) => rest);
     }
     return { ticker: company.ticker, isin: company.isin, name: company.name,
       concepts, primaryActivities, referencePublication: dated[0] ? { date: dated[0].date, title: textLimit(dated[0].title, 200), tab: dated[0].tab } : null, evidence };

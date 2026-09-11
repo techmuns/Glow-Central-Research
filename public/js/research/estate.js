@@ -373,6 +373,7 @@ export function chooseRows(rows, plan, mapRow, compare = null) {
   const byRelevance = (a, b) => referenceLast(a, b) ||
     // An explicit event question finds that event before generic company news.
     b.context.topic - a.context.topic || a.context.temporalRank - b.context.temporalRank ||
+    (tierOf(a) === 0 && compare ? compare(a.row, b.row) : 0) ||
     b.score - a.score || byDefault(a, b);
   scored.sort((a, b) => tierOf(a) - tierOf(b) || byRelevance(a, b));
   const matchedRows = scored.filter((item) => item.score > 0).length;
