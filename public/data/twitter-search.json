@@ -37,7 +37,7 @@
       "error": "search-unavailable"
     },
     "isin:INE1YPB01014|Allcargo Global": {
-      "lastAttemptAt": "2026-09-06T10:04:00+00:00",
+      "lastAttemptAt": "2026-09-11T11:37:11+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0R4701017|Alpex Solar": {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-11T11:09:45.050213+00:00"
+    "checkedAt": "2026-09-11T11:37:11.468835+00:00"
   }
 }
