@@ -393,7 +393,7 @@
       "error": "search-unavailable"
     },
     "isin:INE077F01035|GOCLCORP": {
-      "lastAttemptAt": "2026-09-07T12:28:00+00:00",
+      "lastAttemptAt": "2026-09-12T09:25:59+00:00",
       "error": "search-unavailable"
     },
     "isin:INE850D01014|Godrej Agrovet": {
@@ -1213,6 +1213,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 224,
-    "checkedAt": "2026-09-12T08:54:02.542610+00:00"
+    "checkedAt": "2026-09-12T09:25:59.571477+00:00"
   }
 }
