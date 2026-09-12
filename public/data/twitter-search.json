@@ -592,7 +592,7 @@
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Jayaswal Neco Industries": {
-      "lastAttemptAt": "2026-09-07T22:26:43+00:00",
+      "lastAttemptAt": "2026-09-12T19:18:15+00:00",
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Jayaswal Neco": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T18:35:53.131030+00:00"
+    "checkedAt": "2026-09-12T19:18:15.676679+00:00"
   }
 }
