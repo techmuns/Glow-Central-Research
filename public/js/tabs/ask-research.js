@@ -264,10 +264,26 @@ function watchEvidenceInvalidation() {
 
 function template(scope) {
   return `
-    <section class="research-workspace${readingView ? ' is-reading-view' : ''}" data-research-workspace>
-      <div class="research-reading-toolbar">
+    <section class="research-workspace relative overflow-hidden${readingView ? ' is-reading-view' : ''}" data-research-workspace>
+      <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-50/60 backdrop-blur-[2px]">
+        <div class="mx-auto max-w-lg rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-200/50">
+          <div class="mx-auto mb-5 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-bold tracking-wide text-indigo-600">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M9.8 2.2c-.3-.4-.9-.4-1.1 0l-1.3 2.6c-.2.3-.5.6-.8.8l-2.6 1.3c-.4.2-.4.8 0 1l2.6 1.3c.3.2.6.5.8.8l1.3 2.6c.2.4.8.4 1 0l1.3-2.6c.2-.3.5-.6.8-.8l2.6-1.3c.4-.2.4-.8 0-1l-2.6-1.3c-.3-.2-.6-.5-.8-.8l-1.3-2.6Z" stroke-linejoin="round"/>
+            </svg>
+            COMING SOON
+          </div>
+          <h2 class="mb-3 font-display text-[22px] font-bold tracking-tight text-slate-900">Merging with Munshot Chat</h2>
+          <p class="mb-8 text-sm leading-relaxed text-slate-500">Please wait for some time, we will let you know as soon as it is ready.</p>
+          <div class="flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
+            <div class="h-1.5 w-1.5 rounded-full bg-indigo-500"></div>
+            Upgrading your research experience across all portfolio data
+          </div>
+        </div>
+      </div>
+      <div class="research-reading-toolbar opacity-30 select-none pointer-events-none">
         <div class="research-toolbar-title">
-          <h2 class="font-display font-extrabold text-slate-900" data-research-title>${readingView ? `${scopeLabel(scope)} research` : 'Ask Research'}</h2>
+          <h2 class="font-display font-extrabold text-slate-900" data-research-title>${readingView ? \`\${scopeLabel(scope)} research\` : 'Ask Research'}</h2>
           <span class="research-connection" data-portfolio-connection></span>
         </div>
         <div class="research-toolbar-actions">
@@ -293,7 +309,7 @@ function template(scope) {
         <div class="research-session-list scrollbar-thin" data-research-sessions></div>
         <p class="research-history-note">${privatePortfolioContext() ? 'Portfolio conversations stay in memory until this page closes.' : 'Conversation history stays on this device.'} <span data-research-provider-note>Questions and selected source readings are sent securely to the configured AI provider.</span></p>
       </dialog>
-      <div class="research-layout">
+      <div class="research-layout opacity-30 select-none pointer-events-none">
         <div class="research-thread">
           <div class="research-transcript-wrap">
             <div class="research-transcript scrollbar-thin" role="log" aria-live="polite" aria-label="Research conversation" data-research-transcript></div>
