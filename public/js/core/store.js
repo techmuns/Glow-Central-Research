@@ -321,13 +321,26 @@ export function clearAll() {
  */
 const conditionalInFlight = new Map();
 export function conditionalJson(path, options = {}) {
-  // Cancellation, validation and authenticated reads belong to their caller.
-  // Ordinary public poll and header reads share one bounded revalidation.
-  if (options.signal || options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
+  // Custom validation and authenticated reads belong to their caller.
+  // Ordinary public poll, capture, and header reads share one bounded revalidation.
+  if (options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
   const requestKey = JSON.stringify([path, options.key, !!options.optional]);
-  if (conditionalInFlight.has(requestKey)) return conditionalInFlight.get(requestKey);
-  const pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
-  conditionalInFlight.set(requestKey, pending);
+  let pending = conditionalInFlight.get(requestKey);
+  if (!pending) {
+    pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
+    conditionalInFlight.set(requestKey, pending);
+  }
+  if (options.signal) {
+    if (options.signal.aborted) return Promise.reject(options.signal.reason);
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(options.signal.reason);
+      options.signal.addEventListener('abort', onAbort, { once: true });
+      pending.then(
+        (val) => { options.signal.removeEventListener('abort', onAbort); resolve(val); },
+        (err) => { options.signal.removeEventListener('abort', onAbort); reject(err); }
+      );
+    });
+  }
   return pending;
 }
 

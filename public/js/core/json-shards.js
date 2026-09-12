@@ -34,12 +34,13 @@ export function shardPath(parent, file) {
   return path.slice(0, path.lastIndexOf('/') + 1) + file;
 }
 
-export async function decodeShard(text, part) {
-  const bytes = encoder.encode(text);
+export async function decodeShard(input, part) {
+  const bytes = typeof input === 'string' ? encoder.encode(input) : input;
   if (bytes.byteLength !== part.bytes) throw Error('News part byte count mismatch');
   const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
     .map(x => x.toString(16).padStart(2, '0')).join('');
   if (hash !== part.sha256) throw Error('News part integrity mismatch');
+  const text = typeof input === 'string' ? input : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   return parseShard(text, part);
 }
 
@@ -82,8 +83,8 @@ export async function hydrateJsonShards(value, path, { fetcher = fetch, signal }
       const i = next++, part = spec.parts[i];
       // Immutable GETs get one bounded recovery attempt. Integrity failures and access denials
       // never retry. No partial result reaches the store; one fatal part stops sibling downloads.
-      const text = await readPart(shardPath(path, part.file), part, fetcher, combined);
-      chunks[i] = await decodeShard(text, part);
+      const bytes = await readPart(shardPath(path, part.file), part, fetcher, combined);
+      chunks[i] = await decodeShard(bytes, part);
     }
   })); } catch (error) { group.abort(); throw error; }
   return assembleShards(value, chunks);
@@ -103,27 +104,14 @@ async function readPart(path, part, fetcher, signal) {
         await response.body?.cancel();
         throw Error('News part unavailable');
       }
-      // Limit decoded response bytes, not Content-Length (which may describe gzip bytes).
-      const reader = response.body?.getReader();
-      if (!reader) { retryable = false; throw Error('News part body missing'); }
-      const chunks = []; let size = 0;
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          size += value.byteLength;
-          if (size > part.bytes) {
-            retryable = false;
-            await reader.cancel();
-            throw Error('News part byte count mismatch');
-          }
-          chunks.push(value);
-        }
-      } finally { reader.releaseLock(); }
-      const bytes = new Uint8Array(size); let offset = 0;
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if (bytes.byteLength !== part.bytes) {
+        retryable = false;
+        throw Error('News part byte count mismatch');
+      }
       retryable = false;
-      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      return bytes;
     } catch (error) {
       if (!retryable || attempt || signal.aborted) throw error;
       await new Promise(resolve => setTimeout(resolve, 250));
