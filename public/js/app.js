@@ -137,6 +137,13 @@ async function boot() {
     return;
   }
   mount(root);
+  
+  let scrollTimeout;
+  window.addEventListener('scroll', () => {
+    if (!document.body.classList.contains('is-scrolling')) document.body.classList.add('is-scrolling');
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => document.body.classList.remove('is-scrolling'), 150);
+  }, { passive: true, capture: true });
 
   // The host can ask this dashboard for a picture of itself and for its current state. Registered
   // AFTER mount so `#dashboard-main` exists by the time a capture can arrive, and exactly once.

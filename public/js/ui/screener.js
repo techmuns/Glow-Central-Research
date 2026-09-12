@@ -1337,7 +1337,7 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
   };
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 p-5 backdrop-blur-sm">
+    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white p-5 ">
       <button data-drill-close class="absolute right-4 top-4 text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
       <div class="flex items-center gap-4 pr-8">
         <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-lg font-bold text-white shadow-md">${escapeHtml(initials)}</div>
@@ -1517,7 +1517,7 @@ export function openWorkspace({
   const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/97 backdrop-blur">
+    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white ">
       <div class="flex items-start gap-4 px-6 pt-5">
         <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-base font-bold text-white shadow-md">${escapeHtml(initials)}</div>
         <div class="min-w-0 flex-1">
