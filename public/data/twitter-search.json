@@ -568,7 +568,7 @@
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC Heavy Engineering": {
-      "lastAttemptAt": "2026-09-07T19:03:58+00:00",
+      "lastAttemptAt": "2026-09-12T15:51:29+00:00",
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T15:20:53.655571+00:00"
+    "checkedAt": "2026-09-12T15:51:29.662469+00:00"
   }
 }
