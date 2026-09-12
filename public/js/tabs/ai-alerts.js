@@ -82,7 +82,8 @@ onPortfolioInvalidation((version) => {
     sizesLoading = collecting = false;
     awaitingBook = null;
     sizeError = 'Unlock your portfolio to refresh your alerts.';
-    if (ctxRef.scope !== 'portfolio') { void recollect(ctxRef); return; }
+    void recollect(ctxRef);
+    return;
   } else {
     if (ctxRef?.scope !== 'portfolio') return;
     // A positions read already in flight will return the checked book. Otherwise
@@ -100,9 +101,13 @@ function portfolioUnavailable() {
   collecting = false;
   awaitingBook = null;
   sizeError = 'Family Office is temporarily unavailable.';
-  if (report) report = alerts.rankReport({ scope: report.scope, day: report.day,
-    feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
-  paint(ctxRef);
+  if (report) {
+    report = alerts.rankReport({ scope: report.scope, day: report.day,
+      feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
+    paint(ctxRef);
+  } else {
+    void recollect(ctxRef);
+  }
 }
 
 export function render(ctx) {
