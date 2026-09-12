@@ -37,6 +37,7 @@ import { scopeLabel } from '../data/scope.js';
 import * as records from '../data/alert-records.js';
 import { attributionLabel } from '../data/company-news-attribution.js';
 import { NEWS_PERIODS, newsPeriodBounds } from '../data/news-window.js';
+import { isXbrlFilingUrl, openFilingReader } from '../ui/xbrl-filing.js';
 
 export const meta = {
   id: 'daily-alerts',
@@ -124,7 +125,7 @@ export function render(ctx) {
       sourceChanged();
     }));
     const checkVisible = () => {
-      if (ctxRef && !collecting && !document.hidden && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      if (ctxRef && !collecting && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
         void recollect(ctxRef, { refresh: true });
     };
     const timer = setInterval(checkVisible, RECHECK_MS);
@@ -163,6 +164,18 @@ export function render(ctx) {
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
+  if (!report) {
+    const token = ++loadToken;
+    void alerts.readCachedAlertWindow({
+      scope: ctx.scope,
+      holdings: coverage.holdings(),
+      day: alerts.today()
+    }).then((cached) => {
+      if (token !== loadToken || ctxRef !== ctx || report || !cached) return;
+      report = cached;
+      paint(ctxRef);
+    });
+  }
   // A short return reuses retained snapshots; reopening after inactivity checks the source
   // readers immediately instead of waiting another full polling interval. No capture dispatch.
   recollect(ctx, { refresh: Date.now() - lastRevalidatedAt >= RECHECK_MS });
@@ -250,7 +263,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
 }
 
 // ---- the trailing throttle ------------------------------------------------------------
-const PAINT_COALESCE_MS = 250;
+const PAINT_COALESCE_MS = 1000;
 let paintTimer = null;
 let paintedAt = 0;
 
@@ -271,9 +284,9 @@ function cancelThrottledPaint() {
 }
 
 // Live feeds are allowed to update while the reader scrolls; replacing the table during the
-// gesture is not. Keep coalescing data in memory and perform one trailing paint after 180ms of
+// gesture is not. Keep coalescing data in memory and perform one trailing paint after 400ms of
 // quiet. Explicit controls (scope, horizon, feed selection) still paint immediately.
-const SCROLL_SETTLE_MS = 180;
+const SCROLL_SETTLE_MS = 400;
 function noteTableScroll() {
   scrollQuietUntil = performance.now() + SCROLL_SETTLE_MS;
 }
@@ -1039,7 +1052,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows
     // News carries five lines including attribution. Its 115px natural height exceeded the old
     // 96px virtual stride, causing a visible jump whenever a window replaced those taller rows.
-    fillMode: 'virtual',
+    fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
@@ -1056,6 +1069,14 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
       if (e.url) {
+        // AN NSE XBRL FILING IS A DOCUMENT, NOT A PAGE. Opening one in a tab shows the reader SEBI's
+        // namespaces; `openFilingReader` lays out the same filing's own fields. Every other URL is
+        // somebody's page and still opens as one. The Link column's anchor is intercepted centrally
+        // (see js/ui/xbrl-filing.js); a row click never becomes an anchor, so it asks here.
+        if (isXbrlFilingUrl(e.url)) {
+          void openFilingReader(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
+          return;
+        }
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }

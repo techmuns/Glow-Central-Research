@@ -843,7 +843,7 @@ export function scoreTable(config) {
 
       <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
         <table class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
-          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 table-sticky-head' : 'bg-slate-50/70'}">${headHtml()}</thead>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-white shadow-sm' : 'bg-slate-50/70'}">${headHtml()}</thead>
           <tbody data-table-body>${isVirtual ? virtualBodyHtml(initialList, initialVirtualStart) : bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
         </table>
       </div>
@@ -1195,24 +1195,53 @@ export function scoreTable(config) {
       repaint();
     });
 
+    // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
+    // and each carries its own star, so invalidating only the row that was clicked would leave
+    // the other two showing the opposite of what is stored — the same disagreement between a
+    // control and its state that `staleKeys` exists to close, arrived at from the other side.
+    function restainWatched(company) {
+      // The prompt below is asynchronous, so this can run after the reader has navigated away and
+      // the table has been torn down. Painting into a detached host would be silent and wrong;
+      // the state is already written either way.
+      if (!host.isConnected) return;
+      for (const r of rows) {
+        if (watchKeyOf(r) !== company) continue;
+        const slug = String(key(r));
+        rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+      }
+      repaint({ resetScroll: false });
+    }
+
+    // THE STAR WRITES TO A LIST EVERYBODY READS, so adding asks whose add it is.
+    //
+    // Unstarring does not ask. It is the undo for a mis-click and has to stay one click, and the
+    // contract lets a removal be unattributed rather than inventing a name for it — see
+    // `watchlistIntent` in js/data/watchlist-shared.js. The name this device last used still rides
+    // along when there is one, so a removal is usually attributed anyway.
+    //
+    // The dialog is imported on demand: it imports `openModal` from this very file, and a static
+    // import would be a cycle. Lazy also means the modal costs nothing until somebody stars a row.
+    async function toggleWatched(company, label) {
+      if (watchlist.has(company)) {
+        watchlist.remove(company);
+        restainWatched(company);
+        return;
+      }
+      const { askContributor } = await import('./watchlist-attribution.js');
+      const by = await askContributor({ ticker: company, company: label || company });
+      // Backing out of the prompt is an answer: nothing is added, and nothing is added anonymously.
+      if (!by) return;
+      watchlist.add(company, label, by);
+      restainWatched(company);
+    }
+
     // Delegated: watchlist star, external link, row click — in that priority order.
     body.addEventListener('click', (e) => {
       const star = e.target.closest('[data-watch]');
       if (star) {
         e.stopPropagation();
-        const company = star.dataset.watch;
-        watchlist.toggle(company, star.dataset.watchName || null);
-        // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
-        // and each carries its own star, so invalidating only the row that was clicked would leave
-        // the other two showing the opposite of what is stored — the same disagreement between a
-        // control and its state that `staleKeys` exists to close, arrived at from the other side.
-        for (const r of rows) {
-          if (watchKeyOf(r) !== company) continue;
-          const slug = String(key(r));
-          rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
-          staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
-        }
-        repaint({ resetScroll: false });
+        void toggleWatched(star.dataset.watch, star.dataset.watchName || null);
         return;
       }
       if (e.target.closest('[data-stop]')) {
@@ -1317,7 +1346,7 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
   };
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 p-5 backdrop-blur-sm">
+    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white p-5 ">
       <button data-drill-close class="absolute right-4 top-4 text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
       <div class="flex items-center gap-4 pr-8">
         <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-lg font-bold text-white shadow-md">${escapeHtml(initials)}</div>
@@ -1497,7 +1526,7 @@ export function openWorkspace({
   const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/97 backdrop-blur">
+    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white ">
       <div class="flex items-start gap-4 px-6 pt-5">
         <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-base font-bold text-white shadow-md">${escapeHtml(initials)}</div>
         <div class="min-w-0 flex-1">

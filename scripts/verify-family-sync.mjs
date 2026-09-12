@@ -20,8 +20,9 @@ const prior = JSON.parse(readFileSync(new URL('./fixtures/family-book.json', imp
 const sterlite = { isin: 'INE089C01029', name: 'Sterlite Technologies Ltd', sector: 'Unclassified' };
 const beforeSterlite = prior.lines.filter(l => l.isin !== sterlite.isin);
 const incoming = {
+  get checkedAt() { return new Date().toISOString(); },
   ok: true, schemaVersion: 1, storage: 'shared', revision: 'a'.repeat(64),
-  asOf: '2026-09-30', checkedAt: new Date().toISOString(),
+  asOf: '2027-03-31',
   sourceWorkbook: { fileKey: 'up-aug', label: 'FY27 till Q2 Aug.', uploadedAt: '2026-09-03T00:00:00Z' },
   positions: prior.positions, excluded: prior.excluded,
   lines: [...beforeSterlite.slice(1), sterlite], count: beforeSterlite.length,

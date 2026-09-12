@@ -210,7 +210,7 @@
         font-weight: 600;
         line-height: 24px;
         white-space: nowrap;
-        transition: background-color 160ms ease, color 160ms ease;
+        transition: color 100ms ease; /* Instant background change feels much snappier */
       }
       .tab-btn::after {
         content: '';
@@ -223,7 +223,7 @@
         background: linear-gradient(90deg, var(--brand-500), var(--brand-mid));
         transform: scaleX(0);
         transform-origin: center;
-        transition: transform 200ms ease;
+        transition: transform 150ms ease-out;
       }
       .tab-btn.is-active::after {
         transform: scaleX(1);
@@ -362,6 +362,7 @@
       #app:has(.research-workspace.is-reading-view) > [data-app-header], #app:has(.research-workspace.is-reading-view) > [data-app-nav] { display: none; }
 
       .research-workspace {
+        position: relative;
         display: flex;
         flex: 1 1 auto;
         min-height: 0;
@@ -371,7 +372,120 @@
         border-radius: 1.25rem;
         background: rgb(var(--surface-white, 255 255 255) / 0.93);
         box-shadow: 0 20px 55px -35px rgb(var(--edge-indigo-600, 79 70 229) / 0.45), 0 1px 3px rgb(var(--edge-slate-900, 15 23 42) / 0.05);
-        backdrop-filter: blur(18px);
+      }
+      .research-workspace.is-disabled-coming-soon {
+        position: relative;
+        overflow: hidden;
+      }
+      .research-workspace.is-disabled-coming-soon .research-layout {
+        filter: blur(8px);
+        -webkit-filter: blur(8px);
+        pointer-events: none;
+        user-select: none;
+        opacity: 0.5;
+      }
+      .research-workspace.is-disabled-coming-soon .research-reading-toolbar {
+        filter: blur(3px);
+        -webkit-filter: blur(3px);
+        pointer-events: none;
+        user-select: none;
+        opacity: 0.5;
+      }
+      .research-coming-soon-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: rgb(var(--surface-white, 255 255 255) / 0.6);
+        pointer-events: auto;
+      }
+      html[data-theme="dark"] .research-coming-soon-overlay {
+        background: rgb(15 23 42 / 0.65);
+      }
+      .research-coming-soon-card {
+        max-width: 32rem;
+        width: 100%;
+        border-radius: 1.25rem;
+        border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 0.85);
+        background: rgb(var(--surface-white, 255 255 255) / 0.95);
+        box-shadow: 0 20px 45px -15px rgb(15 23 42 / 0.18), 0 0 0 1px rgb(15 23 42 / 0.05);
+        padding: 2.25rem 2rem;
+        text-align: center;
+      }
+      html[data-theme="dark"] .research-coming-soon-card {
+        background: rgb(30 41 59 / 0.96);
+        border-color: rgb(51 65 85 / 0.8);
+        box-shadow: 0 25px 50px -15px rgb(0 0 0 / 0.5);
+      }
+      .research-coming-soon-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 9999px;
+        background: rgb(var(--surface-indigo-50, 238 242 255) / 1);
+        border: 1px solid rgb(var(--edge-indigo-200, 199 210 254) / 1);
+        color: rgb(var(--text-indigo-700, 67 56 202) / 1);
+        font-size: 0.6875rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 1.25rem;
+      }
+      html[data-theme="dark"] .research-coming-soon-badge {
+        background: rgb(49 46 129 / 0.5);
+        border-color: rgb(99 102 241 / 0.4);
+        color: rgb(165 180 252);
+      }
+      .research-coming-soon-title {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        color: rgb(var(--text-slate-900, 15 23 42) / 1);
+        margin: 0 0 0.75rem 0;
+      }
+      html[data-theme="dark"] .research-coming-soon-title {
+        color: rgb(248 250 252);
+      }
+      .research-coming-soon-msg {
+        font-size: 0.9375rem;
+        line-height: 1.6;
+        color: rgb(var(--text-slate-600, 71 85 105) / 1);
+        margin: 0 0 1.5rem 0;
+      }
+      html[data-theme="dark"] .research-coming-soon-msg {
+        color: rgb(203 213 225);
+      }
+      .research-coming-soon-detail {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: rgb(var(--text-slate-500, 100 116 139) / 1);
+        border-top: 1px solid rgb(var(--edge-slate-100, 241 245 249) / 1);
+        padding-top: 1.25rem;
+      }
+      html[data-theme="dark"] .research-coming-soon-detail {
+        border-top-color: rgb(51 65 85 / 0.6);
+        color: rgb(148 163 184);
+      }
+      .research-coming-soon-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 9999px;
+        background: #6366f1;
+        flex-shrink: 0;
+      }
+      .research-coming-soon-spark {
+        width: 0.9rem;
+        height: 0.9rem;
+        color: #6366f1;
       }
       .research-layout { display: flex; min-height: 0; flex: 1 1 auto; }
       .research-sidebar { inset: 0 auto 0 0; margin: 0; padding: 0; width: min(21rem, 92vw); max-width: none; height: 100dvh; max-height: 100dvh; min-height: 0; flex-direction: column; border: 0; border-right: 1px solid rgb(var(--edge-slate-200, 226 232 240)); background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-700, 51 65 85)); box-shadow: 12px 0 48px #0f172a26; }
@@ -691,7 +805,6 @@
         background: rgb(var(--surface-white, 255 255 255) / 0.92);
         box-shadow: 0 1px 0 0 rgb(var(--edge-slate-200, 226 232 240) / 0.9) inset, 0 0 0 1px rgb(var(--edge-slate-200, 226 232 240) / 0.95),
           0 14px 34px -22px rgb(var(--edge-slate-900, 15 23 42) / 0.55);
-        backdrop-filter: blur(10px);
         cursor: pointer;
         transition: box-shadow 180ms ease, transform 180ms ease;
       }
@@ -1018,6 +1131,7 @@
           transition-duration: 0.01ms !important;
         }
       }
+          body.is-scrolling * { pointer-events: none !important; }
     </style>
     <link rel="stylesheet" href="/css/theme.css" />
     <link rel="stylesheet" href="/css/glow.css" />
@@ -1030,7 +1144,7 @@
 
     <!-- Overlay layer, owned by ui/screener.js. Both are singletons: any tab can open the
          right-slide drill panel or the centred modal without mounting its own copy. -->
-    <div id="drill-overlay" class="fixed inset-0 z-40 hidden bg-slate-900/30 backdrop-blur-sm"></div>
+    <div id="drill-overlay" class="fixed inset-0 z-40 hidden bg-slate-900/30 "></div>
     <aside
       id="drill-panel"
       class="drill-panel scrollbar-thin fixed right-0 top-0 z-50 h-full w-full translate-x-full overflow-y-auto bg-white shadow-2xl sm:w-[480px]"
@@ -1040,7 +1154,7 @@
 
     <div
       id="modal-overlay"
-      class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:p-8"
+      class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto bg-slate-900/60 p-4  sm:p-8"
     >
       <div id="modal-container" class="relative my-8 w-full max-w-4xl scale-95 overflow-hidden rounded-3xl bg-white opacity-0 shadow-2xl transition-all duration-200">
         <div id="modal-content"></div>
@@ -1053,7 +1167,7 @@
          than behind it. -->
     <div
       id="workspace-overlay"
-      class="fixed inset-0 z-[55] hidden items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-6"
+      class="fixed inset-0 z-[55] hidden items-start justify-center overflow-y-auto bg-slate-900/70 p-0  sm:p-6"
     >
       <div
         id="workspace-container"
