@@ -84,13 +84,21 @@ assert.equal(live.status, 200); assert.deepEqual(JSON.parse(gunzipSync(Buffer.fr
 const unchanged = await handleExchangeDeals(new Request(request.url, { headers: { 'if-none-match': live.headers.get('etag') } }), env, ctx, { fetchImpl: () => { throw new Error('cache missed'); }, cache });
 assert.equal(unchanged.status, 304);
 const fallback = await handleExchangeDeals(request, env, ctx, { fetchImpl: async () => { throw new Error('archive offline'); }, cache: { ...cache, match: async () => null } });
+<<<<<<< HEAD
 assert.equal(fallback.headers.get('x-glow-exchange-fallback'), '1');
+=======
+assert.equal(fallback.headers.get('x-sattva-exchange-fallback'), '1');
+>>>>>>> sattva/main
 assert.deepEqual((await fallback.json()).records, before.records);
 assert.equal((await handleExchangeDeals(new Request(request.url, { method: 'POST' }), env, ctx, { cache })).status, 405);
 
 const shipped = validateExchangeSnapshot(JSON.parse(readFileSync(new URL('../public/data/exchange-deals.json', import.meta.url))));
 assert.equal(new Set(shipped.records.map(exchangeDealKey)).size, shipped.records.length);
+<<<<<<< HEAD
 assert(shipped.records.length > 40000 && shipped.sources.every((s) => s.ok && s.coverage[0].from <= '2025-09-09'));
+=======
+assert(shipped.records.length > 40000 && shipped.sources.every((s) => s.coverage[0].from <= '2025-09-09'));
+>>>>>>> sattva/main
 console.log(`PASS exchanges: complete exports, ${shipped.records.length} distinct shipped reports, corrections, venue/side separation, coverage gaps, ISIN joins, partial failures, artifact transport, credential isolation and conditional delivery`);
 
 // Delivery callbacks may rerender a view and replace themselves. The new subscription must

@@ -21,6 +21,7 @@ import * as refreshRegistry from '../core/refresh.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
+import { TECHNICAL_FILTERS, TECHNICAL_DEFAULTS, chipCounts } from './technical-filters.js';
 
 export const meta = {
   id: 'breakouts',
@@ -60,6 +61,7 @@ export function render(ctx) {
   });
   if (!dataOff) dataOff = technicals.onChange(() => { if (ctxRef) paint(ctxRef); });
   const token = ++renderToken;
+<<<<<<< HEAD
   // A filter repaint replaces the table that an outstanding quote request would update.
   inFlight?.abort();
   inFlight = null;
@@ -73,6 +75,8 @@ export function render(ctx) {
     routeCompany = seeded.company;
     tableView = seeded.view;
   }
+=======
+>>>>>>> sattva/main
   ctx.root.innerHTML = loadingHtml();
 
   technicals
@@ -396,7 +400,12 @@ function scoringHelpModalBody() {
 function renderScanner(ctx, rows) {
   const m = technicals.meta();
   const state = readChipState(ctx.params || {}, TECHNICAL_DEFAULTS, TECHNICAL_FILTERS);
+<<<<<<< HEAD
   const { filtered, counts } = applyChipFilters(rows, TECHNICAL_FILTERS, state);
+=======
+  const counts = chipCounts(rows, TECHNICAL_FILTERS, state);
+  const filtered = rows.filter(row => Object.values(TECHNICAL_FILTERS).every(group => group.test(row, state[group.param])));
+>>>>>>> sattva/main
   const scored = filtered.filter((s) => !s.tickerError);
   const maxPoints = scored[0]?.totalMax ?? 24;
 
@@ -425,6 +434,11 @@ function renderScanner(ctx, rows) {
 
   const table = scoreTable({
     ...tableBase(filtered, ctx),
+<<<<<<< HEAD
+=======
+    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
+    initialView: tableViews.get(ctx.subview) || (ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null),
+>>>>>>> sattva/main
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -470,6 +484,8 @@ function renderScanner(ctx, rows) {
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'companies', book: coverage.meta() })}</div>`,
     })}
+    ${chipBar(TECHNICAL_FILTERS, state, counts)}
+    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${rows.length}</span> companies match these filters.</div>
     ${refreshBar()}
     ${chipBar(TECHNICAL_FILTERS, state, counts)}
     ${cards.html}
@@ -520,6 +536,7 @@ const BREAKOUT_FILTERS = {
       return ids.includes(q);
     },
   },
+<<<<<<< HEAD
   volume: {
     param: 'vol',
     label: 'Volume confirm',
@@ -571,6 +588,9 @@ const BREAKOUT_FILTERS = {
     // the view rather than silently emptying it.
     test: (s, ids) => (ids[0] === 'above' ? s.company.above_200dma === true : true),
   },
+=======
+  ...TECHNICAL_FILTERS,
+>>>>>>> sattva/main
 };
 
 // GLOW: use the same three market filters in every technical view. Volume confirmation reads
@@ -617,8 +637,13 @@ function chipBar(groups, state, counts) {
       ${Object.entries(groups)
         .map(
           ([groupKey, g]) => `
+<<<<<<< HEAD
         <div class="flex flex-wrap items-center gap-2" role="group" aria-label="${escapeHtml(g.label)}">
           <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(g.label)}</span>
+=======
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400"${g.description ? ` title="${escapeHtml(g.description)}"` : ''}>${escapeHtml(g.label)}</span>
+>>>>>>> sattva/main
           ${g.options
             .map((o) => {
               const active = state[g.param].includes(o.id);
@@ -665,9 +690,18 @@ function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
 
+<<<<<<< HEAD
   // Each chip counts its result with every other group held at the current selection.
   const { filtered, counts } = applyChipFilters(withBreakout, BREAKOUT_FILTERS, state);
   filtered
+=======
+  // Live counts per chip: how many rows would remain if that chip alone were toggled on,
+  // holding the other groups at their current setting.
+  const counts = chipCounts(withBreakout, BREAKOUT_FILTERS, state);
+
+  const filtered = withBreakout
+    .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
+>>>>>>> sattva/main
     // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
     // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
     // columns left on screen once the Quality column came off. The quality is still what the chip
@@ -796,8 +830,16 @@ function renderFiiAccumulation(ctx, rows) {
   const state = readChipState(ctx.params || {}, FII_DEFAULTS, FII_FILTERS);
   const withHold = rows.filter((s) => !s.tickerError && (s.company.chg_fii_hold != null || s.company.chg_dii_hold != null));
 
+<<<<<<< HEAD
   const { filtered, counts } = applyChipFilters(withHold, FII_FILTERS, state);
   filtered.sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+=======
+  const counts = chipCounts(withHold, FII_FILTERS, state);
+
+  const filtered = withHold
+    .filter((s) => Object.values(FII_FILTERS).every((g) => g.test(s, state[g.param])))
+    .sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+>>>>>>> sattva/main
 
   const exiting = withHold.filter((s) => (s.company.chg_fii_hold ?? 0) < -2).length;
   const avgFii = withHold.length ? withHold.reduce((s, r) => s + (r.company.chg_fii_hold ?? 0), 0) / withHold.length : 0;
@@ -863,6 +905,20 @@ function deliveryCell(v) {
   return toneSpan(`${v > 0 ? '+' : ''}${num(v, 1)} pp`, v > 1 ? 'pos' : v > 0 ? 'warn' : 'neg');
 }
 
+<<<<<<< HEAD
+=======
+function tagPill(tag) {
+  const cls = tag === 'Beat' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : tag === 'Miss' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200';
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${tag}</span>`;
+}
+function dmaPill(v) {
+  if (v == null) return '<span class="text-slate-300">—</span>';
+  return v
+    ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
+    : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
+}
+
+>>>>>>> sattva/main
 // ---- Excel export ----------------------------------------------------------------------------
 
 // One row per company: identity, score, every rule's points, then the headline indicators.

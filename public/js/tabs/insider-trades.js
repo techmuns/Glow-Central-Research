@@ -18,8 +18,12 @@ import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
 import { insiderTradeSourceUrl, pickField } from '../data/filings-shared.js';
+<<<<<<< HEAD
 import { matchesNewsPeriod, NEWS_PERIODS } from '../data/news-window.js';
 import { parseRange, inRange } from '../data/date-range.js';
+=======
+import { matchesNewsPeriod, NEWS_PERIODS, newsDay, inNewsWindow } from '../data/news-window.js';
+>>>>>>> sattva/main
 
 export { insiderTradeSourceUrl };
 
@@ -95,7 +99,13 @@ const TRADE_PERIODS = [...NEWS_PERIODS,
   { value: '1y', label: 'Last year' }, { value: 'all', label: 'All captured' }];
 
 function tradeFilters(rows) {
+<<<<<<< HEAD
   const longRanges = new Map(['3m', '6m', '1y'].map(id => [id, parseRange(id)]));
+=======
+  const today = newsDay();
+  const longRanges = new Map([['3m', 91], ['6m', 182], ['1y', 365]].map(([id, days]) =>
+    [id, { from: new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0, 10), to: today }]));
+>>>>>>> sattva/main
   const fields = FILTER_FIELDS.map((field) => {
     // A numeric/date-only value under Transaction or Mode is a ragged upstream markdown row, not
     // a transaction choice. It remains visible under "All" but is not promoted into a misleading
@@ -118,7 +128,11 @@ function tradeFilters(rows) {
       maxWidthPx: 180,
       options: TRADE_PERIODS,
       match: (row, value) => longRanges.has(value)
+<<<<<<< HEAD
         ? inRange(row.date, longRanges.get(value)) : matchesNewsPeriod(row, value),
+=======
+        ? inNewsWindow(row, longRanges.get(value)) : value === 'all' || matchesNewsPeriod(row, value),
+>>>>>>> sattva/main
     },
   ];
 }
@@ -141,7 +155,11 @@ const tab = makeFilingsTab({
   // key builder in filings-tab.js for what that cost the News tab.
   keyFor: (r) => `${r.ticker || ''}|${r.date || ''}|${Object.values(r.cells || {}).join('|')}`,
   filters: tradeFilters,
+<<<<<<< HEAD
   // Keep the template's compact period selector and the Glow link/reload contract.
+=======
+  // Keep the selected period in the URL across links and reloads.
+>>>>>>> sattva/main
   // Range selection changes only the displayed rows; automatic capture retains its full history.
   prepareView: (ctx, previous) => {
     const raw = ctx.params?.range;
@@ -199,23 +217,31 @@ const tab = makeFilingsTab({
     });
     return cols;
   },
+<<<<<<< HEAD
   // Source health remains available in the help panel without a status line above the table.
   status: () => '',
+=======
+  status: (m) => `<p class="mb-3 text-xs text-slate-500" data-filings-info data-exchange-status>${escapeHtml(m.exchanges?.summary || 'NSE / BSE reports are loading.')}<br>${escapeHtml(m.disclosuresStatus || '')}</p>`,
+>>>>>>> sattva/main
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
         <h2 class="font-display text-xl font-bold text-slate-900">Bulk/Block Deal</h2>
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
+<<<<<<< HEAD
         <p class="mb-3"><strong>Bulk and block deals</strong> come directly from the full NSE CSV exports and BSE historical reports. Official exchange reports take precedence for dates successfully covered; the shared Screener capture supplies other available dates. Buy and sell sides, bulk and block reports, and trades on different exchanges stay separate. They also power Changes under Super Investors. The capture checks every 30 minutes during the day and evening on weekdays, plus weekend catch-up. Both tabs check for updates every minute while visible. These are published disclosures, not a streaming trade tape. ${escapeHtml(m.exchanges?.summary || '')} ${m.bulkDeals ? `Supplementary Screener: ${m.bulkDeals.rows} retained records before overlap removal; captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Bulk/block coverage is unavailable.'}</p>
+=======
+        <p class="mb-3"><strong>Bulk and block deals</strong> come directly from the full NSE CSV exports and BSE historical reports. Official exchange reports take precedence for dates successfully covered; the shared Screener capture supplies other available dates. Buy and sell sides, bulk and block reports, and trades on different exchanges stay separate. The capture checks every 30 minutes during the day and evening on weekdays, plus weekend catch-up. This tab checks for updates every minute while visible. These are published disclosures, not a streaming trade tape. ${escapeHtml(m.exchanges?.summary || '')}</p>
+>>>>>>> sattva/main
         <p><strong>Real market disclosures.</strong> The scheduled capture reads Screener.in’s complete market-wide
-           <strong>Bulk deal, Block deal, SAST and Insider trade</strong> lists. Retained Muns insider rows supplement
+           <strong>Bulk deal, Block deal, SAST and Insider trade</strong> lists. Independently refreshed Muns insider rows supplement
            those lists where they carry more exchange fields.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">The table is theirs, columns and all</h3>
         <p class="mt-1 text-xs">The source-specific cells are retained under their own headings. The one common field,
            <strong>Trade Category</strong>, distinguishes which of the four lists published the row and drives the
-           Category filter.</p>
+           Trade category filter.</p>
 
         <h3 class="font-display mt-4 text-sm font-bold text-slate-900">What this dashboard does to it</h3>
         <ul class="mt-1 list-disc space-y-1 pl-5 text-xs">
@@ -224,7 +250,7 @@ const tab = makeFilingsTab({
           <li><strong>Removes duplicates.</strong> The same ticker, date, person, direction and quantity in the same trade
               category appears once even when Screener and Muns format or attribute it differently. Different trade
               categories remain separate.</li>
-          <li><strong>Reads the date</strong>, so the table can sort. That is the only cell interpreted.</li>
+          <li><strong>Reads the date</strong>, so the table can sort. Official quantity × price is displayed as an approximate rupee value, marked ≈; source-supplied values remain unchanged.</li>
           <li><strong>Tints a direction</strong> where the cell says so in words — <em>bought</em>, <em>sold</em>,
               <em>disposal</em>. A value it does not recognise stays plain rather than being guessed into a direction.</li>
           <li><strong>Sums nothing.</strong> There is no total quantity or total value anywhere on this tab. A quantity
@@ -239,7 +265,7 @@ const tab = makeFilingsTab({
       </div>
     </div>`,
   onExport: async (visible, m) => {
-    const headers = (m.headers || []).filter((h) => !looksLikeSource(h) && !looksLikeLink(h));
+    const headers = (m.headers || []).filter((h) => !/^source$/i.test(h) && !looksLikeLink(h));
     await exportRows({
       filename: 'glow-bulk-block-deal',
       sheetName: 'Bulk-Block Deal',
@@ -250,10 +276,10 @@ const tab = makeFilingsTab({
           width: 14,
           get: (r) =>
             r.__banner
-              ? `REAL DISCLOSURES, NOT OURS. Bulk deals, block deals, SAST and insider trades from Screener.in, supplemented by retained Muns rows, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
+              ? `REAL DISCLOSURES, NOT OURS. Bulk deals, block deals, SAST and insider trades from NSE/BSE reports and Screener.in, supplemented by Muns disclosures, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
                 `THE SOURCE-SPECIFIC COLUMNS AND THEIR HEADINGS ARE RETAINED; Trade Category is the common four-list classifier. Duplicate economic events appear once. ` +
-                `NOTHING IS SUMMED OR CLASSIFIED: no total quantity, no total value, and no judgement about what a trade means. ` +
-                `${m.covered} companies covered${m.failed ? `; ${m.failed} could not be read and are ABSENT rather than shown as having no insider dealing` : ''}. ` +
+                `No aggregate totals or judgement about what a trade means. Official quantity × price is an approximate rupee trade value marked ≈; other values retain source units. ` +
+                `${visible.length} visible trades from ${new Set(visible.map(r => r.ticker)).size} companies. ${m.exchanges?.summary || ''} ${m.disclosuresStatus || ''} ` +
                 `A blank cell is one the source left empty, never a zero.`
               : r.date || '',
         },
