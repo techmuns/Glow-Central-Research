@@ -29,6 +29,15 @@ export const meta = {
   allowEmptyScope: true,
 };
 
+export function isComingSoon() {
+  if (typeof window !== 'undefined') {
+    if (window.__ENABLE_RESEARCH__ === true) return false;
+    const hash = window.location.hash || '';
+    if (hash.includes('test_stream=1') || hash.includes('enable_research=1')) return false;
+  }
+  return true;
+}
+
 const STORAGE_KEY = 'sattva:ask-research:v1';
 const MAX_SESSIONS = 24;
 const MAX_MESSAGES = 80;
@@ -263,24 +272,43 @@ function watchEvidenceInvalidation() {
 }
 
 function template(scope) {
+  const comingSoon = isComingSoon();
   return `
-    <section class="research-workspace${readingView ? ' is-reading-view' : ''}" data-research-workspace>
+    <section class="research-workspace${readingView ? ' is-reading-view' : ''}${comingSoon ? ' is-disabled-coming-soon' : ''}" data-research-workspace>
+      ${comingSoon ? `
+      <div class="research-coming-soon-overlay" data-coming-soon-overlay aria-live="polite">
+        <div class="research-coming-soon-card">
+          <div class="research-coming-soon-badge">
+            <svg class="research-coming-soon-spark" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M10 2a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 2zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15zm8-5a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0118 10zM5 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 015 10zm10.657-5.657a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.062-1.06l1.061-1.061a.75.75 0 011.061 0zm-9.193 9.192a.75.75 0 010 1.061l-1.06 1.06a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0zm9.193 0a.75.75 0 01-1.06 0l-1.061-1.06a.75.75 0 111.06-1.061l1.061 1.06a.75.75 0 010 1.061zm-9.193-9.192a.75.75 0 01-1.061 0l-1.06-1.061a.75.75 0 111.06-1.06l1.061 1.06a.75.75 0 010 1.061z"/>
+            </svg>
+            <span>Coming Soon</span>
+          </div>
+          <h3 class="research-coming-soon-title">Merging with Munshot Chat</h3>
+          <p class="research-coming-soon-msg">Please wait for some time, we will let you know as soon as it is ready.</p>
+          <div class="research-coming-soon-detail">
+            <span class="research-coming-soon-dot" aria-hidden="true"></span>
+            <span>Upgrading your research experience across all portfolio data</span>
+          </div>
+        </div>
+      </div>
+      ` : ''}
       <div class="research-reading-toolbar">
         <div class="research-toolbar-title">
           <h2 class="font-display font-extrabold text-slate-900" data-research-title>${readingView ? `${scopeLabel(scope)} research` : 'Ask Research'}</h2>
           <span class="research-connection" data-portfolio-connection></span>
         </div>
         <div class="research-toolbar-actions">
-          <button type="button" data-research-history aria-label="Conversation history" aria-haspopup="dialog" aria-expanded="false" aria-controls="research-history" title="Conversation history">
+          <button type="button" data-research-history aria-label="Conversation history" aria-haspopup="dialog" aria-expanded="false" aria-controls="research-history" title="Conversation history"${comingSoon ? ' disabled' : ''}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9" stroke-linecap="round"/></svg><span>History</span>
           </button>
-          <button type="button" data-research-new aria-label="Start a new research conversation" title="New conversation">
+          <button type="button" data-research-new aria-label="Start a new research conversation" title="New conversation"${comingSoon ? ' disabled' : ''}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke-linecap="round"/></svg><span>New</span>
           </button>
-          <button type="button" data-research-sources aria-label="Research sources" title="Research sources">
+          <button type="button" data-research-sources aria-label="Research sources" title="Research sources"${comingSoon ? ' disabled' : ''}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 3h9l3 3v11H4V3Z M12 3v4h4M7 10h6M7 13h6" stroke-linejoin="round"/></svg><span>Sources</span>
           </button>
-          <button type="button" data-research-reading aria-label="${readingView ? 'Exit reading view' : 'Reading view'}" aria-pressed="${readingView}" title="${readingView ? 'Exit reading view' : 'Reading view'}">
+          <button type="button" data-research-reading aria-label="${readingView ? 'Exit reading view' : 'Reading view'}" aria-pressed="${readingView}" title="${readingView ? 'Exit reading view' : 'Reading view'}"${comingSoon ? ' disabled' : ''}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${readingView ? 'Exit reading view' : 'Reading view'}</span>
           </button>
         </div>
@@ -303,10 +331,10 @@ function template(scope) {
           <div class="research-composer-wrap">
             <div class="research-config-notice hidden" data-research-config role="status"></div>
             <div class="research-phase" role="status" aria-live="polite" data-research-phase></div>
-            <div class="research-composer" data-research-composer>
-              <textarea rows="1" maxlength="1500" data-research-input placeholder="Ask a question…" aria-label="Ask about the dashboard"></textarea>
+            <div class="research-composer${comingSoon ? ' is-disabled' : ''}" data-research-composer>
+              <textarea rows="1" maxlength="1500" data-research-input placeholder="${comingSoon ? 'Ask Research is temporarily paused…' : 'Ask a question…'}" aria-label="Ask about the dashboard"${comingSoon ? ' disabled' : ''}></textarea>
               <div class="research-composer-actions">
-                <button type="button" class="research-send-button" data-research-send aria-label="Send question">
+                <button type="button" class="research-send-button" data-research-send aria-label="Send question"${comingSoon ? ' disabled' : ''}>
                   <span>Send</span>
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 10 11-6-3 12-2.3-4.1L4 10Z" stroke-linejoin="round"/><path d="m9.7 11.9 2.4-3.1" stroke-linecap="round"/></svg>
                 </button>
@@ -339,6 +367,10 @@ export function render(ctx) {
   uiDispose = wire(ctx.root);
   paintAll();
   paintPortfolioConnection();
+  if (isComingSoon()) {
+    // Coming Soon is active: suppress background portfolio connection and AI configuration handshakes.
+    return;
+  }
   // NOT ON MOUNT. `prepareResearchSources()` calls load() on all 21 registered evidence sources,
   // and this tab is the DEFAULT LANDING PAGE — so warming here made every reader download the
   // entire data estate before clicking anything. Measured at 4x CPU throttle on the shipped data:
@@ -364,6 +396,11 @@ function paintPortfolioConnection() {
   const mount = ctxRef?.root.querySelector('[data-portfolio-connection]');
   if (!mount) return;
   empty(mount);
+  if (isComingSoon()) {
+    mount.dataset.state = 'idle';
+    mount.textContent = '';
+    return;
+  }
   mount.dataset.state = portfolioConnected() ? 'connected' : portfolioConnectionState();
   if (portfolioConnected()) {
     mount.textContent = 'Portfolio connected';
@@ -398,6 +435,9 @@ function cleanupUi() {
 }
 
 function wire(root) {
+  if (isComingSoon()) {
+    return () => {};
+  }
   const input = root.querySelector('[data-research-input]');
   const transcript = root.querySelector('[data-research-transcript]');
   const history = root.querySelector('#research-history');
@@ -589,7 +629,7 @@ function paintAll() {
 // live question uses; store the result on the message so it is never asked twice; repaint.
 const backfilling = new Set();
 function backfillCompanies(session) {
-  if (!session || !ctxRef) return;
+  if (!session || !ctxRef || isComingSoon()) return;
   const scope = ctxRef.scope;
   session.messages.forEach((message, index) => {
     if (message.role !== 'assistant' || Array.isArray(message.companies) || backfilling.has(message)) return;
@@ -915,6 +955,18 @@ function paintComposer() {
   const composer = root.querySelector('[data-research-composer]');
   const notice = root.querySelector('[data-research-config]');
   const phase = root.querySelector('[data-research-phase]');
+  if (isComingSoon()) {
+    if (input) {
+      input.value = '';
+      input.disabled = true;
+      input.placeholder = 'Merging with Munshot Chat…';
+    }
+    if (composer) composer.classList.add('is-disabled');
+    if (notice) notice.classList.add('hidden');
+    if (phase) phase.textContent = '';
+    syncSendState();
+    return;
+  }
   const busy = isBusy(session);
   const configured = configState?.configured === true;
   const providerNote = root.querySelector('[data-research-provider-note]');
@@ -945,6 +997,12 @@ function syncSendState() {
   const session = currentSession();
   const send = root?.querySelector('[data-research-send]');
   if (!send || !session) return;
+  if (isComingSoon()) {
+    send.disabled = true;
+    send.classList.remove('is-busy');
+    send.querySelector('span').textContent = 'Send';
+    return;
+  }
   const busy = isBusy(session);
   const disabled = !busy && (!configState?.configured || !session.draft.trim());
   send.disabled = disabled;
