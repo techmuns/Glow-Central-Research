@@ -576,7 +576,7 @@
       "error": "search-unavailable"
     },
     "isin:INE168A01041|J & K Bank Ltd.": {
-      "lastAttemptAt": "2026-09-07T20:03:37+00:00",
+      "lastAttemptAt": "2026-09-12T16:54:37+00:00",
       "error": "search-unavailable"
     },
     "isin:INE168A01041|J&KBANK": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T16:22:27.700178+00:00"
+    "checkedAt": "2026-09-12T16:54:37.830679+00:00"
   }
 }
