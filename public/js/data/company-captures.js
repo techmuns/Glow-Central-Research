@@ -1,13 +1,21 @@
 import { conditionalJson, readEntry } from '../core/store.js';
 
 let index = null, indexError = null, pending = null, checkedAt = 0;
-export async function capturedJson(path) {
-  const key = `capture:${path}`;
-  const response = await conditionalJson(path, { key, optional: true, signal: AbortSignal.timeout(12000) });
-  if (response.value) return { value: response.value, stale: false };
-  const saved = await readEntry(key);
-  if (saved?.value) return { value: saved.value, stale: true };
-  throw new Error('Shared capture is unavailable. No empty result has been assumed.');
+const capturedInFlight = new Map();
+export function capturedJson(path) {
+  if (capturedInFlight.has(path)) return capturedInFlight.get(path);
+  const promise = (async () => {
+    const key = `capture:${path}`;
+    const response = await conditionalJson(path, { key, optional: true, signal: AbortSignal.timeout(12000) });
+    if (response.value) return { value: response.value, stale: false };
+    const saved = await readEntry(key);
+    if (saved?.value) return { value: saved.value, stale: true };
+    throw new Error('Shared capture is unavailable. No empty result has been assumed.');
+  })().finally(() => {
+    capturedInFlight.delete(path);
+  });
+  capturedInFlight.set(path, promise);
+  return promise;
 }
 export async function loadCompanyCaptureIndex({ force = false } = {}) {
   if (pending) return pending;
