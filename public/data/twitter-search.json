@@ -600,7 +600,7 @@
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Neco Defence Munitions": {
-      "lastAttemptAt": "2026-09-07T23:36:48+00:00",
+      "lastAttemptAt": "2026-09-12T20:06:21+00:00",
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Datasel": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T19:30:04.113230+00:00"
+    "checkedAt": "2026-09-12T20:06:21.897550+00:00"
   }
 }
