@@ -596,7 +596,7 @@
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Jayaswal Neco": {
-      "lastAttemptAt": "2026-09-07T22:55:02+00:00",
+      "lastAttemptAt": "2026-09-12T19:30:04+00:00",
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Neco Defence Munitions": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T19:18:15.676679+00:00"
+    "checkedAt": "2026-09-12T19:30:04.113230+00:00"
   }
 }
