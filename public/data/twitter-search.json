@@ -588,7 +588,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0SMY01017|JAYBEE-SM": {
-      "lastAttemptAt": "2026-09-07T21:50:54+00:00",
+      "lastAttemptAt": "2026-09-12T18:35:53+00:00",
       "error": "search-unavailable"
     },
     "isin:INE854B01010|Jayaswal Neco Industries": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T18:00:09.149072+00:00"
+    "checkedAt": "2026-09-12T18:35:53.131030+00:00"
   }
 }
