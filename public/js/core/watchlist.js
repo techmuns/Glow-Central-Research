@@ -486,12 +486,12 @@ let stopPoll = null;
 export function startWatchlistSync() {
   if (stopPoll) return stopPoll;
   const tick = () => {
-    if (document.hidden || navigator.onLine === false) return;
+    if ((document.hidden || innerWidth === 0) || navigator.onLine === false) return;
     void syncNow();
   };
   const timer = setInterval(tick, POLL_MS);
   const onVisible = () => {
-    if (!document.hidden) void syncNow({ force: true });
+    if (!(document.hidden || innerWidth === 0)) void syncNow({ force: true });
   };
   const onOnline = () => void syncNow({ force: true });
   // Another tab on this device edited the same list. Re-read rather than re-fetch — those bytes

@@ -125,7 +125,7 @@ export function render(ctx) {
       sourceChanged();
     }));
     const checkVisible = () => {
-      if (ctxRef && !collecting && !document.hidden && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      if (ctxRef && !collecting && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
         void recollect(ctxRef, { refresh: true });
     };
     const timer = setInterval(checkVisible, RECHECK_MS);

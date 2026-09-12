@@ -52,7 +52,7 @@ export async function refresh() {
   })().finally(() => { pending = null; });
   return pending;
 }
-function poll() { if (loaded && typeof document !== 'undefined' && !document.hidden) void refresh(); }
+function poll() { if (loaded && typeof document !== 'undefined' && !(document.hidden || innerWidth === 0)) void refresh(); }
 export function onChange(fn) {
   listeners.add(fn);
   if (!timer && typeof document !== 'undefined') { timer = setInterval(poll, 60000); document.addEventListener('visibilitychange', poll); window.addEventListener('focus', poll); window.addEventListener('online', poll); if (loaded) void refresh(); }

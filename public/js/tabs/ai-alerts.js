@@ -342,7 +342,7 @@ function watchCalendar() {
   let day = currentDay();
   let timer;
   const check = () => {
-    if (!ctxRef || document.hidden || currentDay() === day) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || currentDay() === day) return;
     day = currentDay();
     for (const el of ctxRef.root.querySelectorAll('[data-ai-age]')) {
       el.textContent = relativeAge(el.dataset.day, day);
@@ -368,7 +368,7 @@ function watchCalendar() {
  * This checks published captures only; it does not dispatch production collection jobs. */
 function watchFreshness() {
   const check = () => {
-    if (!ctxRef || document.hidden || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
     void recollect(ctxRef, { refresh: true, reusePositions: true });
   };
   const timer = setInterval(check, RECHECK_MS);
@@ -556,7 +556,8 @@ function cardMarkup(card, scope, day, archived = false) {
   const signal = latestAlertSignal(card);
   return `
     <article data-ai-card data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${archived ? ' data-ai-archived' : ''}
-      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
+      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
+      style="content-visibility: auto; contain-intrinsic-size: auto none auto 320px;">
       <div class="flex-1 p-5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
