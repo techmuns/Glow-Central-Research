@@ -164,6 +164,18 @@ export function render(ctx) {
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
+  if (!report) {
+    const token = ++loadToken;
+    void alerts.readCachedAlertWindow({
+      scope: ctx.scope,
+      holdings: coverage.holdings(),
+      day: alerts.today()
+    }).then((cached) => {
+      if (token !== loadToken || ctxRef !== ctx || report || !cached) return;
+      report = cached;
+      paint(ctxRef);
+    });
+  }
   // A short return reuses retained snapshots; reopening after inactivity checks the source
   // readers immediately instead of waiting another full polling interval. No capture dispatch.
   recollect(ctx, { refresh: Date.now() - lastRevalidatedAt >= RECHECK_MS });
