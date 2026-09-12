@@ -209,7 +209,7 @@
         font-weight: 600;
         line-height: 24px;
         white-space: nowrap;
-        transition: background-color 160ms ease, color 160ms ease;
+        transition: color 100ms ease; /* Instant background change feels much snappier */
       }
       .tab-btn::after {
         content: '';
@@ -222,7 +222,7 @@
         background: linear-gradient(90deg, var(--brand-500), var(--brand-mid));
         transform: scaleX(0);
         transform-origin: center;
-        transition: transform 200ms ease;
+        transition: transform 150ms ease-out;
       }
       .tab-btn.is-active::after {
         transform: scaleX(1);
