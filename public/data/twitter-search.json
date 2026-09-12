@@ -564,7 +564,7 @@
       "error": "search-unavailable"
     },
     "isin:INE00M901018|INTERARCH": {
-      "lastAttemptAt": "2026-09-07T18:29:26+00:00",
+      "lastAttemptAt": "2026-09-12T15:20:53+00:00",
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC Heavy Engineering": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-12T14:47:30.444304+00:00"
+    "checkedAt": "2026-09-12T15:20:53.655571+00:00"
   }
 }
