@@ -473,67 +473,90 @@
       ]
     },
     "isin:INE267A01025|HINDZINC": {
-      "lastAttemptAt": "2026-09-07T15:18:18+00:00",
-      "lastResultCount": 110,
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastResultCount": 25,
+      "error": null,
       "targetThrough": "2026-09-07T15:18:18+00:00",
       "pending": [
-        {
-          "from": "2026-08-29T15:18:18.076878+00:00",
-          "to": "2026-09-03T03:18:18.038439+00:00"
-        },
         {
           "from": "2026-09-03T03:18:18.038439+00:00",
           "to": "2026-09-07T15:18:18+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-12T14:15:30+00:00"
     },
     "isin:INE685T01010|Horizon Industrial Parks": {
-      "lastAttemptAt": "2026-09-07T15:18:18+00:00",
-      "lastResultCount": 16,
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastResultCount": 45,
       "error": null,
-      "lastSuccessAt": "2026-09-07T15:18:18+00:00",
+      "lastSuccessAt": "2026-09-12T14:15:30+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE530B01024|IIFL Finance": {
-      "lastAttemptAt": "2026-09-07T15:18:18+00:00",
-      "lastResultCount": 89,
-      "error": null,
-      "lastSuccessAt": "2026-09-07T15:18:18+00:00",
-      "targetThrough": null,
-      "pending": []
-    },
-    "isin:INE530B01024|IIFL": {
-      "lastAttemptAt": "2026-09-07T15:18:18+00:00",
-      "lastResultCount": 102,
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastResultCount": 104,
       "error": "result-cap-incomplete",
-      "targetThrough": "2026-09-07T15:18:18+00:00",
+      "lastSuccessAt": "2026-09-07T15:18:18+00:00",
+      "targetThrough": "2026-09-12T14:15:30+00:00",
       "pending": [
         {
-          "from": "2026-08-29T15:18:18.076878+00:00",
-          "to": "2026-09-03T03:18:18.038439+00:00"
+          "from": "2026-09-05T15:18:18+00:00",
+          "to": "2026-09-09T02:46:54+00:00"
         },
+        {
+          "from": "2026-09-09T02:46:54+00:00",
+          "to": "2026-09-12T14:15:30+00:00"
+        }
+      ]
+    },
+    "isin:INE530B01024|IIFL": {
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastResultCount": 68,
+      "error": null,
+      "targetThrough": "2026-09-07T15:18:18+00:00",
+      "pending": [
         {
           "from": "2026-09-03T03:18:18.038439+00:00",
           "to": "2026-09-07T15:18:18+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-12T14:15:30+00:00"
     },
     "isin:INE622H01018|Indo Farm Equipment": {
-      "lastAttemptAt": "2026-09-07T15:18:18+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "error": null,
+      "lastResultCount": 5,
+      "lastSuccessAt": "2026-09-12T14:15:30+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE622H01018|INDOFARM": {
-      "lastAttemptAt": "2026-09-07T15:55:12+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "error": null,
+      "lastResultCount": 8,
+      "lastSuccessAt": "2026-09-12T14:15:30+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE084101034|Indo-Mim": {
-      "lastAttemptAt": "2026-09-07T16:12:24+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 110,
+      "targetThrough": "2026-09-12T14:15:30+00:00",
+      "pending": [
+        {
+          "from": "2026-09-03T14:15:30.994441+00:00",
+          "to": "2026-09-08T02:15:30.497221+00:00"
+        },
+        {
+          "from": "2026-09-08T02:15:30.497221+00:00",
+          "to": "2026-09-12T14:15:30+00:00"
+        }
+      ]
     },
     "isin:INE084101034|INDOMIM": {
-      "lastAttemptAt": "2026-09-07T17:01:44+00:00",
+      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
       "error": "search-unavailable"
     },
     "isin:INE00M901018|Interarch Building Products": {
@@ -1211,8 +1234,8 @@
   },
   "coverage": {
     "planned": 231,
-    "attempted": 1,
-    "incomplete": 224,
-    "checkedAt": "2026-09-12T14:04:37.911562+00:00"
+    "attempted": 8,
+    "incomplete": 221,
+    "checkedAt": "2026-09-12T14:15:30.994441+00:00"
   }
 }
