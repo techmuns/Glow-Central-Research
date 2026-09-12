@@ -169,9 +169,9 @@
       "pending": []
     },
     "isin:INE522F01014|Coal India": {
-      "lastAttemptAt": "2026-09-06T22:10:33+00:00",
+      "lastAttemptAt": "2026-09-12T01:18:40+00:00",
       "lastResultCount": 100,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
@@ -1137,6 +1137,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 231,
-    "checkedAt": "2026-09-12T01:11:07.472999+00:00"
+    "checkedAt": "2026-09-12T01:18:40.785126+00:00"
   }
 }
