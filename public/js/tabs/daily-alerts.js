@@ -263,7 +263,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
 }
 
 // ---- the trailing throttle ------------------------------------------------------------
-const PAINT_COALESCE_MS = 250;
+const PAINT_COALESCE_MS = 1000;
 let paintTimer = null;
 let paintedAt = 0;
 
@@ -284,9 +284,9 @@ function cancelThrottledPaint() {
 }
 
 // Live feeds are allowed to update while the reader scrolls; replacing the table during the
-// gesture is not. Keep coalescing data in memory and perform one trailing paint after 180ms of
+// gesture is not. Keep coalescing data in memory and perform one trailing paint after 400ms of
 // quiet. Explicit controls (scope, horizon, feed selection) still paint immediately.
-const SCROLL_SETTLE_MS = 180;
+const SCROLL_SETTLE_MS = 400;
 function noteTableScroll() {
   scrollQuietUntil = performance.now() + SCROLL_SETTLE_MS;
 }
@@ -1052,7 +1052,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows
     // News carries five lines including attribution. Its 115px natural height exceeded the old
     // 96px virtual stride, causing a visible jump whenever a window replaced those taller rows.
-    fillMode: 'virtual',
+    fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
