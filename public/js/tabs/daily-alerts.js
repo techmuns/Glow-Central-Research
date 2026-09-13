@@ -377,7 +377,7 @@ function paint(ctx) {
   workspaceDispose?.();
   workspaceDispose = null;
   ctx.root.innerHTML = `
-    <div class="alerts-workspace" data-alerts-workspace>
+    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
     ${sectionHead({
       title: 'All Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
