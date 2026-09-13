@@ -900,7 +900,7 @@
       "error": "search-unavailable"
     },
     "isin:INE722B01019|Praveg": {
-      "lastAttemptAt": "2026-09-08T21:14:17+00:00",
+      "lastAttemptAt": "2026-09-13T18:02:20+00:00",
       "error": "search-unavailable"
     },
     "isin:INE722B01019|PRAVEG": {
@@ -1296,6 +1296,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 215,
-    "checkedAt": "2026-09-13T17:30:09.173723+00:00"
+    "checkedAt": "2026-09-13T18:02:20.607616+00:00"
   }
 }
