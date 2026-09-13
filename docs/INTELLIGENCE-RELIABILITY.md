@@ -296,3 +296,25 @@ Catalogue/portfolio timestamps and pending counts must stay distinct from saved-
 health. Initial backfill is quota-limited; same-ID source corrections are not automatically checked.
 See `CONCALL-SUMMARIES.md` for retention limits, activation gates and the unverified live source
 parser. Offline tests do not certify production capture or complete portfolio summary coverage.
+
+## Performance vs. Data Integrity
+**DATA INTEGRITY IS A RELEASE-BLOCKING REQUIREMENT.**
+
+Performance improvements must preserve incoming data, historical records, and existing freshness guarantees.
+
+* Do not reduce collection frequency, source coverage, pagination, retries, backfills, or retention to improve performance.
+* Switching tabs may cancel obsolete rendering work, but must not discard incoming records or interrupt shared collection/storage. Unfinished view calculations must remain reproducible from retained data.
+* Rendering limits apply only to mounted DOM rows. Search, filters, sorting, and export must operate on the complete eligible dataset.
+* Coalescing updates must preserve every distinct record and correction. Any deferred update must eventually appear automatically.
+* Keep the last good data during failures. Clearly distinguish loading, partial, stale, failed, and genuinely empty results.
+
+Before release, verify:
+1. Identical source fixtures produce the same eligible record IDs and field values before and after the change.
+2. New records, corrections, and late arrivals appear while scrolling, switching tabs, and returning after inactivity.
+3. Partial failures and interrupted requests do not erase existing records.
+4. Old and offscreen records remain searchable and exportable.
+5. Scope changes neither hide eligible records nor expose unauthorized records.
+
+If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
+
+**The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**

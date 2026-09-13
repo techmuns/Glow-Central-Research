@@ -58,6 +58,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
   const listeners = new Set();
   let cachedBase = { input: null, output: null, identity: null };
   let cachedNse = { input: null, output: null, identity: null };
+  let cachedHeld = { input: null, output: null, identity: null };
 
   const rows = () => {
     const baseRows = base.rows(), nseRows = nse.retainedRows();
@@ -83,7 +84,12 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       return held;
     }
 
-    held = mergeAnnouncements(cachedBase.output, cachedNse.output);
+    if (cachedHeld.input !== held || cachedHeld.identity !== identity) {
+      cachedHeld.input = held;
+      cachedHeld.identity = identity;
+      cachedHeld.output = held.map(identity.row);
+    }
+    held = mergeAnnouncements(cachedHeld.output, cachedBase.output, cachedNse.output);
     rowInputs = { base: baseRows, nse: nseRows, identity };
     return held;
   };
