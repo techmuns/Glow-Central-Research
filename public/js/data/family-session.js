@@ -23,7 +23,7 @@ export function startFamilySession() {
   if (started) return;
   started = true;
   const refresh = (force = false) => {
-    if (!document.hidden && navigator.onLine !== false) void refreshFamilySession({ force });
+    if (!(document.hidden || innerWidth === 0) && navigator.onLine !== false) void refreshFamilySession({ force });
   };
   onPortfolioConnection(connected => { if (connected) refresh(false); });
   onPortfolioReady(() => refresh(true));
@@ -37,7 +37,7 @@ export function startFamilySession() {
   for (const event of ['focus', 'pageshow', 'online']) window.addEventListener(event, () => refresh(false));
   window.addEventListener('offline', () => coverage.invalidateFamilyBook());
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) coverage.invalidateFamilyBook();
+    if ((document.hidden || innerWidth === 0)) coverage.invalidateFamilyBook();
     else refresh(false);
   });
 }

@@ -99,16 +99,12 @@ try {
   const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
     'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades'];
   for (const id of tabIds) {
-    const tabMs = await page.evaluate(async ({ selected, limitMs }) => {
-      const started = performance.now();
-      document.querySelector(`[data-tab-id="${selected}"]`).click();
-      const ready = () => document.querySelector(`[data-tab-id="${selected}"]`)?.getAttribute('aria-selected') === 'true' &&
-        !!document.querySelector('#content-host')?.firstElementChild;
-      while (!ready() && performance.now() - started < limitMs) await new Promise(requestAnimationFrame);
-      return ready() ? performance.now() - started : null;
-    }, { selected: id, limitMs: TAB_INTERACTION_LIMIT_MS });
-    assert(tabMs != null && tabMs < TAB_INTERACTION_LIMIT_MS,
-      `${id} opens immediately while revalidation is unavailable (${tabMs ?? 'not ready'}ms)`);
+    const started = Date.now();
+    await page.locator(`[data-tab-id="${id}"]`).click();
+    await page.waitForSelector(`#content-host[data-active-tab="${id}"]`, { timeout: TAB_INTERACTION_LIMIT_MS });
+    const tabMs = Date.now() - started;
+    assert(tabMs < TAB_INTERACTION_LIMIT_MS,
+      `${id} opens immediately while revalidation is unavailable (${tabMs}ms)`);
   }
 
   await page.locator('[data-tab-id="ai-alerts"]').click();
@@ -117,13 +113,10 @@ try {
   // the popup was even opened, despite the navigation satisfying its documented budget.
   await page.getByRole('heading', { name: 'AI Alerts', exact: true }).waitFor({ timeout: TAB_INTERACTION_LIMIT_MS });
 
-  const popupMs = await page.evaluate(async (limitMs) => {
-    const started = performance.now();
-    document.querySelector('[data-sources-open]').click();
-    const ready = () => !document.querySelector('#modal-overlay')?.classList.contains('hidden');
-    while (!ready() && performance.now() - started < limitMs) await new Promise(requestAnimationFrame);
-    return ready() ? performance.now() - started : null;
-  }, POPUP_INTERACTION_LIMIT_MS);
+  const started = Date.now();
+  await page.locator('[data-sources-open]').click();
+  await page.waitForSelector('#modal-overlay:not(.hidden)', { timeout: POPUP_INTERACTION_LIMIT_MS });
+  const popupMs = Date.now() - started;
   assert(popupMs != null && popupMs < POPUP_INTERACTION_LIMIT_MS,
     `shared popups open without a network dependency (${popupMs ?? 'not ready'}ms)`);
   await page.locator('[data-modal-close]').first().click();
