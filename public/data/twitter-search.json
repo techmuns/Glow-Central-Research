@@ -656,7 +656,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|Kross": {
-      "lastAttemptAt": "2026-09-08T07:04:42+00:00",
+      "lastAttemptAt": "2026-09-13T04:09:32+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|KROSS": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-13T03:36:38.566251+00:00"
+    "checkedAt": "2026-09-13T04:09:32.009293+00:00"
   }
 }
