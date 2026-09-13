@@ -912,7 +912,7 @@
       "error": "search-unavailable"
     },
     "isin:INE546Y01022|PRAXIS": {
-      "lastAttemptAt": "2026-09-08T23:03:56+00:00",
+      "lastAttemptAt": "2026-09-13T19:59:51+00:00",
       "error": "search-unavailable"
     },
     "isin:INE811K01011|Prestige Estate Projects": {
@@ -1296,6 +1296,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 215,
-    "checkedAt": "2026-09-13T19:07:01.405041+00:00"
+    "checkedAt": "2026-09-13T19:59:51.423643+00:00"
   }
 }
