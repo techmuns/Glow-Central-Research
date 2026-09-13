@@ -20,8 +20,13 @@ export async function handleExchangeDeals(request, env, ctx, { fetchImpl = fetch
     if (!fallback.ok) return Response.json({ error: 'Exchange capture unavailable' }, { status: 503 });
     const headers = new Headers(fallback.headers);
     for (const [name, value] of Object.entries(CORS)) headers.set(name, value);
+<<<<<<< HEAD
     headers.set('access-control-expose-headers', 'etag, x-glow-exchange-fallback');
     headers.set('x-glow-exchange-fallback', '1');
+=======
+    headers.set('access-control-expose-headers', 'etag, x-sattva-exchange-fallback');
+    headers.set('x-sattva-exchange-fallback', '1');
+>>>>>>> sattva/main
     headers.set('cache-control', 'public, max-age=60');
     response = new Response(fallback.body, { headers });
   }
