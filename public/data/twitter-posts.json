@@ -10066,9 +10066,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-13T11:05:37.985Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-13T11:37:36.654Z",
     "lastSuccessAt": null
   }
 }
