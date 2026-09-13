@@ -503,11 +503,24 @@ function mountTab(root, tabModule, resolved) {
       ctx.params = next;
     },
   };
-  try {
-    tabModule.render(ctx);
-  } catch (err) {
-    console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
-    contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
+
+  // The route chrome (including the newly active tab's visual state) is now in the DOM.
+  // Yield to the browser so the reader gets instant visual feedback of their click, then run the
+  // heavy data parsing and DOM rendering of the tab content itself.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => setTimeout(runRender, 0));
+  } else {
+    setTimeout(runRender, 16);
+  }
+
+  function runRender() {
+    if (currentTabModule !== nextModule) return; // Reader clicked away before this frame
+    try {
+      tabModule.render(ctx);
+    } catch (err) {
+      console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
+      contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
+    }
   }
 }
 

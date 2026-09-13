@@ -16,7 +16,11 @@
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
 const CACHE_PREFIX = 'sattva-dashboard-';
+<<<<<<< HEAD
 const CACHE_NAME = `${CACHE_PREFIX}2026-09-12-glow-ask-research-muns`;
+=======
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-13-iframe-performance-v1`;
+>>>>>>> sattva/main
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -205,7 +209,7 @@ self.addEventListener('fetch', (event) => {
     // Explicit data revalidation must reach the server in THIS request. Returning
     // the held body while updating it behind the scenes made Refresh one capture
     // late and hid outages as successful checks. The feed owns its last-good rows.
-    if (url.pathname.startsWith('/data/') && !request.headers.has('x-sattva-bootstrap') && ['no-cache', 'reload'].includes(request.cache)) {
+    if (url.pathname.startsWith('/data/') && !request.headers.has('x-sattva-bootstrap') && (request.cache === 'reload' || request.headers.has('x-sattva-refresh'))) {
       return (await fetchAndCache(cache, request, key)) || Response.error();
     }
     const held = await cache.match(key);

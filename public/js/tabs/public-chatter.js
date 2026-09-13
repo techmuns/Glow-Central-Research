@@ -336,7 +336,7 @@ function openMentions(entry) {
 function mentionsFrame(entry) {
   return `
     <div class="scrollbar-thin max-h-[82vh] overflow-y-auto" data-chatter-mentions-dialog data-chatter-slug="${escapeHtml(entry.slug)}">
-      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur sm:px-7">
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white px-6 py-5  sm:px-7">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Public mentions</p>
