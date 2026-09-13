@@ -813,6 +813,7 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
       moveThreshold: MOVE_PCT,
     },
   };
+  return lastAssembleOutput;
 }
 
 /** Match stable company identity OR ticker, exactly as Portfolio News does. A discovered BSE
