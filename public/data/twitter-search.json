@@ -936,7 +936,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0SII01026|Quality Power Electrical Equipments": {
-      "lastAttemptAt": "2026-09-09T04:21:32+00:00",
+      "lastAttemptAt": "2026-09-13T23:20:44+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0SII01026|QPOWER": {
@@ -1296,6 +1296,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 215,
-    "checkedAt": "2026-09-13T22:47:41.445540+00:00"
+    "checkedAt": "2026-09-13T23:20:44.052275+00:00"
   }
 }
