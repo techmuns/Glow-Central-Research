@@ -48,7 +48,7 @@ let stop = null;
 export function startWatchlistCapture() {
   if (stop) return stop;
   let debounce;
-  const sync = () => { if (!document.hidden && navigator.onLine !== false) void watchlistCapture.sync(); };
+  const sync = () => { if (!(document.hidden || innerWidth === 0) && navigator.onLine !== false) void watchlistCapture.sync(); };
   const changed = () => { clearTimeout(debounce); debounce = setTimeout(sync, 350); };
   const off = watchlist.onChange(changed);
   const onStorage = event => { if (event.key === 'sattva:watchlist') changed(); };

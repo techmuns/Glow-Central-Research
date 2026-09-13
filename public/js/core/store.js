@@ -58,6 +58,11 @@ export const KEYS = {
   // above which mirror the upstream's one-page-per-investor shape.
   investorSnapshot: 'investors:snapshot',
   chatter: 'chatter',
+  // The one shared watchlist. Held here for its ETag rather than for its bytes — the list is small
+  // and the saving is the round trip, not the payload. The list the app actually PAINTS from is the
+  // synchronous localStorage copy in core/watchlist.js, because every scope filter in the dashboard
+  // reads it during a render and cannot await IndexedDB to decide whether a row is in scope.
+  sharedWatchlist: 'watchlist:shared',
   // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
   // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the
   // body in a status envelope, so there is no validator to send and nothing to 304. The reason to
@@ -317,13 +322,26 @@ export function clearAll() {
  */
 const conditionalInFlight = new Map();
 export function conditionalJson(path, options = {}) {
-  // Cancellation, validation and authenticated reads belong to their caller.
-  // Ordinary public poll and header reads share one bounded revalidation.
-  if (options.signal || options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
+  // Custom validation and authenticated reads belong to their caller.
+  // Ordinary public poll, capture, and header reads share one bounded revalidation.
+  if (options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
   const requestKey = JSON.stringify([path, options.key, !!options.optional]);
-  if (conditionalInFlight.has(requestKey)) return conditionalInFlight.get(requestKey);
-  const pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
-  conditionalInFlight.set(requestKey, pending);
+  let pending = conditionalInFlight.get(requestKey);
+  if (!pending) {
+    pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
+    conditionalInFlight.set(requestKey, pending);
+  }
+  if (options.signal) {
+    if (options.signal.aborted) return Promise.reject(options.signal.reason);
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(options.signal.reason);
+      options.signal.addEventListener('abort', onAbort, { once: true });
+      pending.then(
+        (val) => { options.signal.removeEventListener('abort', onAbort); resolve(val); },
+        (err) => { options.signal.removeEventListener('abort', onAbort); reject(err); }
+      );
+    });
+  }
   return pending;
 }
 

@@ -37,6 +37,7 @@ import { scopeLabel } from '../data/scope.js';
 import * as records from '../data/alert-records.js';
 import { attributionLabel } from '../data/company-news-attribution.js';
 import { NEWS_PERIODS, newsPeriodBounds } from '../data/news-window.js';
+import { isXbrlFilingUrl, openFilingReader } from '../ui/xbrl-filing.js';
 
 export const meta = {
   id: 'daily-alerts',
@@ -77,6 +78,7 @@ let collecting = 0;
 let sourceTimer = null;
 let sourceDirty = false;
 let tableDispose = null;
+let tableInstance = null;
 let workspaceDispose = null;
 let sourcesOpen = false;
 let focusMode = false;
@@ -124,7 +126,7 @@ export function render(ctx) {
       sourceChanged();
     }));
     const checkVisible = () => {
-      if (ctxRef && !collecting && !document.hidden && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      if (ctxRef && !collecting && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
         void recollect(ctxRef, { refresh: true });
     };
     const timer = setInterval(checkVisible, RECHECK_MS);
@@ -163,6 +165,18 @@ export function render(ctx) {
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
+  if (!report) {
+    const token = ++loadToken;
+    void alerts.readCachedAlertWindow({
+      scope: ctx.scope,
+      holdings: coverage.holdings(),
+      day: alerts.today()
+    }).then((cached) => {
+      if (token !== loadToken || ctxRef !== ctx || report || !cached) return;
+      report = cached;
+      paint(ctxRef);
+    });
+  }
   // A short return reuses retained snapshots; reopening after inactivity checks the source
   // readers immediately instead of waiting another full polling interval. No capture dispatch.
   recollect(ctx, { refresh: Date.now() - lastRevalidatedAt >= RECHECK_MS });
@@ -176,6 +190,7 @@ export function destroy() {
   cancelDeferredPaint();
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   sourcesOpen = false;
@@ -250,7 +265,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
 }
 
 // ---- the trailing throttle ------------------------------------------------------------
-const PAINT_COALESCE_MS = 250;
+const PAINT_COALESCE_MS = 1000;
 let paintTimer = null;
 let paintedAt = 0;
 
@@ -271,9 +286,9 @@ function cancelThrottledPaint() {
 }
 
 // Live feeds are allowed to update while the reader scrolls; replacing the table during the
-// gesture is not. Keep coalescing data in memory and perform one trailing paint after 180ms of
+// gesture is not. Keep coalescing data in memory and perform one trailing paint after 400ms of
 // quiet. Explicit controls (scope, horizon, feed selection) still paint immediately.
-const SCROLL_SETTLE_MS = 180;
+const SCROLL_SETTLE_MS = 400;
 function noteTableScroll() {
   scrollQuietUntil = performance.now() + SCROLL_SETTLE_MS;
 }
@@ -356,15 +371,36 @@ function paint(ctx) {
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
   // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
-  // scoreTable owns passive scroll handlers and a closure over its data. Dispose that instance
-  // before replacing its nodes; otherwise each partial feed repaint retains one more detached
-  // table and one more global scroll listener.
+  if (tableInstance && renderedHorizon === horizon) {
+    const metaDiv = ctx.root.querySelector('.alerts-workspace > section > .flex');
+    if (metaDiv) metaDiv.innerHTML = `${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+        scope: ctx.scope, count: m.companies || 0, noun: 'companies in loaded history', book: coverage.meta(),
+    })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}`;
+    
+    const horizonToggleContainer = ctx.root.querySelector('[data-alerts-controls] > div:first-child');
+    if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
+    
+    const coveragePanelContainer = ctx.root.querySelector('[data-alerts-coverage]');
+    if (coveragePanelContainer) coveragePanelContainer.outerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+    
+    wireHorizon(ctx);
+    wireFeedFilter(ctx, available);
+    if (sourcesOpen) {
+      const cov = ctx.root.querySelector('[data-alerts-coverage]');
+      if (cov) cov.scrollTop = sourceScrollTop;
+    }
+    
+    tableInstance.updateData(visible);
+    return;
+  }
+
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   ctx.root.innerHTML = `
-    <div class="alerts-workspace" data-alerts-workspace>
+    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
     ${sectionHead({
       title: 'All Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
@@ -390,6 +426,7 @@ function paint(ctx) {
     </div>`;
 
   tableDispose = table.wire(ctx.root);
+  tableInstance = table;
   // Wire the shared controls first, then move their existing nodes beside the view controls.
   // Search and the three filters now get a full row even on a narrower laptop. The kit still
   // owns count updates and exports over its complete filtered model, never the mounted rows.
@@ -983,7 +1020,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
         { label: 'Feed', get: (e) => e.feedLabel },
       ];
   const filters = mode === HORIZON.UPCOMING
-    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) }]
+    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) }]
     : [
         {
           label: 'Importance',
@@ -1004,7 +1041,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
           ],
           match: (e, v) => e.direction === v,
         },
-        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
+        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) },
         {
           label: 'Company relationship',
           options: [
@@ -1034,12 +1071,14 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     nameAfter: mode === HORIZON.UPCOMING ? 1 : 2,
     dense: true,
     wrapHeads: true,
+    fillMode: 'virtual',
+    virtualRowHeight: 120,
     stickyHead: 'max(320px, calc(100vh - 260px))',
     // The timeline can exceed five thousand rows. Keep all of them in the data model for search,
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows
     // News carries five lines including attribution. Its 115px natural height exceeded the old
     // 96px virtual stride, causing a visible jump whenever a window replaced those taller rows.
-    fillMode: 'virtual',
+    fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
@@ -1056,6 +1095,14 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
       if (e.url) {
+        // AN NSE XBRL FILING IS A DOCUMENT, NOT A PAGE. Opening one in a tab shows the reader SEBI's
+        // namespaces; `openFilingReader` lays out the same filing's own fields. Every other URL is
+        // somebody's page and still opens as one. The Link column's anchor is intercepted centrally
+        // (see js/ui/xbrl-filing.js); a row click never becomes an anchor, so it asks here.
+        if (isXbrlFilingUrl(e.url)) {
+          void openFilingReader(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
+          return;
+        }
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }
