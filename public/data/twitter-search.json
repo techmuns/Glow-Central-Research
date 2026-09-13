@@ -692,7 +692,7 @@
       "error": "search-unavailable"
     },
     "isin:INE103A01014|Mangalore Petrochemicals and Refinery": {
-      "lastAttemptAt": "2026-09-08T12:07:33+00:00",
+      "lastAttemptAt": "2026-09-13T09:47:05+00:00",
       "error": "search-unavailable"
     },
     "isin:INE103A01014|MRPL": {
@@ -1236,6 +1236,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-13T09:00:56.617342+00:00"
+    "checkedAt": "2026-09-13T09:47:05.223379+00:00"
   }
 }
