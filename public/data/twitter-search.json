@@ -872,9 +872,9 @@
       "pending": []
     },
     "isin:INE15B701018|Pine Labs": {
-      "lastAttemptAt": "2026-09-08T19:20:14+00:00",
+      "lastAttemptAt": "2026-09-13T16:02:40+00:00",
       "lastResultCount": 106,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "targetThrough": "2026-09-08T19:20:14+00:00",
       "pending": [
         {
@@ -1296,6 +1296,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 215,
-    "checkedAt": "2026-09-13T15:28:41.879992+00:00"
+    "checkedAt": "2026-09-13T16:02:40.589726+00:00"
   }
 }
