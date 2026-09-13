@@ -700,43 +700,103 @@
       "error": "search-unavailable"
     },
     "isin:INE071D01033|Menon Bearings": {
-      "lastAttemptAt": "2026-09-08T13:24:00+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 27,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE071D01033|MENONBE": {
-      "lastAttemptAt": "2026-09-08T14:01:27+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 9,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE338I01027|Motilal Oswal Financial Services": {
-      "lastAttemptAt": "2026-09-08T14:36:25+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 100,
+      "targetThrough": "2026-09-13T11:04:59+00:00",
+      "pending": [
+        {
+          "from": "2026-09-04T11:04:59.045063+00:00",
+          "to": "2026-09-08T23:04:59.022531+00:00"
+        },
+        {
+          "from": "2026-09-08T23:04:59.022531+00:00",
+          "to": "2026-09-13T11:04:59+00:00"
+        }
+      ]
     },
     "isin:INE338I01027|MOTILALOFS": {
-      "lastAttemptAt": "2026-09-08T15:12:53+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 41,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE310A01015|Nilkamal": {
-      "lastAttemptAt": "2026-09-08T15:44:33+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 103,
+      "targetThrough": "2026-09-13T11:04:59+00:00",
+      "pending": [
+        {
+          "from": "2026-09-04T11:04:59.045063+00:00",
+          "to": "2026-09-08T23:04:59.022531+00:00"
+        },
+        {
+          "from": "2026-09-08T23:04:59.022531+00:00",
+          "to": "2026-09-13T11:04:59+00:00"
+        }
+      ]
     },
     "isin:INE310A01015|NILKAMAL": {
-      "lastAttemptAt": "2026-09-08T16:20:47+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 103,
+      "targetThrough": "2026-09-13T11:04:59+00:00",
+      "pending": [
+        {
+          "from": "2026-09-04T11:04:59.045063+00:00",
+          "to": "2026-09-08T23:04:59.022531+00:00"
+        },
+        {
+          "from": "2026-09-08T23:04:59.022531+00:00",
+          "to": "2026-09-13T11:04:59+00:00"
+        }
+      ]
     },
     "isin:INE12F801023|OnEMI Technology Solutions": {
-      "lastAttemptAt": "2026-09-08T16:52:22+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE12F801023|Kissht": {
-      "lastAttemptAt": "2026-09-08T17:49:11+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 80,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE12F801023|OnEMI Technology": {
-      "lastAttemptAt": "2026-09-08T17:58:18+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "error": null,
+      "lastResultCount": 24,
+      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE12F801023|KISSHT": {
-      "lastAttemptAt": "2026-09-08T18:49:29+00:00",
+      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
       "error": "search-unavailable"
     },
     "isin:INE881D01027|Oracle Financial Services Software": {
@@ -1234,8 +1294,8 @@
   },
   "coverage": {
     "planned": 231,
-    "attempted": 1,
-    "incomplete": 221,
-    "checkedAt": "2026-09-13T10:31:31.317763+00:00"
+    "attempted": 10,
+    "incomplete": 215,
+    "checkedAt": "2026-09-13T11:04:59.045063+00:00"
   }
 }
