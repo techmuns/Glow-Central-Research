@@ -567,7 +567,7 @@ export function scoreTable(config) {
         if (!wk || !watched.has(wk)) return false;
       }
       for (let i = 0; i < filterDefs.length; i++) {
-        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
+        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i], view)) return false;
       }
       return true;
     });

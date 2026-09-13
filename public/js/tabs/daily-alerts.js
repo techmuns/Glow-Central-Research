@@ -996,7 +996,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
         { label: 'Feed', get: (e) => e.feedLabel },
       ];
   const filters = mode === HORIZON.UPCOMING
-    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) }]
+    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) }]
     : [
         {
           label: 'Importance',
@@ -1017,7 +1017,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
           ],
           match: (e, v) => e.direction === v,
         },
-        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
+        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) },
         {
           label: 'Company relationship',
           options: [
