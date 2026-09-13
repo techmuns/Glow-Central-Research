@@ -654,7 +654,13 @@ function positionSnapshotIndex({ holdings, sizes }) {
  * product rules; testing only whatever today's capture happens to contain would leave branches
  * unexercised most days.
  */
+let lastRankInput = null;
+let lastRankOutput = null;
+
 export function rankReport(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all() } = {}) {
+  const inputMatches = lastRankInput && lastRankInput.report === report && lastRankInput.positionSizes === positionSizes && lastRankInput.holdings === holdings && lastRankInput.insightCompanies === insightCompanies;
+  if (inputMatches) return lastRankOutput;
+
   const day = report?.day || generalAlerts.today();
   const firstDay = shiftDay(day, -(WINDOW_DAYS - 1));
   // Private weights never come from the persisted names-only coverage list.
@@ -819,6 +825,8 @@ export function rankReport(report, { holdings = coverage.holdings(), positionSiz
   };
   rankingOptions.set(result, { holdings, positionSizes, insightCompanies });
   rankingEvidence.set(result, windowEvidence);
+  lastRankInput = { report, holdings, positionSizes, insightCompanies };
+  lastRankOutput = result;
   return result;
 }
 

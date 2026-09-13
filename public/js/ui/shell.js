@@ -71,6 +71,7 @@ let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
 let topTabs = null;
+let shellRenderRequest = 0;
 
 export function mount(root) {
   topTabs?.dispose();
@@ -306,7 +307,7 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   if (tabModule === bookmarks) bookmarksLink.setAttribute('aria-current', 'page');
   else bookmarksLink.removeAttribute('aria-current');
   // Table-first is an opt-in layout, not a redesign of the other research views.
-  root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
+  
 
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
@@ -420,6 +421,8 @@ function disposeChrome() {
 }
 
 function mountTab(root, tabModule, resolved) {
+  shellRenderRequest++;
+  const reqId = shellRenderRequest;
   // A drill panel, modal or workspace opened on the previous view must never survive a route
   // change — it would be showing a row that is no longer on screen. `silent` because the URL
   // is already being rewritten by the navigation that triggered this; letting the overlay run
@@ -478,6 +481,7 @@ function mountTab(root, tabModule, resolved) {
     live,
     data: state.data,
     params: resolved.params || {},
+    get isCancelled() { return shellRenderRequest !== reqId; },
     // Tabs call this to push their own filter state into the URL without touching routing.
     // history.replaceState does NOT fire hashchange, so the router would never see the new
     // params — we re-mount the tab body explicitly. Chrome doesn't depend on params, so only
@@ -510,7 +514,9 @@ function mountTab(root, tabModule, resolved) {
   }
 
   function runRender() {
-    if (currentTabModule !== nextModule) return; // Reader clicked away before this frame
+    if (shellRenderRequest !== reqId) return; // Reader clicked away before this frame
+    root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
+    contentHost.setAttribute('data-active-tab', tabModule.meta.id);
     try {
       tabModule.render(ctx);
     } catch (err) {
