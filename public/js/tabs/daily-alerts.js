@@ -78,6 +78,7 @@ let collecting = 0;
 let sourceTimer = null;
 let sourceDirty = false;
 let tableDispose = null;
+let tableInstance = null;
 let workspaceDispose = null;
 let sourcesOpen = false;
 let focusMode = false;
@@ -189,6 +190,7 @@ export function destroy() {
   cancelDeferredPaint();
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   sourcesOpen = false;
@@ -369,11 +371,32 @@ function paint(ctx) {
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
   // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
-  // scoreTable owns passive scroll handlers and a closure over its data. Dispose that instance
-  // before replacing its nodes; otherwise each partial feed repaint retains one more detached
-  // table and one more global scroll listener.
+  if (tableInstance && renderedHorizon === horizon) {
+    const metaDiv = ctx.root.querySelector('.alerts-workspace > section > .flex');
+    if (metaDiv) metaDiv.innerHTML = `${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+        scope: ctx.scope, count: m.companies || 0, noun: 'companies in loaded history', book: coverage.meta(),
+    })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}`;
+    
+    const horizonToggleContainer = ctx.root.querySelector('[data-alerts-controls] > div:first-child');
+    if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
+    
+    const coveragePanelContainer = ctx.root.querySelector('[data-alerts-coverage]');
+    if (coveragePanelContainer) coveragePanelContainer.outerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+    
+    wireHorizon(ctx);
+    wireFeedFilter(ctx, available);
+    if (sourcesOpen) {
+      const cov = ctx.root.querySelector('[data-alerts-coverage]');
+      if (cov) cov.scrollTop = sourceScrollTop;
+    }
+    
+    tableInstance.updateData(visible);
+    return;
+  }
+
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   ctx.root.innerHTML = `
@@ -403,6 +426,7 @@ function paint(ctx) {
     </div>`;
 
   tableDispose = table.wire(ctx.root);
+  tableInstance = table;
   // Wire the shared controls first, then move their existing nodes beside the view controls.
   // Search and the three filters now get a full row even on a narrower laptop. The kit still
   // owns count updates and exports over its complete filtered model, never the mounted rows.
@@ -1047,6 +1071,8 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     nameAfter: mode === HORIZON.UPCOMING ? 1 : 2,
     dense: true,
     wrapHeads: true,
+    fillMode: 'virtual',
+    virtualRowHeight: 120,
     stickyHead: 'max(320px, calc(100vh - 260px))',
     // The timeline can exceed five thousand rows. Keep all of them in the data model for search,
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows

@@ -1,5 +1,6 @@
 // Bounded DOM with natural row heights. Data, search and exports stay owned by the caller.
 // A prefix-sum tree makes offset lookup/height correction logarithmic, even for a long archive.
+import { syncListDOM } from '../core/dom.js';
 export function rowGeometry(count, estimate = 72) {
   const heights = new Float64Array(count).fill(estimate);
   const tree = new Float64Array(count + 1);
@@ -82,8 +83,9 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, s
     const activeIndex = activeRow ? [...content.querySelectorAll(rowSelector)].indexOf(activeRow) : -1;
     const activeKey = activeIndex >= 0 ? activeRow.dataset.rowKey || activeRow.dataset.newsKey : null;
     const focusIndex = activeRow ? [...activeRow.querySelectorAll('a,button,input,[tabindex]')].indexOf(active) : -1;
-    content.innerHTML = spacerHtml(geometry.offset(start), 'top') + renderRows(rows, start, end) +
+    const html = spacerHtml(geometry.offset(start), 'top') + renderRows(rows, start, end) +
       spacerHtml(geometry.offset(rows.length) - geometry.offset(end), 'bottom');
+    syncListDOM(content, html, start);
     if (active) {
       const replacement = [...content.querySelectorAll(rowSelector)].find(el => (el.dataset.rowKey || el.dataset.newsKey) === activeKey);
       (replacement?.querySelectorAll('a,button,input,[tabindex]')[focusIndex] || scroller).focus({ preventScroll: true });
