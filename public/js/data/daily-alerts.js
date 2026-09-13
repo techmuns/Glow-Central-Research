@@ -38,6 +38,9 @@
 // The data layer owns no poller. Its tab subscribes to changes and revalidates every 90 seconds
 // while visible; cached reassembly never fetches.
 
+let lastAssembleInput = null;
+let lastAssembleOutput = null;
+
 import * as technicals from './technicals.js';
 import * as marketNews from './market-news.js';
 import * as earnings from './earnings-live.js';
@@ -624,7 +627,7 @@ function toFeedRow(feed, out, day) {
     const key = `${event.id}:${JSON.stringify(event.sourceRecord || event)}`;
     if (seen.has(key)) return false;
     seen.add(key); return true;
-  }).map((event) => ({ ...event, day: eventDay(event) }));
+  }).map((event) => ({ ...event, day: eventDay(event), feed: feed.id, feedLabel: feed.label, tab: feed.tab }));
   const days = events.map((event) => event.day).filter(Boolean).sort();
   return {
     ...feed,
@@ -760,14 +763,24 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
   });
 
   const feeds = dedupePublisherAlertFeeds(scopedFeeds, { day, entities: portfolioEntities });
+
+  const inputMatches = lastAssembleInput && lastAssembleInput.scope === scope && lastAssembleInput.day === day &&
+      lastAssembleInput.feeds.length === feeds.length && feeds.every((f, i) => f.events === lastAssembleInput.feeds[i].events);
+
+  const done = feeds.filter((f) => f.status !== 'pending');
+
+  if (inputMatches) {
+    return { ...lastAssembleOutput, feeds, pending: feeds.filter((f) => f.status === 'pending').length };
+  }
+
   const events = [];
-  for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
+  for (const f of feeds) for (const ev of f.events) events.push(ev);
   events.sort(byNewestFirst);
   ensureUniqueIds(events);
   const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
 
-  const done = feeds.filter((f) => f.status !== 'pending');
-  return {
+  lastAssembleInput = { feeds, scope, day };
+  lastAssembleOutput = {
     day,
     scope,
     includeHistory,
@@ -833,10 +846,11 @@ export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEn
  */
 function ensureUniqueIds(events) {
   const seen = new Map();
-  for (const ev of events) {
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
     const n = seen.get(ev.id) || 0;
     seen.set(ev.id, n + 1);
-    if (n) ev.id = `${ev.id}#${n}`;
+    if (n) events[i] = { ...ev, id: `${ev.id}#${n}` };
   }
   return events;
 }

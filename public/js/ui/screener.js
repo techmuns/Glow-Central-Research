@@ -14,7 +14,7 @@
 // the kit supplies the look. Score and Signals columns are opt-in, so tabs without a scoring
 // model (all of them until prompt 3) render a clean table with no empty score furniture.
 
-import { escapeHtml } from '../core/dom.js';
+import { escapeHtml, syncListDOM } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 import { mountWindowedList } from './windowed-list.js';
@@ -653,11 +653,11 @@ export function scoreTable(config) {
       // A virtual row carries aria-rowindex, which is position-dependent. Only a screenful is
       // generated at once, so bypassing the position-independent cache here is both correct and
       // bounded. Other modes retain the cache that makes large sorts cheap.
-      let html = isVirtual ? undefined : rowHtmlCache.get(slug);
+      let html = rowHtmlCache.get(slug);
       if (html === undefined) {
         const wk = watchKeyOf(row);
         html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row), isVirtual ? i : null);
-        if (!isVirtual) rowHtmlCache.set(slug, html);
+        rowHtmlCache.set(slug, html);
       }
       out.push(html);
     }
@@ -996,11 +996,10 @@ export function scoreTable(config) {
       const nextStart = Math.max(0, Math.min(Math.max(0, current.length - VIRTUAL_WINDOW_ROWS), Math.round(start) || 0));
       if (nextStart === virtualStart && body.querySelector('tr[data-row-key]')) return;
       virtualStart = nextStart;
-      // Do not retain markup for rows that have left the viewport. The data array remains complete;
-      // this cache is only a rendering optimisation and must be bounded just like the DOM.
-      rowHtmlCache.clear();
+      // Do not clear the complete row cache at every boundary.
+      // rowHtmlCache.clear();
       staleKeys.clear();
-      body.innerHTML = virtualBodyHtml(current, virtualStart);
+      syncListDOM(body, virtualBodyHtml(current, virtualStart), virtualStart);
       host.setAttribute('data-virtual-start', String(virtualStart));
       host.setAttribute('data-virtual-total', String(current.length));
       tableEl?.setAttribute('aria-rowcount', String(current.length + 1));
@@ -1300,7 +1299,17 @@ export function scoreTable(config) {
     };
   }
 
-  return { html, wire, view, updateRows: (keys) => updateRows(keys) };
+  function updateData(newRows, newFilters = undefined) {
+    rows = newRows || [];
+    if (newFilters !== undefined) {
+      filterDefs = newFilters;
+      // we'd need to update the filter UI too, which is hard. 
+      // Actually, updating filter UI is why daily-alerts replaces innerHTML.
+    }
+    repaint({ resetScroll: false });
+  }
+
+  return { html, wire, view, updateRows: (keys) => updateRows(keys), updateData };
 }
 
 // ---------------------------------------------------------------------------------------
