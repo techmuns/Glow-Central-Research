@@ -1088,7 +1088,7 @@
       "error": "search-unavailable"
     },
     "isin:INE08NE01025|SANSTAR": {
-      "lastAttemptAt": "2026-09-09T16:09:50+00:00",
+      "lastAttemptAt": "2026-09-14T04:36:48+00:00",
       "error": "search-unavailable"
     },
     "isin:INE955I01044|Sejal Glass": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 209,
-    "checkedAt": "2026-09-14T04:03:54.712175+00:00"
+    "checkedAt": "2026-09-14T04:36:48.181702+00:00"
   }
 }
