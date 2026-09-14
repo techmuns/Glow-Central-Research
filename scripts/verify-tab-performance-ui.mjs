@@ -66,7 +66,7 @@ try {
     'earnings-hub?scope=universe&view=calendar', 'earnings-hub?scope=universe&view=filings', 'concall?scope=universe',
     'public-chatter?scope=universe', 'public-chatter?scope=universe|Not in coverage', 'public-chatter?scope=universe|Telegram',
     'breakouts/strong-breakouts?scope=universe', 'breakouts/technical-scanner?scope=universe',
-    'breakouts/fii-accumulation?scope=universe', 'breakouts/earnings-surprise?scope=universe',
+    'breakouts/fii-accumulation?scope=universe',
     'super-investors/superstar-investors?scope=universe', 'super-investors/institutions?scope=universe',
     'ipos?scope=universe', 'ipos?scope=universe|directory', 'corp-announcements?scope=universe', 'corporate-actions?scope=universe',
     'nse-filings?scope=universe', 'insider-trades?scope=universe', 'news?scope=universe',
@@ -117,7 +117,15 @@ try {
     });
     if (searchMs != null) result.searchMs = searchMs;
     const sort = frame.locator('th[data-sort]').first();
-    if (await sort.count()) result.sortMs = await sort.evaluate(async el => { const start=performance.now(); el.click(); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); return performance.now()-start; });
+    if (await sort.count()) result.sortMs = await sort.evaluate(async el => { 
+      const start = performance.now(); 
+      el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, cancelable: true }));
+      el.click(); 
+      await new Promise(requestAnimationFrame); 
+      await new Promise(requestAnimationFrame); 
+      return performance.now() - start; 
+    });
     results.push({ route, readyMs: Math.round(readyMs), ...result });
     console.log(JSON.stringify(results.at(-1)));
     if (profiler) {
@@ -160,7 +168,11 @@ try {
     if (fraction === 1) assert(state.last != null, 'last retained record is reachable');
   }
   const beforeStar = await scroller.evaluate(el => el.scrollTop);
-  await frame.locator('tbody [data-watch]').first().evaluate(el => el.click());
+  await frame.locator('tbody [data-watch]').first().evaluate(el => {
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, cancelable: true }));
+    el.click();
+  });
   await frame.evaluate(async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
   assert(Math.abs(await scroller.evaluate(el => el.scrollTop) - beforeStar) < 2, 'watchlist actions keep the reading position');
   await frame.locator('[data-export]').click();

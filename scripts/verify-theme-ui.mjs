@@ -36,7 +36,11 @@ async function context(options = {}) {
   return ctx;
 }
 async function ready(page, route = 'ask-research') {
-  await page.goto(`${origin}/#/research/${route}?scope=universe`);
+  const [path, query = ''] = route.split('?');
+  const params = new URLSearchParams(query);
+  if (!params.has('scope')) params.set('scope', 'universe');
+  params.set('test_stream', '1');
+  await page.goto(`${origin}/#/research/${path}?${params.toString()}`);
   await page.locator('[data-theme-toggle]').waitFor();
 }
 const theme = page => page.locator('html').getAttribute('data-theme');
@@ -133,7 +137,11 @@ try {
       assert(contrast(head.color, head.bg) >= 4.5);
       await page.evaluate(() => { window.themeContentBefore = document.querySelector('#content-host').firstElementChild; });
       await toggle(page).click();
+<<<<<<< HEAD
       assert.equal((await surface(page, '[data-table-head]')).bg, 'rgb(250, 248, 241)', 'Glow champagne palette survives light/dark toggles');
+=======
+      assert.equal((await surface(page, '[data-table-head]')).bg, 'rgb(255, 255, 255)');
+>>>>>>> sattva/main
       await toggle(page).click();
       assert(await page.evaluate(() => window.themeContentBefore === document.querySelector('#content-host').firstElementChild), 'theme change does not remount the table');
     }
@@ -151,7 +159,7 @@ try {
   assert.equal(new Set(samples.slice(2, 5).map(s => s.fg)).size, 3, 'semantic colors remain distinct');
   assert.notEqual(await page.locator('#theme-samples polyline').evaluate(el => getComputedStyle(el).stroke), 'rgb(5, 150, 105)', 'SVG chart responds without remount');
   await page.locator('#theme-samples').evaluate(el => el.remove());
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe'; });
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&test_stream=1'; });
   await page.locator('.research-workspace').waitFor();
   for (const width of [1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
