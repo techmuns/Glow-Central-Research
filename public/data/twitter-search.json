@@ -1208,7 +1208,7 @@
       "error": "search-unavailable"
     },
     "isin:INE659A01023|Sudarshan Chemical Industries": {
-      "lastAttemptAt": "2026-09-10T09:18:30+00:00",
+      "lastAttemptAt": "2026-09-14T21:25:16+00:00",
       "error": "search-unavailable"
     },
     "isin:INE659A01023|SUDARSCHEM": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-14T20:51:42.768681+00:00"
+    "checkedAt": "2026-09-14T21:25:16.790104+00:00"
   }
 }
