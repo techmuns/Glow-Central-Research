@@ -38,6 +38,9 @@
 // The data layer owns no poller. Its tab subscribes to changes and revalidates every 90 seconds
 // while visible; cached reassembly never fetches.
 
+let lastAssembleInput = null;
+let lastAssembleOutput = null;
+
 import * as technicals from './technicals.js';
 import * as marketNews from './market-news.js';
 import * as earnings from './earnings-live.js';
@@ -625,7 +628,7 @@ function toFeedRow(feed, out, day) {
     const key = `${event.id}:${JSON.stringify(event.sourceRecord || event)}`;
     if (seen.has(key)) return false;
     seen.add(key); return true;
-  }).map((event) => ({ ...event, day: eventDay(event) }));
+  }).map((event) => ({ ...event, day: eventDay(event), feed: feed.id, feedLabel: feed.label, tab: feed.tab }));
   const days = events.map((event) => event.day).filter(Boolean).sort();
   return {
     ...feed,
@@ -761,14 +764,24 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
   });
 
   const feeds = dedupePublisherAlertFeeds(scopedFeeds, { day, entities: portfolioEntities });
+
+  const inputMatches = lastAssembleInput && lastAssembleInput.scope === scope && lastAssembleInput.day === day &&
+      lastAssembleInput.feeds.length === feeds.length && feeds.every((f, i) => f.events === lastAssembleInput.feeds[i].events);
+
+  const done = feeds.filter((f) => f.status !== 'pending');
+
+  if (inputMatches) {
+    return { ...lastAssembleOutput, feeds, pending: feeds.filter((f) => f.status === 'pending').length };
+  }
+
   const events = [];
-  for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
+  for (const f of feeds) for (const ev of f.events) events.push(ev);
   events.sort(byNewestFirst);
   ensureUniqueIds(events);
   const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
 
-  const done = feeds.filter((f) => f.status !== 'pending');
-  return {
+  lastAssembleInput = { feeds, scope, day };
+  lastAssembleOutput = {
     day,
     scope,
     includeHistory,
@@ -801,6 +814,7 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
       moveThreshold: MOVE_PCT,
     },
   };
+  return lastAssembleOutput;
 }
 
 /** Match stable company identity OR ticker, exactly as Portfolio News does. A discovered BSE
@@ -834,10 +848,11 @@ export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEn
  */
 function ensureUniqueIds(events) {
   const seen = new Map();
-  for (const ev of events) {
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
     const n = seen.get(ev.id) || 0;
     seen.set(ev.id, n + 1);
-    if (n) ev.id = `${ev.id}#${n}`;
+    if (n) events[i] = { ...ev, id: `${ev.id}#${n}` };
   }
   return events;
 }
@@ -1079,9 +1094,15 @@ const investorTicker = (move) => {
 /** The complete/incomplete rule for the investor feed, exported so an outage is testable. */
 export function investorCoverageState(m = {}) {
   const listFailed = m.ok === false;
+  // MISSING EVIDENCE AND UNCONFIRMED EVIDENCE ARE BOTH INCOMPLETE, AND THEY ARE NOT THE SAME
+  // CLAIM. A book with no copy at all contributes no rows and its absence can hide a real move;
+  // a retained book whose latest re-check did not answer contributes every one of its rows and is
+  // simply of a known age. Counting the second as missing is what let this feed report "90 of 90
+  // books available" and "90 could not be included" out of the same metadata.
   const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
+  const uncheckedBooks = Number(m.uncheckedBooks || 0);
   const staleBooks = Number(m.staleBooks || 0);
-  const incomplete = listFailed || missingBooks > 0 || m.stale === true || staleBooks > 0;
+  const incomplete = listFailed || missingBooks > 0 || m.stale === true || staleBooks > 0 || uncheckedBooks > 0;
   const problems = [
     listFailed
       ? `the investor list could not be read${m.reason || m.message ? ` (${m.reason || m.message})` : ''}`
@@ -1092,8 +1113,11 @@ export function investorCoverageState(m = {}) {
       : m.stale === true
         ? `the investor list is last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
         : null,
+    uncheckedBooks > 0
+      ? `${uncheckedBooks} investor book${uncheckedBooks === 1 ? ' is' : 's are'} retained from the last good read and could not be re-checked${m.staleReason ? ` (${m.staleReason})` : ''}`
+      : null,
   ].filter(Boolean);
-  return { incomplete, missingBooks, staleBooks, problems };
+  return { incomplete, missingBooks, staleBooks, uncheckedBooks, problems };
 }
 
 /** Quarterly disclosed holding changes. A disappearance is labelled, not overstated as a sale. */
