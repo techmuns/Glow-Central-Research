@@ -1152,7 +1152,7 @@
       "error": "search-unavailable"
     },
     "isin:INE728Z01015|SOFTTECH": {
-      "lastAttemptAt": "2026-09-10T01:10:35+00:00",
+      "lastAttemptAt": "2026-09-14T13:44:30+00:00",
       "error": "search-unavailable"
     },
     "isin:INE073K01018|Sona Blw Precision Forgings": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-14T13:09:26.887331+00:00"
+    "checkedAt": "2026-09-14T13:44:30.851694+00:00"
   }
 }
