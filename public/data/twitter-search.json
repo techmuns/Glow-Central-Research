@@ -1080,7 +1080,7 @@
       "error": "search-unavailable"
     },
     "isin:INE953O01021|SANSERA": {
-      "lastAttemptAt": "2026-09-09T14:33:07+00:00",
+      "lastAttemptAt": "2026-09-14T03:30:39+00:00",
       "error": "search-unavailable"
     },
     "isin:INE08NE01025|Sanstar": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 209,
-    "checkedAt": "2026-09-14T02:56:41.416242+00:00"
+    "checkedAt": "2026-09-14T03:30:39.173853+00:00"
   }
 }
