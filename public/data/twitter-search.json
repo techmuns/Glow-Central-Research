@@ -1100,7 +1100,7 @@
       "error": "search-unavailable"
     },
     "isin:INE597J01018|Shalby": {
-      "lastAttemptAt": "2026-09-09T17:57:02+00:00",
+      "lastAttemptAt": "2026-09-14T06:29:17+00:00",
       "error": "search-unavailable"
     },
     "isin:INE597J01018|SHALBY": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 209,
-    "checkedAt": "2026-09-14T05:54:26.586573+00:00"
+    "checkedAt": "2026-09-14T06:29:17.887740+00:00"
   }
 }
