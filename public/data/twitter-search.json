@@ -1124,7 +1124,7 @@
       "error": "search-unavailable"
     },
     "isin:INE526E01018|Shriram Pistons & Rings": {
-      "lastAttemptAt": "2026-09-09T21:26:44+00:00",
+      "lastAttemptAt": "2026-09-14T09:52:50+00:00",
       "error": "search-unavailable"
     },
     "isin:INE526E01018|SHRIPISTON": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-14T09:19:47.510943+00:00"
+    "checkedAt": "2026-09-14T09:52:50.049273+00:00"
   }
 }
