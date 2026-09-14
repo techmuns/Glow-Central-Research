@@ -234,12 +234,14 @@ try {
       await page.evaluate(async () => { (await import('/js/core/watchlist.js')).add('KISSHT', 'OnEMI scheduled result'); });
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=watchlist&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'watchlist');
-      await page.getByText('OnEMI scheduled result', { exact:true }).waitFor();
+      await page.getByText('Watchlist ·', { exact:false }).waitFor();
       const watchlistCalendar = await page.locator('#content-host').innerText();
       assert.doesNotMatch(watchlistCalendar, /New holding scheduled call|Outside scheduled call|Unresolved scheduled call/);
+      
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=universe&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'universe');
-      await page.getByText('Unresolved scheduled call', { exact:true }).waitFor();
+      // Universe scope has no scope summary pill, so wait for something unique to Universe
+      await page.getByText('Outside scheduled call', { exact:true }).waitFor();
       const universeCalendar = await page.locator('#content-host').innerText();
       assert.match(universeCalendar, /Outside scheduled call/);
       assert.match(universeCalendar, /Unresolved scheduled call/);

@@ -4786,6 +4786,11 @@ html[data-theme="dark"] {
 /* All Alerts is a reading workspace: spend the viewport on records, not chrome. Other tabs
    retain their existing framing. No row typography, virtual stride or data policy changes. */
 
+[data-reading-layout="table"] [data-app-header] {
+  padding-top: 16px;
+  padding-bottom: 8px;
+}
+
 [data-reading-layout="table"] [data-app-content] {
   max-width: 1800px;
   padding-left: 24px;

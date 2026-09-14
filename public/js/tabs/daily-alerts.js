@@ -379,7 +379,17 @@ function paint(ctx) {
     if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
     
     const coveragePanelContainer = ctx.root.querySelector('.alerts-source-picker');
-    if (coveragePanelContainer) coveragePanelContainer.outerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+    if (coveragePanelContainer) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+      const newPicker = tmp.firstElementChild;
+      const summary = coveragePanelContainer.querySelector('[data-sources-summary]');
+      const newSummary = newPicker.querySelector('[data-sources-summary]');
+      if (summary && newSummary) summary.innerHTML = newSummary.innerHTML;
+      const grid = coveragePanelContainer.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      const newGrid = newPicker.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      if (grid && newGrid) grid.innerHTML = newGrid.innerHTML;
+    }
     
     wireHorizon(ctx);
     wireFeedFilter(ctx, available);
