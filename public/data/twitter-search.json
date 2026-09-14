@@ -1128,7 +1128,7 @@
       "error": "search-unavailable"
     },
     "isin:INE526E01018|SHRIPISTON": {
-      "lastAttemptAt": "2026-09-09T22:02:37+00:00",
+      "lastAttemptAt": "2026-09-14T10:25:07+00:00",
       "error": "search-unavailable"
     },
     "isin:INE1NPP01017|Siemens Energy India": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-14T09:52:50.049273+00:00"
+    "checkedAt": "2026-09-14T10:25:07.000531+00:00"
   }
 }
