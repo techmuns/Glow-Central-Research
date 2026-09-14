@@ -1176,7 +1176,7 @@
       "error": "search-unavailable"
     },
     "isin:INE089C01029|Sterlite Technologies": {
-      "lastAttemptAt": "2026-09-10T04:34:38+00:00",
+      "lastAttemptAt": "2026-09-14T16:29:02+00:00",
       "error": "search-unavailable"
     },
     "isin:INE089C01029|SterliteTech": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-14T15:55:44.915044+00:00"
+    "checkedAt": "2026-09-14T16:29:02.583011+00:00"
   }
 }
