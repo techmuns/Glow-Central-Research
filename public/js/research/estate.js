@@ -63,7 +63,7 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over All Alerts: which companies carry the most material, corroborated recent evidence.' },
   { id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts', description: 'The complete normalized top-of-funnel pool across all twenty dashboard feed categories, including raw filings, schedules, snapshots, documents, posts and market events.' },
   { id: 'screener-insights', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'Source-backed yearly and quarterly operating metrics extracted by Screener from company filings and presentations; context only, never an alert trigger by itself.' },
-  { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns.' },
+  { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns. Analyst consensus estimates are not connected.' },
   { id: 'company-filings', tab: 'Earnings Hub', route: '#/research/earnings-hub?view=filings', description: 'Company document titles, periods and source links already read in Company Filings. PDF contents are not extracted.' },
   { id: 'earnings-calendar', tab: 'Earnings Hub', route: '#/research/earnings-hub?view=calendar', description: 'Currently loaded scheduled-result and upcoming-con-call dates and company lists.' },
   { id: 'concall', tab: 'Con-call', route: '#/research/concall', description: 'Screener’s retained transcript, recording and presentation index, enriched with StockScans scores and sentiment where available.' },
@@ -95,7 +95,7 @@ const MATCH_ROW_LIMIT = 14;
 // window; this row budget must never be spent on repeating the full ledger.
 export const RESEARCH_EVIDENCE_CHAR_BUDGET = 18_000;
 // The share of the budget that rows are guaranteed. The skeleton is trimmed before a row is refused.
-export const ROW_RESERVE_SHARE = 0.4;
+export const ROW_RESERVE_SHARE = 0.5;
 // The score a row earns when the question named its company. Above any number of token hits, so a
 // company question lists that company's rows from every source before anything else.
 const COMPANY_SCORE = 8;
@@ -292,7 +292,7 @@ export function queryPlan(question, index = [], { scope = 'universe', holdings =
       ['ready', 'limited'].includes(portfolio?.status) && portfolio?.mode === 'verified-holdings',
     businessWeightsComplete: portfolioPositions?.sizes?.complete === true,
     tokens: tokens.filter((token) => !consumed.has(token)),
-    topics: questionTopics(question),
+    topics: questionTopics([...consumed].reduce((remaining, word) => remaining.replaceAll(new RegExp(`\\b${word}\\b`, 'gi'), ' '), outsidePhrases)),
     sourceIds: [/\btelegram\b/i.test(question) && 'telegram', /\b(?:public )?chatter\b/i.test(question) && 'public-chatter', /\b(?:public )?chatter\b/i.test(question) && 'chatter-posts'].filter(Boolean),
     window: questionWindow(question, now),
     crossHolding: !!business || /\b(other|rest|across)\b.*\b(holdings|portfolio|stocks|positions|book)\b/i.test(question),
@@ -378,6 +378,7 @@ export function chooseRows(rows, plan, mapRow, compare = null) {
   const byRelevance = (a, b) => referenceLast(a, b) ||
     // An explicit event question finds that event before generic company news.
     b.context.topic - a.context.topic || a.context.temporalRank - b.context.temporalRank ||
+    (tierOf(a) === 0 && compare ? compare(a.row, b.row) : 0) ||
     b.score - a.score || byDefault(a, b);
   scored.sort((a, b) => tierOf(a) - tierOf(b) || byRelevance(a, b));
   const matchedRows = scored.filter((item) => item.score > 0).length;
@@ -534,8 +535,24 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     // representative; provenance, dates and definitions remain intact.
     if (candidate.rowIndex === 0 && measure() > charBudget) trimSkeleton(packet.sources, measure, charBudget);
     if (measure() > charBudget) {
-      sample.rows.pop();
-      continue;
+      if (candidate.rowIndex === 0 && sample.rows.length === 1) {
+        for (const field of ['detail', 'summary', 'headline', 'text']) {
+          if (candidate.row[field] && typeof candidate.row[field] === 'string' && candidate.row[field].length > 120) {
+            candidate.row[field] = clipped(candidate.row[field], 120);
+          }
+        }
+        if (measure() > charBudget) {
+          delete candidate.row.detail;
+          delete candidate.row.summary;
+        }
+        if (measure() > charBudget) {
+          sample.rows.pop();
+          continue;
+        }
+      } else {
+        sample.rows.pop();
+        continue;
+      }
     }
     sample.includedRows += 1;
   }
@@ -852,7 +869,7 @@ const BUILDERS = [
         asOf: meta.fetchedAt || meta.checkedAt || null,
         rowCount: rows.length,
         coverage: { allReportedRows: meta.count ?? earningsLive.all().length },
-        definition: `${meta.quarter || 'Current quarter'} · ${meta.currentPeriod || 'current'} vs ${meta.priorPeriod || 'prior'} · ${String(meta.subType || 'yoy').toUpperCase()}. ₹ crore. growthPct is absent where the sign changed; change says how.`,
+        definition: `${meta.quarter || 'Current quarter'} · ${meta.currentPeriod || 'current'} vs ${meta.priorPeriod || 'prior'} · ${String(meta.subType || 'yoy').toUpperCase()}. ₹ crore. growthPct is absent where the sign changed; change says how. Analyst consensus estimates are not connected; reported growth is not an earnings surprise.`,
         ...chooseRows(rows, plan, earningsRow, byDateDesc('resultDate')),
       });
     },
@@ -1056,7 +1073,11 @@ const BUILDERS = [
         source: 'Original NSE/BSE shareholding filings and Ticker Finology portfolios',
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
+<<<<<<< HEAD
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failedBooks },
+=======
+        coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failedBooks || 0 },
+>>>>>>> sattva/main
         summary: {
           publicDisclosureCoverage: publicHoldings.report()?.coverage || null,
           counts: summary.counts,
