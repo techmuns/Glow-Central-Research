@@ -1144,7 +1144,7 @@
       "error": "search-unavailable"
     },
     "isin:INE01IU01018|SKYGOLD": {
-      "lastAttemptAt": "2026-09-09T23:54:59+00:00",
+      "lastAttemptAt": "2026-09-14T12:38:08+00:00",
       "error": "search-unavailable"
     },
     "isin:INE728Z01015|Softtech Engineers": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-14T12:05:10.882929+00:00"
+    "checkedAt": "2026-09-14T12:38:08.032485+00:00"
   }
 }
