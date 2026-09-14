@@ -1160,7 +1160,7 @@
       "error": "search-unavailable"
     },
     "isin:INE073K01018|SONACOMS": {
-      "lastAttemptAt": "2026-09-10T02:10:15+00:00",
+      "lastAttemptAt": "2026-09-14T14:50:34+00:00",
       "error": "search-unavailable"
     },
     "isin:INE12Z301012|Sotefin Bharat": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-14T14:17:27.729823+00:00"
+    "checkedAt": "2026-09-14T14:50:34.705231+00:00"
   }
 }
