@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 // GLOW-owned exchange history. Compact tuples keep a year of reports inexpensive to deliver.
 // source id, date, exchange security id, display name, client, side, shares, price, remarks.
+=======
+// Sattva-owned exchange history. Compact tuples keep a year of reports inexpensive to deliver.
+// source id, date, exchange security id, display name, client, side, shares, price, remarks.
+import { mergeInsiderTrades } from './insider-history.js';
+>>>>>>> sattva/main
 export const EXCHANGE_SOURCES = [
   { id: 'nse-bulk', exchange: 'NSE', category: 'Bulk deal', url: 'https://www.nseindia.com/report-detail/display-bulk-and-block-deals' },
   { id: 'nse-block', exchange: 'NSE', category: 'Block deal', url: 'https://www.nseindia.com/report-detail/display-bulk-and-block-deals' },
@@ -18,8 +24,20 @@ export function validateExchangeSnapshot(data) {
   for (const r of data.records) {
     if (!Array.isArray(r) || !EXCHANGE_SOURCES.some((s) => s.id === r[0]) || !validDay(r[1]) || !(r[0].startsWith('bse-') ? /^\d{6}$/.test(r[2]) : /^[A-Z0-9&_.+\-]+$/.test(r[2])) || typeof r[3] !== 'string' || !r[3].trim() || typeof r[4] !== 'string' || !r[4].trim() || !['Buy', 'Sell'].includes(r[5]) || !Number.isSafeInteger(r[6]) || r[6] <= 0 || !Number.isFinite(r[7]) || r[7] < 0) throw new Error('Invalid exchange deal');
   }
+<<<<<<< HEAD
   return data;
 }
+=======
+  if (data.insiders) {
+    if (!Array.isArray(data.insiders.targetTickers) || !data.insiders.byTicker || typeof data.insiders.byTicker !== 'object') throw new Error('Unreadable insider checkpoint');
+    for (const entry of Object.values(data.insiders.byTicker)) {
+      if (!Array.isArray(entry.trades) || entry.trades.some(r => !r?.ticker || !r.cells || typeof r.cells !== 'object')) throw new Error('Unreadable insider checkpoint rows');
+    }
+  }
+  return data;
+}
+export const supplementalInsiders = snapshot => Object.values(snapshot?.insiders?.byTicker || {}).flatMap(entry => entry.trades || []);
+>>>>>>> sattva/main
 export const sourceCovers = (source, date) => (source?.coverage || []).some((w) => w.from <= date && date <= w.to);
 export function exchangeRows(snapshot) {
   return (snapshot?.records || []).map(([sourceId, date, security, company, client, side, quantity, price, remarks]) => {
@@ -37,8 +55,13 @@ export function exchangeRows(snapshot) {
  * No guesses about a missing exchange, rounded quantity, or similar client name are necessary.
  * The secondary capture remains stored and fills dates/venues outside official coverage.
  */
+<<<<<<< HEAD
 export function combineExchangeDeals(secondary, snapshot, officialRows = exchangeRows(snapshot)) {
   const kept = secondary.filter((row) => {
+=======
+export function combineExchangeDeals(secondary, snapshot, officialRows = exchangeRows(snapshot), supplement = supplementalInsiders(snapshot)) {
+  const kept = mergeInsiderTrades(secondary, supplement).filter((row) => {
+>>>>>>> sattva/main
     const category = row.cells?.['Trade Category'];
     if (!['Bulk deal', 'Block deal'].includes(category)) return true;
     const exchange = String(row.cells?.Exchange || '').toUpperCase();
@@ -51,8 +74,33 @@ export function exchangeSummary(snapshot, deliveryError = null, now = Date.now()
   if (!snapshot) return 'NSE / BSE reports are loading.';
   const identityNote = snapshot.identity?.ok === false ? ' Security mapping refresh failed; last verified identifiers are retained.' : '';
   const failed = snapshot.sources.filter((s) => !s.ok).map((s) => `${s.id.toUpperCase()}: ${s.error || 'unavailable'}`);
+<<<<<<< HEAD
   const age = now - Date.parse(snapshot.checkedAt);
+=======
+  const oldestSuccess = snapshot.sources.map(s => Date.parse(s.lastSuccessAt)).filter(Number.isFinite);
+  const age = oldestSuccess.length === 4 ? now - Math.min(...oldestSuccess) : Infinity;
+>>>>>>> sattva/main
   const stale = age > 3 * 60 * 60 * 1000 ? ' Capture is delayed; retained reports are shown.' : '';
   const latest = snapshot.records.reduce((last, r) => r[1] > last ? r[1] : last, '');
   return `NSE + BSE · ${snapshot.records.length.toLocaleString('en-IN')} reports · latest deal ${latest || 'none reported'} · checked ${new Date(snapshot.checkedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })} IST.${stale}${failed.length ? ` Source gaps: ${failed.join('; ')}.` : ''}${identityNote}${deliveryError ? ` ${deliveryError}` : ''}`;
 }
+<<<<<<< HEAD
+=======
+
+export function insiderSummary(snapshot, tickers, now = Date.now()) {
+  const source = snapshot?.insiders;
+  if (!source) return 'Supplementary insider disclosures have not been checked yet.';
+  const wanted = tickers?.length ? tickers : source.targetTickers;
+  const checks = wanted.map(t => source.byTicker[t]);
+  const good = checks.filter(c => c?.lastSuccessAt);
+  const latest = good.flatMap(c => c.trades).reduce((d, r) => r.date > d ? r.date : d, '');
+  const missing = checks.filter(c => !c?.lastSuccessAt).length;
+  const failed = checks.filter(c => c?.error).length;
+  const delayed = good.filter(c => now - Date.parse(c.lastSuccessAt) > 4 * 3600000).length;
+  const oldest = good.map(c => c.lastSuccessAt).sort()[0];
+  const checked = oldest ? ` · oldest successful check ${new Date(oldest).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })} IST` : '';
+  return `Muns insider disclosures · ${good.length}/${wanted.length} companies checked · latest disclosure ${latest || 'none reported'}${checked}.` +
+    (missing ? ` ${missing} unchecked.` : '') + (failed ? ` ${failed} failed checks; retained disclosures shown.` : '') +
+    (delayed ? ` ${delayed} company checks are delayed.` : '') + (source.error ? ` ${source.error}` : '');
+}
+>>>>>>> sattva/main
